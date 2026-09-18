@@ -149,34 +149,21 @@ namespace TummlyBackend.Controllers
             }
         }
 
-        [HttpPost("choose-plan")]
-        public async Task<IActionResult> ChoosePlan(
-            [FromQuery] Guid sessionToken,
-            [FromBody] ChooseSignupPlanDto dto
+        [HttpPost("retry-provision")]
+        public async Task<IActionResult> RetryProvision(
+            [FromQuery] Guid sessionToken
         )
         {
             try
             {
-                var result = await _signupService.ChoosePlanAsync(
-                    sessionToken,
-                    dto.PlanId,
-                    dto.Cadence
-                );
+                await _signupService.RetryProvisionAsync(sessionToken);
 
                 return Ok(
                     new
                     {
                         success = true,
-                        message = "Plan selection processed.",
-                        data = result,
+                        message = "Provisioning restarted.",
                     }
-                );
-            }
-            catch (NotImplementedException ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status501NotImplemented,
-                    new { success = false, message = ex.Message }
                 );
             }
             catch (Exception ex)

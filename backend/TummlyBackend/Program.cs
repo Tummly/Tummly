@@ -262,7 +262,6 @@ builder.Services.AddOperatorSignalR(builder.Configuration);
 builder.Services.AddScoped<ITrialService, TrialService>();
 
 builder.Services.AddScoped<ISignupService, SignupService>();
-builder.Services.AddScoped<ISignupPaySession, SignupPaySessionService>();
 builder.Services.AddScoped<IProvisioningService, GuestLoopProvisioningService>();
 
 builder.Services.AddScoped<ISmartGuestLinkService, SmartGuestLinkService>();

@@ -29,7 +29,6 @@ namespace TummlyBackend.Services
             private readonly ICreditLedger _creditLedger;
             private readonly IRevolutMerchantClient _merchant;
             private readonly TimeProvider _clock;
-            private readonly IProvisioningService _provisioning;
 
             public RevolutOrderCompletedApplier(
                 ApplicationDbContext context,
@@ -40,7 +39,6 @@ namespace TummlyBackend.Services
                 ICreditLedger creditLedger,
                 IRevolutMerchantClient merchant,
                 TimeProvider clock,
-                IProvisioningService provisioning,
                 ITummlyVatInvoiceEmailDelivery? invoiceEmail = null
             )
             {
@@ -53,7 +51,6 @@ namespace TummlyBackend.Services
                 _creditLedger = creditLedger;
                 _merchant = merchant;
                 _clock = clock;
-                _provisioning = provisioning;
             }
 
         public static bool IsMintableBillingReason(string? billingReason)
@@ -138,19 +135,6 @@ namespace TummlyBackend.Services
                     request.PaymentMethodSummary,
                     cancellationToken
                 );
-                return;
-            }
-
-            if (
-                intent != null
-                && string.Equals(
-                    intent.Purpose,
-                    RevolutOrderIntentPurposes.SignupPlan,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                await ApplySignupPlanAsync(intent, cancellationToken);
                 return;
             }
 
@@ -924,56 +908,6 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
             return invoice;
-        }
-
-        private async Task ApplySignupPlanAsync(
-            RevolutOrderIntent intent,
-            CancellationToken cancellationToken
-        )
-        {
-            if (!intent.IsOpen)
-            {
-                return;
-            }
-
-            if (intent.PendingSignupId is not Guid pendingSignupId)
-            {
-                throw new InvalidOperationException("missing_pending_signup_id");
-            }
-
-            var pending = await _context.PendingSignups.FirstOrDefaultAsync(
-                row => row.Id == pendingSignupId,
-                cancellationToken
-            );
-            if (pending == null)
-            {
-                throw new InvalidOperationException("pending_signup_missing");
-            }
-
-            var nowUtc = _clock.GetUtcNow().UtcDateTime;
-            if (!string.IsNullOrWhiteSpace(intent.TargetPlan))
-            {
-                pending.ChosenPlan = intent.TargetPlan;
-            }
-
-            if (!string.IsNullOrWhiteSpace(intent.TargetCadence))
-            {
-                pending.ChosenCadence = intent.TargetCadence;
-            }
-
-            pending.RevolutOrderId = intent.OrderId;
-
-            if (pending.Status != PendingSignupStatuses.Complete)
-            {
-                pending.Status = PendingSignupStatuses.Provisioning;
-                pending.UpdatedAtUtc = nowUtc;
-                await _context.SaveChangesAsync(cancellationToken);
-
-                await _provisioning.ProvisionFromPendingAsync(pendingSignupId);
-            }
-
-            intent.IsOpen = false;
-            await _context.SaveChangesAsync(cancellationToken);
         }
 
         private static int RequireRestaurantId(RevolutOrderIntent intent)

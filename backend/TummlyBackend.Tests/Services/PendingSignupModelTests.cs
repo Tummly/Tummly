@@ -21,14 +21,5 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("Complete", PendingSignupStatuses.Complete);
             Assert.Equal("Abandoned", PendingSignupStatuses.Abandoned);
         }
-
-        [Fact]
-        public void RevolutOrderIntentPurposes_IncludesSignupPlan()
-        {
-            Assert.Equal(
-                "signup_plan",
-                RevolutOrderIntentPurposes.SignupPlan
-            );
-        }
     }
 }

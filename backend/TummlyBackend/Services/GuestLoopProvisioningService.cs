@@ -19,13 +19,17 @@ namespace TummlyBackend.Services
         private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
         private readonly IConfiguration _configuration;
         private readonly IPricebookCatalog _pricebookCatalog;
+        private readonly ICreditLedger _creditLedger;
+        private readonly IBillingAccountLifecycle _lifecycle;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
             IQrCodeProvisioningService qrCodeProvisioning,
             IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
             IConfiguration configuration,
-            IPricebookCatalog pricebookCatalog
+            IPricebookCatalog pricebookCatalog,
+            ICreditLedger creditLedger,
+            IBillingAccountLifecycle lifecycle
         )
         {
             _context = context;
@@ -33,6 +37,8 @@ namespace TummlyBackend.Services
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
             _configuration = configuration;
             _pricebookCatalog = pricebookCatalog;
+            _creditLedger = creditLedger;
+            _lifecycle = lifecycle;
         }
 
         public async Task<InviteTokenResult> ValidateInviteTokenAsync(string token)
@@ -334,9 +340,14 @@ namespace TummlyBackend.Services
             await using var transaction =
                 await _context.Database.BeginTransactionAsync();
             var provisionedLocations = new List<RestaurantLocation>();
+            int? restaurantId = null;
+            DateTime? activatedAt = null;
 
             try
             {
+                var now = DateTime.UtcNow;
+                activatedAt = now;
+
                 var user = new User
                 {
                     FullName = input.FullName,
@@ -350,6 +361,9 @@ namespace TummlyBackend.Services
                     IsLocked = false,
                     FailedLoginAttempts = 0,
                     TermsAccepted = input.TermsAccepted,
+                    ActivatedAt = now,
+                    ActivationExpiresAt =
+                        ActivationCodeHelper.ComputeActivationExpiresAt(now),
                 };
 
                 _context.Users.Add(user);
@@ -367,7 +381,7 @@ namespace TummlyBackend.Services
                     BusinessCategory = input.BusinessCategory,
                     BusinessLink = input.BusinessLink,
                     PublicPhoneNumber = input.PrimaryPhone,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = now,
                     BillingAccount =
                         BillingCreditsService.CreateDefaultBillingAccount(
                             restaurantId: 0,
@@ -378,6 +392,7 @@ namespace TummlyBackend.Services
                 _context.Restaurants.Add(restaurant);
                 await _context.SaveChangesAsync();
 
+                restaurantId = restaurant.Id;
                 user.SelectedRestaurantId = restaurant.Id;
 
                 var scopeError = MembershipLocationScope.Validate(
@@ -420,7 +435,7 @@ namespace TummlyBackend.Services
                             item.LocationPhone
                         ),
                         LocalContact = item.LocalContact,
-                        CreatedAt = DateTime.UtcNow,
+                        CreatedAt = now,
                     };
 
                     _context.RestaurantLocations.Add(location);
@@ -436,18 +451,33 @@ namespace TummlyBackend.Services
                     RestaurantId = restaurant.Id,
                     SendPhysicalQrMaterials = false,
                     AutoSendReviewRequests = true,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = now,
                 };
 
                 _context.GuestLoopSetups.Add(guestLoop);
-                await _context.SaveChangesAsync();
 
+                var mintResult = await _creditLedger.MintPilotAtActivationAsync(
+                    restaurant.Id
+                );
+                if (!mintResult.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        "Unable to complete account activation."
+                    );
+                }
+
+                await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
             }
             catch
             {
                 await transaction.RollbackAsync();
                 throw;
+            }
+
+            if (restaurantId.HasValue && activatedAt.HasValue)
+            {
+                await _lifecycle.TickAsync(restaurantId.Value, activatedAt.Value);
             }
 
             foreach (var location in provisionedLocations)

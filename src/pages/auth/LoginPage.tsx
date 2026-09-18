@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
+
 import { useForm } from "react-hook-form"
 import { Navigate, useSearchParams } from "react-router-dom"
 
@@ -10,8 +11,6 @@ import { SignInForm } from "@/components/auth/SignInForm"
 import { SignInChooseMethodStep } from "@/components/auth/SignInChooseMethodStep"
 import { SignInChooseWorkspaceStep } from "@/components/auth/SignInChooseWorkspaceStep"
 import { SignInVerifyOtpStep } from "@/components/auth/SignInVerifyOtpStep"
-import { SignInActivationCodeStep } from "@/components/auth/SignInActivationCodeStep"
-import { activateAccount } from "@/api/authActivation"
 import axiosInstance from "@/api/axiosInstance"
 import { isAxiosError } from "axios"
 import {
@@ -39,7 +38,6 @@ import {
   fetchCurrentUserRouting,
   getAuthenticatedLoginDestination,
   getFallbackLoginDestination,
-  isAuthenticatedActivationCodeDestination,
 } from "@/lib/sessionRouting"
 import {
   fetchWorkspaceLocations,
@@ -52,31 +50,23 @@ import {
   toSignInPayload,
   type SignInCredentialsValues,
 } from "@/schemas/signIn"
-import {
-  signInActivationCodeSchema,
-  normalizeActivationCodeInput,
-} from "@/schemas/signInActivation"
 import { useAuthStore } from "@/stores/authStore"
 import {
   completeUserSession,
   getDeviceToken,
-  getPostLoginDestination,
-  isActivationCodeDestination,
   isWorkspaceSetupDestination,
   parseTrustSkipLoginResponse,
   parseVerifyOtpResponse,
-  persistActivationRequired,
   persistAuthSession,
   persistSelectedLocation,
   type UserSessionPayload,
 } from "../utils/authHelpers"
-import { getFetchErrorMessage, readBoolean, readNumber, readString, unwrapDataObject } from "@/lib/apiEnvelope"
+import { getFetchErrorMessage } from "@/lib/apiEnvelope"
 
 const STEPS = {
   LOGIN: "LOGIN",
   VERIFY_OTP: "VERIFY_OTP",
   CHOOSE_SIGN_IN_METHOD: "CHOOSE_SIGN_IN_METHOD",
-  ACTIVATION_CODE: "ACTIVATION_CODE",
   WORKSPACE_SETUP: "WORKSPACE_SETUP",
 } as const
 
@@ -107,10 +97,6 @@ function LoginPageContent() {
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
   const [workspaceSubmitting, setWorkspaceSubmitting] = useState(false)
 
-  const [activationCode, setActivationCode] = useState("")
-  const [activationError, setActivationError] = useState<string | null>(null)
-  const [activationSubmitting, setActivationSubmitting] = useState(false)
-
   const [authRedirectTarget, setAuthRedirectTarget] = useState<string | null>(
     null
   )
@@ -137,14 +123,6 @@ function LoginPageContent() {
   ) => {
     const destination = completeUserSession(session, deviceToken)
 
-    if (isActivationCodeDestination(destination)) {
-      setSearchParams({}, { replace: true })
-      setActivationCode("")
-      setActivationError(null)
-      setStep(STEPS.ACTIVATION_CODE)
-      return
-    }
-
     if (isWorkspaceSetupDestination(destination)) {
       setSearchParams({}, { replace: true })
       setWorkspaces([])
@@ -168,10 +146,7 @@ function LoginPageContent() {
       return
     }
 
-    if (
-      searchParams.get("step") === "workspace-setup" ||
-      searchParams.get("step") === "activation-code"
-    ) {
+    if (searchParams.get("step") === "workspace-setup") {
       setAuthRedirectResolved(true)
       return
     }
@@ -213,14 +188,6 @@ function LoginPageContent() {
 
       const destination = getAuthenticatedLoginDestination(routing)
 
-      if (isAuthenticatedActivationCodeDestination(destination)) {
-        setActivationCode("")
-        setActivationError(null)
-        setStep(STEPS.ACTIVATION_CODE)
-        setAuthRedirectResolved(true)
-        return
-      }
-
       if (isWorkspaceSetupDestination(destination)) {
         setWorkspaces([])
         setSelectedLocationId(null)
@@ -259,20 +226,6 @@ function LoginPageContent() {
     setWorkspaceError(null)
     setWorkspaceLoading(true)
     setStep(STEPS.WORKSPACE_SETUP)
-  }, [hasHydrated, token, searchParams])
-
-  useEffect(() => {
-    if (
-      !hasHydrated ||
-      searchParams.get("step") !== "activation-code" ||
-      !token
-    ) {
-      return
-    }
-
-    setActivationCode("")
-    setActivationError(null)
-    setStep(STEPS.ACTIVATION_CODE)
   }, [hasHydrated, token, searchParams])
 
   useEffect(() => {
@@ -488,93 +441,6 @@ function LoginPageContent() {
     }
   }
 
-  const navigateAfterActivation = (
-    accountType: string,
-    workspaceSetupRequired: boolean,
-    selectedLocationId: number | null,
-    activationRequired: boolean
-  ) => {
-    const destination = getPostLoginDestination(
-      accountType,
-      workspaceSetupRequired,
-      selectedLocationId,
-      activationRequired
-    )
-
-    if (isWorkspaceSetupDestination(destination)) {
-      setWorkspaces([])
-      setSelectedLocationId(null)
-      setWorkspaceError(null)
-      setWorkspaceLoading(true)
-      setStep(STEPS.WORKSPACE_SETUP)
-      return
-    }
-
-    if (selectedLocationId != null) {
-      persistSelectedLocation(selectedLocationId)
-    }
-
-    persistActivationRequired(activationRequired)
-
-    window.location.href = destination
-  }
-
-  const handleActivationSubmit = async (
-    event: FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault()
-    setActivationError(null)
-
-    const parsed = signInActivationCodeSchema.safeParse({
-      activationCode: normalizeActivationCodeInput(activationCode),
-    })
-
-    if (!parsed.success) {
-      setActivationError(
-        parsed.error.issues[0]?.message ?? "Enter a valid activation code."
-      )
-      return
-    }
-
-    try {
-      setActivationSubmitting(true)
-
-      const response = await activateAccount(parsed.data.activationCode)
-      const data = unwrapDataObject(response)
-
-      if (!data) {
-        setActivationError("Activation succeeded but session data was missing.")
-        return
-      }
-
-      const accountType =
-        readString(data, "accountType") ??
-        useAuthStore.getState().accountType ??
-        "Single"
-
-      navigateAfterActivation(
-        accountType,
-        readBoolean(data, "workspaceSetupRequired") ?? false,
-        readNumber(data, "selectedLocationId"),
-        readBoolean(data, "activationRequired") ?? false
-      )
-    } catch (error) {
-      if (isAxiosError(error)) {
-        setActivationError(
-          getFetchErrorMessage(
-            error.response?.data,
-            "Activation failed."
-          )
-        )
-        return
-      }
-
-      setActivationError("Activation failed.")
-    } finally {
-      setActivationSubmitting(false)
-    }
-  }
-
   const applyOtpSendResult = (result: SendOtpApiResult) => {
     setOtpChannel(result.otpChannel)
     if (result.maskedPhone) {
@@ -767,8 +633,7 @@ function LoginPageContent() {
     token &&
     !authRedirectResolved &&
     authRedirectTarget === null &&
-    searchParams.get("step") !== "workspace-setup" &&
-    searchParams.get("step") !== "activation-code"
+    searchParams.get("step") !== "workspace-setup"
 
   if (!hasHydrated || awaitingSessionRedirect) {
     return (
@@ -823,18 +688,6 @@ function LoginPageContent() {
           hasVerifiedPhone={hasVerifiedPhone}
           onSendViaEmail={handleSendViaEmail}
           onSendViaSms={handleSendViaSms}
-        />
-      )}
-
-      {step === STEPS.ACTIVATION_CODE && (
-        <SignInActivationCodeStep
-          activationCode={activationCode}
-          submitting={activationSubmitting}
-          error={activationError}
-          onActivationCodeChange={(value) =>
-            setActivationCode(normalizeActivationCodeInput(value))
-          }
-          onSubmit={handleActivationSubmit}
         />
       )}
 

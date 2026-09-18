@@ -9,7 +9,7 @@ namespace TummlyBackend.DTOs.Signup
         public string Status { get; set; } = string.Empty;
 
         /// <summary>
-        /// Client step hint: verify | create-password | restaurant | choose-plan |
+        /// Client step hint: verify | create-password | restaurant |
         /// payment | provisioning | complete | restart.
         /// </summary>
         public string LastStepHint { get; set; } = string.Empty;

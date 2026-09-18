@@ -10,12 +10,10 @@ import {
 import {
   getMultiDashboardPath,
   getPostLoginDestination,
-  getPersistedActivationRequired,
   getSelectedLocationId,
   persistAuthSession,
   persistSelectedLocation,
   WORKSPACE_SETUP_PATH,
-  ACTIVATION_CODE_PATH,
   clearAuthSession,
 } from "@/pages/utils/authHelpers"
 import { getAuthAccountType, getAuthRole, getAuthToken } from "@/stores/authStore"
@@ -61,7 +59,7 @@ export function parseCurrentUserRouting(
     selectedLocationId: readNumber(data, "selectedLocationId"),
     workspaceSetupRequired:
       readBoolean(data, "workspaceSetupRequired") ?? false,
-    activationRequired: readBoolean(data, "activationRequired") ?? false,
+    activationRequired: false,
     activationExpiresAt: readOptionalNullableString(
       data,
       "activationExpiresAt"
@@ -110,8 +108,7 @@ export function getAuthenticatedLoginDestination(
   return getPostLoginDestination(
     routing.accountType,
     routing.workspaceSetupRequired,
-    routing.selectedLocationId ?? getSelectedLocationId(),
-    routing.activationRequired
+    routing.selectedLocationId ?? getSelectedLocationId()
   )
 }
 
@@ -130,13 +127,8 @@ export function getFallbackLoginDestination(): string | null {
   return getPostLoginDestination(
     accountType,
     false,
-    getSelectedLocationId(),
-    getPersistedActivationRequired()
+    getSelectedLocationId()
   )
-}
-
-export function isAuthenticatedActivationCodeDestination(path: string) {
-  return path === ACTIVATION_CODE_PATH
 }
 
 export function isAuthenticatedWorkspaceSetupDestination(path: string) {

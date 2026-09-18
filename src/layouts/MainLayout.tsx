@@ -8,15 +8,9 @@ import {
 import { isOperatorDashboardPath } from "@/lib/operatorAppearance"
 import { cn } from "@/lib/utils"
 
-function isGuestLoopRegisterPath(pathname: string) {
-  return pathname.startsWith("/register/")
-}
-
 function MainLayout() {
   const { pathname } = useLocation()
   const isOperatorDashboard = isOperatorDashboardPath(pathname)
-  const useMarketingBodyChrome =
-    !isOperatorDashboard && !isGuestLoopRegisterPath(pathname)
 
   return (
     <div
@@ -31,10 +25,7 @@ function MainLayout() {
         className={
           isOperatorDashboard
             ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-            : cn(
-                "flex flex-1 flex-col",
-                useMarketingBodyChrome && marketingBodyChromePadding,
-              )
+            : cn("flex flex-1 flex-col", marketingBodyChromePadding)
         }
       >
         <Outlet />

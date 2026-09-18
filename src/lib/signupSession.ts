@@ -1,5 +1,4 @@
 const SIGNUP_SESSION_KEY = "tummly.signupSession"
-const SIGNUP_PAID_INTENT_KEY = "tummly.signupPaidIntent"
 
 export function buildSignupVerifyPath(email: string) {
   const trimmed = email.trim()
@@ -16,19 +15,6 @@ export function readSignupSessionToken(): string | null {
   return value
 }
 
-export function markSignupPaidIntent() {
-  sessionStorage.setItem(SIGNUP_PAID_INTENT_KEY, "1")
-}
-
-export function readSignupPaidIntent(): boolean {
-  return sessionStorage.getItem(SIGNUP_PAID_INTENT_KEY) === "1"
-}
-
-export function clearSignupPaidIntent() {
-  sessionStorage.removeItem(SIGNUP_PAID_INTENT_KEY)
-}
-
 export function clearSignupSessionToken() {
   sessionStorage.removeItem(SIGNUP_SESSION_KEY)
-  clearSignupPaidIntent()
 }

@@ -81,7 +81,9 @@ namespace TummlyBackend.Tests.Services
                 qrCodeProvisioning,
                 new NoOpPrintReadyQrMaterialsWork(),
                 configuration,
-                PricebookCatalog.LoadFromDirectory(packDir)
+                PricebookCatalog.LoadFromDirectory(packDir),
+                new NoOpCreditLedger(),
+                new NoOpBillingAccountLifecycle()
             );
         }
 
@@ -183,6 +185,8 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("owner@example.com", user.Email);
             Assert.Equal("+447911123456", user.PhoneNumber);
             Assert.True(user.TermsAccepted);
+            Assert.NotNull(user.ActivatedAt);
+            Assert.NotNull(user.ActivationExpiresAt);
             Assert.Equal("The Golden Fork", restaurant.Name);
             Assert.Equal(restaurant.Id, guestLoop.RestaurantId);
             Assert.True(trialRequest.IsAccountCreated);
@@ -248,8 +252,8 @@ namespace TummlyBackend.Tests.Services
 
             Assert.NotNull(user.ActivationCodeHash);
             Assert.NotNull(user.ActivationCodeEncrypted);
-            Assert.Null(user.ActivatedAt);
-            Assert.Null(user.ActivationExpiresAt);
+            Assert.NotNull(user.ActivatedAt);
+            Assert.NotNull(user.ActivationExpiresAt);
         }
 
         [Fact]

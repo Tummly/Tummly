@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import {
   buildSignupVerifyPath,
-  clearSignupPaidIntent,
   clearSignupSessionToken,
-  markSignupPaidIntent,
-  readSignupPaidIntent,
   readSignupSessionToken,
   saveSignupSessionToken,
 } from "./signupSession"
@@ -30,25 +27,5 @@ describe("signupSessionToken", () => {
 
     clearSignupSessionToken()
     expect(readSignupSessionToken()).toBeNull()
-  })
-})
-
-describe("signupPaidIntent", () => {
-  beforeEach(() => {
-    clearSignupPaidIntent()
-  })
-
-  it("marks and reads paid intent", () => {
-    expect(readSignupPaidIntent()).toBe(false)
-    markSignupPaidIntent()
-    expect(readSignupPaidIntent()).toBe(true)
-    clearSignupPaidIntent()
-    expect(readSignupPaidIntent()).toBe(false)
-  })
-
-  it("clears paid intent with session token", () => {
-    markSignupPaidIntent()
-    clearSignupSessionToken()
-    expect(readSignupPaidIntent()).toBe(false)
   })
 })

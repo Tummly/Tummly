@@ -1126,26 +1126,8 @@ namespace TummlyBackend.Tests.Services
                 new CreditLedgerService(context, clock, _pricebook),
                 merchant ?? new RecordingLandMerchant(),
                 clock,
-                new NoOpProvisioningForApplier(),
                 invoiceEmail
             );
-        }
-
-        private sealed class NoOpProvisioningForApplier : IProvisioningService
-        {
-            public Task GenerateActivationCodeAsync(string inviteToken) =>
-                Task.CompletedTask;
-
-            public Task ProvisionAsync(
-                TummlyBackend.DTOs.Trial.CompleteSetupDto dto
-            ) => Task.CompletedTask;
-
-            public Task ProvisionFromPendingAsync(Guid pendingSignupId) =>
-                Task.CompletedTask;
-
-            public Task<TummlyBackend.DTOs.Provisioning.InviteTokenResult> ValidateInviteTokenAsync(
-                string token
-            ) => throw new NotImplementedException();
         }
 
         private async Task<RevolutPendingPaySession> SeedPilotPendingAsync(

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { isAxiosError } from "axios"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 
 import {
-  chooseSignupPlan,
   getSignupProvisioningStatus,
+  retrySignupProvision,
 } from "@/api/signupApi"
 import { GuestLoopReadyStep } from "@/components/guest-loop/GuestLoopReadyStep"
 import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
@@ -13,32 +13,17 @@ import {
   type ProvisioningPhaseStatus,
 } from "@/lib/runProvisioningPhases"
 import {
-  clearSignupPaidIntent,
   clearSignupSessionToken,
-  readSignupPaidIntent,
   readSignupSessionToken,
 } from "@/lib/signupSession"
 
 const POLL_INTERVAL_MS = 2000
-/** Stop infinite AwaitingPayment polls after Revolut cancel / abandon. */
-const AWAITING_PAYMENT_TIMEOUT_MS = 60_000
-/** Shorter wait when returning from checkout (`?pay=return`). */
-const AWAITING_PAYMENT_RETURN_TIMEOUT_MS = 45_000
-
-const CONFIRMING_PAYMENT_COPY =
-  "We're confirming your payment. This usually takes a few seconds — hang tight."
 
 const PREPARING_COPY =
   "We're preparing the core setup for this location. You can sign in once setup finishes."
 
-const PAYMENT_NOT_COMPLETE_MESSAGE =
-  "Payment not complete. Try again, or return to onboarding to restart setup."
-
 async function kickPilotProvision(sessionToken: string) {
-  await chooseSignupPlan(sessionToken, {
-    planId: "Pilot",
-    cadence: "monthly",
-  })
+  await retrySignupProvision(sessionToken)
 }
 
 function getApiErrorMessage(error: unknown, fallback: string) {
@@ -61,12 +46,7 @@ function sleep(ms: number) {
 
 function SignupProvisioningPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const sessionToken = readSignupSessionToken()
-  const isPayReturn = searchParams.get("pay") === "return"
-  const awaitingTimeoutMs = isPayReturn
-    ? AWAITING_PAYMENT_RETURN_TIMEOUT_MS
-    : AWAITING_PAYMENT_TIMEOUT_MS
 
   const [phase1Status, setPhase1Status] =
     useState<ProvisioningPhaseStatus>("idle")
@@ -78,13 +58,9 @@ function SignupProvisioningPage() {
   const [provisioningError, setProvisioningError] = useState<string | null>(
     null
   )
-  const [headerDescription, setHeaderDescription] = useState(PREPARING_COPY)
   const [provisioningAttempt, setProvisioningAttempt] = useState(0)
-  const [isPaidPath, setIsPaidPath] = useState(false)
 
   const provisioningRunId = useRef(0)
-  const isPaidPathRef = useRef(false)
-  const awaitingPaymentSinceRef = useRef<number | null>(null)
   /** Avoid /signup bounce when goToLogin clears the session before navigate lands. */
   const leavingForLoginRef = useRef(false)
 
@@ -100,7 +76,6 @@ function SignupProvisioningPage() {
   }, [navigate])
 
   const goToOnboarding = useCallback(() => {
-    clearSignupPaidIntent()
     navigate("/signup/onboarding", { replace: true })
   }, [navigate])
 
@@ -120,35 +95,6 @@ function SignupProvisioningPage() {
     const isCurrent = () =>
       !cancelled && runId === provisioningRunId.current
 
-    const markPaidPath = () => {
-      isPaidPathRef.current = true
-      if (!isCurrent()) return
-      setIsPaidPath(true)
-    }
-
-    // Persist across checkout redirect: first poll may already be Provisioning.
-    if (readSignupPaidIntent() || isPayReturn) {
-      markPaidPath()
-    }
-
-    const markAwaitingPayment = () => {
-      markPaidPath()
-      if (awaitingPaymentSinceRef.current == null) {
-        awaitingPaymentSinceRef.current = Date.now()
-      }
-      if (!isCurrent()) return
-      setHeaderDescription(CONFIRMING_PAYMENT_COPY)
-      setPhase1Status("loading")
-      setPhase2Status("idle")
-      setPhase3Status("idle")
-    }
-
-    const awaitingPaymentTimedOut = () => {
-      const since = awaitingPaymentSinceRef.current
-      if (since == null) return false
-      return Date.now() - since >= awaitingTimeoutMs
-    }
-
     const pollUntilProvisionable = async (): Promise<"ok" | "redirected"> => {
       while (isCurrent()) {
         const status = await getSignupProvisioningStatus(sessionToken)
@@ -160,7 +106,7 @@ function SignupProvisioningPage() {
         }
 
         if (status.status === "OnboardingComplete") {
-          // Legacy / stalled sessions: kick Pilot provision without Choose plan UI.
+          // Legacy / stalled sessions: re-kick Pilot provision.
           await kickPilotProvision(sessionToken)
           await sleep(POLL_INTERVAL_MS)
           continue
@@ -177,24 +123,16 @@ function SignupProvisioningPage() {
         }
 
         if (status.status === "AwaitingPayment") {
-          markAwaitingPayment()
-          if (awaitingPaymentTimedOut()) {
-            throw new Error(PAYMENT_NOT_COMPLETE_MESSAGE)
-          }
-          await sleep(POLL_INTERVAL_MS)
-          continue
+          // Paid signup checkout is retired — send them back to finish Pilot setup.
+          navigate("/signup/onboarding", { replace: true })
+          return "redirected"
         }
-
-        awaitingPaymentSinceRef.current = null
 
         if (
           status.status === "Provisioning" ||
           status.status === "Complete" ||
           status.ready
         ) {
-          if (isCurrent()) {
-            setHeaderDescription(PREPARING_COPY)
-          }
           return "ok"
         }
 
@@ -215,22 +153,12 @@ function SignupProvisioningPage() {
         }
 
         if (status.status === "Provisioning") {
-          awaitingPaymentSinceRef.current = null
           await sleep(POLL_INTERVAL_MS)
           continue
         }
 
         if (status.status === "OnboardingComplete") {
           await kickPilotProvision(sessionToken)
-          await sleep(POLL_INTERVAL_MS)
-          continue
-        }
-
-        if (status.status === "AwaitingPayment") {
-          markAwaitingPayment()
-          if (awaitingPaymentTimedOut()) {
-            throw new Error(PAYMENT_NOT_COMPLETE_MESSAGE)
-          }
           await sleep(POLL_INTERVAL_MS)
           continue
         }
@@ -249,8 +177,6 @@ function SignupProvisioningPage() {
       setPhase1Status("idle")
       setPhase2Status("idle")
       setPhase3Status("idle")
-      setHeaderDescription(PREPARING_COPY)
-      awaitingPaymentSinceRef.current = null
 
       try {
         const gate = await pollUntilProvisionable()
@@ -292,22 +218,10 @@ function SignupProvisioningPage() {
         provisioningRunId.current += 1
       }
     }
-  }, [
-    awaitingTimeoutMs,
-    goToLogin,
-    isPayReturn,
-    navigate,
-    provisioningAttempt,
-    sessionToken,
-  ])
+  }, [goToLogin, navigate, provisioningAttempt, sessionToken])
 
   const handleRetry = () => {
     if (isProvisioningActive || !sessionToken) return
-
-    const paid = isPaidPathRef.current || isPaidPath
-    const paymentIncomplete =
-      provisioningError === PAYMENT_NOT_COMPLETE_MESSAGE ||
-      (provisioningError?.includes("Payment not complete") ?? false)
 
     void (async () => {
       setProvisioningError(null)
@@ -316,25 +230,16 @@ function SignupProvisioningPage() {
       setPhase2Status("idle")
       setPhase3Status("idle")
 
-      if (paid && paymentIncomplete) {
-        clearSignupPaidIntent()
-        isPaidPathRef.current = false
-        setIsPaidPath(false)
-      }
-
-      // Mid-provision / Pilot path: re-kick Essential via choose-plan API.
-      if (!paid || paymentIncomplete) {
-        try {
-          await kickPilotProvision(sessionToken)
-        } catch (error) {
-          setProvisioningError(
-            getApiErrorMessage(
-              error,
-              "We couldn't restart Essential setup. Please try again."
-            )
+      try {
+        await kickPilotProvision(sessionToken)
+      } catch (error) {
+        setProvisioningError(
+          getApiErrorMessage(
+            error,
+            "We couldn't restart setup. Please try again."
           )
-          return
-        }
+        )
+        return
       }
 
       provisioningRunId.current += 1
@@ -363,7 +268,7 @@ function SignupProvisioningPage() {
         isWorkspaceReady={isWorkspaceReady}
         provisioningError={provisioningError}
         isProvisioningActive={isProvisioningActive}
-        description={headerDescription}
+        description={PREPARING_COPY}
         primaryActionLabel="Continue to sign in"
         onOpenWorkspace={goToLogin}
         onRetry={handleRetry}

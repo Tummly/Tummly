@@ -16,10 +16,8 @@ import { revokeRefreshToken } from "@/api/sessionRefresh"
 
 export const DEVICE_TOKEN_KEY = "deviceToken"
 export const SELECTED_LOCATION_KEY = "selectedLocationId"
-export const ACTIVATION_REQUIRED_KEY = "activationRequired"
 
 export const WORKSPACE_SETUP_PATH = "/login?step=workspace-setup"
-export const ACTIVATION_CODE_PATH = "/login?step=activation-code"
 
 export interface UniversalLoginResponse {
   loginType?: "ADMIN" | "USER" | "SUPPORT"
@@ -71,19 +69,6 @@ export function persistSelectedLocation(locationId: number) {
   localStorage.setItem(SELECTED_LOCATION_KEY, String(locationId))
 }
 
-export function persistActivationRequired(activationRequired: boolean) {
-  if (activationRequired) {
-    localStorage.setItem(ACTIVATION_REQUIRED_KEY, "true")
-    return
-  }
-
-  localStorage.removeItem(ACTIVATION_REQUIRED_KEY)
-}
-
-export function getPersistedActivationRequired(): boolean {
-  return localStorage.getItem(ACTIVATION_REQUIRED_KEY) === "true"
-}
-
 export function getSelectedLocationId(): number | null {
   const value = localStorage.getItem(SELECTED_LOCATION_KEY)
   if (!value?.trim()) {
@@ -102,7 +87,6 @@ export function getDeviceToken(): string | null {
 /** Sign out — clears session only; device trust is retained (decision #13). */
 export function clearAuthSession() {
   const refreshToken = getRefreshToken()
-  localStorage.removeItem(ACTIVATION_REQUIRED_KEY)
   useAuthStore.getState().clearSession()
 
   if (refreshToken) {
@@ -219,13 +203,10 @@ export function completeUserSession(
     persistSelectedLocation(session.selectedLocationId)
   }
 
-  persistActivationRequired(session.activationRequired === true)
-
   return getPostLoginDestination(
     session.accountType,
     session.workspaceSetupRequired,
-    session.selectedLocationId,
-    session.activationRequired
+    session.selectedLocationId
   )
 }
 
@@ -237,17 +218,12 @@ export function getMultiDashboardPath(locationId?: number | null) {
   return `/multi-dashboard?location=${locationId}`
 }
 
-/** Route after OTP or trust skip — activation, workspace setup, or dashboard. */
+/** Route after OTP or trust skip — workspace setup or dashboard. */
 export function getPostLoginDestination(
   accountType: string,
   workspaceSetupRequired = false,
-  selectedLocationId?: number | null,
-  activationRequired = false
+  selectedLocationId?: number | null
 ): string {
-  if (activationRequired) {
-    return ACTIVATION_CODE_PATH
-  }
-
   if (workspaceSetupRequired) {
     return WORKSPACE_SETUP_PATH
   }
@@ -259,10 +235,6 @@ export function getPostLoginDestination(
   return getMultiDashboardPath(
     selectedLocationId ?? getSelectedLocationId()
   )
-}
-
-export function isActivationCodeDestination(path: string) {
-  return path === ACTIVATION_CODE_PATH
 }
 
 export function isWorkspaceSetupDestination(path: string) {

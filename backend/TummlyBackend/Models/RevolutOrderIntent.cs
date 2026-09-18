@@ -15,15 +15,15 @@ namespace TummlyBackend.Models
         public string OrderId { get; set; } = string.Empty;
 
         /// <summary>
-        /// Billing account restaurant id. Null for <c>signup_plan</c> intents
-        /// before the restaurant exists.
+        /// Billing account restaurant id. Null only for legacy intents that
+        /// pre-date restaurant creation (no new writers use null).
         /// </summary>
         public int? RestaurantId { get; set; }
 
         [ForeignKey(nameof(RestaurantId))]
         public BillingAccount? BillingAccount { get; set; }
 
-        /// <summary>Pending signup row for <c>signup_plan</c> intents.</summary>
+        /// <summary>Optional pending signup link (legacy column; unused).</summary>
         public Guid? PendingSignupId { get; set; }
 
         /// <summary>
@@ -88,7 +88,5 @@ namespace TummlyBackend.Models
         public const string Topup = "topup";
 
         public const string ShopMaterialsOrder = "shop_materials_order";
-
-        public const string SignupPlan = "signup_plan";
     }
 }

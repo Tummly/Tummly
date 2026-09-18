@@ -29,7 +29,6 @@ import {
 import {
   clearAuthSession,
   getMultiDashboardPath,
-  persistActivationRequired,
   persistAuthSession,
   persistSelectedLocation,
 } from "@/pages/utils/authHelpers"
@@ -60,7 +59,6 @@ function applySession(session: TeamInvitationSession) {
     session.accountType,
     session.refreshToken
   )
-  persistActivationRequired(false)
   if (session.selectedLocationId != null) {
     persistSelectedLocation(session.selectedLocationId)
   }
@@ -74,9 +72,7 @@ function dashboardHref(session: TeamInvitationSession): string {
 }
 
 function finishSession(session: TeamInvitationSession): Step | "go" {
-  if (session.ownerActivation === "pending") {
-    return "wait"
-  }
+  // Pending owner activation no longer blocks — Activation gate retired.
   if (session.ownerActivation === "expired") {
     return "expired"
   }

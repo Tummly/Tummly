@@ -17,11 +17,10 @@ namespace TummlyBackend.Interfaces
 
         Task<SignupResumeResponse> GetBySessionAsync(Guid sessionToken);
 
-        Task<ChoosePlanResult> ChoosePlanAsync(
-            Guid sessionToken,
-            string planId,
-            string cadence
-        );
+        /// <summary>
+        /// Re-runs Pilot provision for stalled onboarding / mid-provision sessions.
+        /// </summary>
+        Task RetryProvisionAsync(Guid sessionToken);
 
         Task<SignupProvisioningStatusResponse> GetProvisioningStatusAsync(
             Guid sessionToken

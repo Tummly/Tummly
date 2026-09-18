@@ -45,16 +45,6 @@ export type SignupOnboardingPayload = {
   locations: SignupOnboardingLocation[]
 }
 
-export type ChooseSignupPlanPayload = {
-  planId: string
-  cadence?: string
-}
-
-export type ChooseSignupPlanResult = {
-  mode: string
-  checkoutUrl: string | null
-}
-
 export type SignupProvisioningStatus = {
   status: string
   ready: boolean
@@ -143,27 +133,17 @@ export async function getSignupSession(
   return asSignupResume(requireDataObject(response.data))
 }
 
-export async function chooseSignupPlan(
-  sessionToken: string,
-  data: ChooseSignupPlanPayload
-): Promise<ChooseSignupPlanResult> {
-  const response = await axiosInstance.post(
-    "/Signup/choose-plan",
-    {
-      planId: data.planId,
-      cadence: data.cadence ?? "monthly",
-    },
+export async function retrySignupProvision(
+  sessionToken: string
+): Promise<void> {
+  await axiosInstance.post(
+    "/Signup/retry-provision",
+    null,
     {
       params: { sessionToken },
       ...skipAuth,
     }
   )
-  const payload = requireDataObject(response.data)
-  return {
-    mode: String(payload.mode ?? ""),
-    checkoutUrl:
-      typeof payload.checkoutUrl === "string" ? payload.checkoutUrl : null,
-  }
 }
 
 export async function getSignupProvisioningStatus(

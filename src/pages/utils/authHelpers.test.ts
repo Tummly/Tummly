@@ -17,7 +17,7 @@ import {
 } from "./authHelpers"
 
 describe("parseVerifyOtpResponse", () => {
-  it("reads activationRequired from the wrapped API envelope", () => {
+  it("keeps activationRequired from the API envelope when present", () => {
     expect(
       parseVerifyOtpResponse({
         success: true,
@@ -217,10 +217,10 @@ describe("completeUserSession", () => {
     localStorage.clear()
   })
 
-  it("routes pending operators to the activation step", () => {
+  it("ignores pending activation and routes to the dashboard", () => {
     expect(
-      getPostLoginDestination("Single", false, null, true)
-    ).toBe("/login?step=activation-code")
+      getPostLoginDestination("Single", false, null)
+    ).toBe("/single-dashboard")
   })
 
   it("persists session, refresh token, and optional device token", () => {

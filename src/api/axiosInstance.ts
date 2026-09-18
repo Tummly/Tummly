@@ -46,15 +46,6 @@ axiosInstance.interceptors.response.use(
 
     if (
       status === 403
-      && data?.activationRequired === true
-      && !config?.skipAuthRedirect
-    ) {
-      window.location.href = "/login?step=activation-code"
-      return Promise.reject(error)
-    }
-
-    if (
-      status === 403
       && data?.activationExpired === true
       && !config?.skipAuthRedirect
     ) {

@@ -13,19 +13,16 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
         private readonly IProvisioningService _provisioningService;
-        private readonly ISignupPaySession _signupPaySession;
 
         public SignupService(
             ApplicationDbContext context,
             IEmailService emailService,
-            IProvisioningService provisioningService,
-            ISignupPaySession signupPaySession
+            IProvisioningService provisioningService
         )
         {
             _context = context;
             _emailService = emailService;
             _provisioningService = provisioningService;
-            _signupPaySession = signupPaySession;
         }
 
         public async Task<SignupSessionResponse> StartAsync(StartSignupDto dto)
@@ -257,21 +254,13 @@ namespace TummlyBackend.Services
             };
         }
 
-        public async Task<ChoosePlanResult> ChoosePlanAsync(
-            Guid sessionToken,
-            string planId,
-            string cadence
-        )
+        public async Task RetryProvisionAsync(Guid sessionToken)
         {
             var pending = await FindBySessionTokenAsync(sessionToken);
-            var normalizedPlan = (planId ?? string.Empty).Trim();
-            var normalizedCadence = string.IsNullOrWhiteSpace(cadence)
-                ? "monthly"
-                : cadence.Trim().ToLowerInvariant();
 
             if (pending.Status == PendingSignupStatuses.Complete)
             {
-                return new ChoosePlanResult { Mode = "provisioned" };
+                return;
             }
 
             if (
@@ -279,68 +268,21 @@ namespace TummlyBackend.Services
                 is not (
                     PendingSignupStatuses.OnboardingComplete
                     or PendingSignupStatuses.Provisioning
-                    or PendingSignupStatuses.AwaitingPayment
                 )
             )
             {
                 throw new Exception(
-                    "Onboarding must be complete before choosing a plan."
+                    "Account setup is not ready to provision."
                 );
             }
 
-            if (
-                string.Equals(
-                    normalizedPlan,
-                    BillingSubscriptionPlans.Pilot,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                pending.ChosenPlan = BillingSubscriptionPlans.Pilot;
-                pending.ChosenCadence = normalizedCadence;
-                pending.Status = PendingSignupStatuses.Provisioning;
-                pending.UpdatedAtUtc = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
-
-                await _provisioningService.ProvisionFromPendingAsync(
-                    pending.Id
-                );
-
-                return new ChoosePlanResult { Mode = "provisioned" };
-            }
-
-            var paidPlan = NormalizePaidPlan(normalizedPlan);
-            pending.ChosenPlan = paidPlan;
-            pending.ChosenCadence = normalizedCadence;
-            pending.Status = PendingSignupStatuses.AwaitingPayment;
+            pending.ChosenPlan = BillingSubscriptionPlans.Pilot;
+            pending.ChosenCadence = "monthly";
+            pending.Status = PendingSignupStatuses.Provisioning;
             pending.UpdatedAtUtc = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            var checkoutUrl = await _signupPaySession.StartAsync(
-                pending,
-                paidPlan,
-                normalizedCadence
-            );
-
-            pending.RevolutOrderId = (
-                await _context.RevolutOrderIntents
-                    .Where(row =>
-                        row.PendingSignupId == pending.Id
-                        && row.Purpose == RevolutOrderIntentPurposes.SignupPlan
-                        && row.IsOpen
-                    )
-                    .OrderByDescending(row => row.CreatedAtUtc)
-                    .Select(row => row.OrderId)
-                    .FirstOrDefaultAsync()
-            );
-            pending.UpdatedAtUtc = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-
-            return new ChoosePlanResult
-            {
-                Mode = "checkout",
-                CheckoutUrl = checkoutUrl,
-            };
+            await _provisioningService.ProvisionFromPendingAsync(pending.Id);
         }
 
         public async Task<SignupProvisioningStatusResponse> GetProvisioningStatusAsync(
@@ -352,17 +294,6 @@ namespace TummlyBackend.Services
             {
                 Status = pending.Status,
                 Ready = pending.Status == PendingSignupStatuses.Complete,
-            };
-        }
-
-        private static string NormalizePaidPlan(string planId)
-        {
-            return planId.Trim().ToLowerInvariant() switch
-            {
-                "starter" => BillingSubscriptionPlans.Starter,
-                "growth" => BillingSubscriptionPlans.Growth,
-                "group" => BillingSubscriptionPlans.Group,
-                _ => throw new Exception("Invalid plan selection."),
             };
         }
 

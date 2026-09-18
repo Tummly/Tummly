@@ -25,8 +25,7 @@ namespace TummlyBackend.Tests.Services
             _sut = new SignupService(
                 _db,
                 _emailService,
-                new StubProvisioningService(),
-                new StubSignupPaySession()
+                new StubProvisioningService()
             );
         }
 
@@ -617,19 +616,6 @@ namespace TummlyBackend.Tests.Services
                 string token
             ) =>
                 throw new NotImplementedException();
-        }
-
-        private sealed class StubSignupPaySession : ISignupPaySession
-        {
-            public Task<string> StartAsync(
-                PendingSignup pending,
-                string targetPlan,
-                string targetCadenceApi,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    "https://checkout.revolut.com/payment-link/stub-signup"
-                );
         }
     }
 }

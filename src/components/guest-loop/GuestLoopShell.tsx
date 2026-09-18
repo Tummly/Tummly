@@ -11,7 +11,6 @@ import { GuestLoopBackButton } from "./GuestLoopBackButton"
 interface GuestLoopShellProps {
   children: ReactNode
   className?: string
-  hideFooters?: boolean
   /** Vertical alignment of main content within the shell. */
   contentAlign?: "center" | "start"
   /** Override the default 473px content max width (e.g. provisioning). */
@@ -30,7 +29,6 @@ interface GuestLoopShellProps {
 export function GuestLoopShell({
   children,
   className,
-  hideFooters = false,
   contentAlign = "center",
   contentMaxWidthClassName = "max-w-[473px]",
   showBackButton = false,
@@ -89,9 +87,7 @@ export function GuestLoopShell({
         </main>
       </div>
 
-      {!hideFooters ? (
-        <AuthFooter className="px-10 pb-0 pt-3 sm:px-10 lg:px-10 lg:pb-0" />
-      ) : null}
+      <AuthFooter className="px-10 pb-0 pt-3 sm:px-10 lg:px-10 lg:pb-0" />
     </div>
   )
 }

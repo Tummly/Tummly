@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
-using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.DTOs.Signup;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -20,10 +19,6 @@ namespace TummlyBackend.Tests.Services
         private readonly GuestLoopProvisioningService _provisioning;
         private readonly IPricebookCatalog _pricebook;
         private readonly IConfiguration _configuration;
-        private readonly RecordingSignupMerchant _merchant = new();
-        private readonly FixedTimeProvider _clock = new(
-            new DateTime(2026, 9, 17, 12, 0, 0, DateTimeKind.Utc)
-        );
         private readonly string _email = "pilot-owner@example.com";
         private Guid _sessionToken;
         private PendingSignup _pending = null!;
@@ -68,22 +63,15 @@ namespace TummlyBackend.Tests.Services
                 qrCodeProvisioning,
                 new NoOpPrintReadyQrMaterialsWork(),
                 _configuration,
-                _pricebook
-            );
-
-            var paySession = new SignupPaySessionService(
-                _db,
-                _merchant,
                 _pricebook,
-                _configuration,
-                _clock
+                new NoOpCreditLedger(),
+                new NoOpBillingAccountLifecycle()
             );
 
             _signup = new SignupService(
                 _db,
                 new TrackingEmailService(),
-                _provisioning,
-                paySession
+                _provisioning
             );
         }
 
@@ -105,6 +93,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(BillingSubscriptionPlans.Pilot, _pending.ChosenPlan);
             Assert.Equal("monthly", _pending.ChosenCadence);
             Assert.Equal("Single", _pending.AccountType);
+
+            var user = await _db.Users.SingleAsync(u => u.Email == _email);
+            Assert.NotNull(user.ActivatedAt);
+            Assert.NotNull(user.ActivationExpiresAt);
 
             var billing = await _db.BillingAccounts.SingleAsync();
             Assert.Equal(
@@ -130,21 +122,17 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ChoosePlan_Pilot_CreatesUserAndCompletes()
+        public async Task RetryProvision_OnboardingComplete_CreatesUserAndCompletes()
         {
             await SeedOnboardingCompletePendingAsync();
 
-            var result = await _signup.ChoosePlanAsync(
-                _sessionToken,
-                "Pilot",
-                "monthly"
-            );
+            await _signup.RetryProvisionAsync(_sessionToken);
 
             await _db.Entry(_pending).ReloadAsync();
 
-            Assert.Equal("provisioned", result.Mode);
             Assert.True(await _db.Users.AnyAsync(u => u.Email == _email));
             Assert.Equal(PendingSignupStatuses.Complete, _pending.Status);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, _pending.ChosenPlan);
 
             var restaurant = await _db.Restaurants.SingleAsync();
             var billing = await _db.BillingAccounts.SingleAsync();
@@ -162,121 +150,12 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ChoosePlan_Pilot_IsIdempotent()
+        public async Task RetryProvision_IsIdempotent()
         {
             await SeedOnboardingCompletePendingAsync();
 
-            await _signup.ChoosePlanAsync(_sessionToken, "Pilot", "monthly");
-            await _signup.ChoosePlanAsync(_sessionToken, "Pilot", "monthly");
-
-            Assert.Equal(
-                1,
-                await _db.Users.CountAsync(u => u.Email == _email)
-            );
-            Assert.Equal(1, await _db.Restaurants.CountAsync());
-        }
-
-        [Fact]
-        public async Task ChoosePlan_Paid_CreatesCheckoutIntentAndReturnsUrl()
-        {
-            await SeedOnboardingCompletePendingAsync();
-
-            var result = await _signup.ChoosePlanAsync(
-                _sessionToken,
-                "Growth",
-                "monthly"
-            );
-
-            await _db.Entry(_pending).ReloadAsync();
-
-            Assert.Equal("checkout", result.Mode);
-            Assert.Equal(RecordingSignupMerchant.CheckoutUrl, result.CheckoutUrl);
-            Assert.Equal(PendingSignupStatuses.AwaitingPayment, _pending.Status);
-            Assert.Equal(BillingSubscriptionPlans.Growth, _pending.ChosenPlan);
-            Assert.Equal("monthly", _pending.ChosenCadence);
-            Assert.False(await _db.Users.AnyAsync(u => u.Email == _email));
-
-            var intent = await _db.RevolutOrderIntents.SingleAsync();
-            Assert.Equal(RevolutOrderIntentPurposes.SignupPlan, intent.Purpose);
-            Assert.Equal(_pending.Id, intent.PendingSignupId);
-            Assert.Null(intent.RestaurantId);
-            Assert.Equal(BillingSubscriptionPlans.Growth, intent.TargetPlan);
-            Assert.Equal("monthly", intent.TargetCadence);
-            Assert.True(intent.IsOpen);
-            Assert.Contains(
-                "/signup/provisioning",
-                _merchant.LastCreateOrderRequest!.RedirectUrl
-            );
-            Assert.Equal(1, _merchant.CreateOrderCallCount);
-        }
-
-        [Fact]
-        public async Task ChoosePlan_Paid_ReusesOpenIntent()
-        {
-            await SeedOnboardingCompletePendingAsync();
-
-            await _signup.ChoosePlanAsync(_sessionToken, "Growth", "monthly");
-            var second = await _signup.ChoosePlanAsync(
-                _sessionToken,
-                "Growth",
-                "monthly"
-            );
-
-            Assert.Equal("checkout", second.Mode);
-            Assert.Equal(1, _merchant.CreateOrderCallCount);
-            Assert.Equal(1, await _db.RevolutOrderIntents.CountAsync());
-        }
-
-        [Fact]
-        public async Task Webhook_SignupPlan_ProvisionsPaidAccount_Idempotent()
-        {
-            await SeedOnboardingCompletePendingAsync();
-            var choose = await _signup.ChoosePlanAsync(
-                _sessionToken,
-                "Growth",
-                "monthly"
-            );
-            Assert.Equal("checkout", choose.Mode);
-
-            var intent = await _db.RevolutOrderIntents.SingleAsync();
-            var applier = CreateSignupApplier();
-
-            await applier.ApplyAsync(
-                new RevolutOrderCompletedApplyRequest(
-                    OrderId: intent.OrderId,
-                    OrderState: "completed",
-                    BillingReason: null,
-                    SubscriptionId: null,
-                    RawWebhookBody: "{}",
-                    RawOrderBody: "{}"
-                )
-            );
-
-            await _db.Entry(_pending).ReloadAsync();
-            Assert.Equal(PendingSignupStatuses.Complete, _pending.Status);
-            Assert.True(await _db.Users.AnyAsync(u => u.Email == _email));
-
-            var billing = await _db.BillingAccounts.SingleAsync();
-            Assert.Equal(
-                BillingSubscriptionPlans.Growth,
-                billing.SubscriptionPlan
-            );
-            Assert.Equal(BillingStatuses.Active, billing.BillingStatus);
-            Assert.Equal(BillingCycles.Monthly, billing.BillingCycle);
-            Assert.False(
-                (await _db.RevolutOrderIntents.SingleAsync()).IsOpen
-            );
-
-            await applier.ApplyAsync(
-                new RevolutOrderCompletedApplyRequest(
-                    OrderId: intent.OrderId,
-                    OrderState: "completed",
-                    BillingReason: null,
-                    SubscriptionId: null,
-                    RawWebhookBody: "{}",
-                    RawOrderBody: "{}"
-                )
-            );
+            await _signup.RetryProvisionAsync(_sessionToken);
+            await _signup.RetryProvisionAsync(_sessionToken);
 
             Assert.Equal(
                 1,
@@ -289,7 +168,7 @@ namespace TummlyBackend.Tests.Services
         public async Task GetProvisioningStatus_ReadyWhenComplete()
         {
             await SeedOnboardingCompletePendingAsync();
-            await _signup.ChoosePlanAsync(_sessionToken, "Pilot", "monthly");
+            await _signup.RetryProvisionAsync(_sessionToken);
 
             var status = await _signup.GetProvisioningStatusAsync(_sessionToken);
 
@@ -379,28 +258,6 @@ namespace TummlyBackend.Tests.Services
             await _db.SaveChangesAsync();
         }
 
-        private RevolutOrderCompletedApplier CreateSignupApplier()
-        {
-            return new RevolutOrderCompletedApplier(
-                _db,
-                new NoOpIncludedPeriodMint(),
-                new NoOpVatInvoices(),
-                new PlanChangeService(_db, _pricebook, _clock),
-                new ExtraGroupLocationService(
-                    _db,
-                    _pricebook,
-                    new AlwaysReadyRevolutMerchantCreateGate(),
-                    _merchant,
-                    _configuration,
-                    _clock
-                ),
-                new CreditLedgerService(_db, _clock, _pricebook),
-                _merchant,
-                _clock,
-                _provisioning
-            );
-        }
-
         private static string ResolvePricebookPackDir()
         {
             var packDir = Path.GetFullPath(
@@ -465,201 +322,6 @@ namespace TummlyBackend.Tests.Services
             public Task DrainAsync(
                 CancellationToken cancellationToken = default
             ) => Task.CompletedTask;
-        }
-
-        private sealed class RecordingSignupMerchant : IRevolutMerchantClient
-        {
-            public const string CheckoutUrl =
-                "https://checkout.revolut.com/payment-link/fake-signup";
-
-            public int CreateOrderCallCount { get; private set; }
-
-            public RevolutCreateOrderRequest? LastCreateOrderRequest
-            {
-                get;
-                private set;
-            }
-
-            public void EnsureReadyForCreate(
-                string? planVariationLookupKey = null
-            )
-            {
-            }
-
-            public Task<RevolutListCustomersResult> ListCustomersByEmailAsync(
-                string email,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    new RevolutListCustomersResult(Succeeded: true)
-                );
-
-            public Task<RevolutMerchantCreateResult> CreateCustomerAsync(
-                RevolutCreateCustomerRequest request,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    new RevolutMerchantCreateResult(
-                        Succeeded: true,
-                        Id: "cust_signup"
-                    )
-                );
-
-            public Task<RevolutMerchantCreateResult> CreateSubscriptionAsync(
-                RevolutCreateSubscriptionRequest request,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    new RevolutMerchantCreateResult(
-                        Succeeded: true,
-                        Id: "sub_signup"
-                    )
-                );
-
-            public Task<RevolutMerchantCreateResult> CreateOrderAsync(
-                RevolutCreateOrderRequest request,
-                CancellationToken cancellationToken = default
-            )
-            {
-                CreateOrderCallCount++;
-                LastCreateOrderRequest = request;
-                return Task.FromResult(
-                    new RevolutMerchantCreateResult(
-                        Succeeded: true,
-                        Id: $"ord_signup_{CreateOrderCallCount}",
-                        CheckoutUrl: CheckoutUrl
-                    )
-                );
-            }
-
-            public Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
-                string subscriptionId,
-                string planVariationLookupKey,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    new RevolutMerchantCreateResult(
-                        Succeeded: true,
-                        Id: subscriptionId
-                    )
-                );
-
-            public Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
-                string subscriptionId,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    new RevolutMerchantCreateResult(
-                        Succeeded: true,
-                        Id: subscriptionId
-                    )
-                );
-
-            public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
-                string subscriptionId,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    new RevolutMerchantCreateResult(
-                        Succeeded: true,
-                        Id: subscriptionId
-                    )
-                );
-
-            public Task<RevolutOrderRetrieveResult> GetOrderAsync(
-                string orderId,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    new RevolutOrderRetrieveResult(
-                        Succeeded: true,
-                        Id: orderId,
-                        State: "pending",
-                        CheckoutUrl: CheckoutUrl
-                    )
-                );
-
-            public Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
-                string orderId,
-                string merchantReference,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    new RevolutMerchantCreateResult(
-                        Succeeded: true,
-                        Id: orderId
-                    )
-                );
-        }
-
-        private sealed class FixedTimeProvider : TimeProvider
-        {
-            private readonly DateTimeOffset _utcNow;
-
-            public FixedTimeProvider(DateTime utcNow)
-            {
-                _utcNow = new DateTimeOffset(utcNow);
-            }
-
-            public override DateTimeOffset GetUtcNow() => _utcNow;
-        }
-
-        private sealed class NoOpIncludedPeriodMint : IIncludedPeriodMintService
-        {
-            public Task<IncludedPeriodMintResult> MintOnOrderCompletedAsync(
-                IncludedPeriodOrderCompletedRequest request,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    IncludedPeriodMintResult.Skipped("signup_plan_no_mint")
-                );
-
-            public Task<IncludedPeriodMintResult> ProcessJobForRestaurantAsync(
-                int restaurantId,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    IncludedPeriodMintResult.Skipped("signup_plan_no_mint")
-                );
-
-            public Task<IncludedPeriodMintResult> ProcessJobForRestaurantAsync(
-                int restaurantId,
-                DateTime? nowUtc,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    IncludedPeriodMintResult.Skipped("signup_plan_no_mint")
-                );
-        }
-
-        private sealed class NoOpVatInvoices : ITummlyVatInvoiceService
-        {
-            public Task<TummlyVatInvoice> MintForCompletedOrderAsync(
-                TummlyVatInvoiceMintRequest request,
-                CancellationToken cancellationToken = default
-            ) => throw new NotImplementedException();
-
-            public Task<TummlyVatInvoice> MintCreditNoteForRefundAsync(
-                TummlyVatCreditNoteMintRequest request,
-                CancellationToken cancellationToken = default
-            ) => throw new NotImplementedException();
-
-            public Task<TummlyVatInvoice?> FindByRevolutOrderIdAsync(
-                string revolutOrderId,
-                CancellationToken cancellationToken = default
-            ) => Task.FromResult<TummlyVatInvoice?>(null);
-
-            public Task<IReadOnlyList<InvoiceRowDto>> ListInvoiceRowsForRestaurantAsync(
-                int restaurantId,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult<IReadOnlyList<InvoiceRowDto>>([]);
-
-            public Task<(byte[] Content, string FileName)?> RenderPdfAsync(
-                int restaurantId,
-                string documentNumber,
-                CancellationToken cancellationToken = default
-            ) => Task.FromResult<(byte[] Content, string FileName)?>(null);
         }
     }
 }
