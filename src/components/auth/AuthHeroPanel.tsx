@@ -1,5 +1,5 @@
 import authHeadlineBrush from "@/assets/images/auth-headline-brush.png"
-import { authSignInPanelPicture } from "@/assets/critical-images"
+import { authSignInPanelPicture } from "@/assets/critical-images/auth-sign-in-panel"
 import OptimizedImage from "@/components/media/OptimizedImage"
 
 /** Figma Sign in panel `5017:1573` — bottom fade over lifestyle photo */

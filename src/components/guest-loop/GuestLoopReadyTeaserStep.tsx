@@ -14,8 +14,7 @@ type GuestLoopReadyTeaserStepProps = {
 }
 
 /**
- * Pre-plan “ready” step for self-serve signup — continues to choose-plan
- * without calling setup-account or running provisioning phases.
+ * Pre-plan “ready” teaser for self-serve signup (legacy; unused after Pilot-only path).
  */
 export function GuestLoopReadyTeaserStep({
   activeStep,

@@ -1,4 +1,4 @@
-import { authSignInPanelPicture } from "@/assets/critical-images"
+import { authSignInPanelPicture } from "@/assets/critical-images/auth-sign-in-panel"
 
 const AUTH_HERO_IMAGE_SIZES = "(min-width: 1024px) 41.3vw, 0px"
 

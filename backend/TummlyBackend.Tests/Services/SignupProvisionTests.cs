@@ -88,6 +88,48 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SaveOnboarding_Verified_ProvisionsPilotAndCompletes()
+        {
+            await SeedVerifiedPendingAsync();
+
+            var result = await _signup.SaveOnboardingAsync(
+                _sessionToken,
+                BuildValidOnboardingDto()
+            );
+
+            await _db.Entry(_pending).ReloadAsync();
+
+            Assert.Equal(PendingSignupStatuses.Complete, result.Status);
+            Assert.True(await _db.Users.AnyAsync(u => u.Email == _email));
+            Assert.Equal(PendingSignupStatuses.Complete, _pending.Status);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, _pending.ChosenPlan);
+            Assert.Equal("monthly", _pending.ChosenCadence);
+            Assert.Equal("Single", _pending.AccountType);
+
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Equal(
+                BillingSubscriptionPlans.Pilot,
+                billing.SubscriptionPlan
+            );
+        }
+
+        [Fact]
+        public async Task SaveOnboarding_AlreadyComplete_IsIdempotent()
+        {
+            await SeedVerifiedPendingAsync();
+            var dto = BuildValidOnboardingDto();
+
+            await _signup.SaveOnboardingAsync(_sessionToken, dto);
+            await _signup.SaveOnboardingAsync(_sessionToken, dto);
+
+            Assert.Equal(
+                1,
+                await _db.Users.CountAsync(u => u.Email == _email)
+            );
+            Assert.Equal(1, await _db.Restaurants.CountAsync());
+        }
+
+        [Fact]
         public async Task ChoosePlan_Pilot_CreatesUserAndCompletes()
         {
             await SeedOnboardingCompletePendingAsync();
@@ -253,6 +295,47 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(PendingSignupStatuses.Complete, status.Status);
             Assert.True(status.Ready);
+        }
+
+        private static SaveSignupOnboardingDto BuildValidOnboardingDto() =>
+            new()
+            {
+                Password = "Password1!",
+                ConfirmPassword = "Password1!",
+                FullName = "Pilot Owner",
+                GroupName = "Pilot Kitchen",
+                BusinessCategory = "takeaway",
+                PrimaryPhone = "07911123456",
+                Locations =
+                [
+                    new SaveSignupOnboardingDto.LocationItem
+                    {
+                        LocationName = "Main",
+                        Address = "1 High Street",
+                        City = "Leeds",
+                        Postcode = "LS1 1AA",
+                    },
+                ],
+            };
+
+        private async Task SeedVerifiedPendingAsync()
+        {
+            _sessionToken = Guid.NewGuid();
+            _pending = new PendingSignup
+            {
+                Id = Guid.NewGuid(),
+                SessionToken = _sessionToken,
+                Email = _email,
+                Status = PendingSignupStatuses.Verified,
+                OtpResendCount = 0,
+                TermsAccepted = true,
+                EmailVerifiedAt = DateTime.UtcNow.AddMinutes(-5),
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            };
+
+            _db.PendingSignups.Add(_pending);
+            await _db.SaveChangesAsync();
         }
 
         private async Task SeedOnboardingCompletePendingAsync()

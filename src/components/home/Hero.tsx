@@ -1,4 +1,7 @@
-import { heroBgMobilePicture, heroBgPicture } from "@/assets/critical-images";
+import {
+  heroBgMobilePicture,
+  heroBgPicture,
+} from "@/assets/critical-images/hero";
 import HeroTrialForm from "@/components/home/HeroTrialForm";
 import OptimizedImage from "@/components/media/OptimizedImage";
 import {

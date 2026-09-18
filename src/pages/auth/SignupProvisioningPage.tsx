@@ -32,7 +32,14 @@ const PREPARING_COPY =
   "We're preparing the core setup for this location. You can sign in once setup finishes."
 
 const PAYMENT_NOT_COMPLETE_MESSAGE =
-  "Payment not complete. Choose a plan again, or try payment once more."
+  "Payment not complete. Try again, or return to onboarding to restart setup."
+
+async function kickPilotProvision(sessionToken: string) {
+  await chooseSignupPlan(sessionToken, {
+    planId: "Pilot",
+    cadence: "monthly",
+  })
+}
 
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error)) {
@@ -74,11 +81,12 @@ function SignupProvisioningPage() {
   const [headerDescription, setHeaderDescription] = useState(PREPARING_COPY)
   const [provisioningAttempt, setProvisioningAttempt] = useState(0)
   const [isPaidPath, setIsPaidPath] = useState(false)
-  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false)
 
   const provisioningRunId = useRef(0)
   const isPaidPathRef = useRef(false)
   const awaitingPaymentSinceRef = useRef<number | null>(null)
+  /** Avoid /signup bounce when goToLogin clears the session before navigate lands. */
+  const leavingForLoginRef = useRef(false)
 
   const isProvisioningActive =
     phase1Status === "loading" ||
@@ -86,20 +94,22 @@ function SignupProvisioningPage() {
     phase3Status === "loading"
 
   const goToLogin = useCallback(() => {
+    leavingForLoginRef.current = true
     clearSignupSessionToken()
     navigate("/login?setup=complete", { replace: true })
   }, [navigate])
 
-  const goToChoosePlan = useCallback(
-    (reason: "cancelled" | "incomplete" = "cancelled") => {
-      clearSignupPaidIntent()
-      navigate(`/signup/choose-plan?pay=${reason}`, { replace: true })
-    },
-    [navigate]
-  )
+  const goToOnboarding = useCallback(() => {
+    clearSignupPaidIntent()
+    navigate("/signup/onboarding", { replace: true })
+  }, [navigate])
 
   useEffect(() => {
     if (!sessionToken) {
+      if (leavingForLoginRef.current) {
+        navigate("/login?setup=complete", { replace: true })
+        return
+      }
       navigate("/signup", { replace: true })
       return
     }
@@ -127,7 +137,6 @@ function SignupProvisioningPage() {
         awaitingPaymentSinceRef.current = Date.now()
       }
       if (!isCurrent()) return
-      setIsConfirmingPayment(true)
       setHeaderDescription(CONFIRMING_PAYMENT_COPY)
       setPhase1Status("loading")
       setPhase2Status("idle")
@@ -151,8 +160,10 @@ function SignupProvisioningPage() {
         }
 
         if (status.status === "OnboardingComplete") {
-          navigate("/signup/choose-plan", { replace: true })
-          return "redirected"
+          // Legacy / stalled sessions: kick Pilot provision without Choose plan UI.
+          await kickPilotProvision(sessionToken)
+          await sleep(POLL_INTERVAL_MS)
+          continue
         }
 
         if (status.status === "Verified") {
@@ -175,9 +186,6 @@ function SignupProvisioningPage() {
         }
 
         awaitingPaymentSinceRef.current = null
-        if (isCurrent()) {
-          setIsConfirmingPayment(false)
-        }
 
         if (
           status.status === "Provisioning" ||
@@ -208,9 +216,12 @@ function SignupProvisioningPage() {
 
         if (status.status === "Provisioning") {
           awaitingPaymentSinceRef.current = null
-          if (isCurrent()) {
-            setIsConfirmingPayment(false)
-          }
+          await sleep(POLL_INTERVAL_MS)
+          continue
+        }
+
+        if (status.status === "OnboardingComplete") {
+          await kickPilotProvision(sessionToken)
           await sleep(POLL_INTERVAL_MS)
           continue
         }
@@ -239,7 +250,6 @@ function SignupProvisioningPage() {
       setPhase2Status("idle")
       setPhase3Status("idle")
       setHeaderDescription(PREPARING_COPY)
-      setIsConfirmingPayment(false)
       awaitingPaymentSinceRef.current = null
 
       try {
@@ -299,11 +309,6 @@ function SignupProvisioningPage() {
       provisioningError === PAYMENT_NOT_COMPLETE_MESSAGE ||
       (provisioningError?.includes("Payment not complete") ?? false)
 
-    if (paid && paymentIncomplete) {
-      goToChoosePlan("incomplete")
-      return
-    }
-
     void (async () => {
       setProvisioningError(null)
       setIsWorkspaceReady(false)
@@ -311,12 +316,16 @@ function SignupProvisioningPage() {
       setPhase2Status("idle")
       setPhase3Status("idle")
 
-      if (!paid) {
+      if (paid && paymentIncomplete) {
+        clearSignupPaidIntent()
+        isPaidPathRef.current = false
+        setIsPaidPath(false)
+      }
+
+      // Mid-provision / Pilot path: re-kick Essential via choose-plan API.
+      if (!paid || paymentIncomplete) {
         try {
-          await chooseSignupPlan(sessionToken, {
-            planId: "Pilot",
-            cadence: "monthly",
-          })
+          await kickPilotProvision(sessionToken)
         } catch (error) {
           setProvisioningError(
             getApiErrorMessage(
@@ -337,29 +346,12 @@ function SignupProvisioningPage() {
     return null
   }
 
-  const showChoosePlanEscape =
-    isConfirmingPayment ||
-    provisioningError === PAYMENT_NOT_COMPLETE_MESSAGE ||
-    (provisioningError?.includes("Payment not complete") ?? false)
-
   return (
     <GuestLoopShell
       contentAlign="start"
-      showBackButton={Boolean(provisioningError) || showChoosePlanEscape}
+      showBackButton={Boolean(provisioningError)}
       backButtonDisabled={false}
-      onBack={
-        showChoosePlanEscape
-          ? () => {
-              goToChoosePlan(
-                provisioningError ? "incomplete" : "cancelled"
-              )
-            }
-          : provisioningError
-            ? () => {
-                navigate("/signup/choose-plan", { replace: true })
-              }
-            : undefined
-      }
+      onBack={provisioningError ? goToOnboarding : undefined}
     >
       <GuestLoopReadyStep
         activeStep={3}
@@ -375,23 +367,6 @@ function SignupProvisioningPage() {
         primaryActionLabel="Continue to sign in"
         onOpenWorkspace={goToLogin}
         onRetry={handleRetry}
-        secondaryActionLabel={
-          showChoosePlanEscape
-            ? isConfirmingPayment && !provisioningError
-              ? "Cancel / choose a different plan"
-              : "Back to choose plan"
-            : undefined
-        }
-        onSecondaryAction={
-          showChoosePlanEscape
-            ? () => {
-                goToChoosePlan(
-                  provisioningError ? "incomplete" : "cancelled"
-                )
-              }
-            : undefined
-        }
-        secondaryActionEnabled={!isWorkspaceReady}
       />
     </GuestLoopShell>
   )

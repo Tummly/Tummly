@@ -411,12 +411,15 @@ namespace TummlyBackend.Tests.Services
                 }
             );
 
-            Assert.Equal(PendingSignupStatuses.OnboardingComplete, result.Status);
+            // Stub provisioner leaves status at Provisioning (real path reaches Complete).
+            Assert.Equal(PendingSignupStatuses.Provisioning, result.Status);
             Assert.Equal(sessionToken, result.SessionToken);
 
             var pending = await _db.PendingSignups.SingleAsync();
             Assert.Equal("Single", pending.AccountType);
-            Assert.Equal(PendingSignupStatuses.OnboardingComplete, pending.Status);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, pending.ChosenPlan);
+            Assert.Equal("monthly", pending.ChosenCadence);
+            Assert.Equal(PendingSignupStatuses.Provisioning, pending.Status);
             Assert.Equal("Single Owner", pending.FullName);
             Assert.False(string.IsNullOrWhiteSpace(pending.PasswordHash));
             Assert.True(
@@ -431,42 +434,47 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SaveOnboarding_TwoLocations_SetsMulti()
+        public async Task SaveOnboarding_TwoLocations_Throws()
         {
             var sessionToken = await SeedVerifiedPendingAsync("multi@example.com");
 
-            await _sut.SaveOnboardingAsync(
-                sessionToken,
-                new SaveSignupOnboardingDto
-                {
-                    Password = "Password1!",
-                    ConfirmPassword = "Password1!",
-                    FullName = "Multi Owner",
-                    GroupName = "Group Kitchen",
-                    BusinessCategory = "restaurant",
-                    Locations =
-                    [
-                        new SaveSignupOnboardingDto.LocationItem
-                        {
-                            LocationName = "North",
-                            Address = "1 North St",
-                            City = "Manchester",
-                            Postcode = "M1 1AE",
-                        },
-                        new SaveSignupOnboardingDto.LocationItem
-                        {
-                            LocationName = "South",
-                            Address = "2 South St",
-                            City = "Bristol",
-                            Postcode = "BS1 1AA",
-                        },
-                    ],
-                }
+            var ex = await Assert.ThrowsAsync<Exception>(() =>
+                _sut.SaveOnboardingAsync(
+                    sessionToken,
+                    new SaveSignupOnboardingDto
+                    {
+                        Password = "Password1!",
+                        ConfirmPassword = "Password1!",
+                        FullName = "Multi Owner",
+                        GroupName = "Group Kitchen",
+                        BusinessCategory = "restaurant",
+                        Locations =
+                        [
+                            new SaveSignupOnboardingDto.LocationItem
+                            {
+                                LocationName = "North",
+                                Address = "1 North St",
+                                City = "Manchester",
+                                Postcode = "M1 1AE",
+                            },
+                            new SaveSignupOnboardingDto.LocationItem
+                            {
+                                LocationName = "South",
+                                Address = "2 South St",
+                                City = "Bristol",
+                                Postcode = "BS1 1AA",
+                            },
+                        ],
+                    }
+                )
             );
 
+            Assert.Equal("Exactly one location is required.", ex.Message);
+
             var pending = await _db.PendingSignups.SingleAsync();
-            Assert.Equal("Multi", pending.AccountType);
-            Assert.Equal(PendingSignupStatuses.OnboardingComplete, pending.Status);
+            Assert.Null(pending.AccountType);
+            Assert.NotEqual("Multi", pending.AccountType);
+            Assert.Equal(PendingSignupStatuses.Verified, pending.Status);
         }
 
         [Fact]
@@ -542,8 +550,8 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(sessionToken, resume.SessionToken);
             Assert.Equal("resume-get@example.com", resume.Email);
-            Assert.Equal(PendingSignupStatuses.OnboardingComplete, resume.Status);
-            Assert.Equal("choose-plan", resume.LastStepHint);
+            Assert.Equal(PendingSignupStatuses.Provisioning, resume.Status);
+            Assert.Equal("provisioning", resume.LastStepHint);
             Assert.Equal("Resume Owner", resume.FullName);
             Assert.Equal("Single", resume.AccountType);
             Assert.Equal("Resume Kitchen", resume.GroupName);

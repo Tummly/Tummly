@@ -178,6 +178,11 @@ namespace TummlyBackend.Services
         {
             var pending = await FindBySessionTokenAsync(sessionToken);
 
+            if (pending.Status == PendingSignupStatuses.Complete)
+            {
+                return ToSessionResponse(pending);
+            }
+
             if (
                 pending.Status
                 is not (
@@ -195,8 +200,7 @@ namespace TummlyBackend.Services
 
             pending.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
             pending.FullName = dto.FullName.Trim();
-            pending.AccountType =
-                dto.Locations.Count == 1 ? "Single" : "Multi";
+            pending.AccountType = "Single";
             pending.OnboardingJson = JsonSerializer.Serialize(
                 new SignupOnboardingPayload
                 {
@@ -208,10 +212,16 @@ namespace TummlyBackend.Services
                     Locations = dto.Locations,
                 }
             );
-            pending.Status = PendingSignupStatuses.OnboardingComplete;
+            pending.ChosenPlan = BillingSubscriptionPlans.Pilot;
+            pending.ChosenCadence = "monthly";
+            pending.Status = PendingSignupStatuses.Provisioning;
             pending.UpdatedAtUtc = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+
+            await _provisioningService.ProvisionFromPendingAsync(pending.Id);
+
+            await _context.Entry(pending).ReloadAsync();
 
             return ToSessionResponse(pending);
         }
@@ -403,9 +413,9 @@ namespace TummlyBackend.Services
                 throw new Exception("Business category is required.");
             }
 
-            if (dto.Locations == null || dto.Locations.Count == 0)
+            if (dto.Locations == null || dto.Locations.Count != 1)
             {
-                throw new Exception("At least one location is required.");
+                throw new Exception("Exactly one location is required.");
             }
         }
 
@@ -418,7 +428,7 @@ namespace TummlyBackend.Services
                 )
                     ? "create-password"
                     : "restaurant",
-                PendingSignupStatuses.OnboardingComplete => "choose-plan",
+                PendingSignupStatuses.OnboardingComplete => "provisioning",
                 PendingSignupStatuses.AwaitingPayment => "payment",
                 PendingSignupStatuses.Provisioning => "provisioning",
                 PendingSignupStatuses.Complete => "complete",

@@ -76,7 +76,19 @@ function buildPreloadTags(bundle: OutputBundle): string {
     }
   }
 
-  if (path === "/login" || path === "/login/") {
+  var authPaths = {
+    "/login": true,
+    "/login/": true,
+    "/forgot-password": true,
+    "/forgot-password/": true,
+    "/reset-password": true,
+    "/reset-password/": true,
+    "/verify-email": true,
+    "/verify-email/": true,
+    "/start": true,
+    "/start/": true
+  };
+  if (authPaths[path]) {
     var authSizes = ${JSON.stringify(authSizes)};
     var authSignInPanelSrcset = ${authSignInPanelJson};
     if (authSignInPanelSrcset) {

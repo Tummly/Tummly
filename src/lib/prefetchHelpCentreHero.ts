@@ -1,4 +1,4 @@
-import { helpCenterBgPicture } from "@/assets/critical-images";
+import { helpCenterBgPicture } from "@/assets/critical-images/help-center-bg";
 import { FULL_BLEED_IMAGE_SIZES } from "@/lib/imagePresets";
 
 let prefetched = false;

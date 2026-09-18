@@ -4,6 +4,7 @@ import { CookieSettingsTrigger } from "@/components/common/CookieSettingsDialog"
 import { HELP_CENTRE_URL } from "@/config/support"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { prefetchHelpCentreHero } from "@/lib/prefetchHelpCentreHero"
+import { cn } from "@/lib/utils"
 
 const footerLinkClass =
   "rounded-sm text-sm font-medium text-[#555] no-underline transition-colors hover:text-[#232323] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -14,10 +15,18 @@ const footerLinks = [
   { label: "Privacy", href: LEGAL_ROUTES.privacy },
 ] as const
 
-export function AuthFooter() {
+type AuthFooterProps = {
+  className?: string
+}
+
+export function AuthFooter({ className }: AuthFooterProps) {
   return (
-    <footer className="relative z-10 w-full shrink-0 px-5 pb-6 pt-4 sm:px-6 lg:px-10 lg:pb-10">
-      <nav
+    <footer
+      className={cn(
+        "relative z-10 w-full shrink-0 px-5 pb-6 pt-4 sm:px-6 lg:px-10 lg:pb-10",
+        className
+      )}
+    >      <nav
         aria-label="Auth footer"
         className="flex w-full flex-wrap items-center justify-between gap-x-6 gap-y-3 text-sm font-medium text-[#555]"
       >

@@ -1,12 +1,12 @@
 import type { ReactNode } from "react"
+import { Link } from "react-router-dom"
 
-import { AuthFormAccent } from "@/components/auth/AuthFormAccent"
-import Navbar from "@/components/layout/Navbar"
+import { AuthFooter } from "@/components/auth/AuthFooter"
+import { MarketingLogo } from "@/components/marketing/MarketingLogo"
+import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import { cn } from "@/lib/utils"
 
 import { GuestLoopBackButton } from "./GuestLoopBackButton"
-import { GuestLoopLegalFooter } from "./GuestLoopLegalFooter"
-import { GuestLoopSupportFooter } from "./GuestLoopSupportFooter"
 
 interface GuestLoopShellProps {
   children: ReactNode
@@ -14,7 +14,7 @@ interface GuestLoopShellProps {
   hideFooters?: boolean
   /** Vertical alignment of main content within the shell. */
   contentAlign?: "center" | "start"
-  /** Override the default 560px content max width (e.g. choose-plan cards). */
+  /** Override the default 473px content max width (e.g. provisioning). */
   contentMaxWidthClassName?: string
   /** When false, the back control is hidden (e.g. Account Setup step 1). */
   showBackButton?: boolean
@@ -24,15 +24,15 @@ interface GuestLoopShellProps {
 }
 
 /**
- * Full-viewport shell for Guest Loop onboarding (single- and multi-location).
- * Site navigation header, top-right kitchen line-art, support and legal footers.
+ * Full-viewport Guest Loop chrome — grey pad, #fafafa rounded panel,
+ * logo + Contact support header, AuthFooter outside the panel.
  */
 export function GuestLoopShell({
   children,
   className,
   hideFooters = false,
   contentAlign = "center",
-  contentMaxWidthClassName = "max-w-[min(100%,560px)]",
+  contentMaxWidthClassName = "max-w-[473px]",
   showBackButton = false,
   backButtonDisabled = false,
   onBack,
@@ -40,46 +40,58 @@ export function GuestLoopShell({
   return (
     <div
       className={cn(
-        "flex min-h-dvh flex-col overflow-x-hidden bg-white text-[#232323]",
+        "flex h-dvh min-h-0 flex-col overflow-hidden bg-[#cbcbcb] p-5 text-[#232323]",
         className
       )}
     >
-      <Navbar showRequestTrial={false} />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-[#fafafa]">
+        <header className="flex shrink-0 items-center justify-between px-10 pt-10">
+          <Link
+            to="/"
+            className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          >
+            <MarketingLogo
+              onLight
+              width={145}
+              height={37}
+              className="h-9.25 w-auto"
+            />
+          </Link>
+          <p className="m-0 flex items-center gap-2.5 text-base text-[#141414]">
+            Having trouble?{" "}
+            <Link
+              to={HELP_CENTRE_CONTACT_URL}
+              className="text-sm font-medium underline"
+            >
+              Contact support
+            </Link>
+          </p>
+        </header>
 
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        <AuthFormAccent variant="onboarding" />
-
-        <div className="relative z-1 flex min-h-0 flex-1 flex-col px-6.25 lg:px-45 pb-10 pt-22.5 gap-10">
-          <main
-            className={cn(
-              "flex flex-1 flex-col items-center",
-              contentAlign === "start" ? "justify-start" : "justify-center"
-            )}
+        <main
+          className={cn(
+            "flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-10 pb-10 pt-6",
+            contentAlign === "start" ? "justify-start" : "justify-center"
+          )}
+        >
+          <div
+            className={cn("flex w-full flex-col", contentMaxWidthClassName)}
           >
             {showBackButton && onBack ? (
               <GuestLoopBackButton
                 onClick={onBack}
                 disabled={backButtonDisabled}
+                className="mb-6"
               />
             ) : null}
-            <div
-              className={cn(
-                "flex w-full flex-col",
-                contentMaxWidthClassName
-              )}
-            >
-              {children}
-            </div>
-          </main>
-
-          {!hideFooters ? (
-            <footer className="flex shrink-0 flex-col items-center gap-8">
-              <GuestLoopSupportFooter />
-              <GuestLoopLegalFooter />
-            </footer>
-          ) : null}
-        </div>
+            {children}
+          </div>
+        </main>
       </div>
+
+      {!hideFooters ? (
+        <AuthFooter className="px-10 pb-0 pt-3 sm:px-10 lg:px-10 lg:pb-0" />
+      ) : null}
     </div>
   )
 }

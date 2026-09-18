@@ -24,7 +24,7 @@ import VerifyEmailPage from "../auth/VerifyEmailPage";
 import SignupPage from "../auth/SignupPage";
 import SignupVerifyPage from "../auth/SignupVerifyPage";
 import SignupOnboardingPage from "../auth/SignupOnboardingPage";
-import SignupChoosePlanPage from "../auth/SignupChoosePlanPage";
+import SignupChoosePlanRedirectPage from "../auth/SignupChoosePlanRedirectPage";
 import SignupProvisioningPage from "../auth/SignupProvisioningPage";
 import GuestFeedbackPage from "../public/GuestFeedbackPage";
 import PrivacyPage from "../public/PrivacyPage";
@@ -153,7 +153,7 @@ function AppRoutes() {
           path="signup/choose-plan"
           element={
             <ErrorBoundary>
-              <SignupChoosePlanPage />
+              <SignupChoosePlanRedirectPage />
             </ErrorBoundary>
           }
         />

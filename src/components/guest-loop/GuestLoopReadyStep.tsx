@@ -81,7 +81,7 @@ type GuestLoopReadyStepProps = {
   description?: string
   /** Label for the ready CTA (default: Open workspace). */
   primaryActionLabel?: string
-  /** Optional secondary action (e.g. cancel payment / choose different plan). */
+  /** Optional secondary action below the primary CTA. */
   secondaryActionLabel?: string
   onSecondaryAction?: () => void
   secondaryActionEnabled?: boolean
