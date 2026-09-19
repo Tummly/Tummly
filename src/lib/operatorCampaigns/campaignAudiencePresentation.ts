@@ -40,10 +40,15 @@ export type CampaignAudienceOptionDef = {
 export type CampaignExcludedReasonCode =
   | "account"
   | "soft-lock"
+  | "not-granted"
+  | "withdrawn"
+  | "suppressed"
+  | "invalid-contact"
+  /** Legacy wire codes kept for older responses. */
   | "opt-out"
   | "suppression"
-  | "invalid-contact"
   | "channel"
+  | "channel-disabled"
 
 export type CampaignExcludedReasonCount = {
   reason: CampaignExcludedReasonCode | string
@@ -66,10 +71,14 @@ export const CAMPAIGN_AUDIENCE_COPY = {
   excludedReasonLabels: {
     account: "Account",
     "soft-lock": "Soft lock",
-    "opt-out": "Opt-out",
-    suppression: "Suppression",
+    "not-granted": "Not granted",
+    withdrawn: "Withdrawn",
+    suppressed: "Suppressed",
     "invalid-contact": "Invalid contact",
-    channel: "Channel",
+    "opt-out": "Not granted",
+    suppression: "Suppressed",
+    channel: "Suppressed",
+    "channel-disabled": "Suppressed",
   } as const satisfies Record<CampaignExcludedReasonCode, string>,
 } as const
 

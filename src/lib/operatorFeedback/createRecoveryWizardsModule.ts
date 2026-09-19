@@ -82,6 +82,15 @@ export type RecoveryWizardsModule = {
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => RecoveryWizardsSnapshot
   openStartRecovery: (feedbackId: number) => Promise<void>
+  /** FD — open Respond to guest from Feedback detail. */
+  openDetailRespondToGuest: (feedbackId: number) => Promise<void>
+  /** FD — open Add Offer from Feedback detail. */
+  openDetailAddOffer: (feedbackId: number) => Promise<void>
+  /**
+   * RC-02 — from Respond to guest composer, switch to Add Offer
+   * (recovery offer) when marketing eligible.
+   */
+  switchRespondToAddOffer: () => Promise<void>
   closeStartRecovery: () => void
   retryStartRecovery: () => Promise<void>
   selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
@@ -296,6 +305,41 @@ export function createRecoveryWizardsModule(
       respondWithRecoveryOffer: respondWithRecoveryOffer.getSnapshot(),
     }),
     openStartRecovery: (feedbackId) => startRecovery.open(feedbackId),
+    async openDetailRespondToGuest(feedbackId) {
+      startRecovery.close()
+      const details = await adapters.getFeedbackDetails(feedbackId)
+      const workflowStatus =
+        details.workflowStatus === "in_progress"
+        || details.workflowStatus === "resolved"
+          ? details.workflowStatus
+          : "new"
+      if (workflowStatus === "new") {
+        await adapters.setWorkflowStatus(feedbackId, "in_progress")
+      }
+      await respondToGuest.open(feedbackId, details)
+    },
+    async openDetailAddOffer(feedbackId) {
+      startRecovery.close()
+      const details = await adapters.getFeedbackDetails(feedbackId)
+      const workflowStatus =
+        details.workflowStatus === "in_progress"
+        || details.workflowStatus === "resolved"
+          ? details.workflowStatus
+          : "new"
+      if (workflowStatus === "new") {
+        await adapters.setWorkflowStatus(feedbackId, "in_progress")
+      }
+      await respondWithRecoveryOffer.open(feedbackId, details)
+    },
+    async switchRespondToAddOffer() {
+      const snap = respondToGuest.getSnapshot()
+      if (snap.feedbackId == null || !snap.addOfferEnabled) {
+        return
+      }
+      const feedbackId = snap.feedbackId
+      respondToGuest.saveAndExit()
+      await respondWithRecoveryOffer.open(feedbackId)
+    },
     closeStartRecovery: () => {
       startRecovery.close()
     },

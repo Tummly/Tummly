@@ -316,12 +316,21 @@ export function GuestsPage() {
         onConfirmCloseOut={() => {
           void guests.confirmFeedbackCloseOut()
         }}
-        onStartRecovery={() => {
+        onRespondToGuest={() => {
           const feedbackId = snapshot.feedbackDetails.feedbackId
           if (feedbackId == null) {
             return
           }
-          void guests.startRecovery(feedbackId)
+          guests.closeFeedbackDetails()
+          void guests.recoveryWizards.openDetailRespondToGuest(feedbackId)
+        }}
+        onAddOffer={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          guests.closeFeedbackDetails()
+          void guests.recoveryWizards.openDetailAddOffer(feedbackId)
         }}
         onNoteDraftChange={guests.setFeedbackInternalNoteDraft}
         onCreateNote={() => {

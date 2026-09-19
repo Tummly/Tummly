@@ -5,6 +5,7 @@ import {
   GUEST_PROFILE_FEEDBACK_SOURCE_LABEL,
   GUEST_PROFILE_NOT_PROVIDED,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
+import { buildGuestProfilePermissionSummaryFromDetails } from "@/lib/operatorGuestProfile/guestProfilePermissionPresentation"
 import { labelForDetectedTag } from "@/lib/operatorHome/detectedTags"
 import {
   formatRelativeTime,
@@ -322,6 +323,22 @@ export function mapGuestProfileApiResponseToViewModel(
       statusLabel: GUEST_PROFILE_CONTACT_STATUS_LABELS[row.status],
       detailDisplay: formatContactEligibilityDetail(row),
     })),
+    permissionSummary: (() => {
+      const rows = buildGuestProfilePermissionSummaryFromDetails({
+        email: response.profileSummary.email,
+        mobile: response.profileSummary.mobile,
+        permissionStates: response.permissionStates,
+        restaurantPermissionEnabled: response.restaurantPermissionEnabled,
+      })
+      if (rows == null) {
+        return null
+      }
+      return rows.map((row) => ({
+        id: row.id,
+        label: row.label,
+        value: row.value,
+      }))
+    })(),
     latestFeedback: (response.latestFeedback ?? []).map(mapLatestFeedbackRow),
     latestOffers: (response.latestOffers ?? []).map(mapLatestOfferRow),
     latestCampaigns: (response.latestCampaigns ?? []).map(mapLatestCampaignRow),

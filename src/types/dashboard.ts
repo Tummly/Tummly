@@ -531,6 +531,23 @@ export interface FeedbackDetailsResponse {
    * Used to gate Respond with a recovery offer on the Start recovery shell.
    */
   marketingPreference?: LocationGuestMarketingPreference;
+  /**
+   * Effective Location Guest permission ledger states (FD permission summary).
+   * Omitted by older fixtures → treat as not_recorded for each kind.
+   */
+  permissionStates?: Partial<
+    Record<
+      "email-marketing" | "sms-marketing" | "feedback-follow-up",
+      "granted" | "withdrawn" | "not_recorded"
+    >
+  >;
+  /**
+   * Restaurant Privacy toggles for the three guest permission kinds.
+   * Omitted by older fixtures → treat as false (unavailable).
+   */
+  restaurantPermissionEnabled?: Partial<
+    Record<"email-marketing" | "sms-marketing" | "feedback-follow-up", boolean>
+  >;
   /** Newest-first Feedback internal notes (may be omitted by older fixtures). */
   internalNotes?: FeedbackInternalNoteItem[];
   /** Derived timeline; may be omitted by older fixtures. */
@@ -1048,6 +1065,23 @@ export interface GuestProfileResponse {
   name: string;
   marketingStatus: string;
   marketingPreference: LocationGuestMarketingPreference;
+  /**
+   * Effective Location Guest permission ledger states.
+   * Omitted by older fixtures → permission summary stays hidden.
+   */
+  permissionStates?: Partial<
+    Record<
+      "email-marketing" | "sms-marketing" | "feedback-follow-up",
+      "granted" | "withdrawn" | "not_recorded"
+    >
+  >;
+  /**
+   * Restaurant Privacy toggles for the three guest permission kinds.
+   * Omitted by older fixtures → permission summary stays hidden.
+   */
+  restaurantPermissionEnabled?: Partial<
+    Record<"email-marketing" | "sms-marketing" | "feedback-follow-up", boolean>
+  >;
   guestSinceAt: string;
   lastActivityAt: string | null;
   lastInteractionLabel: string;

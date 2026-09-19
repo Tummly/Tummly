@@ -294,6 +294,7 @@ namespace TummlyBackend.Controllers
                         restaurant,
                         location.Id,
                         !dto.OffersOptOut,
+                        contactType,
                         submitAt
                     );
 

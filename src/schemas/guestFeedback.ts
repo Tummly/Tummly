@@ -54,7 +54,8 @@ export const guestFeedbackDefaultValues: GuestFeedbackFormValues = {
   guestName: "",
   guestContact: "",
   comment: "",
-  acceptsOffers: true,
+  /** Hard opt-in — never pre-ticked (GF-03). */
+  acceptsOffers: false,
 }
 
 export const guestFeedbackFields = [

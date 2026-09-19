@@ -13,6 +13,8 @@ import {
 import {
   buildStartRecoveryIntents,
   deriveStartRecoveryContactCapability,
+  parseFeedbackDetailPermissionStates,
+  parseFeedbackDetailRestaurantPermissions,
   startRecoveryContactCapabilityLabel,
   type StartRecoveryIntentCard,
   type StartRecoveryIntentId,
@@ -83,6 +85,10 @@ type EntryState = {
   selectedIntentId: StartRecoveryIntentId | null
   marketingPreference: LocationGuestMarketingPreference | undefined
   contactCapability: ReturnType<typeof deriveStartRecoveryContactCapability> | null
+  permissionStates: ReturnType<typeof parseFeedbackDetailPermissionStates> | null
+  restaurantPermissions: ReturnType<
+    typeof parseFeedbackDetailRestaurantPermissions
+  > | null
   loadedDetails: FeedbackDetailsResponse | null
 }
 
@@ -102,6 +108,8 @@ function emptyState(): EntryState {
     selectedIntentId: null,
     marketingPreference: undefined,
     contactCapability: null,
+    permissionStates: null,
+    restaurantPermissions: null,
     loadedDetails: null,
   }
 }
@@ -164,6 +172,8 @@ function rebuildIntents(state: EntryState): StartRecoveryIntentCard[] {
     contactCapability: state.contactCapability,
     marketingPreference: state.marketingPreference,
     workflowStatus: state.workflowStatus,
+    permissionStates: state.permissionStates ?? undefined,
+    restaurantPermissions: state.restaurantPermissions ?? undefined,
   })
 }
 
@@ -208,6 +218,17 @@ export function createStartRecoveryEntryModule(
       response.guestContact
     )
     const marketingPreference = response.marketingPreference
+    const hasPermissionPayload =
+      response.permissionStates != null
+      || response.restaurantPermissionEnabled != null
+    const permissionStates = hasPermissionPayload
+      ? parseFeedbackDetailPermissionStates(response.permissionStates)
+      : null
+    const restaurantPermissions = hasPermissionPayload
+      ? parseFeedbackDetailRestaurantPermissions(
+          response.restaurantPermissionEnabled
+        )
+      : null
     const summary = mapSummary(response, contactCapability)
 
     state = {
@@ -225,6 +246,8 @@ export function createStartRecoveryEntryModule(
       summary,
       marketingPreference,
       contactCapability,
+      permissionStates,
+      restaurantPermissions,
       intents: [],
       loadedDetails: response,
     }

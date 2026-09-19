@@ -21,6 +21,14 @@ import {
   type FeedbackCloseOutReason,
 } from "@/lib/operatorFeedback/feedbackCloseOutPresentation"
 import { canSaveFeedbackClassificationCorrection } from "@/lib/operatorFeedback/feedbackClassificationCorrectionPresentation"
+import {
+  buildFeedbackDetailPermissionSummary,
+  deriveFeedbackDetailRecoveryActions,
+  parseFeedbackDetailPermissionStates,
+  parseFeedbackDetailRestaurantPermissions,
+  type FeedbackDetailPermissionSummaryRow,
+  type FeedbackDetailRecoveryActions,
+} from "@/lib/operatorFeedback/feedbackDetailRecoveryPresentation"
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000
 const LOAD_ERROR = "Could not load Feedback details. Please try again."
@@ -135,6 +143,10 @@ export type FeedbackDetailsLoaded = {
   canMarkNoActionNeeded: boolean
   internalNotes: FeedbackDetailsNoteRow[]
   activityHistory: FeedbackDetailsActivityEvent[]
+  /** FD permission summary rows (Follow-up section). */
+  permissionSummary: FeedbackDetailPermissionSummaryRow[]
+  /** FD-01 / FD-02 / FD-03 Respond + Add Offer chrome. */
+  recoveryActions: FeedbackDetailRecoveryActions
 }
 
 export type FeedbackDetailsSnapshot = {
@@ -829,6 +841,26 @@ function toLoadedDetails(
     workflowStatus
   )
 
+  const permissionStates = parseFeedbackDetailPermissionStates(
+    response.permissionStates
+  )
+  const restaurantPermissions = parseFeedbackDetailRestaurantPermissions(
+    response.restaurantPermissionEnabled
+  )
+  const permissionSummary = buildFeedbackDetailPermissionSummary({
+    contactType: response.contactType,
+    guestContact: response.guestContact,
+    permissionStates,
+    restaurantPermissions,
+  })
+  const recoveryActions = deriveFeedbackDetailRecoveryActions({
+    contactType: response.contactType,
+    guestContact: response.guestContact,
+    workflowStatus,
+    permissionStates,
+    restaurantPermissions,
+  })
+
   return withLastFollowUp({
     id: response.id,
     guestName: response.guestName,
@@ -871,6 +903,8 @@ function toLoadedDetails(
     canMarkNoActionNeeded: workflowStatus !== "resolved",
     internalNotes,
     activityHistory,
+    permissionSummary,
+    recoveryActions,
   })
 }
 

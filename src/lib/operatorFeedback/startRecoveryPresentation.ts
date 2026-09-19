@@ -1,4 +1,12 @@
 import {
+  isFeedbackFollowUpAvailable,
+  parseFeedbackDetailPermissionStates,
+  parseFeedbackDetailRestaurantPermissions,
+  resolveMarketingGrantedChannel,
+  type FeedbackDetailPermissionStates,
+  type FeedbackDetailRestaurantPermissions,
+} from "@/lib/operatorFeedback/feedbackDetailRecoveryPresentation"
+import {
   OPERATOR_WIZARD_SELECTABLE_CARD_DISABLED_CLASS,
   OPERATOR_WIZARD_SELECTABLE_CARD_IDLE_CLASS,
   OPERATOR_WIZARD_SELECTABLE_CARD_SELECTED_CLASS,
@@ -32,6 +40,10 @@ export type StartRecoveryIntentCard = {
 
 const NO_CONTACT_REASON = "No contact method available"
 const OFFERS_OPT_OUT_REASON = "Guest has opted out of offers"
+const MARKETING_NOT_AVAILABLE_REASON =
+  "Marketing permission is not available for this guest."
+const FOLLOW_UP_UNAVAILABLE_REASON =
+  "Feedback follow-up is not available for this guest."
 
 const INTENT_DEFINITIONS: readonly {
   id: StartRecoveryIntentId
@@ -95,20 +107,63 @@ export function startRecoveryContactCapabilityLabel(
   }
 }
 
+function contactTypeForCapability(
+  capability: StartRecoveryContactCapability
+): ContactType {
+  if (capability === "email_available") {
+    return "Email"
+  }
+  if (capability === "sms_available") {
+    return "Phone"
+  }
+  return "Unknown"
+}
+
+function isMarketingEligibleForOffer(input: {
+  contactCapability: StartRecoveryContactCapability
+  marketingPreference: LocationGuestMarketingPreference | undefined
+  permissionStates?: FeedbackDetailPermissionStates
+  restaurantPermissions?: FeedbackDetailRestaurantPermissions
+}): boolean {
+  if (
+    input.permissionStates != null
+    && input.restaurantPermissions != null
+  ) {
+    const channel = resolveMarketingGrantedChannel({
+      contactType: contactTypeForCapability(input.contactCapability),
+      guestContact:
+        input.contactCapability === "no_contact" ? "" : "present",
+      permissionStates: input.permissionStates,
+      restaurantPermissions: input.restaurantPermissions,
+    })
+    return channel != null
+  }
+
+  return !isLocationGuestMarketingIneligible(input.marketingPreference)
+}
+
 /**
  * PRD Start recovery intent cards — order, copy, and disable rules.
- * Resolved disables all; No contact gates Respond*; offers opt-out gates offer only.
+ * Resolved disables all; No contact gates Respond*; follow-up / marketing
+ * gates use ledger states when present (FD), else marketing rollup.
  */
 export function buildStartRecoveryIntents(input: {
   contactCapability: StartRecoveryContactCapability
   marketingPreference: LocationGuestMarketingPreference | undefined
   workflowStatus: FeedbackWorkflowStatus
+  permissionStates?: FeedbackDetailPermissionStates
+  restaurantPermissions?: FeedbackDetailRestaurantPermissions
 }): StartRecoveryIntentCard[] {
   const isResolved = input.workflowStatus === "resolved"
   const hasNoContact = input.contactCapability === "no_contact"
-  const marketingIneligible = isLocationGuestMarketingIneligible(
-    input.marketingPreference
-  )
+  const marketingEligible = isMarketingEligibleForOffer(input)
+  const followUpAvailable =
+    input.permissionStates == null || input.restaurantPermissions == null
+      ? true
+      : isFeedbackFollowUpAvailable({
+          permissionStates: input.permissionStates,
+          restaurantPermissions: input.restaurantPermissions,
+        })
 
   return INTENT_DEFINITIONS.map((definition) => {
     if (isResolved) {
@@ -135,11 +190,21 @@ export function buildStartRecoveryIntents(input: {
           disableReason: NO_CONTACT_REASON,
         }
       }
-      if (marketingIneligible) {
+      if (!followUpAvailable) {
         return {
           ...definition,
           enabled: false,
-          disableReason: OFFERS_OPT_OUT_REASON,
+          disableReason: FOLLOW_UP_UNAVAILABLE_REASON,
+        }
+      }
+      if (!marketingEligible) {
+        return {
+          ...definition,
+          enabled: false,
+          disableReason:
+            input.permissionStates != null
+              ? MARKETING_NOT_AVAILABLE_REASON
+              : OFFERS_OPT_OUT_REASON,
         }
       }
       return {
@@ -155,6 +220,14 @@ export function buildStartRecoveryIntents(input: {
         ...definition,
         enabled: false,
         disableReason: NO_CONTACT_REASON,
+      }
+    }
+
+    if (!followUpAvailable) {
+      return {
+        ...definition,
+        enabled: false,
+        disableReason: FOLLOW_UP_UNAVAILABLE_REASON,
       }
     }
 
@@ -189,3 +262,8 @@ export const START_RECOVERY_SUMMARY_CLASS =
 
 /** Summary row rules — `--op-divider` (`#e5e5e5` light / `#262626` dark). */
 export const START_RECOVERY_SUMMARY_DIVIDER_CLASS = "bg-op-divider"
+
+export {
+  parseFeedbackDetailPermissionStates,
+  parseFeedbackDetailRestaurantPermissions,
+}

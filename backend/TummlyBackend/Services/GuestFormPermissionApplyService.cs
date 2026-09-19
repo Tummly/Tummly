@@ -24,14 +24,16 @@ namespace TummlyBackend.Services
             LocationGuest locationGuest,
             Restaurant restaurant,
             int restaurantLocationId,
-            bool consentGranted,
+            bool marketingConsentGranted,
+            ContactType contactType,
             DateTime occurredAt,
             CancellationToken cancellationToken = default
         )
         {
             var events = LocationGuestChannelPermissionGate.LedgerEventsForGuestFormSubmit(
                 restaurant,
-                consentGranted
+                marketingConsentGranted,
+                contactType
             );
 
             foreach (var (kind, eventKind) in events)

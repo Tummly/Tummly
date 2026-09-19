@@ -30,7 +30,8 @@ import {
   GUEST_PREVIEW_SEND_TEST_SUCCESS,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import { RECOVERY_SMS_SHORTFALL_BODY } from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
-import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
+import { RECOVERY_COMPOSER_COPY } from "@/lib/operatorFeedback/recoveryComposerPresentation"
+import { RecoveryComposerStatusBanner } from "@/components/dashboard/operator/Feedback/RecoveryComposerStatusBanner"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
   RESPONSE_SETUP_STEP_HEADING,
@@ -74,6 +75,8 @@ type RespondToGuestWizardProps = {
   onConfirmSend: () => void
   onKeepInProgress: () => void
   onMarkResolved: () => void
+  /** RC-02 — switch to Add Offer (recovery offer) composer when marketing eligible. */
+  onAddOffer?: () => void
 }
 
 const STEP_LABELS = [
@@ -121,6 +124,7 @@ export function RespondToGuestWizard({
   onConfirmSend,
   onKeepInProgress,
   onMarkResolved,
+  onAddOffer,
 }: RespondToGuestWizardProps) {
   useEffect(() => {
     if (snapshot.sendStatus === "error" && snapshot.sendError != null) {
@@ -201,7 +205,7 @@ export function RespondToGuestWizard({
       showBackButton={!isSuccess}
       onBack={onBack}
       backDisabled={locked}
-      title={isSuccess ? successChrome!.title : RECOVERY_WIZARD_PAGE_TITLE}
+      title={isSuccess ? successChrome!.title : RECOVERY_COMPOSER_COPY.pageTitle}
       description={
         isSuccess
           ? successChrome!.subtitle
@@ -309,6 +313,14 @@ export function RespondToGuestWizard({
       {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-[42px]">
           <div className="flex flex-1 flex-col gap-6">
+            {!isSuccess ? (
+              <RecoveryComposerStatusBanner
+                banner={snapshot.statusBanner}
+                addOfferEnabled={snapshot.addOfferEnabled}
+                onAddOffer={onAddOffer}
+                disabled={locked}
+              />
+            ) : null}
             {snapshot.step === "setup" ? (
               <ResponseSetupFields
                 idPrefix="respond-to-guest"

@@ -171,6 +171,23 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal("allowed", body.GetProperty("marketingPreference").GetString());
             Assert.Equal(
+                "granted",
+                body.GetProperty("permissionStates")
+                    .GetProperty("feedback-follow-up")
+                    .GetString()
+            );
+            Assert.Equal(
+                "granted",
+                body.GetProperty("permissionStates")
+                    .GetProperty("email-marketing")
+                    .GetString()
+            );
+            Assert.True(
+                body.GetProperty("restaurantPermissionEnabled")
+                    .GetProperty("email-marketing")
+                    .GetBoolean()
+            );
+            Assert.Equal(
                 guestSinceAt,
                 body.GetProperty("guestSinceAt").GetDateTime()
             );

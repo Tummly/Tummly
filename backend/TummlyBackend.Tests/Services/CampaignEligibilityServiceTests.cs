@@ -76,7 +76,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, result.ExcludedReasons.Count);
             Assert.Contains(
                 result.ExcludedReasons,
-                r => r.Reason == "opt-out" && r.Count == 1
+                r => r.Reason == "withdrawn" && r.Count == 1
             );
             Assert.Contains(
                 result.ExcludedReasons,
@@ -107,15 +107,15 @@ namespace TummlyBackend.Tests.Services
                 {
                     Assert.DoesNotContain(
                         reason.Reason,
-                        new[] { "soft-lock", "account", "suppression" }
+                        new[] { "soft-lock", "account" }
                     );
                 }
             );
-            Assert.Equal("opt-out", result.ExcludedReasons.Single().Reason);
+            Assert.Equal("withdrawn", result.ExcludedReasons.Single().Reason);
         }
 
         [Fact]
-        public async Task EvaluateAsync_TreatsNotRecordedAsOptOutExclusion()
+        public async Task EvaluateAsync_TreatsNotRecordedAsNotGrantedExclusion()
         {
             var seeded = await SeedLocationAsync();
             var guest = await AddGuestAsync(
@@ -139,7 +139,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, result.Matched);
             Assert.Equal(0, result.CurrentlyEligible);
             Assert.Equal(1, result.Excluded);
-            Assert.Equal("opt-out", result.ExcludedReasons.Single().Reason);
+            Assert.Equal("not-granted", result.ExcludedReasons.Single().Reason);
         }
 
         [Theory]

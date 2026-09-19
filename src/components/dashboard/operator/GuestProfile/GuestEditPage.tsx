@@ -987,12 +987,21 @@ export function GuestEditPage({
           void confirmFeedbackCloseOut()
         }}
         onViewGuestProfile={navigateToGuestProfile}
-        onStartRecovery={() => {
+        onRespondToGuest={() => {
           const feedbackId = snapshot.feedbackDetails.feedbackId
           if (feedbackId == null) {
             return
           }
-          void startRecovery(feedbackId)
+          closeFeedbackDetails()
+          void recoveryWizards.openDetailRespondToGuest(feedbackId)
+        }}
+        onAddOffer={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          closeFeedbackDetails()
+          void recoveryWizards.openDetailAddOffer(feedbackId)
         }}
         onNoteDraftChange={setFeedbackInternalNoteDraft}
         onCreateNote={() => {

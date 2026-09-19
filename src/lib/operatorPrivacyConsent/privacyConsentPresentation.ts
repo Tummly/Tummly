@@ -72,9 +72,14 @@ export const GUEST_PERMISSION_TILE_CLASS =
 export const GUEST_PERMISSION_TILE_GRID_CLASS =
   "grid grid-cols-1 gap-5 lg:grid-cols-3"
 
-/** Figma toggle 38×16 with 12px thumb (858:1220). */
+/**
+ * Guest permission tile colors on the shared Switch.
+ * Keep default Switch size so thumb `translate-x-[calc(100%-2px)]` matches the
+ * track (custom 38×16 + 12px thumb left the knob looking Off while Status said
+ * Enabled).
+ */
 export const GUEST_PERMISSION_SWITCH_CLASS =
-  "h-4 w-[38px] border-0 data-checked:bg-op-button-primary-background data-unchecked:bg-[var(--op-color-gray-550)] dark:data-unchecked:bg-[var(--op-color-gray-550)] [&_[data-slot=switch-thumb]]:size-3 [&_[data-slot=switch-thumb]]:bg-white dark:[&_[data-slot=switch-thumb]]:bg-white data-checked:[&_[data-slot=switch-thumb]]:!translate-x-[22px] data-unchecked:[&_[data-slot=switch-thumb]]:!translate-x-[2px]"
+  "border-0 data-checked:bg-op-button-primary-background data-unchecked:bg-[var(--op-color-gray-550)] dark:data-unchecked:bg-[var(--op-color-gray-550)] [&_[data-slot=switch-thumb]]:bg-white dark:[&_[data-slot=switch-thumb]]:bg-white"
 
 export type PrivacyConsentTabId =
   | "privacy-setup"

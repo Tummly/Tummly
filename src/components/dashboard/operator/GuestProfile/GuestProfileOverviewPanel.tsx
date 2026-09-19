@@ -32,6 +32,7 @@ import {
   GUESTS_TABLE_LOCATION_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import type { OperatorGuestProfileViewModel } from "@/types/operatorGuestProfile"
+import { GUEST_PROFILE_PERMISSION_COPY } from "@/lib/operatorGuestProfile/guestProfilePermissionPresentation"
 
 type GuestProfileOverviewPanelProps = {
   viewModel: OperatorGuestProfileViewModel
@@ -175,52 +176,64 @@ export function GuestProfileOverviewPanel({
 
       <section className={GUESTS_SECTION_CLASS}>
         <div className={GUESTS_SECTION_HEADER_ROW_CLASS}>
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>Contact eligibility</h2>
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+            {GUEST_PROFILE_PERMISSION_COPY.sectionTitle}
+          </h2>
         </div>
-        <div className={GUESTS_TABLE_FRAME_CLASS}>
-          <Table className={GUESTS_TABLE_CLASS}>
-            <TableHeader className="[&_tr]:border-0">
-              <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
-                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Channel
-                </TableHead>
-                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Status
-                </TableHead>
-                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Detail
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {viewModel.contactEligibility.map((row) => (
-                <TableRow
-                  key={row.channel}
-                  className={GUESTS_TABLE_BODY_ROW_CLASS}
-                >
-                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                    <span className={GUESTS_TABLE_GUEST_NAME_CLASS}>
-                      {row.channelLabel}
-                    </span>
-                  </TableCell>
-                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                    <Badge
-                      variant="soft"
-                      className={GUESTS_MARKETING_STATUS_BADGE_CLASS}
-                    >
-                      {row.statusLabel}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                    <span className={GUESTS_TABLE_LOCATION_CLASS}>
-                      {row.detailDisplay}
-                    </span>
-                  </TableCell>
+        {viewModel.permissionSummary != null ? (
+          <GuestProfileDetailRows
+            layout="stack"
+            rows={viewModel.permissionSummary.map((row) => ({
+              label: row.label,
+              value: row.value,
+            }))}
+          />
+        ) : (
+          <div className={GUESTS_TABLE_FRAME_CLASS}>
+            <Table className={GUESTS_TABLE_CLASS}>
+              <TableHeader className="[&_tr]:border-0">
+                <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    Channel
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    Status
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    Detail
+                  </TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {viewModel.contactEligibility.map((row) => (
+                  <TableRow
+                    key={row.channel}
+                    className={GUESTS_TABLE_BODY_ROW_CLASS}
+                  >
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <span className={GUESTS_TABLE_GUEST_NAME_CLASS}>
+                        {row.channelLabel}
+                      </span>
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <Badge
+                        variant="soft"
+                        className={GUESTS_MARKETING_STATUS_BADGE_CLASS}
+                      >
+                        {row.statusLabel}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                        {row.detailDisplay}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </section>
 
       <GuestProfileLatestFeedbackSection

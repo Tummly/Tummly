@@ -46,6 +46,15 @@ import {
   type RecoverySmsShortfallChrome,
 } from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
 import {
+  RECOVERY_COMPOSER_COPY,
+  buildRecoveryComposerStatusBanner,
+  mapRecoveryComposerSendFailure,
+  resolveRecoveryComposerMarketingChannelFromDetails,
+  shouldDetachOfferOnEligibilityLoss,
+  type RecoveryComposerMarketingChannel,
+  type RecoveryComposerStatusBanner,
+} from "@/lib/operatorFeedback/recoveryComposerPresentation"
+import {
   RECOVERY_OFFER_DESCRIPTION_MAX,
   RECOVERY_OFFER_PURPOSE_ID,
   RECOVERY_OFFER_PURPOSE_LABEL,
@@ -107,8 +116,6 @@ import {
   OFFERS_PAGE_SIZE,
 } from "@/lib/operatorOffers/offersPresentation"
 
-const SEND_ERROR_MESSAGE =
-  "Could not send the response and issue the offer. Please try again."
 const COMPLETE_ERROR_MESSAGE =
   "Could not mark this recovery resolved. Please try again."
 const AI_DRAFT_ERROR_MESSAGE = "We could not prepare a draft."
@@ -333,6 +340,14 @@ export type RespondWithRecoveryOfferSnapshot = {
   paidWrite: RecoveryPaidWriteChrome
   /** Confirm/Send hard-stop for SMS shortfall or Soft lock / Dormant. */
   sendBlocked: boolean
+  /** RC-02 status banner (marketing eligible) or RC-01 if eligibility lost. */
+  statusBanner: RecoveryComposerStatusBanner | null
+  marketingChannel: RecoveryComposerMarketingChannel | null
+  /**
+   * RC-03 — shown when marketing eligibility changes while the composer
+   * is open and an attached Offer was removed.
+   */
+  eligibilityNotice: string | null
 }
 
 export type RespondWithRecoveryOfferBackResult = "return-to-shell" | "stayed"
@@ -469,6 +484,8 @@ type SessionState = {
   issuedOffer: SendAndIssueRecoveryOfferResult["issuedOffer"] | null
   openedFromDraftAction: boolean
   creditChrome: RecoveryCreditChromeContext | null
+  marketingChannel: RecoveryComposerMarketingChannel | null
+  eligibilityNotice: string | null
 }
 
 function emptySession(): SessionState {
@@ -523,6 +540,8 @@ function emptySession(): SessionState {
     issuedOffer: null,
     openedFromDraftAction: false,
     creditChrome: null,
+    marketingChannel: null,
+    eligibilityNotice: null,
   }
 }
 
@@ -801,6 +820,12 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
     aiActionChip: credit.aiActionChip,
     paidWrite: credit.paidWrite,
     sendBlocked: credit.sendBlocked,
+    statusBanner:
+      state.loadStatus === "loaded"
+        ? buildRecoveryComposerStatusBanner(state.marketingChannel)
+        : null,
+    marketingChannel: state.marketingChannel,
+    eligibilityNotice: state.eligibilityNotice,
   }
 }
 
@@ -1150,6 +1175,13 @@ export function createRespondWithRecoveryOfferModule(
           response.contactType,
           response.guestContact
         )
+        const marketingChannel = resolveRecoveryComposerMarketingChannelFromDetails({
+          contactType: response.contactType,
+          guestContact: response.guestContact,
+          permissionStates: response.permissionStates,
+          restaurantPermissionEnabled: response.restaurantPermissionEnabled,
+          marketingPreference: response.marketingPreference,
+        })
 
         state = {
           ...state,
@@ -1189,6 +1221,8 @@ export function createRespondWithRecoveryOfferModule(
           locationName: response.locationName,
           locationAddress: response.address,
           workflowStatus: parseWorkflowStatus(response.workflowStatus),
+          marketingChannel,
+          eligibilityNotice: null,
         }
       }
 
@@ -2471,6 +2505,62 @@ export function createRespondWithRecoveryOfferModule(
       }
       publish()
 
+      // RC-03 — recheck marketing eligibility before issue.
+      try {
+        const fresh = await adapters.getFeedbackDetails(feedbackId)
+        const nextChannel = resolveRecoveryComposerMarketingChannelFromDetails({
+          contactType: fresh.contactType,
+          guestContact: fresh.guestContact,
+          permissionStates: fresh.permissionStates,
+          restaurantPermissionEnabled: fresh.restaurantPermissionEnabled,
+          marketingPreference: fresh.marketingPreference,
+        })
+        const previousChannel = state.marketingChannel
+        const hasAttachedOffer =
+          state.draft.offerId != null || state.attachedOfferTitle != null
+
+        if (
+          shouldDetachOfferOnEligibilityLoss({
+            previousChannel,
+            nextChannel,
+            hasAttachedOffer,
+          })
+          || (nextChannel == null && hasAttachedOffer && previousChannel != null)
+        ) {
+          const detachedOfferId = state.draft.offerId
+          state = {
+            ...state,
+            marketingChannel: nextChannel,
+            eligibilityNotice: RECOVERY_COMPOSER_COPY.eligibilityChanged,
+            draft: {
+              ...state.draft,
+              offerId: null,
+              offer: emptyRespondWithRecoveryOfferDraft().offer,
+            },
+            attachedOfferTitle: null,
+            attachedOfferStatus: null,
+            offerStanceId: null,
+            step: "offer",
+            sendConfirmOpen: false,
+            sendStatus: "idle",
+            sendError: null,
+          }
+          publish()
+          if (detachedOfferId != null) {
+            void adapters.setRecoveryOfferAttach(feedbackId, null)
+          }
+          return
+        }
+
+        state = {
+          ...state,
+          marketingChannel: nextChannel,
+          eligibilityNotice: null,
+        }
+      } catch {
+        // Proceed with send; server still rechecks eligibility.
+      }
+
       const request: SendAndIssueRecoveryOfferRequest = {
         feedbackId,
         channel,
@@ -2493,18 +2583,50 @@ export function createRespondWithRecoveryOfferModule(
           sendConfirmOpen: false,
           sendStatus: "idle",
           sendError: null,
+          eligibilityNotice: null,
           workflowStatus: result.workflowStatus,
           issuedOffer: result.issuedOffer,
           draft: emptyRespondWithRecoveryOfferDraft(),
         }
         publish()
-      } catch {
+      } catch (error) {
+        const mapped = mapRecoveryComposerSendFailure(error)
+        const detachOffer =
+          mapped.kind === "no_permission"
+          || mapped.kind === "eligibility_changed"
+
+        if (detachOffer) {
+          const detachedOfferId = state.draft.offerId
+          state = {
+            ...state,
+            marketingChannel: null,
+            eligibilityNotice: mapped.message,
+            draft: {
+              ...state.draft,
+              offerId: null,
+              offer: emptyRespondWithRecoveryOfferDraft().offer,
+            },
+            attachedOfferTitle: null,
+            attachedOfferStatus: null,
+            offerStanceId: null,
+            step: "offer",
+            sendConfirmOpen: false,
+            sendStatus: "idle",
+            sendError: null,
+          }
+          publish()
+          if (detachedOfferId != null) {
+            void adapters.setRecoveryOfferAttach(feedbackId, null)
+          }
+          return
+        }
+
         state = {
           ...state,
           step: "review",
           sendConfirmOpen: true,
           sendStatus: "error",
-          sendError: SEND_ERROR_MESSAGE,
+          sendError: mapped.message,
         }
         publish()
       }

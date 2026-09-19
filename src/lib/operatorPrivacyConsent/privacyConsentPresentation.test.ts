@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   GUEST_PERMISSIONS_DEMO_CARDS,
+  GUEST_PERMISSION_SWITCH_CLASS,
   PERMISSION_RECORDS_DEMO_ROWS,
   PRIVACY_ACTIVITY_DEMO_ITEMS,
   PRIVACY_CONSENT_TAB_IDS,
@@ -76,6 +77,17 @@ describe("guestPermissionStatusLabel", () => {
   it("maps enabled state to status chip copy", () => {
     expect(guestPermissionStatusLabel(true)).toBe("Enabled")
     expect(guestPermissionStatusLabel(false)).toBe("Not used")
+  })
+})
+
+describe("GUEST_PERMISSION_SWITCH_CLASS", () => {
+  it("does not override Switch size or thumb translate (avoids Off/Enabled mismatch)", () => {
+    expect(GUEST_PERMISSION_SWITCH_CLASS).not.toContain("w-[38px]")
+    expect(GUEST_PERMISSION_SWITCH_CLASS).not.toContain("translate-x-[22px]")
+    expect(GUEST_PERMISSION_SWITCH_CLASS).not.toContain("translate-x-[2px]")
+    expect(GUEST_PERMISSION_SWITCH_CLASS).toContain(
+      "data-checked:bg-op-button-primary-background"
+    )
   })
 })
 

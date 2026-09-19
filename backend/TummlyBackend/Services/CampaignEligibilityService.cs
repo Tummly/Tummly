@@ -14,7 +14,7 @@ namespace TummlyBackend.Services
     /// </summary>
     public class CampaignEligibilityService : ICampaignEligibilityService
     {
-        public const string CheckSetVersion = "stage-1-v2";
+        public const string CheckSetVersion = "stage-1-v3";
 
         /// <summary>
         /// Align Matched membership with Guests Smart Group windows.
@@ -341,9 +341,9 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// One primary reason per excluded guest.
-        /// Priority: account → soft-lock → opt-out → channel-disabled →
-        /// invalid-contact → channel. Account / soft-lock / suppression are
-        /// skipped when Billing stores are absent.
+        /// Priority: invalid-contact → suppressed (restaurant off) →
+        /// withdrawn → not-granted. Account / soft-lock remain omitted
+        /// until Billing stores exist.
         /// </summary>
         private static string? ResolvePrimaryExclusionReason(
             GuestEligibilityRow guest,
@@ -382,21 +382,39 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            if (
-                !LocationGuestChannelPermissionGate.IsRestaurantPermissionEnabled(
+            var emailRestaurantOn =
+                LocationGuestChannelPermissionGate.IsRestaurantPermissionEnabled(
                     restaurant,
                     LocationGuestPermissionKind.EmailMarketing
-                )
-                && !LocationGuestChannelPermissionGate.IsRestaurantPermissionEnabled(
+                );
+            var smsRestaurantOn =
+                LocationGuestChannelPermissionGate.IsRestaurantPermissionEnabled(
                     restaurant,
                     LocationGuestPermissionKind.SmsMarketing
-                )
-            )
+                );
+
+            if (!emailRestaurantOn && !smsRestaurantOn)
             {
-                return "channel-disabled";
+                return "suppressed";
             }
 
-            return "opt-out";
+            var emailState = states[LocationGuestPermissionKind.EmailMarketing];
+            var smsState = states[LocationGuestPermissionKind.SmsMarketing];
+
+            var withdrawnOnReachableChannel =
+                (hasEmail
+                    && emailRestaurantOn
+                    && emailState == LocationGuestPermissionState.Withdrawn)
+                || (hasMobile
+                    && smsRestaurantOn
+                    && smsState == LocationGuestPermissionState.Withdrawn);
+
+            if (withdrawnOnReachableChannel)
+            {
+                return "withdrawn";
+            }
+
+            return "not-granted";
         }
 
         private async Task<Restaurant> LoadRestaurantForLocationAsync(

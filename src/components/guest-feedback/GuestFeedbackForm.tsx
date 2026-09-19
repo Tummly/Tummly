@@ -6,7 +6,7 @@ import {
   type Variants,
 } from "framer-motion"
 import { useEffect, useMemo, useSyncExternalStore } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { Link } from "react-router-dom"
 
 import { transcribeGuestAudio } from "@/api/scanApi"
@@ -41,7 +41,8 @@ import { createGuestMicSttModule } from "@/lib/guestFeedback/createGuestMicSttMo
 import { guestFeedbackCommentPresentation } from "@/lib/guestFeedback/guestFeedbackCommentPresentation"
 import {
   buildGuestFormConsentCheckboxLabel,
-  guestFormConsentHasAnyEnabled,
+  buildGuestFormIntroCopy,
+  resolveGuestFormMarketingChannel,
   type GuestFormConsentConfig,
 } from "@/lib/guestFeedback/guestFormConsentPresentation"
 import { cn } from "@/lib/utils"
@@ -89,7 +90,10 @@ const cardShadowClassName =
 
 type GuestFeedbackFormProps = {
   token: string
+  /** Venue display name in the header chrome. */
   locationName: string
+  /** Restaurant name for intro + marketing checkbox copy ([Restaurant]). */
+  restaurantName?: string
   address: string
   brandLogoPublicUrl?: string | null
   guestFormConsent?: GuestFormConsentConfig | null
@@ -103,6 +107,7 @@ type GuestFeedbackFormProps = {
 export function GuestFeedbackForm({
   token,
   locationName,
+  restaurantName,
   address,
   brandLogoPublicUrl = null,
   guestFormConsent = null,
@@ -119,7 +124,21 @@ export function GuestFeedbackForm({
     defaultValues,
   })
 
-  const { setValue } = form
+  const { setValue, control } = form
+  const guestContact = useWatch({ control, name: "guestContact" }) ?? ""
+  const marketingChannel = resolveGuestFormMarketingChannel(
+    guestContact,
+    guestFormConsent
+  )
+
+  useEffect(() => {
+    // GF-03: marketing starts unchecked; clear when the channel hides or switches.
+    setValue("acceptsOffers", false, {
+      shouldDirty: false,
+      shouldTouch: false,
+      shouldValidate: false,
+    })
+  }, [marketingChannel, setValue])
 
   const { micModule, micLevelSource } = useMemo(() => {
     const { adapters, audioLevelSource } = createBrowserGuestMicAdapters({
@@ -165,17 +184,18 @@ export function GuestFeedbackForm({
   )
 
   const displayLocation = locationName.trim() || "this location"
+  const displayRestaurant =
+    (restaurantName ?? locationName).trim() || "this restaurant"
   const displayAddress = address.trim()
   const submitBusy = mic.submitLocked || isSubmitting
   const commentNotice = mic.truncateNotice
   const commentError = mic.error?.message
-  const showConsentCheckbox =
-    guestFormConsent != null
-    && guestFormConsentHasAnyEnabled(guestFormConsent)
+  const showConsentCheckbox = marketingChannel != null
   const consentCheckboxLabel =
-    guestFormConsent == null
+    marketingChannel == null
       ? null
-      : buildGuestFormConsentCheckboxLabel(displayLocation, guestFormConsent)
+      : buildGuestFormConsentCheckboxLabel(displayRestaurant, marketingChannel)
+  const introCopy = buildGuestFormIntroCopy(displayRestaurant)
 
   const handleSubmit = form.handleSubmit(async (values) => {
     await onSubmit(values)
@@ -219,10 +239,7 @@ export function GuestFeedbackForm({
             Tell us about your experience
           </h1>
           <p className="text-sm leading-relaxed text-guest-feedback-muted">
-            Your feedback is shared privately with the team at{" "}
-            {displayLocation}
-            {displayAddress ? `, ${displayAddress}` : ""}. They may follow up
-            using the contact details you provide.
+            {introCopy}
           </p>
         </motion.div>
 

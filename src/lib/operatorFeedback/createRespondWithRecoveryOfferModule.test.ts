@@ -1090,4 +1090,88 @@ describe("createRespondWithRecoveryOfferModule", () => {
     expect(module.getSnapshot().sendConfirmOpen).toBe(false)
   })
 
+  it("RC-02: shows marketing-eligible banner from marketingPreference fallback", async () => {
+    const module = createRespondWithRecoveryOfferModule(createAdapters())
+    await module.open(2418)
+
+    expect(module.getSnapshot().statusBanner).toMatchObject({
+      kind: "marketing-eligible",
+      message: "Marketing eligible for Email.",
+    })
+  })
+
+  it("RC-03: detaches Offer when marketing eligibility is lost before send", async () => {
+    let call = 0
+    const adapters = createAdapters({
+      getFeedbackDetails: async () => {
+        call += 1
+        if (call === 1) {
+          return {
+            ...sampleDetails,
+            permissionStates: {
+              "feedback-follow-up": "granted",
+              "email-marketing": "granted",
+            },
+            restaurantPermissionEnabled: {
+              "feedback-follow-up": true,
+              "email-marketing": true,
+              "sms-marketing": true,
+            },
+          }
+        }
+        return {
+          ...sampleDetails,
+          marketingPreference: "opted_out",
+          permissionStates: {
+            "feedback-follow-up": "granted",
+            "email-marketing": "withdrawn",
+          },
+          restaurantPermissionEnabled: {
+            "feedback-follow-up": true,
+            "email-marketing": true,
+            "sms-marketing": true,
+          },
+        }
+      },
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtReview(module)
+
+    module.openSendConfirm()
+    await module.confirmSend()
+
+    expect(adapters.sendAndIssueRecoveryOffer).not.toHaveBeenCalled()
+    expect(module.getSnapshot().offerId).toBeNull()
+    expect(module.getSnapshot().eligibilityNotice).toMatch(/eligibility changed/i)
+    expect(module.getSnapshot().step).toBe("offer")
+  })
+
+  it("RC-03: maps opted-out send failure and detaches Offer", async () => {
+    const adapters = createAdapters({
+      getFeedbackDetails: async () => ({
+        ...sampleDetails,
+        permissionStates: {
+          "feedback-follow-up": "granted",
+          "email-marketing": "granted",
+        },
+        restaurantPermissionEnabled: {
+          "feedback-follow-up": true,
+          "email-marketing": true,
+          "sms-marketing": true,
+        },
+      }),
+      sendAndIssueRecoveryOffer: vi.fn(async () => {
+        throw new Error("Guest has opted out of offers.")
+      }),
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtReview(module)
+
+    module.openSendConfirm()
+    await module.confirmSend()
+
+    expect(module.getSnapshot().offerId).toBeNull()
+    expect(module.getSnapshot().eligibilityNotice).toMatch(/marketing permission/i)
+    expect(module.getSnapshot().step).toBe("offer")
+  })
 })

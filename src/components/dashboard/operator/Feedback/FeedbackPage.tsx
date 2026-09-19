@@ -265,6 +265,9 @@ export function FeedbackPage() {
         onMarkResolved={() => {
           void feedback.markRespondToGuestResolved()
         }}
+        onAddOffer={() => {
+          void feedback.switchRespondToGuestToAddOffer()
+        }}
       />
 
       <RecordInternalActionWizard
@@ -505,12 +508,19 @@ export function FeedbackPage() {
           void feedback.confirmFeedbackCloseOut()
         }}
         onViewGuestProfile={navigateToGuestProfile}
-        onStartRecovery={() => {
+        onRespondToGuest={() => {
           const feedbackId = snapshot.feedbackDetails.feedbackId
           if (feedbackId == null) {
             return
           }
-          void feedback.startInboxRecovery(feedbackId)
+          void feedback.startDetailRespondToGuest(feedbackId)
+        }}
+        onAddOffer={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          void feedback.startDetailAddOffer(feedbackId)
         }}
         onNoteDraftChange={feedback.setFeedbackInternalNoteDraft}
         onCreateNote={() => {
