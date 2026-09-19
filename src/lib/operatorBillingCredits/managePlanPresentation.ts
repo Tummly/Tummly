@@ -510,16 +510,25 @@ export const MANAGE_PLAN_FAQ_QUESTION_CLASS =
   "text-left font-serif text-[22px] font-medium leading-none text-foreground"
 export const MANAGE_PLAN_FAQ_ANSWER_CLASS =
   "text-base font-normal leading-normal text-muted-foreground"
+/** Figma Plan cadence shell — Cards/Border + Cards/Radius. */
 export const MANAGE_PLAN_CADENCE_SHELL_CLASS =
-  "flex items-center gap-2.5 rounded-[6px] border border-border p-3"
+  "flex items-center gap-2.5 rounded-[6px] border border-op-card-border p-3"
+/** Inactive Plan tab — Cards/Subtitle. */
 export const MANAGE_PLAN_CADENCE_ITEM_CLASS =
-  "inline-flex h-[41px] items-center justify-center gap-2.5 rounded px-3 text-sm font-medium text-muted-foreground transition-colors disabled:opacity-50"
+  "inline-flex h-[41px] items-center justify-center gap-2.5 rounded px-3 text-sm font-medium text-op-text-secondary transition-colors disabled:opacity-50"
+/**
+ * Focused Plan tab — Figma Main Bg/Bg-colour + Cards/Title.
+ * Light: gray-150 + primary text. Dark: gray-990 + primary text.
+ */
 export const MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS =
-  "bg-[#202020] text-foreground"
+  "bg-op-background-secondary text-op-text-primary"
 export const MANAGE_PLAN_CADENCE_SAVE_BADGE_CLASS =
-  "rounded-full bg-primary px-2.5 py-2 text-[10px] font-medium leading-none text-white"
+  "rounded-full bg-primary px-2.5 py-2 text-[10px] font-medium leading-none text-op-text-inverse"
 export const MANAGE_PLAN_COMPLETE_LIST_TRIGGER_CLASS =
   "inline-flex items-center justify-center gap-1.5 text-base font-normal text-foreground hover:opacity-90"
+/** Figma FAQ row: 16px Q→A gap; 30px between items; chevron chip p-10 / 14px icon. */
+export const MANAGE_PLAN_FAQ_TRIGGER_CLASS =
+  "items-center gap-4 rounded-none border-0 py-0 hover:no-underline focus-visible:border-0 focus-visible:ring-0 **:data-[slot=accordion-trigger-icon]:box-content **:data-[slot=accordion-trigger-icon]:size-3.5 **:data-[slot=accordion-trigger-icon]:shrink-0 **:data-[slot=accordion-trigger-icon]:rounded-[2px] **:data-[slot=accordion-trigger-icon]:bg-op-button-collapse-background **:data-[slot=accordion-trigger-icon]:p-2.5 **:data-[slot=accordion-trigger-icon]:text-op-text-primary"
 
 function normalizePlanId(plan: string): ManagePlanId {
   if ((MANAGE_PLAN_IDS as readonly string[]).includes(plan)) {

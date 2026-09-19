@@ -6,6 +6,10 @@ import {
   buildPlanChangeConfirmCopy,
   buildPlanRenewalDateMetric,
   defaultPreviewCadence,
+  MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS,
+  MANAGE_PLAN_CADENCE_ITEM_CLASS,
+  MANAGE_PLAN_CADENCE_SHELL_CLASS,
+  MANAGE_PLAN_FAQ_TRIGGER_CLASS,
   resolvePlanCardCta,
   resolvePlanChangeKind,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
@@ -219,5 +223,28 @@ describe("buildPlanRenewalDateMetric", () => {
       label: "Cancel date",
       value: "Cancels on 30 September 2026",
     })
+  })
+})
+
+describe("Manage Plan light-theme chrome tokens", () => {
+  it("maps cadence tabs to Main Bg / Cards semantic tokens", () => {
+    expect(MANAGE_PLAN_CADENCE_SHELL_CLASS).toContain("border-op-card-border")
+    expect(MANAGE_PLAN_CADENCE_ITEM_CLASS).toContain("text-op-text-secondary")
+    expect(MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS).toBe(
+      "bg-op-background-secondary text-op-text-primary"
+    )
+    expect(MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS).not.toContain("bg-[#")
+    expect(MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS).not.toContain(
+      "bg-op-color-gray-"
+    )
+  })
+
+  it("uses collapse-button tokens for FAQ chevron chips", () => {
+    expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).toContain(
+      "bg-op-button-collapse-background"
+    )
+    expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).toContain("text-op-text-primary")
+    expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).not.toContain("bg-[#212121]")
+    expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).not.toContain("text-white")
   })
 })

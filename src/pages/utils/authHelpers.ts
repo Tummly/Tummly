@@ -13,6 +13,7 @@ import {
   unwrapDataObject,
 } from "@/lib/apiEnvelope"
 import { revokeRefreshToken } from "@/api/sessionRefresh"
+import { clearActivateTummlyPilotDialogDismissed } from "@/lib/operatorHome/activateTummlyPilotDialogGate"
 
 export const DEVICE_TOKEN_KEY = "deviceToken"
 export const SELECTED_LOCATION_KEY = "selectedLocationId"
@@ -88,6 +89,7 @@ export function getDeviceToken(): string | null {
 export function clearAuthSession() {
   const refreshToken = getRefreshToken()
   useAuthStore.getState().clearSession()
+  clearActivateTummlyPilotDialogDismissed()
 
   if (refreshToken) {
     void revokeRefreshToken(refreshToken)
