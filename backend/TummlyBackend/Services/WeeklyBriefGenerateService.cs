@@ -63,16 +63,31 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var locationName = await _context.RestaurantLocations
+            var locationMeta = await _context.RestaurantLocations
                 .AsNoTracking()
                 .Where(location => location.Id == locationId)
-                .Select(location => location.LocationName)
+                .Select(location => new
+                {
+                    location.LocationName,
+                    SubscriptionPlan = location.Restaurant != null
+                        && location.Restaurant.BillingAccount != null
+                            ? location.Restaurant.BillingAccount.SubscriptionPlan
+                            : null,
+                })
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (locationName is null)
+            if (locationMeta is null)
             {
                 return new WeeklyBriefGenerateResult.Failed(
                     "Location was not found.",
+                    Retryable: false
+                );
+            }
+
+            if (WeeklyBriefWeekKey.IsPilotPlan(locationMeta.SubscriptionPlan))
+            {
+                return new WeeklyBriefGenerateResult.Failed(
+                    "Weekly brief is not available on the Pilot plan.",
                     Retryable: false
                 );
             }
@@ -89,7 +104,7 @@ namespace TummlyBackend.Services
             {
                 providerResult = await _provider.GenerateAsync(
                     new WeeklyBriefProviderInput(
-                        LocationName: locationName,
+                        LocationName: locationMeta.LocationName,
                         WeekKey: closedWeek.WeekKey,
                         CoverageStartUtc: closedWeek.CoverageStartUtc,
                         CoverageEndUtcExclusive: closedWeek.CoverageEndUtcExclusive,

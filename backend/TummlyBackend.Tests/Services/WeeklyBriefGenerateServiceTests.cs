@@ -126,6 +126,27 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task GenerateAsync_PilotPlan_ReturnsFailedWithoutProvider()
+        {
+            var locationId = await SeedLocationAsync(
+                subscriptionPlan: BillingSubscriptionPlans.Pilot
+            );
+            _provider.UseDefaultFixtures();
+
+            var result = await _service.GenerateAsync(locationId, ClosedWeek);
+
+            var failed = Assert.IsType<WeeklyBriefGenerateResult.Failed>(result);
+            Assert.False(failed.Retryable);
+            Assert.Equal(0, _provider.CallCount);
+            Assert.Equal(
+                0,
+                await _context.WeeklyBriefs.CountAsync(row =>
+                    row.LocationId == locationId
+                )
+            );
+        }
+
+        [Fact]
         public async Task GenerateAsync_DoesNotDebitAiCredits()
         {
             // Free call: generate service has no credit / billing collaborator.
@@ -150,7 +171,7 @@ namespace TummlyBackend.Tests.Services
             _context.Dispose();
         }
 
-        private async Task<int> SeedLocationAsync()
+        private async Task<int> SeedLocationAsync(string? subscriptionPlan = null)
         {
             var restaurant = new Restaurant
             {
@@ -161,6 +182,16 @@ namespace TummlyBackend.Tests.Services
             };
             _context.Restaurants.Add(restaurant);
             await _context.SaveChangesAsync();
+
+            if (subscriptionPlan is not null)
+            {
+                var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                );
+                billing.SubscriptionPlan = subscriptionPlan;
+                _context.BillingAccounts.Add(billing);
+            }
 
             var location = new RestaurantLocation
             {

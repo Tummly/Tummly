@@ -280,7 +280,9 @@ export function AdminShopOrderDetailDrawer({
               <Badge variant="secondary">
                 {adminShopFulfilmentLabel(order.fulfilmentStatus)}
               </Badge>
-              <Badge variant="outline">{order.paymentStatus}</Badge>
+              <Badge variant="outline">
+                {order.isComplimentary ? "Free" : order.paymentStatus}
+              </Badge>
               <span className="text-sm text-muted-foreground">
                 {formatAdminShopGbpFromPence(order.grossPence)}
               </span>

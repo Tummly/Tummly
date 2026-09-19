@@ -30,6 +30,7 @@ export type AdminShopOrderListItem = {
   locationNameSnapshot: string
   fulfilmentStatus: AdminShopFulfilmentStatus | string
   paymentStatus: string
+  isComplimentary?: boolean
   revolutOrderId: string | null
   trackingUrl: string | null
   opsNotes: string | null

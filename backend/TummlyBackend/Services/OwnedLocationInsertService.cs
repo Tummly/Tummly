@@ -18,18 +18,21 @@ namespace TummlyBackend.Services
         private readonly IPricebookCatalog _pricebookCatalog;
         private readonly IQrCodeProvisioningService _qrCodeProvisioning;
         private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
+        private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
 
         public OwnedLocationInsertService(
             ApplicationDbContext context,
             IPricebookCatalog pricebookCatalog,
             IQrCodeProvisioningService qrCodeProvisioning,
-            IPrintReadyQrMaterialsWork printReadyQrMaterialsWork
+            IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
+            IComplimentaryStarterShopOrderService complimentaryStarterShopOrders
         )
         {
             _context = context;
             _pricebookCatalog = pricebookCatalog;
             _qrCodeProvisioning = qrCodeProvisioning;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
+            _complimentaryStarterShopOrders = complimentaryStarterShopOrders;
         }
 
         public const int ImportMaxRows = 100;
@@ -227,6 +230,14 @@ namespace TummlyBackend.Services
             await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
             await _context.SaveChangesAsync();
 
+            var complimentary =
+                await _complimentaryStarterShopOrders.EnsureForLocationAsync(
+                    restaurantId,
+                    location.Id,
+                    actorUserId,
+                    actorDisplayName ?? string.Empty
+                );
+
             _context.LocationActivities.Add(
                 new LocationActivity
                 {
@@ -244,7 +255,9 @@ namespace TummlyBackend.Services
             );
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
-            await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
+            await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
+                complimentary.ShopOrderId
+            );
 
             return new AddOwnedLocationResult.Created(location.Id);
         }

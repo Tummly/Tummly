@@ -502,11 +502,15 @@ export function ShopOrderDetailSidebar({
                   Payment method
                 </span>
                 <span className="text-sm text-op-text-muted">
-                  {detail?.paymentSummary.revolutOrderId
-                    ? `Revolut reference ${detail.paymentSummary.revolutOrderId}`
-                    : "Paid via Revolut checkout"}
+                  {order.isComplimentary || detail?.isComplimentary
+                    ? "Free starter materials"
+                    : detail?.paymentSummary.revolutOrderId
+                      ? `Revolut reference ${detail.paymentSummary.revolutOrderId}`
+                      : "Paid via Revolut checkout"}
                   {detail?.paymentSummary.paidAtUtc
-                    ? ` · Paid on ${formatShopProgressTimestamp(detail.paymentSummary.paidAtUtc)}`
+                    ? order.isComplimentary || detail?.isComplimentary
+                      ? ` · Included on ${formatShopProgressTimestamp(detail.paymentSummary.paidAtUtc)}`
+                      : ` · Paid on ${formatShopProgressTimestamp(detail.paymentSummary.paidAtUtc)}`
                     : ""}
                 </span>
               </div>
@@ -521,14 +525,21 @@ export function ShopOrderDetailSidebar({
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2.5">
                   <span className="text-lg font-medium text-op-text-primary">
-                    {invoiceDocumentNumber ?? "Invoice pending"}
+                    {order.isComplimentary || detail?.isComplimentary
+                      ? "No invoice"
+                      : (invoiceDocumentNumber ?? "Invoice pending")}
                   </span>
                   <span className="rounded-xs bg-green-600/20 px-2 py-0.5 text-xs font-medium text-green-500">
                     {order.paymentStatus}
                   </span>
                 </div>
 
-                {invoiceDocumentNumber == null ? (
+                {order.isComplimentary || detail?.isComplimentary ? (
+                  <p className="text-sm text-op-text-muted">
+                    Complimentary starter materials do not generate a VAT
+                    invoice.
+                  </p>
+                ) : invoiceDocumentNumber == null ? (
                   <p className="text-sm text-op-text-muted">
                     The VAT invoice appears here after payment clears.
                   </p>
@@ -539,7 +550,11 @@ export function ShopOrderDetailSidebar({
                 <Button
                   type="button"
                   variant="op-secondary"
-                  disabled={invoiceDocumentNumber == null}
+                  disabled={
+                    invoiceDocumentNumber == null
+                    || order.isComplimentary === true
+                    || detail?.isComplimentary === true
+                  }
                   onClick={handleDownloadInvoice}
                 >
                   Download invoice

@@ -2375,6 +2375,13 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<ShopOrder>()
                 .HasIndex(row => new { row.RestaurantId, row.LocationId, row.CreatedAtUtc });
 
+            // One complimentary starter order per Owned location.
+            modelBuilder.Entity<ShopOrder>()
+                .HasIndex(row => row.LocationId)
+                .IsUnique()
+                .HasFilter("[IsComplimentary] = 1")
+                .HasDatabaseName("IX_ShopOrders_LocationId_Complimentary");
+
             modelBuilder.Entity<ShopOrder>()
                 .Property(row => row.OrderNumber)
                 .HasMaxLength(32)
@@ -2383,6 +2390,10 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<ShopOrder>()
                 .Property(row => row.OpsNotes)
                 .HasMaxLength(2000);
+
+            modelBuilder.Entity<ShopOrder>()
+                .Property(row => row.IsComplimentary)
+                .HasDefaultValue(false);
 
             modelBuilder.Entity<ShopOrderLine>()
                 .HasOne(row => row.ShopOrder)

@@ -16,8 +16,23 @@ namespace TummlyBackend.Helpers
             };
         }
 
-        public static string ToPaymentDisplayLabel(string storedStatus)
+        public static string ToPaymentDisplayLabel(
+            string storedStatus,
+            bool isComplimentary = false
+        )
         {
+            if (
+                isComplimentary
+                && string.Equals(
+                    storedStatus,
+                    ShopPaymentStatuses.Paid,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return "Free";
+            }
+
             return storedStatus switch
             {
                 ShopPaymentStatuses.Paid => "Paid",

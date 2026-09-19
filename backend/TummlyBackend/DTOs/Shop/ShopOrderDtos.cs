@@ -80,6 +80,8 @@ namespace TummlyBackend.DTOs.Shop
 
         public required string Currency { get; init; }
 
+        public bool IsComplimentary { get; init; }
+
         public required IReadOnlyList<ShopOrderLineDto> Lines { get; init; }
 
         public required ShopOrderShipToDto ShipTo { get; init; }

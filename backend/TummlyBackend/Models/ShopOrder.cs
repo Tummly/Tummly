@@ -126,6 +126,11 @@ namespace TummlyBackend.Models
         [MaxLength(500)]
         public string? DeliveryInstructions { get; set; }
 
+        /// <summary>
+        /// True for £0 starter QR materials orders created at provision / location add.
+        /// </summary>
+        public bool IsComplimentary { get; set; }
+
         public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
         public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;

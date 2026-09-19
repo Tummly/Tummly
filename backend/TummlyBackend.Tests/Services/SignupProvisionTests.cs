@@ -8,6 +8,7 @@ using TummlyBackend.DTOs.Signup;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Shop.MaterialsCatalog;
 using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
@@ -62,6 +63,11 @@ namespace TummlyBackend.Tests.Services
                 _db,
                 qrCodeProvisioning,
                 new NoOpPrintReadyQrMaterialsWork(),
+                new ComplimentaryStarterShopOrderService(
+                    _db,
+                    MaterialsCatalog.LoadFromDirectory(ResolveMaterialsPackDir()),
+                    new ShopOrderNumberAllocator(_db)
+                ),
                 _configuration,
                 _pricebook,
                 new NoOpCreditLedger(),
@@ -285,6 +291,40 @@ namespace TummlyBackend.Tests.Services
                         "docs",
                         "product",
                         "billing-pack-v3.0"
+                    )
+                );
+            }
+
+            return packDir;
+        }
+
+        private static string ResolveMaterialsPackDir()
+        {
+            var packDir = Path.GetFullPath(
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "..",
+                    "..",
+                    "..",
+                    "..",
+                    "..",
+                    "docs",
+                    "product",
+                    "materials-catalog-v1"
+                )
+            );
+            if (!Directory.Exists(packDir))
+            {
+                packDir = Path.GetFullPath(
+                    Path.Combine(
+                        AppContext.BaseDirectory,
+                        "..",
+                        "..",
+                        "..",
+                        "..",
+                        "docs",
+                        "product",
+                        "materials-catalog-v1"
                     )
                 );
             }

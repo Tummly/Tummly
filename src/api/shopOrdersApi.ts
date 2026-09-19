@@ -33,6 +33,7 @@ export type ShopOrderWire = {
   deliveryNetPence: number
   grossPence: number
   currency: string
+  isComplimentary?: boolean
   lines: ShopOrderLineWire[]
   shipTo: ShopShipToPayload
 }
@@ -50,6 +51,7 @@ export type ShopOrderListItemWire = {
   totalGrossPence: number
   paymentStatus: string
   fulfilmentStatus: string
+  isComplimentary?: boolean
   updatedAtUtc: string
 }
 
@@ -89,6 +91,7 @@ export type ShopOrderDetailWire = ShopOrderWire & {
   updatedAtUtc: string
   canCancel: boolean
   cancelBlockReason?: string | null
+  isComplimentary?: boolean
 }
 
 export type ShopReorderPrefillWire = {

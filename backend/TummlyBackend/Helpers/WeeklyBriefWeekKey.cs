@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Helpers
 {
@@ -273,6 +274,43 @@ namespace TummlyBackend.Helpers
             var timeZone = ResolveTimeZone(ianaTimeZoneId.Trim());
             var localNow = TimeZoneInfo.ConvertTimeFromUtc(utc, timeZone);
             return DateOnly.FromDateTime(localNow).DayOfWeek == startDay;
+        }
+
+        /// <summary>
+        /// True when the location existed strictly before the closed week’s
+        /// coverage start — so a brand-new signup does not get a brief for a
+        /// calendar week it never lived through.
+        /// </summary>
+        public static bool LocationExistedBeforeClosedWeek(
+            DateTime locationCreatedAtUtc,
+            WeeklyBriefClosedWeek closedWeek
+        )
+        {
+            var created = locationCreatedAtUtc.Kind switch
+            {
+                DateTimeKind.Utc => locationCreatedAtUtc,
+                DateTimeKind.Local => locationCreatedAtUtc.ToUniversalTime(),
+                // EF often returns Unspecified for stored UTC timestamps.
+                _ => DateTime.SpecifyKind(
+                    locationCreatedAtUtc,
+                    DateTimeKind.Utc
+                ),
+            };
+
+            return created < closedWeek.CoverageStartUtc;
+        }
+
+        /// <summary>
+        /// Pilot accounts do not receive Weekly brief generation (lazy or job).
+        /// Null / empty plan is treated as not Pilot (unit fixtures without billing).
+        /// </summary>
+        public static bool IsPilotPlan(string? subscriptionPlan)
+        {
+            return string.Equals(
+                subscriptionPlan?.Trim(),
+                BillingSubscriptionPlans.Pilot,
+                StringComparison.OrdinalIgnoreCase
+            );
         }
 
         private static DateTime LocalDateStartToUtc(

@@ -17,6 +17,7 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IQrCodeProvisioningService _qrCodeProvisioning;
         private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
+        private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
         private readonly IConfiguration _configuration;
         private readonly IPricebookCatalog _pricebookCatalog;
         private readonly ICreditLedger _creditLedger;
@@ -26,6 +27,7 @@ namespace TummlyBackend.Services
             ApplicationDbContext context,
             IQrCodeProvisioningService qrCodeProvisioning,
             IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
+            IComplimentaryStarterShopOrderService complimentaryStarterShopOrders,
             IConfiguration configuration,
             IPricebookCatalog pricebookCatalog,
             ICreditLedger creditLedger,
@@ -35,6 +37,7 @@ namespace TummlyBackend.Services
             _context = context;
             _qrCodeProvisioning = qrCodeProvisioning;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
+            _complimentaryStarterShopOrders = complimentaryStarterShopOrders;
             _configuration = configuration;
             _pricebookCatalog = pricebookCatalog;
             _creditLedger = creditLedger;
@@ -340,6 +343,7 @@ namespace TummlyBackend.Services
             await using var transaction =
                 await _context.Database.BeginTransactionAsync();
             var provisionedLocations = new List<RestaurantLocation>();
+            var complimentaryOrderIds = new List<Guid>();
             int? restaurantId = null;
             DateTime? activatedAt = null;
 
@@ -446,10 +450,22 @@ namespace TummlyBackend.Services
 
                 await _context.SaveChangesAsync();
 
+                foreach (var location in provisionedLocations)
+                {
+                    var complimentary =
+                        await _complimentaryStarterShopOrders.EnsureForLocationAsync(
+                            restaurant.Id,
+                            location.Id,
+                            user.Id,
+                            user.FullName
+                        );
+                    complimentaryOrderIds.Add(complimentary.ShopOrderId);
+                }
+
                 var guestLoop = new GuestLoopSetup
                 {
                     RestaurantId = restaurant.Id,
-                    SendPhysicalQrMaterials = false,
+                    SendPhysicalQrMaterials = true,
                     AutoSendReviewRequests = true,
                     CreatedAt = now,
                 };
@@ -480,9 +496,11 @@ namespace TummlyBackend.Services
                 await _lifecycle.TickAsync(restaurantId.Value, activatedAt.Value);
             }
 
-            foreach (var location in provisionedLocations)
+            foreach (var shopOrderId in complimentaryOrderIds)
             {
-                await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
+                await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
+                    shopOrderId
+                );
             }
         }
 

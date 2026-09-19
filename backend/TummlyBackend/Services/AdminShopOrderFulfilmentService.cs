@@ -529,6 +529,7 @@ namespace TummlyBackend.Services
                 LocationNameSnapshot = order.LocationNameSnapshot,
                 FulfilmentStatus = order.FulfilmentStatus ?? string.Empty,
                 PaymentStatus = order.PaymentStatus,
+                IsComplimentary = order.IsComplimentary,
                 RevolutOrderId = order.RevolutOrderId,
                 TrackingUrl = order.TrackingUrl,
                 OpsNotes = order.OpsNotes,

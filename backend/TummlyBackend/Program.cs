@@ -584,6 +584,10 @@ builder.Services.AddScoped<IShopCartService, ShopCartService>();
 builder.Services.AddScoped<IShopLocationRecommendationsService, ShopLocationRecommendationsService>();
 builder.Services.AddScoped<IShopOrderNumberAllocator, ShopOrderNumberAllocator>();
 builder.Services.AddScoped<IShopOrderPlaceService, ShopOrderPlaceService>();
+builder.Services.AddScoped<
+    IComplimentaryStarterShopOrderService,
+    ComplimentaryStarterShopOrderService
+>();
 builder.Services.AddScoped<IShopMaterialsOrderPaySession, ShopMaterialsOrderPaySessionService>();
 builder.Services.AddScoped<IShopOrdersListService, ShopOrdersListService>();
 builder.Services.AddScoped<IShopOrderCancelReorderService, ShopOrderCancelReorderService>();

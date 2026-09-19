@@ -8,6 +8,7 @@ using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Services;
+using TummlyBackend.Shop.MaterialsCatalog;
 using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
@@ -16,6 +17,7 @@ namespace TummlyBackend.Tests.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly GuestLoopProvisioningService _service;
+        private readonly RecordingPrintReadyQrMaterialsWork _printWork = new();
 
         public GuestLoopProvisioningServiceTests()
         {
@@ -79,11 +81,57 @@ namespace TummlyBackend.Tests.Services
             _service = new GuestLoopProvisioningService(
                 _context,
                 qrCodeProvisioning,
-                new NoOpPrintReadyQrMaterialsWork(),
+                _printWork,
+                CreateComplimentaryStarterShopOrders(_context),
                 configuration,
                 PricebookCatalog.LoadFromDirectory(packDir),
                 new NoOpCreditLedger(),
                 new NoOpBillingAccountLifecycle()
+            );
+        }
+
+        private static ComplimentaryStarterShopOrderService CreateComplimentaryStarterShopOrders(
+            ApplicationDbContext context
+        )
+        {
+            return new ComplimentaryStarterShopOrderService(
+                context,
+                MaterialsCatalog.LoadFromDirectory(ResolveMaterialsPackDir()),
+                new ShopOrderNumberAllocator(context)
+            );
+        }
+
+        private static string ResolveMaterialsPackDir()
+        {
+            var packDir = Path.GetFullPath(
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "..",
+                    "..",
+                    "..",
+                    "..",
+                    "..",
+                    "docs",
+                    "product",
+                    "materials-catalog-v1"
+                )
+            );
+            if (Directory.Exists(packDir))
+            {
+                return packDir;
+            }
+
+            return Path.GetFullPath(
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "..",
+                    "..",
+                    "..",
+                    "..",
+                    "docs",
+                    "product",
+                    "materials-catalog-v1"
+                )
             );
         }
 
@@ -216,8 +264,37 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(BillingStatuses.Pilot, billingAccount.BillingStatus);
             Assert.Null(billingAccount.BillingCycle);
             Assert.Null(billingAccount.RevolutCustomerId);
-            Assert.Equal(StarterKitStates.Unused, billingAccount.StarterKitState);
+            Assert.Equal(StarterKitStates.PendingDispatch, billingAccount.StarterKitState);
             Assert.Equal("TUMMLY-UK-GBP-2026-08-V3", billingAccount.ContractedPricebookId);
+
+            Assert.True(guestLoop.SendPhysicalQrMaterials);
+            var complimentaryOrder = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .SingleAsync();
+            Assert.True(complimentaryOrder.IsComplimentary);
+            Assert.Equal(ShopPaymentStatuses.Paid, complimentaryOrder.PaymentStatus);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, complimentaryOrder.FulfilmentStatus);
+            Assert.Equal(0, complimentaryOrder.GrossPence);
+            Assert.Null(complimentaryOrder.RevolutOrderId);
+            Assert.Equal(location.Id, complimentaryOrder.LocationId);
+            Assert.Equal(3, complimentaryOrder.Lines.Count);
+            Assert.Contains(
+                complimentaryOrder.Lines,
+                line => line.CatalogSkuId == "table-tents"
+            );
+            Assert.Contains(
+                complimentaryOrder.Lines,
+                line => line.CatalogSkuId == "window-stickers"
+            );
+            Assert.Contains(
+                complimentaryOrder.Lines,
+                line => line.CatalogSkuId == "offer-card"
+            );
+            Assert.Empty(_printWork.StarterLocationIds);
+            Assert.Equal(
+                [complimentaryOrder.Id],
+                _printWork.ShopOrderIds
+            );
         }
 
         [Fact]
@@ -411,18 +488,30 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
         }
 
-        private sealed class NoOpPrintReadyQrMaterialsWork
+        private sealed class RecordingPrintReadyQrMaterialsWork
             : IPrintReadyQrMaterialsWork
         {
+            public List<int> StarterLocationIds { get; } = [];
+
+            public List<Guid> ShopOrderIds { get; } = [];
+
             public ValueTask RequestEnsureAsync(
                 int locationId,
                 CancellationToken cancellationToken = default
-            ) => ValueTask.CompletedTask;
+            )
+            {
+                StarterLocationIds.Add(locationId);
+                return ValueTask.CompletedTask;
+            }
 
             public ValueTask RequestShopOrderEnsureAsync(
                 Guid shopOrderId,
                 CancellationToken cancellationToken = default
-            ) => ValueTask.CompletedTask;
+            )
+            {
+                ShopOrderIds.Add(shopOrderId);
+                return ValueTask.CompletedTask;
+            }
 
             public Task RunAsync(CancellationToken stoppingToken)
                 => Task.CompletedTask;

@@ -26,6 +26,8 @@ namespace TummlyBackend.DTOs.Shop
 
         public required string FulfilmentStatus { get; init; }
 
+        public bool IsComplimentary { get; init; }
+
         public DateTime UpdatedAtUtc { get; init; }
     }
 
@@ -107,6 +109,8 @@ namespace TummlyBackend.DTOs.Shop
         public int GrossPence { get; init; }
 
         public required string Currency { get; init; }
+
+        public bool IsComplimentary { get; init; }
 
         public required IReadOnlyList<ShopOrderLineDto> Lines { get; init; }
 
