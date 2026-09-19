@@ -108,7 +108,9 @@ namespace TummlyBackend.Helpers
         )> LedgerEventsForGuestFormSubmit(
             Restaurant restaurant,
             bool marketingConsentGranted,
-            ContactType contactType
+            ContactType contactType,
+            LocationGuestPermissionState currentMarketingState =
+                LocationGuestPermissionState.NotRecorded
         )
         {
             var events = new List<(LocationGuestPermissionKind Kind, string EventKind)>();
@@ -158,8 +160,12 @@ namespace TummlyBackend.Helpers
                     )
                 );
             }
-            else
+            else if (
+                currentMarketingState == LocationGuestPermissionState.Granted
+            )
             {
+                // Untick only withdraws a prior grant. First-time untick stays
+                // Not recorded → Guest profile "Not granted" (not Withdrawn).
                 events.Add(
                     (
                         marketingKind.Value,

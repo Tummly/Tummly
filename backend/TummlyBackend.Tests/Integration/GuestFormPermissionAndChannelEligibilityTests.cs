@@ -125,6 +125,67 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SubmitFeedback_FirstOptOut_LeavesMarketingNotRecorded()
+        {
+            const string token = "guest-form-first-opt-out";
+            await SeedGuestLocationAsync(
+                token,
+                emailEnabled: true,
+                smsEnabled: true,
+                feedbackFollowUpEnabled: true
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "First Opt Out Guest",
+                    guestContact = "first-optout@example.com",
+                    comment = "Fine visit.",
+                    offersOptOut = true,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var locationId = await context.QrCodes
+                .Where(q => q.Token == token)
+                .Select(q => q.RestaurantLocationId)
+                .SingleAsync();
+
+            var locationGuest = await context.LocationGuests
+                .Where(lg => lg.RestaurantLocationId == locationId)
+                .SingleAsync();
+            Assert.Equal(
+                LocationGuestMarketingPreference.NotRecorded,
+                locationGuest.MarketingPreference
+            );
+
+            var ledger = await context.LocationGuestPermissionLedgerEntries
+                .Where(e => e.LocationGuestId == locationGuest.Id)
+                .ToListAsync();
+
+            Assert.Contains(
+                ledger,
+                e =>
+                    e.PermissionKind
+                        == LocationGuestPermissionKind.FeedbackFollowUp
+                    && e.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
+            );
+            Assert.DoesNotContain(
+                ledger,
+                e => e.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+            );
+            Assert.DoesNotContain(
+                ledger,
+                e => e.PermissionKind == LocationGuestPermissionKind.SmsMarketing
+            );
+        }
+
+        [Fact]
         public async Task SubmitFeedback_WithdrawsMarketingPermissionsWhenOptingOut()
         {
             const string token = "guest-form-withdraw-marketing";
@@ -134,6 +195,18 @@ namespace TummlyBackend.Tests.Integration
                 smsEnabled: true,
                 feedbackFollowUpEnabled: true
             );
+
+            var grantResponse = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Opt Out Guest",
+                    guestContact = "optout@example.com",
+                    comment = "Great visit.",
+                    offersOptOut = false,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, grantResponse.StatusCode);
 
             var response = await _client.PostAsJsonAsync(
                 $"/api/scan/{token}/feedback",
@@ -184,7 +257,10 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.DoesNotContain(
                 ledger,
-                e => e.PermissionKind == LocationGuestPermissionKind.SmsMarketing
+                e =>
+                    e.PermissionKind == LocationGuestPermissionKind.SmsMarketing
+                    && e.EventKind
+                        == LocationGuestPermissionLedgerEventKinds.Withdraw
             );
         }
 

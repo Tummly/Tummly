@@ -142,6 +142,35 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("not-granted", result.ExcludedReasons.Single().Reason);
         }
 
+        [Fact]
+        public async Task EvaluateAsync_EmailOnlyGuestWithEmailRestaurantOff_IsSuppressed()
+        {
+            var seeded = await SeedLocationAsync();
+            var restaurant = await _context.Restaurants.SingleAsync(
+                r => r.Id == seeded.RestaurantId
+            );
+            restaurant.EmailMarketingPermissionEnabled = false;
+            restaurant.SmsMarketingPermissionEnabled = true;
+            await _context.SaveChangesAsync();
+
+            await AddGuestAsync(
+                seeded,
+                "Email Only",
+                email: "email-only@example.com",
+                mobile: null,
+                offersOptOut: false
+            );
+
+            var result = await _eligibility.EvaluateAsync(
+                seeded.LocationId,
+                "all-eligible-guests"
+            );
+
+            Assert.Equal(1, result.Matched);
+            Assert.Equal(0, result.CurrentlyEligible);
+            Assert.Equal("suppressed", result.ExcludedReasons.Single().Reason);
+        }
+
         [Theory]
         [InlineData("offer-not-redeemed")]
         [InlineData("recent-redeemers")]

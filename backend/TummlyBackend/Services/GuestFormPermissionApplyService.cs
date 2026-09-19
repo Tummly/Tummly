@@ -30,16 +30,47 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            var marketingKind = contactType switch
+            {
+                ContactType.Email => LocationGuestPermissionKind.EmailMarketing,
+                ContactType.Phone => LocationGuestPermissionKind.SmsMarketing,
+                _ => (LocationGuestPermissionKind?)null,
+            };
+
+            var currentMarketingState = LocationGuestPermissionState.NotRecorded;
+            if (marketingKind != null)
+            {
+                var ledgerStates =
+                    locationGuest.Id == 0
+                        ? LocationGuestPermissionKindExtensions.All.ToDictionary(
+                            kind => kind,
+                            _ => LocationGuestPermissionState.NotRecorded
+                        )
+                        : await _ledger.GetCurrentStatesAsync(
+                            locationGuest.Id,
+                            cancellationToken
+                        );
+                var effectiveStates =
+                    LocationGuestChannelPermissionGate.ResolveEffectiveStates(
+                        locationGuest.MarketingPreference,
+                        ledgerStates
+                    );
+                currentMarketingState = effectiveStates[marketingKind.Value];
+            }
+
             var events = LocationGuestChannelPermissionGate.LedgerEventsForGuestFormSubmit(
                 restaurant,
                 marketingConsentGranted,
-                contactType
+                contactType,
+                currentMarketingState
             );
 
             foreach (var (kind, eventKind) in events)
             {
+                // Navigation overload: new guests still have Id == 0 until
+                // the caller's SaveChanges (SQL Server FK-safe).
                 _ledger.RecordEvent(
-                    locationGuest.Id,
+                    locationGuest,
                     restaurantLocationId,
                     kind,
                     eventKind,

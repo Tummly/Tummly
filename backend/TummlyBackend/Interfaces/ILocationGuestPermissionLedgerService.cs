@@ -19,6 +19,20 @@ namespace TummlyBackend.Interfaces
             int? actorUserId = null
         );
 
+        /// <summary>
+        /// Prefer this when the Location Guest may be unsaved (Id == 0).
+        /// Wires the navigation so SQL Server insert order satisfies the FK.
+        /// </summary>
+        void RecordEvent(
+            LocationGuest locationGuest,
+            int restaurantLocationId,
+            LocationGuestPermissionKind permissionKind,
+            string eventKind,
+            string source,
+            DateTime occurredAt,
+            int? actorUserId = null
+        );
+
         Task<
             IReadOnlyDictionary<
                 LocationGuestPermissionKind,

@@ -393,7 +393,13 @@ namespace TummlyBackend.Services
                     LocationGuestPermissionKind.SmsMarketing
                 );
 
-            if (!emailRestaurantOn && !smsRestaurantOn)
+            // Suppressed when every contact the guest has is restaurant-off
+            // (not only when both restaurant toggles are globally off).
+            var hasReachableRestaurantChannel =
+                (hasEmail && emailRestaurantOn)
+                || (hasMobile && smsRestaurantOn);
+
+            if (!hasReachableRestaurantChannel)
             {
                 return "suppressed";
             }
