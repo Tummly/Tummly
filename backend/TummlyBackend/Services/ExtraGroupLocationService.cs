@@ -2,8 +2,10 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Helpers;
@@ -35,6 +37,7 @@ namespace TummlyBackend.Services
         private readonly IRevolutMerchantClient _merchant;
         private readonly IConfiguration _configuration;
         private readonly TimeProvider _clock;
+        private readonly TummlySellerVatSettings _sellerVat;
 
         public ExtraGroupLocationService(
             ApplicationDbContext context,
@@ -42,7 +45,8 @@ namespace TummlyBackend.Services
             IRevolutMerchantCreateGate revolutMerchantCreateGate,
             IRevolutMerchantClient merchant,
             IConfiguration configuration,
-            TimeProvider clock
+            TimeProvider clock,
+            IOptions<TummlySellerVatSettings> sellerVat
         )
         {
             _context = context;
@@ -51,6 +55,7 @@ namespace TummlyBackend.Services
             _merchant = merchant;
             _configuration = configuration;
             _clock = clock;
+            _sellerVat = sellerVat.Value;
         }
 
         public async Task<ExtraLocationResultDto?> SubmitAsync(
@@ -334,14 +339,10 @@ namespace TummlyBackend.Services
                                 UnitPriceAmount: amounts.NetAmountMinor,
                                 Quantity: 1,
                                 TotalAmount: amounts.GrossAmountMinor,
-                                Taxes:
-                                [
-                                    new RevolutOrderLineItemTax(
-                                        Name: "VAT",
-                                        Percentage: "20.00",
-                                        Amount: amounts.VatAmountMinor
-                                    ),
-                                ]
+                                Taxes: BuildVatTaxes(
+                                    _sellerVat.EffectiveVatRateBps,
+                                    amounts.VatAmountMinor
+                                )
                             ),
                         ]
                     )
@@ -527,7 +528,10 @@ namespace TummlyBackend.Services
                     0,
                     MidpointRounding.AwayFromZero
                 );
-            var gross = TummlyVatMath.GrossMinorFromNetPence(net, book.VatRateBps);
+            var gross = TummlyVatMath.GrossMinorFromNetPence(
+                net,
+                _sellerVat.EffectiveVatRateBps
+            );
             return (net, gross - net, gross);
         }
 
@@ -882,6 +886,26 @@ namespace TummlyBackend.Services
                 row => row.RestaurantId == restaurantId,
                 cancellationToken
             );
+        }
+
+        private static IReadOnlyList<RevolutOrderLineItemTax> BuildVatTaxes(
+            int vatRateBps,
+            int vatAmount
+        )
+        {
+            if (vatRateBps <= 0)
+            {
+                return [];
+            }
+
+            return
+            [
+                new RevolutOrderLineItemTax(
+                    Name: "VAT",
+                    Percentage: "20.00",
+                    Amount: vatAmount
+                ),
+            ];
         }
     }
 

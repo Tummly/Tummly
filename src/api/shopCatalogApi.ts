@@ -12,6 +12,8 @@ import type {
 type ShopCatalogListResponse = {
   success: boolean
   catalogVersion: string
+  /** Seller effective rate (bps); 0 when TUMMLY_VAT_MODE_ACTIVE is false. */
+  vatRateBps?: number
   items: ShopCatalogListItemWire[]
 }
 
@@ -22,7 +24,11 @@ type ShopCatalogDetailResponse = {
 
 export async function fetchShopCatalog(
   locationId: number
-): Promise<{ catalogVersion: string; products: ShopProduct[] }> {
+): Promise<{
+  catalogVersion: string
+  vatRateBps: number
+  products: ShopProduct[]
+}> {
   const response = await axiosInstance.get<ShopCatalogListResponse>(
     "/shop/catalog",
     { params: { locationId } }
@@ -30,6 +36,7 @@ export async function fetchShopCatalog(
 
   return {
     catalogVersion: response.data.catalogVersion,
+    vatRateBps: response.data.vatRateBps ?? 0,
     products: mapShopCatalogListResponse(
       response.data.items,
       response.data.catalogVersion

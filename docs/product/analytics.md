@@ -20,6 +20,8 @@ How usage is measured today and the **Target** instrumentation spec for funnels.
 | **Consent** | User choice in cookie banner — analytics runs only when accepted |
 | **page_view** | GA config hit on route change with `page_path` |
 
+Storage keys and GA cookie category: [cookie-storage-inventory.md](./cookie-storage-inventory.md).
+
 ---
 
 ## Analytics stack

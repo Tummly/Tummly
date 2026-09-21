@@ -30,6 +30,7 @@ export function mapShopOrderListItemToRow(
     paymentStatus: item.paymentStatus as DetailedShopOrder["paymentStatus"],
     fulfilmentStatus: item.fulfilmentStatus as DetailedShopOrder["fulfilmentStatus"],
     updatedDate: formatShopDisplayDate(item.updatedAtUtc),
+    isComplimentary: item.isComplimentary === true,
   }
 }
 
@@ -69,6 +70,7 @@ export function mapShopOrderDetailToRow(
     updatedDate: formatShopDisplayDate(detail.updatedAtUtc),
     canCancel: detail.canCancel,
     cancelBlockReason: detail.cancelBlockReason ?? null,
+    isComplimentary: detail.isComplimentary === true,
     items: detail.lines.map(
       (line) => `${line.quantity}x ${line.title} (${line.materialType})`
     ),

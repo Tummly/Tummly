@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -13,6 +15,7 @@ namespace TummlyBackend.Services
         private readonly ICreditLedger _ledger;
         private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly TimeProvider _clock;
+        private readonly TummlySellerVatSettings _sellerVat;
         private readonly ILogger<RevolutPaymentRefundCompletedHandler> _logger;
 
         public RevolutPaymentRefundCompletedHandler(
@@ -20,6 +23,7 @@ namespace TummlyBackend.Services
             ICreditLedger ledger,
             ITummlyVatInvoiceService vatInvoices,
             TimeProvider clock,
+            IOptions<TummlySellerVatSettings> sellerVat,
             ILogger<RevolutPaymentRefundCompletedHandler>? logger = null
         )
         {
@@ -27,6 +31,7 @@ namespace TummlyBackend.Services
             _ledger = ledger;
             _vatInvoices = vatInvoices;
             _clock = clock;
+            _sellerVat = sellerVat.Value;
             _logger =
                 logger
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<RevolutPaymentRefundCompletedHandler>.Instance;
@@ -105,31 +110,34 @@ namespace TummlyBackend.Services
                 );
             }
 
-            int? netPence = request.AmountMinor is int gross && gross > 0
-                ? EstimateNetFromGrossPence(gross)
-                : null;
+            if (_sellerVat.IsActive)
+            {
+                int? netPence = request.AmountMinor is int gross && gross > 0
+                    ? EstimateNetFromGrossPence(gross)
+                    : null;
 
-            var creditNote = await _vatInvoices.MintCreditNoteForRefundAsync(
-                new TummlyVatCreditNoteMintRequest(
-                    RefundOrderId: refundOrderId,
-                    OriginalPaymentOrderId: sourcePaymentRef,
-                    RestaurantId: restaurantId.Value,
-                    RefundCompletedUtc: _clock.GetUtcNow().UtcDateTime,
-                    NetPenceOverride: netPence
-                ),
-                cancellationToken
-            );
+                var creditNote = await _vatInvoices.MintCreditNoteForRefundAsync(
+                    new TummlyVatCreditNoteMintRequest(
+                        RefundOrderId: refundOrderId,
+                        OriginalPaymentOrderId: sourcePaymentRef,
+                        RestaurantId: restaurantId.Value,
+                        RefundCompletedUtc: _clock.GetUtcNow().UtcDateTime,
+                        NetPenceOverride: netPence
+                    ),
+                    cancellationToken
+                );
 
-            BillingActivityWriter.TryAppend(
-                _context,
-                new BillingActivityAppendRequest
-                {
-                    RestaurantId = restaurantId.Value,
-                    Kind = BillingActivityKinds.CreditNoteIssued,
-                    OccurredAtUtc = _clock.GetUtcNow().UtcDateTime,
-                    CreditNoteNo = creditNote.DocumentNumber,
-                }
-            );
+                BillingActivityWriter.TryAppend(
+                    _context,
+                    new BillingActivityAppendRequest
+                    {
+                        RestaurantId = restaurantId.Value,
+                        Kind = BillingActivityKinds.CreditNoteIssued,
+                        OccurredAtUtc = _clock.GetUtcNow().UtcDateTime,
+                        CreditNoteNo = creditNote.DocumentNumber,
+                    }
+                );
+            }
 
             // ADR 0046: admin reconcile after manual Revolut refund → paymentStatus=refunded.
             var shopOrder = await _context.ShopOrders
@@ -177,7 +185,18 @@ namespace TummlyBackend.Services
                 return fromLedger;
             }
 
-            return await _context.TummlyVatInvoices
+            var fromInvoice = await _context.TummlyVatInvoices
+                .AsNoTracking()
+                .Where(row => row.RevolutOrderId == sourcePaymentRef)
+                .Select(row => (int?)row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (fromInvoice != null)
+            {
+                return fromInvoice;
+            }
+
+            // VAT OFF shop pays mint no invoice and no top-up ledger row.
+            return await _context.ShopOrders
                 .AsNoTracking()
                 .Where(row => row.RevolutOrderId == sourcePaymentRef)
                 .Select(row => (int?)row.RestaurantId)

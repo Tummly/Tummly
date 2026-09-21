@@ -154,6 +154,7 @@ export default function GuestFeedbackPage() {
             <GuestFeedbackForm
               token={token}
               locationName={metadata.locationName}
+              restaurantName={metadata.restaurantName}
               address={metadata.address}
               brandLogoPublicUrl={metadata.brandLogoPublicUrl}
               guestFormConsent={metadata.guestFormConsent}

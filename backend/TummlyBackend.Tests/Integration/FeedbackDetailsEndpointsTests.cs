@@ -97,6 +97,23 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("marketingPreference").GetString()
             );
             Assert.Equal(
+                "not_recorded",
+                body.GetProperty("permissionStates")
+                    .GetProperty("feedback-follow-up")
+                    .GetString()
+            );
+            Assert.Equal(
+                "not_recorded",
+                body.GetProperty("permissionStates")
+                    .GetProperty("email-marketing")
+                    .GetString()
+            );
+            Assert.True(
+                body.GetProperty("restaurantPermissionEnabled")
+                    .GetProperty("feedback-follow-up")
+                    .GetBoolean()
+            );
+            Assert.Equal(
                 "Smart Guest",
                 body.GetProperty("qrSource").GetString()
             );
@@ -182,6 +199,24 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(
                 "allowed",
                 body.GetProperty("marketingPreference").GetString()
+            );
+            // Empty ledger + Allowed rollup → effective grant for all kinds.
+            Assert.Equal(
+                "granted",
+                body.GetProperty("permissionStates")
+                    .GetProperty("feedback-follow-up")
+                    .GetString()
+            );
+            Assert.Equal(
+                "granted",
+                body.GetProperty("permissionStates")
+                    .GetProperty("email-marketing")
+                    .GetString()
+            );
+            Assert.True(
+                body.GetProperty("restaurantPermissionEnabled")
+                    .GetProperty("email-marketing")
+                    .GetBoolean()
             );
         }
 

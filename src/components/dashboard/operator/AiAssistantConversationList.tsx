@@ -1,11 +1,6 @@
-import {
-  ChevronRightIcon,
-  MoreVerticalIcon,
-  PlusCircleIcon,
-} from "lucide-react"
+import { ChevronRightIcon, MoreVerticalIcon } from "lucide-react"
 
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
-import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -172,40 +167,23 @@ export function AiAssistantConversationList({
           expandedSidebar && "px-5 pb-[21px]"
         )}
       >
-        {expandedSidebar ? (
-          <>
-            <div className="flex items-center gap-2">
-              <AiIcon size={32} />
-              <p className="text-base font-medium text-op-assistant-list-title">
-                AI Assistant
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="op-ghost"
-              className="h-auto min-h-11 gap-1.5 px-0 py-0 text-sm font-normal text-op-text-primary hover:bg-transparent md:min-h-0"
-              onClick={onStartConversation}
-            >
-              <PlusCircleIcon className="size-[18px]" aria-hidden />
-              New chat
-            </Button>
-          </>
-        ) : (
-          <>
-            <p className="text-lg font-medium text-op-assistant-list-title">
-              {snapshot.listTitle}
-            </p>
-            <Button
-              type="button"
-              variant="op-ghost"
-              className="h-auto min-h-11 gap-2 px-0 py-0 text-sm font-medium text-op-text-primary hover:bg-transparent md:min-h-0"
-              onClick={onBackToConversation}
-            >
-              {ASSISTANT_BACK_TO_CONVERSATION}
-              <ChevronRightIcon className="size-4" aria-hidden />
-            </Button>
-          </>
-        )}
+        <p
+          className={cn(
+            "font-medium text-op-assistant-list-title",
+            expandedSidebar ? "text-base" : "text-lg"
+          )}
+        >
+          {snapshot.listTitle}
+        </p>
+        <Button
+          type="button"
+          variant="op-ghost"
+          className="h-auto min-h-11 gap-2 px-0 py-0 text-sm font-medium text-op-text-primary hover:bg-transparent md:min-h-0"
+          onClick={onBackToConversation}
+        >
+          {ASSISTANT_BACK_TO_CONVERSATION}
+          <ChevronRightIcon className="size-4" aria-hidden />
+        </Button>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col justify-between gap-3">

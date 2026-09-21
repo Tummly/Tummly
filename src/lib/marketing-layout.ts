@@ -1,5 +1,25 @@
 import { cn } from "@/lib/utils";
 
+/** Page chrome / gutters behind marketing header and footer (Figma Home). */
+export const marketingChromeBackground = "bg-[#CBCBCB]";
+
+/** Outer padding around the sticky header stack (banner + nav). */
+export const marketingHeaderChromePadding = "p-5";
+
+/**
+ * Horizontal gutters for marketing page body (Home, legal, Help Centre, etc.).
+ * Matches the header chrome side inset (Figma Home: 20px).
+ */
+export const marketingBodyChromePadding = "px-5";
+
+/** Space between the top banner and the main nav bar. */
+export const marketingHeaderBannerGap = "gap-3";
+
+/**
+ * Inner L/R padding for marketing header banner/nav and footer links (Figma: 60px).
+ */
+export const marketingChromeContentInset = "px-[60px]";
+
 /** 25px horizontal inset below `lg`; desktop padding unchanged at `lg+`. */
 export const marketingSectionInset = "px-[25px] lg:px-16 xl:px-45";
 

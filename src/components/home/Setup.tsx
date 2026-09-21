@@ -53,7 +53,7 @@ const setupOptions = [
       "For independent restaurants, cafés, takeaways and quick-service operators starting with one site.",
     details:
       "Includes one workspace, guest links, QR prompts, a short feedback form, one starter offer and a weekly brief.",
-    buttonLabel: "Request single-location trial",
+    buttonLabel: "Sign up — single location",
   },
   {
     title: "Multiple locations",
@@ -61,7 +61,7 @@ const setupOptions = [
       "For operators with 2 or more locations who need location-level setup, team roles and shared reporting.",
     details:
       "Includes location structure, team access, location-specific guest links, rollout checklist and reporting by location.",
-    buttonLabel: "Request multi-location setup",
+    buttonLabel: "Sign up — multi location",
   },
 ] as const
 
@@ -74,8 +74,8 @@ function Setup() {
             Choose the setup that fits your restaurant
           </h2>
           <p className={cn("m-0 max-w-2xl", marketingSectionBody)}>
-            Start with one location or tell us about a group setup. We&apos;ll
-            review your details and send the right next step.
+            Start with one location or a group setup. Sign up and we&apos;ll
+            guide you through the right path.
           </p>
         </header>
 

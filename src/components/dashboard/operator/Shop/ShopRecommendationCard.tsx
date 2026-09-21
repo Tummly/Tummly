@@ -17,6 +17,8 @@ export type ShopRecommendationCardProps = {
   imageSrc: string
   className?: string
   purchaseDisabled?: boolean
+  /** When false (launch VAT OFF), hide “excluding VAT” chrome. */
+  showExcludingVat?: boolean
   onOrderNow?: (quantity: number) => void
   onSelectCard?: () => void
 }
@@ -31,6 +33,7 @@ export function ShopRecommendationCard({
   imageSrc,
   className,
   purchaseDisabled = false,
+  showExcludingVat = false,
   onOrderNow,
   onSelectCard,
 }: ShopRecommendationCardProps) {
@@ -90,9 +93,11 @@ export function ShopRecommendationCard({
             <span className="text-[22px] font-medium leading-normal text-op-text-primary">
               £{totalPrice}
             </span>
-            <span className="pb-px text-xs font-medium leading-normal text-[var(--op-color-gray-550)]">
-              excluding VAT
-            </span>
+            {showExcludingVat ? (
+              <span className="pb-px text-xs font-medium leading-normal text-[var(--op-color-gray-550)]">
+                excluding VAT
+              </span>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-3">

@@ -58,7 +58,7 @@ namespace TummlyBackend.Tests.Integration
             var reasons = eligibility.GetProperty("excludedReasons");
             Assert.Equal(1, reasons.GetArrayLength());
             Assert.Equal(
-                "opt-out",
+                "withdrawn",
                 reasons[0].GetProperty("reason").GetString()
             );
             Assert.Equal(1, reasons[0].GetProperty("count").GetInt32());

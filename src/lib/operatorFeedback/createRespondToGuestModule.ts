@@ -45,9 +45,14 @@ import {
   type RecoveryPaidWriteChrome,
   type RecoverySmsShortfallChrome,
 } from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
+import {
+  buildRecoveryComposerStatusBanner,
+  mapRecoveryComposerSendFailure,
+  resolveRecoveryComposerMarketingChannelFromDetails,
+  type RecoveryComposerMarketingChannel,
+  type RecoveryComposerStatusBanner,
+} from "@/lib/operatorFeedback/recoveryComposerPresentation"
 
-const SEND_ERROR_MESSAGE =
-  "Could not send the response. Please try again."
 const COMPLETE_ERROR_MESSAGE =
   "Could not mark this recovery resolved. Please try again."
 const AI_DRAFT_ERROR_MESSAGE = "We could not prepare a draft."
@@ -235,6 +240,11 @@ export type RespondToGuestSnapshot = {
   paidWrite: RecoveryPaidWriteChrome
   /** Confirm/Send hard-stop for SMS shortfall or Soft lock / Dormant. */
   sendBlocked: boolean
+  /** RC-01 / RC-02 status banner from guest marketing eligibility. */
+  statusBanner: RecoveryComposerStatusBanner | null
+  /** RC-02 — show Add Offer when channel marketing is granted. */
+  addOfferEnabled: boolean
+  marketingChannel: RecoveryComposerMarketingChannel | null
 }
 
 export type RespondToGuestBackResult = "return-to-shell" | "stayed"
@@ -326,6 +336,7 @@ type SessionState = {
   successReceipt: GuestResponseSentActivityEvent | null
   openedFromDraftAction: boolean
   creditChrome: RecoveryCreditChromeContext | null
+  marketingChannel: RecoveryComposerMarketingChannel | null
 }
 
 function emptySession(): SessionState {
@@ -364,6 +375,7 @@ function emptySession(): SessionState {
     successReceipt: null,
     openedFromDraftAction: false,
     creditChrome: null,
+    marketingChannel: null,
   }
 }
 
@@ -483,6 +495,12 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     aiActionChip: credit.aiActionChip,
     paidWrite: credit.paidWrite,
     sendBlocked: credit.sendBlocked,
+    statusBanner:
+      state.loadStatus === "loaded"
+        ? buildRecoveryComposerStatusBanner(state.marketingChannel)
+        : null,
+    addOfferEnabled: state.marketingChannel != null,
+    marketingChannel: state.marketingChannel,
   }
 }
 
@@ -735,6 +753,13 @@ export function createRespondToGuestModule(
           response.contactType,
           response.guestContact
         )
+        const marketingChannel = resolveRecoveryComposerMarketingChannelFromDetails({
+          contactType: response.contactType,
+          guestContact: response.guestContact,
+          permissionStates: response.permissionStates,
+          restaurantPermissionEnabled: response.restaurantPermissionEnabled,
+          marketingPreference: response.marketingPreference,
+        })
 
         state = {
           ...state,
@@ -764,6 +789,7 @@ export function createRespondToGuestModule(
           locationName: response.locationName,
           locationAddress: response.address,
           workflowStatus: parseWorkflowStatus(response.workflowStatus),
+          marketingChannel,
         }
       }
 
@@ -1345,13 +1371,13 @@ export function createRespondToGuestModule(
           draft: emptyRespondToGuestDraft(),
         }
         publish()
-      } catch {
+      } catch (error) {
         state = {
           ...state,
           step: "review",
           sendConfirmOpen: true,
           sendStatus: "error",
-          sendError: SEND_ERROR_MESSAGE,
+          sendError: mapRecoveryComposerSendFailure(error).message,
         }
         publish()
       }

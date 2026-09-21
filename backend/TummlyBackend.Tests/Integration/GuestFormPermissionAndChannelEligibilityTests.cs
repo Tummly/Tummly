@@ -66,7 +66,7 @@ namespace TummlyBackend.Tests.Integration
             await SeedGuestLocationAsync(
                 token,
                 emailEnabled: true,
-                smsEnabled: false,
+                smsEnabled: true,
                 feedbackFollowUpEnabled: true
             );
 
@@ -125,6 +125,123 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SubmitFeedback_InvalidContact_Returns400_WithoutFeedbackOrLedger()
+        {
+            const string token = "guest-form-invalid-contact";
+            await SeedGuestLocationAsync(
+                token,
+                emailEnabled: true,
+                smsEnabled: true,
+                feedbackFollowUpEnabled: true
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Invalid Contact Guest",
+                    guestContact = "nope",
+                    comment = "Great visit.",
+                    offersOptOut = false,
+                }
+            );
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Enter a valid email or UK mobile number.",
+                body.GetProperty("message").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var locationId = await context.QrCodes
+                .Where(q => q.Token == token)
+                .Select(q => q.RestaurantLocationId)
+                .SingleAsync();
+
+            Assert.False(
+                await context.Feedbacks.AnyAsync(
+                    f => f.RestaurantLocationId == locationId
+                )
+            );
+            Assert.False(
+                await context.LocationGuests.AnyAsync(
+                    lg => lg.RestaurantLocationId == locationId
+                )
+            );
+            Assert.False(
+                await context.LocationGuestPermissionLedgerEntries.AnyAsync(
+                    e => e.RestaurantLocationId == locationId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_FirstOptOut_LeavesMarketingNotRecorded()
+        {
+            const string token = "guest-form-first-opt-out";
+            await SeedGuestLocationAsync(
+                token,
+                emailEnabled: true,
+                smsEnabled: true,
+                feedbackFollowUpEnabled: true
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "First Opt Out Guest",
+                    guestContact = "first-optout@example.com",
+                    comment = "Fine visit.",
+                    offersOptOut = true,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var locationId = await context.QrCodes
+                .Where(q => q.Token == token)
+                .Select(q => q.RestaurantLocationId)
+                .SingleAsync();
+
+            var locationGuest = await context.LocationGuests
+                .Where(lg => lg.RestaurantLocationId == locationId)
+                .SingleAsync();
+            Assert.Equal(
+                LocationGuestMarketingPreference.NotRecorded,
+                locationGuest.MarketingPreference
+            );
+
+            var ledger = await context.LocationGuestPermissionLedgerEntries
+                .Where(e => e.LocationGuestId == locationGuest.Id)
+                .ToListAsync();
+
+            Assert.Contains(
+                ledger,
+                e =>
+                    e.PermissionKind
+                        == LocationGuestPermissionKind.FeedbackFollowUp
+                    && e.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
+            );
+            Assert.DoesNotContain(
+                ledger,
+                e => e.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+            );
+            Assert.DoesNotContain(
+                ledger,
+                e => e.PermissionKind == LocationGuestPermissionKind.SmsMarketing
+            );
+        }
+
+        [Fact]
         public async Task SubmitFeedback_WithdrawsMarketingPermissionsWhenOptingOut()
         {
             const string token = "guest-form-withdraw-marketing";
@@ -134,6 +251,18 @@ namespace TummlyBackend.Tests.Integration
                 smsEnabled: true,
                 feedbackFollowUpEnabled: true
             );
+
+            var grantResponse = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Opt Out Guest",
+                    guestContact = "optout@example.com",
+                    comment = "Great visit.",
+                    offersOptOut = false,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, grantResponse.StatusCode);
 
             var response = await _client.PostAsJsonAsync(
                 $"/api/scan/{token}/feedback",
@@ -168,26 +297,90 @@ namespace TummlyBackend.Tests.Integration
                 .Where(e => e.LocationGuestId == locationGuest.Id)
                 .ToListAsync();
 
-            Assert.Equal(2, ledger.Count);
-            Assert.All(
+            Assert.Contains(
                 ledger,
                 e =>
-                    Assert.Equal(
-                        LocationGuestPermissionLedgerEventKinds.Withdraw,
-                        e.EventKind
-                    )
+                    e.PermissionKind
+                        == LocationGuestPermissionKind.FeedbackFollowUp
+                    && e.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
             );
             Assert.Contains(
                 ledger,
-                e => e.PermissionKind == LocationGuestPermissionKind.EmailMarketing
-            );
-            Assert.Contains(
-                ledger,
-                e => e.PermissionKind == LocationGuestPermissionKind.SmsMarketing
+                e =>
+                    e.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+                    && e.EventKind
+                        == LocationGuestPermissionLedgerEventKinds.Withdraw
             );
             Assert.DoesNotContain(
                 ledger,
-                e => e.PermissionKind == LocationGuestPermissionKind.FeedbackFollowUp
+                e =>
+                    e.PermissionKind == LocationGuestPermissionKind.SmsMarketing
+                    && e.EventKind
+                        == LocationGuestPermissionLedgerEventKinds.Withdraw
+            );
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_GrantsOnlySmsMarketingOnPhoneConsent()
+        {
+            const string token = "guest-form-grant-sms";
+            await SeedGuestLocationAsync(
+                token,
+                emailEnabled: true,
+                smsEnabled: true,
+                feedbackFollowUpEnabled: true
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Mobile Guest",
+                    guestContact = "07123456789",
+                    comment = "Great visit.",
+                    offersOptOut = false,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var locationId = await context.QrCodes
+                .Where(q => q.Token == token)
+                .Select(q => q.RestaurantLocationId)
+                .SingleAsync();
+
+            var locationGuest = await context.LocationGuests
+                .Where(lg => lg.RestaurantLocationId == locationId)
+                .SingleAsync();
+
+            Assert.Equal(
+                LocationGuestMarketingPreference.Allowed,
+                locationGuest.MarketingPreference
+            );
+
+            var ledger = await context.LocationGuestPermissionLedgerEntries
+                .Where(e => e.LocationGuestId == locationGuest.Id)
+                .ToListAsync();
+
+            Assert.Contains(
+                ledger,
+                e =>
+                    e.PermissionKind == LocationGuestPermissionKind.SmsMarketing
+                    && e.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
+            );
+            Assert.Contains(
+                ledger,
+                e =>
+                    e.PermissionKind
+                        == LocationGuestPermissionKind.FeedbackFollowUp
+                    && e.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
+            );
+            Assert.DoesNotContain(
+                ledger,
+                e => e.PermissionKind == LocationGuestPermissionKind.EmailMarketing
             );
         }
 

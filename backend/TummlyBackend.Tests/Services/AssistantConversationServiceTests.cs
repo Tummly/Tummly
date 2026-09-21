@@ -87,7 +87,8 @@ namespace TummlyBackend.Tests.Services
             _creditLedger = new CreditLedgerService(
                 _context,
                 _clock,
-                TestPricebookPaths.LoadV3()
+                TestPricebookPaths.LoadV3(),
+                new AdminAuditService(_context, _clock)
             );
             _creditSnapshot = new CreditBalanceSnapshotService(_context, _clock);
             _aiBilling = new AssistantAiBillingService(
@@ -7194,7 +7195,12 @@ namespace TummlyBackend.Tests.Services
             );
 
             var admin = CreateAdminService();
-            await admin.ExtendActivationAsync(user.Id, new ExtendActivationDto());
+            await admin.ExtendActivationAsync(
+                user.Id,
+                new ExtendActivationDto(),
+                actorAdminUserId: null,
+                actorIdentity: "test-admin"
+            );
 
             var after = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.GetAsync(user.Id, conversationId)
@@ -8624,12 +8630,14 @@ namespace TummlyBackend.Tests.Services
                     _context,
                     new TrackingEmailService(),
                     configuration,
-                    NullLogger<TrialReviewTransition>.Instance
+                    NullLogger<TrialReviewTransition>.Instance,
+                    new AdminAuditService(_context, TimeProvider.System)
                 ),
                 configuration,
                 NullLogger<AdminService>.Instance,
                 _service,
-                new NoOpBillingAccountLifecycle()
+                new NoOpBillingAccountLifecycle(),
+                new AdminAuditService(_context, TimeProvider.System)
             );
         }
 

@@ -116,7 +116,7 @@ namespace TummlyBackend.Services
                 )
                 {
                     _permissions.RecordEvent(
-                        locationGuest.Id,
+                        locationGuest,
                         locationId,
                         kind,
                         eventKind,

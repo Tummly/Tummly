@@ -266,7 +266,8 @@ namespace TummlyBackend.Tests.Services
                 RestaurantId = restaurant.Id,
                 LocationName = locationName,
                 Address = "1 Harbour Way",
-                CreatedAt = DateTime.UtcNow,
+                // Older than Aug 2026 closed weeks used by these fixtures.
+                CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             };
             _context.RestaurantLocations.Add(location);
             await _context.SaveChangesAsync();

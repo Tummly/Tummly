@@ -228,6 +228,7 @@ export function CaptureGuestExperiencePreviewOverlay({
               <GuestFeedbackForm
                 token=""
                 locationName={guestExperience.locationName}
+                restaurantName={guestExperience.locationName}
                 address={guestExperience.locationAddress}
                 guestFormConsent={GUEST_FORM_CONSENT_DEMO}
                 isSubmitting={false}

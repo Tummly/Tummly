@@ -1129,6 +1129,25 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
   })
 
+  it("keeps empty when soft generate returns not ready", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      notReadyWeeklyBriefResponse(locationId)
+    )
+    const generateWeeklyBrief = vi.fn(async (locationId: number) =>
+      notReadyWeeklyBriefResponse(locationId)
+    )
+    const adapters = createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+
+    const ok = await module.ensureWeeklyBriefReady()
+    expect(ok).toBe(false)
+    expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
+    expect(module.getSnapshot().weeklyBrief.status).toBe("empty")
+    expect(module.getSnapshot().weeklyBrief.week).toBe("2026-W33")
+    expect(module.getSnapshot().weeklyBrief.errorMessage).toBeNull()
+  })
+
   it("generates in place from the weekly-brief page empty CTA", async () => {
     const getWeeklyBrief = vi.fn(async (locationId: number) =>
       notReadyWeeklyBriefResponse(locationId)

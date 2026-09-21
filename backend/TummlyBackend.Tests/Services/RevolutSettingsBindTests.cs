@@ -81,5 +81,39 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("Bound Address", vat.RegisteredAddress);
             Assert.True(vat.IsComplete);
         }
+
+        [Fact]
+        public void TryGetPlanVariationId_SelectsGrossMap_WhenRequested()
+        {
+            var settings = new RevolutSettings
+            {
+                PlanVariations = new Dictionary<string, string>
+                {
+                    [RevolutPlanVariationKeys.StarterMonthly] = "net-id",
+                },
+                PlanVariationsGross = new Dictionary<string, string>
+                {
+                    [RevolutPlanVariationKeys.StarterMonthly] = "gross-id",
+                },
+            };
+
+            Assert.True(
+                settings.TryGetPlanVariationId(
+                    RevolutPlanVariationKeys.StarterMonthly,
+                    useGrossMap: true,
+                    out var gross
+                )
+            );
+            Assert.Equal("gross-id", gross);
+
+            Assert.True(
+                settings.TryGetPlanVariationId(
+                    RevolutPlanVariationKeys.StarterMonthly,
+                    useGrossMap: false,
+                    out var net
+                )
+            );
+            Assert.Equal("net-id", net);
+        }
     }
 }

@@ -3,9 +3,14 @@ import { describe, expect, it } from "vitest"
 import type { PlanSubscriptionSnapshot } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 import {
   buildManagePlanCardViewModels,
+  buildManagePlanFaqItems,
   buildPlanChangeConfirmCopy,
   buildPlanRenewalDateMetric,
   defaultPreviewCadence,
+  MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS,
+  MANAGE_PLAN_CADENCE_ITEM_CLASS,
+  MANAGE_PLAN_CADENCE_SHELL_CLASS,
+  MANAGE_PLAN_FAQ_TRIGGER_CLASS,
   resolvePlanCardCta,
   resolvePlanChangeKind,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
@@ -88,6 +93,7 @@ describe("buildManagePlanCardViewModels", () => {
     const cards = buildManagePlanCardViewModels({
       plan: paidPlan({ subscriptionPlan: "Pilot", isPilot: true }),
       previewCadence: "monthly",
+      vatRateBps: 2000,
     })
 
     expect(cards.map((card) => card.id)).toEqual([
@@ -108,11 +114,62 @@ describe("buildManagePlanCardViewModels", () => {
     const cards = buildManagePlanCardViewModels({
       plan: paidPlan(),
       previewCadence: "annual",
+      vatRateBps: 2000,
     })
 
     expect(cards[1]?.priceHeadline).toBe("£398 / year + VAT")
     expect(cards[1]?.annualSaveLabel).toBeNull()
     expect(cards[1]?.priceSubline).toBeNull()
+  })
+
+  it("omits + VAT from price headlines when vatRateBps is 0", () => {
+    const cards = buildManagePlanCardViewModels({
+      plan: paidPlan({ subscriptionPlan: "Pilot", isPilot: true }),
+      previewCadence: "monthly",
+      vatRateBps: 0,
+    })
+
+    expect(cards[1]?.priceHeadline).toBe("£39 / month")
+    expect(cards[1]?.priceSuffix).toBe("/ month")
+  })
+})
+
+describe("buildManagePlanFaqItems", () => {
+  it("includes + VAT on group location copy when vatRateBps is active", () => {
+    const group = buildManagePlanFaqItems({ vatRateBps: 2000 }).find(
+      (item) => item.id === "group-locations"
+    )
+    expect(group?.answerParagraphs[1]).toBe(
+      "Additional Group Locations can be added for £39/month + VAT each, or £398/year + VAT on Annual."
+    )
+    expect(
+      buildManagePlanFaqItems({ vatRateBps: 2000 }).some(
+        (item) => item.id === "vat"
+      )
+    ).toBe(true)
+  })
+
+  it("omits + VAT and VAT FAQ when vatRateBps is 0", () => {
+    const items = buildManagePlanFaqItems({ vatRateBps: 0 })
+    const group = items.find((item) => item.id === "group-locations")
+    expect(group?.answerParagraphs[1]).toBe(
+      "Additional Group Locations can be added for £39/month each, or £398/year on Annual."
+    )
+    expect(items.some((item) => item.id === "vat")).toBe(false)
+  })
+
+  it("FAQ starter kit items describe one kit per Active Location", () => {
+    const items = buildManagePlanFaqItems({ vatRateBps: 0 })
+    const perLocation = items.find((i) => i.id === "starter-kit-per-location")
+    expect(perLocation?.answerParagraphs.join(" ")).toMatch(/Active Location/i)
+    expect(perLocation?.answerParagraphs.join(" ")).not.toMatch(
+      /Billing Account lifetime/i
+    )
+
+    const qr = items.find((i) => i.id === "qr-materials")
+    expect(qr?.answerParagraphs.join(" ")).not.toMatch(
+      /Billing Account lifetime/i
+    )
   })
 })
 
@@ -219,5 +276,28 @@ describe("buildPlanRenewalDateMetric", () => {
       label: "Cancel date",
       value: "Cancels on 30 September 2026",
     })
+  })
+})
+
+describe("Manage Plan light-theme chrome tokens", () => {
+  it("maps cadence tabs to Main Bg / Cards semantic tokens", () => {
+    expect(MANAGE_PLAN_CADENCE_SHELL_CLASS).toContain("border-op-card-border")
+    expect(MANAGE_PLAN_CADENCE_ITEM_CLASS).toContain("text-op-text-secondary")
+    expect(MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS).toBe(
+      "bg-op-background-secondary text-op-text-primary"
+    )
+    expect(MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS).not.toContain("bg-[#")
+    expect(MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS).not.toContain(
+      "bg-op-color-gray-"
+    )
+  })
+
+  it("uses collapse-button tokens for FAQ chevron chips", () => {
+    expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).toContain(
+      "bg-op-button-collapse-background"
+    )
+    expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).toContain("text-op-text-primary")
+    expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).not.toContain("bg-[#212121]")
+    expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).not.toContain("text-white")
   })
 })

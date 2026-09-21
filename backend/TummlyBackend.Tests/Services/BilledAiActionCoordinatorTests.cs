@@ -183,7 +183,12 @@ namespace TummlyBackend.Tests.Services
 
             return new Harness(
                 context,
-                new CreditLedgerService(context, _clock, new StubPricebookCatalog()),
+                new CreditLedgerService(
+                    context,
+                    _clock,
+                    new StubPricebookCatalog(),
+                    new AdminAuditService(context, _clock)
+                ),
                 new CreditBalanceSnapshotService(context, _clock),
                 restaurant.Id,
                 location.Id

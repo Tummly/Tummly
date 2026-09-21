@@ -33,6 +33,7 @@ export type ShopOrderWire = {
   deliveryNetPence: number
   grossPence: number
   currency: string
+  isComplimentary?: boolean
   lines: ShopOrderLineWire[]
   shipTo: ShopShipToPayload
 }
@@ -50,6 +51,7 @@ export type ShopOrderListItemWire = {
   totalGrossPence: number
   paymentStatus: string
   fulfilmentStatus: string
+  isComplimentary?: boolean
   updatedAtUtc: string
 }
 
@@ -89,6 +91,7 @@ export type ShopOrderDetailWire = ShopOrderWire & {
   updatedAtUtc: string
   canCancel: boolean
   cancelBlockReason?: string | null
+  isComplimentary?: boolean
 }
 
 export type ShopReorderPrefillWire = {
@@ -265,10 +268,12 @@ export async function reorderShopOrder(input: {
   return response.data
 }
 
-/** Matches backend TummlyVatMath (20% UK VAT, half-up AwayFromZero). */
+/** Matches backend TummlyVatMath (exclusive, half-up AwayFromZero). */
 export function computeShopCheckoutTotalsPence(input: {
   materialsNetPence: number
   deliveryMethod: "standard" | "express"
+  /** Catalog / seller effective rate in basis points; 0 = net-only (launch OFF). */
+  vatRateBps?: number
 }): {
   materialsNetPence: number
   vatPence: number
@@ -276,7 +281,8 @@ export function computeShopCheckoutTotalsPence(input: {
   grossPence: number
 } {
   const deliveryNetPence = input.deliveryMethod === "express" ? 2000 : 0
-  const vatPence = Math.round(input.materialsNetPence * 0.2)
+  const vatRateBps = input.vatRateBps ?? 0
+  const vatPence = Math.round(input.materialsNetPence * (vatRateBps / 10_000))
   return {
     materialsNetPence: input.materialsNetPence,
     vatPence,

@@ -301,7 +301,13 @@ export function AdminShopOrdersPanel() {
                         {formatAdminShopGbpFromPence(order.grossPence)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{order.paymentStatus}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">
+                            {order.isComplimentary
+                              ? "Free"
+                              : order.paymentStatus}
+                          </Badge>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">

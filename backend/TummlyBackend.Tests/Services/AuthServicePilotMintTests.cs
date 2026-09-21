@@ -57,7 +57,8 @@ namespace TummlyBackend.Tests.Services
             var ledger = new CreditLedgerService(
                 _context,
                 TimeProvider.System,
-                catalog
+                catalog,
+                new AdminAuditService(_context, TimeProvider.System)
             );
 
             _service = new AuthService(

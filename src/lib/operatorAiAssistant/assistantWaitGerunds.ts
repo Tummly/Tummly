@@ -1,217 +1,35 @@
-export const ASSISTANT_WAIT_GERUNDS = [
-  "Pondering",
-  "Rummaging",
-  "Noodling",
-  "Puttering",
-  "Meandering",
-  "Woolgathering",
-  "Daydreaming",
-  "Brainstorming",
-  "Doodling",
-  "Humming",
-  "Whistling",
-  "Tapping",
-  "Fiddling",
-  "Tinkering",
-  "Puzzling",
-  "Reckoning",
-  "Mulling",
-  "Wondering",
-  "Guessing",
-  "Hunting",
-  "Fetching",
-  "Gathering",
-  "Sorting",
-  "Stacking",
-  "Shuffling",
-  "Juggling",
-  "Balancing",
-  "Weighing",
-  "Measuring",
-  "Mapping",
-  "Charting",
-  "Tracing",
-  "Sketching",
-  "Outlining",
-  "Composing",
-  "Tuning",
-  "Calibrating",
-  "Aligning",
-  "Nudging",
-  "Coaxing",
-  "Cajoling",
-  "Wooing",
-  "Charming",
-  "Winking",
-  "Grinning",
-  "Giggling",
-  "Chuckling",
-  "Beaming",
-  "Glowing",
-  "Sparkling",
-  "Twinkling",
-  "Bouncing",
-  "Skipping",
-  "Hopping",
-  "Waltzing",
-  "Sashaying",
-  "Sauntering",
-  "Strolling",
-  "Wandering",
-  "Roaming",
-  "Exploring",
-  "Foraging",
-  "Scouting",
-  "Peeking",
-  "Glancing",
-  "Scanning",
-  "Skimming",
-  "Leafing",
-  "Thumbing",
-  "Flipping",
-  "Riffling",
-  "Mining",
-  "Digging",
-  "Sieving",
-  "Filtering",
-  "Distilling",
-  "Brewing",
-  "Steeping",
-  "Percolating",
-  "Bubbling",
-  "Fizzing",
-  "Buzzing",
-  "Clicking",
-  "Clacking",
-  "Rustling",
-  "Whispering",
-  "Murmuring",
-  "Mumbling",
-  "Chattering",
-  "Bantering",
-  "Jesting",
-  "Joking",
-  "Quipping",
-  "Ribbing",
-  "Teasing",
-  "Needling",
-  "Whisking",
-  "Simmering",
-  "Marinating",
-  "Kneading",
-  "Plating",
-  "Sifting",
-  "Stirring",
-  "Folding",
-  "Zesting",
-  "Garnishing",
-  "Seasoning",
-  "Toasting",
-  "Roasting",
-  "Braising",
-  "Poaching",
-  "Grilling",
-  "Searing",
-  "Deglazing",
-  "Reducing",
-  "Infusing",
-  "Proofing",
-  "Blooming",
-  "Tempering",
-  "Clarifying",
-  "Emulsifying",
-  "Caramelizing",
-  "Mincing",
-  "Dicing",
-  "Chopping",
-  "Peeling",
-  "Hulling",
-  "Shucking",
-  "Filleting",
-  "Basting",
-  "Glazing",
-  "Dusting",
-  "Drizzling",
-  "Pouring",
-  "Tasting",
-  "Sampling",
-  "Pairing",
-  "Setting",
-  "Polishing",
-  "Buffing",
-  "Arranging",
-  "Nesting",
-  "Tucking",
-  "Crinkling",
-  "Wrapping",
-  "Tying",
-  "Knotting",
-  "Looping",
-  "Braiding",
-  "Weaving",
-  "Stitching",
-  "Patching",
-  "Mending",
-  "Darning",
-  "Hemming",
-  "Pressing",
-  "Ironing",
-  "Steaming",
-  "Fluffing",
-  "Plumping",
-  "Bobbing",
-  "Wiggling",
-  "Twirling",
-  "Spinning",
-  "Orbiting",
-  "Hovering",
-  "Drifting",
-  "Floating",
-  "Gliding",
-  "Swooping",
-  "Darting",
-  "Zigzagging",
-  "Pirouetting",
-  "Cartwheeling",
-  "Somersaulting",
-  "Moonwalking",
-  "Shimmying",
-  "Grooving",
-  "Jiving",
-  "Jamming",
-  "Frolicking",
-  "Gamboling",
-  "Cavorting",
-  "Capering",
-] as const
+import {
+  ASSISTANT_WAIT_BODY,
+  ASSISTANT_WAIT_PHRASE_INTERVAL_MS,
+  ASSISTANT_WAIT_PREPARING_BODY,
+  ASSISTANT_WAIT_RETRIEVING_BODY,
+  isAssistantCheckingWaitBody,
+} from "./assistantWaitPhrases"
 
-export type AssistantWaitGerund = (typeof ASSISTANT_WAIT_GERUNDS)[number]
-
-export const ASSISTANT_WAIT_GERUND_COUNT = ASSISTANT_WAIT_GERUNDS.length
-
-export const ASSISTANT_WAIT_GERUND_INTERVAL_MS = 1250
-
-export const ASSISTANT_WAIT_RETRIEVING_BODY = "Retrieving data…"
-
-export const ASSISTANT_WAIT_PREPARING_BODY = "Preparing answer…"
-
-export function formatAssistantWaitGerund(word: AssistantWaitGerund): string {
-  return `${word}…`
+/**
+ * @deprecated Prefer `assistantWaitPhrases`. Kept so older imports keep
+ * compiling during the wait-copy migration.
+ */
+export {
+  ASSISTANT_WAIT_BODY,
+  ASSISTANT_WAIT_PREPARING_BODY,
+  ASSISTANT_WAIT_RETRIEVING_BODY,
+  isAssistantCheckingWaitBody,
 }
 
-export function assistantWaitGerundAt(index: number): AssistantWaitGerund {
-  const length = ASSISTANT_WAIT_GERUNDS.length
-  const normalised = ((index % length) + length) % length
-  const word = ASSISTANT_WAIT_GERUNDS[normalised]
-  return word ?? "Pondering"
+export const ASSISTANT_WAIT_GERUND_INTERVAL_MS = ASSISTANT_WAIT_PHRASE_INTERVAL_MS
+
+/** @deprecated Decorative gerunds are no longer used for wait copy. */
+export const ASSISTANT_WAIT_GERUNDS = [] as const
+
+export type AssistantWaitGerund = never
+
+export const ASSISTANT_WAIT_GERUND_COUNT = 0
+
+export function formatAssistantWaitGerund(_word: string): string {
+  return ASSISTANT_WAIT_BODY
 }
 
-export function isAssistantCheckingWaitBody(body: string): boolean {
-  return ASSISTANT_WAIT_GERUNDS.some(
-    (word) => formatAssistantWaitGerund(word) === body
-  )
+export function assistantWaitGerundAt(_index: number): string {
+  return "Matching your question to venue data"
 }
-
-export const ASSISTANT_WAIT_BODY = formatAssistantWaitGerund(
-  ASSISTANT_WAIT_GERUNDS[0]
-)

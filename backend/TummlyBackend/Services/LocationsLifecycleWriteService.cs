@@ -11,10 +11,18 @@ namespace TummlyBackend.Services
         : ILocationsLifecycleWriteService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
+        private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
 
-        public LocationsLifecycleWriteService(ApplicationDbContext context)
+        public LocationsLifecycleWriteService(
+            ApplicationDbContext context,
+            IComplimentaryStarterShopOrderService complimentaryStarterShopOrders,
+            IPrintReadyQrMaterialsWork printReadyQrMaterialsWork
+        )
         {
             _context = context;
+            _complimentaryStarterShopOrders = complimentaryStarterShopOrders;
+            _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
         }
 
         public async Task<LocationLifecycleWriteResult> ActivateDraftAsync(
@@ -53,6 +61,28 @@ namespace TummlyBackend.Services
                 $"Activated location “{location.LocationName}”."
             );
             await _context.SaveChangesAsync();
+
+            var actorDisplayName = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Id == actorUserId)
+                .Select(u => u.FullName)
+                .FirstOrDefaultAsync();
+
+            var complimentary =
+                await _complimentaryStarterShopOrders.EnsureForLocationAsync(
+                    restaurantId,
+                    locationId,
+                    actorUserId,
+                    actorDisplayName ?? string.Empty
+                );
+
+            if (complimentary.ShopOrderId != Guid.Empty)
+            {
+                await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
+                    complimentary.ShopOrderId
+                );
+            }
+
             return new LocationLifecycleWriteResult.Ok();
         }
 

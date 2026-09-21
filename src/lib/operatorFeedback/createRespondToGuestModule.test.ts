@@ -848,4 +848,58 @@ describe("createRespondToGuestModule", () => {
     module.openSendConfirm()
     expect(module.getSnapshot().sendConfirmOpen).toBe(false)
   })
+
+  it("RC-01: service-only banner when marketing is not granted", async () => {
+    const module = createRespondToGuestModule(
+      createAdapters({
+        getFeedbackDetails: async () => ({
+          ...sampleDetails,
+          marketingPreference: "not_recorded",
+          permissionStates: {
+            "feedback-follow-up": "granted",
+            "email-marketing": "not_recorded",
+            "sms-marketing": "not_recorded",
+          },
+          restaurantPermissionEnabled: {
+            "feedback-follow-up": true,
+            "email-marketing": true,
+            "sms-marketing": true,
+          },
+        }),
+      })
+    )
+    await module.open(2418)
+
+    expect(module.getSnapshot().statusBanner).toMatchObject({
+      kind: "service-only",
+    })
+    expect(module.getSnapshot().addOfferEnabled).toBe(false)
+  })
+
+  it("RC-02: marketing-eligible banner and Add Offer when email marketing granted", async () => {
+    const module = createRespondToGuestModule(
+      createAdapters({
+        getFeedbackDetails: async () => ({
+          ...sampleDetails,
+          permissionStates: {
+            "feedback-follow-up": "granted",
+            "email-marketing": "granted",
+            "sms-marketing": "not_recorded",
+          },
+          restaurantPermissionEnabled: {
+            "feedback-follow-up": true,
+            "email-marketing": true,
+            "sms-marketing": true,
+          },
+        }),
+      })
+    )
+    await module.open(2418)
+
+    expect(module.getSnapshot().statusBanner).toMatchObject({
+      kind: "marketing-eligible",
+      message: "Marketing eligible for Email.",
+    })
+    expect(module.getSnapshot().addOfferEnabled).toBe(true)
+  })
 })

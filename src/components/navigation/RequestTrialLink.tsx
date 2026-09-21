@@ -1,55 +1,15 @@
 import type { ComponentProps } from "react"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { Link } from "react-router-dom"
 
-import {
-  REQUEST_TRIAL_HASH,
-  scrollToRequestTrial,
-} from "@/lib/scrollToRequestTrial"
+/** Marketing entry to self-serve Signup (replaces scroll-to Request Trial). */
+export const SIGNUP_PATH = "/signup"
 
-export function useScrollToRequestTrial() {
-  const { pathname } = useLocation()
-  const navigate = useNavigate()
+type RequestTrialLinkProps = Omit<ComponentProps<typeof Link>, "to">
 
-  return (event?: { preventDefault: () => void }) => {
-    event?.preventDefault()
-
-    if (pathname === "/") {
-      if (window.location.hash !== REQUEST_TRIAL_HASH) {
-        window.history.pushState(null, "", REQUEST_TRIAL_HASH)
-      }
-
-      scrollToRequestTrial()
-      return
-    }
-
-    void navigate({ pathname: "/", hash: REQUEST_TRIAL_HASH })
-  }
-}
-
-type RequestTrialLinkProps = Omit<
-  ComponentProps<typeof Link>,
-  "to" | "onClick"
-> & {
-  onClick?: ComponentProps<typeof Link>["onClick"]
-}
-
-export function RequestTrialLink({
-  onClick,
-  ...props
-}: RequestTrialLinkProps) {
-  const scrollToTrial = useScrollToRequestTrial()
-
-  return (
-    <Link
-      to={{ pathname: "/", hash: REQUEST_TRIAL_HASH }}
-      onClick={(event) => {
-        onClick?.(event)
-
-        if (!event.defaultPrevented) {
-          scrollToTrial(event)
-        }
-      }}
-      {...props}
-    />
-  )
+/**
+ * Kept name for call-site stability. Navigates to `/signup`.
+ * Prefer updating visible labels to Signup / Pilot copy at each call site.
+ */
+export function RequestTrialLink(props: RequestTrialLinkProps) {
+  return <Link to={SIGNUP_PATH} {...props} />
 }

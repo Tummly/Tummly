@@ -50,6 +50,11 @@ namespace TummlyBackend.Services
                 return existing;
             }
 
+            if (!_sellerVat.IsActive)
+            {
+                throw new InvalidOperationException("vat_mode_off");
+            }
+
             if (!_sellerVat.IsComplete)
             {
                 throw new InvalidOperationException(
@@ -92,7 +97,7 @@ namespace TummlyBackend.Services
                     request.Plan,
                     request.BillingCycle
                 );
-            var vatRateBps = TummlyVatMath.DefaultVatRateBps;
+            var vatRateBps = _sellerVat.EffectiveVatRateBps;
             var vatPence = TummlyVatMath.VatPenceFromNetPence(netPence, vatRateBps);
             var grossPence = netPence + vatPence;
             var paymentUtc = EnsureUtc(request.PaymentSuccessUtc);
@@ -207,6 +212,11 @@ namespace TummlyBackend.Services
                 return existing;
             }
 
+            if (!_sellerVat.IsActive)
+            {
+                throw new InvalidOperationException("vat_mode_off");
+            }
+
             if (!_sellerVat.IsComplete)
             {
                 throw new InvalidOperationException(
@@ -251,7 +261,7 @@ namespace TummlyBackend.Services
             var netPence = request.NetPenceOverride
                 ?? originalInvoice?.NetPence
                 ?? 0;
-            var vatRateBps = TummlyVatMath.DefaultVatRateBps;
+            var vatRateBps = _sellerVat.EffectiveVatRateBps;
             var vatPence = TummlyVatMath.VatPenceFromNetPence(netPence, vatRateBps);
             var grossPence = netPence + vatPence;
             var refundUtc = EnsureUtc(request.RefundCompletedUtc);

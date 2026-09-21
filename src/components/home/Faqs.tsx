@@ -104,7 +104,7 @@ const faqItems = [
 
 function Faqs() {
   return (
-    <section className="w-full bg-white">
+    <section id="faqs" className="w-full scroll-mt-44 bg-white">
       <div
         className={cn(
           "mx-auto flex w-full flex-col gap-8 sm:gap-10 lg:flex-row lg:items-start lg:gap-10 xl:gap-16 2xl:gap-24 min-[1728px]:gap-47.5",

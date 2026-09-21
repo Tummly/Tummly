@@ -138,6 +138,7 @@ namespace TummlyBackend.Tests.Integration
                 catalog.GetProperty("pricebookId").GetString()
             );
             Assert.Equal(2000, catalog.GetProperty("vatRateBps").GetInt32());
+            Assert.True(body.GetProperty("vatModeActive").GetBoolean());
             Assert.False(catalog.GetProperty("sms5000Available").GetBoolean());
             Assert.True(catalog.GetProperty("plans").GetArrayLength() >= 3);
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 
+import { ActivateTummlyPilotDialogHost } from "@/components/dashboard/operator/ActivateTummlyPilotDialogHost"
 import { DashboardShell } from "@/components/dashboard/operator/DashboardShell"
 import {
   DashboardUiStoreProvider,
@@ -518,30 +519,39 @@ function DashboardContent({ mode }: DashboardProps) {
         onWidenToAllLocations: globalSearch.widenToAllLocations,
       }}
     >
-      <Outlet
-        context={{
-          activationPeriodBadge: presentation.activationPeriodBadge,
-          billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
-          billingStatus: workspace.snapshot.billingStatus,
-          subscriptionPlan: workspace.snapshot.subscriptionPlan,
-          permissionRole: workspace.snapshot.permissionRole,
-          chargebackRestricted: workspace.snapshot.chargebackRestricted,
-          offersAccess: workspace.snapshot.offersAccess,
-          privacyConsentAccess: workspace.snapshot.privacyConsentAccess,
-          selectedLocationId,
-          locations: workspace.snapshot.locations,
-          brandLogoPublicUrl: workspace.snapshot.brandLogoPublicUrl ?? null,
-          mode,
-          selectLocation: handleSelectLocation,
-          applyRestaurantIdentity: workspace.applyRestaurantIdentity,
-          summariseFeedbackWithAi: (reportingPeriod: HomePerformanceDateRange) => {
-            aiAssistant.summariseFeedbackForPeriod({
-              operatorFirstName: presentation.profileFirstName,
-              reportingPeriod,
-            })
-          },
-        }}
-      />
+      <>
+        <ActivateTummlyPilotDialogHost
+          mode={mode}
+          status={workspace.snapshot.status}
+          subscriptionPlan={workspace.snapshot.subscriptionPlan}
+          selectedLocationId={selectedLocationId}
+          billingCreditsAccess={workspace.snapshot.billingCreditsAccess}
+        />
+        <Outlet
+          context={{
+            activationPeriodBadge: presentation.activationPeriodBadge,
+            billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
+            billingStatus: workspace.snapshot.billingStatus,
+            subscriptionPlan: workspace.snapshot.subscriptionPlan,
+            permissionRole: workspace.snapshot.permissionRole,
+            chargebackRestricted: workspace.snapshot.chargebackRestricted,
+            offersAccess: workspace.snapshot.offersAccess,
+            privacyConsentAccess: workspace.snapshot.privacyConsentAccess,
+            selectedLocationId,
+            locations: workspace.snapshot.locations,
+            brandLogoPublicUrl: workspace.snapshot.brandLogoPublicUrl ?? null,
+            mode,
+            selectLocation: handleSelectLocation,
+            applyRestaurantIdentity: workspace.applyRestaurantIdentity,
+            summariseFeedbackWithAi: (reportingPeriod: HomePerformanceDateRange) => {
+              aiAssistant.summariseFeedbackForPeriod({
+                operatorFirstName: presentation.profileFirstName,
+                reportingPeriod,
+              })
+            },
+          }}
+        />
+      </>
     </DashboardShell>
   )
 }

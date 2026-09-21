@@ -1,4 +1,7 @@
-import { heroBgMobilePicture, heroBgPicture } from "@/assets/critical-images";
+import {
+  heroBgMobilePicture,
+  heroBgPicture,
+} from "@/assets/critical-images/hero";
 import HeroTrialForm from "@/components/home/HeroTrialForm";
 import OptimizedImage from "@/components/media/OptimizedImage";
 import {
@@ -8,8 +11,8 @@ import {
 } from "@/lib/marketing-layout";
 import { cn } from "@/lib/utils";
 
-/** Desktop hero photo height — fixed so address-field reveal does not rescale the image. */
-const DESKTOP_HERO_IMAGE_HEIGHT_PX = 1220;
+/** Desktop hero photo height — fixed so layout does not rescale the image. */
+const DESKTOP_HERO_IMAGE_HEIGHT_PX = 720;
 
 const heroCopy = (
   <div className="flex w-full min-w-0 max-w-[643px] shrink-0 flex-col items-start lg:flex-1 lg:pt-[110px] xl:max-w-[643px]">
@@ -27,10 +30,7 @@ const heroCopy = (
 
 function Hero() {
   return (
-    <section
-      id="request-trial"
-      className="relative isolate w-full scroll-mt-[77px] overflow-hidden bg-white lg:scroll-mt-[78px] lg:bg-[#141414]"
-    >
+    <section className="relative isolate w-full overflow-hidden bg-white lg:bg-[#141414]">
       <div className="flex w-full flex-col lg:hidden">
         <div
           className={cn(
@@ -85,7 +85,7 @@ function Hero() {
           />
         </div>
 
-        <div className="relative z-10 mx-auto flex w-full min-h-[1010px] flex-row items-start justify-between gap-10 px-16 pb-20 pt-0 xl:gap-12 xl:px-45">
+        <div className="relative z-10 mx-auto flex w-full min-h-[560px] flex-row items-start justify-between gap-10 px-16 pb-20 pt-0 xl:gap-12 xl:px-45">
           {heroCopy}
           <div className="w-[615px] shrink-0">
             <HeroTrialForm />

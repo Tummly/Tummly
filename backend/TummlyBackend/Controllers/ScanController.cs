@@ -226,6 +226,15 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (!GuestFormContactValidate.TryResolve(dto.GuestContact, out var contactType))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Enter a valid email or UK mobile number.",
+                });
+            }
+
             /*
              =========================================
              PER-TOKEN RATE LIMIT (10 submissions / hour)
@@ -267,7 +276,6 @@ namespace TummlyBackend.Controllers
 
             var guestName = dto.GuestName.Trim();
             var guestContact = dto.GuestContact.Trim();
-            var contactType = DetectContactType(dto.GuestContact);
 
             Feedback? feedback = null;
             const int maxPersistAttempts = 2;
@@ -294,6 +302,7 @@ namespace TummlyBackend.Controllers
                         restaurant,
                         location.Id,
                         !dto.OffersOptOut,
+                        contactType,
                         submitAt
                     );
 
@@ -492,42 +501,6 @@ namespace TummlyBackend.Controllers
             return trimmed.Length <= 1000
                 ? trimmed
                 : trimmed[..1000];
-        }
-
-        /*
-         =========================================
-         CONTACT TYPE HEURISTIC
-         =========================================
-        */
-
-        private static ContactType DetectContactType(
-            string contact
-        )
-        {
-            var trimmed = contact.Trim();
-
-            if (trimmed.Contains('@'))
-            {
-                return ContactType.Email;
-            }
-
-            var digitsOnly = new string(
-                trimmed.Where(char.IsDigit).ToArray()
-            );
-
-            if (
-                digitsOnly.Length >= 7 &&
-                digitsOnly == trimmed.Replace(" ", "")
-                                    .Replace("-", "")
-                                    .Replace("(", "")
-                                    .Replace(")", "")
-                                    .Replace("+", "")
-            )
-            {
-                return ContactType.Phone;
-            }
-
-            return ContactType.Unknown;
         }
 
         private async Task<Restaurant> LoadRestaurantForLocationAsync(

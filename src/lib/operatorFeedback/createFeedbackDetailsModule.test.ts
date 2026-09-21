@@ -129,6 +129,85 @@ describe("createFeedbackDetailsModule", () => {
     })
   })
 
+  it("maps FD permission summary and recovery actions from ledger wire fields", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        locationGuestId: 501,
+        permissionStates: {
+          "feedback-follow-up": "granted",
+          "email-marketing": "not_recorded",
+          "sms-marketing": "not_recorded",
+        },
+        restaurantPermissionEnabled: {
+          "feedback-follow-up": true,
+          "email-marketing": true,
+          "sms-marketing": true,
+        },
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      permissionSummary: [
+        {
+          id: "feedback-follow-up",
+          label: "Feedback follow-up",
+          value: "Available",
+        },
+        { id: "marketing", label: "Marketing", value: "Not granted" },
+      ],
+      recoveryActions: {
+        respondEnabled: true,
+        addOfferEnabled: false,
+        addOfferHelper:
+          "Marketing permission is not available for this guest.",
+      },
+    })
+  })
+
+  it("enables Add Offer when channel email marketing is granted", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        locationGuestId: 501,
+        permissionStates: {
+          "feedback-follow-up": "granted",
+          "email-marketing": "granted",
+          "sms-marketing": "not_recorded",
+        },
+        restaurantPermissionEnabled: {
+          "feedback-follow-up": true,
+          "email-marketing": true,
+          "sms-marketing": true,
+        },
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      permissionSummary: [
+        {
+          id: "feedback-follow-up",
+          label: "Feedback follow-up",
+          value: "Available",
+        },
+        {
+          id: "email-marketing",
+          label: "Email marketing",
+          value: "Granted",
+        },
+      ],
+      recoveryActions: {
+        respondEnabled: true,
+        addOfferEnabled: true,
+        addOfferHelper: null,
+      },
+    })
+  })
+
   it("enables View guest profile when locationGuestId is present", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
@@ -16,54 +16,73 @@ import {
 import { tryLeaveDirtyNavigate } from "@/lib/operatorNavigation/leaveDirtyGuard"
 
 import chevronIcon from "@/assets/operator-home/sidenav/chevron.svg"
-import homeIcon from "@/assets/operator-home/sidenav/home.svg"
-import guestsIcon from "@/assets/operator-home/sidenav/guests.svg"
-import captureIcon from "@/assets/operator-home/sidenav/capture.svg"
-import feedbackIcon from "@/assets/operator-home/sidenav/feedback.svg"
-import campaignsIcon from "@/assets/operator-home/sidenav/campaigns.svg"
-import offersIcon from "@/assets/operator-home/sidenav/offers.svg"
-import reportsIcon from "@/assets/operator-home/sidenav/reports.svg"
-import settingsIcon from "@/assets/operator-home/sidenav/settings.svg"
-import tummlyShopIcon from "@/assets/operator-home/sidenav/tummly-shop.svg"
+import homeDefaultIcon from "@/assets/operator-home/sidenav/home-default.svg"
+import homeFocusedIcon from "@/assets/operator-home/sidenav/home-focused.svg"
+import guestsDefaultIcon from "@/assets/operator-home/sidenav/guests-default.svg"
+import guestsFocusedIcon from "@/assets/operator-home/sidenav/guests-focused.svg"
+import captureDefaultIcon from "@/assets/operator-home/sidenav/capture-default.svg"
+import captureFocusedIcon from "@/assets/operator-home/sidenav/capture-focused.svg"
+import feedbackDefaultIcon from "@/assets/operator-home/sidenav/feedback-default.svg"
+import feedbackFocusedIcon from "@/assets/operator-home/sidenav/feedback-focused.svg"
+import campaignsDefaultIcon from "@/assets/operator-home/sidenav/campaigns-default.svg"
+import campaignsFocusedIcon from "@/assets/operator-home/sidenav/campaigns-focused.svg"
+import offersDefaultIcon from "@/assets/operator-home/sidenav/offers-default.svg"
+import offersFocusedIcon from "@/assets/operator-home/sidenav/offers-focused.svg"
+import reportsDefaultIcon from "@/assets/operator-home/sidenav/reports-default.svg"
+import reportsFocusedIcon from "@/assets/operator-home/sidenav/reports-focused.svg"
+import settingsDefaultIcon from "@/assets/operator-home/sidenav/settings-default.svg"
+import settingsFocusedIcon from "@/assets/operator-home/sidenav/settings-focused.svg"
+import menuDefaultIcon from "@/assets/operator-home/sidenav/menu-default.svg"
+import menuFocusedIcon from "@/assets/operator-home/sidenav/menu-focused.svg"
+import tummlyShopDefaultIcon from "@/assets/operator-home/sidenav/tummly-shop-default.svg"
+import tummlyShopFocusedIcon from "@/assets/operator-home/sidenav/tummly-shop-focused.svg"
 
-/** Shell collapse hamburger — inline so `currentColor` follows light/dark tokens. */
-function SideNavMenuIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={20}
-      height={20}
-      viewBox="0 0 20 20"
-      fill="none"
-      aria-hidden
-      className={cn("size-5 shrink-0", className)}
-    >
-      <path
-        d="M2 14.8H18V16H2V14.8ZM2 11.2H18V12.4H2V11.2ZM2 7.6H18V8.8H2V7.6ZM2 4H18V5.2H2V4Z"
-        fill="currentColor"
-      />
-    </svg>
-  )
+type SideNavIconPair = {
+  default: string
+  focused: string
+}
+
+const MENU_ICON: SideNavIconPair = {
+  default: menuDefaultIcon,
+  focused: menuFocusedIcon,
 }
 
 const NAV_ICONS: Record<
   OperatorSidebarPrimaryNavId | OperatorSidebarFooterNavId,
-  string
+  SideNavIconPair
 > = {
-  home: homeIcon,
-  guests: guestsIcon,
-  capture: captureIcon,
-  feedback: feedbackIcon,
-  campaigns: campaignsIcon,
-  offers: offersIcon,
-  reports: reportsIcon,
-  "tummly-shop": tummlyShopIcon,
+  home: { default: homeDefaultIcon, focused: homeFocusedIcon },
+  guests: { default: guestsDefaultIcon, focused: guestsFocusedIcon },
+  capture: { default: captureDefaultIcon, focused: captureFocusedIcon },
+  feedback: { default: feedbackDefaultIcon, focused: feedbackFocusedIcon },
+  campaigns: { default: campaignsDefaultIcon, focused: campaignsFocusedIcon },
+  offers: { default: offersDefaultIcon, focused: offersFocusedIcon },
+  reports: { default: reportsDefaultIcon, focused: reportsFocusedIcon },
+  "tummly-shop": {
+    default: tummlyShopDefaultIcon,
+    focused: tummlyShopFocusedIcon,
+  },
+}
+
+const SETTINGS_ICON: SideNavIconPair = {
+  default: settingsDefaultIcon,
+  focused: settingsFocusedIcon,
+}
+
+const CHEVRON_ICON: SideNavIconPair = {
+  default: chevronIcon,
+  focused: chevronIcon,
 }
 
 type DashboardSidebarProps = {
   sidebarNav: OperatorSidebarNavModel
   /** Desktop collapse only; mobile drawer always shows labels. */
   collapsed?: boolean
+  /**
+   * Hamburger pin from click (not hover peek). Drives the focused menu
+   * glyph and active colour.
+   */
+  menuPinned?: boolean
   onToggleCollapsed?: () => void
   /** Persisted Settings disclosure preference (default open). */
   settingsExpanded?: boolean
@@ -75,35 +94,33 @@ type DashboardSidebarProps = {
 }
 
 /**
- * SideNav assets are SVG `<img>`s baked at #AEAEAE — tint with filters for
- * enabled (#676767) and active (primary) in light mode.
+ * Figma Side-nav Icons — Default (outline) vs Focused (filled).
+ * Mask + `bg-current` so light/dark item tokens colour the glyph.
  */
 function SideNavIcon({
-  src,
+  icons,
   active = false,
-  enabled = false,
   className,
 }: {
-  src: string
+  icons: SideNavIconPair
   active?: boolean
-  /** Navigable / interactive idle — darken baked #AEAEAE toward #676767. */
-  enabled?: boolean
   className?: string
 }) {
+  const src = active ? icons.focused : icons.default
   return (
-    <img
-      src={src}
-      alt=""
-      width={18}
-      height={18}
+    <span
       aria-hidden
       className={cn(
-        "block size-[18px] shrink-0 object-contain",
-        // #AEAEAE → #676767 (174/255 * 0.592 ≈ 103)
-        enabled && !active && "brightness-[0.592] dark:brightness-100",
-        active && "brightness-0 dark:invert",
+        "block size-4.5 shrink-0 bg-current mask-alpha",
+        "[mask:var(--side-nav-icon)_center/contain_no-repeat]",
+        "[-webkit-mask:var(--side-nav-icon)_center/contain_no-repeat]",
         className
       )}
+      style={
+        {
+          "--side-nav-icon": `url("${src}")`,
+        } as CSSProperties
+      }
     />
   )
 }
@@ -138,16 +155,14 @@ function navItemClass({
 function NavRowContent({
   label,
   collapsed,
-  iconSrc,
+  icons,
   active = false,
-  enabled = false,
   trailing,
 }: {
   label: string
   collapsed: boolean
-  iconSrc: string
+  icons: SideNavIconPair
   active?: boolean
-  enabled?: boolean
   trailing?: ReactNode
 }) {
   return (
@@ -160,11 +175,7 @@ function NavRowContent({
           collapsed && "size-[42px] shrink-0 justify-center"
         )}
       >
-        <SideNavIcon
-          src={iconSrc}
-          active={active}
-          enabled={enabled}
-        />
+        <SideNavIcon icons={icons} active={active} />
         {!collapsed ? (
           <span className="max-w-[12rem] truncate pl-3 text-inherit">
             {label}
@@ -176,16 +187,17 @@ function NavRowContent({
   )
 }
 
-function iconForItem(item: OperatorSidebarNavItem): string {
+function iconsForItem(item: OperatorSidebarNavItem): SideNavIconPair {
   if (item.id in NAV_ICONS) {
     return NAV_ICONS[item.id as keyof typeof NAV_ICONS]
   }
-  return settingsIcon
+  return SETTINGS_ICON
 }
 
 export function DashboardSidebar({
   sidebarNav,
   collapsed = false,
+  menuPinned = false,
   onToggleCollapsed,
   settingsExpanded = true,
   onToggleSettingsExpanded,
@@ -220,19 +232,31 @@ export function DashboardSidebar({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="size-auto h-full w-full min-h-0 justify-start rounded-none px-4 py-2.5 text-op-text-primary hover:bg-op-sidebar-item-hover-background hover:text-op-text-primary aria-expanded:bg-transparent aria-expanded:text-op-text-primary"
-                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-pressed={menuPinned}
+                className={cn(
+                  "size-auto h-full w-full min-h-0 justify-start rounded-none px-4 py-2.5",
+                  "hover:bg-op-sidebar-item-hover-background",
+                  "aria-expanded:bg-transparent",
+                  menuPinned
+                    ? "text-op-sidebar-item-active hover:text-op-sidebar-item-active aria-expanded:text-op-sidebar-item-active"
+                    : "text-op-sidebar-item-default hover:text-op-sidebar-item-default aria-expanded:text-op-sidebar-item-default"
+                )}
+                aria-label={menuPinned ? "Unpin sidebar" : "Pin sidebar open"}
                 aria-expanded={!collapsed}
                 onClick={onToggleCollapsed}
               >
-                <SideNavMenuIcon />
+                <SideNavIcon
+                  icons={MENU_ICON}
+                  active={menuPinned}
+                  className="size-5"
+                />
               </Button>
             </div>
           ) : null}
 
           <nav aria-label="Dashboard sections" className="flex flex-col">
             {sidebarNav.primary.map((item) => {
-              const icon = iconForItem(item)
+              const icons = iconsForItem(item)
               const rowClass = navItemClass({
                 active: item.active,
                 collapsed,
@@ -257,7 +281,7 @@ export function DashboardSidebar({
                     <NavRowContent
                       label={item.label}
                       collapsed={collapsed}
-                      iconSrc={icon}
+                      icons={icons}
                     />
                   </Button>
                 )
@@ -284,9 +308,8 @@ export function DashboardSidebar({
                   <NavRowContent
                     label={item.label}
                     collapsed={collapsed}
-                    iconSrc={icon}
+                    icons={icons}
                     active={item.active}
-                    enabled
                   />
                 </NavLink>
               )
@@ -319,9 +342,8 @@ export function DashboardSidebar({
                 >
                   <span className="flex size-[42px] shrink-0 items-center justify-center rounded-[4px] p-3">
                     <SideNavIcon
-                      src={settingsIcon}
+                      icons={SETTINGS_ICON}
                       active={settingsChromeActive}
-                      enabled
                     />
                   </span>
                 </Button>
@@ -347,14 +369,12 @@ export function DashboardSidebar({
                   <NavRowContent
                     label={sidebarNav.settings.label}
                     collapsed={false}
-                    iconSrc={settingsIcon}
+                    icons={SETTINGS_ICON}
                     active={settingsChromeActive}
-                    enabled
                     trailing={
                       <SideNavIcon
-                        src={chevronIcon}
+                        icons={CHEVRON_ICON}
                         active={settingsChromeActive}
-                        enabled
                         className={cn(
                           "transition-transform duration-200 ease-out motion-reduce:transition-none",
                           !settingsOpen && "rotate-180"
@@ -432,7 +452,7 @@ export function DashboardSidebar({
 
         <div className="flex flex-col items-stretch pb-2">
           {sidebarNav.footer.map((item) => {
-            const icon = iconForItem(item)
+            const icons = iconsForItem(item)
             const rowClass = navItemClass({
               active: item.active,
               collapsed,
@@ -457,7 +477,7 @@ export function DashboardSidebar({
                   <NavRowContent
                     label={item.label}
                     collapsed={collapsed}
-                    iconSrc={icon}
+                    icons={icons}
                   />
                 </Button>
               )
@@ -483,9 +503,8 @@ export function DashboardSidebar({
                 <NavRowContent
                   label={item.label}
                   collapsed={collapsed}
-                  iconSrc={icon}
+                  icons={icons}
                   active={item.active}
-                  enabled
                 />
               </NavLink>
             )

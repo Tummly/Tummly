@@ -239,6 +239,12 @@ export type OperatorFeedbackPageModule = {
   startInboxMarkResolved: (feedbackId: number) => Promise<void>
   startInboxMarkNoActionNeeded: (feedbackId: number) => Promise<void>
   startInboxRecovery: (feedbackId: number) => Promise<void>
+  /** FD-01 / FD-02 — open Respond to guest from Feedback detail. */
+  startDetailRespondToGuest: (feedbackId: number) => Promise<void>
+  /** FD-02 — open Add Offer (recovery offer path) from Feedback detail. */
+  startDetailAddOffer: (feedbackId: number) => Promise<void>
+  /** RC-02 — switch from Respond composer to Add Offer when marketing eligible. */
+  switchRespondToGuestToAddOffer: () => Promise<void>
   closeStartRecovery: () => void
   selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
   openFromDraftAction: (payload: RecoveryDraftActionPayload) => Promise<void>
@@ -1722,6 +1728,42 @@ export function createOperatorFeedbackPageModule(
     async startInboxRecovery(feedbackId) {
       feedbackDetails.close()
       await startRecovery.open(feedbackId)
+      await refreshSummaryAndInbox()
+    },
+    async startDetailRespondToGuest(feedbackId) {
+      feedbackDetails.close()
+      const details = await adapters.getFeedbackDetails(feedbackId)
+      const workflowStatus =
+        details.workflowStatus === "in_progress" || details.workflowStatus === "resolved"
+          ? details.workflowStatus
+          : "new"
+      if (workflowStatus === "new") {
+        await adapters.setWorkflowStatus(feedbackId, "in_progress")
+      }
+      await respondToGuest.open(feedbackId, details)
+      await refreshSummaryAndInbox()
+    },
+    async startDetailAddOffer(feedbackId) {
+      feedbackDetails.close()
+      const details = await adapters.getFeedbackDetails(feedbackId)
+      const workflowStatus =
+        details.workflowStatus === "in_progress" || details.workflowStatus === "resolved"
+          ? details.workflowStatus
+          : "new"
+      if (workflowStatus === "new") {
+        await adapters.setWorkflowStatus(feedbackId, "in_progress")
+      }
+      await respondWithRecoveryOffer.open(feedbackId, details)
+      await refreshSummaryAndInbox()
+    },
+    async switchRespondToGuestToAddOffer() {
+      const snap = respondToGuest.getSnapshot()
+      if (snap.feedbackId == null || !snap.addOfferEnabled) {
+        return
+      }
+      const feedbackId = snap.feedbackId
+      respondToGuest.saveAndExit()
+      await respondWithRecoveryOffer.open(feedbackId)
       await refreshSummaryAndInbox()
     },
     closeStartRecovery: () => {

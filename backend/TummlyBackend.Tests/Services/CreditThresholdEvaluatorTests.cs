@@ -268,6 +268,7 @@ namespace TummlyBackend.Tests.Services
                     },
                     PricebookId
                 ),
+                new AdminAuditService(context, _clock),
                 evaluator
             );
 

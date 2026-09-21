@@ -21,19 +21,16 @@ namespace TummlyBackend.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IWeeklyBriefGenerateService _generate;
-        private readonly IWeeklyBriefReadyNotifier _notifier;
 
         public HomeWeeklyBriefController(
             ApplicationDbContext context,
             IRestaurantPermissionHelper permissions,
-            IWeeklyBriefGenerateService generate,
-            IWeeklyBriefReadyNotifier notifier
+            IWeeklyBriefGenerateService generate
         )
         {
             _context = context;
             _permissions = permissions;
             _generate = generate;
-            _notifier = notifier;
         }
 
         [HttpGet]
@@ -116,6 +113,7 @@ namespace TummlyBackend.Controllers
 
         /// <summary>
         /// Lazy generate for the current closed prior week (Home — no week picker).
+        /// Does not produce <c>weekly-brief-ready</c>; notify stays on the Monday job seam.
         /// </summary>
         [HttpPost("generate")]
         public async Task<IActionResult> GenerateWeeklyBrief(
@@ -152,16 +150,54 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            var weekStartsOn = await ResolveWeekStartsOnAsync(
-                locationId,
-                cancellationToken
-            );
+            var locationMeta = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.Id == locationId)
+                .Select(l => new
+                {
+                    l.CreatedAt,
+                    WeekStartsOn = l.Restaurant != null
+                        ? l.Restaurant.WeekStartsOn
+                        : null,
+                    SubscriptionPlan = l.Restaurant != null
+                        && l.Restaurant.BillingAccount != null
+                            ? l.Restaurant.BillingAccount.SubscriptionPlan
+                            : null,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
 
+            var weekStartsOn = locationMeta?.WeekStartsOn;
+            var utcNow = DateTime.UtcNow;
             var closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
                 WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                DateTime.UtcNow,
+                utcNow,
                 weekStartsOn
             );
+
+            if (
+                locationMeta is null
+                || !WeeklyBriefWeekKey.IsGenerateDay(
+                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                    utcNow,
+                    weekStartsOn
+                )
+                || !WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
+                    locationMeta.CreatedAt,
+                    closedWeek
+                )
+                || WeeklyBriefWeekKey.IsPilotPlan(locationMeta.SubscriptionPlan)
+            )
+            {
+                return Ok(
+                    new
+                    {
+                        success = true,
+                        ready = false,
+                        locationId,
+                        week = closedWeek.WeekKey,
+                    }
+                );
+            }
 
             var result = await _generate.GenerateAsync(
                 locationId,
@@ -196,15 +232,6 @@ namespace TummlyBackend.Controllers
                             "Could not generate a weekly brief. Please try again.",
                         retryable = true,
                     }
-                );
-            }
-
-            if (succeeded.Created)
-            {
-                await _notifier.NotifyGeneratedAsync(
-                    locationId,
-                    closedWeek,
-                    cancellationToken
                 );
             }
 

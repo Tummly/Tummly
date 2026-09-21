@@ -85,7 +85,8 @@ namespace TummlyBackend.Tests.Services
                     new CreditLedgerService(
                         _context,
                         TimeProvider.System,
-                        new DeliveryTestPricebookCatalog()
+                        new DeliveryTestPricebookCatalog(),
+                        new AdminAuditService(_context, TimeProvider.System)
                     ),
                     new CreditBalanceSnapshotService(_context, TimeProvider.System)
                 ),
@@ -153,6 +154,12 @@ namespace TummlyBackend.Tests.Services
                 _emailService.LastMessage
             );
             Assert.Null(_emailService.LastOffer);
+            Assert.False(string.IsNullOrWhiteSpace(_emailService.LastUnsubscribeHref));
+            Assert.Contains(
+                "/unsubscribe",
+                _emailService.LastUnsubscribeHref!,
+                StringComparison.Ordinal
+            );
 
             var accepted = await _context.FeedbackGuestResponses
                 .AsNoTracking()
@@ -417,32 +424,62 @@ namespace TummlyBackend.Tests.Services
 
             int? locationGuestId = null;
             int? recoveryOfferId = null;
+
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = contactType == ContactType.Email
+                    ? guestContact.Trim().ToLowerInvariant()
+                    : null,
+                NormalizedEmail = contactType == ContactType.Email
+                    ? guestContact.Trim().ToLowerInvariant()
+                    : null,
+                Mobile = contactType == ContactType.Phone ? guestContact : null,
+                NormalizedPhone = contactType == ContactType.Phone
+                    ? new string(guestContact.Where(char.IsDigit).ToArray())
+                    : null,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.MasterGuests.Add(master);
+            await _context.SaveChangesAsync();
+
+            var locationGuest = new LocationGuest
+            {
+                RestaurantLocationId = location.Id,
+                MasterGuestId = master.Id,
+                Name = "Alex Guest",
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.LocationGuests.Add(locationGuest);
+            await _context.SaveChangesAsync();
+            locationGuestId = locationGuest.Id;
+
+            var permissions = new LocationGuestPermissionLedgerService(_context);
+            var grantAt = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
+            permissions.RecordEvent(
+                locationGuest.Id,
+                locationGuest.RestaurantLocationId,
+                LocationGuestPermissionKind.FeedbackFollowUp,
+                LocationGuestPermissionLedgerEventKinds.Grant,
+                LocationGuestPermissionLedgerSources.GuestForm,
+                grantAt
+            );
             if (withRecoveryCatalogAttach)
             {
-                var master = new MasterGuest
-                {
-                    RestaurantId = restaurant.Id,
-                    Email = contactType == ContactType.Email
-                        ? guestContact.ToLowerInvariant()
-                        : null,
-                    Mobile = contactType == ContactType.Phone ? guestContact : null,
-                    CreatedAt = DateTime.UtcNow,
-                };
-                _context.MasterGuests.Add(master);
-                await _context.SaveChangesAsync();
+                permissions.RecordEvent(
+                    locationGuest.Id,
+                    locationGuest.RestaurantLocationId,
+                    LocationGuestPermissionKind.EmailMarketing,
+                    LocationGuestPermissionLedgerEventKinds.Grant,
+                    LocationGuestPermissionLedgerSources.GuestForm,
+                    grantAt
+                );
+            }
+            await _context.SaveChangesAsync();
 
-                var locationGuest = new LocationGuest
-                {
-                    RestaurantLocationId = location.Id,
-                    MasterGuestId = master.Id,
-                    Name = "Alex Guest",
-                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
-                    CreatedAt = DateTime.UtcNow,
-                };
-                _context.LocationGuests.Add(locationGuest);
-                await _context.SaveChangesAsync();
-                locationGuestId = locationGuest.Id;
-
+            if (withRecoveryCatalogAttach)
+            {
                 var catalogOffer = new CatalogOffer
                 {
                     RestaurantLocationId = location.Id,
@@ -516,6 +553,8 @@ namespace TummlyBackend.Tests.Services
 
             public GuestResponseEmailOfferBlock? LastOffer { get; private set; }
 
+            public string? LastUnsubscribeHref { get; private set; }
+
             public bool ThrowOnSend { get; set; }
 
             public override Task SendGuestResponseEmailAsync(
@@ -526,7 +565,8 @@ namespace TummlyBackend.Tests.Services
                 string? locationAddress,
                 string message,
                 string? brandLogoUrl = null,
-                GuestResponseEmailOfferBlock? offer = null
+                GuestResponseEmailOfferBlock? offer = null,
+                string? unsubscribeHref = null
             )
             {
                 CallCount++;
@@ -537,6 +577,7 @@ namespace TummlyBackend.Tests.Services
                 LastLocationAddress = locationAddress;
                 LastMessage = message;
                 LastOffer = offer;
+                LastUnsubscribeHref = unsubscribeHref;
 
                 if (ThrowOnSend)
                 {

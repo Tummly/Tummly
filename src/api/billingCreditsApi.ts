@@ -46,6 +46,10 @@ type BillingCreditsPageResponse = {
   paymentMethod: PaymentMethodResponse | null
   invoices: BillingCreditsPageData["invoices"]
   billingContacts: BillingContactsApiSnapshot
+  vatModeActive?: boolean
+  currentCatalog?: {
+    vatRateBps?: number
+  }
 }
 
 function mapPaymentMethod(
@@ -111,6 +115,10 @@ export async function getBillingCreditsPage(): Promise<BillingCreditsPageData> {
     paymentMethod: mapPaymentMethod(data.paymentMethod),
     invoices: data.invoices ?? [],
     billingContacts: mapBillingContacts(data.billingContacts),
+    vatModeActive: data.vatModeActive ?? false,
+    currentCatalog: {
+      vatRateBps: data.currentCatalog?.vatRateBps ?? 0,
+    },
   }
 }
 

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest"
 
-import { toGuestFeedbackPayload } from "@/schemas/guestFeedback"
+import {
+  guestFeedbackDefaultValues,
+  toGuestFeedbackPayload,
+} from "@/schemas/guestFeedback"
+
+describe("guestFeedbackDefaultValues", () => {
+  it("leaves marketing unchecked by default (GF-03 hard opt-in)", () => {
+    expect(guestFeedbackDefaultValues.acceptsOffers).toBe(false)
+  })
+})
 
 describe("toGuestFeedbackPayload", () => {
   it.each([

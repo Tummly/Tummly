@@ -9,6 +9,13 @@ namespace TummlyBackend.Interfaces
 
         Task ProvisionAsync(CompleteSetupDto dto);
 
+        /// <summary>
+        /// Creates operator User / Restaurant / locations / GuestLoop / billing
+        /// from a PendingSignup. Uses existing PasswordHash. Idempotent when
+        /// status is already Complete.
+        /// </summary>
+        Task ProvisionFromPendingAsync(Guid pendingSignupId);
+
         Task GenerateActivationCodeAsync(string inviteToken);
     }
 }

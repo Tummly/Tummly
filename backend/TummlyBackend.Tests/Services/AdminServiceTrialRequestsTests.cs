@@ -41,7 +41,8 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 emailService,
                 configuration,
-                NullLogger<TrialReviewTransition>.Instance
+                NullLogger<TrialReviewTransition>.Instance,
+                new AdminAuditService(_context, TimeProvider.System)
             );
 
             _service = new AdminService(
@@ -90,13 +91,15 @@ namespace TummlyBackend.Tests.Services
                         new CreditLedgerService(
                             _context,
                             TimeProvider.System,
-                            TestPricebookPaths.LoadV3()
+                            TestPricebookPaths.LoadV3(),
+                            new AdminAuditService(_context, TimeProvider.System)
                         ),
                         new CreditBalanceSnapshotService(_context, TimeProvider.System),
                         TimeProvider.System
                     )
                 ),
-                new NoOpBillingAccountLifecycle()
+                new NoOpBillingAccountLifecycle(),
+                new AdminAuditService(_context, TimeProvider.System)
             );
         }
 
@@ -424,7 +427,14 @@ namespace TummlyBackend.Tests.Services
             _context.AssistantConversations.AddRange(ownerConversation, otherConversation);
             await _context.SaveChangesAsync();
 
-            var purged = await _service.PurgeTrialRequestAsync(trialRequest.Id);
+            // Simulate a fresh request scope (InMemory keeps seed entities tracked).
+            _context.ChangeTracker.Clear();
+
+            var purged = await _service.PurgeTrialRequestAsync(
+                trialRequest.Id,
+                actorAdminUserId: null,
+                actorIdentity: "test-admin"
+            );
 
             Assert.True(purged);
             Assert.Equal(
@@ -445,6 +455,107 @@ namespace TummlyBackend.Tests.Services
                     row => row.OwnerUserId == other.Id
                 )
             );
+        }
+
+        [Fact]
+        public async Task ExtendActivation_AppendsOperatorExtendActivationAudit()
+        {
+            var user = new User
+            {
+                FullName = "Expired Operator",
+                Email = "extend-audit@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "+447123456789",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                ActivatedAt = DateTime.UtcNow.AddDays(-40),
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(-10),
+            };
+
+            _context.Users.Add(user);
+            _context.TrialRequests.Add(
+                new TrialRequest
+                {
+                    BusinessName = "Extend Audit Cafe",
+                    BusinessCategory = "Cafe / coffee shop",
+                    Locations = "1",
+                    FullName = "Expired Operator",
+                    Email = "extend-audit@example.com",
+                    Mobile = "07123456789",
+                    Role = "Owner",
+                    Goal = "Grow repeat guests",
+                    TermsAccepted = true,
+                    IsApproved = true,
+                    IsAccountCreated = true,
+                    AccountType = "Single",
+                    Status = TrialRequestStatus.AccountCreated,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var updated = await _service.ExtendActivationAsync(
+                user.Id,
+                new ExtendActivationDto(),
+                actorAdminUserId: 7,
+                actorIdentity: "admin@tummly.com"
+            );
+
+            Assert.NotNull(updated);
+
+            var row = Assert.Single(_context.AdminAuditEvents);
+            Assert.Equal(AdminAuditActions.OperatorExtendActivation, row.Action);
+            Assert.Equal("admin@tummly.com", row.ActorIdentity);
+            Assert.Equal(7, row.ActorAdminUserId);
+            Assert.Equal(AdminAuditTargetTypes.OperatorUser, row.TargetType);
+            Assert.Equal(user.Id.ToString(), row.TargetId);
+            Assert.True(row.Succeeded);
+            Assert.Contains(
+                user.ActivationExpiresAt!.Value.ToUniversalTime()
+                    .ToString("O"),
+                row.DetailJson ?? string.Empty
+            );
+        }
+
+        [Fact]
+        public async Task PurgeTrialRequest_AppendsAudit_ThatSurvivesTrialDelete()
+        {
+            var trialRequest = new TrialRequest
+            {
+                BusinessName = "Purge Audit Cafe",
+                BusinessCategory = "Cafe / coffee shop",
+                Locations = "1",
+                FullName = "Purge Audit Owner",
+                Email = "purge-audit@example.com",
+                Mobile = "07123456789",
+                Role = "Owner",
+                Goal = "Grow repeat guests",
+                TermsAccepted = true,
+                IsApproved = true,
+                IsAccountCreated = false,
+                AccountType = "Single",
+                Status = TrialRequestStatus.Approved,
+            };
+            _context.TrialRequests.Add(trialRequest);
+            await _context.SaveChangesAsync();
+
+            var trialId = trialRequest.Id;
+
+            var purged = await _service.PurgeTrialRequestAsync(
+                trialId,
+                actorAdminUserId: 9,
+                actorIdentity: "admin@tummly.com"
+            );
+
+            Assert.True(purged);
+            Assert.Equal(0, await _context.TrialRequests.CountAsync());
+
+            var row = Assert.Single(_context.AdminAuditEvents);
+            Assert.Equal(AdminAuditActions.TrialPurge, row.Action);
+            Assert.Equal("admin@tummly.com", row.ActorIdentity);
+            Assert.Equal(9, row.ActorAdminUserId);
+            Assert.Equal(AdminAuditTargetTypes.TrialRequest, row.TargetType);
+            Assert.Equal(trialId.ToString(), row.TargetId);
+            Assert.True(row.Succeeded);
         }
 
         [Fact]
@@ -485,7 +596,9 @@ namespace TummlyBackend.Tests.Services
 
             var updated = await _service.ExtendActivationAsync(
                 user.Id,
-                new ExtendActivationDto()
+                new ExtendActivationDto(),
+                actorAdminUserId: null,
+                actorIdentity: "test-admin"
             );
 
             Assert.NotNull(updated);

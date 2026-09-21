@@ -1,36 +1,37 @@
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom"
 
-import { HELP_CENTRE_URL } from "@/config/support";
-import { isOperatorDashboardPath } from "@/lib/operatorAppearance";
-import Navbar from "../components/layout/Navbar";
+import MarketingHeader from "@/components/marketing/MarketingHeader"
+import {
+  marketingBodyChromePadding,
+  marketingChromeBackground,
+} from "@/lib/marketing-layout"
+import { isOperatorDashboardPath } from "@/lib/operatorAppearance"
+import { cn } from "@/lib/utils"
 
 function MainLayout() {
-  const { pathname } = useLocation();
-  const isHelpCentreHub = pathname === HELP_CENTRE_URL;
-  const isOperatorDashboard = isOperatorDashboardPath(pathname);
+  const { pathname } = useLocation()
+  const isOperatorDashboard = isOperatorDashboardPath(pathname)
 
   return (
     <div
       className={
         isOperatorDashboard
           ? "flex h-dvh flex-col overflow-hidden"
-          : "flex min-h-dvh flex-col"
+          : cn("flex min-h-dvh flex-col", marketingChromeBackground)
       }
     >
-      {isOperatorDashboard ? null : (
-        <Navbar variant={isHelpCentreHub ? "transparent" : "solid"} />
-      )}
+      {isOperatorDashboard ? null : <MarketingHeader />}
       <div
         className={
           isOperatorDashboard
             ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-            : "flex flex-1 flex-col"
+            : cn("flex flex-1 flex-col", marketingBodyChromePadding)
         }
       >
         <Outlet />
       </div>
     </div>
-  );
+  )
 }
 
-export default MainLayout;
+export default MainLayout

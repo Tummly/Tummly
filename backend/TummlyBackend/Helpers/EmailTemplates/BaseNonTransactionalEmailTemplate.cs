@@ -43,7 +43,8 @@ namespace TummlyBackend.Helpers.EmailTemplates
             string message,
             string frontendBaseUrl,
             string? brandLogoUrl,
-            GuestResponseEmailOfferBlock? offer = null
+            GuestResponseEmailOfferBlock? offer = null,
+            string? unsubscribeHref = null
         )
         {
             var title = string.IsNullOrWhiteSpace(brandTitle)
@@ -62,6 +63,9 @@ namespace TummlyBackend.Helpers.EmailTemplates
                 : locationAddress.Trim();
             var safeAddress = WebUtility.HtmlEncode(address);
             var baseUrl = frontendBaseUrl.Trim().TrimEnd('/');
+            var unsubscribeUrl = string.IsNullOrWhiteSpace(unsubscribeHref)
+                ? $"{baseUrl}/unsubscribe"
+                : unsubscribeHref.Trim();
             var topDecorationUrl = WebUtility.HtmlEncode(
                 $"{baseUrl}{PublicTopDecorationPath}"
             );
@@ -190,7 +194,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
                   <td align='center' style='padding-top:26px;text-align:center;{Font}'>
                     <table role='presentation' cellpadding='0' cellspacing='0' border='0' align='center' style='border-collapse:collapse;margin:0 auto;{Font}'>
                       <tr>
-                        {RenderLegalLinkCell($"{baseUrl}/unsubscribe", "Unsubscribe", withGap: true)}
+                        {RenderLegalLinkCell(unsubscribeUrl, "Unsubscribe", withGap: true)}
                         {RenderLegalLinkCell($"{baseUrl}/terms", "Terms", withGap: true)}
                         {RenderLegalLinkCell($"{baseUrl}/privacy", "Privacy", withGap: true)}
                         {RenderLegalLinkCell($"{baseUrl}/cookie-policy", "Cookie settings", withGap: false)}

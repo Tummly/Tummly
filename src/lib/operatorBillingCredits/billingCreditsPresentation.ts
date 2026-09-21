@@ -63,6 +63,7 @@ export const BILLING_CREDITS_PAGE_COPY = {
   topUpPilotUpgrade: "Choose a plan",
   managePlanPlanCards: "Plan cards",
   managePlanCreditTopUps: "Credit top-ups",
+  /** Shown only when `vatRateBps > 0` — use `formatPlanPriceWithVat`. */
   plusVat: "+ VAT",
   creditsUsageTitle: "Usage & credits",
   creditsUsageSubtitle:
@@ -234,18 +235,13 @@ export function formatStarterKitState(state: string): string {
   }
 }
 
+/** Launch copy for plan overview / usage QR packs — not BA entitlement state. */
+export const LAUNCH_STARTER_KIT_QR_PACKS_LABEL =
+  "One complimentary kit per Active Location"
+
 /** Plan overview QR packs value — Figma 3762:24014. */
-export function formatQrPacksLabel(state: string): string {
-  switch (state) {
-    case "unused":
-      return "Starter kit unused"
-    case "used":
-      return "Starter kit used"
-    case "pending dispatch":
-      return "Starter kit pending dispatch"
-    default:
-      return state
-  }
+export function formatQrPacksLabel(_state: string): string {
+  return LAUNCH_STARTER_KIT_QR_PACKS_LABEL
 }
 
 /** Plan overview card — Figma 3762:24022. */
@@ -308,6 +304,23 @@ export function resolveManagePlanSection(
   return raw === "credit-top-ups" ? "credit-top-ups" : null
 }
 
+/** True when customer-facing VAT chrome (“+ VAT”, notices) should show. */
+export function showsBillingVatChrome(
+  vatRateBps: number | null | undefined
+): boolean {
+  return (vatRateBps ?? 0) > 0
+}
+
+/** Plan overview price — appends “+ VAT” only when rate &gt; 0. */
+export function formatPlanPriceWithVat(
+  planPriceNet: string,
+  vatRateBps: number | null | undefined
+): string {
+  if (!showsBillingVatChrome(vatRateBps)) {
+    return planPriceNet
+  }
+  return `${planPriceNet} ${BILLING_CREDITS_PAGE_COPY.plusVat}`
+}
 
 export const BILLING_CREDITS_SELECT_MENU_CLASS = "z-[130]"
 

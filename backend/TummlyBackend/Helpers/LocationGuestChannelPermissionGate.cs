@@ -107,29 +107,74 @@ namespace TummlyBackend.Helpers
             string EventKind
         )> LedgerEventsForGuestFormSubmit(
             Restaurant restaurant,
-            bool consentGranted
+            bool marketingConsentGranted,
+            ContactType contactType,
+            LocationGuestPermissionState currentMarketingState =
+                LocationGuestPermissionState.NotRecorded
         )
         {
-            if (consentGranted)
+            var events = new List<(LocationGuestPermissionKind Kind, string EventKind)>();
+
+            // Feedback follow-up has no guest checkbox — providing contact grants
+            // it when the restaurant permission is Enabled (GF handoff).
+            if (
+                IsRestaurantPermissionEnabled(
+                    restaurant,
+                    LocationGuestPermissionKind.FeedbackFollowUp
+                )
+            )
             {
-                return EnabledRestaurantPermissions(restaurant)
-                    .Select(kind => (
-                        kind,
+                events.Add(
+                    (
+                        LocationGuestPermissionKind.FeedbackFollowUp,
                         LocationGuestPermissionLedgerEventKinds.Grant
-                    ))
-                    .ToList();
+                    )
+                );
             }
 
-            return LocationGuestPermissionKindExtensions.All
-                .Where(kind =>
-                    kind == LocationGuestPermissionKind.EmailMarketing
-                    || kind == LocationGuestPermissionKind.SmsMarketing
-                )
-                .Select(kind => (
-                    kind,
-                    LocationGuestPermissionLedgerEventKinds.Withdraw
-                ))
-                .ToList();
+            var marketingKind = contactType switch
+            {
+                ContactType.Email => LocationGuestPermissionKind.EmailMarketing,
+                ContactType.Phone => LocationGuestPermissionKind.SmsMarketing,
+                _ => (LocationGuestPermissionKind?)null,
+            };
+
+            if (marketingKind == null)
+            {
+                return events;
+            }
+
+            if (!IsRestaurantPermissionEnabled(restaurant, marketingKind.Value))
+            {
+                // Matching channel is off — no marketing checkbox was shown; do
+                // not invent grant/withdraw for marketing.
+                return events;
+            }
+
+            if (marketingConsentGranted)
+            {
+                events.Add(
+                    (
+                        marketingKind.Value,
+                        LocationGuestPermissionLedgerEventKinds.Grant
+                    )
+                );
+            }
+            else if (
+                currentMarketingState == LocationGuestPermissionState.Granted
+            )
+            {
+                // Untick only withdraws a prior grant. First-time untick stays
+                // Not recorded → Guest profile "Not granted" (not Withdrawn).
+                events.Add(
+                    (
+                        marketingKind.Value,
+                        LocationGuestPermissionLedgerEventKinds.Withdraw
+                    )
+                );
+            }
+
+            return events;
         }
 
         public static bool CanSendFeedbackFollowUp(

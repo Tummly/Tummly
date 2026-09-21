@@ -354,88 +354,111 @@ export const MANAGE_PLAN_COMPARISON_ROWS: ManagePlanComparisonRow[] = [
   },
 ]
 
-export const MANAGE_PLAN_FAQ_ITEMS: ManagePlanFaqItem[] = [
-  {
-    id: "pilot-renew",
-    question: "Does the Pilot renew automatically?",
-    answerParagraphs: [
-      "No. The 30-day Pilot does not automatically convert into a paid subscription and no payment card is required to start. At the end of the Pilot, you can choose a paid plan if you want to continue.",
-    ],
-  },
-  {
-    id: "pilot-start",
-    question: "When does my 30-day Pilot start?",
-    answerParagraphs: [
-      "Your 30-day Pilot starts when you redeem the Activation Code from your starter kit, or when an authorised admin activates the Pilot.",
-      "It does not start merely when an account is created.",
-    ],
-  },
-  {
-    id: "vat",
-    question: "Is VAT included in the prices shown?",
-    answerParagraphs: [
-      "No. Public prices are shown excluding VAT. VAT is added where applicable.",
-    ],
-  },
-  {
-    id: "rollover",
-    question: "Do unused monthly allowances roll over?",
-    answerParagraphs: [
-      "No. Included monthly AI, Email and SMS allowances do not roll over.",
-      "Annual plans still release their included usage allowances monthly.",
-    ],
-  },
-  {
-    id: "pilot-topups",
-    question: "Can Pilot accounts buy top-ups?",
-    answerParagraphs: [
-      "No. Top-ups are available only on active paid plans.",
-    ],
-  },
-  {
-    id: "allowance-exhausted",
-    question: "What happens if I run out of an allowance?",
-    answerParagraphs: [
-      "Only the affected channel is paused.",
-      "For example, using all of your SMS credits does not stop Email, AI or the rest of Guest Loop.",
-      "Paid accounts can buy an eligible top-up or change plan where appropriate. Tummly does not create a negative balance or automatic post-paid overage.",
-    ],
-  },
-  {
-    id: "qr-materials",
-    question: "Do I need to buy QR materials?",
-    answerParagraphs: [
-      "No.",
-      "Tummly provides digital and self-print QR assets, and qualifying accounts can receive one physical starter-kit entitlement per Billing Account lifetime.",
-      "Additional physical materials and normal reorders are paid separately through the Tummly Shop.",
-    ],
-  },
-  {
-    id: "starter-kit-per-location",
-    question: "Is the starter kit included with every Location?",
-    answerParagraphs: [
-      "No.",
-      "There is one qualifying free physical starter-kit entitlement per Billing Account lifetime. It is not repeated on every renewal, paid conversion or additional Location.",
-    ],
-  },
-  {
-    id: "pilot-to-paid",
-    question: "What happens if I move from the Pilot to a paid plan?",
-    answerParagraphs: [
-      "Your existing Location, Guest Form, QR placements and history remain in place.",
-      "You do not need to replace your existing QR materials simply because you move onto a paid plan.",
-    ],
-  },
-  {
-    id: "group-locations",
-    question: "How many Locations can I run on Group?",
-    answerParagraphs: [
-      "Group includes up to 5 Locations.",
-      "Additional Group Locations can be added for £39/month + VAT each, or £398/year + VAT on Annual.",
-      "The self-serve Group limit is 30 Locations.",
-    ],
-  },
-]
+export function buildManagePlanFaqItems(options?: {
+  /** Catalog / API rate in basis points; 0 omits “+ VAT” and VAT FAQ. */
+  vatRateBps?: number
+}): ManagePlanFaqItem[] {
+  const vatRateBps = options?.vatRateBps ?? 0
+  const showVat = vatRateBps > 0
+  const groupLocationPriceLine = showVat
+    ? "Additional Group Locations can be added for £39/month + VAT each, or £398/year + VAT on Annual."
+    : "Additional Group Locations can be added for £39/month each, or £398/year on Annual."
+
+  const items: ManagePlanFaqItem[] = [
+    {
+      id: "pilot-renew",
+      question: "Does the Pilot renew automatically?",
+      answerParagraphs: [
+        "No. The 30-day Pilot does not automatically convert into a paid subscription and no payment card is required to start. At the end of the Pilot, you can choose a paid plan if you want to continue.",
+      ],
+    },
+    {
+      id: "pilot-start",
+      question: "When does my 30-day Pilot start?",
+      answerParagraphs: [
+        "Your 30-day Pilot starts when you redeem the Activation Code from your starter kit, or when an authorised admin activates the Pilot.",
+        "It does not start merely when an account is created.",
+      ],
+    },
+  ]
+
+  if (showVat) {
+    items.push({
+      id: "vat",
+      question: "Is VAT included in the prices shown?",
+      answerParagraphs: [
+        "No. Public prices are shown excluding VAT. VAT is added where applicable.",
+      ],
+    })
+  }
+
+  items.push(
+    {
+      id: "rollover",
+      question: "Do unused monthly allowances roll over?",
+      answerParagraphs: [
+        "No. Included monthly AI, Email and SMS allowances do not roll over.",
+        "Annual plans still release their included usage allowances monthly.",
+      ],
+    },
+    {
+      id: "pilot-topups",
+      question: "Can Pilot accounts buy top-ups?",
+      answerParagraphs: [
+        "No. Top-ups are available only on active paid plans.",
+      ],
+    },
+    {
+      id: "allowance-exhausted",
+      question: "What happens if I run out of an allowance?",
+      answerParagraphs: [
+        "Only the affected channel is paused.",
+        "For example, using all of your SMS credits does not stop Email, AI or the rest of Guest Loop.",
+        "Paid accounts can buy an eligible top-up or change plan where appropriate. Tummly does not create a negative balance or automatic post-paid overage.",
+      ],
+    },
+    {
+      id: "qr-materials",
+      question: "Do I need to buy QR materials?",
+      answerParagraphs: [
+        "No.",
+        "Tummly provides digital and self-print QR assets, and each newly activated Location can receive one complimentary physical starter kit.",
+        "Additional physical materials and normal reorders are paid separately through the Tummly Shop.",
+      ],
+    },
+    {
+      id: "starter-kit-per-location",
+      question: "Is the starter kit included with every Location?",
+      answerParagraphs: [
+        "Yes for each newly activated Location.",
+        "There is one complimentary physical starter kit per Active Location. It is not repeated on renewal or paid conversion for that Location.",
+      ],
+    },
+    {
+      id: "pilot-to-paid",
+      question: "What happens if I move from the Pilot to a paid plan?",
+      answerParagraphs: [
+        "Your existing Location, Guest Form, QR placements and history remain in place.",
+        "You do not need to replace your existing QR materials simply because you move onto a paid plan.",
+      ],
+    },
+    {
+      id: "group-locations",
+      question: "How many Locations can I run on Group?",
+      answerParagraphs: [
+        "Group includes up to 5 Locations.",
+        groupLocationPriceLine,
+        "The self-serve Group limit is 30 Locations.",
+      ],
+    }
+  )
+
+  return items
+}
+
+/** Active-VAT FAQ set (legacy export for static consumers). Prefer `buildManagePlanFaqItems`. */
+export const MANAGE_PLAN_FAQ_ITEMS: ManagePlanFaqItem[] =
+  buildManagePlanFaqItems({ vatRateBps: 2000 })
 
 export const MANAGE_PLAN_COPY = {
   pageTitle: "Manage plan",
@@ -510,16 +533,25 @@ export const MANAGE_PLAN_FAQ_QUESTION_CLASS =
   "text-left font-serif text-[22px] font-medium leading-none text-foreground"
 export const MANAGE_PLAN_FAQ_ANSWER_CLASS =
   "text-base font-normal leading-normal text-muted-foreground"
+/** Figma Plan cadence shell — Cards/Border + Cards/Radius. */
 export const MANAGE_PLAN_CADENCE_SHELL_CLASS =
-  "flex items-center gap-2.5 rounded-[6px] border border-border p-3"
+  "flex items-center gap-2.5 rounded-[6px] border border-op-card-border p-3"
+/** Inactive Plan tab — Cards/Subtitle. */
 export const MANAGE_PLAN_CADENCE_ITEM_CLASS =
-  "inline-flex h-[41px] items-center justify-center gap-2.5 rounded px-3 text-sm font-medium text-muted-foreground transition-colors disabled:opacity-50"
+  "inline-flex h-[41px] items-center justify-center gap-2.5 rounded px-3 text-sm font-medium text-op-text-secondary transition-colors disabled:opacity-50"
+/**
+ * Focused Plan tab — Figma Main Bg/Bg-colour + Cards/Title.
+ * Light: gray-150 + primary text. Dark: gray-990 + primary text.
+ */
 export const MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS =
-  "bg-[#202020] text-foreground"
+  "bg-op-background-secondary text-op-text-primary"
 export const MANAGE_PLAN_CADENCE_SAVE_BADGE_CLASS =
-  "rounded-full bg-primary px-2.5 py-2 text-[10px] font-medium leading-none text-white"
+  "rounded-full bg-primary px-2.5 py-2 text-[10px] font-medium leading-none text-op-text-inverse"
 export const MANAGE_PLAN_COMPLETE_LIST_TRIGGER_CLASS =
   "inline-flex items-center justify-center gap-1.5 text-base font-normal text-foreground hover:opacity-90"
+/** Figma FAQ row: 16px Q→A gap; 30px between items; chevron chip p-10 / 14px icon. */
+export const MANAGE_PLAN_FAQ_TRIGGER_CLASS =
+  "items-center gap-4 rounded-none border-0 py-0 hover:no-underline focus-visible:border-0 focus-visible:ring-0 **:data-[slot=accordion-trigger-icon]:box-content **:data-[slot=accordion-trigger-icon]:size-3.5 **:data-[slot=accordion-trigger-icon]:shrink-0 **:data-[slot=accordion-trigger-icon]:rounded-[2px] **:data-[slot=accordion-trigger-icon]:bg-op-button-collapse-background **:data-[slot=accordion-trigger-icon]:p-2.5 **:data-[slot=accordion-trigger-icon]:text-op-text-primary"
 
 function normalizePlanId(plan: string): ManagePlanId {
   if ((MANAGE_PLAN_IDS as readonly string[]).includes(plan)) {
@@ -698,23 +730,26 @@ export function resolvePlanCardCta(options: {
 
 function formatPriceParts(
   planId: ManagePlanId,
-  cadence: BillingCadence
+  cadence: BillingCadence,
+  vatRateBps: number
 ): { amount: string; suffix: string } {
   const entry = MANAGE_PLAN_CATALOG[planId]
   if (planId === "Pilot") {
     return { amount: entry.monthlyPriceNet, suffix: "/ for 30 days" }
   }
+  const vatSuffix = vatRateBps > 0 ? " + VAT" : ""
   if (cadence === "annual") {
-    return { amount: entry.annualPriceNet, suffix: "/ year + VAT" }
+    return { amount: entry.annualPriceNet, suffix: `/ year${vatSuffix}` }
   }
-  return { amount: entry.monthlyPriceNet, suffix: "/ month + VAT" }
+  return { amount: entry.monthlyPriceNet, suffix: `/ month${vatSuffix}` }
 }
 
 function formatPriceHeadline(
   planId: ManagePlanId,
-  cadence: BillingCadence
+  cadence: BillingCadence,
+  vatRateBps: number
 ): string {
-  const { amount, suffix } = formatPriceParts(planId, cadence)
+  const { amount, suffix } = formatPriceParts(planId, cadence, vatRateBps)
   return `${amount} ${suffix}`
 }
 
@@ -736,13 +771,16 @@ export function buildManagePlanCardViewModels(options: {
   plan: PlanSubscriptionSnapshot
   previewCadence: BillingCadence
   lockMode?: "none" | "pilot-restore" | "dunning"
+  /** Catalog / API rate in basis points; 0 hides “+ VAT”. */
+  vatRateBps?: number
 }): ManagePlanCardViewModel[] {
   const currentPlanId = normalizePlanId(options.plan.subscriptionPlan)
   const liveCadence = liveCadenceFromSnapshot(options.plan)
+  const vatRateBps = options.vatRateBps ?? 0
 
   return MANAGE_PLAN_IDS.map((id) => {
     const entry = MANAGE_PLAN_CATALOG[id]
-    const priceParts = formatPriceParts(id, options.previewCadence)
+    const priceParts = formatPriceParts(id, options.previewCadence, vatRateBps)
     const priceSubline = resolvePriceSubline(id, options.previewCadence)
 
     return {
@@ -750,7 +788,7 @@ export function buildManagePlanCardViewModels(options: {
       description: entry.description,
       priceAmount: priceParts.amount,
       priceSuffix: priceParts.suffix,
-      priceHeadline: formatPriceHeadline(id, options.previewCadence),
+      priceHeadline: formatPriceHeadline(id, options.previewCadence, vatRateBps),
       priceSubline,
       annualSaveLabel:
         id === "Pilot"

@@ -403,6 +403,243 @@ namespace TummlyBackend.Tests.Integration
             Assert.False(body.TryGetProperty("opsNotes", out _));
         }
 
+        [Fact]
+        public async Task MarkProductionStarted_StampsAudits_Idempotent_AndBlocksOperatorCancel()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing
+            );
+
+            using var first = AuthorizedPost(
+                $"/api/admin/shop-orders/{orderId}/production-started",
+                seeded.AdminJwt
+            );
+            var firstResponse = await _client.SendAsync(first);
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+            var stamped = await ReadOrderAsync(orderId);
+            Assert.NotNull(stamped.ProductionStartedAtUtc);
+            Assert.Equal(seeded.AdminId, stamped.ProductionStartedByAdminUserId);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var events = await context.AdminAuditEvents
+                    .Where(row =>
+                        row.Action == AdminAuditActions.ShopProductionStarted
+                        && row.TargetId == orderId.ToString("D")
+                    )
+                    .ToListAsync();
+                Assert.Single(events);
+                Assert.Equal(AdminAuditTargetTypes.ShopOrder, events[0].TargetType);
+                Assert.Equal(seeded.AdminId, events[0].ActorAdminUserId);
+                Assert.Equal(seeded.RestaurantId, events[0].RestaurantId);
+            }
+
+            using var second = AuthorizedPost(
+                $"/api/admin/shop-orders/{orderId}/production-started",
+                seeded.AdminJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(second)).StatusCode
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                Assert.Equal(
+                    1,
+                    await context.AdminAuditEvents.CountAsync(row =>
+                        row.Action == AdminAuditActions.ShopProductionStarted
+                        && row.TargetId == orderId.ToString("D")
+                    )
+                );
+            }
+
+            using var detail = AuthorizedGet(
+                $"/api/shop/orders/{orderId}?locationId={seeded.LocationId}",
+                seeded.OwnerJwt
+            );
+            var detailBody = await ReadJsonAsync(await _client.SendAsync(detail));
+            Assert.False(detailBody.GetProperty("canCancel").GetBoolean());
+            Assert.Equal(
+                "production_started",
+                detailBody.GetProperty("cancelBlockReason").GetString()
+            );
+
+            using var cancel = AuthorizedPostJson(
+                $"/api/shop/orders/{orderId}/cancel",
+                seeded.OwnerJwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    reason = ShopCancelReasons.OrderedByMistake,
+                }
+            );
+            var cancelResponse = await _client.SendAsync(cancel);
+            Assert.Equal(HttpStatusCode.Conflict, cancelResponse.StatusCode);
+            var cancelBody = await ReadJsonAsync(cancelResponse);
+            Assert.Equal(
+                "shop_order_not_cancellable",
+                cancelBody.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task ForceCancel_AfterStamp_Refunds_SkipRefund_AndFailClosed()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing
+            );
+            const string revolutOrderId = "ord_admin_force_1";
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var order = await context.ShopOrders.SingleAsync(row =>
+                    row.Id == orderId
+                );
+                order.RevolutOrderId = revolutOrderId;
+                await context.SaveChangesAsync();
+            }
+
+            using var stamp = AuthorizedPost(
+                $"/api/admin/shop-orders/{orderId}/production-started",
+                seeded.AdminJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(stamp)).StatusCode
+            );
+
+            var refundBefore = _factory.Merchant.RefundOrderCallCount;
+            using var forceCancel = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{orderId}/force-cancel",
+                seeded.AdminJwt,
+                new
+                {
+                    reason = ShopCancelReasons.NoLongerRequired,
+                    skipRefund = false,
+                }
+            );
+            var forceResponse = await _client.SendAsync(forceCancel);
+            Assert.Equal(HttpStatusCode.OK, forceResponse.StatusCode);
+            var forceBody = await ReadJsonAsync(forceResponse);
+            Assert.Equal(
+                ShopFulfilmentStatuses.Cancelled,
+                forceBody.GetProperty("fulfilmentStatus").GetString()
+            );
+            Assert.Equal(
+                refundBefore + 1,
+                _factory.Merchant.RefundOrderCallCount
+            );
+            Assert.Equal(revolutOrderId, _factory.Merchant.LastRefundOrderId);
+            Assert.Equal(
+                $"shop-cancel:{orderId:D}",
+                _factory.Merchant.LastRefundIdempotencyKey
+            );
+
+            var stored = await ReadOrderAsync(orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Cancelled, stored.FulfilmentStatus);
+            Assert.Null(stored.CancelledByUserId);
+            Assert.Equal(
+                ShopCancelReasons.NoLongerRequired,
+                stored.CancelReason
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var events = await context.AdminAuditEvents
+                    .Where(row =>
+                        row.Action == AdminAuditActions.ShopForceCancel
+                        && row.TargetId == orderId.ToString("D")
+                    )
+                    .ToListAsync();
+                Assert.Single(events);
+                Assert.Contains("\"skipRefund\":false", events[0].DetailJson);
+                Assert.Contains("\"refundAttempted\":true", events[0].DetailJson);
+            }
+
+            var skipOrderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var order = await context.ShopOrders.SingleAsync(row =>
+                    row.Id == skipOrderId
+                );
+                order.RevolutOrderId = "ord_admin_force_skip";
+                order.ProductionStartedAtUtc = DateTime.UtcNow;
+                await context.SaveChangesAsync();
+            }
+
+            var skipBefore = _factory.Merchant.RefundOrderCallCount;
+            using var skipCancel = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{skipOrderId}/force-cancel",
+                seeded.AdminJwt,
+                new { reason = "ops free text", skipRefund = true }
+            );
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(skipCancel)).StatusCode
+            );
+            Assert.Equal(skipBefore, _factory.Merchant.RefundOrderCallCount);
+
+            var failOrderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var order = await context.ShopOrders.SingleAsync(row =>
+                    row.Id == failOrderId
+                );
+                order.RevolutOrderId = "ord_admin_force_fail";
+                order.ProductionStartedAtUtc = DateTime.UtcNow;
+                await context.SaveChangesAsync();
+            }
+
+            _factory.Merchant.NextRefundFails = true;
+            using var failCancel = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{failOrderId}/force-cancel",
+                seeded.AdminJwt,
+                new
+                {
+                    reason = ShopCancelReasons.Other,
+                    skipRefund = false,
+                }
+            );
+            var failResponse = await _client.SendAsync(failCancel);
+            Assert.Equal(HttpStatusCode.BadRequest, failResponse.StatusCode);
+            var failBody = await ReadJsonAsync(failResponse);
+            Assert.Equal(
+                "revolut_refund_failed",
+                failBody.GetProperty("code").GetString()
+            );
+
+            var failStored = await ReadOrderAsync(failOrderId);
+            Assert.Equal(
+                ShopFulfilmentStatuses.Processing,
+                failStored.FulfilmentStatus
+            );
+            Assert.Null(failStored.CancelledAtUtc);
+        }
+
         private async Task<ShopOrder> ReadOrderAsync(Guid orderId)
         {
             using var scope = _factory.Services.CreateScope();
@@ -623,6 +860,7 @@ namespace TummlyBackend.Tests.Integration
                     owner.Email,
                     owner.Role
                 ),
+                tummlyAdmin.Id,
                 jwtService.GenerateAdminToken(tummlyAdmin)
             );
         }
@@ -661,6 +899,21 @@ namespace TummlyBackend.Tests.Integration
             return request;
         }
 
+        private static HttpRequestMessage AuthorizedPostJson(
+            string url,
+            string jwt,
+            object payload
+        )
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(payload),
+            };
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            return request;
+        }
+
         private static async Task<JsonElement> ReadJsonAsync(
             HttpResponseMessage response
         )
@@ -674,6 +927,7 @@ namespace TummlyBackend.Tests.Integration
             string LocationName,
             int OwnerUserId,
             string OwnerJwt,
+            int AdminId,
             string AdminJwt
         );
     }

@@ -98,8 +98,45 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
         detailDisplay: "—",
       },
     ])
+    expect(viewModel.permissionSummary).toBeNull()
     expect(viewModel.latestFeedback).toEqual([])
     expect(viewModel.recentNotes).toEqual([])
+  })
+
+  it("maps ledger permissionStates into three permission rows", () => {
+    const viewModel = mapGuestProfileApiResponseToViewModel({
+      response: createGuestProfileResponse({
+        permissionStates: {
+          "feedback-follow-up": "granted",
+          "email-marketing": "granted",
+          "sms-marketing": "not_recorded",
+        },
+        restaurantPermissionEnabled: {
+          "feedback-follow-up": true,
+          "email-marketing": true,
+          "sms-marketing": true,
+        },
+      }),
+      nowMs: Date.parse("2026-07-21T12:00:00Z"),
+    })
+
+    expect(viewModel.permissionSummary).toEqual([
+      {
+        id: "feedback-follow-up",
+        label: "Feedback follow-up",
+        value: "Available",
+      },
+      {
+        id: "email-marketing",
+        label: "Email marketing",
+        value: "Granted",
+      },
+      {
+        id: "sms-marketing",
+        label: "SMS marketing",
+        value: "Invalid contact",
+      },
+    ])
   })
 
   it("maps live guestTags into display and chip rows", () => {

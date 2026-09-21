@@ -77,6 +77,8 @@ const accountSetupSingleBaseSchema = z.object({
   businessCategory: z
     .string()
     .min(1, validationMessages.accountSetup.businessCategory.required),
+  /** Optional — used by self-serve signup to branch single vs multi. */
+  numLocations: z.string().optional(),
 })
 
 export const accountSetupSingleStep1Schema = accountSetupSingleBaseSchema
@@ -130,6 +132,7 @@ export const accountSetupSingleDefaultValues: AccountSetupSingleFormValues = {
   phone: "",
   businessLink: "",
   businessCategory: "takeaway",
+  numLocations: "",
 }
 
 export function toSingleLocationSetupPayload(

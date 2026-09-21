@@ -23,6 +23,8 @@ type ShopRecommendationSectionProps = {
   recommendations: ShopLocationRecommendations | null
   recommendationsLoading: boolean
   catalogProducts: ShopProduct[]
+  /** Catalog seller rate; 0 = launch VAT OFF (hide excluding-VAT chrome). */
+  vatRateBps?: number
   paidWriteChrome: ShopPaidWriteChrome
   onAddLocationDetails: () => void
   onAddRecommendedToCart: () => void
@@ -61,6 +63,7 @@ export function ShopRecommendationSection({
   recommendations,
   recommendationsLoading,
   catalogProducts,
+  vatRateBps = 0,
   paidWriteChrome,
   onAddLocationDetails,
   onAddRecommendedToCart,
@@ -68,6 +71,7 @@ export function ShopRecommendationSection({
   onSelectProduct,
 }: ShopRecommendationSectionProps) {
   const purchaseBlocked = paidWriteChrome.purchaseDisabled
+  const showExcludingVat = vatRateBps > 0
   const needsDetails = recommendations?.needsLocationDetails ?? true
   const basedOn = recommendations?.basedOn
   const lines = recommendations?.lines ?? []
@@ -185,6 +189,7 @@ export function ShopRecommendationSection({
                   initialQuantity={line.quantity}
                   imageSrc={line.imageSrc}
                   purchaseDisabled={purchaseBlocked}
+                  showExcludingVat={showExcludingVat}
                   onOrderNow={(quantity) => {
                     onOrderRecommendedLine(line.skuId, quantity)
                   }}
@@ -226,8 +231,10 @@ export function ShopRecommendationSection({
                         Estimated total:
                       </span>
                       <span className="font-medium text-op-text-primary text-right">
-                        {formatShopPence(summary.materialsNetPence)} excluding
-                        VAT and delivery
+                        {formatShopPence(summary.materialsNetPence)}
+                        {showExcludingVat
+                          ? " excluding VAT and delivery"
+                          : " excluding delivery"}
                       </span>
                     </div>
                   </div>

@@ -1,12 +1,17 @@
 export const OPERATOR_SIDEBAR_COLLAPSED_KEY =
   "tummly-operator-sidebar-collapsed"
 
-/** Default expanded. Persists last desktop collapse choice. */
+/**
+ * Default collapsed (hover peeks open). `false` means the hamburger pin is set
+ * and the rail stays open without hover.
+ */
 export function readSidebarCollapsed(): boolean {
   try {
-    return localStorage.getItem(OPERATOR_SIDEBAR_COLLAPSED_KEY) === "true"
+    const stored = localStorage.getItem(OPERATOR_SIDEBAR_COLLAPSED_KEY)
+    if (stored === null) return true
+    return stored === "true"
   } catch {
-    return false
+    return true
   }
 }
 

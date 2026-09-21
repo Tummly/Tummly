@@ -6,6 +6,8 @@ namespace TummlyBackend.Configurations
     /// </summary>
     public class TummlySellerVatSettings
     {
+        public const string ModeActiveKey = "TUMMLY_VAT_MODE_ACTIVE";
+
         public const string RegistrationNumberKey =
             "TUMMLY_VAT_REGISTRATION_NUMBER";
 
@@ -15,6 +17,12 @@ namespace TummlyBackend.Configurations
 
         public const string RegisteredAddressKey = "TUMMLY_REGISTERED_ADDRESS";
 
+        /// <summary>
+        /// Bound from <see cref="ModeActiveKey"/>. Unset / false → VAT off
+        /// (launch default).
+        /// </summary>
+        public bool IsActive { get; set; }
+
         public string RegistrationNumber { get; set; } = string.Empty;
 
         public string EffectiveDate { get; set; } = string.Empty;
@@ -22,6 +30,9 @@ namespace TummlyBackend.Configurations
         public string LegalName { get; set; } = string.Empty;
 
         public string RegisteredAddress { get; set; } = string.Empty;
+
+        public int EffectiveVatRateBps =>
+            IsActive ? Helpers.TummlyVatMath.DefaultVatRateBps : 0;
 
         public bool IsComplete =>
             !string.IsNullOrWhiteSpace(RegistrationNumber)

@@ -23,6 +23,8 @@ namespace TummlyBackend.Data
 
         public DbSet<Admin> Admins { get; set; }
 
+        public DbSet<AdminAuditEvent> AdminAuditEvents { get; set; }
+
         public DbSet<TrialRequest> TrialRequests { get; set; }
 
         public DbSet<PendingTrialRequest> PendingTrialRequests { get; set; }
@@ -100,6 +102,8 @@ namespace TummlyBackend.Data
         }
 
         public DbSet<RevolutOrderIntent> RevolutOrderIntents { get; set; }
+
+        public DbSet<PendingSignup> PendingSignups { get; set; }
 
         public DbSet<AdminPaymentRefundIntent> AdminPaymentRefundIntents
         {
@@ -983,6 +987,57 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<RevolutOrderIntent>()
                 .HasIndex(row => row.ShopOrderId);
 
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasIndex(row => row.PendingSignupId);
+
+            /*
+             =========================================
+             PENDING SIGNUPS (self-serve signup)
+             =========================================
+             */
+
+            modelBuilder.Entity<PendingSignup>()
+                .HasIndex(row => row.SessionToken)
+                .IsUnique();
+
+            modelBuilder.Entity<PendingSignup>()
+                .HasIndex(row => row.Email)
+                .IsUnique();
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.Email)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.Status)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.PasswordHash)
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.FullName)
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.AccountType)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.ChosenPlan)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.ChosenCadence)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.RevolutOrderId)
+                .HasMaxLength(128);
+
             /*
              =========================================
              TUMMLY VAT INVOICES / DOCUMENT SEQUENCES (ticket 17)
@@ -1366,6 +1421,31 @@ namespace TummlyBackend.Data
                 )
                 .HasMaxLength(32)
                 .IsRequired();
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.Basis)
+                .HasMaxLength(64)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.GuestFormVersion)
+                .HasMaxLength(32)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.WordingVersion)
+                .HasMaxLength(32)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.PrivacyNoticeVersion)
+                .HasMaxLength(32)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.WordingSnapshot)
+                .HasMaxLength(512)
+                .IsRequired(false);
 
             modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
                 .HasIndex(e => new
@@ -2322,6 +2402,13 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<ShopOrder>()
                 .HasIndex(row => new { row.RestaurantId, row.LocationId, row.CreatedAtUtc });
 
+            // One complimentary starter order per Owned location.
+            modelBuilder.Entity<ShopOrder>()
+                .HasIndex(row => row.LocationId)
+                .IsUnique()
+                .HasFilter("[IsComplimentary] = 1")
+                .HasDatabaseName("IX_ShopOrders_LocationId_Complimentary");
+
             modelBuilder.Entity<ShopOrder>()
                 .Property(row => row.OrderNumber)
                 .HasMaxLength(32)
@@ -2330,6 +2417,10 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<ShopOrder>()
                 .Property(row => row.OpsNotes)
                 .HasMaxLength(2000);
+
+            modelBuilder.Entity<ShopOrder>()
+                .Property(row => row.IsComplimentary)
+                .HasDefaultValue(false);
 
             modelBuilder.Entity<ShopOrderLine>()
                 .HasOne(row => row.ShopOrder)
@@ -2374,6 +2465,46 @@ namespace TummlyBackend.Data
                 .Property(row => row.ExistingMaterials)
                 .HasMaxLength(16)
                 .IsRequired();
+
+            /*
+             =========================================
+             ADMIN AUDIT EVENTS (append-only)
+             =========================================
+            */
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.Action)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.ActorIdentity)
+                .HasMaxLength(320)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.TargetType)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.TargetId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.DetailJson)
+                .HasMaxLength(4000);
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .HasIndex(e => e.OccurredAtUtc);
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .HasIndex(e => new { e.Action, e.OccurredAtUtc });
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .HasIndex(e => new { e.RestaurantId, e.OccurredAtUtc })
+                .HasFilter("[RestaurantId] IS NOT NULL");
         }
 
         public override int SaveChanges()

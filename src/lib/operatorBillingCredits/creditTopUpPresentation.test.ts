@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildCreditTopUpCards,
+  buildCreditTopUpConfirmCopy,
   grossTopUpPounds,
   isSms5000TopUpAllowed,
   isTopUpPackVisible,
@@ -68,8 +69,13 @@ describe("creditTopUpPresentation", () => {
   })
 
   it("computes VAT gross from net", () => {
-    expect(grossTopUpPounds(12)).toBe(14.4)
-    expect(grossTopUpPounds(450)).toBe(540)
+    expect(grossTopUpPounds(12, 2000)).toBe(14.4)
+    expect(grossTopUpPounds(450, 2000)).toBe(540)
+  })
+
+  it("returns net as gross when vatRateBps is 0", () => {
+    expect(grossTopUpPounds(12, 0)).toBe(12)
+    expect(grossTopUpPounds(450)).toBe(450)
   })
 
   it("shows operator-triggered detail on the AI top-up card", () => {
@@ -81,6 +87,7 @@ describe("creditTopUpPresentation", () => {
       canBuy: true,
       selectedPackByChannel: {},
       focusedChannel: null,
+      vatRateBps: 2000,
     })
 
     const ai = cards.find((card) => card.channel === "ai")
@@ -98,6 +105,7 @@ describe("creditTopUpPresentation", () => {
       canBuy: true,
       selectedPackByChannel: {},
       focusedChannel: null,
+      vatRateBps: 2000,
     })
 
     expect(cards.every((card) => card.buyDisabled)).toBe(true)
@@ -113,11 +121,52 @@ describe("creditTopUpPresentation", () => {
       canBuy: true,
       selectedPackByChannel: { sms: 500 },
       focusedChannel: "sms",
+      vatRateBps: 2000,
     })
 
     const sms = cards.find((card) => card.channel === "sms")
     expect(sms?.buyDisabled).toBe(false)
     expect(sms?.selectedNetLabel).toBe("£55 + VAT")
+  })
+
+  it("omits + VAT from selectedNetLabel when vatRateBps is 0", () => {
+    const cards = buildCreditTopUpCards({
+      channels: sampleChannels,
+      subscriptionPlan: "Growth",
+      allowSms5000TopUp: false,
+      isPilot: false,
+      canBuy: true,
+      selectedPackByChannel: { sms: 500 },
+      focusedChannel: "sms",
+      vatRateBps: 0,
+    })
+
+    const sms = cards.find((card) => card.channel === "sms")
+    expect(sms?.selectedNetLabel).toBe("£55")
+  })
+
+  it("omits VAT phrases from confirm copy when vatRateBps is 0", () => {
+    expect(
+      buildCreditTopUpConfirmCopy({
+        channelLabel: "SMS",
+        quantity: 500,
+        netLabel: "£55",
+        grossLabel: "£55",
+        vatRateBps: 0,
+      }).body
+    ).toBe("SMS · 500 credits · £55 · £55 total")
+  })
+
+  it("keeps VAT phrases on confirm copy when vatRateBps is active", () => {
+    expect(
+      buildCreditTopUpConfirmCopy({
+        channelLabel: "SMS",
+        quantity: 500,
+        netLabel: "£55",
+        grossLabel: "£66",
+        vatRateBps: 2000,
+      }).body
+    ).toBe("SMS · 500 credits · £55 + VAT · £66 total incl. VAT")
   })
 
   it("hides purchase cards on Pilot", () => {
@@ -129,6 +178,7 @@ describe("creditTopUpPresentation", () => {
       canBuy: true,
       selectedPackByChannel: { sms: 500 },
       focusedChannel: null,
+      vatRateBps: 2000,
     })
 
     expect(cards).toEqual([])

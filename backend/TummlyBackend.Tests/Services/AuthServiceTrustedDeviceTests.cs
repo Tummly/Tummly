@@ -425,7 +425,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task VerifyOtpAsync_ReturnsActivationRequired_WhenPendingActivation()
+        public async Task VerifyOtpAsync_DoesNotRequireActivation_WhenPendingActivation()
         {
             var user = await SeedUserAsync(
                 hasCompletedFirstSignIn: false,
@@ -447,8 +447,7 @@ namespace TummlyBackend.Tests.Services
 
             var payload = ToPropertyDictionary(result);
 
-            Assert.True(Convert.ToBoolean(payload["activationRequired"]));
-            Assert.Null(payload["activationExpiresAt"]);
+            Assert.False(Convert.ToBoolean(payload["activationRequired"]));
         }
 
         [Fact]

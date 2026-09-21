@@ -20,40 +20,23 @@ function extractAvifSrcset(bundle: OutputBundle, assetKey: string): string | nul
   return null;
 }
 
-function extractAssetPath(bundle: OutputBundle, assetKey: string): string | null {
-  const pattern = new RegExp(`(/assets/${assetKey}[A-Za-z0-9_.-]+\\.(?:png|webp|avif|jpg|jpeg))`);
-
-  for (const item of Object.values(bundle)) {
-    if (item.type !== "chunk") {
-      continue;
-    }
-
-    const match = item.code.match(pattern);
-    if (match) {
-      return match[1];
-    }
-  }
-
-  return null;
-}
-
 function buildPreloadTags(bundle: OutputBundle): string {
   const heroSrcset = extractAvifSrcset(bundle, "hero-bg");
   const helpCenterSrcset = extractAvifSrcset(bundle, "help-center-bg");
-  const authShellSrcset = extractAvifSrcset(bundle, "auth-shell-bg");
-  const authLogoHref = extractAssetPath(bundle, "auth-hero-logo-");
+  const authSignInPanelSrcset = extractAvifSrcset(bundle, "auth-sign-in-panel");
 
-  if (!heroSrcset && !authShellSrcset && !helpCenterSrcset) {
+  if (!heroSrcset && !authSignInPanelSrcset && !helpCenterSrcset) {
     return "";
   }
 
-  const authSizes = "(min-width: 1024px) 45.38vw, 0px";
+  const authSizes = "(min-width: 1024px) 41.3vw, 0px";
   const heroSrcsetJson = heroSrcset ? JSON.stringify(heroSrcset) : "null";
   const helpCenterSrcsetJson = helpCenterSrcset
     ? JSON.stringify(helpCenterSrcset)
     : "null";
-  const authShellJson = authShellSrcset ? JSON.stringify(authShellSrcset) : "null";
-  const authLogoJson = authLogoHref ? JSON.stringify(authLogoHref) : "null";
+  const authSignInPanelJson = authSignInPanelSrcset
+    ? JSON.stringify(authSignInPanelSrcset)
+    : "null";
 
   const loginPreloadScript = `<script>
 (function () {
@@ -93,21 +76,28 @@ function buildPreloadTags(bundle: OutputBundle): string {
     }
   }
 
-  if (path === "/login" || path === "/login/") {
+  var authPaths = {
+    "/login": true,
+    "/login/": true,
+    "/forgot-password": true,
+    "/forgot-password/": true,
+    "/reset-password": true,
+    "/reset-password/": true,
+    "/verify-email": true,
+    "/verify-email/": true,
+    "/start": true,
+    "/start/": true
+  };
+  if (authPaths[path]) {
     var authSizes = ${JSON.stringify(authSizes)};
-    var authShellSrcset = ${authShellJson};
-    if (authShellSrcset) {
+    var authSignInPanelSrcset = ${authSignInPanelJson};
+    if (authSignInPanelSrcset) {
       appendPreload({
         as: "image",
         type: "image/avif",
-        imagesrcset: authShellSrcset,
+        imagesrcset: authSignInPanelSrcset,
         imagesizes: authSizes
       });
-    }
-
-    var logoHref = ${authLogoJson};
-    if (logoHref) {
-      appendPreload({ as: "image", href: logoHref });
     }
   }
 })();

@@ -15,10 +15,16 @@ namespace TummlyBackend.Services
         private const int RecentNotesPreviewLimit = 3;
 
         private readonly ApplicationDbContext _context;
+        private readonly ILocationGuestPermissionLedgerService _permissions;
 
-        public GuestProfileService(ApplicationDbContext context)
+        public GuestProfileService(
+            ApplicationDbContext context,
+            ILocationGuestPermissionLedgerService? permissions = null
+        )
         {
             _context = context;
+            _permissions =
+                permissions ?? new LocationGuestPermissionLedgerService(context);
         }
 
         public async Task<object?> GetDetailAsync(
@@ -93,6 +99,39 @@ namespace TummlyBackend.Services
                     masterGuest.Email,
                     masterGuest.Mobile,
                     consentDetailAt
+                );
+
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(loc => loc.Id == locationId)
+                .Select(loc => loc.RestaurantId)
+                .FirstAsync();
+
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstAsync(r => r.Id == restaurantId);
+
+            var ledgerStates = await _permissions.GetCurrentStatesAsync(guestId);
+            var effectiveStates =
+                LocationGuestChannelPermissionGate.ResolveEffectiveStates(
+                    locationGuest.MarketingPreference,
+                    ledgerStates
+                );
+
+            var permissionStates = LocationGuestPermissionKindExtensions.All
+                .ToDictionary(
+                    kind => kind.ToWireString(),
+                    kind => effectiveStates[kind].ToWireString()
+                );
+
+            var restaurantPermissionEnabled =
+                LocationGuestPermissionKindExtensions.All.ToDictionary(
+                    kind => kind.ToWireString(),
+                    kind =>
+                        LocationGuestChannelPermissionGate.IsRestaurantPermissionEnabled(
+                            restaurant,
+                            kind
+                        )
                 );
 
             var feedbackCount = feedbackStats.FeedbackSubmissionCount;
@@ -220,6 +259,8 @@ namespace TummlyBackend.Services
                 marketingStatus,
                 marketingPreference =
                     locationGuest.MarketingPreference.ToWireString(),
+                permissionStates,
+                restaurantPermissionEnabled,
                 guestSinceAt = locationGuest.CreatedAt,
                 lastActivityAt,
                 lastInteractionLabel = LastInteractionLabel,

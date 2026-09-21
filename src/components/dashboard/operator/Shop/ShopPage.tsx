@@ -94,6 +94,7 @@ export function ShopPage({
   const shopOrderId = searchParams.get("shopOrderId")
 
   const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([])
+  const [catalogVatRateBps, setCatalogVatRateBps] = useState(0)
   const [catalogLoading, setCatalogLoading] = useState(true)
   const [productDetail, setProductDetail] = useState<ShopProduct | null>(null)
 
@@ -153,13 +154,16 @@ export function ShopPage({
     async function loadCatalog() {
       setCatalogLoading(true)
       try {
-        const { products } = await fetchShopCatalog(selectedLocationId)
+        const { products, vatRateBps } =
+          await fetchShopCatalog(selectedLocationId)
         if (!cancelled) {
           setCatalogProducts(products)
+          setCatalogVatRateBps(vatRateBps)
         }
       } catch {
         if (!cancelled) {
           setCatalogProducts([])
+          setCatalogVatRateBps(0)
           toast.error("Could not load shop catalog.")
         }
       } finally {
@@ -586,6 +590,7 @@ export function ShopPage({
             })()
           }}
           paidWriteChrome={paidWriteChrome}
+          vatRateBps={catalogVatRateBps}
         />
       ) : currentView === "orders" ? (
         <ShopOrdersScreen
@@ -623,6 +628,7 @@ export function ShopPage({
           locations={locations}
           brandLogoPublicUrl={brandLogoPublicUrl}
           mode={mode}
+          vatRateBps={catalogVatRateBps}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
           onAddToCart={handleAddToCart}
@@ -659,6 +665,7 @@ export function ShopPage({
                 recommendations={recommendations}
                 recommendationsLoading={recommendationsLoading}
                 catalogProducts={catalogProducts}
+                vatRateBps={catalogVatRateBps}
                 paidWriteChrome={paidWriteChrome}
                 onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
                 onAddRecommendedToCart={() => {

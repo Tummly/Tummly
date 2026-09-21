@@ -375,6 +375,7 @@ export type WeeklyBriefGenerateFailureResponse = {
 
 export type WeeklyBriefGenerateResponse =
   | WeeklyBriefReadyResponse
+  | WeeklyBriefNotReadyResponse
   | WeeklyBriefGenerateFailureResponse;
 
 export type WeeklyBriefMarkReviewedFailureResponse = {

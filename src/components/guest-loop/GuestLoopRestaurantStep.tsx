@@ -1,15 +1,20 @@
-import type { UseFormReturn } from "react-hook-form"
+import type { FieldPath, UseFormReturn } from "react-hook-form"
+import { z } from "zod"
 
 import { FormAddressPostcodeFields } from "@/components/form/FormAddressPostcodeFields"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
-import { BUSINESS_CATEGORY_OPTIONS } from "@/components/home/hero-trial-options"
+import {
+  BUSINESS_CATEGORY_OPTIONS,
+  LOCATION_COUNT_OPTIONS,
+} from "@/components/home/hero-trial-options"
 import { FieldErrorSlot } from "@/components/ui/field"
 import {
   accountSetupSingleStep2Fields,
   accountSetupSingleStep2Schema,
   type AccountSetupSingleFormValues,
 } from "@/schemas/accountSetupSingle"
+import { validationMessages } from "@/schemas/messages"
 
 import { GuestLoopStepButton } from "./GuestLoopStepButton"
 import { GuestLoopStepFooter } from "./GuestLoopStepFooter"
@@ -20,10 +25,25 @@ import {
   useGuestLoopStepValidationFeedback,
 } from "./useGuestLoopStepCanSubmit"
 
+const restaurantWithLocationCountSchema = accountSetupSingleStep2Schema.and(
+  z.object({
+    numLocations: z
+      .string()
+      .min(1, validationMessages.accountSetup.numLocations.required),
+  })
+)
+
+const restaurantWithLocationCountFields = [
+  ...accountSetupSingleStep2Fields,
+  "numLocations",
+] as const satisfies readonly FieldPath<AccountSetupSingleFormValues>[]
+
 type GuestLoopRestaurantStepProps = {
   form: UseFormReturn<AccountSetupSingleFormValues>
   activeStep: number
   steps?: readonly GuestLoopProgressStep[]
+  /** When true, collect location count to branch single vs multi (signup). */
+  showLocationCount?: boolean
   onConfirm: () => void | Promise<void>
   isSubmitting?: boolean
 }
@@ -32,25 +52,23 @@ export function GuestLoopRestaurantStep({
   form,
   activeStep,
   steps = GUEST_LOOP_SINGLE_STEPS,
+  showLocationCount = false,
   onConfirm,
   isSubmitting = false,
 }: GuestLoopRestaurantStepProps) {
   const businessLink = form.watch("businessLink")
-  const canConfirm = useGuestLoopStepCanSubmit(
-    form,
-    accountSetupSingleStep2Fields,
-    accountSetupSingleStep2Schema
-  )
+  const stepFields = showLocationCount
+    ? restaurantWithLocationCountFields
+    : accountSetupSingleStep2Fields
+  const stepSchema = showLocationCount
+    ? restaurantWithLocationCountSchema
+    : accountSetupSingleStep2Schema
 
-  useGuestLoopStepValidationFeedback(
-    form,
-    accountSetupSingleStep2Fields,
-    accountSetupSingleStep2Schema,
-    canConfirm,
-    {
-      shouldSkipValidationFeedback: (fieldPath) => fieldPath === "postcode",
-    }
-  )
+  const canConfirm = useGuestLoopStepCanSubmit(form, stepFields, stepSchema)
+
+  useGuestLoopStepValidationFeedback(form, stepFields, stepSchema, canConfirm, {
+    shouldSkipValidationFeedback: (fieldPath) => fieldPath === "postcode",
+  })
 
   const rootError = form.formState.errors.root?.message
 
@@ -75,6 +93,16 @@ export function GuestLoopRestaurantStep({
           label="Location name"
           required
         />
+
+        {showLocationCount ? (
+          <FormFloatingSelect
+            control={form.control}
+            name="numLocations"
+            label="Number of locations"
+            options={LOCATION_COUNT_OPTIONS}
+            required
+          />
+        ) : null}
 
         <FormAddressPostcodeFields
           control={form.control}

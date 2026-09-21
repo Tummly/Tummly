@@ -15,3 +15,9 @@ export const GUEST_LOOP_MULTI_STEPS: readonly GuestLoopProgressStep[] = [
   { number: 3, label: "Locations" },
   { number: 4, label: "Ready" },
 ] as const
+
+export const SIGNUP_ONBOARDING_STEPS = [
+  { number: 1, label: "Your account" },
+  { number: 2, label: "Restaurant" },
+  { number: 3, label: "Location" },
+] as const

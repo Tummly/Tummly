@@ -388,11 +388,13 @@ namespace TummlyBackend.Services
                 TotalFormatted = ShopOrderPresentation.FormatGbp(order.GrossPence),
                 TotalGrossPence = order.GrossPence,
                 PaymentStatus = ShopOrderFulfilmentLabels.ToPaymentDisplayLabel(
-                    order.PaymentStatus
+                    order.PaymentStatus,
+                    order.IsComplimentary
                 ),
                 FulfilmentStatus = ShopOrderFulfilmentLabels.ToDisplayLabel(
                     order.FulfilmentStatus
                 ),
+                IsComplimentary = order.IsComplimentary,
                 UpdatedAtUtc = order.UpdatedAtUtc,
             };
         }

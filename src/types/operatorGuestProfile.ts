@@ -150,6 +150,15 @@ export type OperatorGuestProfileViewModel = {
     statusLabel: string
     detailDisplay: string
   }>
+  /**
+   * Granular permission rows (Feedback follow-up / Email / SMS).
+   * Null when the API omitted ledger fields (legacy fixtures).
+   */
+  permissionSummary: Array<{
+    id: "email-marketing" | "sms-marketing" | "feedback-follow-up"
+    label: string
+    value: string
+  }> | null
   latestFeedback: OperatorGuestProfileLatestFeedbackRow[]
   latestOffers: OperatorGuestProfileLatestOfferRow[]
   latestCampaigns: OperatorGuestProfileLatestCampaignRow[]

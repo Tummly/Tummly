@@ -100,6 +100,10 @@ namespace TummlyBackend.Tests.Services
             {
                 [StarterMonthly] = "sandbox-variation-uuid",
             };
+            sandbox.PlanVariationsGross = new Dictionary<string, string>
+            {
+                [StarterMonthly] = "sandbox-variation-uuid",
+            };
             var gate = CreateGate(FullVat(), sandbox);
 
             Assert.Null(gate.Evaluate(StarterMonthly));
@@ -134,6 +138,44 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(gate.Evaluate(StarterMonthly));
         }
 
+        [Fact]
+        public void Evaluate_WhenModeOff_SkipsVatComplete_EvenIfSellerVatEmpty()
+        {
+            var vat = new TummlySellerVatSettings { IsActive = false };
+            var revolut = FullLiveRevolut(withStarterMonthly: true);
+            var gate = CreateGate(vat, revolut);
+            Assert.Null(gate.Evaluate(StarterMonthly));
+        }
+
+        [Fact]
+        public void Evaluate_WhenModeActive_UsesGrossMap_NotNetMap()
+        {
+            var vat = FullVat();
+            vat.IsActive = true;
+            var revolut = FullLiveRevolut(withStarterMonthly: false);
+            revolut.PlanVariationsGross = new Dictionary<string, string>
+            {
+                [StarterMonthly] = "gross-uuid",
+            };
+            var gate = CreateGate(vat, revolut);
+            Assert.Null(gate.Evaluate(StarterMonthly));
+        }
+
+        [Fact]
+        public void Evaluate_WhenModeActive_MissingGross_ReturnsPlanVariationMissing()
+        {
+            var vat = FullVat();
+            vat.IsActive = true;
+            var revolut = FullLiveRevolut(withStarterMonthly: true); // net only
+            revolut.PlanVariationsGross =
+                new Dictionary<string, string>(StringComparer.Ordinal);
+            var gate = CreateGate(vat, revolut);
+            Assert.Equal(
+                RevolutMerchantCreateGate.PlanVariationMissing,
+                gate.Evaluate(StarterMonthly)
+            );
+        }
+
         private static RevolutMerchantCreateGate CreateGate(
             TummlySellerVatSettings vat,
             RevolutSettings revolut
@@ -149,6 +191,7 @@ namespace TummlyBackend.Tests.Services
         {
             return new TummlySellerVatSettings
             {
+                IsActive = true,
                 RegistrationNumber = "GB123456789",
                 EffectiveDate = "2024-01-01",
                 LegalName = "Tummly Ltd",
@@ -159,9 +202,13 @@ namespace TummlyBackend.Tests.Services
         private static RevolutSettings FullLiveRevolut(bool withStarterMonthly)
         {
             var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            var gross = new Dictionary<string, string>(StringComparer.Ordinal);
             if (withStarterMonthly)
             {
-                map[StarterMonthly] = "11111111-1111-1111-1111-111111111111";
+                const string id = "11111111-1111-1111-1111-111111111111";
+                map[StarterMonthly] = id;
+                // FullVat() is Mode=active; ACTIVE resolve uses the gross map.
+                gross[StarterMonthly] = id;
             }
 
             return new RevolutSettings
@@ -171,6 +218,7 @@ namespace TummlyBackend.Tests.Services
                 ApiBaseUrl = RevolutSettings.LiveApiBaseUrl,
                 ApiVersion = RevolutSettings.DefaultApiVersion,
                 PlanVariations = map,
+                PlanVariationsGross = gross,
             };
         }
     }

@@ -909,8 +909,8 @@ export function createOperatorHomePageModule(
   }
 
   /**
-   * GET current closed week; if missing, soft-load while lazy generate runs, then re-GET.
-   * Default week from GET is already the closed prior week (Monday started) — always eligible.
+   * GET current closed week; if missing, soft-load while lazy generate runs.
+   * Soft not-ready from generate (gates) stays empty — not a hard load error.
    * Keep `empty` through the first GET on a cold load so a ready brief does not flash a spinner.
    */
   const runWeeklyBriefLoad = async (options?: {
@@ -964,19 +964,16 @@ export function createOperatorHomePageModule(
         return
       }
 
-      const second = await adapters.getWeeklyBrief(selectedLocationId)
-      if (generation !== weeklyBriefGeneration) {
+      // Soft not-ready (generate-day / location-age gate) — empty, not a load error.
+      if (!generated.ready) {
+        patchWeeklyBrief({
+          ...emptyWeeklyBrief(),
+          week: generated.week,
+        })
         return
       }
 
-      if (second.success && second.ready) {
-        patchWeeklyBrief(mapReadyWeeklyBrief(second))
-        return
-      }
-
-      patchWeeklyBrief(
-        weeklyBriefErrorFrom(HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
-      )
+      patchWeeklyBrief(mapReadyWeeklyBrief(generated))
     } catch {
       if (generation !== weeklyBriefGeneration) {
         return

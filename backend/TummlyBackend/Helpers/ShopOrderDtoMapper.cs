@@ -25,6 +25,7 @@ namespace TummlyBackend.Helpers
                 DeliveryNetPence = order.DeliveryNetPence,
                 GrossPence = order.GrossPence,
                 Currency = CurrencyGbp,
+                IsComplimentary = order.IsComplimentary,
                 Lines = MapLines(order),
                 ShipTo = MapShipTo(order),
             };
@@ -36,11 +37,13 @@ namespace TummlyBackend.Helpers
             CancellationToken cancellationToken = default
         )
         {
-            var invoiceDocumentNumber = await ResolveInvoiceDocumentNumberAsync(
-                context,
-                order.RevolutOrderId,
-                cancellationToken
-            );
+            var invoiceDocumentNumber = order.IsComplimentary
+                ? null
+                : await ResolveInvoiceDocumentNumberAsync(
+                    context,
+                    order.RevolutOrderId,
+                    cancellationToken
+                );
             return MapOperatorDetail(order, invoiceDocumentNumber);
         }
 
@@ -64,7 +67,8 @@ namespace TummlyBackend.Helpers
                 PlacedBy = order.PlacedByNameSnapshot,
                 PaymentStatus = order.PaymentStatus,
                 PaymentStatusLabel = ShopOrderFulfilmentLabels.ToPaymentDisplayLabel(
-                    order.PaymentStatus
+                    order.PaymentStatus,
+                    order.IsComplimentary
                 ),
                 FulfilmentStatus = order.FulfilmentStatus,
                 FulfilmentStatusLabel = ShopOrderFulfilmentLabels.ToDisplayLabel(
@@ -76,13 +80,18 @@ namespace TummlyBackend.Helpers
                 DeliveryNetPence = order.DeliveryNetPence,
                 GrossPence = order.GrossPence,
                 Currency = CurrencyGbp,
+                IsComplimentary = order.IsComplimentary,
                 Lines = MapLines(order),
                 ShipTo = MapShipTo(order),
                 PaymentSummary = new ShopOrderPaymentSummaryDto
                 {
                     PaidAtUtc = order.PaidAtUtc,
-                    RevolutOrderId = order.RevolutOrderId,
-                    InvoiceDocumentNumber = invoiceDocumentNumber,
+                    RevolutOrderId = order.IsComplimentary
+                        ? null
+                        : order.RevolutOrderId,
+                    InvoiceDocumentNumber = order.IsComplimentary
+                        ? null
+                        : invoiceDocumentNumber,
                 },
                 Progress = new ShopOrderProgressDto
                 {

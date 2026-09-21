@@ -1014,8 +1014,8 @@ namespace TummlyBackend.Services
             var workspaceSetupRequired =
                 await RequiresWorkspaceSetupAsync(user);
 
-            var activationRequired =
-                ActivationState.RequiresActivation(ActivationSubject.FromUser(user));
+            // Activation gate retired — accounts activate at provision.
+            const bool activationRequired = false;
 
             var accountType = await ResolveRoutingAccountTypeAsync(user);
 
@@ -1056,8 +1056,7 @@ namespace TummlyBackend.Services
                 WorkspaceSetupRequired =
                     await RequiresWorkspaceSetupAsync(user),
                 SelectedLocationId = user.SelectedLocationId,
-                ActivationRequired =
-                    ActivationState.RequiresActivation(ActivationSubject.FromUser(user)),
+                ActivationRequired = false,
                 ActivationExpiresAt = user.ActivationExpiresAt,
             };
         }
@@ -1385,8 +1384,7 @@ namespace TummlyBackend.Services
                     accountType = user.AccountType,
                     workspaceSetupRequired,
                     selectedLocationId = user.SelectedLocationId,
-                    activationRequired =
-                        ActivationState.RequiresActivation(ActivationSubject.FromUser(user)),
+                    activationRequired = false,
                     activationExpiresAt = user.ActivationExpiresAt,
                 };
             }

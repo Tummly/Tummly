@@ -80,7 +80,8 @@ namespace TummlyBackend.Tests.Services
             var ledger = new CreditLedgerService(
                 context,
                 clock,
-                new StubPricebookCatalog()
+                new StubPricebookCatalog(),
+                new AdminAuditService(context, clock)
             );
             var snapshot = new CreditBalanceSnapshotService(context, clock);
             var billing = new LiveRecoverySmsBillingReserve(

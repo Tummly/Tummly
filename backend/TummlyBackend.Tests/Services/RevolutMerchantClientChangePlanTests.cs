@@ -69,6 +69,62 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, handler.SendCount);
         }
 
+        [Fact]
+        public async Task ChangeSubscriptionPlanAsync_WhenModeActive_UsesGrossMap()
+        {
+            var handler = new CapturingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.NoContent),
+            };
+            var vat = FullVat();
+            vat.IsActive = true;
+            var revolut = FullRevolut();
+            revolut.PlanVariations.Clear();
+            revolut.PlanVariationsGross = new Dictionary<string, string>
+            {
+                [RevolutPlanVariationKeys.StarterMonthly] =
+                    "gross-1111-1111-1111-111111111111",
+            };
+            var client = CreateClient(handler, vat, revolut);
+
+            var result = await client.ChangeSubscriptionPlanAsync(
+                "sub_live_1",
+                RevolutPlanVariationKeys.StarterMonthly
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Equal(1, handler.SendCount);
+            using var doc = JsonDocument.Parse(handler.LastBody!);
+            Assert.Equal(
+                "gross-1111-1111-1111-111111111111",
+                doc.RootElement.GetProperty("plan_variation_id").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task ChangeSubscriptionPlanAsync_WhenModeActive_FailsWhenOnlyNetMapPresent()
+        {
+            var handler = new CapturingHandler();
+            var vat = FullVat();
+            vat.IsActive = true;
+            var client = CreateClient(handler, vat, FullRevolut());
+
+            var ex = await Assert.ThrowsAsync<RevolutMerchantNotReadyException>(
+                () =>
+                    client.ChangeSubscriptionPlanAsync(
+                        "sub_1",
+                        RevolutPlanVariationKeys.StarterMonthly
+                    )
+            );
+
+            Assert.Equal(
+                RevolutMerchantCreateGate.PlanVariationMissing,
+                ex.Code
+            );
+            Assert.Equal(0, handler.SendCount);
+        }
+
         private static IRevolutMerchantClient CreateClient(
             CapturingHandler handler,
             TummlySellerVatSettings vat,

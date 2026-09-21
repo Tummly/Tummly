@@ -140,7 +140,7 @@ describe("getAuthenticatedLoginDestination", () => {
     ).toBe("/support-dashboard")
   })
 
-  it("routes pending operators to activation", () => {
+  it("ignores pending activation and routes operators to the dashboard", () => {
     expect(
       getAuthenticatedLoginDestination({
         role: "USER",
@@ -150,7 +150,7 @@ describe("getAuthenticatedLoginDestination", () => {
         activationRequired: true,
         activationExpiresAt: null,
       })
-    ).toBe("/login?step=activation-code")
+    ).toBe("/single-dashboard")
   })
 
   it("routes multi users without a workspace to setup", () => {
@@ -194,10 +194,10 @@ describe("getAuthenticatedLoginDestination", () => {
     expect(localStorage.getItem(SELECTED_LOCATION_KEY)).toBe("42")
   })
 
-  it("routes fallback destinations to activation when activation is persisted", () => {
+  it("routes fallback destinations without activation gating", () => {
     useAuthStore.getState().setSession("jwt-token", "USER", "Single")
     localStorage.setItem("activationRequired", "true")
 
-    expect(getFallbackLoginDestination()).toBe("/login?step=activation-code")
+    expect(getFallbackLoginDestination()).toBe("/single-dashboard")
   })
 })

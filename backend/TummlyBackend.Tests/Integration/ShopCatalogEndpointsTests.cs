@@ -2,7 +2,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -44,6 +47,8 @@ namespace TummlyBackend.Tests.Integration
                 "tummly_uk_materials_catalog_v1",
                 body.GetProperty("catalogVersion").GetString()
             );
+            // Factory defaults TUMMLY_VAT_MODE_ACTIVE=true → 2000 bps.
+            Assert.Equal(2000, body.GetProperty("vatRateBps").GetInt32());
 
             var items = body.GetProperty("items");
             Assert.Equal(3, items.GetArrayLength());
@@ -60,6 +65,41 @@ namespace TummlyBackend.Tests.Integration
                 "Essential",
                 tableTents.GetProperty("popularBadge").GetString()
             );
+        }
+
+        [Fact]
+        public async Task GetCatalog_WhenVatModeOff_ExposesZeroVatRateBps()
+        {
+            await using var factory = _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            [TummlySellerVatSettings.ModeActiveKey] = "false",
+                        }
+                    );
+                });
+            });
+            var client = factory.CreateClient();
+
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false,
+                factory
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/shop/catalog?locationId={seeded.InScopeLocationId}",
+                seeded.MemberJwt
+            );
+
+            var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(0, body.GetProperty("vatRateBps").GetInt32());
         }
 
         [Fact]
@@ -159,10 +199,12 @@ namespace TummlyBackend.Tests.Integration
 
         private async Task<PermissionSeed> SeedOwnerAndMemberAsync(
             string memberRole,
-            bool namedInScopeOnly
+            bool namedInScopeOnly,
+            WebApplicationFactory<Program>? factory = null
         )
         {
-            using var scope = _factory.Services.CreateScope();
+            var host = factory ?? _factory;
+            using var scope = host.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
             var jwtService = scope.ServiceProvider

@@ -8,14 +8,20 @@ public interface IAdminService
 
     bool IsTrialPurgeEnabled();
 
-    Task<bool> PurgeTrialRequestAsync(int trialRequestId);
+    Task<bool> PurgeTrialRequestAsync(
+        int trialRequestId,
+        int? actorAdminUserId,
+        string actorIdentity
+    );
 
     Task<OperatorSetupReminderBatchResult>
         ProcessOperatorSetupInvitationRemindersAsync();
 
     Task<AdminTrialRequestDto?> ExtendActivationAsync(
         int userId,
-        ExtendActivationDto dto
+        ExtendActivationDto dto,
+        int? actorAdminUserId,
+        string actorIdentity
     );
 
     Task<(byte[] Content, string FileName, string ContentType)?>

@@ -758,7 +758,7 @@ namespace TummlyBackend.Tests.Integration
         [Fact]
         public async Task GenerateWeeklyBrief_DoesNotInsertCampaignRows()
         {
-            var seeded = await SeedOwnerWithLocationAsync("wb-gen-no-campaign");
+            var seeded = await SeedEligibleForGenerateAsync("wb-gen-no-campaign");
 
             using (var scope = _factory.Services.CreateScope())
             {
@@ -912,11 +912,7 @@ namespace TummlyBackend.Tests.Integration
         [Fact]
         public async Task GenerateWeeklyBrief_MissingRow_CreatesReadyEnvelope()
         {
-            var seeded = await SeedOwnerWithLocationAsync("wb-gen-create");
-            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
-                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                DateTime.UtcNow
-            );
+            var seeded = await SeedEligibleForGenerateAsync("wb-gen-create");
 
             using var scope = _factory.Services.CreateScope();
             var fake = scope.ServiceProvider
@@ -935,7 +931,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(json.GetProperty("success").GetBoolean());
             Assert.True(json.GetProperty("ready").GetBoolean());
             Assert.Equal(seeded.LocationId, json.GetProperty("locationId").GetInt32());
-            Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
+            Assert.Equal(seeded.ClosedWeek.WeekKey, json.GetProperty("week").GetString());
             Assert.Equal(
                 "succeeded",
                 json.GetProperty("status").GetString()
@@ -944,6 +940,16 @@ namespace TummlyBackend.Tests.Integration
                 json.GetProperty("body").TryGetProperty("headline", out _)
             );
             Assert.Equal(1, fake.CallCount);
+
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.Notifications.CountAsync(n =>
+                    n.UserId == seeded.UserId
+                    && n.Type == WeeklyBriefReadyNotifier.NotificationType
+                )
+            );
 
             using var getRequest = AuthorizedGet(
                 $"/api/home/weekly-brief?locationId={seeded.LocationId}",
@@ -957,9 +963,149 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GenerateWeeklyBrief_NonGenerateDay_ReturnsNotReadyWithoutRow()
+        {
+            var utcNow = DateTime.UtcNow;
+            var weekStartsOn = NonGenerateWeekStartsOn();
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                utcNow,
+                weekStartsOn
+            );
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-gen-not-day",
+                weekStartsOn: weekStartsOn,
+                locationCreatedAtUtc: closed.CoverageStartUtc.AddDays(-7),
+                subscriptionPlan: BillingSubscriptionPlans.Growth
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+            fake.ResetCallCount();
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("success").GetBoolean());
+            Assert.False(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(seeded.LocationId, json.GetProperty("locationId").GetInt32());
+            Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
+            Assert.False(json.TryGetProperty("body", out _));
+            Assert.Equal(0, fake.CallCount);
+
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.WeeklyBriefs.CountAsync(row =>
+                    row.LocationId == seeded.LocationId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_LocationTooNew_ReturnsNotReadyWithoutRow()
+        {
+            var utcNow = DateTime.UtcNow;
+            var weekStartsOn = CurrentLondonGenerateWeekStartsOn();
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                utcNow,
+                weekStartsOn
+            );
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-gen-too-new",
+                weekStartsOn: weekStartsOn,
+                locationCreatedAtUtc: closed.CoverageStartUtc,
+                subscriptionPlan: BillingSubscriptionPlans.Growth
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+            fake.ResetCallCount();
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("success").GetBoolean());
+            Assert.False(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
+            Assert.Equal(0, fake.CallCount);
+
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.WeeklyBriefs.CountAsync(row =>
+                    row.LocationId == seeded.LocationId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_PilotPlan_ReturnsNotReadyWithoutRow()
+        {
+            var utcNow = DateTime.UtcNow;
+            var weekStartsOn = CurrentLondonGenerateWeekStartsOn();
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                utcNow,
+                weekStartsOn
+            );
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-gen-pilot",
+                weekStartsOn: weekStartsOn,
+                locationCreatedAtUtc: closed.CoverageStartUtc.AddDays(-7),
+                subscriptionPlan: BillingSubscriptionPlans.Pilot
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+            fake.ResetCallCount();
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("success").GetBoolean());
+            Assert.False(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
+            Assert.Equal(0, fake.CallCount);
+
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.WeeklyBriefs.CountAsync(row =>
+                    row.LocationId == seeded.LocationId
+                )
+            );
+        }
+
+        [Fact]
         public async Task GenerateWeeklyBrief_SecondCall_IsIdempotentWithoutReProvider()
         {
-            var seeded = await SeedOwnerWithLocationAsync("wb-gen-idem");
+            var seeded = await SeedEligibleForGenerateAsync("wb-gen-idem");
 
             using var scope = _factory.Services.CreateScope();
             var fake = scope.ServiceProvider
@@ -1607,7 +1753,10 @@ namespace TummlyBackend.Tests.Integration
             int UserId
         )> SeedOwnerWithLocationAsync(
             string emailLocalPart,
-            bool softLock = false
+            bool softLock = false,
+            string? weekStartsOn = null,
+            DateTime? locationCreatedAtUtc = null,
+            string? subscriptionPlan = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -1637,6 +1786,7 @@ namespace TummlyBackend.Tests.Integration
                 Name = "Weekly Brief Venue",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
+                WeekStartsOn = weekStartsOn,
                 CreatedAt = DateTime.UtcNow,
             };
 
@@ -1647,6 +1797,22 @@ namespace TummlyBackend.Tests.Integration
                 restaurant.Id,
                 "TUMMLY-UK-GBP-2026-08-V3"
             );
+            if (subscriptionPlan is not null)
+            {
+                billing.SubscriptionPlan = subscriptionPlan;
+                if (
+                    !string.Equals(
+                        subscriptionPlan,
+                        BillingSubscriptionPlans.Pilot,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    billing.BillingStatus = BillingStatuses.Active;
+                    billing.BillingCycle = BillingCycles.Monthly;
+                }
+            }
+
             if (softLock)
             {
                 billing.BillingStatus = BillingStatuses.SoftLock;
@@ -1660,7 +1826,7 @@ namespace TummlyBackend.Tests.Integration
                 RestaurantId = restaurant.Id,
                 LocationName = "Main",
                 Address = "1 High Street",
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = locationCreatedAtUtc ?? DateTime.UtcNow,
             };
 
             context.RestaurantLocations.Add(location);
@@ -1673,6 +1839,64 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id, user.Id);
+        }
+
+        /// <summary>
+        /// Week-starts-on matching today's London weekday so IsGenerateDay is true.
+        /// </summary>
+        private static string CurrentLondonGenerateWeekStartsOn()
+        {
+            var utcNow = DateTime.UtcNow;
+            foreach (var day in WorkspaceDefaultsOptions.WeekStartsOnValues)
+            {
+                if (
+                    WeeklyBriefWeekKey.IsGenerateDay(
+                        WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                        utcNow,
+                        day
+                    )
+                )
+                {
+                    return day;
+                }
+            }
+
+            return WorkspaceDefaultsOptions.DefaultWeekStartsOn;
+        }
+
+        private static string NonGenerateWeekStartsOn()
+        {
+            var current = CurrentLondonGenerateWeekStartsOn();
+            return string.Equals(current, "monday", StringComparison.Ordinal)
+                ? "tuesday"
+                : "monday";
+        }
+
+        /// <summary>
+        /// Seed a location eligible for lazy generate (generate day + older than
+        /// closed week + non-Pilot plan).
+        /// </summary>
+        private async Task<(
+            string Jwt,
+            int LocationId,
+            int UserId,
+            WeeklyBriefClosedWeek ClosedWeek
+        )> SeedEligibleForGenerateAsync(string emailLocalPart)
+        {
+            var utcNow = DateTime.UtcNow;
+            var weekStartsOn = CurrentLondonGenerateWeekStartsOn();
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                utcNow,
+                weekStartsOn
+            );
+            var seeded = await SeedOwnerWithLocationAsync(
+                emailLocalPart,
+                weekStartsOn: weekStartsOn,
+                locationCreatedAtUtc: closed.CoverageStartUtc.AddDays(-7),
+                subscriptionPlan: BillingSubscriptionPlans.Growth
+            );
+            return (seeded.Jwt, seeded.LocationId, seeded.UserId, closed);
         }
 
         private async Task SetBillingStatusAsync(

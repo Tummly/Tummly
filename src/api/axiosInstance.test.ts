@@ -135,7 +135,7 @@ describe("axiosInstance 401 interceptor", () => {
     expect(locationHref).toBe("/login")
   })
 
-  it("redirects to activation step on activationRequired 403 without clearing session", async () => {
+  it("does not redirect on activationRequired 403", async () => {
     mock.onGet("/dashboard-test").reply(403, {
       success: false,
       activationRequired: true,
@@ -145,6 +145,6 @@ describe("axiosInstance 401 interceptor", () => {
     await expect(axiosInstance.get("/dashboard-test")).rejects.toThrow()
 
     expect(useAuthStore.getState().token).toBe("jwt-token")
-    expect(locationHref).toBe("/login?step=activation-code")
+    expect(locationHref).toBe("")
   })
 })

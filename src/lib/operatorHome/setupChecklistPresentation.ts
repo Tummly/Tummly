@@ -82,81 +82,26 @@ export function resolveSetupActionButtonVariant(
     : "op-tertiary"
 }
 
-type SetupStepIllustrationCrop = {
-  width: `${number}%`
-  height: `${number}%`
-  left: `${number}%`
-  top: `${number}%`
-}
-
 export type SetupStepIllustrationConfig = {
+  /** Outer frame height in px; width stays 49px (Figma step rail). */
   height: number
-  crop: SetupStepIllustrationCrop | "cover"
 }
 
-/** Figma dark checklist — per-step illustration frame + overflow crop (node 3238:28363). */
+/**
+ * Figma checklist step icons — fixed frames for committed SVGs
+ * (account/logo ~28×31, outline icons 26×26, guest-form chat 20×20).
+ */
 export const SETUP_STEP_ILLUSTRATION: Record<
   OperatorHomeSetupStepId,
   SetupStepIllustrationConfig
 > = {
-  "account-ready": {
-    height: 35,
-    crop: {
-      width: "154.26%",
-      height: "162.5%",
-      left: "-34.59%",
-      top: "-31.25%",
-    },
-  },
-  "upload-logo": {
-    height: 35,
-    crop: "cover",
-  },
-  "guest-form": {
-    height: 37,
-    crop: {
-      width: "147.37%",
-      height: "144.83%",
-      left: "-23.68%",
-      top: "-22.41%",
-    },
-  },
-  "first-response": {
-    height: 43,
-    crop: {
-      width: "193.06%",
-      height: "168.72%",
-      left: "-48.75%",
-      top: "-34.67%",
-    },
-  },
-  "qr-placement": {
-    height: 47,
-    crop: {
-      width: "160%",
-      height: "126%",
-      left: "-44.29%",
-      top: "-13%",
-    },
-  },
-  "first-offer": {
-    height: 42,
-    crop: {
-      width: "182.61%",
-      height: "158.49%",
-      left: "-46.74%",
-      top: "-35.22%",
-    },
-  },
-  "first-campaign": {
-    height: 43,
-    crop: {
-      width: "173.2%",
-      height: "146.51%",
-      left: "-35.05%",
-      top: "-23.84%",
-    },
-  },
+  "account-ready": { height: 31 },
+  "upload-logo": { height: 31 },
+  "guest-form": { height: 26 },
+  "first-response": { height: 26 },
+  "qr-placement": { height: 26 },
+  "first-offer": { height: 26 },
+  "first-campaign": { height: 26 },
 }
 
 export function getSetupStepIllustration(

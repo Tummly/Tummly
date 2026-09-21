@@ -1,8 +1,9 @@
 /**
  * Shop surface fills — Figma Guest-Loop Shop.
  *
- * Page / sidenav chrome `#141414` / `--op-shell-chrome`.
- * Recommended parent `#141414` + border `#262626`.
+ * Page canvas light `#F6F6F6` / `--op-background-primary` (same as other
+ * Operator pages). Dark keeps the page canvas token.
+ * Recommended parent uses shell chrome + border `#262626`.
  * Nested recommendation panel `#202020` / `--op-color-gray-990`.
  * Catalog product card (primary) body `#171717`, image well `#212121`.
  * Catalog product card (secondary) body + image `#202020` — “You may also need”.
@@ -10,8 +11,8 @@
  * Checkout review / section cards `#171717`; nested options `#202020` / selected `#7c7c7c` border.
  */
 
-/** Main pane behind Shop content — same fill as header / sidenav chrome. */
-export const SHOP_PAGE_BACKGROUND_CLASS = "bg-op-shell-chrome"
+/** Main pane behind Shop catalog and product — Operator page canvas. */
+export const SHOP_PAGE_BACKGROUND_CLASS = "bg-op-background-primary"
 
 /**
  * Recommended-for outer panel — Figma `4378:43973`.

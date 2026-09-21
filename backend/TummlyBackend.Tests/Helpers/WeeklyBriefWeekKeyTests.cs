@@ -90,6 +90,77 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void IsPilotPlan_TrueForPilot_FalseForPaidAndNull()
+        {
+            Assert.True(WeeklyBriefWeekKey.IsPilotPlan("Pilot"));
+            Assert.True(WeeklyBriefWeekKey.IsPilotPlan("pilot"));
+            Assert.False(WeeklyBriefWeekKey.IsPilotPlan("Starter"));
+            Assert.False(WeeklyBriefWeekKey.IsPilotPlan("Growth"));
+            Assert.False(WeeklyBriefWeekKey.IsPilotPlan("Group"));
+            Assert.False(WeeklyBriefWeekKey.IsPilotPlan(null));
+            Assert.False(WeeklyBriefWeekKey.IsPilotPlan(""));
+        }
+
+        [Fact]
+        public void LocationExistedBeforeClosedWeek_TrueWhenCreatedBeforeCoverageStart()
+        {
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                London,
+                new DateTime(2026, 8, 16, 23, 0, 0, DateTimeKind.Utc)
+            );
+            var createdBefore = closed.CoverageStartUtc.AddSeconds(-1);
+
+            Assert.True(
+                WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
+                    createdBefore,
+                    closed
+                )
+            );
+        }
+
+        [Fact]
+        public void LocationExistedBeforeClosedWeek_FalseWhenCreatedAtOrAfterCoverageStart()
+        {
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                London,
+                new DateTime(2026, 8, 16, 23, 0, 0, DateTimeKind.Utc)
+            );
+
+            Assert.False(
+                WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
+                    closed.CoverageStartUtc,
+                    closed
+                )
+            );
+            Assert.False(
+                WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
+                    closed.CoverageStartUtc.AddHours(1),
+                    closed
+                )
+            );
+        }
+
+        [Fact]
+        public void LocationExistedBeforeClosedWeek_TreatsUnspecifiedAsUtc()
+        {
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                London,
+                new DateTime(2026, 8, 16, 23, 0, 0, DateTimeKind.Utc)
+            );
+            var unspecified = DateTime.SpecifyKind(
+                closed.CoverageStartUtc.AddDays(-2),
+                DateTimeKind.Unspecified
+            );
+
+            Assert.True(
+                WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
+                    unspecified,
+                    closed
+                )
+            );
+        }
+
+        [Fact]
         public void ForClosedPriorWeek_LocalKind_ConvertsToUtcBeforeResolving()
         {
             var localNow = new DateTime(2026, 8, 16, 23, 0, 0, DateTimeKind.Utc)

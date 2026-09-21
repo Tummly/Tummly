@@ -697,6 +697,17 @@ export function createOperatorReportsPageModule(
         return false
       }
 
+      // Soft not-ready (generate-day / location-age gate) — empty, not a load error.
+      if (!generated.ready) {
+        patchWeeklyBrief(
+          emptyWeeklyBrief({
+            status: "empty",
+            week: generated.week,
+          })
+        )
+        return false
+      }
+
       patchWeeklyBrief(mapReadyWeeklyBrief(generated))
       return true
     } catch {

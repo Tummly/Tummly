@@ -160,12 +160,13 @@ export type DetailedShopOrder = {
   placedBy: string
   total: string
   totalNumeric: number
-  paymentStatus: "Paid" | "Refunded"
+  paymentStatus: "Paid" | "Refunded" | "Free"
   fulfilmentStatus: "Processing" | "Dispatched" | "Delivered" | "Cancelled"
   updatedDate: string
   items?: string[]
   canCancel?: boolean
   cancelBlockReason?: string | null
+  isComplimentary?: boolean
   detail?: ShopOrderDetailWire
 }
 
@@ -191,6 +192,8 @@ export function normalizePaymentStatusToId(
 ): ShopOrdersPaymentStatusId {
   switch (status) {
     case "Paid":
+    case "Free":
+      // Free starter orders stay under the Paid filter bucket.
       return "paid"
     case "Refunded":
       return "refunded"

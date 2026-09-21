@@ -139,6 +139,12 @@ namespace TummlyBackend.Models
 
         public DateTime? DormantEnteredAt { get; set; }
 
+        /// <summary>
+        /// Set when guest retention purge completed for the current Dormant episode.
+        /// Cleared when Billing status leaves Dormant.
+        /// </summary>
+        public DateTime? GuestRetentionPurgedAtUtc { get; set; }
+
         public bool PilotSoftLockNotified { get; set; }
 
         public bool PilotDormantNotified { get; set; }

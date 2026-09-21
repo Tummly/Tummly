@@ -51,7 +51,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task ProtectedOperatorRoute_Returns403_WhenPendingActivation()
+        public async Task ProtectedOperatorRoute_Allows_WhenPendingActivation()
         {
             var jwt = await SeedPendingOperatorAsync();
 
@@ -64,14 +64,7 @@ namespace TummlyBackend.Tests.Integration
 
             var response = await _client.SendAsync(request);
 
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-
-            var body = await ReadJsonAsync(response);
-            Assert.True(body.GetProperty("activationRequired").GetBoolean());
-            Assert.Equal(
-                "Account activation is required before accessing this resource.",
-                body.GetProperty("message").GetString()
-            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
         [Fact]
@@ -115,7 +108,7 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.True(body.GetProperty("success").GetBoolean());
-            Assert.True(
+            Assert.False(
                 body.GetProperty("data")
                     .GetProperty("activationRequired")
                     .GetBoolean()

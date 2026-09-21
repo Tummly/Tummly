@@ -159,7 +159,8 @@ namespace TummlyBackend.Interfaces
             string? locationAddress,
             string message,
             string? brandLogoUrl = null,
-            GuestResponseEmailOfferBlock? offer = null
+            GuestResponseEmailOfferBlock? offer = null,
+            string? unsubscribeHref = null
         );
 
         Task SendTeamInvitationEmailAsync(

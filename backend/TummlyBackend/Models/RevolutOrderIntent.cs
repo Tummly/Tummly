@@ -14,10 +14,17 @@ namespace TummlyBackend.Models
         [MaxLength(128)]
         public string OrderId { get; set; } = string.Empty;
 
-        public int RestaurantId { get; set; }
+        /// <summary>
+        /// Billing account restaurant id. Null only for legacy intents that
+        /// pre-date restaurant creation (no new writers use null).
+        /// </summary>
+        public int? RestaurantId { get; set; }
 
         [ForeignKey(nameof(RestaurantId))]
         public BillingAccount? BillingAccount { get; set; }
+
+        /// <summary>Optional pending signup link (legacy column; unused).</summary>
+        public Guid? PendingSignupId { get; set; }
 
         /// <summary>
         /// e.g. <c>plan_upgrade_proration</c>, <c>extra_location</c>, <c>topup</c>.

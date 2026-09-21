@@ -7,6 +7,7 @@ Index of support topics and system capabilities. **Full playbooks are TBD** — 
 | Area | Status |
 |------|--------|
 | Topic index | Shipped (this file) |
+| Incident-response runbook | Shipped — [incident-response.md](./incident-response.md) |
 | Detailed SOPs / scripts | TBD |
 | In-app support portal | Planned |
 | Ticketing integration | Planned |
@@ -67,6 +68,7 @@ Each topic needs: trigger, owner role, manual steps, system actions, escalation,
 | Sign-in troubleshooting | [sign-in.md](./sign-in.md) |
 | Fulfilment | [activation-and-fulfilment.md](./activation-and-fulfilment.md) |
 | Security / access | [security-and-rbac.md](./security-and-rbac.md) |
+| Production incidents (P1–P3) | [incident-response.md](./incident-response.md) |
 
 ## Not yet live
 

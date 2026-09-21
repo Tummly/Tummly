@@ -33,6 +33,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
         private readonly IBilledAiActionCoordinator _billedAi;
         private readonly IFeedbackInboxListService _inboxList;
+        private readonly ILocationGuestPermissionLedgerService _guestPermissionLedger;
 
         public FeedbackController(
             ApplicationDbContext context,
@@ -52,7 +53,8 @@ namespace TummlyBackend.Controllers
             IFeedbackRecoveryCompletionsService recoveryCompletions,
             IFeedbackRecoveryDraftsService recoveryDrafts,
             IBilledAiActionCoordinator billedAi,
-            IFeedbackInboxListService inboxList
+            IFeedbackInboxListService inboxList,
+            ILocationGuestPermissionLedgerService guestPermissionLedger
         )
         {
             _context = context;
@@ -73,6 +75,7 @@ namespace TummlyBackend.Controllers
             _recoveryDrafts = recoveryDrafts;
             _billedAi = billedAi;
             _inboxList = inboxList;
+            _guestPermissionLedger = guestPermissionLedger;
         }
 
         /*
@@ -697,6 +700,10 @@ namespace TummlyBackend.Controllers
             }
 
             LocationGuestMarketingPreference? loadedPreference = null;
+            IReadOnlyDictionary<
+                LocationGuestPermissionKind,
+                LocationGuestPermissionState
+            >? ledgerStates = null;
             if (feedback.LocationGuestId is int locationGuestId)
             {
                 loadedPreference = await _context.LocationGuests
@@ -704,10 +711,46 @@ namespace TummlyBackend.Controllers
                     .Where(lg => lg.Id == locationGuestId)
                     .Select(lg => (LocationGuestMarketingPreference?)lg.MarketingPreference)
                     .FirstOrDefaultAsync();
+
+                ledgerStates = await _guestPermissionLedger.GetCurrentStatesAsync(
+                    locationGuestId
+                );
             }
 
             var marketingPreference =
                 loadedPreference ?? LocationGuestMarketingPreference.NotRecorded;
+
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstAsync(
+                    r => r.Id == feedback.RestaurantLocation!.RestaurantId
+                );
+
+            var effectiveStates =
+                LocationGuestChannelPermissionGate.ResolveEffectiveStates(
+                    marketingPreference,
+                    ledgerStates
+                        ?? LocationGuestPermissionKindExtensions.All.ToDictionary(
+                            kind => kind,
+                            _ => LocationGuestPermissionState.NotRecorded
+                        )
+                );
+
+            var permissionStates = LocationGuestPermissionKindExtensions.All
+                .ToDictionary(
+                    kind => kind.ToWireString(),
+                    kind => effectiveStates[kind].ToWireString()
+                );
+
+            var restaurantPermissionEnabled =
+                LocationGuestPermissionKindExtensions.All.ToDictionary(
+                    kind => kind.ToWireString(),
+                    kind =>
+                        LocationGuestChannelPermissionGate.IsRestaurantPermissionEnabled(
+                            restaurant,
+                            kind
+                        )
+                );
 
             return Ok(new
             {
@@ -729,6 +772,8 @@ namespace TummlyBackend.Controllers
                 detectedTags = classification.DetectedTags,
                 locationGuestId = feedback.LocationGuestId,
                 marketingPreference = marketingPreference.ToWireString(),
+                permissionStates,
+                restaurantPermissionEnabled,
                 workflowStatus =
                     FeedbackWorkflowStatusMapping.ToWire(
                         feedback.WorkflowStatus

@@ -2,7 +2,7 @@ using TummlyBackend.Models;
 
 namespace TummlyBackend.Helpers
 {
-    internal static class ShopOrderCancelRules
+    public static class ShopOrderCancelRules
     {
         public static bool CanCancel(ShopOrder order)
         {
@@ -15,7 +15,8 @@ namespace TummlyBackend.Helpers
                     order.FulfilmentStatus,
                     ShopFulfilmentStatuses.Processing,
                     StringComparison.Ordinal
-                );
+                )
+                && order.ProductionStartedAtUtc == null;
         }
 
         public static string? CancelBlockReason(ShopOrder order)
@@ -40,6 +41,18 @@ namespace TummlyBackend.Helpers
             )
             {
                 return "delivered";
+            }
+
+            if (
+                order.ProductionStartedAtUtc != null
+                && string.Equals(
+                    order.FulfilmentStatus,
+                    ShopFulfilmentStatuses.Processing,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return "production_started";
             }
 
             return null;

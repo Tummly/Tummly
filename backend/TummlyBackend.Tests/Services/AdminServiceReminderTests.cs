@@ -38,7 +38,8 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 _emailService,
                 configuration,
-                NullLogger<TrialReviewTransition>.Instance
+                NullLogger<TrialReviewTransition>.Instance,
+                new AdminAuditService(_context, TimeProvider.System)
             );
 
             _service = new AdminService(
@@ -87,13 +88,15 @@ namespace TummlyBackend.Tests.Services
                         new CreditLedgerService(
                             _context,
                             TimeProvider.System,
-                            TestPricebookPaths.LoadV3()
+                            TestPricebookPaths.LoadV3(),
+                            new AdminAuditService(_context, TimeProvider.System)
                         ),
                         new CreditBalanceSnapshotService(_context, TimeProvider.System),
                         TimeProvider.System
                     )
                 ),
-                new NoOpBillingAccountLifecycle()
+                new NoOpBillingAccountLifecycle(),
+                new AdminAuditService(_context, TimeProvider.System)
             );
         }
 

@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Net.Mail;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Helpers;
@@ -21,15 +22,18 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
         private readonly ICampaignProductAnalytics _analytics;
+        private readonly IConfiguration _configuration;
 
         public CampaignSendTestService(
             ApplicationDbContext context,
             IEmailService emailService,
+            IConfiguration configuration,
             ICampaignProductAnalytics? analytics = null
         )
         {
             _context = context;
             _emailService = emailService;
+            _configuration = configuration;
             _analytics = analytics ?? NoOpCampaignProductAnalytics.Instance;
         }
 
@@ -78,6 +82,15 @@ namespace TummlyBackend.Services
 
             var offerBlock = BuildSampleOfferBlock(offer);
 
+            var frontendBaseUrl =
+                _configuration["Frontend:BaseUrl"] ?? string.Empty;
+            var unsubscribeHref = UnsubscribeLink.PreferSignedOrRestaurant(
+                frontendBaseUrl,
+                restaurant.Id,
+                locationGuestId: null,
+                UnsubscribeLink.ResolveSigningSecret(_configuration)
+            );
+
             await _emailService.SendGuestResponseEmailAsync(
                 nominatedEmail,
                 content.Subject!,
@@ -86,7 +99,8 @@ namespace TummlyBackend.Services
                 location.Address,
                 content.Body,
                 brandLogoUrl: null,
-                offer: offerBlock
+                offer: offerBlock,
+                unsubscribeHref: unsubscribeHref
             );
 
             _analytics.TrackSendTest(locationId);

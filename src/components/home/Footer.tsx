@@ -1,155 +1,96 @@
 import { Link } from "react-router-dom"
 
-import logo from "@/assets/svg/logo.svg"
 import { CookieSettingsTrigger } from "@/components/common/CookieSettingsDialog"
-import HelpCentreHubLink from "@/components/navigation/HelpCentreHubLink"
-import SignInLink from "@/components/auth/SignInLink"
-import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
-import { Button } from "@/components/ui/button"
-import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
-import { LEGAL_ROUTES } from "@/constants/legalRoutes"
-import { marketingSectionInset } from "@/lib/marketing-layout"
+import { MarketingLogo } from "@/components/marketing/MarketingLogo"
+import { MarketingNavLink } from "@/components/marketing/MarketingNavLink"
+import { MARKETING_FOOTER_COLUMNS } from "@/constants/marketingNav"
+import {
+  marketingChromeBackground,
+  marketingChromeContentInset,
+} from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
-const footerNavLinkClass =
-  "text-xs font-medium text-[#e7e7e7] no-underline hover:text-white hover:underline"
-
-const footerInlineLinkClass =
-  "text-xs font-medium text-[#a4a4a4] no-underline hover:text-[#e7e7e7] hover:underline"
-
-const footerButtonClass =
-  "h-[35px] min-h-[35px] px-[17px] text-sm lg:h-[38px] lg:min-h-[38px] lg:px-[17px] lg:text-base lg:leading-5"
+const footerLinkClass = "text-sm text-[#141414]"
+const footerHeadingClass =
+  "m-0 text-base font-medium leading-normal text-[#141414]"
 
 export default function Footer() {
   return (
-    <footer className="w-full bg-[#141414]">
+    <footer className={cn("w-full", marketingChromeBackground)}>
       <div
         className={cn(
-          "mx-auto flex w-full flex-col gap-[42px] py-10 lg:gap-10.5",
-          marketingSectionInset
+          "flex w-full flex-col gap-10 rounded-tl-[8px] rounded-tr-[8px] pb-10 pt-[60px] lg:gap-0",
+          marketingChromeContentInset,
         )}
       >
-        <div className="flex flex-col items-start gap-[26px] lg:flex-row lg:items-center lg:justify-between lg:gap-8">
-          <Link
-            to="/"
-            className="shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none"
-          >
-            <img
-              src={logo}
-              alt="Tummly"
-              width={138}
-              height={34}
-              className="block h-[34px] w-auto max-w-[min(138px,42vw)] object-contain lg:h-8.5"
-            />
-          </Link>
-
-          <div className="flex flex-row items-center gap-3 lg:gap-4">
-            <Button asChild className={footerButtonClass}>
-              <RequestTrialLink>Request trial</RequestTrialLink>
-            </Button>
-
-            <Button variant="secondary" asChild className={footerButtonClass}>
-              <SignInLink to="/login">Sign in</SignInLink>
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-[26px] lg:flex-row lg:items-end lg:justify-between lg:gap-8">
-          <div className="flex max-w-149.5 flex-col gap-3 text-xs font-medium text-[#a4a4a4]">
-            <p className="m-0 leading-normal">
-              © 2026{" "}
-              <Button
-                variant="link"
-                size="link-sm"
-                asChild
-                className={footerInlineLinkClass}
-              >
-                <a
-                  href="https://tummly.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Tummly.com
-                </a>
-              </Button>{" "}
-              Limited. All rights reserved.
-            </p>
-
-            <p className="m-0 leading-5">
-              Tummly is operated by{" "}
-              <Button
-                variant="link"
-                size="link-sm"
-                asChild
-                className={footerInlineLinkClass}
-              >
-                <a
-                  href="https://tummly.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  TUMMLY.COM
-                </a>
-              </Button>{" "}
-              LIMITED, company number 16236040. Registered office: 71–75 Shelton
-              Street, Covent Garden, London, WC2H 9JQ. Registered in England and
-              Wales.
+        <div className="flex flex-col gap-10 lg:flex-row lg:items-stretch lg:justify-between lg:gap-12">
+          <div className="flex flex-col justify-between gap-8 lg:min-h-[251px]">
+            <Link
+              to="/"
+              className="shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
+            >
+              <MarketingLogo
+                width={141}
+                height={34}
+                className="h-[26px] max-w-[min(141px,50vw)]"
+              />
+            </Link>
+            <p className="m-0 text-sm text-[#141414]">
+              © 2026 Limited. All rights reserved.
             </p>
           </div>
 
-          <nav
-            aria-label="Footer"
-            className="flex w-full flex-wrap items-center gap-x-[15px] gap-y-2 lg:w-auto lg:gap-x-5"
-          >
-            <Button
-              variant="link"
-              size="link-sm"
-              asChild
-              className={footerNavLinkClass}
-            >
-              <HelpCentreHubLink>Help Centre</HelpCentreHubLink>
-            </Button>
-            <Button
-              variant="link"
-              size="link-sm"
-              asChild
-              className={footerNavLinkClass}
-            >
-              <Link to={HELP_CENTRE_CONTACT_URL}>Contact</Link>
-            </Button>
-            <Button
-              variant="link"
-              size="link-sm"
-              asChild
-              className={footerNavLinkClass}
-            >
-              <Link to={LEGAL_ROUTES.terms}>Terms of Service</Link>
-            </Button>
-            <Button
-              variant="link"
-              size="link-sm"
-              asChild
-              className={footerNavLinkClass}
-            >
-              <Link to={LEGAL_ROUTES.privacy}>Privacy Policy</Link>
-            </Button>
-            <Button
-              variant="link"
-              size="link-sm"
-              asChild
-              className={footerNavLinkClass}
-            >
-              <Link to={LEGAL_ROUTES.cookiePolicy}>Cookie Policy</Link>
-            </Button>
-            <CookieSettingsTrigger
-              className={cn(
-                footerNavLinkClass,
-                "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
-              )}
-            >
-              Cookie Settings
-            </CookieSettingsTrigger>
-          </nav>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:flex lg:flex-wrap lg:gap-x-[60px] xl:gap-x-[120px]">
+            {MARKETING_FOOTER_COLUMNS.map((column) => (
+              <div
+                key={column.id}
+                className="flex min-w-0 flex-col gap-5"
+              >
+                <p className={footerHeadingClass}>{column.title}</p>
+                <nav
+                  aria-label={column.title}
+                  className="flex flex-col gap-[18px]"
+                >
+                  {column.items.map((item) => {
+                    if (
+                      column.id === "trust"
+                      && item.id === "cookies"
+                    ) {
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex flex-col gap-2"
+                        >
+                          <MarketingNavLink
+                            label={item.label}
+                            href={item.href}
+                            className={footerLinkClass}
+                          />
+                          <CookieSettingsTrigger
+                            className={cn(
+                              footerLinkClass,
+                              "rounded-sm text-left no-underline hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30",
+                            )}
+                          >
+                            Cookie Settings
+                          </CookieSettingsTrigger>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <MarketingNavLink
+                        key={item.id}
+                        label={item.label}
+                        href={item.href}
+                        className={footerLinkClass}
+                      />
+                    )
+                  })}
+                </nav>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </footer>

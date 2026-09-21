@@ -37,7 +37,8 @@ import {
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { recoverySuccessChromeForRespondWithRecoveryOffer } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import { RECOVERY_SMS_SHORTFALL_BODY } from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
-import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
+import { RECOVERY_COMPOSER_COPY } from "@/lib/operatorFeedback/recoveryComposerPresentation"
+import { RecoveryComposerStatusBanner } from "@/components/dashboard/operator/Feedback/RecoveryComposerStatusBanner"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
   RESPONSE_SETUP_STEP_HEADING,
@@ -300,7 +301,7 @@ export function RespondWithRecoveryOfferWizard({
       title={
         isSuccess
           ? successChrome!.title
-          : RECOVERY_WIZARD_PAGE_TITLE
+          : RECOVERY_COMPOSER_COPY.pageTitle
       }
       description={
         isSuccess
@@ -422,6 +423,13 @@ export function RespondWithRecoveryOfferWizard({
       {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-[42px]">
           <div className="flex flex-1 flex-col gap-6">
+            {!isSuccess ? (
+              <RecoveryComposerStatusBanner
+                banner={snapshot.statusBanner}
+                eligibilityNotice={snapshot.eligibilityNotice}
+                disabled={locked}
+              />
+            ) : null}
             {snapshot.step === "setup" ? (
               <ResponseSetupFields
                 idPrefix="recovery-offer"

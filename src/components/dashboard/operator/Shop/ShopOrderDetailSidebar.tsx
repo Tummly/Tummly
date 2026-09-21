@@ -27,6 +27,7 @@ import {
 } from "@/lib/operatorShop/formatShopMoney"
 import { downloadShopOrderInvoicePdf } from "@/lib/operatorShop/downloadOrderInvoice"
 import type { DetailedShopOrder } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
+import { shopOrderCancelBlockMessage } from "@/lib/operatorShop/shopOrderCancelBlockMessage"
 import { cn } from "@/lib/utils"
 
 function formatShipToAddress(input: {
@@ -55,6 +56,8 @@ type ShopOrderDetailSidebarProps = {
   onOpenChange: (open: boolean) => void
   onReorder?: (order: DetailedShopOrder) => void
   onCancelOrder?: (order: DetailedShopOrder, reason: string) => void
+  /** Refresh order before opening cancel; return false to abort. */
+  onBeforeCancel?: (order: DetailedShopOrder) => Promise<boolean>
   onViewMaterial?: (order: DetailedShopOrder) => void
 }
 
@@ -64,6 +67,7 @@ export function ShopOrderDetailSidebar({
   onOpenChange,
   onReorder,
   onCancelOrder,
+  onBeforeCancel,
   onViewMaterial,
 }: ShopOrderDetailSidebarProps) {
   const [isReorderOpen, setIsReorderOpen] = useState(false)
@@ -92,6 +96,7 @@ export function ShopOrderDetailSidebar({
   }
 
   const detail = order.detail
+  const showVat = (detail?.vatPence ?? 0) > 0
   const progress = detail?.progress
   const receivedAt =
     formatShopProgressTimestamp(progress?.orderReceivedAtUtc) ?? order.orderDate
@@ -103,12 +108,7 @@ export function ShopOrderDetailSidebar({
   const invoiceDocumentNumber =
     detail?.paymentSummary?.invoiceDocumentNumber?.trim() || null
   const canCancel = order.canCancel === true
-  const cancelBlockMessage =
-    order.cancelBlockReason === "in_transit"
-      ? "This order has already been dispatched and cannot be cancelled."
-      : order.cancelBlockReason === "delivered"
-        ? "This order has been delivered and cannot be cancelled."
-        : null
+  const cancelBlockMessage = shopOrderCancelBlockMessage(order.cancelBlockReason)
 
   const handleDownloadInvoice = () => {
     void (async () => {
@@ -217,7 +217,18 @@ export function ShopOrderDetailSidebar({
                       </DropdownMenuItem>
                       {canCancel ? (
                         <DropdownMenuItem
-                          onClick={() => setIsCancelOrderOpen(true)}
+                          onClick={() => {
+                            void (async () => {
+                              if (onBeforeCancel) {
+                                const stillCancellable =
+                                  await onBeforeCancel(order)
+                                if (!stillCancellable) {
+                                  return
+                                }
+                              }
+                              setIsCancelOrderOpen(true)
+                            })()
+                          }}
                           className={cn(
                             FILTER_SELECT_ITEM_CLASS,
                             "cursor-pointer text-red-500 hover:text-red-500 focus:bg-red-500/10 focus:text-red-500"
@@ -399,7 +410,8 @@ export function ShopOrderDetailSidebar({
                       <div className="flex items-center justify-between">
                         <span className="text-op-text-muted">Line total</span>
                         <span className="font-medium text-op-text-primary">
-                          {formatShopGbpFromPence(line.lineNetPence)} excluding VAT
+                          {formatShopGbpFromPence(line.lineNetPence)}
+                          {showVat ? " excluding VAT" : ""}
                         </span>
                       </div>
                     </div>
@@ -482,12 +494,16 @@ export function ShopOrderDetailSidebar({
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-op-text-muted">VAT:</span>
-                  <span className="text-op-text-muted">
-                    {detail ? formatShopGbpFromPence(detail.vatPence) : "—"}
-                  </span>
-                </div>
+                {showVat ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-op-text-muted">VAT:</span>
+                    <span className="text-op-text-muted">
+                      {detail
+                        ? formatShopGbpFromPence(detail.vatPence)
+                        : "—"}
+                    </span>
+                  </div>
+                ) : null}
 
                 <div className="flex items-center justify-between pt-1 font-bold">
                   <span className="text-op-text-primary">Order total:</span>
@@ -502,11 +518,15 @@ export function ShopOrderDetailSidebar({
                   Payment method
                 </span>
                 <span className="text-sm text-op-text-muted">
-                  {detail?.paymentSummary.revolutOrderId
-                    ? `Revolut reference ${detail.paymentSummary.revolutOrderId}`
-                    : "Paid via Revolut checkout"}
+                  {order.isComplimentary || detail?.isComplimentary
+                    ? "Free starter materials"
+                    : detail?.paymentSummary.revolutOrderId
+                      ? `Revolut reference ${detail.paymentSummary.revolutOrderId}`
+                      : "Paid via Revolut checkout"}
                   {detail?.paymentSummary.paidAtUtc
-                    ? ` · Paid on ${formatShopProgressTimestamp(detail.paymentSummary.paidAtUtc)}`
+                    ? order.isComplimentary || detail?.isComplimentary
+                      ? ` · Included on ${formatShopProgressTimestamp(detail.paymentSummary.paidAtUtc)}`
+                      : ` · Paid on ${formatShopProgressTimestamp(detail.paymentSummary.paidAtUtc)}`
                     : ""}
                 </span>
               </div>
@@ -521,16 +541,24 @@ export function ShopOrderDetailSidebar({
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2.5">
                   <span className="text-lg font-medium text-op-text-primary">
-                    {invoiceDocumentNumber ?? "Invoice pending"}
+                    {order.isComplimentary || detail?.isComplimentary
+                      ? "No invoice"
+                      : (invoiceDocumentNumber ?? "Invoice pending")}
                   </span>
                   <span className="rounded-xs bg-green-600/20 px-2 py-0.5 text-xs font-medium text-green-500">
                     {order.paymentStatus}
                   </span>
                 </div>
 
-                {invoiceDocumentNumber == null ? (
+                {order.isComplimentary || detail?.isComplimentary ? (
                   <p className="text-sm text-op-text-muted">
-                    The VAT invoice appears here after payment clears.
+                    Complimentary starter materials do not generate an invoice.
+                  </p>
+                ) : invoiceDocumentNumber == null ? (
+                  <p className="text-sm text-op-text-muted">
+                    {showVat
+                      ? "The VAT invoice appears here after payment clears."
+                      : "The invoice appears here after payment clears."}
                   </p>
                 ) : null}
               </div>
@@ -539,7 +567,11 @@ export function ShopOrderDetailSidebar({
                 <Button
                   type="button"
                   variant="op-secondary"
-                  disabled={invoiceDocumentNumber == null}
+                  disabled={
+                    invoiceDocumentNumber == null
+                    || order.isComplimentary === true
+                    || detail?.isComplimentary === true
+                  }
                   onClick={handleDownloadInvoice}
                 >
                   Download invoice

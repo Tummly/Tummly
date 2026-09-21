@@ -15,11 +15,11 @@ namespace TummlyBackend.Services
             ActivationIntent intent
         )
         {
+            // Pending activation no longer blocks API access — accounts activate
+            // at Guest Loop provision. Reason stays Pending for admin status.
             if (ActivationState.RequiresActivation(subject))
             {
-                return intent == ActivationIntent.ApiAccess
-                    ? Block(ActivationReason.Pending, ActivationRequiredMessage)
-                    : Allow(ActivationReason.Pending, string.Empty);
+                return Allow(ActivationReason.Pending, string.Empty);
             }
 
             if (ActivationState.IsActivationExpired(subject))

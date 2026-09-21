@@ -3089,7 +3089,7 @@ describe("createOperatorHomePageModule", () => {
     })
 
     expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
-    expect(getWeeklyBrief.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(getWeeklyBrief.mock.calls.length).toBeGreaterThanOrEqual(1)
     expect(home.getSnapshot().weeklyBrief.body?.watchNext).toHaveLength(2)
   })
 
@@ -3177,12 +3177,12 @@ describe("createOperatorHomePageModule", () => {
     expect(generateWeeklyBrief).not.toHaveBeenCalled()
   })
 
-  it("errors when generate succeeds but re-GET is still not ready", async () => {
+  it("keeps empty when soft generate returns not ready", async () => {
     const getWeeklyBrief = vi.fn(async (locationId: number) =>
       notReadyWeeklyBriefResponse(locationId)
     )
     const generateWeeklyBrief = vi.fn(async (locationId: number) =>
-      readyWeeklyBriefResponse(locationId)
+      notReadyWeeklyBriefResponse(locationId)
     )
     const home = createOperatorHomePageModule(
       createAdapters({ getWeeklyBrief, generateWeeklyBrief })
@@ -3190,10 +3190,11 @@ describe("createOperatorHomePageModule", () => {
 
     await home.syncWorkspace(workspaceInput())
     await vi.waitFor(() => {
-      expect(home.getSnapshot().weeklyBrief.status).toBe("error")
+      expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
     })
-    expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
-    expect(getWeeklyBrief.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(home.getSnapshot().weeklyBrief.status).toBe("empty")
+    expect(home.getSnapshot().weeklyBrief.week).toBe("2026-W33")
     expect(home.getSnapshot().weeklyBrief.body).toBeNull()
+    expect(home.getSnapshot().weeklyBrief.errorMessage).toBeNull()
   })
 })

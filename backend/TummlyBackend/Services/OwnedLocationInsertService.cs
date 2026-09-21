@@ -17,19 +17,16 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebookCatalog;
         private readonly IQrCodeProvisioningService _qrCodeProvisioning;
-        private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
 
         public OwnedLocationInsertService(
             ApplicationDbContext context,
             IPricebookCatalog pricebookCatalog,
-            IQrCodeProvisioningService qrCodeProvisioning,
-            IPrintReadyQrMaterialsWork printReadyQrMaterialsWork
+            IQrCodeProvisioningService qrCodeProvisioning
         )
         {
             _context = context;
             _pricebookCatalog = pricebookCatalog;
             _qrCodeProvisioning = qrCodeProvisioning;
-            _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
         }
 
         public const int ImportMaxRows = 100;
@@ -244,7 +241,6 @@ namespace TummlyBackend.Services
             );
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
-            await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
 
             return new AddOwnedLocationResult.Created(location.Id);
         }

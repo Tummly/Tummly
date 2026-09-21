@@ -45,6 +45,9 @@ type AccountMenuProps = {
   profileSelfRoleSubtitle: string | null
   onSignOut: () => void
   onOpenNotificationPreferences?: () => void
+  /** Settings → Account & workspace. Omit to keep My Account disabled. */
+  myAccountTo?: string
+  onNavigateMyAccount?: () => void
 }
 
 export function AccountMenu({
@@ -53,10 +56,13 @@ export function AccountMenu({
   profileSelfRoleSubtitle,
   onSignOut,
   onOpenNotificationPreferences,
+  myAccountTo,
+  onNavigateMyAccount,
 }: AccountMenuProps) {
   const [open, setOpen] = useState(false)
   const [panel, setPanel] = useState<AccountMenuPanel>("root")
   const notificationPreferencesEnabled = onOpenNotificationPreferences != null
+  const myAccountEnabled = myAccountTo != null && myAccountTo.length > 0
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
@@ -119,6 +125,9 @@ export function AccountMenu({
           <ThemeSwitchPanel onBack={() => setPanel("root")} />
         ) : (
           <RootAccountPanel
+            myAccountEnabled={myAccountEnabled}
+            myAccountTo={myAccountTo}
+            onNavigateMyAccount={onNavigateMyAccount}
             notificationPreferencesEnabled={notificationPreferencesEnabled}
             onOpenNotificationPreferences={onOpenNotificationPreferences}
             onOpenThemeSwitch={() => setPanel("theme")}
@@ -131,11 +140,17 @@ export function AccountMenu({
 }
 
 function RootAccountPanel({
+  myAccountEnabled,
+  myAccountTo,
+  onNavigateMyAccount,
   notificationPreferencesEnabled,
   onOpenNotificationPreferences,
   onOpenThemeSwitch,
   onSignOut,
 }: {
+  myAccountEnabled: boolean
+  myAccountTo?: string
+  onNavigateMyAccount?: () => void
   notificationPreferencesEnabled: boolean
   onOpenNotificationPreferences?: () => void
   onOpenThemeSwitch: () => void
@@ -144,9 +159,17 @@ function RootAccountPanel({
   return (
     <>
       <DropdownMenuGroup>
-        <DropdownMenuItem disabled className={OPERATOR_SHELL_MENU_ITEM_CLASS}>
-          My Account
-        </DropdownMenuItem>
+        {myAccountEnabled && myAccountTo != null ? (
+          <DropdownMenuItem asChild className={OPERATOR_SHELL_MENU_ITEM_CLASS}>
+            <Link to={myAccountTo} onClick={onNavigateMyAccount}>
+              My Account
+            </Link>
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem disabled className={OPERATOR_SHELL_MENU_ITEM_CLASS}>
+            My Account
+          </DropdownMenuItem>
+        )}
       </DropdownMenuGroup>
       <DropdownMenuSeparator className="mx-0" />
       <DropdownMenuGroup>

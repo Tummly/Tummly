@@ -86,6 +86,7 @@ namespace TummlyBackend.Tests.Services
                 Options.Create(
                     new TummlySellerVatSettings
                     {
+                        IsActive = true,
                         RegistrationNumber = "GB123456789",
                         EffectiveDate = "2024-01-01",
                         LegalName = "Tummly Ltd",

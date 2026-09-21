@@ -105,6 +105,10 @@ builder.Services.Configure<RevolutSettings>(
 builder.Services.AddOptions<TummlySellerVatSettings>()
     .Configure<IConfiguration>((options, configuration) =>
     {
+        options.IsActive = configuration.GetValue(
+            TummlySellerVatSettings.ModeActiveKey,
+            false
+        );
         options.RegistrationNumber =
             configuration[TummlySellerVatSettings.RegistrationNumberKey]
             ?? string.Empty;
@@ -261,6 +265,7 @@ builder.Services.AddOperatorSignalR(builder.Configuration);
 
 builder.Services.AddScoped<ITrialService, TrialService>();
 
+builder.Services.AddScoped<ISignupService, SignupService>();
 builder.Services.AddScoped<IProvisioningService, GuestLoopProvisioningService>();
 
 builder.Services.AddScoped<ISmartGuestLinkService, SmartGuestLinkService>();
@@ -533,6 +538,11 @@ builder.Services.AddScoped<
     LocationGuestPermissionLedgerService
 >();
 builder.Services.AddScoped<
+    IGuestInitiatedMarketingWithdrawService,
+    GuestInitiatedMarketingWithdrawService
+>();
+builder.Services.AddScoped<TwilioSmsInboundService>();
+builder.Services.AddScoped<
     IGuestFormPermissionApplyService,
     GuestFormPermissionApplyService
 >();
@@ -583,6 +593,10 @@ builder.Services.AddScoped<IShopCartService, ShopCartService>();
 builder.Services.AddScoped<IShopLocationRecommendationsService, ShopLocationRecommendationsService>();
 builder.Services.AddScoped<IShopOrderNumberAllocator, ShopOrderNumberAllocator>();
 builder.Services.AddScoped<IShopOrderPlaceService, ShopOrderPlaceService>();
+builder.Services.AddScoped<
+    IComplimentaryStarterShopOrderService,
+    ComplimentaryStarterShopOrderService
+>();
 builder.Services.AddScoped<IShopMaterialsOrderPaySession, ShopMaterialsOrderPaySessionService>();
 builder.Services.AddScoped<IShopOrdersListService, ShopOrdersListService>();
 builder.Services.AddScoped<IShopOrderCancelReorderService, ShopOrderCancelReorderService>();
@@ -1043,6 +1057,8 @@ builder.Services.AddScoped<IRestaurantPermissionHelper, RestaurantPermissionHelp
 builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
+builder.Services.AddScoped<IGuestRetentionPurgeService, GuestRetentionPurgeService>();
 
 builder.Services.AddScoped<IHelpCentreService, HelpCentreService>();
 
@@ -1094,6 +1110,7 @@ builder.Services.AddHostedService<
 
 builder.Services.AddHostedService<ActivationNotificationBackgroundService>();
 builder.Services.AddHostedService<IncludedPeriodBackgroundService>();
+builder.Services.AddHostedService<GuestRetentionPurgeBackgroundService>();
 
 builder.Services.AddHostedService<WeeklyBriefMondayBackgroundService>();
 
@@ -1209,10 +1226,11 @@ app.MapGet("/health/revolut", (
 {
     var revolut = revolutOptions.Value;
     var vat = vatOptions.Value;
+    var useGrossMap = vat.IsActive;
     var configuredVariations = 0;
     foreach (var key in RevolutPlanVariationKeys.All)
     {
-        if (revolut.TryGetPlanVariationId(key, out _))
+        if (revolut.TryGetPlanVariationId(key, useGrossMap, out _))
         {
             configuredVariations++;
         }
@@ -1231,6 +1249,7 @@ app.MapGet("/health/revolut", (
             webhookSigningSecretConfigured =
                 !string.IsNullOrWhiteSpace(revolut.WebhookSigningSecret),
             sellerVatComplete = vat.IsComplete,
+            vatModeActive = vat.IsActive,
             planVariationsConfigured = configuredVariations,
             planVariationsExpected = RevolutPlanVariationKeys.All.Count,
             createBlockedCode = createBlocked,

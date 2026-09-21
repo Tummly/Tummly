@@ -743,12 +743,21 @@ export function GuestProfileShell({
         onSetCloseOutAcknowledged={onSetFeedbackCloseOutAcknowledged}
         onConfirmCloseOut={onConfirmFeedbackCloseOut}
         onViewGuestProfile={onViewGuestProfile}
-        onStartRecovery={() => {
+        onRespondToGuest={() => {
           const feedbackId = feedbackDetails.feedbackId
           if (feedbackId == null) {
             return
           }
-          onStartRecovery(feedbackId)
+          onFeedbackDetailsOpenChange(false)
+          void recoveryWizards.openDetailRespondToGuest(feedbackId)
+        }}
+        onAddOffer={() => {
+          const feedbackId = feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          onFeedbackDetailsOpenChange(false)
+          void recoveryWizards.openDetailAddOffer(feedbackId)
         }}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}

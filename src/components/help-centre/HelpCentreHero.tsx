@@ -1,6 +1,6 @@
 import { Search, X } from "lucide-react"
 
-import { helpCenterBgPicture } from "@/assets/critical-images"
+import { helpCenterBgPicture } from "@/assets/critical-images/help-center-bg"
 import { FULL_BLEED_IMAGE_SIZES } from "@/lib/imagePresets";
 import OptimizedImage from "@/components/media/OptimizedImage"
 import { marketingSectionInset } from "@/lib/marketing-layout"

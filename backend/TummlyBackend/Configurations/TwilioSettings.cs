@@ -23,6 +23,13 @@ namespace TummlyBackend.Configurations
         public string RecoveryFromNumber { get; set; } = string.Empty;
 
         /// <summary>
+        /// E.164 (or Twilio sender id) → restaurantId for inbound STOP routing.
+        /// Key format: digits with leading +, e.g. +447700900123.
+        /// </summary>
+        public Dictionary<string, int> InboundNumberRestaurants { get; set; } =
+            new();
+
+        /// <summary>
         /// ISO 3166-1 alpha-2 region used when parsing numbers without a + prefix.
         /// Defaults to GB (United Kingdom).
         /// </summary>

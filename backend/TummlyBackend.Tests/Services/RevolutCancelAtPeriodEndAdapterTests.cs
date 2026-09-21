@@ -23,7 +23,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProcessJob_AtRenewal_ClearsCancelSlot_WithoutImmediateRevolutCancel()
+        public async Task ProcessJob_AtRenewal_ClearsCancelSlot_AndCallsNativeCancel()
         {
             var renewal = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
             var merchant = new RecordingCancelMerchant();
@@ -52,10 +52,66 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.True(result.Succeeded);
-            Assert.Equal(0, merchant.CancelCallCount);
+            Assert.Equal("cancel_applied", result.Code);
+            Assert.Equal(1, merchant.CancelCallCount);
+            Assert.Equal("sub_live_period_end", merchant.LastCancelledSubscriptionId);
 
             await harness.Context.Entry(account).ReloadAsync();
             Assert.False(account.ScheduledCancelPlan);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Null(account.BillingCycle);
+            Assert.Equal(BillingStatuses.SoftLock, account.BillingStatus);
+            Assert.Equal(renewal, account.SoftLockEnteredAt);
+            Assert.Equal(renewal, account.PilotPeriodEnd);
+        }
+
+        [Fact]
+        public async Task ProcessJob_AtRenewal_AppliesPostCancelSoftLock()
+        {
+            var renewal = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var merchant = new RecordingCancelMerchant();
+            var harness = await SeedPaidWithSubscriptionAsync(
+                merchant,
+                utcNow: renewal,
+                subscriptionId: "sub_soft_lock_apply"
+            );
+            var account = await harness.Context.BillingAccounts.SingleAsync();
+            account.ScheduledCancelPlan = true;
+            account.HasScheduledChange = true;
+            account.RenewalDateUtc = renewal;
+            account.DunningEpisodeStartedAt = renewal.AddDays(-2);
+            account.DunningFiredSteps = "0,3";
+            account.DunningOutstandingOrderId = "ord_open_dunning";
+            await harness.Context.SaveChangesAsync();
+
+            var yearStart = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            await InsertIncludedGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                yearStart,
+                yearStart.AddMonths(1)
+            );
+
+            var result = await harness.Mint.ProcessJobForRestaurantAsync(
+                harness.RestaurantId,
+                nowUtc: renewal
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Equal("cancel_applied", result.Code);
+            Assert.Empty(result.InsertedAllocationIds);
+
+            await harness.Context.Entry(account).ReloadAsync();
+            Assert.False(account.ScheduledCancelPlan);
+            Assert.False(account.HasScheduledChange);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Null(account.BillingCycle);
+            Assert.Equal(BillingStatuses.SoftLock, account.BillingStatus);
+            Assert.Equal(renewal, account.SoftLockEnteredAt);
+            Assert.Equal(renewal, account.PilotPeriodEnd);
+            Assert.Null(account.DunningEpisodeStartedAt);
+            Assert.Null(account.DunningFiredSteps);
+            Assert.Null(account.DunningOutstandingOrderId);
         }
 
         [Fact]
@@ -233,11 +289,16 @@ namespace TummlyBackend.Tests.Services
             await context.SaveChangesAsync();
 
             var adapter = new RevolutCancelAtPeriodEndAdapter(context, merchant);
+            var lifecycle = new BillingAccountLifecycleService(
+                context,
+                new NoOpBillingAccountNoticeNotifier()
+            );
             var mint = new IncludedPeriodMintService(
                 context,
                 _pricebook,
                 clock,
-                revolutCancel: adapter
+                revolutCancel: adapter,
+                lifecycle: lifecycle
             );
 
             return new Harness(context, mint, restaurant.Id);
@@ -329,6 +390,39 @@ namespace TummlyBackend.Tests.Services
             }
 
             public override DateTimeOffset GetUtcNow() => _utcNow;
+        }
+
+        private sealed class NoOpBillingAccountNoticeNotifier
+            : IBillingAccountNoticeNotifier
+        {
+            public Task NotifyCreditThresholdCrossedAsync(
+                int restaurantId,
+                string channel,
+                int thresholdBand,
+                string periodKey,
+                string billingStatus,
+                bool isPilot,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task NotifyPaymentFailureDayStepAsync(
+                int restaurantId,
+                int dayStep,
+                string episodeId,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task NotifyUnpaidPilotLockEnterAsync(
+                int restaurantId,
+                string episodeKey,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task NotifyUnpaidPilotDormantEnterAsync(
+                int restaurantId,
+                string episodeKey,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
 
         private sealed class RecordingCancelMerchant : IRevolutMerchantClient

@@ -33,7 +33,7 @@ namespace TummlyBackend.Services
 
         public string? Evaluate(string? planVariationLookupKey = null)
         {
-            if (!_vat.IsComplete)
+            if (_vat.IsActive && !_vat.IsComplete)
             {
                 return VatNotReady;
             }
@@ -56,6 +56,7 @@ namespace TummlyBackend.Services
             if (
                 !_revolut.TryGetPlanVariationId(
                     planVariationLookupKey.Trim(),
+                    useGrossMap: _vat.IsActive,
                     out _
                 )
             )

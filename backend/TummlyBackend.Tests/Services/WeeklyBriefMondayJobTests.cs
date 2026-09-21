@@ -263,6 +263,78 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task ProcessAsync_SkipsLocation_WhenCreatedAtOrAfterClosedWeekStart()
+        {
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                LondonMondayMidnightUtc
+            );
+            var tooNew = await SeedLocationAsync(
+                "Brand New",
+                createdAtUtc: closed.CoverageStartUtc
+            );
+            var eligible = await SeedLocationAsync(
+                "Established",
+                createdAtUtc: closed.CoverageStartUtc.AddSeconds(-1)
+            );
+
+            var batch = await _job.ProcessAsync(LondonMondayMidnightUtc);
+
+            Assert.Equal(1, batch.Generated);
+            Assert.Equal(1, batch.Skipped);
+            Assert.Equal(0, batch.Failed);
+            Assert.Equal(1, _provider.CallCount);
+            Assert.False(
+                await _context.WeeklyBriefs.AnyAsync(row =>
+                    row.LocationId == tooNew
+                )
+            );
+            Assert.True(
+                await _context.WeeklyBriefs.AnyAsync(row =>
+                    row.LocationId == eligible
+                    && row.WeekKey == "monday:2026-08-10"
+                    && row.Status == WeeklyBriefStatus.Succeeded
+                )
+            );
+            Assert.Single(_notifier.Calls);
+            Assert.Equal(eligible, _notifier.Calls[0].LocationId);
+        }
+
+        [Fact]
+        public async Task ProcessAsync_SkipsPilotPlan_WithoutGenerateOrNotify()
+        {
+            var pilot = await SeedLocationAsync(
+                "Pilot Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Pilot
+            );
+            var paid = await SeedLocationAsync(
+                "Paid Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Growth
+            );
+
+            var batch = await _job.ProcessAsync(LondonMondayMidnightUtc);
+
+            Assert.Equal(1, batch.Generated);
+            Assert.Equal(1, batch.Skipped);
+            Assert.Equal(0, batch.Failed);
+            Assert.Equal(1, _provider.CallCount);
+            Assert.False(
+                await _context.WeeklyBriefs.AnyAsync(row =>
+                    row.LocationId == pilot
+                )
+            );
+            Assert.True(
+                await _context.WeeklyBriefs.AnyAsync(row =>
+                    row.LocationId == paid
+                    && row.WeekKey == "monday:2026-08-10"
+                    && row.Status == WeeklyBriefStatus.Succeeded
+                )
+            );
+            Assert.Single(_notifier.Calls);
+            Assert.Equal(paid, _notifier.Calls[0].LocationId);
+        }
+
         public void Dispose()
         {
             _context.Dispose();
@@ -270,7 +342,9 @@ namespace TummlyBackend.Tests.Services
 
         private async Task<int> SeedLocationAsync(
             string locationName,
-            string? weekStartsOn = null
+            string? weekStartsOn = null,
+            DateTime? createdAtUtc = null,
+            string? subscriptionPlan = null
         )
         {
             var restaurant = new Restaurant
@@ -284,12 +358,38 @@ namespace TummlyBackend.Tests.Services
             _context.Restaurants.Add(restaurant);
             await _context.SaveChangesAsync();
 
+            if (subscriptionPlan is not null)
+            {
+                var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                );
+                billing.SubscriptionPlan = subscriptionPlan;
+                if (
+                    !string.Equals(
+                        subscriptionPlan,
+                        BillingSubscriptionPlans.Pilot,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    billing.BillingStatus = BillingStatuses.Active;
+                    billing.BillingCycle = BillingCycles.Monthly;
+                }
+
+                _context.BillingAccounts.Add(billing);
+            }
+
+            // Default: older than the Aug 2026 closed weeks used by these fixtures.
+            var createdAt = createdAtUtc
+                ?? new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
                 LocationName = locationName,
                 Address = "1 Harbour Way",
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = createdAt,
             };
             _context.RestaurantLocations.Add(location);
             await _context.SaveChangesAsync();

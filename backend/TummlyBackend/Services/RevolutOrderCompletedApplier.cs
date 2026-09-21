@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -29,6 +31,7 @@ namespace TummlyBackend.Services
             private readonly ICreditLedger _creditLedger;
             private readonly IRevolutMerchantClient _merchant;
             private readonly TimeProvider _clock;
+            private readonly TummlySellerVatSettings _sellerVat;
 
             public RevolutOrderCompletedApplier(
                 ApplicationDbContext context,
@@ -39,6 +42,7 @@ namespace TummlyBackend.Services
                 ICreditLedger creditLedger,
                 IRevolutMerchantClient merchant,
                 TimeProvider clock,
+                IOptions<TummlySellerVatSettings> sellerVat,
                 ITummlyVatInvoiceEmailDelivery? invoiceEmail = null
             )
             {
@@ -51,6 +55,7 @@ namespace TummlyBackend.Services
                 _creditLedger = creditLedger;
                 _merchant = merchant;
                 _clock = clock;
+                _sellerVat = sellerVat.Value;
             }
 
         public static bool IsMintableBillingReason(string? billingReason)
@@ -281,16 +286,19 @@ namespace TummlyBackend.Services
                 );
             }
 
-            BillingActivityWriter.TryAppend(
-                _context,
-                new BillingActivityAppendRequest
-                {
-                    RestaurantId = billingAccount.RestaurantId,
-                    Kind = BillingActivityKinds.InvoicePaid,
-                    OccurredAtUtc = nowUtc,
-                    InvoiceNo = invoice.DocumentNumber,
-                }
-            );
+            if (invoice != null)
+            {
+                BillingActivityWriter.TryAppend(
+                    _context,
+                    new BillingActivityAppendRequest
+                    {
+                        RestaurantId = billingAccount.RestaurantId,
+                        Kind = BillingActivityKinds.InvoicePaid,
+                        OccurredAtUtc = nowUtc,
+                        InvoiceNo = invoice.DocumentNumber,
+                    }
+                );
+            }
             await _context.SaveChangesAsync(cancellationToken);
         }
 
@@ -299,8 +307,9 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            var restaurantId = RequireRestaurantId(intent);
             await _planChange.ApplyImmediateSameCadenceUpgradeAsync(
-                intent.RestaurantId,
+                restaurantId,
                 intent.TargetPlan,
                 cancellationToken
             );
@@ -331,7 +340,7 @@ namespace TummlyBackend.Services
                 new TummlyVatInvoiceMintRequest(
                     RevolutOrderId: intent.OrderId,
                     RevolutSubscriptionId: intent.RevolutSubscriptionId,
-                    RestaurantId: intent.RestaurantId,
+                    RestaurantId: restaurantId,
                     Plan: intent.TargetPlan,
                     BillingCycle: CadenceToBillingCycle(intent.TargetCadence),
                     PaymentSuccessUtc: taxPoint,
@@ -342,30 +351,33 @@ namespace TummlyBackend.Services
             );
 
             var actorName = await ResolveOwnerDisplayNameAsync(
-                intent.RestaurantId,
+                restaurantId,
                 cancellationToken
             );
             BillingActivityWriter.TryAppend(
                 _context,
                 new BillingActivityAppendRequest
                 {
-                    RestaurantId = intent.RestaurantId,
+                    RestaurantId = restaurantId,
                     Kind = BillingActivityKinds.SubscriptionUpgraded,
                     OccurredAtUtc = taxPoint,
                     ActorDisplayName = actorName,
                     Plan = intent.TargetPlan,
                 }
             );
-            BillingActivityWriter.TryAppend(
-                _context,
-                new BillingActivityAppendRequest
-                {
-                    RestaurantId = intent.RestaurantId,
-                    Kind = BillingActivityKinds.InvoicePaid,
-                    OccurredAtUtc = taxPoint,
-                    InvoiceNo = invoice.DocumentNumber,
-                }
-            );
+            if (invoice != null)
+            {
+                BillingActivityWriter.TryAppend(
+                    _context,
+                    new BillingActivityAppendRequest
+                    {
+                        RestaurantId = restaurantId,
+                        Kind = BillingActivityKinds.InvoicePaid,
+                        OccurredAtUtc = taxPoint,
+                        InvoiceNo = invoice.DocumentNumber,
+                    }
+                );
+            }
 
             if (intent.IsOpen)
             {
@@ -439,6 +451,7 @@ namespace TummlyBackend.Services
             billingAccount.PilotPeriodEnd = null;
             billingAccount.SoftLockEnteredAt = null;
             billingAccount.DormantEnteredAt = null;
+            billingAccount.GuestRetentionPurgedAtUtc = null;
             billingAccount.PilotSoftLockNotified = false;
             billingAccount.PilotDormantNotified = false;
         }
@@ -453,9 +466,10 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            var restaurantId = RequireRestaurantId(intent);
             var nowUtc = _clock.GetUtcNow().UtcDateTime;
             var apply = await _extraGroupLocation.ApplyAddOnOrderCompletedAsync(
-                intent.RestaurantId,
+                restaurantId,
                 nowUtc,
                 cancellationToken
             );
@@ -472,7 +486,7 @@ namespace TummlyBackend.Services
                 subscriptionId =
                     await RevolutSubscriptionCorrelation.ResolveLatestSubscriptionIdAsync(
                         _context,
-                        intent.RestaurantId,
+                        restaurantId,
                         cancellationToken
                     ) ?? string.Empty;
             }
@@ -502,7 +516,7 @@ namespace TummlyBackend.Services
                     RevolutSubscriptionId: string.IsNullOrWhiteSpace(subscriptionId)
                         ? null
                         : subscriptionId,
-                    RestaurantId: intent.RestaurantId,
+                    RestaurantId: restaurantId,
                     Plan: BillingSubscriptionPlans.Group,
                     BillingCycle: CadenceToBillingCycle(cadenceApi),
                     PaymentSuccessUtc: nowUtc,
@@ -515,30 +529,33 @@ namespace TummlyBackend.Services
             );
 
             var actorName = await ResolveOwnerDisplayNameAsync(
-                intent.RestaurantId,
+                restaurantId,
                 cancellationToken
             );
             BillingActivityWriter.TryAppend(
                 _context,
                 new BillingActivityAppendRequest
                 {
-                    RestaurantId = intent.RestaurantId,
+                    RestaurantId = restaurantId,
                     Kind = BillingActivityKinds.AdditionalLocationAdded,
                     OccurredAtUtc = nowUtc,
                     ActorDisplayName = actorName,
                     LocationName = "Additional Group Location",
                 }
             );
-            BillingActivityWriter.TryAppend(
-                _context,
-                new BillingActivityAppendRequest
-                {
-                    RestaurantId = intent.RestaurantId,
-                    Kind = BillingActivityKinds.InvoicePaid,
-                    OccurredAtUtc = nowUtc,
-                    InvoiceNo = invoice.DocumentNumber,
-                }
-            );
+            if (invoice != null)
+            {
+                BillingActivityWriter.TryAppend(
+                    _context,
+                    new BillingActivityAppendRequest
+                    {
+                        RestaurantId = restaurantId,
+                        Kind = BillingActivityKinds.InvoicePaid,
+                        OccurredAtUtc = nowUtc,
+                        InvoiceNo = invoice.DocumentNumber,
+                    }
+                );
+            }
 
             if (intent.IsOpen)
             {
@@ -558,6 +575,7 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            var restaurantId = RequireRestaurantId(intent);
             var channel = (intent.Channel ?? string.Empty).Trim().ToLowerInvariant();
             var quantity = intent.Quantity ?? 0;
             if (string.IsNullOrWhiteSpace(channel) || quantity <= 0)
@@ -569,7 +587,7 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .AnyAsync(
                     row =>
-                        row.RestaurantId == intent.RestaurantId
+                        row.RestaurantId == restaurantId
                         && row.SourcePaymentRef == intent.OrderId
                         && row.EntryType == CreditLedgerEntryTypes.TopupAllocation,
                     cancellationToken
@@ -580,7 +598,7 @@ namespace TummlyBackend.Services
                 var mintResult = await _creditLedger.MintTopupAllocationAsync(
                     new CreditLedgerMintTopupRequest
                     {
-                        RestaurantId = intent.RestaurantId,
+                        RestaurantId = restaurantId,
                         Channel = channel,
                         Quantity = quantity,
                         SourcePaymentRef = intent.OrderId,
@@ -599,7 +617,7 @@ namespace TummlyBackend.Services
             var billingAccount = await _context.BillingAccounts
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
-                    row => row.RestaurantId == intent.RestaurantId,
+                    row => row.RestaurantId == restaurantId,
                     cancellationToken
                 );
             var plan = billingAccount?.SubscriptionPlan
@@ -614,7 +632,7 @@ namespace TummlyBackend.Services
                 new TummlyVatInvoiceMintRequest(
                     RevolutOrderId: intent.OrderId,
                     RevolutSubscriptionId: null,
-                    RestaurantId: intent.RestaurantId,
+                    RestaurantId: restaurantId,
                     Plan: plan,
                     BillingCycle: cycle,
                     PaymentSuccessUtc: nowUtc,
@@ -627,14 +645,14 @@ namespace TummlyBackend.Services
             );
 
             var actorName = await ResolveOwnerDisplayNameAsync(
-                intent.RestaurantId,
+                restaurantId,
                 cancellationToken
             );
             BillingActivityWriter.TryAppend(
                 _context,
                 new BillingActivityAppendRequest
                 {
-                    RestaurantId = intent.RestaurantId,
+                    RestaurantId = restaurantId,
                     Kind = BillingActivityKinds.TopupPurchased,
                     OccurredAtUtc = nowUtc,
                     ActorDisplayName = actorName,
@@ -642,16 +660,19 @@ namespace TummlyBackend.Services
                     Qty = quantity,
                 }
             );
-            BillingActivityWriter.TryAppend(
-                _context,
-                new BillingActivityAppendRequest
-                {
-                    RestaurantId = intent.RestaurantId,
-                    Kind = BillingActivityKinds.InvoicePaid,
-                    OccurredAtUtc = nowUtc,
-                    InvoiceNo = invoice.DocumentNumber,
-                }
-            );
+            if (invoice != null)
+            {
+                BillingActivityWriter.TryAppend(
+                    _context,
+                    new BillingActivityAppendRequest
+                    {
+                        RestaurantId = restaurantId,
+                        Kind = BillingActivityKinds.InvoicePaid,
+                        OccurredAtUtc = nowUtc,
+                        InvoiceNo = invoice.DocumentNumber,
+                    }
+                );
+            }
 
             if (intent.IsOpen)
             {
@@ -672,6 +693,7 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            var restaurantId = RequireRestaurantId(intent);
             if (intent.ShopOrderId is not Guid shopOrderId)
             {
                 throw new InvalidOperationException("invalid_shop_order_intent");
@@ -682,7 +704,7 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync(
                     row =>
                         row.Id == shopOrderId
-                        && row.RestaurantId == intent.RestaurantId,
+                        && row.RestaurantId == restaurantId,
                     cancellationToken
                 );
             if (shopOrder == null)
@@ -701,7 +723,7 @@ namespace TummlyBackend.Services
             var billingAccount = await _context.BillingAccounts
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
-                    row => row.RestaurantId == intent.RestaurantId,
+                    row => row.RestaurantId == restaurantId,
                     cancellationToken
                 );
             var plan = billingAccount?.SubscriptionPlan
@@ -709,7 +731,7 @@ namespace TummlyBackend.Services
             var cycle = billingAccount?.BillingCycle ?? BillingCycles.Monthly;
             var lineDescription =
                 $"Tummly Shop materials order {shopOrder.OrderNumber}";
-            var vatRateBps = TummlyVatMath.DefaultVatRateBps;
+            var vatRateBps = _sellerVat.EffectiveVatRateBps;
             var lineItems = BuildShopInvoiceLineItems(shopOrder, vatRateBps);
             var deliverTo = FormatShopDeliverToSnapshot(shopOrder);
             var paymentSummary = string.IsNullOrWhiteSpace(paymentMethodSummary)
@@ -720,7 +742,7 @@ namespace TummlyBackend.Services
                 new TummlyVatInvoiceMintRequest(
                     RevolutOrderId: intent.OrderId,
                     RevolutSubscriptionId: null,
-                    RestaurantId: intent.RestaurantId,
+                    RestaurantId: restaurantId,
                     Plan: plan,
                     BillingCycle: cycle,
                     PaymentSuccessUtc: nowUtc,
@@ -736,16 +758,19 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            BillingActivityWriter.TryAppend(
-                _context,
-                new BillingActivityAppendRequest
-                {
-                    RestaurantId = intent.RestaurantId,
-                    Kind = BillingActivityKinds.InvoicePaid,
-                    OccurredAtUtc = nowUtc,
-                    InvoiceNo = invoice.DocumentNumber,
-                }
-            );
+            if (invoice != null)
+            {
+                BillingActivityWriter.TryAppend(
+                    _context,
+                    new BillingActivityAppendRequest
+                    {
+                        RestaurantId = restaurantId,
+                        Kind = BillingActivityKinds.InvoicePaid,
+                        OccurredAtUtc = nowUtc,
+                        InvoiceNo = invoice.DocumentNumber,
+                    }
+                );
+            }
 
             if (intent.IsOpen)
             {
@@ -885,11 +910,16 @@ namespace TummlyBackend.Services
             );
         }
 
-        private async Task<TummlyVatInvoice> MintInvoiceAndDeliverEmailAsync(
+        private async Task<TummlyVatInvoice?> MintInvoiceAndDeliverEmailAsync(
             TummlyVatInvoiceMintRequest request,
             CancellationToken cancellationToken
         )
         {
+            if (!_sellerVat.IsActive)
+            {
+                return null;
+            }
+
             var preexisting = await _vatInvoices.FindByRevolutOrderIdAsync(
                 request.RevolutOrderId,
                 cancellationToken
@@ -904,6 +934,12 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
             return invoice;
+        }
+
+        private static int RequireRestaurantId(RevolutOrderIntent intent)
+        {
+            return intent.RestaurantId
+                ?? throw new InvalidOperationException("missing_restaurant_id");
         }
 
         private static string CadenceToBillingCycle(string targetCadence)

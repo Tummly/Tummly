@@ -20,10 +20,18 @@ import RegisterSinglePage from "../auth/RegisterSinglePage";
 import RegisterMultiPage from "../auth/RegisterMultiPage";
 import ResetPasswordPage from "../auth/ResetPasswordPage";
 import ForgotPasswordPage from "../auth/ForgotPasswordPage";
+import VerifyEmailPage from "../auth/VerifyEmailPage";
+import SignupPage from "../auth/SignupPage";
+import SignupVerifyPage from "../auth/SignupVerifyPage";
+import SignupOnboardingPage from "../auth/SignupOnboardingPage";
+import SignupChoosePlanRedirectPage from "../auth/SignupChoosePlanRedirectPage";
+import SignupProvisioningPage from "../auth/SignupProvisioningPage";
 import GuestFeedbackPage from "../public/GuestFeedbackPage";
 import PrivacyPage from "../public/PrivacyPage";
 import TermsPage from "../public/TermsPage";
 import CookiePolicyPage from "../public/CookiePolicyPage";
+import FaqsPage from "../public/FaqsPage";
+import UnsubscribePage from "../public/UnsubscribePage";
 import NotFoundPage from "../public/NotFoundPage";
 import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
 import { CaptureNestedRoute } from "@/components/dashboard/operator/Capture/CaptureNestedRoute";
@@ -112,6 +120,54 @@ function AppRoutes() {
           }
         />
         <Route
+          path="verify-email"
+          element={
+            <ErrorBoundary>
+              <VerifyEmailPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup"
+          element={
+            <ErrorBoundary>
+              <SignupPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/verify"
+          element={
+            <ErrorBoundary>
+              <SignupVerifyPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/onboarding"
+          element={
+            <ErrorBoundary>
+              <SignupOnboardingPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/choose-plan"
+          element={
+            <ErrorBoundary>
+              <SignupChoosePlanRedirectPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/provisioning"
+          element={
+            <ErrorBoundary>
+              <SignupProvisioningPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
           path="reset-password"
           element={
             <ErrorBoundary>
@@ -156,11 +212,17 @@ function AppRoutes() {
             <Route index element={<HomePage />} />
             <Route
               path="request-trial"
-              element={<Navigate to="/#request-trial" replace />}
+              element={<Navigate to="/signup" replace />}
             />
 
-            <Route path="register/single" element={<RegisterSinglePage />} />
-            <Route path="register/multi" element={<RegisterMultiPage />} />
+            <Route
+              path="register/single"
+              element={<Navigate to="/signup" replace />}
+            />
+            <Route
+              path="register/multi"
+              element={<Navigate to="/signup" replace />}
+            />
           </Route>
 
           <Route element={<ProtectedRoute />}>
@@ -445,6 +507,8 @@ function AppRoutes() {
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="terms" element={<TermsPage />} />
           <Route path="cookie-policy" element={<CookiePolicyPage />} />
+          <Route path="faqs" element={<FaqsPage />} />
+          <Route path="unsubscribe" element={<UnsubscribePage />} />
 
           <Route path={HELP_CENTRE_ROUTES.hub} element={<HelpCentreHubPage />} />
           <Route

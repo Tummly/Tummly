@@ -1,4 +1,8 @@
-/** Guest-form consent checkbox copy (ticket 04 / PRD §3). */
+/** Guest-form consent checkbox copy (GF-01 / GF-02 hard opt-in). */
+
+import { z } from "zod"
+
+import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
 
 export type GuestFormConsentConfig = {
   emailMarketingEnabled: boolean
@@ -9,6 +13,8 @@ export type GuestFormConsentConfig = {
   feedbackFollowUpWording: string
 }
 
+export type GuestFormMarketingChannel = "email" | "sms"
+
 export const GUEST_FORM_CONSENT_DEMO: GuestFormConsentConfig = {
   emailMarketingEnabled: true,
   smsMarketingEnabled: true,
@@ -18,89 +24,74 @@ export const GUEST_FORM_CONSENT_DEMO: GuestFormConsentConfig = {
   smsConsentWording:
     "may send you offers and updates by SMS using the contact details you provide",
   feedbackFollowUpWording:
-    "They may contact you about your feedback using the contact details you provide.",
+    "They may contact you about this feedback using the details you provide.",
 }
 
-export const GUEST_FORM_MARKETING_OPT_OUT_HINT =
-  "Untick here if you would prefer not to receive offers."
-
-const DEFAULT_MARKETING_WORDING =
-  "may send you offers and updates by {channels} using the contact details you provide"
-
-/** Checkbox is for marketing offers only — follow-up copy lives in the form intro. */
-export function guestFormConsentHasAnyEnabled(
-  config: GuestFormConsentConfig
-): boolean {
-  return config.emailMarketingEnabled || config.smsMarketingEnabled
+/** Top copy under the form header — Feedback follow-up notice (not a checkbox). */
+export function buildGuestFormIntroCopy(restaurantName: string): string {
+  const display = restaurantName.trim() || "this restaurant"
+  return (
+    `Your feedback is shared privately with ${display}. `
+    + "They may contact you about this feedback using the details you provide."
+  )
 }
 
-function ensureSentence(text: string): string {
-  const trimmed = text.trim()
-  if (trimmed === "") {
-    return ""
+function isValidEmailContact(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed.includes("@")) {
+    return false
   }
-  return trimmed.endsWith(".") ? trimmed : `${trimmed}.`
+  return z.string().email().safeParse(trimmed).success
 }
 
-function defaultMarketingWording(channels: string): string {
-  return DEFAULT_MARKETING_WORDING.replace("{channels}", channels)
+function isValidUkMobileContact(value: string): boolean {
+  const trimmed = value.trim()
+  if (trimmed.includes("@")) {
+    return false
+  }
+  return tryNormalizePhoneToE164(trimmed) !== null
 }
 
-function coupleChannelIntoWording(wording: string, channels: string): string {
-  return wording
-    .replace(/\bby email\b/gi, `by ${channels}`)
-    .replace(/\bby SMS\b/gi, `by ${channels}`)
-}
-
-function buildMarketingConsentSentence(
-  displayLocation: string,
-  config: GuestFormConsentConfig
-): string | null {
-  const emailOn = config.emailMarketingEnabled
-  const smsOn = config.smsMarketingEnabled
-
-  if (!emailOn && !smsOn) {
+/**
+ * Which single marketing checkbox to show for the current contact value.
+ * Never returns both — Email and SMS are mutually exclusive by contact type.
+ * Null when contact is empty/invalid or the matching restaurant channel is off.
+ */
+export function resolveGuestFormMarketingChannel(
+  guestContact: string,
+  config: GuestFormConsentConfig | null | undefined
+): GuestFormMarketingChannel | null {
+  if (config == null) {
     return null
   }
 
-  if (emailOn && smsOn) {
-    const channels = "Email and SMS"
-    const emailWording = config.emailConsentWording?.trim()
-    const smsWording = config.smsConsentWording?.trim()
-    const base = emailWording || smsWording
-    const wording = base
-      ? coupleChannelIntoWording(base, channels)
-      : defaultMarketingWording(channels)
-    return ensureSentence(`${displayLocation} ${wording}`)
+  if (isValidEmailContact(guestContact)) {
+    return config.emailMarketingEnabled ? "email" : null
   }
 
-  if (emailOn) {
-    const wording =
-      config.emailConsentWording?.trim()
-      || defaultMarketingWording("email")
-    return ensureSentence(`${displayLocation} ${wording}`)
+  if (isValidUkMobileContact(guestContact)) {
+    return config.smsMarketingEnabled ? "sms" : null
   }
 
-  const wording =
-    config.smsConsentWording?.trim() || defaultMarketingWording("SMS")
-  return ensureSentence(`${displayLocation} ${wording}`)
+  return null
 }
 
+/** Hard opt-in label for the single visible marketing checkbox (GF-01 / GF-02). */
 export function buildGuestFormConsentCheckboxLabel(
-  locationName: string,
-  config: GuestFormConsentConfig
+  restaurantName: string,
+  channel: GuestFormMarketingChannel
 ): string {
-  const displayLocation = locationName.trim() || "this location"
-  const marketingSentence = buildMarketingConsentSentence(
-    displayLocation,
-    config
-  )
-
-  if (marketingSentence == null) {
-    return ""
+  const display = restaurantName.trim() || "this restaurant"
+  if (channel === "email") {
+    return (
+      `Yes, email me occasional offers and updates from ${display}. `
+      + "You can unsubscribe at any time."
+    )
   }
-
-  return `${marketingSentence} ${GUEST_FORM_MARKETING_OPT_OUT_HINT}`
+  return (
+    `Yes, text me occasional offers and updates from ${display}. `
+    + "You can opt out at any time."
+  )
 }
 
 export function parseGuestFormConsentFromScanMetadata(

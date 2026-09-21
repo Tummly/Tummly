@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Interfaces;
@@ -130,7 +132,8 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
                 new NoOpCycleEndPlanChange(),
-                new NoOpCycleEndPlanCancel()
+                new NoOpCycleEndPlanCancel(),
+                Options.Create(new TummlySellerVatSettings { IsActive = false })
             );
             return new Harness(context, service, restaurant.Id);
         }
@@ -341,6 +344,11 @@ namespace TummlyBackend.Tests.Services
                 bool restricted,
                 CancellationToken cancellationToken = default
             ) => Task.CompletedTask;
+
+            public BillingLifecycleCommandResult ApplyPostCancelSoftLock(
+                BillingAccount billingAccount,
+                DateTime renewalEndUtc
+            ) => BillingLifecycleCommandResult.NoOp();
         }
     }
 }

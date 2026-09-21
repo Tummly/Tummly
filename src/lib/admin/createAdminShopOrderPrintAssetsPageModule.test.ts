@@ -16,6 +16,7 @@ function order(): AdminShopOrderListItem {
     trackingUrl: null,
     opsNotes: null,
     paidAtUtc: "2026-09-11T12:00:00Z",
+    productionStartedAtUtc: null,
     grossPence: 1000,
     lines: [],
     printAssets: [

@@ -5,6 +5,10 @@ import {
   useAuthStore,
 } from "@/stores/authStore"
 import {
+  ACTIVATE_TUMMLY_PILOT_DIALOG_DISMISS_KEY,
+  markActivateTummlyPilotDialogDismissed,
+} from "@/lib/operatorHome/activateTummlyPilotDialogGate"
+import {
   clearAuthSession,
   completeUserSession,
   DEVICE_TOKEN_KEY,
@@ -17,7 +21,7 @@ import {
 } from "./authHelpers"
 
 describe("parseVerifyOtpResponse", () => {
-  it("reads activationRequired from the wrapped API envelope", () => {
+  it("keeps activationRequired from the API envelope when present", () => {
     expect(
       parseVerifyOtpResponse({
         success: true,
@@ -179,6 +183,7 @@ describe("auth session store", () => {
   afterEach(() => {
     resetAuthStore()
     localStorage.clear()
+    sessionStorage.clear()
   })
 
   it("persists and retains device token on session clear", () => {
@@ -190,6 +195,17 @@ describe("auth session store", () => {
     expect(useAuthStore.getState().token).toBeNull()
     expect(useAuthStore.getState().role).toBeNull()
     expect(localStorage.getItem(DEVICE_TOKEN_KEY)).toBe("trusted-device-token")
+  })
+
+  it("clears activate Tummly dialog dismiss on session clear", () => {
+    markActivateTummlyPilotDialogDismissed()
+    persistAuthSession("jwt-token", "USER")
+
+    clearAuthSession()
+
+    expect(
+      sessionStorage.getItem(ACTIVATE_TUMMLY_PILOT_DIALOG_DISMISS_KEY)
+    ).toBeNull()
   })
 
   it("migrates legacy token and role keys on hydrate", async () => {
@@ -217,10 +233,10 @@ describe("completeUserSession", () => {
     localStorage.clear()
   })
 
-  it("routes pending operators to the activation step", () => {
+  it("ignores pending activation and routes to the dashboard", () => {
     expect(
-      getPostLoginDestination("Single", false, null, true)
-    ).toBe("/login?step=activation-code")
+      getPostLoginDestination("Single", false, null)
+    ).toBe("/single-dashboard")
   })
 
   it("persists session, refresh token, and optional device token", () => {

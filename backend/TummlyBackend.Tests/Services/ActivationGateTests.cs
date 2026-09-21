@@ -59,21 +59,19 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public void Decide_ApiAccess_NoState_BlocksAsPending()
+        public void Decide_ApiAccess_NoState_AllowsAsPending()
         {
             var d = _gate.Decide(NoState(), ActivationIntent.ApiAccess);
-            Assert.Equal(ActivationOutcome.Block, d.Outcome);
+            Assert.Equal(ActivationOutcome.Allow, d.Outcome);
             Assert.Equal(ActivationReason.Pending, d.Reason);
-            Assert.Equal(ActivationGate.ActivationRequiredMessage, d.Message);
         }
 
         [Fact]
-        public void Decide_ApiAccess_Pending_Blocks()
+        public void Decide_ApiAccess_Pending_Allows()
         {
             var d = _gate.Decide(Pending(), ActivationIntent.ApiAccess);
-            Assert.Equal(ActivationOutcome.Block, d.Outcome);
+            Assert.Equal(ActivationOutcome.Allow, d.Outcome);
             Assert.Equal(ActivationReason.Pending, d.Reason);
-            Assert.Equal(ActivationGate.ActivationRequiredMessage, d.Message);
         }
 
         [Fact]

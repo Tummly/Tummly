@@ -42,9 +42,14 @@ namespace TummlyBackend.Services
                 .Select(location => new
                 {
                     location.Id,
+                    location.CreatedAt,
                     WeekStartsOn = location.Restaurant != null
                         ? location.Restaurant.WeekStartsOn
                         : null,
+                    SubscriptionPlan = location.Restaurant != null
+                        && location.Restaurant.BillingAccount != null
+                            ? location.Restaurant.BillingAccount.SubscriptionPlan
+                            : null,
                 })
                 .ToListAsync(cancellationToken);
 
@@ -75,6 +80,23 @@ namespace TummlyBackend.Services
                         utcNow,
                         location.WeekStartsOn
                     );
+
+                    if (
+                        !WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
+                            location.CreatedAt,
+                            closedWeek
+                        )
+                    )
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    if (WeeklyBriefWeekKey.IsPilotPlan(location.SubscriptionPlan))
+                    {
+                        skipped++;
+                        continue;
+                    }
 
                     var alreadyReady = await _context.WeeklyBriefs
                         .AsNoTracking()

@@ -537,6 +537,15 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            var frontendBaseUrl =
+                deps.Configuration["Frontend:BaseUrl"] ?? string.Empty;
+            var unsubscribeHref = UnsubscribeLink.PreferSignedOrRestaurant(
+                frontendBaseUrl,
+                restaurant.Id,
+                feedback.LocationGuestId,
+                UnsubscribeLink.ResolveSigningSecret(deps.Configuration)
+            );
+
             await deps.EmailService.SendGuestResponseEmailAsync(
                 feedback.GuestContact.Trim(),
                 row.Subject!,
@@ -548,7 +557,8 @@ namespace TummlyBackend.Services
                     restaurant.BrandLogoObjectKey,
                     deps.Configuration["PublicApi:BaseUrl"]
                 ),
-                offer: offer
+                offer: offer,
+                unsubscribeHref: unsubscribeHref
             );
         }
 

@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TummlyBackend.Billing;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Helpers;
@@ -26,6 +28,7 @@ namespace TummlyBackend.Services
         private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly ICycleEndPlanChange _cycleEndPlanChange;
         private readonly ICycleEndPlanCancel _cycleEndPlanCancel;
+        private readonly TummlySellerVatSettings _sellerVat;
 
         public BillingCreditsService(
             ApplicationDbContext context,
@@ -40,7 +43,8 @@ namespace TummlyBackend.Services
             ICreditTopUpPaySession creditTopUpPaySession,
             ITummlyVatInvoiceService vatInvoices,
             ICycleEndPlanChange cycleEndPlanChange,
-            ICycleEndPlanCancel cycleEndPlanCancel
+            ICycleEndPlanCancel cycleEndPlanCancel,
+            IOptions<TummlySellerVatSettings> sellerVat
         )
         {
             _context = context;
@@ -56,6 +60,7 @@ namespace TummlyBackend.Services
             _vatInvoices = vatInvoices;
             _cycleEndPlanChange = cycleEndPlanChange;
             _cycleEndPlanCancel = cycleEndPlanCancel;
+            _sellerVat = sellerVat.Value;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -129,7 +134,7 @@ namespace TummlyBackend.Services
                 );
             var accessLevel = actorCanManage ? "manage" : "view";
 
-            return new BillingCreditsPageDto
+            var page = new BillingCreditsPageDto
             {
                 AccessLevel = accessLevel,
                 ActorPermissionRole = actorPermissionRole,
@@ -202,7 +207,10 @@ namespace TummlyBackend.Services
                 CurrentCatalog = _pricebookCatalog.BuildCurrentCatalog(
                     sms5000Available
                 ),
+                VatModeActive = _sellerVat.IsActive,
             };
+            page.CurrentCatalog.VatRateBps = _sellerVat.EffectiveVatRateBps;
+            return page;
         }
 
         public async Task<(byte[] Content, string FileName)?> GetInvoicePdfAsync(
@@ -1200,6 +1208,47 @@ namespace TummlyBackend.Services
             billingAccount.BillingCycle = BillingCycles.Monthly;
         }
 
+        /// <summary>
+        /// Post-provision billing for self-serve paid signup (Starter / Growth / Group).
+        /// Matches Manage Plan paid state after first payment.
+        /// </summary>
+        public static void ApplyPaidSignupBilling(
+            BillingAccount billingAccount,
+            string chosenPlan,
+            string chosenCadenceApi,
+            DateTime nowUtc
+        )
+        {
+            var plan = chosenPlan.Trim().ToLowerInvariant() switch
+            {
+                "starter" => BillingSubscriptionPlans.Starter,
+                "growth" => BillingSubscriptionPlans.Growth,
+                "group" => BillingSubscriptionPlans.Group,
+                _ => throw new InvalidOperationException("invalid_plan_target"),
+            };
+
+            var annual = string.Equals(
+                chosenCadenceApi.Trim(),
+                "annual",
+                StringComparison.OrdinalIgnoreCase
+            );
+
+            billingAccount.SubscriptionPlan = plan;
+            billingAccount.BillingCycle = annual
+                ? BillingCycles.Annual
+                : BillingCycles.Monthly;
+            billingAccount.BillingStatus = BillingStatuses.Active;
+            billingAccount.PilotPeriodEnd = null;
+            billingAccount.SoftLockEnteredAt = null;
+            billingAccount.DormantEnteredAt = null;
+            billingAccount.GuestRetentionPurgedAtUtc = null;
+            billingAccount.PilotSoftLockNotified = false;
+            billingAccount.PilotDormantNotified = false;
+            billingAccount.RenewalDateUtc = annual
+                ? nowUtc.Date.AddMonths(12)
+                : nowUtc.Date.AddMonths(1);
+        }
+
         private static string SubscriptionPlanKey(string subscriptionPlan)
         {
             return subscriptionPlan.Trim().ToLowerInvariant() switch
@@ -1653,9 +1702,10 @@ namespace TummlyBackend.Services
             return "Growth";
         }
 
-        private static CreditTopUpConfirmDto BuildCreditTopUpConfirm(CreditTopUpPack pack)
+        private CreditTopUpConfirmDto BuildCreditTopUpConfirm(CreditTopUpPack pack)
         {
-            var gross = CreditTopUpPricebook.GrossPounds(pack.NetPounds);
+            var vatRateBps = _sellerVat.EffectiveVatRateBps;
+            var gross = CreditTopUpPricebook.GrossPounds(pack.NetPounds, vatRateBps);
             var vat = gross - pack.NetPounds;
 
             return new CreditTopUpConfirmDto

@@ -38,6 +38,9 @@ import {
   FEEDBACK_INTERNAL_NOTE_MAX_LENGTH,
   feedbackWorkflowStatusLabel,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import {
+  FEEDBACK_DETAIL_RECOVERY_COPY,
+} from "@/lib/operatorFeedback/feedbackDetailRecoveryPresentation"
 import type { FeedbackClassificationCorrectionReason } from "@/lib/operatorFeedback/feedbackClassificationCorrectionPresentation"
 import { formatGuestProfileAbsoluteDateTime } from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
@@ -95,7 +98,10 @@ type FeedbackDetailsDrawerProps = {
   onSetCloseOutAcknowledged?: (value: boolean) => void
   onConfirmCloseOut?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
-  onStartRecovery?: () => void
+  /** FD primary CTA — opens service response composer. */
+  onRespondToGuest?: () => void
+  /** FD secondary CTA — opens recovery offer path when marketing eligible. */
+  onAddOffer?: () => void
   onNoteDraftChange?: (value: string) => void
   onCreateNote?: () => void
   onStartNoteEdit?: (noteId: number) => void
@@ -745,7 +751,8 @@ function LoadedBody({
   onStartCorrection,
   onStartEditTags,
   onViewGuestProfile,
-  onStartRecovery,
+  onRespondToGuest,
+  onAddOffer,
   onNoteDraftChange,
   onCreateNote,
   onStartNoteEdit,
@@ -765,7 +772,8 @@ function LoadedBody({
   onStartCorrection?: () => void
   onStartEditTags?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
-  onStartRecovery?: () => void
+  onRespondToGuest?: () => void
+  onAddOffer?: () => void
   onNoteDraftChange?: (value: string) => void
   onCreateNote?: () => void
   onStartNoteEdit?: (noteId: number) => void
@@ -786,8 +794,12 @@ function LoadedBody({
     && trimmedNote.length <= FEEDBACK_INTERNAL_NOTE_MAX_LENGTH
     && !noteBusy
     && onCreateNote != null
-  const canStartRecovery =
-    onStartRecovery != null && details.workflowStatus !== "resolved"
+  const { recoveryActions, permissionSummary } = details
+  const canRespond =
+    onRespondToGuest != null && recoveryActions.respondEnabled
+  const canAddOffer =
+    onAddOffer != null && recoveryActions.addOfferEnabled
+  const copy = FEEDBACK_DETAIL_RECOVERY_COPY
 
   return (
     <>
@@ -909,33 +921,82 @@ function LoadedBody({
             </p>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="op-secondary"
-          size="op"
-          disabled={!canStartRecovery}
-          aria-disabled={!canStartRecovery}
-          aria-label={
-            canStartRecovery
-              ? "Start recovery"
-              : details.workflowStatus === "resolved"
-                ? "Start recovery (disabled for resolved feedback)"
-                : "Start recovery (unavailable)"
-          }
-          title={
-            canStartRecovery
-              ? undefined
-              : details.workflowStatus === "resolved"
-                ? "Start recovery is disabled for resolved feedback"
-                : "Start recovery is unavailable"
-          }
-          className="w-fit"
-          onClick={() => {
-            onStartRecovery?.()
-          }}
-        >
-          Start recovery
-        </Button>
+
+        <div className="flex flex-col gap-3">
+          <h4 className="text-sm font-semibold text-foreground">
+            {copy.permissionSummaryTitle}
+          </h4>
+          <ul className="flex flex-col gap-2">
+            {permissionSummary.map((row) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center gap-1.5 text-sm"
+              >
+                <span className="font-medium text-foreground">{row.label}:</span>
+                <Badge variant="soft">{row.value}</Badge>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <Button
+            type="button"
+            variant="op-primary"
+            size="op"
+            disabled={!canRespond}
+            aria-disabled={!canRespond}
+            aria-label={
+              canRespond
+                ? copy.respondCta
+                : `${copy.respondCta} (unavailable)`
+            }
+            title={
+              canRespond
+                ? undefined
+                : (recoveryActions.respondDisableReason ?? undefined)
+            }
+            className="w-fit"
+            onClick={() => {
+              onRespondToGuest?.()
+            }}
+          >
+            {copy.respondCta}
+          </Button>
+          <Button
+            type="button"
+            variant="op-secondary"
+            size="op"
+            disabled={!canAddOffer}
+            aria-disabled={!canAddOffer}
+            aria-label={
+              canAddOffer
+                ? copy.addOfferCta
+                : `${copy.addOfferCta} (unavailable)`
+            }
+            title={
+              canAddOffer
+                ? undefined
+                : (recoveryActions.addOfferHelper ?? undefined)
+            }
+            className="w-fit"
+            onClick={() => {
+              onAddOffer?.()
+            }}
+          >
+            {copy.addOfferCta}
+          </Button>
+          {!canAddOffer && recoveryActions.addOfferHelper != null ? (
+            <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
+              {recoveryActions.addOfferHelper}
+            </p>
+          ) : null}
+          {!canRespond && recoveryActions.respondDisableReason != null ? (
+            <p className="text-sm font-medium text-[var(--op-color-gray-550)]" role="status">
+              {recoveryActions.respondDisableReason}
+            </p>
+          ) : null}
+        </div>
       </section>
 
       <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-[22px]")}>
@@ -1024,28 +1085,24 @@ function LoadedBody({
           type="button"
           variant="op-primary"
           size="op"
-          disabled={!canStartRecovery}
-          aria-disabled={!canStartRecovery}
+          disabled={!canRespond}
+          aria-disabled={!canRespond}
           aria-label={
-            canStartRecovery
-              ? "Start recovery"
-              : details.workflowStatus === "resolved"
-                ? "Start recovery (disabled for resolved feedback)"
-                : "Start recovery (unavailable)"
+            canRespond
+              ? copy.respondCta
+              : `${copy.respondCta} (unavailable)`
           }
           title={
-            canStartRecovery
+            canRespond
               ? undefined
-              : details.workflowStatus === "resolved"
-                ? "Start recovery is disabled for resolved feedback"
-                : "Start recovery is unavailable"
+              : (recoveryActions.respondDisableReason ?? undefined)
           }
           className="w-fit"
           onClick={() => {
-            onStartRecovery?.()
+            onRespondToGuest?.()
           }}
         >
-          Start recovery
+          {copy.respondCta}
         </Button>
       </section>
 
@@ -1092,7 +1149,8 @@ export function FeedbackDetailsDrawer({
   onSetCloseOutAcknowledged,
   onConfirmCloseOut,
   onViewGuestProfile,
-  onStartRecovery,
+  onRespondToGuest,
+  onAddOffer,
   onNoteDraftChange,
   onCreateNote,
   onStartNoteEdit,
@@ -1212,7 +1270,8 @@ export function FeedbackDetailsDrawer({
                   onStartCorrection={onStartCorrection}
                   onStartEditTags={onStartEditTags}
                   onViewGuestProfile={onViewGuestProfile}
-                  onStartRecovery={onStartRecovery}
+                  onRespondToGuest={onRespondToGuest}
+                  onAddOffer={onAddOffer}
                   onNoteDraftChange={onNoteDraftChange}
                   onCreateNote={onCreateNote}
                   onStartNoteEdit={onStartNoteEdit}

@@ -81,6 +81,9 @@ export function RecoveryWizardsHost({
         onMarkResolved={() => {
           void wizards.respondToGuest.markResolved()
         }}
+        onAddOffer={() => {
+          void wizards.switchRespondToAddOffer()
+        }}
       />
 
       <RecordInternalActionWizard
