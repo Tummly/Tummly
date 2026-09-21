@@ -35,11 +35,13 @@ namespace TummlyBackend.Tests.Services
                 )
                 .Build();
 
+            var audit = new AdminAuditService(_context, TimeProvider.System);
             _transition = new TrialReviewTransition(
                 _context,
                 _emailService,
                 configuration,
-                NullLogger<TrialReviewTransition>.Instance
+                NullLogger<TrialReviewTransition>.Instance,
+                audit
             );
         }
 
@@ -252,6 +254,57 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        // ---------- Admin audit append ----------
+
+        [Fact]
+        public async Task Approve_AppendsAdminAuditEvent_AndKeepsReviewedBy()
+        {
+            var trial = Seed(TrialRequestStatus.EmailVerified);
+            await _transition.ApplyTransitionAsync(
+                trial.Id,
+                TrialReviewDecision.Approve,
+                new TrialReviewContext("admin@tummly.com", null, null, ActorAdminUserId: 7)
+            );
+
+            var row = Assert.Single(_context.AdminAuditEvents);
+            Assert.Equal(AdminAuditActions.TrialApprove, row.Action);
+            Assert.Equal("admin@tummly.com", row.ActorIdentity);
+            Assert.Equal(7, row.ActorAdminUserId);
+            Assert.Equal(AdminAuditTargetTypes.TrialRequest, row.TargetType);
+            Assert.Equal(trial.Id.ToString(), row.TargetId);
+            Assert.True(row.Succeeded);
+
+            var reloaded = await _context.TrialRequests.SingleAsync(x => x.Id == trial.Id);
+            Assert.Equal("admin@tummly.com", reloaded.ReviewedBy);
+            Assert.NotNull(reloaded.ReviewedAt);
+        }
+
+        [Fact]
+        public async Task Decline_AppendsTrialDeclineAction()
+        {
+            var trial = Seed(TrialRequestStatus.EmailVerified);
+            await _transition.ApplyTransitionAsync(
+                trial.Id,
+                TrialReviewDecision.Decline,
+                new TrialReviewContext(
+                    "admin@tummly.com",
+                    "Not a fit for launch",
+                    null,
+                    ActorAdminUserId: 7
+                )
+            );
+
+            var row = Assert.Single(_context.AdminAuditEvents);
+            Assert.Equal(AdminAuditActions.TrialDecline, row.Action);
+            Assert.Equal("admin@tummly.com", row.ActorIdentity);
+            Assert.Equal(7, row.ActorAdminUserId);
+            Assert.Equal(AdminAuditTargetTypes.TrialRequest, row.TargetType);
+            Assert.Equal(trial.Id.ToString(), row.TargetId);
+            Assert.True(row.Succeeded);
+            Assert.NotNull(row.DetailJson);
+            Assert.Contains("Not a fit for launch", row.DetailJson);
+        }
+
         // ---------- Field writes ----------
 
         [Fact]
@@ -411,7 +464,8 @@ namespace TummlyBackend.Tests.Services
                         }
                     )
                     .Build(),
-                NullLogger<TrialReviewTransition>.Instance
+                NullLogger<TrialReviewTransition>.Instance,
+                new AdminAuditService(throwContext, TimeProvider.System)
             );
 
             var requestId = throwContext.TrialRequests.Single().Id;

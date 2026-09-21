@@ -264,7 +264,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(BillingStatuses.Pilot, billingAccount.BillingStatus);
             Assert.Null(billingAccount.BillingCycle);
             Assert.Null(billingAccount.RevolutCustomerId);
-            Assert.Equal(StarterKitStates.PendingDispatch, billingAccount.StarterKitState);
+            Assert.Equal(StarterKitStates.Unused, billingAccount.StarterKitState);
             Assert.Equal("TUMMLY-UK-GBP-2026-08-V3", billingAccount.ContractedPricebookId);
 
             Assert.True(guestLoop.SendPhysicalQrMaterials);

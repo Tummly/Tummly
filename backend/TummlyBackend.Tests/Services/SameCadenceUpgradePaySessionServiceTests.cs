@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -15,12 +18,90 @@ namespace TummlyBackend.Tests.Services
         private readonly DateTime _now = new(2026, 8, 20, 12, 0, 0, DateTimeKind.Utc);
 
         [Fact]
+        public async Task StartAsync_WhenVatModeOff_ChargesNetOnly_AndOmitsLineTax()
+        {
+            await using var context = CreateContext();
+            var account = await SeedPaidStarterAsync(context);
+            var merchant = new RecordingUpgradeMerchant();
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = false }
+            );
+
+            await service.StartAsync(
+                account,
+                "Single",
+                locationId: 1,
+                targetPlan: "Growth",
+                targetCadenceApi: "monthly",
+                idempotencyKey: "key-vat-off"
+            );
+
+            Assert.NotNull(merchant.LastCreateOrderRequest);
+            var line = merchant.LastCreateOrderRequest!.LineItems![0];
+            Assert.Equal(line.UnitPriceAmount, merchant.LastCreateOrderRequest.AmountMinor);
+            Assert.Equal(line.UnitPriceAmount, line.TotalAmount);
+            Assert.Empty(line.Taxes);
+
+            var intent = await context.RevolutOrderIntents.SingleAsync();
+            Assert.Equal(intent.NetAmountMinor, intent.GrossAmountMinor);
+            Assert.Equal(0, intent.VatAmountMinor);
+        }
+
+        [Fact]
+        public async Task StartAsync_WhenVatModeActive_ChargesGrossWith20PercentVat()
+        {
+            await using var context = CreateContext();
+            var account = await SeedPaidStarterAsync(context);
+            var merchant = new RecordingUpgradeMerchant();
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = true }
+            );
+
+            await service.StartAsync(
+                account,
+                "Single",
+                locationId: 1,
+                targetPlan: "Growth",
+                targetCadenceApi: "monthly",
+                idempotencyKey: "key-vat-active"
+            );
+
+            Assert.NotNull(merchant.LastCreateOrderRequest);
+            var line = merchant.LastCreateOrderRequest!.LineItems![0];
+            var expectedVat = TummlyVatMath.VatPenceFromNetPence(
+                line.UnitPriceAmount,
+                TummlyVatMath.DefaultVatRateBps
+            );
+            var expectedGross = line.UnitPriceAmount + expectedVat;
+
+            Assert.Equal(expectedGross, merchant.LastCreateOrderRequest.AmountMinor);
+            Assert.Equal(expectedGross, line.TotalAmount);
+            Assert.Single(line.Taxes);
+            Assert.Equal("VAT", line.Taxes[0].Name);
+            Assert.Equal("20.00", line.Taxes[0].Percentage);
+            Assert.Equal(expectedVat, line.Taxes[0].Amount);
+
+            var intent = await context.RevolutOrderIntents.SingleAsync();
+            Assert.Equal(line.UnitPriceAmount, intent.NetAmountMinor);
+            Assert.Equal(expectedVat, intent.VatAmountMinor);
+            Assert.Equal(expectedGross, intent.GrossAmountMinor);
+        }
+
+        [Fact]
         public async Task StartAsync_CreatesOrderWithVatLineItems_AndPersistsIntent()
         {
             await using var context = CreateContext();
             var account = await SeedPaidStarterAsync(context);
             var merchant = new RecordingUpgradeMerchant();
-            var service = CreateService(context, merchant);
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = true }
+            );
 
             var result = await service.StartAsync(
                 account,
@@ -147,7 +228,8 @@ namespace TummlyBackend.Tests.Services
 
         private SameCadenceUpgradePaySessionService CreateService(
             ApplicationDbContext context,
-            IRevolutMerchantClient merchant
+            IRevolutMerchantClient merchant,
+            TummlySellerVatSettings? sellerVat = null
         )
         {
             return new SameCadenceUpgradePaySessionService(
@@ -162,7 +244,8 @@ namespace TummlyBackend.Tests.Services
                         }
                     )
                     .Build(),
-                new FixedClock(_now)
+                new FixedClock(_now),
+                Options.Create(sellerVat ?? new TummlySellerVatSettings { IsActive = false })
             );
         }
 

@@ -14,21 +14,26 @@ namespace TummlyBackend.Services
         private static readonly ConcurrentDictionary<int, SemaphoreSlim> AccountLocks
             = new();
 
+        private const int MaxAuditReasonLength = 500;
+
         private readonly ApplicationDbContext _context;
         private readonly TimeProvider _clock;
         private readonly IPricebookCatalog _pricebookCatalog;
+        private readonly IAdminAuditService _audit;
         private readonly ICreditThresholdEvaluator _thresholdEvaluator;
 
         public CreditLedgerService(
             ApplicationDbContext context,
             TimeProvider clock,
             IPricebookCatalog pricebookCatalog,
+            IAdminAuditService audit,
             ICreditThresholdEvaluator? thresholdEvaluator = null
         )
         {
             _context = context;
             _clock = clock;
             _pricebookCatalog = pricebookCatalog;
+            _audit = audit;
             _thresholdEvaluator =
                 thresholdEvaluator ?? NullCreditThresholdEvaluator.Instance;
         }
@@ -487,6 +492,25 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var identity = await ResolveAdminIdentityAsync(
+                request.ActorStaffUserId,
+                cancellationToken
+            );
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    Action: AdminAuditActions.CreditReverse,
+                    ActorIdentity: identity,
+                    TargetType: AdminAuditTargetTypes.Restaurant,
+                    TargetId: liveTarget.RestaurantId.ToString(),
+                    ActorAdminUserId: request.ActorStaffUserId,
+                    RestaurantId: liveTarget.RestaurantId,
+                    DetailJson: BuildCreditReverseDetailJson(
+                        liveTarget.Id,
+                        reason
+                    )
+                )
+            );
+
             await SaveCommitAndNotifyThresholdAsync(
                 transaction,
                 liveTarget.RestaurantId,
@@ -661,6 +685,26 @@ namespace TummlyBackend.Services
                         ? BillingManualAdjustDirections.Add
                         : BillingManualAdjustDirections.Remove,
                 }
+            );
+
+            var identity = await ResolveAdminIdentityAsync(
+                request.ActorStaffUserId,
+                cancellationToken
+            );
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    Action: AdminAuditActions.CreditAdjust,
+                    ActorIdentity: identity,
+                    TargetType: AdminAuditTargetTypes.Restaurant,
+                    TargetId: request.RestaurantId.ToString(),
+                    ActorAdminUserId: request.ActorStaffUserId,
+                    RestaurantId: request.RestaurantId,
+                    DetailJson: BuildCreditAdjustDetailJson(
+                        request.Channel,
+                        request.Quantity,
+                        request.Direction
+                    )
+                )
             );
 
             await SaveCommitAndNotifyThresholdAsync(
@@ -2282,6 +2326,56 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
             }
+        }
+
+        private async Task<string> ResolveAdminIdentityAsync(
+            int actorStaffUserId,
+            CancellationToken cancellationToken
+        )
+        {
+            var email = await _context.Admins
+                .AsNoTracking()
+                .Where(row => row.Id == actorStaffUserId)
+                .Select(row => row.Email)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return string.IsNullOrWhiteSpace(email)
+                ? $"admin:{actorStaffUserId}"
+                : email;
+        }
+
+        private static string BuildCreditAdjustDetailJson(
+            string channel,
+            int quantity,
+            string direction
+        )
+        {
+            return System.Text.Json.JsonSerializer.Serialize(
+                new
+                {
+                    channel,
+                    qty = quantity,
+                    direction,
+                }
+            );
+        }
+
+        private static string BuildCreditReverseDetailJson(
+            Guid reversedEntryId,
+            string reason
+        )
+        {
+            var snippet = reason.Length <= MaxAuditReasonLength
+                ? reason
+                : reason[..MaxAuditReasonLength];
+
+            return System.Text.Json.JsonSerializer.Serialize(
+                new
+                {
+                    reversedEntryId,
+                    reason = snippet,
+                }
+            );
         }
 
         private static async Task<CreditLedgerWriteResult> AbortAsync(

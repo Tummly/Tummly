@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Interfaces;
@@ -28,13 +30,15 @@ namespace TummlyBackend.Services
         private readonly IPricebookCatalog _pricebook;
         private readonly IConfiguration _configuration;
         private readonly TimeProvider _clock;
+        private readonly TummlySellerVatSettings _sellerVat;
 
         public SameCadenceUpgradePaySessionService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
             IPricebookCatalog pricebook,
             IConfiguration configuration,
-            TimeProvider clock
+            TimeProvider clock,
+            IOptions<TummlySellerVatSettings> sellerVat
         )
         {
             _context = context;
@@ -42,6 +46,7 @@ namespace TummlyBackend.Services
             _pricebook = pricebook;
             _configuration = configuration;
             _clock = clock;
+            _sellerVat = sellerVat.Value;
         }
 
         public async Task<PlanChangeResultDto> StartAsync(
@@ -182,6 +187,7 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("upgrade_proration_zero");
             }
 
+            var vatRateBps = _sellerVat.EffectiveVatRateBps;
             var redirectUrl = BuildPlanSubscriptionRedirectUrl(
                 restaurantAccountType,
                 locationId
@@ -203,14 +209,7 @@ namespace TummlyBackend.Services
                             UnitPriceAmount: amounts.NetAmountMinor,
                             Quantity: 1,
                             TotalAmount: amounts.GrossAmountMinor,
-                            Taxes:
-                            [
-                                new RevolutOrderLineItemTax(
-                                    Name: "VAT",
-                                    Percentage: "20.00",
-                                    Amount: amounts.VatAmountMinor
-                                ),
-                            ]
+                            Taxes: BuildVatTaxes(vatRateBps, amounts.VatAmountMinor)
                         ),
                     ]
                 ),
@@ -316,8 +315,31 @@ namespace TummlyBackend.Services
                 targetNet,
                 ratio
             );
-            var vat = PlanUpgradeProrationMath.VatOnNetPence(net);
+            var vat = PlanUpgradeProrationMath.VatOnNetPence(
+                net,
+                _sellerVat.EffectiveVatRateBps
+            );
             return (net, vat, net + vat);
+        }
+
+        private static IReadOnlyList<RevolutOrderLineItemTax> BuildVatTaxes(
+            int vatRateBps,
+            int vatAmount
+        )
+        {
+            if (vatRateBps <= 0)
+            {
+                return [];
+            }
+
+            return
+            [
+                new RevolutOrderLineItemTax(
+                    Name: "VAT",
+                    Percentage: "20.00",
+                    Amount: vatAmount
+                ),
+            ];
         }
 
         private async Task<string?> TryReuseCheckoutAsync(

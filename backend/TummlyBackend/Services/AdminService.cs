@@ -24,13 +24,16 @@
 
             private readonly IBillingAccountLifecycle _lifecycle;
 
+            private readonly IAdminAuditService _audit;
+
             public AdminService(
                 ApplicationDbContext context,
                 ITrialReviewTransition trialReviewTransition,
                 IConfiguration configuration,
                 ILogger<AdminService> logger,
                 IAssistantConversationService assistantConversations,
-                IBillingAccountLifecycle lifecycle
+                IBillingAccountLifecycle lifecycle,
+                IAdminAuditService audit
             )
             {
                 _context = context;
@@ -44,6 +47,8 @@
                 _assistantConversations = assistantConversations;
 
                 _lifecycle = lifecycle;
+
+                _audit = audit;
             }
 
             public async Task<OperatorSetupReminderBatchResult>
@@ -388,7 +393,9 @@
         }
 
         public async Task<bool> PurgeTrialRequestAsync(
-            int trialRequestId
+            int trialRequestId,
+            int? actorAdminUserId,
+            string actorIdentity
         )
         {
             var trialRequest = await _context
@@ -403,6 +410,16 @@
             }
 
             var email = trialRequest.Email.Trim();
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    Action: AdminAuditActions.TrialPurge,
+                    ActorIdentity: actorIdentity,
+                    TargetType: AdminAuditTargetTypes.TrialRequest,
+                    TargetId: trialRequest.Id.ToString(),
+                    ActorAdminUserId: actorAdminUserId
+                )
+            );
 
             await using var transaction =
                 _context.Database.IsRelational()
@@ -449,7 +466,9 @@
 
         public async Task<AdminTrialRequestDto?> ExtendActivationAsync(
             int userId,
-            ExtendActivationDto dto
+            ExtendActivationDto dto,
+            int? actorAdminUserId,
+            string actorIdentity
         )
         {
             var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == userId);
@@ -469,6 +488,21 @@
             user.ActivationExpiresAt =
                 dto.ExpiresAt?.ToUniversalTime()
                 ?? ActivationCodeHelper.ComputeDefaultExtensionExpiresAt();
+
+            var expiresAtIso = user.ActivationExpiresAt.Value
+                .ToUniversalTime()
+                .ToString("O");
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    Action: AdminAuditActions.OperatorExtendActivation,
+                    ActorIdentity: actorIdentity,
+                    TargetType: AdminAuditTargetTypes.OperatorUser,
+                    TargetId: user.Id.ToString(),
+                    ActorAdminUserId: actorAdminUserId,
+                    DetailJson: $"{{\"expiresAt\":\"{expiresAtIso}\"}}"
+                )
+            );
 
             await _context.SaveChangesAsync();
 

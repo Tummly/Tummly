@@ -144,6 +144,7 @@ namespace TummlyBackend.Services
                     account.DunningOutstandingOrderId = null;
                     account.SoftLockEnteredAt = null;
                     account.DormantEnteredAt = null;
+                    account.GuestRetentionPurgedAtUtc = null;
                     return Task.FromResult(new List<LifecycleEvent>());
                 }
             );
@@ -164,6 +165,7 @@ namespace TummlyBackend.Services
                     account.PilotPeriodEnd = null;
                     account.SoftLockEnteredAt = null;
                     account.DormantEnteredAt = null;
+                    account.GuestRetentionPurgedAtUtc = null;
                     account.PilotSoftLockNotified = false;
                     account.PilotDormantNotified = false;
                     return Task.FromResult(new List<LifecycleEvent>());
@@ -201,6 +203,7 @@ namespace TummlyBackend.Services
                     account.BillingStatus = BillingStatuses.Pilot;
                     account.SoftLockEnteredAt = null;
                     account.DormantEnteredAt = null;
+                    account.GuestRetentionPurgedAtUtc = null;
                     account.PilotSoftLockNotified = false;
                     account.PilotDormantNotified = false;
                     result = BillingLifecycleCommandResult.Ok();
@@ -226,6 +229,42 @@ namespace TummlyBackend.Services
                     return Task.FromResult(new List<LifecycleEvent>());
                 }
             );
+        }
+
+        public BillingLifecycleCommandResult ApplyPostCancelSoftLock(
+            BillingAccount billingAccount,
+            DateTime renewalEndUtc
+        )
+        {
+            if (
+                string.Equals(
+                    billingAccount.SubscriptionPlan,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.Ordinal
+                )
+                && (
+                    billingAccount.BillingStatus == BillingStatuses.SoftLock
+                    || billingAccount.BillingStatus == BillingStatuses.Dormant
+                )
+                && billingAccount.SoftLockEnteredAt != null
+            )
+            {
+                return BillingLifecycleCommandResult.NoOp();
+            }
+
+            billingAccount.SubscriptionPlan = BillingSubscriptionPlans.Pilot;
+            billingAccount.BillingCycle = null;
+            billingAccount.BillingStatus = BillingStatuses.SoftLock;
+            billingAccount.PilotPeriodEnd = renewalEndUtc;
+            billingAccount.SoftLockEnteredAt = renewalEndUtc;
+            billingAccount.DormantEnteredAt = null;
+            billingAccount.GuestRetentionPurgedAtUtc = null;
+            billingAccount.DunningEpisodeStartedAt = null;
+            billingAccount.DunningFiredSteps = null;
+            billingAccount.DunningOutstandingOrderId = null;
+            billingAccount.PilotSoftLockNotified = false;
+            billingAccount.PilotDormantNotified = false;
+            return BillingLifecycleCommandResult.Ok();
         }
 
         private async Task<List<LifecycleEvent>> MutateAsync(

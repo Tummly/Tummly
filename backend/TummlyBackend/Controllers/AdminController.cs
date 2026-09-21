@@ -20,6 +20,7 @@ namespace TummlyBackend.Controllers
         private readonly ICreditBalanceSnapshot _creditBalanceSnapshot;
         private readonly IAdminPaymentRefundService _paymentRefunds;
         private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
+        private readonly IAdminAuditService _adminAudit;
 
         public AdminController(
             IAdminService adminService,
@@ -27,7 +28,8 @@ namespace TummlyBackend.Controllers
             ICreditLedger creditLedger,
             ICreditBalanceSnapshot creditBalanceSnapshot,
             IAdminPaymentRefundService paymentRefunds,
-            IPrintReadyQrMaterialsService printReadyQrMaterials
+            IPrintReadyQrMaterialsService printReadyQrMaterials,
+            IAdminAuditService adminAudit
         )
         {
             _adminService = adminService;
@@ -36,6 +38,7 @@ namespace TummlyBackend.Controllers
             _creditBalanceSnapshot = creditBalanceSnapshot;
             _paymentRefunds = paymentRefunds;
             _printReadyQrMaterials = printReadyQrMaterials;
+            _adminAudit = adminAudit;
         }
 
         /*
@@ -147,9 +150,37 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "Invalid token.",
+                });
+            }
+
+            var adminIdentity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+
+            if (string.IsNullOrWhiteSpace(adminIdentity))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Admin identity could not be resolved from the current session.",
+                });
+            }
+
             var deleted =
                 await _adminService
-                    .PurgeTrialRequestAsync(id);
+                    .PurgeTrialRequestAsync(
+                        id,
+                        staffId,
+                        adminIdentity
+                    );
 
             if (!deleted)
             {
@@ -177,8 +208,34 @@ namespace TummlyBackend.Controllers
         {
             try
             {
+                var staffId = GetStaffId();
+                if (staffId == null)
+                {
+                    return Unauthorized(new
+                    {
+                        success = false,
+                        message = "Invalid token.",
+                    });
+                }
+
+                var adminIdentity =
+                    User.FindFirst(ClaimTypes.Email)?.Value
+                    ?? User.Identity?.Name;
+
+                if (string.IsNullOrWhiteSpace(adminIdentity))
+                {
+                    throw new ArgumentException(
+                        "Admin identity could not be resolved from the current session."
+                    );
+                }
+
                 var result =
-                    await _adminService.ExtendActivationAsync(userId, dto);
+                    await _adminService.ExtendActivationAsync(
+                        userId,
+                        dto,
+                        staffId,
+                        adminIdentity
+                    );
 
                 if (result == null)
                 {
@@ -660,6 +717,24 @@ namespace TummlyBackend.Controllers
             );
         }
 
+        [HttpGet("audit-events")]
+        public async Task<IActionResult> ListAuditEvents(
+            [FromQuery] string? action,
+            [FromQuery] int? restaurantId,
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to,
+            [FromQuery] int skip = 0,
+            [FromQuery] int take = 50,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var result = await _adminAudit.ListAsync(
+                new AdminAuditListQuery(action, restaurantId, from, to, skip, take),
+                cancellationToken
+            );
+            return Ok(new { success = true, data = result.Items, totalCount = result.TotalCount });
+        }
+
         private int? GetStaffId()
         {
             var staffIdClaim =
@@ -712,7 +787,8 @@ namespace TummlyBackend.Controllers
             return new TrialReviewContext(
                 adminIdentity,
                 reason,
-                adminNotes
+                adminNotes,
+                ActorAdminUserId: GetStaffId()
             );
         }
     }

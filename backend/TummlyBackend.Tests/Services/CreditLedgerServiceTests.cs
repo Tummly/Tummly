@@ -146,7 +146,8 @@ namespace TummlyBackend.Tests.Services
             var secondLedger = new CreditLedgerService(
                 secondContext,
                 _clock,
-                new StubPricebookCatalog()
+                new StubPricebookCatalog(),
+                new AdminAuditService(secondContext, _clock)
             );
             var request = new CreditLedgerConsumeRequest
             {
@@ -515,6 +516,127 @@ namespace TummlyBackend.Tests.Services
                     row.RestaurantId == harness.RestaurantId
                 )
             );
+        }
+
+        [Fact]
+        public async Task StaffManualAdjust_Grant_AppendsCreditAdjustAudit()
+        {
+            var harness = await SeedAsync();
+            harness.Context.Admins.Add(
+                new Admin
+                {
+                    FullName = "Support Admin",
+                    Email = "support@tummly.com",
+                    PasswordHash = "x",
+                    Role = "Admin",
+                    CreatedAt = _now,
+                }
+            );
+            await harness.Context.SaveChangesAsync();
+            var adminId = await harness.Context.Admins
+                .Where(row => row.Email == "support@tummly.com")
+                .Select(row => row.Id)
+                .SingleAsync();
+
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                new StaffManualAdjustRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Direction = StaffManualAdjustDirections.Grant,
+                    Quantity = 25,
+                    Reason = "Goodwill credit for onboarding issue",
+                    ActorStaffUserId = adminId,
+                }
+            );
+
+            Assert.True(result.Succeeded);
+            var audit = Assert.Single(harness.Context.AdminAuditEvents);
+            Assert.Equal(AdminAuditActions.CreditAdjust, audit.Action);
+            Assert.Equal(AdminAuditTargetTypes.Restaurant, audit.TargetType);
+            Assert.Equal(harness.RestaurantId.ToString(), audit.TargetId);
+            Assert.Equal(harness.RestaurantId, audit.RestaurantId);
+            Assert.Equal(adminId, audit.ActorAdminUserId);
+            Assert.Equal("support@tummly.com", audit.ActorIdentity);
+            Assert.True(audit.Succeeded);
+            Assert.NotNull(audit.DetailJson);
+            Assert.Contains(CreditChannels.Email, audit.DetailJson);
+            Assert.Contains("25", audit.DetailJson);
+            Assert.Contains(StaffManualAdjustDirections.Grant, audit.DetailJson);
+        }
+
+        [Fact]
+        public async Task StaffManualAdjust_RestaurantMissing_DoesNotAppendAudit()
+        {
+            var harness = await SeedAsync();
+
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                new StaffManualAdjustRequest
+                {
+                    RestaurantId = harness.RestaurantId + 999,
+                    Channel = CreditChannels.Email,
+                    Direction = StaffManualAdjustDirections.Grant,
+                    Quantity = 5,
+                    Reason = "Missing restaurant should not audit",
+                    ActorStaffUserId = 1,
+                }
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("restaurant_not_found", result.Code);
+            Assert.Empty(harness.Context.AdminAuditEvents);
+        }
+
+        [Fact]
+        public async Task StaffReverse_AppendsCreditReverseAudit()
+        {
+            var harness = await SeedAsync();
+            var grantId = await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                20,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddDays(20)
+            );
+            var debit = await harness.Ledger.StaffManualAdjustAsync(
+                new StaffManualAdjustRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Direction = StaffManualAdjustDirections.Debit,
+                    Quantity = 5,
+                    Reason = "Mistaken debit",
+                    ActorStaffUserId = 1,
+                    AllocationId = grantId,
+                }
+            );
+            Assert.True(debit.Succeeded);
+            var debitId = Assert.Single(debit.Inserted).Id;
+
+            var reverse = await harness.Ledger.StaffReverseAsync(
+                new StaffReverseRequest
+                {
+                    ReversedEntryId = debitId,
+                    Reason = "Undo mistaken debit",
+                    ActorStaffUserId = 1,
+                }
+            );
+
+            Assert.True(reverse.Succeeded);
+            var reverseAudits = harness.Context.AdminAuditEvents
+                .Where(row => row.Action == AdminAuditActions.CreditReverse)
+                .ToList();
+            var audit = Assert.Single(reverseAudits);
+            Assert.Equal(AdminAuditTargetTypes.Restaurant, audit.TargetType);
+            Assert.Equal(harness.RestaurantId.ToString(), audit.TargetId);
+            Assert.Equal(harness.RestaurantId, audit.RestaurantId);
+            Assert.Equal(1, audit.ActorAdminUserId);
+            Assert.Equal("admin:1", audit.ActorIdentity);
+            Assert.True(audit.Succeeded);
+            Assert.NotNull(audit.DetailJson);
+            Assert.Contains(debitId.ToString(), audit.DetailJson);
+            Assert.Contains("Undo mistaken debit", audit.DetailJson);
         }
 
         [Fact]
@@ -1278,7 +1400,12 @@ namespace TummlyBackend.Tests.Services
 
             return new Harness(
                 context,
-                new CreditLedgerService(context, _clock, new StubPricebookCatalog()),
+                new CreditLedgerService(
+                    context,
+                    _clock,
+                    new StubPricebookCatalog(),
+                    new AdminAuditService(context, _clock)
+                ),
                 new CreditBalanceSnapshotService(context, _clock),
                 restaurant.Id,
                 location.Id

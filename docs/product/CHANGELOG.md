@@ -2,6 +2,16 @@
 
 Reverse chronological record of behaviour and documentation status changes.
 
+## 2026-09-21 — Cookie/storage inventory
+
+### Added
+
+- `docs/product/cookie-storage-inventory.md` — Launch P0 cookie/storage inventory (first-party keys + conditional GA)
+
+### Updated
+
+- `marketing-site.md`, `security-and-rbac.md`, `analytics.md`, `README.md` — link to inventory
+
 ## 2026-08-28 — Billing pack v3.0 in repo
 
 ### Added

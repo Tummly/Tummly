@@ -4,8 +4,6 @@ namespace TummlyBackend.Services
 
     public static class CreditTopUpPricebook
     {
-        private const decimal VatRate = 0.20m;
-
         private static readonly CreditTopUpPack[] Packs =
         [
             new("sms", 100, 12m),
@@ -52,9 +50,18 @@ namespace TummlyBackend.Services
             return true;
         }
 
-        public static decimal GrossPounds(decimal netPounds)
+        /// <summary>
+        /// Net GBP → gross GBP using seller effective rate (0 when VAT mode off).
+        /// </summary>
+        public static decimal GrossPounds(decimal netPounds, int vatRateBps)
         {
-            return Math.Round(netPounds * (1m + VatRate), 2, MidpointRounding.AwayFromZero);
+            if (vatRateBps < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(vatRateBps));
+            }
+
+            var rate = vatRateBps / 10_000m;
+            return Math.Round(netPounds * (1m + rate), 2, MidpointRounding.AwayFromZero);
         }
 
         public static string FormatPounds(decimal amount)

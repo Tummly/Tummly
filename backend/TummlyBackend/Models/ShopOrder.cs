@@ -85,6 +85,10 @@ namespace TummlyBackend.Models
 
         public DateTime? ProcessingStartedAtUtc { get; set; }
 
+        public DateTime? ProductionStartedAtUtc { get; set; }
+
+        public int? ProductionStartedByAdminUserId { get; set; }
+
         public DateTime? DispatchedAtUtc { get; set; }
 
         public DateTime? DeliveredAtUtc { get; set; }

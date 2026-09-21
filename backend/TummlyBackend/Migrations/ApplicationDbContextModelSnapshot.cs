@@ -98,6 +98,60 @@ namespace TummlyBackend.Migrations
                     b.ToTable("Admins");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.AdminAuditEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("ActorAdminUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ActorIdentity")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("DetailJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Succeeded")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("TargetId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAtUtc");
+
+                    b.HasIndex("Action", "OccurredAtUtc");
+
+                    b.HasIndex("RestaurantId", "OccurredAtUtc")
+                        .HasFilter("[RestaurantId] IS NOT NULL");
+
+                    b.ToTable("AdminAuditEvents");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.AdminPaymentRefundIntent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -406,6 +460,9 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("DunningOutstandingOrderId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("GuestRetentionPurgedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<bool>("HasScheduledChange")
                         .HasColumnType("bit");
@@ -1914,6 +1971,10 @@ namespace TummlyBackend.Migrations
                     b.Property<int?>("ActorUserId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Basis")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1921,6 +1982,10 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("GuestFormVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<int>("LocationGuestId")
                         .HasColumnType("int");
@@ -1933,6 +1998,10 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
+                    b.Property<string>("PrivacyNoticeVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<int>("RestaurantLocationId")
                         .HasColumnType("int");
 
@@ -1940,6 +2009,14 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("WordingSnapshot")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("WordingVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.HasKey("Id");
 
@@ -3697,6 +3774,12 @@ namespace TummlyBackend.Migrations
 
                     b.Property<DateTime?>("ProcessingStartedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ProductionStartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ProductionStartedByAdminUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("RestaurantId")
                         .HasColumnType("int");

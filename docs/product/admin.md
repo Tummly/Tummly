@@ -366,7 +366,7 @@ flowchart TD
 
 | Item | Status |
 |------|--------|
-| Immutable admin audit log | Planned |
+| Immutable admin audit log | Shipped (append-only table + `GET /api/admin/audit-events`; no Admin UI) |
 | In-app fulfilment tracking | Planned |
 | Applicant portal for more-info responses | Planned — applicants reply by email today |
 

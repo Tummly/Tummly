@@ -66,7 +66,8 @@ import {
   BILLING_PLAN_OVERVIEW_CARD_CLASS,
   BILLING_PLAN_TAB_STACK_CLASS,
   formatCreditsRemaining,
-  formatQrPacksLabel,
+  formatPlanPriceWithVat,
+  LAUNCH_STARTER_KIT_QR_PACKS_LABEL,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { BillingCreditsTabId } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
@@ -199,7 +200,7 @@ function PlanSubscriptionBody({
   const billingCycleLabel = plan.billingCycle ?? "—"
   const planPrice = plan.isPilot
     ? plan.planPriceNet
-    : `${plan.planPriceNet} ${copy.plusVat}`
+    : formatPlanPriceWithVat(plan.planPriceNet, snap.vatRateBps)
 
   return (
     <div className={BILLING_PLAN_TAB_STACK_CLASS}>
@@ -242,7 +243,7 @@ function PlanSubscriptionBody({
             />
             <PlanMetricPair
               label={copy.qrPacks}
-              value={formatQrPacksLabel(plan.starterKitState)}
+              value={LAUNCH_STARTER_KIT_QR_PACKS_LABEL}
             />
           </div>
         </div>
@@ -453,13 +454,7 @@ function CreditChannelCard({
   )
 }
 
-function QrPrintPacksUsageCell({
-  starterKitState,
-  onReorder,
-}: {
-  starterKitState: string
-  onReorder: () => void
-}) {
+function QrPrintPacksUsageCell({ onReorder }: { onReorder: () => void }) {
   return (
     <div className={BILLING_CREDITS_USAGE_CELL_CLASS}>
       <div className="flex w-full flex-col gap-3">
@@ -473,7 +468,7 @@ function QrPrintPacksUsageCell({
               {copy.qrPrintPacksTitle}
             </p>
             <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
-              {formatQrPacksLabel(starterKitState)}
+              {LAUNCH_STARTER_KIT_QR_PACKS_LABEL}
             </p>
           </div>
         </div>
@@ -582,7 +577,6 @@ function CreditsUsageBody({
             />
           ))}
           <QrPrintPacksUsageCell
-            starterKitState={usage.starterKitState}
             onReorder={() => {
               scrollToCreditTopUps()
             }}
@@ -1709,7 +1703,7 @@ export function ManagePlanPage() {
             <CreditTopUpsSection snap={snap} pageModule={pageModule} />
           </section>
 
-          <ManagePlanFaqSection />
+          <ManagePlanFaqSection vatRateBps={snap.vatRateBps} />
         </div>
       )}
     </div>

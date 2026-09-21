@@ -18,6 +18,7 @@ import {
   formatPaymentMethodLabel,
   resolveBillingCreditsTabId,
   resolveManagePlanSection,
+  showsBillingVatChrome,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
   buildCreditChannelCardViewModel,
@@ -145,6 +146,12 @@ export type BillingCreditsPageData = {
   planSubscription: PlanSubscriptionSnapshot
   paymentMethod: PaymentMethodSnapshot | null
   invoices: InvoiceRowSnapshot[]
+  billingContacts: BillingContactsSnapshot
+  /** API `vatModeActive` — mirrors `TUMMLY_VAT_MODE_ACTIVE`. */
+  vatModeActive: boolean
+  currentCatalog: {
+    vatRateBps: number
+  }
 }
 
 export type PlanChangeRequest = {
@@ -258,6 +265,11 @@ export type BillingCreditsSnapshot = {
   planSubscription: PlanSubscriptionSnapshot | null
   /** Soft lock / Dormant paid-write lock mode for Manage plan CTAs. */
   managePlanLockMode: "none" | "pilot-restore" | "dunning"
+  /** Effective catalog VAT rate (bps); 0 hides “+ VAT” chrome. */
+  vatRateBps: number
+  vatModeActive: boolean
+  /** False when rate is 0 — hide Manage plan VAT notice. */
+  showVatNotice: boolean
   creditsUsage: CreditsUsageSnapshot | null
   channelCards: CreditChannelCardViewModel[]
   usageTableRows: CreditsUsageTableRowViewModel[]
@@ -552,6 +564,9 @@ export function createOperatorBillingCreditsPageModule(
     )
   }
 
+  const resolveVatRateBps = (): number =>
+    data?.currentCatalog.vatRateBps ?? 0
+
   const projectTopUpCards = (): CreditTopUpCardViewModel[] => {
     if (creditsUsage == null || data?.planSubscription == null) {
       return []
@@ -569,6 +584,7 @@ export function createOperatorBillingCreditsPageModule(
       canBuy: canBuyCreditTopUp() && !locked,
       selectedPackByChannel,
       focusedChannel: focusedTopUpChannel,
+      vatRateBps: resolveVatRateBps(),
     })
   }
 
@@ -705,6 +721,7 @@ export function createOperatorBillingCreditsPageModule(
             plan,
             previewCadence,
             lockMode: managePlanLockMode,
+            vatRateBps: resolveVatRateBps(),
           })
         : []
     const additionalGroupLocation =
@@ -739,6 +756,9 @@ export function createOperatorBillingCreditsPageModule(
       managePlanSection,
       planSubscription: plan,
       managePlanLockMode,
+      vatRateBps: resolveVatRateBps(),
+      vatModeActive: data?.vatModeActive ?? false,
+      showVatNotice: showsBillingVatChrome(resolveVatRateBps()),
       creditsUsage,
       channelCards: projectChannelCards(),
       usageTableRows: projectUsageTableRows(),
@@ -1164,6 +1184,7 @@ export function createOperatorBillingCreditsPageModule(
           quantity: result.quantity,
           netLabel: result.netLabel,
           grossLabel: result.grossLabel,
+          vatRateBps: resolveVatRateBps(),
         })
         topUpConfirm = {
           open: true,

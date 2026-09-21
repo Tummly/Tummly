@@ -23,6 +23,8 @@ namespace TummlyBackend.Data
 
         public DbSet<Admin> Admins { get; set; }
 
+        public DbSet<AdminAuditEvent> AdminAuditEvents { get; set; }
+
         public DbSet<TrialRequest> TrialRequests { get; set; }
 
         public DbSet<PendingTrialRequest> PendingTrialRequests { get; set; }
@@ -1421,6 +1423,31 @@ namespace TummlyBackend.Data
                 .IsRequired();
 
             modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.Basis)
+                .HasMaxLength(64)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.GuestFormVersion)
+                .HasMaxLength(32)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.WordingVersion)
+                .HasMaxLength(32)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.PrivacyNoticeVersion)
+                .HasMaxLength(32)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.WordingSnapshot)
+                .HasMaxLength(512)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
                 .HasIndex(e => new
                 {
                     e.LocationGuestId,
@@ -2438,6 +2465,46 @@ namespace TummlyBackend.Data
                 .Property(row => row.ExistingMaterials)
                 .HasMaxLength(16)
                 .IsRequired();
+
+            /*
+             =========================================
+             ADMIN AUDIT EVENTS (append-only)
+             =========================================
+            */
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.Action)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.ActorIdentity)
+                .HasMaxLength(320)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.TargetType)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.TargetId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.DetailJson)
+                .HasMaxLength(4000);
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .HasIndex(e => e.OccurredAtUtc);
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .HasIndex(e => new { e.Action, e.OccurredAtUtc });
+
+            modelBuilder.Entity<AdminAuditEvent>()
+                .HasIndex(e => new { e.RestaurantId, e.OccurredAtUtc })
+                .HasFilter("[RestaurantId] IS NOT NULL");
         }
 
         public override int SaveChanges()

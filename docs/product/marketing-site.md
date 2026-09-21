@@ -300,6 +300,10 @@ Get started / Start Pilot, Sign in, Privacy, Terms, Cookie Policy, Cookie settin
 
 Consent gates `initGoogleAnalytics` and `trackPageView`.
 
+### Evidence (launch P0)
+
+- Cookie/storage inventory: [cookie-storage-inventory.md](./cookie-storage-inventory.md)
+
 ---
 
 ## Flow diagram

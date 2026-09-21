@@ -34,6 +34,7 @@ Each feature block includes: user flow, states, backend actions, edge cases, scr
 | [activation-and-fulfilment.md](./activation-and-fulfilment.md) | Activation code, Activation period, starter kit, fulfilment | 1 |
 | [guest-feedback.md](./guest-feedback.md) | Guest capture form, thank-you, offers | 2 |
 | [analytics.md](./analytics.md) | Shipped page views + Target event map | 2 |
+| [cookie-storage-inventory.md](./cookie-storage-inventory.md) | First-party + GA storage keys, consent categories | Launch evidence |
 | [security-and-rbac.md](./security-and-rbac.md) | Roles, isolation, sessions, audit gaps | 2 |
 | [support-playbooks.md](./support-playbooks.md) | Support topic index (SOPs TBD) | 2 |
 | [channel-credits-questionnaire.md](./channel-credits-questionnaire.md) | Points at pack v3.0 completed answers (not a commercial source) | Completed |

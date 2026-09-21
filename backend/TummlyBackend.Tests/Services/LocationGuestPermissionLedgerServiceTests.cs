@@ -174,6 +174,70 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task RecordEvent_WithEvidence_PersistsBasisVersionsAndSnapshot()
+        {
+            var guest = await SeedLocationGuestAsync(
+                LocationGuestMarketingPreference.NotRecorded
+            );
+            var at = new DateTime(2026, 9, 21, 12, 0, 0, DateTimeKind.Utc);
+            var evidence = new PermissionLedgerEvidence(
+                Basis: LocationGuestPermissionBases.Consent,
+                GuestFormVersion: "guest-form-v1",
+                WordingVersion: "email-marketing-v1",
+                PrivacyNoticeVersion: "privacy-notice-v1",
+                WordingSnapshot: "Yes, email me occasional offers and updates from Cafe."
+            );
+
+            _ledger.RecordEvent(
+                guest,
+                guest.RestaurantLocationId,
+                LocationGuestPermissionKind.EmailMarketing,
+                LocationGuestPermissionLedgerEventKinds.Grant,
+                LocationGuestPermissionLedgerSources.GuestForm,
+                at,
+                evidence
+            );
+            await _context.SaveChangesAsync();
+
+            var row = await _context.LocationGuestPermissionLedgerEntries
+                .AsNoTracking()
+                .SingleAsync();
+            Assert.Equal(LocationGuestPermissionBases.Consent, row.Basis);
+            Assert.Equal("guest-form-v1", row.GuestFormVersion);
+            Assert.Equal("email-marketing-v1", row.WordingVersion);
+            Assert.Equal("privacy-notice-v1", row.PrivacyNoticeVersion);
+            Assert.Equal(evidence.WordingSnapshot, row.WordingSnapshot);
+        }
+
+        [Fact]
+        public async Task RecordEvent_WithoutEvidence_LeavesEvidenceColumnsNull()
+        {
+            var guest = await SeedLocationGuestAsync(
+                LocationGuestMarketingPreference.NotRecorded
+            );
+            var at = new DateTime(2026, 9, 21, 12, 0, 0, DateTimeKind.Utc);
+
+            _ledger.RecordEvent(
+                guest.Id,
+                guest.RestaurantLocationId,
+                LocationGuestPermissionKind.EmailMarketing,
+                LocationGuestPermissionLedgerEventKinds.Grant,
+                LocationGuestPermissionLedgerSources.GuestForm,
+                at
+            );
+            await _context.SaveChangesAsync();
+
+            var row = await _context.LocationGuestPermissionLedgerEntries
+                .AsNoTracking()
+                .SingleAsync();
+            Assert.Null(row.Basis);
+            Assert.Null(row.GuestFormVersion);
+            Assert.Null(row.WordingVersion);
+            Assert.Null(row.PrivacyNoticeVersion);
+            Assert.Null(row.WordingSnapshot);
+        }
+
+        [Fact]
         public async Task BackfillFromLegacyAllowed_MatchesMigrationMapping()
         {
             var guest = await SeedLocationGuestAsync(

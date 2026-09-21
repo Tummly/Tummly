@@ -33,6 +33,21 @@ namespace TummlyBackend.Interfaces
             int? actorUserId = null
         );
 
+        /// <summary>
+        /// Guest Form path — stamps permission evidence (basis, versions, wording
+        /// snapshot) on the ledger row.
+        /// </summary>
+        void RecordEvent(
+            LocationGuest locationGuest,
+            int restaurantLocationId,
+            LocationGuestPermissionKind permissionKind,
+            string eventKind,
+            string source,
+            DateTime occurredAt,
+            PermissionLedgerEvidence evidence,
+            int? actorUserId = null
+        );
+
         Task<
             IReadOnlyDictionary<
                 LocationGuestPermissionKind,

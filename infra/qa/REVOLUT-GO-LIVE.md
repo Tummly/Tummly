@@ -22,6 +22,19 @@ apply ACA env
 
 ---
 
+## Launch VAT mode
+
+| Mode | Env | Recurring map | Seller VAT keys | One-time / invoices |
+| --- | --- | --- | --- | --- |
+| OFF (launch default) | `TUMMLY_VAT_MODE_ACTIVE=false` (unset / empty → false) | `Revolut__PlanVariations__*` = **net** GBP | Optional; gate skips `vat_not_ready` | Net amounts; no new VAT invoice / UI |
+| ACTIVE | `TUMMLY_VAT_MODE_ACTIVE=true` | `Revolut__PlanVariationsGross__*` = **gross** (net + 20%) | Required (complete pack) | Current 20% math + VAT PDF |
+
+Billing pack v3.0 “VAT on all launch charges” is **overridden** for launch by
+this flag. Set `true` only after HMRC registration and matching gross
+Merchant variations exist. Keep the net map for OFF / rollback.
+
+---
+
 ## Where values live
 
 | Store | Use |
@@ -48,7 +61,8 @@ variation maps. UUIDs and secrets **do not** transfer between accounts.
 | `Revolut__RequireSandboxHost` | `true` (refuse live host) | omit / `false` |
 | `Revolut__SecretKey` | Sandbox Merchant secret | Production Merchant secret |
 | `Revolut__WebhookSigningSecret` | Sandbox webhook `signing_secret` | Production webhook `signing_secret` |
-| `Revolut__PlanVariations__*` | Sandbox variation UUIDs | Production variation UUIDs |
+| `Revolut__PlanVariations__*` | Sandbox **net** variation UUIDs | Production **net** variation UUIDs |
+| `Revolut__PlanVariationsGross__*` | Sandbox **gross** UUIDs (needed only when `TUMMLY_VAT_MODE_ACTIVE=true`) | Production **gross** UUIDs (needed only when active) |
 | Webhook URL | Sandbox/QA API host + `/api/webhooks/revolut` | Live API host + `/api/webhooks/revolut` |
 | Cards | Revolut test PANs only | Real cards |
 
@@ -67,16 +81,18 @@ Probe (non-secret): `GET /health/revolut` or
 Tick every row for the target environment before enabling live paid
 conversion.
 
-### A. Seller VAT / legal (pack `vat.*_env`)
+### A. Launch VAT mode + seller VAT / legal
 
 | Done | Env key | Notes |
 | --- | --- | --- |
-| [ ] | `TUMMLY_VAT_REGISTRATION_NUMBER` | HMRC VAT registration number (public on invoices; treat as controlled config) |
-| [ ] | `TUMMLY_VAT_EFFECTIVE_DATE` | VAT registration effective date |
-| [ ] | `TUMMLY_LEGAL_NAME` | Legal entity name on VAT PDFs |
-| [ ] | `TUMMLY_REGISTERED_ADDRESS` | Registered address on VAT PDFs |
+| [ ] | `TUMMLY_VAT_MODE_ACTIVE` | Launch default `false`. Unset / empty → false. Set `true` only after HMRC registration + gross map filled. Billing pack v3.0 VAT-on is overridden until then. |
+| [ ] | `TUMMLY_VAT_REGISTRATION_NUMBER` | **Required when `TUMMLY_VAT_MODE_ACTIVE=true`.** HMRC VAT registration number (public on invoices; treat as controlled config) |
+| [ ] | `TUMMLY_VAT_EFFECTIVE_DATE` | **Required when `TUMMLY_VAT_MODE_ACTIVE=true`.** VAT registration effective date |
+| [ ] | `TUMMLY_LEGAL_NAME` | **Required when `TUMMLY_VAT_MODE_ACTIVE=true`.** Legal entity name on VAT PDFs |
+| [ ] | `TUMMLY_REGISTERED_ADDRESS` | **Required when `TUMMLY_VAT_MODE_ACTIVE=true`.** Registered address on VAT PDFs |
 
-Pack: `fail_live_paid_checkout_if_missing: true`.
+Pack: `fail_live_paid_checkout_if_missing: true` applies when the flag is
+`true`. While `false`, Merchant create skips `vat_not_ready`.
 
 ### B. Revolut Merchant (server — `.NET` double-underscore form)
 
@@ -87,11 +103,13 @@ Pack: `fail_live_paid_checkout_if_missing: true`.
 | [ ] | `Revolut__ApiBaseUrl` | No | Host for this account (sandbox or live — see table above) |
 | [ ] | `Revolut__ApiVersion` | No | `Revolut-Api-Version` header; pin per deploy |
 
-### C. Catalog map (eight current recurring keys)
+### C. Catalog maps (eight current recurring keys)
 
 Create Production (or sandbox) plans/variations with
 `scripts/revolut-create-plan-variations/` (`--apply` prints
 `Revolut__PlanVariations__*` lines). Mount **all eight** for this env:
+
+**Net map** (`TUMMLY_VAT_MODE_ACTIVE=false`):
 
 | Done | Env key |
 | --- | --- |
@@ -104,6 +122,20 @@ Create Production (or sandbox) plans/variations with
 | [ ] | `Revolut__PlanVariations__tummly_group_location_monthly_gbp_v3` |
 | [ ] | `Revolut__PlanVariations__tummly_group_location_annual_gbp_v3` |
 
+**Gross map** (required when `TUMMLY_VAT_MODE_ACTIVE=true` — same eight keys,
+gross GBP = net + 20%):
+
+| Done | Env key |
+| --- | --- |
+| [ ] | `Revolut__PlanVariationsGross__tummly_starter_monthly_gbp_v3` |
+| [ ] | `Revolut__PlanVariationsGross__tummly_starter_annual_gbp_v3` |
+| [ ] | `Revolut__PlanVariationsGross__tummly_growth_monthly_gbp_v3` |
+| [ ] | `Revolut__PlanVariationsGross__tummly_growth_annual_gbp_v3` |
+| [ ] | `Revolut__PlanVariationsGross__tummly_group_monthly_gbp_v3` |
+| [ ] | `Revolut__PlanVariationsGross__tummly_group_annual_gbp_v3` |
+| [ ] | `Revolut__PlanVariationsGross__tummly_group_location_monthly_gbp_v3` |
+| [ ] | `Revolut__PlanVariationsGross__tummly_group_location_annual_gbp_v3` |
+
 Top-up packs need **no** Revolut catalog UUID (order amount + `external_id`
 = lookup key).
 
@@ -114,7 +146,7 @@ Top-up packs need **no** Revolut catalog UUID (order amount + `external_id`
 | [ ] | Webhook URL | `POST {api-host}/api/webhooks/revolut` on the live (or QA) API host |
 | [ ] | Webhook id | Keep for rotate-secret / support (dashboard or retrieve webhook) |
 | [ ] | Event subscribe set | Lock 04: `ORDER_COMPLETED`, `ORDER_FAILED`, `ORDER_CANCELLED`, `ORDER_AUTHORISED`, `ORDER_PAYMENT_DECLINED`, `ORDER_PAYMENT_FAILED`, `SUBSCRIPTION_INITIATED`, `SUBSCRIPTION_CANCELLED`, `SUBSCRIPTION_OVERDUE`, `SUBSCRIPTION_FINISHED`, `DISPUTE_*` |
-| [ ] | Eight variations exist | Created by the repo script for **this** Revolut account |
+| [ ] | Eight variations exist | Net map created for this Revolut account; gross map too if mode will be `active` |
 
 Example webhook URLs (hosts change per env — confirm before register):
 
@@ -141,10 +173,10 @@ if any A/B config is empty or the target recurring SKU has no C map entry.
 
 | Condition | Code / HTTP | Effect |
 | --- | --- | --- |
-| Any VAT A key missing | `vat_not_ready` / **503** | No redirect to HPP; no Merchant create |
+| `TUMMLY_VAT_MODE_ACTIVE=true` and any seller VAT A key missing | `vat_not_ready` / **503** | No redirect to HPP; no Merchant create. Skipped when the flag is false. |
 | `Revolut__SecretKey` / `ApiBaseUrl` / `ApiVersion` missing | `revolut_not_ready` / **503** | No Merchant call |
 | `RequireSandboxHost=true` but host is not Sandbox | `revolut_sandbox_required` / **503** | No Merchant call (QA safety) |
-| Target recurring `plan_variation_id` missing from C | `plan_variation_missing` / **503** | No subscription create / change onto that SKU |
+| Target recurring `plan_variation_id` missing from active map (net when false, gross when true) | `plan_variation_missing` / **503** | No subscription create / change onto that SKU |
 | Empty or wrong `Revolut__WebhookSigningSecret` | Bad signature → **401/400** | No event row; do not enable live paid conversion in an env that cannot verify webhooks |
 
 Gate: `RevolutMerchantCreateGate`. Webhook: `POST /api/webhooks/revolut`

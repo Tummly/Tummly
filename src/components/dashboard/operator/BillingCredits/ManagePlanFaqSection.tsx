@@ -7,14 +7,21 @@ import {
 import {
   MANAGE_PLAN_COPY,
   MANAGE_PLAN_FAQ_ANSWER_CLASS,
-  MANAGE_PLAN_FAQ_ITEMS,
   MANAGE_PLAN_FAQ_QUESTION_CLASS,
   MANAGE_PLAN_FAQ_TRIGGER_CLASS,
   MANAGE_PLAN_SECTION_HEADING_CLASS,
+  buildManagePlanFaqItems,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
 
-export function ManagePlanFaqSection() {
+export function ManagePlanFaqSection({
+  vatRateBps = 0,
+}: {
+  /** Catalog / API rate in basis points; 0 omits “+ VAT” FAQ copy. */
+  vatRateBps?: number
+}) {
+  const faqItems = buildManagePlanFaqItems({ vatRateBps })
+
   return (
     <section className="flex flex-col gap-10 pb-17.5 lg:flex-row lg:items-start lg:gap-15">
       <h2
@@ -29,17 +36,17 @@ export function ManagePlanFaqSection() {
       <Accordion
         type="single"
         collapsible
-        defaultValue={MANAGE_PLAN_FAQ_ITEMS[0]?.id}
+        defaultValue={faqItems[0]?.id}
         className="min-w-0 flex-1 pt-5"
       >
-        {MANAGE_PLAN_FAQ_ITEMS.map((item, index) => (
+        {faqItems.map((item, index) => (
           <AccordionItem
             key={item.id}
             value={item.id}
             className={cn(
               "border-0",
               index > 0 && "pt-7.5",
-              index < MANAGE_PLAN_FAQ_ITEMS.length - 1 &&
+              index < faqItems.length - 1 &&
                 "border-b border-border pb-7.5"
             )}
           >

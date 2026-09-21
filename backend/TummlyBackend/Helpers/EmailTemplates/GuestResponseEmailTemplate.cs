@@ -14,7 +14,8 @@ namespace TummlyBackend.Helpers.EmailTemplates
             string message,
             string frontendBaseUrl,
             string? brandLogoUrl,
-            GuestResponseEmailOfferBlock? offer = null
+            GuestResponseEmailOfferBlock? offer = null,
+            string? unsubscribeHref = null
         )
         {
             return BaseNonTransactionalEmailTemplate.Generate(
@@ -25,7 +26,8 @@ namespace TummlyBackend.Helpers.EmailTemplates
                 message,
                 frontendBaseUrl,
                 brandLogoUrl,
-                offer
+                offer,
+                unsubscribeHref
             );
         }
     }

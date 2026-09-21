@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Net.Mail;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Helpers;
@@ -21,14 +22,17 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
+        private readonly IConfiguration _configuration;
 
         public FeedbackGuestPreviewSendTestService(
             ApplicationDbContext context,
-            IEmailService emailService
+            IEmailService emailService,
+            IConfiguration configuration
         )
         {
             _context = context;
             _emailService = emailService;
+            _configuration = configuration;
         }
 
         public async Task<bool?> SendAsync(
@@ -83,6 +87,15 @@ namespace TummlyBackend.Services
 
             var offerBlock = BuildSampleOfferBlock(offer);
 
+            var frontendBaseUrl =
+                _configuration["Frontend:BaseUrl"] ?? string.Empty;
+            var unsubscribeHref = UnsubscribeLink.PreferSignedOrRestaurant(
+                frontendBaseUrl,
+                restaurant.Id,
+                feedback.LocationGuestId,
+                UnsubscribeLink.ResolveSigningSecret(_configuration)
+            );
+
             await _emailService.SendGuestResponseEmailAsync(
                 destination,
                 content.Subject!,
@@ -91,7 +104,8 @@ namespace TummlyBackend.Services
                 location.Address,
                 content.Body,
                 brandLogoUrl: null,
-                offer: offerBlock
+                offer: offerBlock,
+                unsubscribeHref: unsubscribeHref
             );
 
             return true;

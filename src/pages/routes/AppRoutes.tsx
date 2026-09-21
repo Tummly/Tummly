@@ -30,6 +30,8 @@ import GuestFeedbackPage from "../public/GuestFeedbackPage";
 import PrivacyPage from "../public/PrivacyPage";
 import TermsPage from "../public/TermsPage";
 import CookiePolicyPage from "../public/CookiePolicyPage";
+import FaqsPage from "../public/FaqsPage";
+import UnsubscribePage from "../public/UnsubscribePage";
 import NotFoundPage from "../public/NotFoundPage";
 import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
 import { CaptureNestedRoute } from "@/components/dashboard/operator/Capture/CaptureNestedRoute";
@@ -505,6 +507,8 @@ function AppRoutes() {
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="terms" element={<TermsPage />} />
           <Route path="cookie-policy" element={<CookiePolicyPage />} />
+          <Route path="faqs" element={<FaqsPage />} />
+          <Route path="unsubscribe" element={<UnsubscribePage />} />
 
           <Route path={HELP_CENTRE_ROUTES.hub} element={<HelpCentreHubPage />} />
           <Route

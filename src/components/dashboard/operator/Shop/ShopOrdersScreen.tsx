@@ -178,6 +178,43 @@ export function ShopOrdersScreen({
     setPage(1)
   }
 
+  const handleRefreshSelectedOrder = async (
+    order: DetailedShopOrder
+  ): Promise<DetailedShopOrder | null> => {
+    const locationId =
+      typeof order.locationId === "number"
+        ? order.locationId
+        : selectedLocationId
+    try {
+      const detail = await fetchShopOrder(order.id, locationId)
+      const mapped = mapShopOrderDetailToRow(detail)
+      setOrders((prev) =>
+        prev.map((row) => (row.id === mapped.id ? mapped : row))
+      )
+      setSelectedOrder((prev) =>
+        prev && prev.id === mapped.id ? mapped : prev
+      )
+      return mapped
+    } catch {
+      toast.error("Could not refresh order details.")
+      return null
+    }
+  }
+
+  const handleBeforeCancel = async (
+    order: DetailedShopOrder
+  ): Promise<boolean> => {
+    const refreshed = await handleRefreshSelectedOrder(order)
+    if (!refreshed) {
+      return false
+    }
+    if (refreshed.canCancel !== true) {
+      toast.error("This order can no longer be cancelled.")
+      return false
+    }
+    return true
+  }
+
   const handleCancelOrder = async (
     order: DetailedShopOrder,
     reasonSlug: string
@@ -204,6 +241,7 @@ export function ShopOrdersScreen({
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 409) {
         toast.error("This order can no longer be cancelled.")
+        await handleRefreshSelectedOrder(order)
         return
       }
       toast.error("Could not cancel order.")
@@ -556,6 +594,7 @@ export function ShopOrdersScreen({
         }}
         onReorder={handleReorder}
         onCancelOrder={handleCancelOrder}
+        onBeforeCancel={handleBeforeCancel}
       />
     </div>
   )

@@ -38,6 +38,13 @@ namespace TummlyBackend.Configurations
         public Dictionary<string, string> PlanVariations { get; set; } =
             new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Gross (VAT-inclusive) plan variation map.
+        /// Bound from <c>Revolut__PlanVariationsGross__{lookup_key}</c>.
+        /// </summary>
+        public Dictionary<string, string> PlanVariationsGross { get; set; } =
+            new(StringComparer.Ordinal);
+
         public bool IsLiveHost =>
             HostMatches(LiveApiBaseUrl);
 
@@ -75,19 +82,28 @@ namespace TummlyBackend.Configurations
         public bool TryGetPlanVariationId(
             string lookupKey,
             out string planVariationId
+        ) =>
+            TryGetPlanVariationId(
+                lookupKey,
+                useGrossMap: false,
+                out planVariationId
+            );
+
+        public bool TryGetPlanVariationId(
+            string lookupKey,
+            bool useGrossMap,
+            out string planVariationId
         )
         {
             planVariationId = string.Empty;
-            if (
-                string.IsNullOrWhiteSpace(lookupKey)
-                || PlanVariations.Count == 0
-            )
+            var map = useGrossMap ? PlanVariationsGross : PlanVariations;
+            if (string.IsNullOrWhiteSpace(lookupKey) || map.Count == 0)
             {
                 return false;
             }
 
             if (
-                !PlanVariations.TryGetValue(lookupKey, out var mapped)
+                !map.TryGetValue(lookupKey, out var mapped)
                 || string.IsNullOrWhiteSpace(mapped)
             )
             {

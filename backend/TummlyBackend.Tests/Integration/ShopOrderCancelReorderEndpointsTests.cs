@@ -28,6 +28,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task CancelProcessingOrder_LeavesPaymentPaid()
         {
             var seeded = await SeedWorkspaceAsync();
+            var refundCallsBefore = _factory.Merchant.RefundOrderCallCount;
             var orderId = await InsertOrderAsync(
                 seeded,
                 seeded.InScopeLocationId,
@@ -54,6 +55,10 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("fulfilmentStatus").GetString()
             );
             Assert.False(body.GetProperty("canCancel").GetBoolean());
+            Assert.Equal(
+                refundCallsBefore,
+                _factory.Merchant.RefundOrderCallCount
+            );
 
             using (var scope = _factory.Services.CreateScope())
             {
@@ -71,6 +76,50 @@ namespace TummlyBackend.Tests.Integration
                 Assert.NotNull(order.CancelledAtUtc);
                 Assert.Equal(seeded.MemberUserId, order.CancelledByUserId);
             }
+        }
+
+        [Fact]
+        public async Task CancelPaidOrderWithRevolutId_CallsMerchantRefund()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var refundCallsBefore = _factory.Merchant.RefundOrderCallCount;
+            var revolutOrderId = $"ord_shop_cancel_{Guid.NewGuid():N}";
+            var orderId = await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.Processing,
+                revolutOrderId: revolutOrderId
+            );
+
+            using var request = AuthorizedPost(
+                $"/api/shop/orders/{orderId}/cancel",
+                seeded.MemberJwt,
+                new
+                {
+                    locationId = seeded.InScopeLocationId,
+                    reason = ShopCancelReasons.OrderedByMistake,
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("paid", body.GetProperty("paymentStatus").GetString());
+            Assert.Equal(
+                "cancelled",
+                body.GetProperty("fulfilmentStatus").GetString()
+            );
+            Assert.Equal(
+                refundCallsBefore + 1,
+                _factory.Merchant.RefundOrderCallCount
+            );
+            Assert.Equal(revolutOrderId, _factory.Merchant.LastRefundOrderId);
+            Assert.Null(_factory.Merchant.LastRefundAmountMinor);
+            Assert.Equal(
+                $"shop-cancel:{orderId:D}",
+                _factory.Merchant.LastRefundIdempotencyKey
+            );
         }
 
         [Fact]
@@ -419,7 +468,8 @@ namespace TummlyBackend.Tests.Integration
             string? fulfilmentStatus,
             string? trackingUrl = null,
             int unitNetPence = 1200,
-            string catalogSkuId = "table-tents"
+            string catalogSkuId = "table-tents",
+            string? revolutOrderId = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -464,6 +514,7 @@ namespace TummlyBackend.Tests.Integration
                 GrossPence = materialsNet + 480,
                 DeliveryMethod = ShopDeliveryMethods.Standard,
                 PaymentStatus = paymentStatus,
+                RevolutOrderId = revolutOrderId,
                 FulfilmentStatus = fulfilmentStatus,
                 PaidAtUtc = paymentStatus == ShopPaymentStatuses.Paid
                     ? DateTime.UtcNow.AddDays(-2)

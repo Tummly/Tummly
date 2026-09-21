@@ -4,6 +4,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -391,6 +392,235 @@ namespace TummlyBackend.Tests.Services
                     .ToListAsync(),
                 row => row.EntryType == CreditLedgerEntryTypes.Expiry
             );
+        }
+
+        [Fact]
+        public void ApplyPostCancelSoftLock_DemotesPaidToPilotSoftLock()
+        {
+            var renewalEnd = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var account = new BillingAccount
+            {
+                RestaurantId = 1,
+                SubscriptionPlan = BillingSubscriptionPlans.Growth,
+                BillingCycle = BillingCycles.Monthly,
+                BillingStatus = BillingStatuses.Active,
+                ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
+                StarterKitState = StarterKitStates.Unused,
+                PaidExtraLocationCount = 2,
+                DunningEpisodeStartedAt = renewalEnd.AddDays(-5),
+                DunningFiredSteps = "0,3",
+                DunningOutstandingOrderId = "ord_x",
+                PilotSoftLockNotified = true,
+                PilotDormantNotified = true,
+            };
+
+            var result = _lifecycle.ApplyPostCancelSoftLock(account, renewalEnd);
+
+            Assert.True(result.Applied);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Null(account.BillingCycle);
+            Assert.Equal(BillingStatuses.SoftLock, account.BillingStatus);
+            Assert.Equal(renewalEnd, account.PilotPeriodEnd);
+            Assert.Equal(renewalEnd, account.SoftLockEnteredAt);
+            Assert.Null(account.DormantEnteredAt);
+            Assert.Null(account.DunningEpisodeStartedAt);
+            Assert.Null(account.DunningFiredSteps);
+            Assert.Null(account.DunningOutstandingOrderId);
+            Assert.Equal(2, account.PaidExtraLocationCount);
+            Assert.False(account.PilotSoftLockNotified);
+            Assert.False(account.PilotDormantNotified);
+        }
+
+        [Fact]
+        public void ApplyPostCancelSoftLock_ClearsGuestRetentionPurgedAt()
+        {
+            var renewalEnd = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var account = new BillingAccount
+            {
+                RestaurantId = 1,
+                SubscriptionPlan = BillingSubscriptionPlans.Growth,
+                BillingCycle = BillingCycles.Monthly,
+                BillingStatus = BillingStatuses.Dormant,
+                ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
+                StarterKitState = StarterKitStates.Unused,
+                DormantEnteredAt = renewalEnd.AddDays(-100),
+                GuestRetentionPurgedAtUtc = renewalEnd.AddDays(-10),
+            };
+
+            var result = _lifecycle.ApplyPostCancelSoftLock(account, renewalEnd);
+
+            Assert.True(result.Applied);
+            Assert.Equal(BillingStatuses.SoftLock, account.BillingStatus);
+            Assert.Null(account.DormantEnteredAt);
+            Assert.Null(account.GuestRetentionPurgedAtUtc);
+        }
+
+        [Fact]
+        public void ApplyPostCancelSoftLock_IdempotentWhenAlreadyPilotSoftLock()
+        {
+            var renewalEnd = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var account = new BillingAccount
+            {
+                RestaurantId = 1,
+                SubscriptionPlan = BillingSubscriptionPlans.Pilot,
+                BillingStatus = BillingStatuses.SoftLock,
+                ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
+                StarterKitState = StarterKitStates.Unused,
+                PilotPeriodEnd = renewalEnd,
+                SoftLockEnteredAt = renewalEnd,
+            };
+
+            var result = _lifecycle.ApplyPostCancelSoftLock(account, renewalEnd.AddDays(1));
+
+            Assert.False(result.Applied);
+            Assert.False(result.Refused);
+            Assert.Equal(renewalEnd, account.SoftLockEnteredAt);
+            Assert.Equal(renewalEnd, account.PilotPeriodEnd);
+        }
+
+        [Fact]
+        public void ApplyPostCancelSoftLock_PaidWriteDeny_IsSoftLock()
+        {
+            var renewalEnd = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var account = new BillingAccount
+            {
+                RestaurantId = 1,
+                SubscriptionPlan = BillingSubscriptionPlans.Growth,
+                BillingCycle = BillingCycles.Monthly,
+                BillingStatus = BillingStatuses.Active,
+                ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
+                StarterKitState = StarterKitStates.Unused,
+            };
+            _lifecycle.ApplyPostCancelSoftLock(account, renewalEnd);
+
+            var deny = OperatorBillingLockEvaluator.EvaluatePaidWriteDeny(
+                OperatorBillingLockEvaluator.FromBillingAccount(account)
+            );
+            Assert.Equal(OperatorBillingLockEvaluator.SoftLock, deny);
+        }
+
+        [Fact]
+        public async Task ActivatePaidPlan_AfterPostCancelSoftLock_ClearsClocks()
+        {
+            var renewalEnd = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedPaidAsync();
+            var account = await ReloadAsync(seeded.RestaurantId);
+            _lifecycle.ApplyPostCancelSoftLock(account, renewalEnd);
+            await _context.SaveChangesAsync();
+
+            var now = renewalEnd.AddDays(1);
+            await _lifecycle.ActivatePaidPlanAsync(seeded.RestaurantId, now);
+
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.Active, after.BillingStatus);
+            Assert.Null(after.SoftLockEnteredAt);
+            Assert.Null(after.DormantEnteredAt);
+            Assert.Null(after.PilotPeriodEnd);
+        }
+
+        [Fact]
+        public async Task ActivatePaidPlan_ClearsGuestRetentionPurgedAt()
+        {
+            var periodEnd = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc);
+            var dormantAt = periodEnd.AddHours(
+                BillingAccountLifecycleService.PilotDormantHours
+            );
+            var seeded = await SeedPilotAsync(periodEnd);
+            await _lifecycle.TickAsync(seeded.RestaurantId, dormantAt);
+
+            var account = await ReloadAsync(seeded.RestaurantId);
+            account.GuestRetentionPurgedAtUtc = dormantAt.AddDays(90);
+            await _context.SaveChangesAsync();
+
+            var now = dormantAt.AddDays(91);
+            await _lifecycle.ActivatePaidPlanAsync(seeded.RestaurantId, now);
+
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.Active, after.BillingStatus);
+            Assert.Null(after.GuestRetentionPurgedAtUtc);
+            Assert.Null(after.DormantEnteredAt);
+        }
+
+        [Fact]
+        public async Task ExtendPilotActivation_ClearsGuestRetentionPurgedAt()
+        {
+            var periodEnd = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc);
+            var dormantAt = periodEnd.AddHours(
+                BillingAccountLifecycleService.PilotDormantHours
+            );
+            var seeded = await SeedPilotAsync(periodEnd);
+            await _lifecycle.TickAsync(seeded.RestaurantId, dormantAt);
+
+            var account = await ReloadAsync(seeded.RestaurantId);
+            account.GuestRetentionPurgedAtUtc = dormantAt.AddDays(90);
+            await _context.SaveChangesAsync();
+
+            var now = dormantAt.AddDays(91);
+            var newPeriodEnd = now.AddDays(30);
+            var result = await _lifecycle.ExtendPilotActivationAsync(
+                seeded.RestaurantId,
+                newPeriodEnd,
+                now
+            );
+
+            Assert.True(result.Applied);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.Pilot, after.BillingStatus);
+            Assert.Null(after.GuestRetentionPurgedAtUtc);
+            Assert.Null(after.DormantEnteredAt);
+            Assert.Equal(newPeriodEnd, after.PilotPeriodEnd);
+        }
+
+        [Fact]
+        public async Task RecoverDunning_ClearsGuestRetentionPurgedAt()
+        {
+            var start = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+            var dormantAt = start.AddHours(
+                BillingAccountLifecycleService.DunningDormantHours
+            );
+            var seeded = await SeedPaidAsync();
+            await _lifecycle.StartDunningEpisodeAsync(seeded.RestaurantId, start);
+            await _lifecycle.TickAsync(seeded.RestaurantId, dormantAt);
+
+            var account = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.Dormant, account.BillingStatus);
+            account.GuestRetentionPurgedAtUtc = dormantAt.AddDays(90);
+            await _context.SaveChangesAsync();
+
+            var now = dormantAt.AddDays(91);
+            await _lifecycle.RecoverDunningAsync(seeded.RestaurantId, now);
+
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.Active, after.BillingStatus);
+            Assert.Null(after.GuestRetentionPurgedAtUtc);
+            Assert.Null(after.DormantEnteredAt);
+        }
+
+        [Fact]
+        public async Task Tick_AfterPostCancelSoftLock_ReachesDormantAtPilotClock()
+        {
+            var renewalEnd = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedPaidAsync();
+            var account = await ReloadAsync(seeded.RestaurantId);
+            account.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+            account.BillingCycle = BillingCycles.Monthly;
+            account.BillingStatus = BillingStatuses.Active;
+            await _context.SaveChangesAsync();
+
+            _lifecycle.ApplyPostCancelSoftLock(account, renewalEnd);
+            await _context.SaveChangesAsync();
+
+            var dormantAt = renewalEnd.AddHours(
+                BillingAccountLifecycleService.PilotDormantHours
+            );
+            await _lifecycle.TickAsync(seeded.RestaurantId, dormantAt);
+
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.Dormant, after.BillingStatus);
+            Assert.Equal(renewalEnd, after.SoftLockEnteredAt);
+            Assert.Equal(dormantAt, after.DormantEnteredAt);
+            Assert.Single(_notifier.PilotLockEnters);
+            Assert.Single(_notifier.PilotDormantEnters);
         }
 
         private async Task<SeededAccount> SeedPilotAsync(DateTime periodEnd)

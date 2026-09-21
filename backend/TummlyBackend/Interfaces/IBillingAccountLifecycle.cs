@@ -1,3 +1,5 @@
+using TummlyBackend.Models;
+
 namespace TummlyBackend.Interfaces
 {
     public interface IBillingAccountLifecycle
@@ -38,6 +40,15 @@ namespace TummlyBackend.Interfaces
             int restaurantId,
             bool restricted,
             CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// Mutates the locked BillingAccount in the caller transaction after paid
+        /// Cancel plan applies at renewal end. Does not open a nested transaction.
+        /// </summary>
+        BillingLifecycleCommandResult ApplyPostCancelSoftLock(
+            BillingAccount billingAccount,
+            DateTime renewalEndUtc
         );
     }
 

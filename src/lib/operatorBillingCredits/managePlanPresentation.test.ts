@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { PlanSubscriptionSnapshot } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 import {
   buildManagePlanCardViewModels,
+  buildManagePlanFaqItems,
   buildPlanChangeConfirmCopy,
   buildPlanRenewalDateMetric,
   defaultPreviewCadence,
@@ -92,6 +93,7 @@ describe("buildManagePlanCardViewModels", () => {
     const cards = buildManagePlanCardViewModels({
       plan: paidPlan({ subscriptionPlan: "Pilot", isPilot: true }),
       previewCadence: "monthly",
+      vatRateBps: 2000,
     })
 
     expect(cards.map((card) => card.id)).toEqual([
@@ -112,11 +114,62 @@ describe("buildManagePlanCardViewModels", () => {
     const cards = buildManagePlanCardViewModels({
       plan: paidPlan(),
       previewCadence: "annual",
+      vatRateBps: 2000,
     })
 
     expect(cards[1]?.priceHeadline).toBe("£398 / year + VAT")
     expect(cards[1]?.annualSaveLabel).toBeNull()
     expect(cards[1]?.priceSubline).toBeNull()
+  })
+
+  it("omits + VAT from price headlines when vatRateBps is 0", () => {
+    const cards = buildManagePlanCardViewModels({
+      plan: paidPlan({ subscriptionPlan: "Pilot", isPilot: true }),
+      previewCadence: "monthly",
+      vatRateBps: 0,
+    })
+
+    expect(cards[1]?.priceHeadline).toBe("£39 / month")
+    expect(cards[1]?.priceSuffix).toBe("/ month")
+  })
+})
+
+describe("buildManagePlanFaqItems", () => {
+  it("includes + VAT on group location copy when vatRateBps is active", () => {
+    const group = buildManagePlanFaqItems({ vatRateBps: 2000 }).find(
+      (item) => item.id === "group-locations"
+    )
+    expect(group?.answerParagraphs[1]).toBe(
+      "Additional Group Locations can be added for £39/month + VAT each, or £398/year + VAT on Annual."
+    )
+    expect(
+      buildManagePlanFaqItems({ vatRateBps: 2000 }).some(
+        (item) => item.id === "vat"
+      )
+    ).toBe(true)
+  })
+
+  it("omits + VAT and VAT FAQ when vatRateBps is 0", () => {
+    const items = buildManagePlanFaqItems({ vatRateBps: 0 })
+    const group = items.find((item) => item.id === "group-locations")
+    expect(group?.answerParagraphs[1]).toBe(
+      "Additional Group Locations can be added for £39/month each, or £398/year on Annual."
+    )
+    expect(items.some((item) => item.id === "vat")).toBe(false)
+  })
+
+  it("FAQ starter kit items describe one kit per Active Location", () => {
+    const items = buildManagePlanFaqItems({ vatRateBps: 0 })
+    const perLocation = items.find((i) => i.id === "starter-kit-per-location")
+    expect(perLocation?.answerParagraphs.join(" ")).toMatch(/Active Location/i)
+    expect(perLocation?.answerParagraphs.join(" ")).not.toMatch(
+      /Billing Account lifetime/i
+    )
+
+    const qr = items.find((i) => i.id === "qr-materials")
+    expect(qr?.answerParagraphs.join(" ")).not.toMatch(
+      /Billing Account lifetime/i
+    )
   })
 })
 

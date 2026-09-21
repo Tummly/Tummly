@@ -68,6 +68,8 @@ type ShopCheckoutScreenProps = {
   onBackToProduct?: () => void
   onOrderPlaced?: (orderNumber: string) => void
   paidWriteChrome: ShopPaidWriteChrome
+  /** Effective seller VAT rate (bps). Defaults to 0 (launch OFF / net-only). */
+  vatRateBps?: number
 }
 
 function penceToPounds(pence: number): string {
@@ -101,6 +103,7 @@ export function ShopCheckoutScreen({
   onBackToProduct,
   onOrderPlaced,
   paidWriteChrome,
+  vatRateBps = 0,
 }: ShopCheckoutScreenProps) {
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>("delivery")
   const [checkoutLines, setCheckoutLines] = useState<CheckoutLine[]>(lines)
@@ -196,7 +199,13 @@ export function ShopCheckoutScreen({
   const totals = computeShopCheckoutTotalsPence({
     materialsNetPence,
     deliveryMethod,
+    vatRateBps,
   })
+  const showVatChrome = vatRateBps > 0
+  const formatLinePrice = (netPence: number) =>
+    showVatChrome
+      ? `${penceToPounds(netPence)} excluding VAT`
+      : penceToPounds(netPence)
   const deliveryDisplay =
     totals.deliveryNetPence === 0
       ? "Free"
@@ -370,10 +379,7 @@ export function ShopCheckoutScreen({
             : null}
           {renderSummaryRow("Location", selectedLocationName)}
           {renderSummaryRow("Quantity", `Pack of ${singleLine.quantity}`)}
-          {renderSummaryRow(
-            "Price",
-            `${penceToPounds(singleLine.lineNetPence)} excluding VAT`
-          )}
+          {renderSummaryRow("Price", formatLinePrice(singleLine.lineNetPence))}
         </div>
       )
     }
@@ -387,10 +393,7 @@ export function ShopCheckoutScreen({
               ? renderSummaryRow("Specification", line.specification)
               : null}
             {renderSummaryRow("Quantity", `Pack of ${line.quantity}`)}
-            {renderSummaryRow(
-              "Price",
-              `${penceToPounds(line.lineNetPence)} excluding VAT`
-            )}
+            {renderSummaryRow("Price", formatLinePrice(line.lineNetPence))}
           </div>
         ))}
 
@@ -399,11 +402,20 @@ export function ShopCheckoutScreen({
         {includeTotals ? (
           <>
             {renderSummaryRow("Delivery", deliveryDisplay)}
-            {renderSummaryRow(
-              "Subtotal before VAT",
-              penceToPounds(totals.materialsNetPence)
+            {showVatChrome ? (
+              <>
+                {renderSummaryRow(
+                  "Subtotal before VAT",
+                  penceToPounds(totals.materialsNetPence)
+                )}
+                {renderSummaryRow("VAT", penceToPounds(totals.vatPence))}
+              </>
+            ) : (
+              renderSummaryRow(
+                "Subtotal",
+                penceToPounds(totals.materialsNetPence)
+              )
             )}
-            {renderSummaryRow("VAT", penceToPounds(totals.vatPence))}
             <div className="flex items-center justify-between gap-4 pt-1">
               <span className="shrink-0 text-base font-semibold text-[var(--op-color-gray-550)]">
                 Total
@@ -416,7 +428,7 @@ export function ShopCheckoutScreen({
         ) : (
           renderSummaryRow(
             "Materials net",
-            `${penceToPounds(totals.materialsNetPence)} excluding VAT`
+            formatLinePrice(totals.materialsNetPence)
           )
         )}
       </div>

@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -14,6 +17,85 @@ namespace TummlyBackend.Tests.Services
     {
         private readonly IPricebookCatalog _pricebook = TestPricebookPaths.LoadV3();
         private readonly DateTime _now = new(2026, 8, 20, 12, 0, 0, DateTimeKind.Utc);
+
+        [Fact]
+        public async Task StartAsync_WhenVatModeOff_ChargesNetOnly_AndOmitsLineTax()
+        {
+            await using var context = CreateContext();
+            var account = await SeedPaidStarterAsync(context);
+            var merchant = new RecordingTopUpMerchant();
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = false }
+            );
+            var pack = RequirePack("ai", 500);
+
+            await service.StartAsync(
+                account,
+                "Multi",
+                locationId: 7,
+                pack,
+                "key-vat-off"
+            );
+
+            Assert.NotNull(merchant.LastCreateOrderRequest);
+            Assert.Equal(pack.NetPence, merchant.LastCreateOrderRequest!.AmountMinor);
+            Assert.Equal(
+                pack.NetPence,
+                merchant.LastCreateOrderRequest.LineItems![0].TotalAmount
+            );
+            Assert.Empty(merchant.LastCreateOrderRequest.LineItems[0].Taxes);
+
+            var intent = await context.RevolutOrderIntents.SingleAsync();
+            Assert.Equal(pack.NetPence, intent.NetAmountMinor);
+            Assert.Equal(0, intent.VatAmountMinor);
+            Assert.Equal(pack.NetPence, intent.GrossAmountMinor);
+        }
+
+        [Fact]
+        public async Task StartAsync_WhenVatModeActive_ChargesGrossWith20PercentVat()
+        {
+            await using var context = CreateContext();
+            var account = await SeedPaidStarterAsync(context);
+            var merchant = new RecordingTopUpMerchant();
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = true }
+            );
+            var pack = RequirePack("ai", 500);
+            var expectedVat = TummlyVatMath.VatPenceFromNetPence(
+                pack.NetPence,
+                TummlyVatMath.DefaultVatRateBps
+            );
+            var expectedGross = pack.NetPence + expectedVat;
+
+            await service.StartAsync(
+                account,
+                "Multi",
+                locationId: 7,
+                pack,
+                "key-vat-active"
+            );
+
+            Assert.NotNull(merchant.LastCreateOrderRequest);
+            Assert.Equal(expectedGross, merchant.LastCreateOrderRequest!.AmountMinor);
+            Assert.Single(merchant.LastCreateOrderRequest.LineItems![0].Taxes);
+            Assert.Equal(
+                expectedVat,
+                merchant.LastCreateOrderRequest.LineItems[0].Taxes[0].Amount
+            );
+            Assert.Equal(
+                "20.00",
+                merchant.LastCreateOrderRequest.LineItems[0].Taxes[0].Percentage
+            );
+
+            var intent = await context.RevolutOrderIntents.SingleAsync();
+            Assert.Equal(pack.NetPence, intent.NetAmountMinor);
+            Assert.Equal(expectedVat, intent.VatAmountMinor);
+            Assert.Equal(expectedGross, intent.GrossAmountMinor);
+        }
 
         [Fact]
         public async Task StartAsync_CreatesOrderWithFriendlyName_AndPersistsTopupIntent()
@@ -204,7 +286,8 @@ namespace TummlyBackend.Tests.Services
 
         private CreditTopUpPaySessionService CreateService(
             ApplicationDbContext context,
-            IRevolutMerchantClient merchant
+            IRevolutMerchantClient merchant,
+            TummlySellerVatSettings? sellerVat = null
         )
         {
             return new CreditTopUpPaySessionService(
@@ -218,7 +301,8 @@ namespace TummlyBackend.Tests.Services
                         }
                     )
                     .Build(),
-                new FixedTimeProvider(_now)
+                new FixedTimeProvider(_now),
+                Options.Create(sellerVat ?? new TummlySellerVatSettings { IsActive = false })
             );
         }
 

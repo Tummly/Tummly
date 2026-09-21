@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Helpers.EmailTemplates;
@@ -23,9 +24,19 @@ namespace TummlyBackend.Tests.Services
             _context = new ApplicationDbContext(options);
             _emailService = new TrackingGuestResponseEmailService();
 
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["Frontend:BaseUrl"] = "https://app.tummly.test",
+                    }
+                )
+                .Build();
+
             _service = new CampaignSendTestService(
                 _context,
-                _emailService
+                _emailService,
+                configuration
             );
         }
 
@@ -58,6 +69,12 @@ namespace TummlyBackend.Tests.Services
                 _emailService.LastMessage
             );
             Assert.Null(_emailService.LastOffer);
+            Assert.False(string.IsNullOrWhiteSpace(_emailService.LastUnsubscribeHref));
+            Assert.Contains(
+                "/unsubscribe?restaurantId=",
+                _emailService.LastUnsubscribeHref!,
+                StringComparison.Ordinal
+            );
             Assert.Equal(
                 campaignCountBefore,
                 await _context.Campaigns.CountAsync()
@@ -311,6 +328,8 @@ namespace TummlyBackend.Tests.Services
 
             public GuestResponseEmailOfferBlock? LastOffer { get; private set; }
 
+            public string? LastUnsubscribeHref { get; private set; }
+
             public bool ThrowOnSend { get; set; }
 
             public override Task SendGuestResponseEmailAsync(
@@ -321,7 +340,8 @@ namespace TummlyBackend.Tests.Services
                 string? locationAddress,
                 string message,
                 string? brandLogoUrl = null,
-                GuestResponseEmailOfferBlock? offer = null
+                GuestResponseEmailOfferBlock? offer = null,
+                string? unsubscribeHref = null
             )
             {
                 CallCount++;
@@ -332,6 +352,7 @@ namespace TummlyBackend.Tests.Services
                 LastLocationAddress = locationAddress;
                 LastMessage = message;
                 LastOffer = offer;
+                LastUnsubscribeHref = unsubscribeHref;
 
                 if (ThrowOnSend)
                 {

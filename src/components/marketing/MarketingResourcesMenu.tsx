@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ChevronDownIcon } from "lucide-react"
 
 import { MarketingNavLink } from "@/components/marketing/MarketingNavLink"
@@ -12,10 +12,20 @@ import {
 import { MARKETING_RESOURCES_NAV } from "@/constants/marketingNav"
 import { cn } from "@/lib/utils"
 
+/** Matches `sideOffset` — hover hit area must cover this gap to the portaled panel. */
+const RESOURCES_MENU_SIDE_OFFSET_PX = 12
+
 type MarketingResourcesMenuProps = {
   className?: string
   triggerClassName?: string
   onNavigate?: () => void
+}
+
+function isResourcesMenuPanel(target: EventTarget | null) {
+  return (
+    target instanceof Element
+    && target.closest("[data-slot=dropdown-menu-content]") != null
+  )
 }
 
 export function MarketingResourcesMenu({
@@ -40,15 +50,23 @@ export function MarketingResourcesMenu({
     }, 150)
   }
 
+  useEffect(() => () => clearCloseTimer(), [])
+
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <div
         className={cn("relative", className)}
         onMouseEnter={() => {
           clearCloseTimer()
           setOpen(true)
         }}
-        onMouseLeave={scheduleClose}
+        onMouseLeave={(event) => {
+          // Portaled panel is not a DOM child — still skip close when moving into it.
+          if (isResourcesMenuPanel(event.relatedTarget)) {
+            return
+          }
+          scheduleClose()
+        }}
       >
         <DropdownMenuTrigger
           className={cn(
@@ -61,10 +79,24 @@ export function MarketingResourcesMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          sideOffset={12}
-          className="z-[60] w-[220px] rounded-[6px] border-0 bg-[#f0f0f0] p-7 shadow-none ring-0"
+          sideOffset={RESOURCES_MENU_SIDE_OFFSET_PX}
+          className={cn(
+            "z-[60] w-[220px] rounded-[6px] border-0 bg-[#f0f0f0] p-7 shadow-none ring-0",
+            // Extend hit area up through sideOffset so the 12px visual gap is not a dead zone.
+            "before:pointer-events-auto before:absolute before:inset-x-0 before:-top-3 before:h-3 before:content-['']",
+          )}
           onMouseEnter={clearCloseTimer}
-          onMouseLeave={scheduleClose}
+          onMouseLeave={(event) => {
+            if (
+              event.relatedTarget instanceof Element
+              && event.relatedTarget.closest(
+                "[data-slot=dropdown-menu-trigger]",
+              ) != null
+            ) {
+              return
+            }
+            scheduleClose()
+          }}
         >
           <DropdownMenuGroup className="flex flex-col gap-6">
             {MARKETING_RESOURCES_NAV.map((item) => (

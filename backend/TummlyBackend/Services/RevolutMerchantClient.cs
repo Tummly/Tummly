@@ -22,16 +22,19 @@ namespace TummlyBackend.Services
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IRevolutMerchantCreateGate _gate;
         private readonly RevolutSettings _settings;
+        private readonly TummlySellerVatSettings _vat;
 
         public RevolutMerchantClient(
             IHttpClientFactory httpClientFactory,
             IRevolutMerchantCreateGate gate,
-            IOptions<RevolutSettings> settings
+            IOptions<RevolutSettings> settings,
+            IOptions<TummlySellerVatSettings> vat
         )
         {
             _httpClientFactory = httpClientFactory;
             _gate = gate;
             _settings = settings.Value;
+            _vat = vat.Value;
         }
 
         public void EnsureReadyForCreate(string? planVariationLookupKey = null)
@@ -151,6 +154,7 @@ namespace TummlyBackend.Services
             if (
                 !_settings.TryGetPlanVariationId(
                     request.PlanVariationLookupKey,
+                    useGrossMap: _vat.IsActive,
                     out var variationId
                 )
             )
@@ -235,6 +239,7 @@ namespace TummlyBackend.Services
             if (
                 !_settings.TryGetPlanVariationId(
                     planVariationLookupKey,
+                    useGrossMap: _vat.IsActive,
                     out var variationId
                 )
             )

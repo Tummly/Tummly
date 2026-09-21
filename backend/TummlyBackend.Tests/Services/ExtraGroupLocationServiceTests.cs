@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -18,25 +20,72 @@ namespace TummlyBackend.Tests.Services
             PricebookCatalog.LoadFromDirectory(PackDirectory());
 
         [Fact]
+        public async Task SubmitAdd_WhenVatModeOff_ChargesNetOnly_AndOmitsLineTax()
+        {
+            var harness = await SeedGroupAsync(paidExtra: 0);
+            var merchant = new FakeFirstPaidRevolutMerchantClient();
+            var service = CreateService(
+                harness.Context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = false }
+            );
+
+            await service.SubmitAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                "add"
+            );
+
+            Assert.NotNull(merchant.LastCreateOrderRequest);
+            var intent = await harness.Context.RevolutOrderIntents.SingleAsync();
+            Assert.Equal(intent.NetAmountMinor, merchant.LastCreateOrderRequest!.AmountMinor);
+            Assert.Equal(0, intent.VatAmountMinor);
+            Assert.Equal(intent.NetAmountMinor, intent.GrossAmountMinor);
+            Assert.Empty(merchant.LastCreateOrderRequest.LineItems![0].Taxes);
+        }
+
+        [Fact]
+        public async Task SubmitAdd_WhenVatModeActive_ChargesGrossWith20PercentVat()
+        {
+            var harness = await SeedGroupAsync(paidExtra: 0);
+            var merchant = new FakeFirstPaidRevolutMerchantClient();
+            var service = CreateService(
+                harness.Context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = true }
+            );
+
+            await service.SubmitAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                "add"
+            );
+
+            Assert.NotNull(merchant.LastCreateOrderRequest);
+            var intent = await harness.Context.RevolutOrderIntents.SingleAsync();
+            Assert.True(intent.VatAmountMinor > 0);
+            Assert.Equal(
+                intent.NetAmountMinor + intent.VatAmountMinor,
+                intent.GrossAmountMinor
+            );
+            Assert.Equal(intent.GrossAmountMinor, merchant.LastCreateOrderRequest!.AmountMinor);
+            Assert.Single(merchant.LastCreateOrderRequest.LineItems![0].Taxes);
+            Assert.Equal(
+                intent.VatAmountMinor,
+                merchant.LastCreateOrderRequest.LineItems[0].Taxes[0].Amount
+            );
+            Assert.Equal(
+                "20.00",
+                merchant.LastCreateOrderRequest.LineItems[0].Taxes[0].Percentage
+            );
+        }
+
+        [Fact]
         public async Task SubmitAdd_CreatesOrderIntent_AndReturnsCheckoutUrl()
         {
             var harness = await SeedGroupAsync(paidExtra: 0);
             var merchant = new FakeFirstPaidRevolutMerchantClient();
-            var service = new ExtraGroupLocationService(
-                harness.Context,
-                _pricebook,
-                new AlwaysReadyRevolutMerchantCreateGate(),
-                merchant,
-                new ConfigurationBuilder()
-                    .AddInMemoryCollection(
-                        new Dictionary<string, string?>
-                        {
-                            ["Frontend:BaseUrl"] = "https://tummly.example",
-                        }
-                    )
-                    .Build(),
-                TimeProvider.System
-            );
+            var service = CreateService(harness.Context, merchant);
 
             var result = await service.SubmitAsync(
                 harness.OwnerUserId,
@@ -65,21 +114,7 @@ namespace TummlyBackend.Tests.Services
         {
             var harness = await SeedGroupAsync(paidExtra: 2, locationCount: 5);
             var merchant = new FakeFirstPaidRevolutMerchantClient();
-            var service = new ExtraGroupLocationService(
-                harness.Context,
-                _pricebook,
-                new AlwaysReadyRevolutMerchantCreateGate(),
-                merchant,
-                new ConfigurationBuilder()
-                    .AddInMemoryCollection(
-                        new Dictionary<string, string?>
-                        {
-                            ["Frontend:BaseUrl"] = "https://tummly.example",
-                        }
-                    )
-                    .Build(),
-                TimeProvider.System
-            );
+            var service = CreateService(harness.Context, merchant);
 
             var result = await service.SubmitAsync(
                 harness.OwnerUserId,
@@ -325,23 +360,33 @@ namespace TummlyBackend.Tests.Services
 
             return new Harness(
                 context,
-                new ExtraGroupLocationService(
-                    context,
-                    _pricebook,
-                    new AlwaysReadyRevolutMerchantCreateGate(),
-                    new FakeFirstPaidRevolutMerchantClient(),
-                    new ConfigurationBuilder()
-                        .AddInMemoryCollection(
-                            new Dictionary<string, string?>
-                            {
-                                ["Frontend:BaseUrl"] = "https://tummly.example",
-                            }
-                        )
-                        .Build(),
-                    TimeProvider.System
-                ),
+                CreateService(context, new FakeFirstPaidRevolutMerchantClient()),
                 restaurant.Id,
                 owner.Id
+            );
+        }
+
+        private ExtraGroupLocationService CreateService(
+            ApplicationDbContext context,
+            IRevolutMerchantClient merchant,
+            TummlySellerVatSettings? sellerVat = null
+        )
+        {
+            return new ExtraGroupLocationService(
+                context,
+                _pricebook,
+                new AlwaysReadyRevolutMerchantCreateGate(),
+                merchant,
+                new ConfigurationBuilder()
+                    .AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["Frontend:BaseUrl"] = "https://tummly.example",
+                        }
+                    )
+                    .Build(),
+                TimeProvider.System,
+                Options.Create(sellerVat ?? new TummlySellerVatSettings { IsActive = false })
             );
         }
 

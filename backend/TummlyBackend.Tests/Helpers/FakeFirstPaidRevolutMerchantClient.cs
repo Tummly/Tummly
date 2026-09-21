@@ -163,6 +163,8 @@ public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
 
         public string? LastRefundIdempotencyKey { get; private set; }
 
+        public bool NextRefundFails { get; set; }
+
         public Task<RevolutMerchantCreateResult> RefundOrderAsync(
             string orderId,
             int? amountMinor,
@@ -174,6 +176,17 @@ public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
             LastRefundOrderId = orderId;
             LastRefundAmountMinor = amountMinor;
             LastRefundIdempotencyKey = idempotencyKey;
+            if (NextRefundFails)
+            {
+                NextRefundFails = false;
+                return Task.FromResult(
+                    new RevolutMerchantCreateResult(
+                        Succeeded: false,
+                        ErrorCode: "revolut_refund_failed"
+                    )
+                );
+            }
+
             return Task.FromResult(
                 new RevolutMerchantCreateResult(
                     Succeeded: true,

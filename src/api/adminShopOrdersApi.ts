@@ -35,6 +35,8 @@ export type AdminShopOrderListItem = {
   trackingUrl: string | null
   opsNotes: string | null
   paidAtUtc: string | null
+  /** ISO UTC when warehouse marked production started; null until stamped. */
+  productionStartedAtUtc: string | null
   grossPence: number
   lines: AdminShopOrderLineSummary[]
   printAssets: AdminShopPrintAsset[]
@@ -99,6 +101,34 @@ export async function patchAdminShopOrderFulfilment(
   const response = await axiosInstance.patch<AdminShopOrderListItem>(
     `/admin/shop-orders/${orderId}/fulfilment`,
     patch
+  )
+  return response.data
+}
+
+export async function markShopOrderProductionStarted(
+  orderId: string
+): Promise<AdminShopOrderListItem> {
+  const response = await axiosInstance.post<AdminShopOrderListItem>(
+    `/admin/shop-orders/${orderId}/production-started`
+  )
+  return response.data
+}
+
+export type AdminShopForceCancelBody = {
+  reason: string
+  skipRefund?: boolean
+}
+
+export async function forceCancelShopOrder(
+  orderId: string,
+  body: AdminShopForceCancelBody
+): Promise<AdminShopOrderListItem> {
+  const response = await axiosInstance.post<AdminShopOrderListItem>(
+    `/admin/shop-orders/${orderId}/force-cancel`,
+    {
+      reason: body.reason,
+      skipRefund: body.skipRefund ?? false,
+    }
   )
   return response.data
 }

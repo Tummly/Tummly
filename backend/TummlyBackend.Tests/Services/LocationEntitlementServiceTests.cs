@@ -74,9 +74,7 @@ namespace TummlyBackend.Tests.Services
             _insert = new OwnedLocationInsertService(
                 _context,
                 catalog,
-                new QrCodeProvisioningService(_context, smartGuestLink),
-                new NoOpPrintReadyQrMaterialsWork(),
-                new NoOpComplimentaryStarterShopOrderService()
+                new QrCodeProvisioningService(_context, smartGuestLink)
             );
             _lifecycle = new CaptureQrLifecycleService(
                 _context,
@@ -132,45 +130,6 @@ namespace TummlyBackend.Tests.Services
         public void Dispose()
         {
             _context.Dispose();
-        }
-
-        private sealed class NoOpComplimentaryStarterShopOrderService
-            : IComplimentaryStarterShopOrderService
-        {
-            public Task<ComplimentaryStarterShopOrderResult> EnsureForLocationAsync(
-                int restaurantId,
-                int locationId,
-                int placedByUserId,
-                string placedByName,
-                CancellationToken cancellationToken = default
-            ) =>
-                Task.FromResult(
-                    new ComplimentaryStarterShopOrderResult(
-                        Guid.NewGuid(),
-                        Created: true
-                    )
-                );
-        }
-
-        private sealed class NoOpPrintReadyQrMaterialsWork
-            : IPrintReadyQrMaterialsWork
-        {
-            public ValueTask RequestEnsureAsync(
-                int locationId,
-                CancellationToken cancellationToken = default
-            ) => ValueTask.CompletedTask;
-
-            public ValueTask RequestShopOrderEnsureAsync(
-                Guid shopOrderId,
-                CancellationToken cancellationToken = default
-            ) => ValueTask.CompletedTask;
-
-            public Task RunAsync(CancellationToken stoppingToken)
-                => Task.CompletedTask;
-
-            public Task DrainAsync(
-                CancellationToken cancellationToken = default
-            ) => Task.CompletedTask;
         }
 
         private sealed class NoOpPrintReadyQrMaterialsService

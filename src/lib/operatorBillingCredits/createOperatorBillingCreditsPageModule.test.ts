@@ -102,6 +102,8 @@ function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCre
       allowSms5000TopUp: false,
     },
     billingContacts: sampleBillingContacts(),
+    vatModeActive: true,
+    currentCatalog: { vatRateBps: 2000 },
     ...overrides,
   }
 }
@@ -496,6 +498,27 @@ describe("createOperatorBillingCreditsPageModule", () => {
     expect(pilotCard?.cta.disabled).toBe(true)
   })
 
+  it("omits + VAT on manage plan cards when catalog vatRateBps is 0", async () => {
+    const module = createTestModule({
+      vatModeActive: false,
+      currentCatalog: { vatRateBps: 0 },
+      planSubscription: {
+        ...samplePage().planSubscription,
+        subscriptionPlan: "Starter",
+        isPilot: false,
+        billingCycle: "Monthly",
+        planPriceNet: "£39",
+      },
+    })
+    await module.load()
+
+    const starter = module
+      .getSnapshot()
+      .managePlanCards.find((card) => card.id === "Starter")
+    expect(starter?.priceHeadline).toBe("£39 / month")
+    expect(module.getSnapshot().showVatNotice).toBe(false)
+  })
+
   it("navigates to plan-subscription after a scheduled plan change", async () => {
     const submitPlanChange = vi.fn(async () => ({
       outcome: "scheduled" as const,
@@ -770,6 +793,29 @@ describe("createOperatorBillingCreditsPageModule", () => {
       .topUpCards.find((card) => card.channel === "sms")
     expect(sms?.buyDisabled).toBe(false)
     expect(sms?.selectedNetLabel).toBe("£55 + VAT")
+  })
+
+  it("omits + VAT from top-up labels when catalog vatRateBps is 0", async () => {
+    const module = createTestModule(
+      {
+        vatModeActive: false,
+        currentCatalog: { vatRateBps: 0 },
+        planSubscription: {
+          ...samplePage().planSubscription,
+          isPilot: false,
+          subscriptionPlan: "Growth",
+        },
+      },
+      sampleUsage({ isPilot: false })
+    )
+    await module.load()
+    module.selectTopUpPack("sms", 500)
+    const sms = module
+      .getSnapshot()
+      .topUpCards.find((card) => card.channel === "sms")
+    expect(sms?.selectedNetLabel).toBe("£55")
+    expect(module.getSnapshot().showVatNotice).toBe(false)
+    expect(module.getSnapshot().vatRateBps).toBe(0)
   })
 
   it("hides Additional Group Location section off Group plan", async () => {

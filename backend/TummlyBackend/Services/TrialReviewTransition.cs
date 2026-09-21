@@ -48,22 +48,27 @@ namespace TummlyBackend.Services
                     TrialRequestStatus.InviteSent,
             };
 
+        private const int MaxAuditReasonLength = 500;
+
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
         private readonly ILogger<TrialReviewTransition> _logger;
+        private readonly IAdminAuditService _audit;
 
         public TrialReviewTransition(
             ApplicationDbContext context,
             IEmailService emailService,
             IConfiguration configuration,
-            ILogger<TrialReviewTransition> logger
+            ILogger<TrialReviewTransition> logger,
+            IAdminAuditService audit
         )
         {
             _context = context;
             _emailService = emailService;
             _configuration = configuration;
             _logger = logger;
+            _audit = audit;
         }
 
         public async Task<TrialReviewResult> ApplyTransitionAsync(
@@ -136,6 +141,17 @@ namespace TummlyBackend.Services
                 inviteExpiresAt = trialRequest.InviteExpiresAt;
             }
 
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    Action: MapDecisionToAction(decision),
+                    ActorIdentity: context.AdminIdentity,
+                    TargetType: AdminAuditTargetTypes.TrialRequest,
+                    TargetId: trialRequest.Id.ToString(),
+                    ActorAdminUserId: context.ActorAdminUserId,
+                    DetailJson: BuildDetailJson(decision, context.Reason)
+                )
+            );
+
             try
             {
                 await _context.SaveChangesAsync(cancellationToken);
@@ -178,6 +194,45 @@ namespace TummlyBackend.Services
             }
 
             return result;
+        }
+
+        private static string MapDecisionToAction(TrialReviewDecision decision) =>
+            decision switch
+            {
+                TrialReviewDecision.Approve => AdminAuditActions.TrialApprove,
+                TrialReviewDecision.Decline => AdminAuditActions.TrialDecline,
+                TrialReviewDecision.RequestMoreInfo =>
+                    AdminAuditActions.TrialRequestMoreInfo,
+                TrialReviewDecision.ResendInvite =>
+                    AdminAuditActions.TrialResendInvite,
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(decision),
+                    decision,
+                    null
+                ),
+            };
+
+        private static string? BuildDetailJson(
+            TrialReviewDecision decision,
+            string? reason
+        )
+        {
+            if (
+                decision != TrialReviewDecision.Decline
+                && decision != TrialReviewDecision.RequestMoreInfo
+            )
+            {
+                return null;
+            }
+
+            var trimmed = reason!.Trim();
+            var snippet = trimmed.Length <= MaxAuditReasonLength
+                ? trimmed
+                : trimmed[..MaxAuditReasonLength];
+
+            return System.Text.Json.JsonSerializer.Serialize(
+                new { reason = snippet }
+            );
         }
 
         private static void ValidateReasonForDecision(

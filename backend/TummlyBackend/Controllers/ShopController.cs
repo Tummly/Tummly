@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
@@ -12,14 +14,17 @@ namespace TummlyBackend.Controllers
     {
         private readonly IMaterialsCatalog _catalog;
         private readonly IRestaurantPermissionHelper _permissions;
+        private readonly TummlySellerVatSettings _sellerVat;
 
         public ShopController(
             IMaterialsCatalog catalog,
-            IRestaurantPermissionHelper permissions
+            IRestaurantPermissionHelper permissions,
+            IOptions<TummlySellerVatSettings> sellerVat
         )
         {
             _catalog = catalog;
             _permissions = permissions;
+            _sellerVat = sellerVat.Value;
         }
 
         [HttpGet]
@@ -35,6 +40,7 @@ namespace TummlyBackend.Controllers
             {
                 success = true,
                 catalogVersion = _catalog.CurrentCatalogId,
+                vatRateBps = _sellerVat.EffectiveVatRateBps,
                 items = _catalog.BuildList(),
             });
         }

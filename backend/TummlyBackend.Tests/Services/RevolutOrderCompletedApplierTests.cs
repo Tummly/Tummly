@@ -80,6 +80,41 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Apply_WhenModeOff_LeavesInvoiceTableEmpty()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_off", "sub_off");
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var offVat = new TummlySellerVatSettings
+            {
+                IsActive = false,
+                RegistrationNumber = "GB123456789",
+                EffectiveDate = "2024-01-01",
+                LegalName = "Tummly Ltd",
+                RegisteredAddress = "1 High Street",
+            };
+            var applier = CreateApplier(context, mint, clock, sellerVat: offVat);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_off",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == pending.RestaurantId);
+            Assert.Equal(BillingStatuses.Active, account.BillingStatus);
+        }
+
+        [Fact]
         public async Task PaySessionStart_DoesNotActivate_BeforeWebhook()
         {
             await using var context = CreateContext();
@@ -1100,13 +1135,24 @@ namespace TummlyBackend.Tests.Services
             IIncludedPeriodMintService mint,
             TimeProvider clock,
             IRevolutMerchantClient? merchant = null,
-            ITummlyVatInvoiceEmailDelivery? invoiceEmail = null
+            ITummlyVatInvoiceEmailDelivery? invoiceEmail = null,
+            TummlySellerVatSettings? sellerVat = null
         )
         {
+            var vat =
+                sellerVat
+                ?? new TummlySellerVatSettings
+                {
+                    IsActive = true,
+                    RegistrationNumber = "GB123456789",
+                    EffectiveDate = "2024-01-01",
+                    LegalName = "Tummly Ltd",
+                    RegisteredAddress = "1 High Street",
+                };
             return new RevolutOrderCompletedApplier(
                 context,
                 mint,
-                CreateVatService(context),
+                CreateVatService(context, vat),
                 new PlanChangeService(context, _pricebook, clock),
                 new ExtraGroupLocationService(
                     context,
@@ -1121,11 +1167,18 @@ namespace TummlyBackend.Tests.Services
                             }
                         )
                         .Build(),
-                    clock
+                    clock,
+                    Options.Create(vat)
                 ),
-                new CreditLedgerService(context, clock, _pricebook),
+                new CreditLedgerService(
+                    context,
+                    clock,
+                    _pricebook,
+                    new AdminAuditService(context, clock)
+                ),
                 merchant ?? new RecordingLandMerchant(),
                 clock,
+                Options.Create(vat),
                 invoiceEmail
             );
         }
@@ -1204,19 +1257,24 @@ namespace TummlyBackend.Tests.Services
             return new ApplicationDbContext(options);
         }
 
-        private TummlyVatInvoiceService CreateVatService(ApplicationDbContext context)
+        private TummlyVatInvoiceService CreateVatService(
+            ApplicationDbContext context,
+            TummlySellerVatSettings? sellerVat = null
+        )
         {
             return new TummlyVatInvoiceService(
                 context,
                 _pricebook,
                 Options.Create(
-                    new TummlySellerVatSettings
-                    {
-                        RegistrationNumber = "GB123456789",
-                        EffectiveDate = "2024-01-01",
-                        LegalName = "Tummly Ltd",
-                        RegisteredAddress = "1 High Street",
-                    }
+                    sellerVat
+                        ?? new TummlySellerVatSettings
+                        {
+                            IsActive = true,
+                            RegistrationNumber = "GB123456789",
+                            EffectiveDate = "2024-01-01",
+                            LegalName = "Tummly Ltd",
+                            RegisteredAddress = "1 High Street",
+                        }
                 )
             );
         }

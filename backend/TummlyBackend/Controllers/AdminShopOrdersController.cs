@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Admin;
@@ -121,6 +122,151 @@ namespace TummlyBackend.Controllers
             };
         }
 
+        [HttpPost("{id:guid}/production-started")]
+        public async Task<IActionResult> MarkProductionStarted(
+            Guid id,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(
+                    new
+                    {
+                        success = false,
+                        message = "Invalid token.",
+                    }
+                );
+            }
+
+            var adminIdentity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+
+            if (string.IsNullOrWhiteSpace(adminIdentity))
+            {
+                return BadRequest(
+                    new
+                    {
+                        success = false,
+                        message =
+                            "Admin identity could not be resolved from the current session.",
+                    }
+                );
+            }
+
+            var result = await _fulfilment.MarkProductionStartedAsync(
+                id,
+                staffId.Value,
+                adminIdentity,
+                cancellationToken
+            );
+
+            if (result.Succeeded)
+            {
+                return Ok(result.Order);
+            }
+
+            return result.ErrorCode switch
+            {
+                "order_not_found" => NotFound(
+                    new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    }
+                ),
+                _ => BadRequest(
+                    new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    }
+                ),
+            };
+        }
+
+        [HttpPost("{id:guid}/force-cancel")]
+        public async Task<IActionResult> ForceCancel(
+            Guid id,
+            [FromBody] AdminShopForceCancelRequest body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(
+                    new
+                    {
+                        success = false,
+                        message = "Invalid token.",
+                    }
+                );
+            }
+
+            var adminIdentity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+
+            if (string.IsNullOrWhiteSpace(adminIdentity))
+            {
+                return BadRequest(
+                    new
+                    {
+                        success = false,
+                        message =
+                            "Admin identity could not be resolved from the current session.",
+                    }
+                );
+            }
+
+            var result = await _fulfilment.ForceCancelAsync(
+                id,
+                body,
+                staffId.Value,
+                adminIdentity,
+                cancellationToken
+            );
+
+            if (result.Succeeded)
+            {
+                return Ok(result.Order);
+            }
+
+            return result.ErrorCode switch
+            {
+                "order_not_found" => NotFound(
+                    new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    }
+                ),
+                "in_transit" or "delivered" or "shop_order_not_cancellable" =>
+                    Conflict(
+                        new
+                        {
+                            success = false,
+                            code = result.ErrorCode,
+                            message = result.ErrorMessage,
+                        }
+                    ),
+                _ => BadRequest(
+                    new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    }
+                ),
+            };
+        }
+
         [HttpGet("{id:guid}/print-assets/{qrType}/download")]
         public async Task<IActionResult> DownloadPrintAsset(
             Guid id,
@@ -231,6 +377,22 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 }
             );
+        }
+
+        private int? GetStaffId()
+        {
+            var staffIdClaim =
+                User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (
+                string.IsNullOrEmpty(staffIdClaim)
+                || !int.TryParse(staffIdClaim, out var staffId)
+            )
+            {
+                return null;
+            }
+
+            return staffId;
         }
     }
 }

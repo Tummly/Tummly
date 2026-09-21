@@ -204,6 +204,43 @@ namespace TummlyBackend.Tests.Helpers
             Assert.DoesNotContain("Give feedback", html);
         }
 
+        [Fact]
+        public void Generate_UsesDefaultBareUnsubscribe_WhenHrefOmitted()
+        {
+            var html = GenerateSample();
+
+            Assert.Contains(
+                "href='https://app.tummly.test/unsubscribe'",
+                html
+            );
+            Assert.DoesNotContain("unsubscribe?t=", html);
+        }
+
+        [Fact]
+        public void Generate_UsesProvidedUnsubscribeHref_WhenSet()
+        {
+            const string signed =
+                "https://app.tummly.test/unsubscribe?t=payload.sig";
+
+            var html = GuestResponseEmailTemplate.Generate(
+                brandTitle: "Burger House",
+                brandSubtitle: null,
+                locationAddress: "12 High Street",
+                subject: "Thanks",
+                message: "Body",
+                frontendBaseUrl: "https://app.tummly.test",
+                brandLogoUrl: null,
+                offer: null,
+                unsubscribeHref: signed
+            );
+
+            Assert.Contains($"href='{signed}'", html);
+            Assert.DoesNotContain(
+                "href='https://app.tummly.test/unsubscribe'",
+                html
+            );
+        }
+
         private static string GenerateSample(
             GuestResponseEmailOfferBlock? offer = null
         )

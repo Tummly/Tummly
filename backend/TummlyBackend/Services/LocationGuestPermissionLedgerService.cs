@@ -89,6 +89,48 @@ namespace TummlyBackend.Services
             _context.LocationGuestPermissionLedgerEntries.Add(entry);
         }
 
+        public void RecordEvent(
+            LocationGuest locationGuest,
+            int restaurantLocationId,
+            LocationGuestPermissionKind permissionKind,
+            string eventKind,
+            string source,
+            DateTime occurredAt,
+            PermissionLedgerEvidence evidence,
+            int? actorUserId = null
+        )
+        {
+            ArgumentNullException.ThrowIfNull(locationGuest);
+            ArgumentNullException.ThrowIfNull(evidence);
+            ValidateLedgerEvent(eventKind, source);
+
+            var entry = new LocationGuestPermissionLedgerEntry
+            {
+                LocationGuest = locationGuest,
+                RestaurantLocationId = restaurantLocationId,
+                PermissionKind = permissionKind,
+                EventKind = eventKind,
+                Source = source.Trim(),
+                ActorUserId = actorUserId,
+                OccurredAt = GuestsDateWindows.EnsureUtc(occurredAt),
+                CreatedAt = DateTime.UtcNow,
+                Basis = evidence.Basis,
+                GuestFormVersion = evidence.GuestFormVersion,
+                WordingVersion = evidence.WordingVersion,
+                PrivacyNoticeVersion = evidence.PrivacyNoticeVersion,
+                WordingSnapshot = evidence.WordingSnapshot,
+            };
+
+            // Only stamp the scalar FK when the guest already has a real key.
+            // LocationGuestId = 0 on SQL Server fails the guest FK (MERGE).
+            if (locationGuest.Id != 0)
+            {
+                entry.LocationGuestId = locationGuest.Id;
+            }
+
+            _context.LocationGuestPermissionLedgerEntries.Add(entry);
+        }
+
         private static void ValidateLedgerEvent(string eventKind, string source)
         {
             if (

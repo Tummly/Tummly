@@ -29,6 +29,10 @@ namespace TummlyBackend.Services
             "Current state",
             "Location",
             "Source",
+            "Basis",
+            "Guest form version",
+            "Wording version",
+            "Privacy notice version",
             "Recorded",
         ];
 
@@ -82,6 +86,10 @@ namespace TummlyBackend.Services
                         EventKind = entry.EventKind,
                         LocationName = entry.RestaurantLocation.LocationName,
                         Source = entry.Source,
+                        Basis = entry.Basis,
+                        GuestFormVersion = entry.GuestFormVersion,
+                        WordingVersion = entry.WordingVersion,
+                        PrivacyNoticeVersion = entry.PrivacyNoticeVersion,
                         OccurredAt = entry.OccurredAt,
                     })
                     .ToListAsync(cancellationToken);
@@ -102,6 +110,10 @@ namespace TummlyBackend.Services
                             LocationGuestPermissionPresentation.SourceLabel(
                                 row.Source
                             ),
+                            row.Basis ?? string.Empty,
+                            row.GuestFormVersion ?? string.Empty,
+                            row.WordingVersion ?? string.Empty,
+                            row.PrivacyNoticeVersion ?? string.Empty,
                             FormatIsoUtc(row.OccurredAt),
                         }
                     )

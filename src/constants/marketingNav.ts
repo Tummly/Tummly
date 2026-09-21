@@ -18,6 +18,7 @@ export type MarketingNavItem = {
 }
 
 export const MARKETING_FAQS_HASH = "#faqs"
+export const MARKETING_FAQS_PATH = "/faqs"
 
 export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
   { id: "product", label: "Product", href: { kind: "placeholder" } },
@@ -45,7 +46,7 @@ export const MARKETING_RESOURCES_NAV: MarketingNavItem[] = [
   {
     id: "faq",
     label: "FAQ",
-    href: { kind: "hash", hash: MARKETING_FAQS_HASH },
+    href: { kind: "route", to: MARKETING_FAQS_PATH },
   },
   {
     id: "contact",
@@ -79,7 +80,7 @@ export const MARKETING_FOOTER_RESTAURANTS: MarketingNavItem[] = [
   {
     id: "faq",
     label: "FAQ",
-    href: { kind: "hash", hash: MARKETING_FAQS_HASH },
+    href: { kind: "route", to: MARKETING_FAQS_PATH },
   },
   { id: "log-in", label: "Log in", href: { kind: "route", to: "/login" } },
   {

@@ -14,7 +14,8 @@ namespace TummlyBackend.DTOs.Admin
     public sealed record TrialReviewContext(
         string AdminIdentity,
         string? Reason,
-        string? AdminNotes
+        string? AdminNotes,
+        int? ActorAdminUserId = null
     );
 
     public sealed record TrialReviewResult(

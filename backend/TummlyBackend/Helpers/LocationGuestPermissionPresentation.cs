@@ -21,6 +21,9 @@ namespace TummlyBackend.Helpers
                 LocationGuestPermissionLedgerSources.Operator => "Operator",
                 LocationGuestPermissionLedgerSources.LegacyMarketingPreference =>
                     "Legacy marketing preference",
+                LocationGuestPermissionLedgerSources.EmailUnsubscribe =>
+                    "Email unsubscribe",
+                LocationGuestPermissionLedgerSources.SmsStop => "SMS STOP",
                 _ => source,
             };
     }

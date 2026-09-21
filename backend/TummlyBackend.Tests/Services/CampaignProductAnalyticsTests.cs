@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Helpers.EmailTemplates;
@@ -184,9 +185,11 @@ namespace TummlyBackend.Tests.Services
         {
             var locationId = await SeedLocationAsync();
             var email = new TrackingGuestResponseEmailService();
+            var configuration = new ConfigurationBuilder().Build();
             var service = new CampaignSendTestService(
                 _context,
                 email,
+                configuration,
                 _analytics
             );
 
@@ -595,7 +598,8 @@ namespace TummlyBackend.Tests.Services
                 string? locationAddress,
                 string message,
                 string? brandLogoUrl = null,
-                GuestResponseEmailOfferBlock? offer = null
+                GuestResponseEmailOfferBlock? offer = null,
+                string? unsubscribeHref = null
             )
             {
                 return Task.CompletedTask;

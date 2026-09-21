@@ -13,7 +13,11 @@ namespace TummlyBackend.Tests.Services
                 3000,
                 PlanUpgradeProrationMath.ProratedNetPence(3900, 9900, 0.5m)
             );
-            Assert.Equal(600, PlanUpgradeProrationMath.VatOnNetPence(3000));
+            Assert.Equal(
+                600,
+                PlanUpgradeProrationMath.VatOnNetPence(3000, 2000)
+            );
+            Assert.Equal(0, PlanUpgradeProrationMath.VatOnNetPence(3000, 0));
         }
 
         [Fact]

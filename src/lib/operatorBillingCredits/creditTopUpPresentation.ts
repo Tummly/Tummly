@@ -25,8 +25,6 @@ export const CREDIT_TOP_UP_PACKS: readonly CreditTopUpPack[] = [
   { channel: "email", quantity: 50000, netPounds: 60 },
 ] as const
 
-const VAT_RATE = 0.2
-
 export type CreditTopUpPackChipViewModel = {
   quantity: number
   label: string
@@ -62,8 +60,17 @@ export function formatTopUpPounds(amount: number): string {
   return `£${formatted}`
 }
 
-export function grossTopUpPounds(netPounds: number): number {
-  return Math.round(netPounds * (1 + VAT_RATE) * 100) / 100
+/** Derive fractional VAT rate from catalog basis points; missing → 0 (launch OFF). */
+export function vatRateFromBps(vatRateBps: number | null | undefined): number {
+  return (vatRateBps ?? 0) / 10_000
+}
+
+export function grossTopUpPounds(
+  netPounds: number,
+  vatRateBps: number | null | undefined = 0
+): number {
+  const rate = vatRateFromBps(vatRateBps)
+  return Math.round(netPounds * (1 + rate) * 100) / 100
 }
 
 export function isSms5000TopUpAllowed(options: {
@@ -120,6 +127,8 @@ export function buildCreditTopUpCards(options: {
   canBuy: boolean
   selectedPackByChannel: Partial<Record<CreditChannelId, number>>
   focusedChannel: CreditChannelId | null
+  /** Catalog / API rate in basis points; 0 omits “+ VAT”. */
+  vatRateBps?: number
 }): CreditTopUpCardViewModel[] {
   // Pilot cannot buy top-ups — hide purchase cards entirely (no disabled Buy UI).
   if (options.isPilot) {
@@ -131,6 +140,8 @@ export function buildCreditTopUpCards(options: {
     subscriptionPlan: options.subscriptionPlan,
     allowSms5000TopUp: options.allowSms5000TopUp,
   }
+  const vatRateBps = options.vatRateBps ?? 0
+  const netLabelSuffix = vatRateBps > 0 ? " + VAT" : ""
 
   return channelOrder.map((channel) => {
     const usage = options.channels.find((row) => row.channel === channel)
@@ -158,7 +169,7 @@ export function buildCreditTopUpCards(options: {
       })),
       selectedNetLabel:
         selectedPack != null
-          ? `${formatTopUpPounds(selectedPack.netPounds)} + VAT`
+          ? `${formatTopUpPounds(selectedPack.netPounds)}${netLabelSuffix}`
           : null,
       buyLabel: `Buy ${creditChannelLabel(channel)}`,
       buyDisabled,
@@ -183,10 +194,16 @@ export function buildCreditTopUpConfirmCopy(options: {
   quantity: number
   netLabel: string
   grossLabel: string
+  vatRateBps?: number
 }): { title: string; body: string; primaryLabel: string } {
+  const vatRateBps = options.vatRateBps ?? 0
+  const priceSegment =
+    vatRateBps > 0
+      ? `${options.netLabel} + VAT · ${options.grossLabel} total incl. VAT`
+      : `${options.netLabel} · ${options.grossLabel} total`
   return {
     title: "Confirm credit top-up",
-    body: `${options.channelLabel} · ${formatCreditCount(options.quantity)} credits · ${options.netLabel} + VAT · ${options.grossLabel} total incl. VAT`,
+    body: `${options.channelLabel} · ${formatCreditCount(options.quantity)} credits · ${priceSegment}`,
     primaryLabel: "Continue to payment",
   }
 }

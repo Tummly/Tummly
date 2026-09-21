@@ -15,7 +15,7 @@ namespace TummlyBackend.Tests.Services
             var handler = new CountingHandler();
             var client = CreateClient(
                 handler,
-                vat: new TummlySellerVatSettings(),
+                vat: new TummlySellerVatSettings { IsActive = true },
                 revolut: FullRevolut()
             );
 
@@ -37,6 +37,74 @@ namespace TummlyBackend.Tests.Services
             var revolut = FullRevolut();
             revolut.PlanVariations.Clear();
             var client = CreateClient(handler, FullVat(), revolut);
+
+            var ex = await Assert.ThrowsAsync<RevolutMerchantNotReadyException>(
+                () =>
+                    client.CreateSubscriptionAsync(
+                        new RevolutCreateSubscriptionRequest(
+                            "cust_1",
+                            RevolutPlanVariationKeys.StarterMonthly
+                        )
+                    )
+            );
+
+            Assert.Equal(
+                RevolutMerchantCreateGate.PlanVariationMissing,
+                ex.Code
+            );
+            Assert.Equal(0, handler.SendCount);
+        }
+
+        [Fact]
+        public async Task CreateSubscriptionAsync_WhenModeActive_UsesGrossMap()
+        {
+            string? body = null;
+            var handler = new CountingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            """{"id":"sub_gross","setup_order_id":"ord_setup"}"""
+                        ),
+                    },
+                OnSend = request =>
+                {
+                    body = request.Content is null
+                        ? null
+                        : request.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                },
+            };
+            var vat = FullVat();
+            vat.IsActive = true;
+            var revolut = FullRevolut();
+            revolut.PlanVariations.Clear();
+            revolut.PlanVariationsGross = new Dictionary<string, string>
+            {
+                [RevolutPlanVariationKeys.StarterMonthly] =
+                    "gross-1111-1111-1111-111111111111",
+            };
+            var client = CreateClient(handler, vat, revolut);
+
+            var result = await client.CreateSubscriptionAsync(
+                new RevolutCreateSubscriptionRequest(
+                    "cust_1",
+                    RevolutPlanVariationKeys.StarterMonthly
+                )
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Equal(1, handler.SendCount);
+            Assert.Contains("gross-1111-1111-1111-111111111111", body);
+        }
+
+        [Fact]
+        public async Task CreateSubscriptionAsync_WhenModeActive_FailsWhenOnlyNetMapPresent()
+        {
+            var handler = new CountingHandler();
+            var vat = FullVat();
+            vat.IsActive = true;
+            var client = CreateClient(handler, vat, FullRevolut());
 
             var ex = await Assert.ThrowsAsync<RevolutMerchantNotReadyException>(
                 () =>

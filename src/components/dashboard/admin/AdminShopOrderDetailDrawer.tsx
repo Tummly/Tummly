@@ -1,10 +1,12 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import axios from "axios"
-import { DownloadIcon, RefreshCcwIcon } from "lucide-react"
+import { DownloadIcon, FactoryIcon, RefreshCcwIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { postAdminPaymentRefund } from "@/api/adminApi"
 import {
+  forceCancelShopOrder,
+  markShopOrderProductionStarted,
   patchAdminShopOrderFulfilment,
   type AdminShopOrderListItem,
 } from "@/api/adminShopOrdersApi"
@@ -20,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import {
   Drawer,
   DrawerContent,
@@ -69,6 +72,25 @@ function refundErrorMessage(code: string | undefined): string {
   }
 }
 
+function forceCancelErrorMessage(code: string | undefined): string {
+  switch (code) {
+    case "in_transit":
+      return "This order is already dispatched and cannot be force-cancelled."
+    case "delivered":
+      return "This order is already delivered and cannot be force-cancelled."
+    case "shop_order_not_cancellable":
+      return "This order cannot be force-cancelled in its current state."
+    case "invalid_cancel_reason":
+      return "Enter a non-empty cancel reason."
+    case "order_not_found":
+      return "Shop order was not found."
+    default:
+      return code
+        ? `Could not force-cancel order (${code}).`
+        : "Could not force-cancel order."
+  }
+}
+
 export function AdminShopOrderDetailDrawer({
   order,
   open,
@@ -84,6 +106,12 @@ export function AdminShopOrderDetailDrawer({
   const [refundIdempotencyKey, setRefundIdempotencyKey] = useState(() =>
     crypto.randomUUID()
   )
+  const [markStartedConfirmOpen, setMarkStartedConfirmOpen] = useState(false)
+  const [markingStarted, setMarkingStarted] = useState(false)
+  const [forceCancelConfirmOpen, setForceCancelConfirmOpen] = useState(false)
+  const [forceCancelling, setForceCancelling] = useState(false)
+  const [forceCancelReason, setForceCancelReason] = useState("")
+  const [skipRefund, setSkipRefund] = useState(false)
   const [printAssetsModule] = useState(() =>
     createAdminShopOrderPrintAssetsPageModule(
       httpAdminShopOrderPrintAssetsAdapters
@@ -105,6 +133,10 @@ export function AdminShopOrderDetailDrawer({
     setPartialAmountPounds("")
     setRefundConfirmOpen(false)
     setRefundIdempotencyKey(crypto.randomUUID())
+    setMarkStartedConfirmOpen(false)
+    setForceCancelConfirmOpen(false)
+    setForceCancelReason("")
+    setSkipRefund(false)
   }, [order])
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -122,6 +154,13 @@ export function AdminShopOrderDetailDrawer({
   const canRefund =
     order.paymentStatus === "paid" &&
     Boolean(order.revolutOrderId?.trim())
+  const isProcessing = order.fulfilmentStatus === "processing"
+  const productionStarted =
+    order.productionStartedAtUtc != null &&
+    order.productionStartedAtUtc.trim().length > 0
+  const canMarkProductionStarted = isProcessing && !productionStarted
+  const canForceCancel = isProcessing
+  const anyBusy = saving || refunding || markingStarted || forceCancelling
 
   const savePatch = async (input: {
     fulfilmentStatus?: "in_transit" | "delivered"
@@ -231,6 +270,65 @@ export function AdminShopOrderDetailDrawer({
     }
   }
 
+  const handleConfirmMarkStarted = async () => {
+    setMarkingStarted(true)
+    try {
+      const updated = await markShopOrderProductionStarted(order.id)
+      onOrderUpdated(updated)
+      setMarkStartedConfirmOpen(false)
+      toast.success(
+        "Production marked as started. Operator cancel is now blocked."
+      )
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const message =
+          (error.response?.data as { message?: string } | undefined)?.message ??
+          "Could not mark production started."
+        toast.error(message)
+        return
+      }
+      toast.error("Could not mark production started.")
+    } finally {
+      setMarkingStarted(false)
+    }
+  }
+
+  const handleConfirmForceCancel = async () => {
+    const reason = forceCancelReason.trim()
+    if (reason.length === 0) {
+      toast.error("Enter a cancel reason.")
+      return
+    }
+
+    setForceCancelling(true)
+    try {
+      const updated = await forceCancelShopOrder(order.id, {
+        reason,
+        skipRefund,
+      })
+      onOrderUpdated(updated)
+      setForceCancelConfirmOpen(false)
+      setForceCancelReason("")
+      setSkipRefund(false)
+      toast.success(
+        skipRefund
+          ? "Order force-cancelled without refund."
+          : "Order force-cancelled. Refund runs when a Revolut payment exists."
+      )
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as
+          | { code?: string; message?: string }
+          | undefined
+        toast.error(data?.message ?? forceCancelErrorMessage(data?.code))
+        return
+      }
+      toast.error("Could not force-cancel order.")
+    } finally {
+      setForceCancelling(false)
+    }
+  }
+
   const handlePrintDownload = async (
     qrType: "TableTent" | "WindowSticker" | "OfferCard"
   ) => {
@@ -283,6 +381,9 @@ export function AdminShopOrderDetailDrawer({
               <Badge variant="outline">
                 {order.isComplimentary ? "Free" : order.paymentStatus}
               </Badge>
+              {productionStarted ? (
+                <Badge variant="outline">Production started</Badge>
+              ) : null}
               <span className="text-sm text-muted-foreground">
                 {formatAdminShopGbpFromPence(order.grossPence)}
               </span>
@@ -304,6 +405,16 @@ export function AdminShopOrderDetailDrawer({
                   Location ID
                 </p>
                 <p>{order.locationId}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Production started
+                </p>
+                <p>
+                  {productionStarted
+                    ? new Date(order.productionStartedAtUtc!).toLocaleString()
+                    : "—"}
+                </p>
               </div>
               <div className="sm:col-span-2">
                 <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -463,7 +574,7 @@ export function AdminShopOrderDetailDrawer({
                   <Button
                     type="button"
                     variant="destructive"
-                    disabled={refunding || saving}
+                    disabled={anyBusy}
                     onClick={() => setRefundConfirmOpen(true)}
                   >
                     Refund payment
@@ -515,7 +626,7 @@ export function AdminShopOrderDetailDrawer({
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={saving}
+                      disabled={anyBusy}
                       onClick={() =>
                         void savePatch({
                           includeNotes: true,
@@ -536,7 +647,7 @@ export function AdminShopOrderDetailDrawer({
                 {nextAction && (
                   <Button
                     type="button"
-                    disabled={saving}
+                    disabled={anyBusy}
                     onClick={() =>
                       void savePatch({
                         fulfilmentStatus: nextAction.status,
@@ -548,10 +659,36 @@ export function AdminShopOrderDetailDrawer({
                   </Button>
                 )}
 
-                {order.fulfilmentStatus === "processing" && (
+                {canMarkProductionStarted && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={anyBusy}
+                    onClick={() => setMarkStartedConfirmOpen(true)}
+                  >
+                    <FactoryIcon />
+                    Mark production started
+                  </Button>
+                )}
+
+                {canForceCancel && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={anyBusy}
+                    onClick={() => setForceCancelConfirmOpen(true)}
+                  >
+                    Force cancel
+                  </Button>
+                )}
+
+                {isProcessing && (
                   <p className="w-full text-xs text-muted-foreground">
                     Notes and tracking are saved when you mark the order as
                     Dispatched.
+                    {productionStarted
+                      ? " Production has started — operator cancel is blocked."
+                      : " Mark production started to block operator cancel."}
                   </p>
                 )}
               </div>
@@ -591,6 +728,99 @@ export function AdminShopOrderDetailDrawer({
               }}
             >
               {refunding ? "Starting refund…" : "Start refund"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={markStartedConfirmOpen}
+        onOpenChange={(nextOpen) => {
+          if (markingStarted) {
+            return
+          }
+          setMarkStartedConfirmOpen(nextOpen)
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark production started?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This stamps {order.orderNumber} so the operator cannot cancel it.
+              You can still force-cancel from Admin if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={markingStarted}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={markingStarted}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleConfirmMarkStarted()
+              }}
+            >
+              {markingStarted ? "Marking…" : "Mark started"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={forceCancelConfirmOpen}
+        onOpenChange={(nextOpen) => {
+          if (forceCancelling) {
+            return
+          }
+          setForceCancelConfirmOpen(nextOpen)
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Force-cancel this order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cancels {order.orderNumber} even if production has started.
+              Unless you skip refund, a full Revolut refund is attempted when a
+              payment id exists.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col gap-3 px-6 pb-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="admin-shop-force-cancel-reason">
+                Cancel reason
+              </Label>
+              <Textarea
+                id="admin-shop-force-cancel-reason"
+                value={forceCancelReason}
+                onChange={(event) => setForceCancelReason(event.target.value)}
+                placeholder="e.g. warehouse damage / customer request"
+                disabled={forceCancelling}
+                className="min-h-20 rounded-xl"
+              />
+            </div>
+            <CheckboxLabel
+              id="admin-shop-force-cancel-skip-refund"
+              checked={skipRefund}
+              disabled={forceCancelling}
+              onCheckedChange={(checked) => setSkipRefund(checked)}
+            >
+              Skip refund (cancel fulfilment only)
+            </CheckboxLabel>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={forceCancelling}>
+              Keep order
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive-solid"
+              disabled={forceCancelling}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleConfirmForceCancel()
+              }}
+            >
+              {forceCancelling ? "Cancelling…" : "Force cancel"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

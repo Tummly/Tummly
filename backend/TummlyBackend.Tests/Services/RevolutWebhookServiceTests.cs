@@ -363,6 +363,11 @@ namespace TummlyBackend.Tests.Services
 
                 return Task.CompletedTask;
             }
+
+            public BillingLifecycleCommandResult ApplyPostCancelSoftLock(
+                BillingAccount billingAccount,
+                DateTime renewalEndUtc
+            ) => BillingLifecycleCommandResult.NoOp();
         }
 
         private sealed class RecordingLedger : ICreditLedger

@@ -125,6 +125,62 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SubmitFeedback_InvalidContact_Returns400_WithoutFeedbackOrLedger()
+        {
+            const string token = "guest-form-invalid-contact";
+            await SeedGuestLocationAsync(
+                token,
+                emailEnabled: true,
+                smsEnabled: true,
+                feedbackFollowUpEnabled: true
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Invalid Contact Guest",
+                    guestContact = "nope",
+                    comment = "Great visit.",
+                    offersOptOut = false,
+                }
+            );
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Enter a valid email or UK mobile number.",
+                body.GetProperty("message").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var locationId = await context.QrCodes
+                .Where(q => q.Token == token)
+                .Select(q => q.RestaurantLocationId)
+                .SingleAsync();
+
+            Assert.False(
+                await context.Feedbacks.AnyAsync(
+                    f => f.RestaurantLocationId == locationId
+                )
+            );
+            Assert.False(
+                await context.LocationGuests.AnyAsync(
+                    lg => lg.RestaurantLocationId == locationId
+                )
+            );
+            Assert.False(
+                await context.LocationGuestPermissionLedgerEntries.AnyAsync(
+                    e => e.RestaurantLocationId == locationId
+                )
+            );
+        }
+
+        [Fact]
         public async Task SubmitFeedback_FirstOptOut_LeavesMarketingNotRecorded()
         {
             const string token = "guest-form-first-opt-out";

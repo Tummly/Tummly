@@ -61,9 +61,59 @@ namespace TummlyBackend.Tests.Services
 
             var billing = await _context.BillingAccounts.SingleAsync();
             Assert.Equal(
-                StarterKitStates.PendingDispatch,
+                StarterKitStates.Unused,
                 billing.StarterKitState
             );
+        }
+
+        [Fact]
+        public async Task EnsureForLocationAsync_DoesNotCreate_WhenLocationIsDraft()
+        {
+            var location = await _context.RestaurantLocations.SingleAsync();
+            location.LifecycleStatus = LocationLifecycleStatus.Draft;
+            await _context.SaveChangesAsync();
+
+            var result = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+
+            Assert.False(result.Created);
+            Assert.Equal(Guid.Empty, result.ShopOrderId);
+            Assert.Equal(0, await _context.ShopOrders.CountAsync());
+
+            var billing = await _context.BillingAccounts.SingleAsync();
+            Assert.Equal(StarterKitStates.Unused, billing.StarterKitState);
+        }
+
+        [Fact]
+        public async Task EnsureForLocationAsync_Creates_WhenLocationIsActive()
+        {
+            // Seed already Active — same as CreatesPaidZeroOrderWithThreeLines core asserts
+            var result = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+            Assert.True(result.Created);
+            Assert.NotEqual(Guid.Empty, result.ShopOrderId);
+        }
+
+        [Fact]
+        public async Task EnsureForLocationAsync_DoesNotWriteBillingAccountStarterKitState()
+        {
+            var result = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+            Assert.True(result.Created);
+            var billing = await _context.BillingAccounts.SingleAsync();
+            Assert.Equal(StarterKitStates.Unused, billing.StarterKitState);
         }
 
         [Fact]

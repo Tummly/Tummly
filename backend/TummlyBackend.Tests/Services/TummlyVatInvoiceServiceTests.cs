@@ -238,7 +238,7 @@ namespace TummlyBackend.Tests.Services
             var service = new TummlyVatInvoiceService(
                 context,
                 _pricebook,
-                Options.Create(new TummlySellerVatSettings())
+                Options.Create(new TummlySellerVatSettings { IsActive = true })
             );
 
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -249,10 +249,72 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Mint_WhenModeOff_ThrowsAndLeavesTableEmpty()
+        {
+            await using var context = CreateContext();
+            var restaurantId = await SeedRestaurantAsync(context);
+            var service = new TummlyVatInvoiceService(
+                context,
+                _pricebook,
+                Options.Create(
+                    new TummlySellerVatSettings
+                    {
+                        IsActive = false,
+                        RegistrationNumber = "GB999",
+                        EffectiveDate = "2024-01-01",
+                        LegalName = "Tummly Ltd",
+                        RegisteredAddress = "1 Example Road",
+                    }
+                )
+            );
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.MintForCompletedOrderAsync(Request(restaurantId, "ord_mode_off"))
+            );
+            Assert.Equal("vat_mode_off", ex.Message);
+            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+        }
+
+        [Fact]
+        public async Task MintCreditNote_WhenModeOff_ThrowsAndLeavesTableEmpty()
+        {
+            await using var context = CreateContext();
+            var restaurantId = await SeedRestaurantAsync(context);
+            var service = new TummlyVatInvoiceService(
+                context,
+                _pricebook,
+                Options.Create(
+                    new TummlySellerVatSettings
+                    {
+                        IsActive = false,
+                        RegistrationNumber = "GB999",
+                        EffectiveDate = "2024-01-01",
+                        LegalName = "Tummly Ltd",
+                        RegisteredAddress = "1 Example Road",
+                    }
+                )
+            );
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.MintCreditNoteForRefundAsync(
+                    new TummlyVatCreditNoteMintRequest(
+                        RefundOrderId: "ord_refund_off",
+                        OriginalPaymentOrderId: "ord_pay",
+                        RestaurantId: restaurantId,
+                        RefundCompletedUtc: _now,
+                        NetPenceOverride: 3900
+                    )
+                )
+            );
+            Assert.Equal("vat_mode_off", ex.Message);
+            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+        }
+
+        [Fact]
         public void MissingVatEnv_StillFailClosedBeforePay()
         {
             var gate = new RevolutMerchantCreateGate(
-                Options.Create(new TummlySellerVatSettings()),
+                Options.Create(new TummlySellerVatSettings { IsActive = true }),
                 Options.Create(
                     new RevolutSettings
                     {
@@ -289,6 +351,7 @@ namespace TummlyBackend.Tests.Services
                 Options.Create(
                     new TummlySellerVatSettings
                     {
+                        IsActive = true,
                         RegistrationNumber = "GB999",
                         EffectiveDate = "2024-01-01",
                         LegalName = "Tummly Ltd",

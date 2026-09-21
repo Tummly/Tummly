@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -11,18 +12,21 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IRevolutMerchantClient _merchant;
         private readonly TimeProvider _clock;
+        private readonly IAdminAuditService _audit;
         private readonly ILogger<AdminPaymentRefundService> _logger;
 
         public AdminPaymentRefundService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
             TimeProvider clock,
+            IAdminAuditService audit,
             ILogger<AdminPaymentRefundService>? logger = null
         )
         {
             _context = context;
             _merchant = merchant;
             _clock = clock;
+            _audit = audit;
             _logger =
                 logger
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AdminPaymentRefundService>.Instance;
@@ -155,10 +159,26 @@ namespace TummlyBackend.Services
                 throw;
             }
 
+            var merchantIdempotencyKey = idempotencyKey;
+            var shopOrderId = await _context.ShopOrders
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantId == request.RestaurantId
+                    && row.RevolutOrderId == orderId
+                )
+                .Select(row => (Guid?)row.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (shopOrderId is Guid sid)
+            {
+                // Same Merchant key as operator/admin shop cancel — prevents
+                // double full refund via Admin payment refund + shop cancel.
+                merchantIdempotencyKey = ShopOrderCancelRefund.IdempotencyKey(sid);
+            }
+
             var refunded = await _merchant.RefundOrderAsync(
                 orderId,
                 request.AmountMinor,
-                idempotencyKey,
+                merchantIdempotencyKey,
                 cancellationToken
             );
             if (!refunded.Succeeded || string.IsNullOrWhiteSpace(refunded.Id))
@@ -175,8 +195,58 @@ namespace TummlyBackend.Services
             }
 
             intent.RefundOrderId = refunded.Id.Trim();
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.PaymentRefund,
+                    await ResolveAdminIdentityAsync(
+                        request.ActorStaffUserId,
+                        cancellationToken
+                    ),
+                    AdminAuditTargetTypes.PaymentOrder,
+                    orderId,
+                    ActorAdminUserId: request.ActorStaffUserId,
+                    RestaurantId: request.RestaurantId,
+                    DetailJson: BuildPaymentRefundDetailJson(
+                        intent.RefundOrderId,
+                        request.AmountMinor,
+                        idempotencyKey
+                    )
+                )
+            );
             await _context.SaveChangesAsync(cancellationToken);
             return AdminPaymentRefundResult.Ok(intent.RefundOrderId);
+        }
+
+        private async Task<string> ResolveAdminIdentityAsync(
+            int actorStaffUserId,
+            CancellationToken cancellationToken
+        )
+        {
+            var email = await _context.Admins
+                .AsNoTracking()
+                .Where(row => row.Id == actorStaffUserId)
+                .Select(row => row.Email)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return string.IsNullOrWhiteSpace(email)
+                ? $"admin:{actorStaffUserId}"
+                : email;
+        }
+
+        private static string BuildPaymentRefundDetailJson(
+            string refundOrderId,
+            int? amountMinor,
+            string idempotencyKey
+        )
+        {
+            return System.Text.Json.JsonSerializer.Serialize(
+                new
+                {
+                    refundOrderId,
+                    amountMinor,
+                    idempotencyKey,
+                }
+            );
         }
 
         private async Task<int> SumBindableForPaymentRefAsync(

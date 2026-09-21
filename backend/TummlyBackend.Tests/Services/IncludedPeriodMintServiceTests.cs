@@ -248,12 +248,18 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.True(result.Succeeded);
+            Assert.Equal("cancel_applied", result.Code);
             Assert.Empty(result.InsertedAllocationIds);
 
             await harness.Context.Entry(account).ReloadAsync();
             Assert.False(account.ScheduledCancelPlan);
             Assert.False(account.HasScheduledChange);
             Assert.Null(account.ScheduledTargetSubscriptionPlan);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Null(account.BillingCycle);
+            Assert.Equal(BillingStatuses.SoftLock, account.BillingStatus);
+            Assert.Equal(renewal, account.SoftLockEnteredAt);
+            Assert.Equal(renewal, account.PilotPeriodEnd);
 
             var newGrants = await harness.Context.CreditLedgerEntries
                 .Where(row =>
@@ -566,9 +572,18 @@ namespace TummlyBackend.Tests.Services
             context.RestaurantLocations.Add(location);
             await context.SaveChangesAsync();
 
+            var lifecycle = new BillingAccountLifecycleService(
+                context,
+                new NoOpBillingAccountNoticeNotifier()
+            );
             return new Harness(
                 context,
-                new IncludedPeriodMintService(context, _pricebook, clock),
+                new IncludedPeriodMintService(
+                    context,
+                    _pricebook,
+                    clock,
+                    lifecycle: lifecycle
+                ),
                 restaurant.Id,
                 location.Id
             );
@@ -668,6 +683,39 @@ namespace TummlyBackend.Tests.Services
             {
                 return _utcNow;
             }
+        }
+
+        private sealed class NoOpBillingAccountNoticeNotifier
+            : IBillingAccountNoticeNotifier
+        {
+            public Task NotifyCreditThresholdCrossedAsync(
+                int restaurantId,
+                string channel,
+                int thresholdBand,
+                string periodKey,
+                string billingStatus,
+                bool isPilot,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task NotifyPaymentFailureDayStepAsync(
+                int restaurantId,
+                int dayStep,
+                string episodeId,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task NotifyUnpaidPilotLockEnterAsync(
+                int restaurantId,
+                string episodeKey,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task NotifyUnpaidPilotDormantEnterAsync(
+                int restaurantId,
+                string episodeKey,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
     }
 }

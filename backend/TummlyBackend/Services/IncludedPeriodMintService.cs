@@ -20,6 +20,7 @@ namespace TummlyBackend.Services
         private readonly ICreditThresholdEvaluator _thresholdEvaluator;
         private readonly IPlanChangeService _planChange;
         private readonly IRevolutCancelAtPeriodEndAdapter _revolutCancel;
+        private readonly IBillingAccountLifecycle _lifecycle;
 
         public IncludedPeriodMintService(
             ApplicationDbContext context,
@@ -27,7 +28,8 @@ namespace TummlyBackend.Services
             TimeProvider clock,
             ICreditThresholdEvaluator? thresholdEvaluator = null,
             IPlanChangeService? planChange = null,
-            IRevolutCancelAtPeriodEndAdapter? revolutCancel = null
+            IRevolutCancelAtPeriodEndAdapter? revolutCancel = null,
+            IBillingAccountLifecycle? lifecycle = null
         )
         {
             _context = context;
@@ -38,6 +40,7 @@ namespace TummlyBackend.Services
             _planChange = planChange ?? NullPlanChangeService.Instance;
             _revolutCancel =
                 revolutCancel ?? NullRevolutCancelAtPeriodEndAdapter.Instance;
+            _lifecycle = lifecycle ?? NullBillingAccountLifecycle.Instance;
         }
 
         public Task<IncludedPeriodMintResult> MintOnOrderCompletedAsync(
@@ -153,7 +156,16 @@ namespace TummlyBackend.Services
                         && effectiveNow >= billingAccount.RenewalDateUtc.Value
                     )
                     {
+                        var renewalEnd = billingAccount.RenewalDateUtc!.Value;
                         billingAccount.ClearScheduledChangeSlot();
+
+                        await _revolutCancel.CancelNativeSubscriptionAsync(
+                            billingAccount.RestaurantId,
+                            cancellationToken
+                        );
+
+                        _lifecycle.ApplyPostCancelSoftLock(billingAccount, renewalEnd);
+
                         return await FinishCancelApplyAsync(
                             expiryRowsWritten,
                             session,
@@ -737,6 +749,54 @@ namespace TummlyBackend.Services
             bool OwnsTransaction,
             IDbContextTransaction Transaction
         );
+    }
+
+    internal sealed class NullBillingAccountLifecycle : IBillingAccountLifecycle
+    {
+        public static readonly NullBillingAccountLifecycle Instance = new();
+
+        public Task TickAsync(
+            int restaurantId,
+            DateTime now,
+            CancellationToken cancellationToken = default
+        ) => Task.CompletedTask;
+
+        public Task<BillingLifecycleCommandResult> StartDunningEpisodeAsync(
+            int restaurantId,
+            DateTime now,
+            string? outstandingOrderId = null,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(BillingLifecycleCommandResult.NoOp());
+
+        public Task RecoverDunningAsync(
+            int restaurantId,
+            DateTime now,
+            CancellationToken cancellationToken = default
+        ) => Task.CompletedTask;
+
+        public Task ActivatePaidPlanAsync(
+            int restaurantId,
+            DateTime now,
+            CancellationToken cancellationToken = default
+        ) => Task.CompletedTask;
+
+        public Task<BillingLifecycleCommandResult> ExtendPilotActivationAsync(
+            int restaurantId,
+            DateTime newPeriodEnd,
+            DateTime now,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(BillingLifecycleCommandResult.NoOp());
+
+        public Task SetChargebackRestrictionAsync(
+            int restaurantId,
+            bool restricted,
+            CancellationToken cancellationToken = default
+        ) => Task.CompletedTask;
+
+        public BillingLifecycleCommandResult ApplyPostCancelSoftLock(
+            BillingAccount billingAccount,
+            DateTime renewalEndUtc
+        ) => BillingLifecycleCommandResult.NoOp();
     }
 
     internal sealed class NullPlanChangeService : IPlanChangeService

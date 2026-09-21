@@ -105,6 +105,10 @@ namespace TummlyBackend.Tests.Integration
             Assert.Contains("Current state", csv);
             Assert.Contains("Location", csv);
             Assert.Contains("Source", csv);
+            Assert.Contains("Basis", csv);
+            Assert.Contains("Guest form version", csv);
+            Assert.Contains("Wording version", csv);
+            Assert.Contains("Privacy notice version", csv);
             Assert.Contains("Recorded", csv);
             Assert.DoesNotContain("Action", csv);
             Assert.DoesNotContain("View", csv);
@@ -252,6 +256,114 @@ namespace TummlyBackend.Tests.Integration
             Assert.Contains("Withdrawn", csv);
             Assert.DoesNotContain("Guest Other", csv);
             Assert.DoesNotContain("Feedback follow-up", csv);
+        }
+
+        [Fact]
+        public async Task Export_GuestFormGrantWithEvidence_IncludesBasisAndVersions()
+        {
+            var seeded = await SeedOwnerAsync("pcex-evidence");
+            var guestId = await SeedLocationGuestAsync(
+                seeded.LocationId,
+                "Evidence Guest"
+            );
+            var occurredAt = new DateTime(
+                2026,
+                9,
+                21,
+                10,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
+
+            await SeedLedgerEntryAsync(
+                guestId,
+                seeded.LocationId,
+                LocationGuestPermissionKind.EmailMarketing,
+                LocationGuestPermissionLedgerEventKinds.Grant,
+                LocationGuestPermissionLedgerSources.GuestForm,
+                occurredAt,
+                basis: LocationGuestPermissionBases.Consent,
+                guestFormVersion: "guest-form-v1",
+                wordingVersion: "email-marketing-v1",
+                privacyNoticeVersion: "privacy-notice-v1"
+            );
+
+            using var request = AuthorizedGet(
+                ExportUrl(seeded.LocationId),
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var csv = await response.Content.ReadAsStringAsync();
+            var lines = csv.Split(
+                ["\r\n", "\n"],
+                StringSplitOptions.RemoveEmptyEntries
+            );
+            Assert.Contains("Basis", lines[0]);
+            Assert.Contains("Guest form version", lines[0]);
+            Assert.Contains("Wording version", lines[0]);
+            Assert.Contains("Privacy notice version", lines[0]);
+
+            var dataCells = lines[1].Split(',');
+            Assert.Contains(LocationGuestPermissionBases.Consent, dataCells);
+            Assert.Contains("guest-form-v1", dataCells);
+            Assert.Contains("email-marketing-v1", dataCells);
+            Assert.Contains("privacy-notice-v1", dataCells);
+        }
+
+        [Fact]
+        public async Task Export_NullEvidence_EmitsEmptyBasisAndVersionCells()
+        {
+            var seeded = await SeedOwnerAsync("pcex-null-evidence");
+            var guestId = await SeedLocationGuestAsync(
+                seeded.LocationId,
+                "Null Evidence Guest"
+            );
+            await SeedLedgerEntryAsync(
+                guestId,
+                seeded.LocationId,
+                LocationGuestPermissionKind.EmailMarketing,
+                LocationGuestPermissionLedgerEventKinds.Grant,
+                LocationGuestPermissionLedgerSources.Operator,
+                new DateTime(2026, 9, 21, 11, 0, 0, DateTimeKind.Utc)
+            );
+
+            using var request = AuthorizedGet(
+                ExportUrl(seeded.LocationId),
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var csv = await response.Content.ReadAsStringAsync();
+            var lines = csv.Split(
+                ["\r\n", "\n"],
+                StringSplitOptions.RemoveEmptyEntries
+            );
+            var headerCells = lines[0].Split(',');
+            var dataCells = lines[1].Split(',');
+            Assert.Equal(headerCells.Length, dataCells.Length);
+
+            var basisIndex = Array.IndexOf(headerCells, "Basis");
+            var guestFormVersionIndex = Array.IndexOf(
+                headerCells,
+                "Guest form version"
+            );
+            var wordingVersionIndex = Array.IndexOf(
+                headerCells,
+                "Wording version"
+            );
+            var privacyNoticeVersionIndex = Array.IndexOf(
+                headerCells,
+                "Privacy notice version"
+            );
+            Assert.True(basisIndex >= 0);
+            Assert.Equal(string.Empty, dataCells[basisIndex]);
+            Assert.Equal(string.Empty, dataCells[guestFormVersionIndex]);
+            Assert.Equal(string.Empty, dataCells[wordingVersionIndex]);
+            Assert.Equal(string.Empty, dataCells[privacyNoticeVersionIndex]);
         }
 
         [Fact]
@@ -514,7 +626,11 @@ namespace TummlyBackend.Tests.Integration
             LocationGuestPermissionKind permissionKind,
             string eventKind,
             string source,
-            DateTime occurredAt
+            DateTime occurredAt,
+            string? basis = null,
+            string? guestFormVersion = null,
+            string? wordingVersion = null,
+            string? privacyNoticeVersion = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -531,6 +647,10 @@ namespace TummlyBackend.Tests.Integration
                     Source = source,
                     OccurredAt = occurredAt,
                     CreatedAt = occurredAt,
+                    Basis = basis,
+                    GuestFormVersion = guestFormVersion,
+                    WordingVersion = wordingVersion,
+                    PrivacyNoticeVersion = privacyNoticeVersion,
                 }
             );
             await context.SaveChangesAsync();

@@ -54,6 +54,11 @@ namespace TummlyBackend.DTOs.Admin
 
         public DateTime? PaidAtUtc { get; set; }
 
+        /// <summary>
+        /// When set, warehouse production has started and operator cancel is blocked.
+        /// </summary>
+        public DateTime? ProductionStartedAtUtc { get; set; }
+
         public int GrossPence { get; set; }
 
         public List<AdminShopOrderLineSummaryDto> Lines { get; set; } = [];
@@ -124,6 +129,13 @@ namespace TummlyBackend.DTOs.Admin
 
         [JsonIgnore]
         public bool OpsNotesSet => _opsNotesSet;
+    }
+
+    public sealed class AdminShopForceCancelRequest
+    {
+        public string Reason { get; init; } = string.Empty;
+
+        public bool SkipRefund { get; init; }
     }
 
     public sealed class AdminShopOrderFulfilmentResult

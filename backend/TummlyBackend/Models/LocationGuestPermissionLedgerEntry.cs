@@ -35,6 +35,28 @@ namespace TummlyBackend.Models
         public DateTime OccurredAt { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [MaxLength(64)]
+        public string? Basis { get; set; }
+
+        [MaxLength(32)]
+        public string? GuestFormVersion { get; set; }
+
+        [MaxLength(32)]
+        public string? WordingVersion { get; set; }
+
+        [MaxLength(32)]
+        public string? PrivacyNoticeVersion { get; set; }
+
+        [MaxLength(512)]
+        public string? WordingSnapshot { get; set; }
+    }
+
+    public static class LocationGuestPermissionBases
+    {
+        public const string Consent = "consent";
+
+        public const string ServiceFollowUpNotice = "service_follow_up_notice";
     }
 
     public static class LocationGuestPermissionLedgerEventKinds
@@ -52,5 +74,9 @@ namespace TummlyBackend.Models
         public const string GuestForm = "guest-form";
 
         public const string Operator = "operator";
+
+        public const string EmailUnsubscribe = "email-unsubscribe";
+
+        public const string SmsStop = "sms-stop";
     }
 }

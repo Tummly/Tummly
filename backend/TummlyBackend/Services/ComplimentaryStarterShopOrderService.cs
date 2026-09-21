@@ -71,6 +71,14 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (location.LifecycleStatus != LocationLifecycleStatus.Active)
+            {
+                return new ComplimentaryStarterShopOrderResult(
+                    Guid.Empty,
+                    Created: false
+                );
+            }
+
             var now = DateTime.UtcNow;
             var orderNumber = await _orderNumbers.AllocateNextOrderNumberAsync(
                 restaurantId,
@@ -158,23 +166,6 @@ namespace TummlyBackend.Services
             }
 
             _context.ShopOrders.Add(order);
-
-            var billingAccount = await _context.BillingAccounts
-                .FirstOrDefaultAsync(
-                    row => row.RestaurantId == restaurantId,
-                    cancellationToken
-                );
-            if (
-                billingAccount != null
-                && string.Equals(
-                    billingAccount.StarterKitState,
-                    StarterKitStates.Unused,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                billingAccount.StarterKitState = StarterKitStates.PendingDispatch;
-            }
 
             await _context.SaveChangesAsync(cancellationToken);
 

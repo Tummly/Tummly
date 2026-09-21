@@ -26,6 +26,7 @@ namespace TummlyBackend.Tests.Services
                 ledger,
                 vat,
                 TimeProvider.System,
+                Options.Create(new TummlySellerVatSettings { IsActive = true }),
                 NullLogger<RevolutPaymentRefundCompletedHandler>.Instance
             );
             var merchant = new FixedOrderMerchant(
@@ -87,6 +88,41 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task RefundCompleted_WhenModeOff_SkipsCreditNoteMint()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedRestaurantWithTopupAsync(context);
+            var ledger = new RecordingLedger();
+            var vat = new RecordingVatInvoiceService();
+            var refundHandler = new RevolutPaymentRefundCompletedHandler(
+                context,
+                ledger,
+                vat,
+                TimeProvider.System,
+                Options.Create(new TummlySellerVatSettings { IsActive = false }),
+                NullLogger<RevolutPaymentRefundCompletedHandler>.Instance
+            );
+
+            await refundHandler.HandleAsync(
+                new RevolutPaymentRefundCompletedRequest(
+                    RefundOrderId: "ord_refund_off",
+                    RelatedOrderId: seeded.PaymentOrderId,
+                    OrderType: RevolutOrderTypes.Refund,
+                    AmountMinor: 1200,
+                    RawOrderBody: "{}"
+                )
+            );
+
+            Assert.Equal(1, ledger.DrainCallCount);
+            Assert.Equal(0, vat.MintCreditNoteCallCount);
+            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+            Assert.DoesNotContain(
+                context.RestaurantBillingActivities,
+                row => row.Kind == BillingActivityKinds.CreditNoteIssued
+            );
+        }
+
+        [Fact]
         public async Task RefundCompleted_MarksPaidShopOrderRefunded()
         {
             await using var context = CreateContext();
@@ -141,7 +177,8 @@ namespace TummlyBackend.Tests.Services
                 context,
                 new RecordingLedger(),
                 new RecordingVatInvoiceService(),
-                TimeProvider.System
+                TimeProvider.System,
+                Options.Create(new TummlySellerVatSettings { IsActive = true })
             );
 
             await refundHandler.HandleAsync(
@@ -150,6 +187,120 @@ namespace TummlyBackend.Tests.Services
                     RelatedOrderId: seeded.PaymentOrderId,
                     OrderType: RevolutOrderTypes.Refund,
                     AmountMinor: 2880,
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var updated = await context.ShopOrders
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == shopOrder.Id);
+            Assert.Equal(ShopPaymentStatuses.Refunded, updated.PaymentStatus);
+        }
+
+        [Fact]
+        public async Task RefundCompleted_MarksShopOrderRefunded_WhenVatOff_ShopOnlyPayment()
+        {
+            await using var context = CreateContext();
+            var now = DateTime.UtcNow;
+            var owner = new User
+            {
+                Email = $"{Guid.NewGuid():N}@example.com",
+                PasswordHash = "x",
+                FullName = "Shop Owner",
+                Role = "Owner",
+                AccountType = "Single",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                TermsAccepted = true,
+                ActivatedAt = now,
+                ActivationExpiresAt = now.AddDays(30),
+                CreatedAt = now,
+            };
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Shop Only Venue",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = now,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                new BillingAccount
+                {
+                    RestaurantId = restaurant.Id,
+                    SubscriptionPlan = BillingSubscriptionPlans.Starter,
+                    BillingCycle = BillingCycles.Monthly,
+                    BillingStatus = BillingStatuses.Active,
+                    ContractedPricebookId = "starter-monthly",
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Shop Location",
+                Address = "1 High Street",
+                City = "London",
+                Postcode = "SE1 1TQ",
+                CreatedAt = now,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            const string shopPaymentId = "ord_shop_only_pay";
+            var shopOrder = new ShopOrder
+            {
+                Id = Guid.NewGuid(),
+                OrderNumber = "ORD-SHOP-ONLY",
+                RestaurantId = restaurant.Id,
+                LocationId = location.Id,
+                LocationNameSnapshot = location.LocationName,
+                PlacedByUserId = owner.Id,
+                PlacedByNameSnapshot = "Owner",
+                PaymentStatus = ShopPaymentStatuses.Paid,
+                FulfilmentStatus = ShopFulfilmentStatuses.Processing,
+                RevolutOrderId = shopPaymentId,
+                MaterialsNetPence = 2400,
+                VatPence = 0,
+                DeliveryNetPence = 0,
+                GrossPence = 2400,
+                DeliveryMethod = ShopDeliveryMethods.Standard,
+                ShipToContactName = "Owner",
+                ShipToAddressLine1 = "1 High Street",
+                ShipToPostcode = "SE1 1TQ",
+                ShipToCountry = "United Kingdom",
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now,
+                PaidAtUtc = now,
+                ProcessingStartedAtUtc = now,
+            };
+            context.ShopOrders.Add(shopOrder);
+            await context.SaveChangesAsync();
+
+            var refundHandler = new RevolutPaymentRefundCompletedHandler(
+                context,
+                new RecordingLedger(),
+                new RecordingVatInvoiceService(),
+                TimeProvider.System,
+                Options.Create(new TummlySellerVatSettings { IsActive = false }),
+                NullLogger<RevolutPaymentRefundCompletedHandler>.Instance
+            );
+
+            await refundHandler.HandleAsync(
+                new RevolutPaymentRefundCompletedRequest(
+                    RefundOrderId: "ord_shop_only_refund",
+                    RelatedOrderId: shopPaymentId,
+                    OrderType: RevolutOrderTypes.Refund,
+                    AmountMinor: 2400,
                     RawOrderBody: "{}"
                 )
             );
@@ -186,7 +337,8 @@ namespace TummlyBackend.Tests.Services
                 context,
                 ledger,
                 vat,
-                TimeProvider.System
+                TimeProvider.System,
+                Options.Create(new TummlySellerVatSettings { IsActive = true })
             );
             var merchant = new FixedOrderMerchant(
                 new RevolutOrderRetrieveResult(
@@ -540,6 +692,11 @@ namespace TummlyBackend.Tests.Services
                 SetChargebackCallCount++;
                 return Task.CompletedTask;
             }
+
+            public BillingLifecycleCommandResult ApplyPostCancelSoftLock(
+                BillingAccount billingAccount,
+                DateTime renewalEndUtc
+            ) => BillingLifecycleCommandResult.NoOp();
         }
 
         private sealed class RecordingRefundHandler

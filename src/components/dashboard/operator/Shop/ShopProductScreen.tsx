@@ -68,6 +68,8 @@ type ShopProductScreenProps = {
   locations: ShopLocationOption[]
   brandLogoPublicUrl: string | null
   mode: OperatorDashboardMode
+  /** Catalog seller rate; 0 = launch VAT OFF. */
+  vatRateBps?: number
   onSelectLocation?: (locationId: number) => void
   onBackToShop: () => void
   onAddToCart: (product: ShopProduct, quantity: number) => void
@@ -84,6 +86,7 @@ export function ShopProductScreen({
   locations,
   brandLogoPublicUrl,
   mode,
+  vatRateBps = 0,
   onSelectLocation,
   onBackToShop,
   onAddToCart,
@@ -92,6 +95,7 @@ export function ShopProductScreen({
   paidWriteChrome,
 }: ShopProductScreenProps) {
   const purchaseBlocked = paidWriteChrome.purchaseDisabled
+  const showVatChrome = vatRateBps > 0
   const [selectedPackId, setSelectedPackId] = useState<string>("pack-20")
   const [customQuantity, setCustomQuantity] = useState<number>(20)
   const [activeImageIdx, setActiveImageIdx] = useState<number>(0)
@@ -365,7 +369,7 @@ export function ShopProductScreen({
               </div>
               <div className="h-px bg-op-border-default/60" />
               <div className="flex justify-between">
-                <span>VAT and delivery</span>
+                <span>{showVatChrome ? "VAT and delivery" : "Delivery"}</span>
                 <span className="font-medium text-op-text-primary">
                   Calculated at checkout
                 </span>
@@ -379,7 +383,9 @@ export function ShopProductScreen({
                   £{calculatedPrice}
                 </span>
                 <span className="text-xs text-op-text-muted">
-                  Excluding VAT and delivery
+                  {showVatChrome
+                    ? "Excluding VAT and delivery"
+                    : "Excluding delivery"}
                 </span>
               </div>
 

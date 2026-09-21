@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -26,18 +28,21 @@ namespace TummlyBackend.Services
         private readonly IRevolutMerchantClient _merchant;
         private readonly IConfiguration _configuration;
         private readonly TimeProvider _clock;
+        private readonly TummlySellerVatSettings _sellerVat;
 
         public CreditTopUpPaySessionService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
             IConfiguration configuration,
-            TimeProvider clock
+            TimeProvider clock,
+            IOptions<TummlySellerVatSettings> sellerVat
         )
         {
             _context = context;
             _merchant = merchant;
             _configuration = configuration;
             _clock = clock;
+            _sellerVat = sellerVat.Value;
         }
 
         public async Task<string> StartAsync(
@@ -123,7 +128,7 @@ namespace TummlyBackend.Services
                 // New key → new order; leave prior pending unpaid (lock 07).
             }
 
-            var vatRateBps = TummlyVatMath.DefaultVatRateBps;
+            var vatRateBps = _sellerVat.EffectiveVatRateBps;
             var net = pack.NetPence;
             var vat = TummlyVatMath.VatPenceFromNetPence(net, vatRateBps);
             var gross = net + vat;
@@ -157,14 +162,7 @@ namespace TummlyBackend.Services
                             UnitPriceAmount: net,
                             Quantity: 1,
                             TotalAmount: gross,
-                            Taxes:
-                            [
-                                new RevolutOrderLineItemTax(
-                                    Name: "VAT",
-                                    Percentage: "20.00",
-                                    Amount: vat
-                                ),
-                            ]
+                            Taxes: BuildVatTaxes(vatRateBps, vat)
                         ),
                     ]
                 ),
@@ -286,6 +284,26 @@ namespace TummlyBackend.Services
                     StringComparison.OrdinalIgnoreCase
                 )
                 && intent.Quantity == quantity;
+        }
+
+        private static IReadOnlyList<RevolutOrderLineItemTax> BuildVatTaxes(
+            int vatRateBps,
+            int vatAmount
+        )
+        {
+            if (vatRateBps <= 0)
+            {
+                return [];
+            }
+
+            return
+            [
+                new RevolutOrderLineItemTax(
+                    Name: "VAT",
+                    Percentage: "20.00",
+                    Amount: vatAmount
+                ),
+            ];
         }
 
     }

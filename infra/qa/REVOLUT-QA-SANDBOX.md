@@ -9,6 +9,11 @@ Do **not** put Production Merchant secrets on QA.
 Merchant secret, VAT fields, plan variations, webhook, and optional ACA apply.
 Values land in gitignored `infra/qa/secrets.qa.env`.
 
+**Launch VAT mode:** default `TUMMLY_VAT_MODE_ACTIVE=false` (unset / empty →
+false). False = net charges, skip `vat_not_ready`, no VAT invoices/UI. Billing pack
+v3.0 VAT-on is **overridden** for launch by this flag. Set `true` only
+after HMRC registration + gross plan variations exist.
+
 Related: go-live Production checklist
 [`REVOLUT-GO-LIVE.md`](./REVOLUT-GO-LIVE.md); ACA apply
 [`apply-aca-secrets.ps1`](./apply-aca-secrets.ps1); empty keys
@@ -47,7 +52,10 @@ export REVOLUT_API_VERSION=2026-04-20
   --out /tmp/revolut-sandbox-plan-variations.env
 ```
 
-Keep the printed `Revolut__PlanVariations__*` lines for step 3. Do not commit them.
+Keep the printed `Revolut__PlanVariations__*` lines for step 3 (net map for
+`TUMMLY_VAT_MODE_ACTIVE=false`). Do not commit them. For VAT-on rehearsal
+(`TUMMLY_VAT_MODE_ACTIVE=true`), also create matching **gross** variations and
+mount `Revolut__PlanVariationsGross__*` (same eight keys).
 
 ---
 
@@ -75,9 +83,14 @@ Revolut__ApiBaseUrl=https://sandbox-merchant.revolut.com
 Revolut__ApiVersion=2026-04-20
 Revolut__SecretKey=…                 # Sandbox secret
 Revolut__WebhookSigningSecret=…      # Sandbox webhook
-# Paste all eight Revolut__PlanVariations__* from step 1
 
-# Seller VAT / legal — any complete non-empty pack values (shown on QA TM PDFs)
+# Launch default OFF (net). Unset / empty → false.
+TUMMLY_VAT_MODE_ACTIVE=false
+# Paste all eight Revolut__PlanVariations__* from step 1 (net map)
+# When true: also paste Revolut__PlanVariationsGross__* (gross GBP)
+
+# Seller VAT / legal — required only when TUMMLY_VAT_MODE_ACTIVE=true
+# (shown on QA TM PDFs when VAT invoices mint)
 TUMMLY_VAT_REGISTRATION_NUMBER=…
 TUMMLY_VAT_EFFECTIVE_DATE=…
 TUMMLY_LEGAL_NAME=…
@@ -138,8 +151,8 @@ wait for webhook (or refresh) — do not treat HPP land alone as activation.
 | 6 | Extra Location remove | Manage plan | Schedule only |
 | 7 | Credit top-up | Manage plan → Credit top-ups | HPP → allocate; Credits & usage |
 | 8 | Update payment method | Payment & invoices | HPP card update → masked method |
-| 9 | Invoice View / Download | Payment & invoices | Tummly VAT PDF (`TM-`) |
-| 10 | Billing activity | Activity tab | Rows for pay / mint / notes |
+| 9 | Invoice View / Download | Payment & invoices | With `TUMMLY_VAT_MODE_ACTIVE=false`: no new `TM-` VAT PDF. With `true`: Tummly VAT PDF (`TM-`) |
+| 10 | Billing activity | Activity tab | Rows for pay / mint / notes (mint rows only when VAT mode is on) |
 
 Native (no Revolut money) still runs on the same Billing Account: schedule
 clear, contacts, usage snapshot, Lock Alert chrome when lifecycle applies.
@@ -153,10 +166,10 @@ Admin refund paths.
 
 | Symptom | Check |
 | --- | --- |
-| `503` + `vat_not_ready` | Four `TUMMLY_*` keys on ACA |
+| `503` + `vat_not_ready` | Only when `TUMMLY_VAT_MODE_ACTIVE=true`: four seller `TUMMLY_*` keys on ACA. False skips this gate. |
 | `503` + `revolut_not_ready` | Secret / ApiBaseUrl / ApiVersion |
 | `503` + `revolut_sandbox_required` | `RequireSandboxHost=true` but host is not sandbox |
-| `503` + `plan_variation_missing` | Eight sandbox UUIDs mounted |
+| `503` + `plan_variation_missing` | False: eight net `Revolut__PlanVariations__*` UUIDs. True: eight gross `Revolut__PlanVariationsGross__*` UUIDs. |
 | HPP ok, no entitlements | Webhook URL/signing secret; `/health/revolut` webhook flag; stuck revision (`probe-qa-api-revision.sh`). Confirm Sandbox webhook events include `ORDER_COMPLETED`. If Merchant order is `completed` but Tummly still Pilot / open pending / no `TM-` invoice, replay: `./scripts/replay-revolut-order-completed.sh <order-id>` (uses `Revolut__WebhookSigningSecret` from `infra/qa/secrets.qa.env`). |
 | Test card declined | Confirm Sandbox host (not Production) |
 

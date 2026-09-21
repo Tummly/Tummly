@@ -79,6 +79,15 @@ namespace TummlyBackend.Services
                     _configuration["PublicApi:BaseUrl"]
                 );
 
+                var frontendBaseUrl =
+                    _configuration["Frontend:BaseUrl"] ?? string.Empty;
+                var unsubscribeHref = UnsubscribeLink.PreferSignedOrRestaurant(
+                    frontendBaseUrl,
+                    restaurant?.Id ?? 0,
+                    request.LocationGuestId,
+                    UnsubscribeLink.ResolveSigningSecret(_configuration)
+                );
+
                 await _emailService.SendGuestResponseEmailAsync(
                     request.ToAddress,
                     request.Subject ?? string.Empty,
@@ -87,7 +96,8 @@ namespace TummlyBackend.Services
                     location.Address,
                     request.Body,
                     brandLogoUrl: brandLogoUrl,
-                    offer: request.Offer
+                    offer: request.Offer,
+                    unsubscribeHref: unsubscribeHref
                 );
                 return new CampaignOutboundSendResult.Accepted
                 {

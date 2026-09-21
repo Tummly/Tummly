@@ -13,6 +13,7 @@ namespace TummlyBackend.Services
         private const int MaxPageSize = 100;
         private const int MaxTrackingUrlLength = 2048;
         private const int MaxOpsNotesLength = 2000;
+        private const int MaxForceCancelReasonLength = 500;
 
         private static readonly HashSet<string> ValidFulfilmentFilters =
             new(StringComparer.OrdinalIgnoreCase)
@@ -45,14 +46,23 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
+        private readonly IAdminAuditService _audit;
+        private readonly TimeProvider _clock;
+        private readonly IRevolutMerchantClient _merchant;
 
         public AdminShopOrderFulfilmentService(
             ApplicationDbContext context,
-            IPrintReadyQrMaterialsService printReadyQrMaterials
+            IPrintReadyQrMaterialsService printReadyQrMaterials,
+            IAdminAuditService audit,
+            TimeProvider clock,
+            IRevolutMerchantClient merchant
         )
         {
             _context = context;
             _printReadyQrMaterials = printReadyQrMaterials;
+            _audit = audit;
+            _clock = clock;
+            _merchant = merchant;
         }
 
         public async Task<AdminShopOrderListResponseDto> GetListAsync(
@@ -186,6 +196,221 @@ namespace TummlyBackend.Services
             }
 
             order.UpdatedAtUtc = now;
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return AdminShopOrderFulfilmentResult.Ok(
+                await MapWithPrintAssetsAsync(order, cancellationToken)
+            );
+        }
+
+        public async Task<AdminShopOrderFulfilmentResult> MarkProductionStartedAsync(
+            Guid orderId,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var order = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .FirstOrDefaultAsync(row => row.Id == orderId, cancellationToken);
+
+            if (order == null)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "order_not_found",
+                    "Shop order was not found."
+                );
+            }
+
+            if (order.ProductionStartedAtUtc != null)
+            {
+                return AdminShopOrderFulfilmentResult.Ok(
+                    await MapWithPrintAssetsAsync(order, cancellationToken)
+                );
+            }
+
+            if (
+                !string.Equals(
+                    order.PaymentStatus,
+                    ShopPaymentStatuses.Paid,
+                    StringComparison.Ordinal
+                )
+                || !string.Equals(
+                    order.FulfilmentStatus,
+                    ShopFulfilmentStatuses.Processing,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "shop_order_not_in_production",
+                    "Production start is only allowed for paid orders still in processing."
+                );
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            order.ProductionStartedAtUtc = now;
+            order.ProductionStartedByAdminUserId = actorAdminUserId;
+            order.UpdatedAtUtc = now;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopProductionStarted,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopOrder,
+                    orderId.ToString("D"),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: order.RestaurantId,
+                    DetailJson: null
+                )
+            );
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return AdminShopOrderFulfilmentResult.Ok(
+                await MapWithPrintAssetsAsync(order, cancellationToken)
+            );
+        }
+
+        public async Task<AdminShopOrderFulfilmentResult> ForceCancelAsync(
+            Guid orderId,
+            AdminShopForceCancelRequest request,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var order = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .FirstOrDefaultAsync(row => row.Id == orderId, cancellationToken);
+
+            if (order == null)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "order_not_found",
+                    "Shop order was not found."
+                );
+            }
+
+            if (
+                string.Equals(
+                    order.FulfilmentStatus,
+                    ShopFulfilmentStatuses.Cancelled,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return AdminShopOrderFulfilmentResult.Ok(
+                    await MapWithPrintAssetsAsync(order, cancellationToken)
+                );
+            }
+
+            var reason = request.Reason?.Trim() ?? string.Empty;
+            if (reason.Length == 0)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "invalid_cancel_reason",
+                    "reason must be a non-empty cancel reason (slug or free text)."
+                );
+            }
+
+            if (reason.Length > MaxForceCancelReasonLength)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "invalid_cancel_reason",
+                    $"reason must be at most {MaxForceCancelReasonLength} characters."
+                );
+            }
+
+            if (
+                string.Equals(
+                    order.FulfilmentStatus,
+                    ShopFulfilmentStatuses.InTransit,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "in_transit",
+                    "This shop order cannot be force-cancelled while in transit."
+                );
+            }
+
+            if (
+                string.Equals(
+                    order.FulfilmentStatus,
+                    ShopFulfilmentStatuses.Delivered,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "delivered",
+                    "This shop order cannot be force-cancelled after delivery."
+                );
+            }
+
+            if (
+                !string.Equals(
+                    order.FulfilmentStatus,
+                    ShopFulfilmentStatuses.Processing,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "shop_order_not_cancellable",
+                    "This shop order cannot be force-cancelled."
+                );
+            }
+
+            var refundAttempted = false;
+            if (!request.SkipRefund)
+            {
+                refundAttempted =
+                    !order.IsComplimentary
+                    && !string.IsNullOrWhiteSpace(order.RevolutOrderId);
+
+                var refundError = await ShopOrderCancelRefund.TryFullRefundAsync(
+                    _merchant,
+                    order,
+                    cancellationToken
+                );
+                if (refundError != null)
+                {
+                    return AdminShopOrderFulfilmentResult.Fail(
+                        refundError,
+                        "The Revolut refund failed. The shop order was not cancelled."
+                    );
+                }
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            order.FulfilmentStatus = ShopFulfilmentStatuses.Cancelled;
+            order.CancelReason = reason;
+            order.CancelledAtUtc = now;
+            order.CancelledByUserId = null;
+            order.UpdatedAtUtc = now;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopForceCancel,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopOrder,
+                    orderId.ToString("D"),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: order.RestaurantId,
+                    DetailJson: System.Text.Json.JsonSerializer.Serialize(
+                        new
+                        {
+                            skipRefund = request.SkipRefund,
+                            refundAttempted,
+                            reason,
+                        }
+                    )
+                )
+            );
+
             await _context.SaveChangesAsync(cancellationToken);
 
             return AdminShopOrderFulfilmentResult.Ok(
@@ -534,6 +759,7 @@ namespace TummlyBackend.Services
                 TrackingUrl = order.TrackingUrl,
                 OpsNotes = order.OpsNotes,
                 PaidAtUtc = order.PaidAtUtc,
+                ProductionStartedAtUtc = order.ProductionStartedAtUtc,
                 GrossPence = order.GrossPence,
                 Lines = order.Lines
                     .OrderBy(line => line.CatalogSkuId, StringComparer.OrdinalIgnoreCase)

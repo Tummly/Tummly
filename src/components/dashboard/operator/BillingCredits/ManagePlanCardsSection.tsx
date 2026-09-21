@@ -218,9 +218,11 @@ export function ManagePlanCardsSection({
           </button>
         </div>
 
-        <p className="m-0 text-sm font-normal text-muted-foreground">
-          {MANAGE_PLAN_COPY.vatNotice}
-        </p>
+        {snap.showVatNotice ? (
+          <p className="m-0 text-sm font-normal text-muted-foreground">
+            {MANAGE_PLAN_COPY.vatNotice}
+          </p>
+        ) : null}
       </div>
 
       <div className={MANAGE_PLAN_CARDS_GRID_CLASS}>

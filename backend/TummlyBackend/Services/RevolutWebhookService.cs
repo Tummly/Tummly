@@ -59,6 +59,7 @@ namespace TummlyBackend.Services
         private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly TimeProvider _clock;
         private readonly RevolutSettings _settings;
+        private readonly TummlySellerVatSettings _sellerVat;
         private readonly ILogger<RevolutWebhookService> _logger;
         private readonly IPrintReadyQrMaterialsWork? _printReadyQrMaterialsWork;
 
@@ -74,7 +75,8 @@ namespace TummlyBackend.Services
             IRevolutPaymentRefundCompletedHandler? paymentRefundHandler = null,
             ICreditLedger? ledger = null,
             ITummlyVatInvoiceService? vatInvoices = null,
-            IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null
+            IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null,
+            IOptions<TummlySellerVatSettings>? sellerVat = null
         )
         {
             _context = context;
@@ -88,6 +90,7 @@ namespace TummlyBackend.Services
             _vatInvoices = vatInvoices ?? NoOpWebhookVatInvoiceService.Instance;
             _clock = clock;
             _settings = settings.Value;
+            _sellerVat = sellerVat?.Value ?? new TummlySellerVatSettings();
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
             _logger =
                 logger
@@ -563,16 +566,19 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            await _vatInvoices.MintCreditNoteForRefundAsync(
-                new TummlyVatCreditNoteMintRequest(
-                    RefundOrderId: disputeId,
-                    OriginalPaymentOrderId: paymentOrderId,
-                    RestaurantId: restaurantId,
-                    RefundCompletedUtc: _clock.GetUtcNow().UtcDateTime,
-                    LineDescriptionOverride: "Credit note — dispute"
-                ),
-                cancellationToken
-            );
+            if (_sellerVat.IsActive)
+            {
+                await _vatInvoices.MintCreditNoteForRefundAsync(
+                    new TummlyVatCreditNoteMintRequest(
+                        RefundOrderId: disputeId,
+                        OriginalPaymentOrderId: paymentOrderId,
+                        RestaurantId: restaurantId,
+                        RefundCompletedUtc: _clock.GetUtcNow().UtcDateTime,
+                        LineDescriptionOverride: "Credit note — dispute"
+                    ),
+                    cancellationToken
+                );
+            }
 
             var hadDisputeDrain = await HasDisputeDrainAsync(
                 restaurantId,

@@ -493,6 +493,8 @@ namespace TummlyBackend.Tests.Integration
             };
             if (mode == RevolutGateConfigMode.Empty)
             {
+                // ACTIVE + incomplete seller VAT → vat_not_ready (default Mode is off).
+                values[TummlySellerVatSettings.ModeActiveKey] = "true";
                 return values;
             }
 

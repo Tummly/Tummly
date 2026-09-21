@@ -69,19 +69,63 @@ namespace TummlyBackend.Services
             {
                 // Navigation overload: new guests still have Id == 0 until
                 // the caller's SaveChanges (SQL Server FK-safe).
+                var evidence = BuildEvidence(
+                    kind,
+                    eventKind,
+                    contactType,
+                    restaurant
+                );
                 _ledger.RecordEvent(
                     locationGuest,
                     restaurantLocationId,
                     kind,
                     eventKind,
                     LocationGuestPermissionLedgerSources.GuestForm,
-                    occurredAt
+                    occurredAt,
+                    evidence
                 );
             }
 
             await _ledger.SyncMarketingPreferenceRollupAsync(
                 locationGuest,
                 cancellationToken
+            );
+        }
+
+        private static PermissionLedgerEvidence BuildEvidence(
+            LocationGuestPermissionKind kind,
+            string eventKind,
+            ContactType contactType,
+            Restaurant restaurant
+        )
+        {
+            if (kind == LocationGuestPermissionKind.FeedbackFollowUp)
+            {
+                return GuestFormPermissionEvidence.ForFeedbackFollowUpGrant(
+                    restaurant.Name
+                );
+            }
+
+            var customWording = contactType switch
+            {
+                ContactType.Email => restaurant.EmailConsentWording,
+                ContactType.Phone => restaurant.SmsConsentWording,
+                _ => null,
+            };
+
+            if (eventKind == LocationGuestPermissionLedgerEventKinds.Withdraw)
+            {
+                return GuestFormPermissionEvidence.ForMarketingWithdraw(
+                    contactType,
+                    restaurant.Name,
+                    customWording
+                );
+            }
+
+            return GuestFormPermissionEvidence.ForMarketingGrant(
+                contactType,
+                restaurant.Name,
+                customWording
             );
         }
     }

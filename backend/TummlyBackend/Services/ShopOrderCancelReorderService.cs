@@ -11,14 +11,17 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IMaterialsCatalog _catalog;
+        private readonly IRevolutMerchantClient _merchant;
 
         public ShopOrderCancelReorderService(
             ApplicationDbContext context,
-            IMaterialsCatalog catalog
+            IMaterialsCatalog catalog,
+            IRevolutMerchantClient merchant
         )
         {
             _context = context;
             _catalog = catalog;
+            _merchant = merchant;
         }
 
         public async Task<ShopOrderCancelResult> CancelAsync(
@@ -77,6 +80,19 @@ namespace TummlyBackend.Services
                 return ShopOrderCancelResult.Fail(
                     "shop_order_not_cancellable",
                     "This shop order cannot be cancelled."
+                );
+            }
+
+            var refundError = await ShopOrderCancelRefund.TryFullRefundAsync(
+                _merchant,
+                order,
+                cancellationToken
+            );
+            if (refundError != null)
+            {
+                return ShopOrderCancelResult.Fail(
+                    refundError,
+                    "The Revolut refund failed. The shop order was not cancelled."
                 );
             }
 

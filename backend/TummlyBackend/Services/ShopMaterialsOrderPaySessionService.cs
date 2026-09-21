@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -26,18 +28,21 @@ namespace TummlyBackend.Services
         private readonly IRevolutMerchantClient _merchant;
         private readonly IConfiguration _configuration;
         private readonly TimeProvider _clock;
+        private readonly TummlySellerVatSettings _sellerVat;
 
         public ShopMaterialsOrderPaySessionService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
             IConfiguration configuration,
-            TimeProvider clock
+            TimeProvider clock,
+            IOptions<TummlySellerVatSettings> sellerVat
         )
         {
             _context = context;
             _merchant = merchant;
             _configuration = configuration;
             _clock = clock;
+            _sellerVat = sellerVat.Value;
         }
 
         public async Task<string> StartAsync(
@@ -131,7 +136,10 @@ namespace TummlyBackend.Services
                 }
             }
 
-            var vatRateBps = TummlyVatMath.DefaultVatRateBps;
+            // Use place-time VAT on the order row so pay amounts stay stable if
+            // TUMMLY_VAT_MODE_ACTIVE flips between place and pay.
+            var vatRateBps =
+                order.VatPence > 0 ? TummlyVatMath.DefaultVatRateBps : 0;
             var lineItems = BuildLineItems(order, vatRateBps);
             var net = order.MaterialsNetPence + order.DeliveryNetPence;
             var vat = order.VatPence;
@@ -244,14 +252,7 @@ namespace TummlyBackend.Services
                         UnitPriceAmount: line.UnitNetPence,
                         Quantity: line.Quantity,
                         TotalAmount: lineGross,
-                        Taxes:
-                        [
-                            new RevolutOrderLineItemTax(
-                                Name: "VAT",
-                                Percentage: "20.00",
-                                Amount: lineVat
-                            ),
-                        ],
+                        Taxes: BuildVatTaxes(vatRateBps, lineVat),
                         Type: "physical"
                     )
                 );
@@ -306,6 +307,26 @@ namespace TummlyBackend.Services
             }
 
             return url;
+        }
+
+        private static IReadOnlyList<RevolutOrderLineItemTax> BuildVatTaxes(
+            int vatRateBps,
+            int vatAmount
+        )
+        {
+            if (vatRateBps <= 0)
+            {
+                return [];
+            }
+
+            return
+            [
+                new RevolutOrderLineItemTax(
+                    Name: "VAT",
+                    Percentage: "20.00",
+                    Amount: vatAmount
+                ),
+            ];
         }
     }
 }

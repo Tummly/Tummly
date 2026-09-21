@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Shop;
 using TummlyBackend.Helpers;
@@ -16,18 +18,21 @@ namespace TummlyBackend.Services
         private readonly IMaterialsCatalog _catalog;
         private readonly IShopCartService _carts;
         private readonly IShopOrderNumberAllocator _orderNumbers;
+        private readonly TummlySellerVatSettings _sellerVat;
 
         public ShopOrderPlaceService(
             ApplicationDbContext context,
             IMaterialsCatalog catalog,
             IShopCartService carts,
-            IShopOrderNumberAllocator orderNumbers
+            IShopOrderNumberAllocator orderNumbers,
+            IOptions<TummlySellerVatSettings> sellerVat
         )
         {
             _context = context;
             _catalog = catalog;
             _carts = carts;
             _orderNumbers = orderNumbers;
+            _sellerVat = sellerVat.Value;
         }
 
         public async Task<ShopDeliveryDefaultsDto?> GetDeliveryDefaultsAsync(
@@ -183,7 +188,10 @@ namespace TummlyBackend.Services
                 : 0;
 
             var materialsNetPence = priced.Lines!.Sum(line => line.LineNetPence);
-            var vatPence = TummlyVatMath.VatPenceFromNetPence(materialsNetPence);
+            var vatPence = TummlyVatMath.VatPenceFromNetPence(
+                materialsNetPence,
+                _sellerVat.EffectiveVatRateBps
+            );
             var grossPence = checked(
                 materialsNetPence + vatPence + deliveryNetPence
             );

@@ -17,7 +17,7 @@ Roles, access control, session handling, and tenant isolation for Tummly.
 | Failed login / account lock fields | Shipped — **5 attempts** → `IsLocked` (operators on `universal-login`; admins on `admin-login` only) |
 | Guest feedback rate limit | Shipped |
 | Address lookup rate limit | Shipped |
-| Audit logging | Planned |
+| Audit logging | Shipped (append-only table + `GET /api/admin/audit-events`; no Admin UI) |
 | Fine-grained permissions | Planned |
 | MFA beyond OTP | Planned |
 
@@ -95,6 +95,8 @@ Roles, access control, session handling, and tenant isolation for Tummly.
 | JWT | `authStore` (localStorage `tummly-auth`) | API Authorization header |
 | Trusted device token | localStorage | Skip OTP on `universal-login` |
 | Cookie consent | `cookieConsentStore` | Analytics only |
+
+Full cookie/storage inventory: [cookie-storage-inventory.md](./cookie-storage-inventory.md).
 
 ### Server
 
@@ -202,19 +204,19 @@ Endpoints: `validate-invite`, `setup-account`, `generate-activation-code` — un
 
 | | |
 |---|---|
-| **Status** | Planned |
-| **Launch blocker** | **Hard** only if compliance contract requires immutable admin audit trail |
+| **Status** | Shipped (append-only table + `GET /api/admin/audit-events`; no Admin UI) |
+| **Launch blocker** | Cleared — admin/support audit, guest retention purge, and [incident-response runbook](./incident-response.md) shipped |
 
-### Shipped partial audit
+### Shipped
 
 | Data | Location |
 |------|----------|
+| Admin/support audit events | `AdminAuditEvents` — list via `GET /api/admin/audit-events` |
 | Trial review metadata | `TrialRequests.ReviewedBy`, `ReviewedAt`, status messages |
 | Invite timestamps | `InviteSentAt`, `InviteExpiresAt` |
 
 ### Planned
 
-- Immutable log of admin approve/decline/extend/purge
 - Sign-in history beyond "new device" email
 - Guest data export/deletion audit
 
@@ -252,7 +254,7 @@ flowchart TD
 
 | Item | Status |
 |------|--------|
-| Admin audit log | Planned |
+| Admin audit log | Shipped (append-only table + `GET /api/admin/audit-events`; no Admin UI) |
 | Operator staff roles | Planned |
 | IP-based blocking | Planned |
 | WAF / DDoS (platform-level) | Operational — Railway/Vercel |

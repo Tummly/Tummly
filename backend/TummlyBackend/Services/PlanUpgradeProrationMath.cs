@@ -1,15 +1,14 @@
+using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Prorated net + exclusive 20% VAT for same-cadence upgrade pay-now
+    /// Prorated net + exclusive VAT for same-cadence upgrade pay-now
     /// (ticket 20 / lock 05). Half-up AwayFromZero to whole pence.
     /// </summary>
     public static class PlanUpgradeProrationMath
     {
-        public const decimal VatRate = 0.20m;
-
         public static (DateTime PeriodStartUtc, DateTime PeriodEndUtc) ResolvePeriod(
             DateTime renewalDateUtc,
             string? billingCycle
@@ -50,18 +49,18 @@ namespace TummlyBackend.Services
                 );
         }
 
-        public static int VatOnNetPence(int netPence)
+        /// <summary>
+        /// Exclusive VAT on prorated net. Pass <paramref name="vatRateBps"/> from
+        /// <c>TummlySellerVatSettings.EffectiveVatRateBps</c> (0 when mode off).
+        /// </summary>
+        public static int VatOnNetPence(int netPence, int vatRateBps)
         {
             if (netPence <= 0)
             {
                 return 0;
             }
 
-            return (int)
-                decimal.Round(
-                    netPence * VatRate,
-                    MidpointRounding.AwayFromZero
-                );
+            return TummlyVatMath.VatPenceFromNetPence(netPence, vatRateBps);
         }
 
         public static int NetPenceForCadence(

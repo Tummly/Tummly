@@ -23,6 +23,8 @@ namespace TummlyBackend.DTOs.BillingCredits
         public BillingContactsSnapshotDto BillingContacts { get; set; } = new();
 
         public BillingCurrentCatalogDto CurrentCatalog { get; set; } = new();
+
+        public bool VatModeActive { get; set; }
     }
 
     public sealed class BillingWriteCapabilitiesDto

@@ -1,4 +1,5 @@
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Tests.Helpers
 {
@@ -45,5 +46,10 @@ namespace TummlyBackend.Tests.Helpers
             bool restricted,
             CancellationToken cancellationToken = default
         ) => Task.CompletedTask;
+
+        public BillingLifecycleCommandResult ApplyPostCancelSoftLock(
+            BillingAccount billingAccount,
+            DateTime renewalEndUtc
+        ) => BillingLifecycleCommandResult.NoOp();
     }
 }
