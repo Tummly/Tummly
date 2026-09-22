@@ -575,6 +575,7 @@ export const OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY = {
   createdLabel: "Created:",
   lastUpdatedLabel: "Last updated:",
   connectedOfferLabel: "Connected offer:",
+  editConnectedOfferCta: "Change offer",
   whereUsedLabel: "Where will you use it?",
   internalDescriptionTitle: "Internal description",
   addNoteCta: "Add note",

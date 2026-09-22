@@ -20,6 +20,7 @@ export type CapturePlacementDetailModuleApi = {
   requestPlacementDetailArchive: () => void
   copyPlacementDetailLink: () => void
   openPlacementDetailPreview: OperatorCapturePageModule["openPlacementDetailPreview"]
+  openThankYouOfferDialog: () => void
   getOpenContext: CapturePlacementDetailModule["getOpenContext"]
 }
 
@@ -74,6 +75,9 @@ export function useCapturePlacementDetailModule(): CapturePlacementDetailModuleA
     },
     openPlacementDetailPreview: () => {
       pageModule.openPlacementDetailPreview()
+    },
+    openThankYouOfferDialog: () => {
+      pageModule.openThankYouOfferDialog()
     },
     getOpenContext: detailModule.getOpenContext,
   }

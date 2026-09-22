@@ -24,6 +24,7 @@ export function CapturePlacementDetailHost() {
     requestPlacementDetailArchive,
     copyPlacementDetailLink,
     openPlacementDetailPreview,
+    openThankYouOfferDialog,
     getOpenContext,
   } = useCapturePlacementDetailModule()
 
@@ -48,6 +49,7 @@ export function CapturePlacementDetailHost() {
       onActivate={requestPlacementDetailActivate}
       onRotate={requestPlacementDetailRotate}
       onArchive={requestPlacementDetailArchive}
+      onEditConnectedOffer={openThankYouOfferDialog}
       onDescriptionDraftChange={setPlacementDetailDescriptionDraft}
       onSaveDescription={() => {
         void savePlacementDetailDescription()

@@ -163,6 +163,35 @@ describe("createCapturePlacementDetailModule", () => {
     expect(detail.getOpenContext().fact?.status).toBe("Paused")
   })
 
+  it("projects thank-you offer into Connected offer and updates live", () => {
+    const detail = createCapturePlacementDetailModule({ nowMs: () => NOW })
+    detail.openFromLive({
+      fact: catalogFact(),
+      locationName: "Camden",
+      locationCapturePaused: false,
+      thankYouOffer: {
+        offerId: 88,
+        title: "Free dessert",
+        live: true,
+      },
+    })
+
+    expect(detail.getSnapshot().details).toMatchObject({
+      connectedOfferText: "Free dessert",
+      editConnectedOfferEnabled: true,
+    })
+
+    detail.setThankYouOffer({
+      offerId: null,
+      title: null,
+      live: false,
+    })
+
+    expect(detail.getSnapshot().details?.connectedOfferText).toBe(
+      "No active offers"
+    )
+  })
+
   it("reset closes drawer state for workspace sync", () => {
     const detail = createCapturePlacementDetailModule({ nowMs: () => NOW })
     detail.openFromLive({
