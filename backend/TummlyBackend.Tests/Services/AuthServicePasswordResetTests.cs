@@ -172,6 +172,30 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task ForgotPasswordAsync_SocialOnlyUser_ThrowsWithProviderMessage()
+        {
+            var user = new User
+            {
+                FullName = "Social User",
+                Email = "social@tummly.test",
+                PasswordHash = null,
+                Role = "User",
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<Exception>(() =>
+                _service.ForgotPasswordAsync(
+                    new ForgotPasswordDto { Email = "social@tummly.test" }
+                )
+            );
+
+            Assert.Contains("Google or Microsoft", ex.Message);
+            Assert.Empty(_context.PasswordResets);
+        }
+
         private async Task<User> SeedUserAsync(string fullName, string email)
         {
             var user = new User

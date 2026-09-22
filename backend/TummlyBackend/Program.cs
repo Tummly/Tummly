@@ -133,6 +133,10 @@ builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection("JwtSettings")
 );
 
+builder.Services.Configure<ExternalAuthOptions>(
+    builder.Configuration.GetSection("ExternalAuth")
+);
+
 builder.Services.Configure<IdealPostcodesSettings>(
     builder.Configuration.GetSection("IdealPostcodes")
 );
@@ -1053,6 +1057,10 @@ builder.Services.AddScoped<ISignInMetadataResolver, SignInMetadataResolver>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddScoped<ISmsService, TwilioVerifySmsService>();
+
+builder.Services.AddHttpClient(nameof(ExternalOAuthProviderClient));
+builder.Services.AddScoped<IExternalOAuthProviderClient, ExternalOAuthProviderClient>();
+builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IRestaurantPermissionHelper, RestaurantPermissionHelper>();

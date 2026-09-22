@@ -67,5 +67,16 @@ namespace TummlyBackend.Interfaces
             int userId,
             string activationCode
         );
+
+        /*
+         =========================================
+         EXTERNAL / SOCIAL SIGN-IN
+         =========================================
+         */
+        Task<object> CompleteExternalOperatorSignInAsync(
+            int userId,
+            bool rememberDevice,
+            string? deviceToken
+        );
     }
 }

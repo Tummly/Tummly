@@ -35,8 +35,7 @@ namespace TummlyBackend.Models
          =========================================
         */
 
-        [Required]
-        public string PasswordHash { get; set; }
+        public string? PasswordHash { get; set; }
             = string.Empty;
 
         /*

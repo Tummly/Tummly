@@ -193,9 +193,20 @@ namespace TummlyBackend.Services
                 );
             }
 
-            ValidateOnboardingPayload(dto);
+            var isSocial = !string.IsNullOrWhiteSpace(pending.AuthProvider);
+            ValidateOnboardingPayload(dto, isSocial);
 
-            pending.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+            if (isSocial)
+            {
+                pending.PasswordHash = null;
+            }
+            else
+            {
+                pending.PasswordHash = BCrypt.Net.BCrypt.HashPassword(
+                    dto.Password!
+                );
+            }
+
             pending.FullName = dto.FullName.Trim();
             pending.AccountType = "Single";
             pending.OnboardingJson = JsonSerializer.Serialize(
@@ -251,6 +262,7 @@ namespace TummlyBackend.Services
                 BusinessLink = profile?.BusinessLink,
                 OnboardingJson = pending.OnboardingJson,
                 PasswordHash = null,
+                AuthProvider = pending.AuthProvider,
             };
         }
 
@@ -314,19 +326,26 @@ namespace TummlyBackend.Services
         }
 
         private static void ValidateOnboardingPayload(
-            SaveSignupOnboardingDto dto
+            SaveSignupOnboardingDto dto,
+            bool isSocial
         )
         {
-            if (dto.Password != dto.ConfirmPassword)
+            if (!isSocial)
             {
-                throw new Exception("Passwords do not match.");
-            }
+                if (dto.Password != dto.ConfirmPassword)
+                {
+                    throw new Exception("Passwords do not match.");
+                }
 
-            if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 8)
-            {
-                throw new Exception(
-                    "Password must be at least 8 characters."
-                );
+                if (
+                    string.IsNullOrWhiteSpace(dto.Password)
+                    || dto.Password.Length < 8
+                )
+                {
+                    throw new Exception(
+                        "Password must be at least 8 characters."
+                    );
+                }
             }
 
             if (string.IsNullOrWhiteSpace(dto.FullName))
@@ -354,11 +373,13 @@ namespace TummlyBackend.Services
             pending.Status switch
             {
                 PendingSignupStatuses.EmailPending => "verify",
-                PendingSignupStatuses.Verified => string.IsNullOrWhiteSpace(
-                    pending.PasswordHash
+                PendingSignupStatuses.Verified => !string.IsNullOrWhiteSpace(
+                    pending.AuthProvider
                 )
-                    ? "create-password"
-                    : "restaurant",
+                    ? "account"
+                    : string.IsNullOrWhiteSpace(pending.PasswordHash)
+                        ? "create-password"
+                        : "restaurant",
                 PendingSignupStatuses.OnboardingComplete => "provisioning",
                 PendingSignupStatuses.AwaitingPayment => "payment",
                 PendingSignupStatuses.Provisioning => "provisioning",

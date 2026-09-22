@@ -16,12 +16,14 @@ import TeamInvitationAcceptPage from "../auth/TeamInvitationAcceptPage";
 
 import HomePage from "../public/HomePage";
 import LoginPage from "../auth/LoginPage";
+import LoginOAuthCompletePage from "../auth/LoginOAuthCompletePage";
 import RegisterSinglePage from "../auth/RegisterSinglePage";
 import RegisterMultiPage from "../auth/RegisterMultiPage";
 import ResetPasswordPage from "../auth/ResetPasswordPage";
 import ForgotPasswordPage from "../auth/ForgotPasswordPage";
 import VerifyEmailPage from "../auth/VerifyEmailPage";
 import SignupPage from "../auth/SignupPage";
+import SignupOAuthTermsPage from "../auth/SignupOAuthTermsPage";
 import SignupVerifyPage from "../auth/SignupVerifyPage";
 import SignupOnboardingPage from "../auth/SignupOnboardingPage";
 import SignupChoosePlanRedirectPage from "../auth/SignupChoosePlanRedirectPage";
@@ -112,6 +114,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="login/oauth/complete"
+          element={
+            <ErrorBoundary>
+              <LoginOAuthCompletePage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
           path="forgot-password"
           element={
             <ErrorBoundary>
@@ -132,6 +142,14 @@ function AppRoutes() {
           element={
             <ErrorBoundary>
               <SignupPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/oauth/terms"
+          element={
+            <ErrorBoundary>
+              <SignupOAuthTermsPage />
             </ErrorBoundary>
           }
         />

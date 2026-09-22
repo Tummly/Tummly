@@ -36,6 +36,12 @@ namespace TummlyBackend.Models
         [MaxLength(200)]
         public string? PasswordHash { get; set; }
 
+        [MaxLength(32)]
+        public string? AuthProvider { get; set; }
+
+        [MaxLength(200)]
+        public string? ProviderSubject { get; set; }
+
         [MaxLength(150)]
         public string? FullName { get; set; }
 

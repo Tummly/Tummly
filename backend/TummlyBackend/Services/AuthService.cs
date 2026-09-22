@@ -215,6 +215,7 @@ namespace TummlyBackend.Services
             }
 
             bool isPasswordValid =
+                !string.IsNullOrEmpty(user.PasswordHash) &&
                 BCrypt.Net.BCrypt.Verify(
                     dto.Password,
                     user.PasswordHash
@@ -551,6 +552,13 @@ namespace TummlyBackend.Services
             {
                 throw new Exception(
                     "Email not found."
+                );
+            }
+
+            if (string.IsNullOrEmpty(user.PasswordHash))
+            {
+                throw new Exception(
+                    "This account uses Google or Microsoft Sign-in. Continue with Google or Microsoft instead of resetting a password."
                 );
             }
 
@@ -1238,6 +1246,7 @@ namespace TummlyBackend.Services
             return new
             {
                 loginType = "USER",
+                email = user.Email,
                 otpChannel = OtpVerification.ChannelEmail,
                 hasVerifiedPhone = UserHasVerifiedPhone(user),
                 maskedPhone = GetMaskedPhoneIfVerified(user),
@@ -1271,6 +1280,7 @@ namespace TummlyBackend.Services
             }
 
             bool isPasswordValid =
+                !string.IsNullOrEmpty(user.PasswordHash) &&
                 BCrypt.Net.BCrypt.Verify(
                     dto.Password,
                     user.PasswordHash
@@ -1351,12 +1361,23 @@ namespace TummlyBackend.Services
 
             var user = await ValidateUserCredentialsAsync(dto);
 
+            return await CompleteOperatorSignInAfterCredentialsAsync(
+                user,
+                dto.DeviceToken
+            );
+        }
+
+        private async Task<object> CompleteOperatorSignInAfterCredentialsAsync(
+            User user,
+            string? deviceToken
+        )
+        {
             var hasValidTrust =
                 user.HasCompletedFirstSignIn &&
                 await TrustedDeviceHelper.IsTrustedAsync(
                     _context,
                     user.Id,
-                    dto.DeviceToken
+                    deviceToken
                 );
 
             if (hasValidTrust)
@@ -1457,6 +1478,61 @@ namespace TummlyBackend.Services
                     userId
                 );
             }
+        }
+
+        /*
+         =========================================
+         EXTERNAL / SOCIAL SIGN-IN
+         =========================================
+        */
+        public async Task<object> CompleteExternalOperatorSignInAsync(
+            int userId,
+            bool rememberDevice,
+            string? deviceToken
+        )
+        {
+            _ = rememberDevice;
+
+            var user =
+                await _context.Users
+                    .FirstOrDefaultAsync(x => x.Id == userId);
+
+            if (user == null)
+            {
+                throw new Exception(
+                    "Invalid email or password."
+                );
+            }
+
+            if (user.IsLocked)
+            {
+                throw new Exception(
+                    "Account is locked."
+                );
+            }
+
+            if (!user.IsEmailVerified)
+            {
+                throw new Exception(
+                    "Email is not verified."
+                );
+            }
+
+            if (!user.IsApprovedByAdmin)
+            {
+                throw new Exception(
+                    "Account is not approved."
+                );
+            }
+
+            EnsureOperatorCanSignIn(user);
+
+            await TickSelectedRestaurantAsync(user);
+
+            return await CompleteOperatorSignInAfterCredentialsAsync(
+                user,
+                deviceToken
+            );
         }
 
     }

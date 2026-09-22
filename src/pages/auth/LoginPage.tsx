@@ -3,7 +3,7 @@ import type { FormEvent } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { useForm } from "react-hook-form"
-import { Navigate, useSearchParams } from "react-router-dom"
+import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 
 import { AuthShell } from "@/components/auth/AuthShell"
 import { AuthSessionLoading } from "@/components/auth/AuthSessionLoading"
@@ -22,6 +22,20 @@ import {
   type OtpFeedback,
 } from "@/components/home/hero-trial-otp"
 import { useCountdown } from "@/hooks/use-countdown"
+import {
+  clearOAuthErrorMessage,
+  peekOAuthErrorMessage,
+  resolveOAuthErrorBanner,
+  stashOAuthErrorMessage,
+} from "@/lib/oauthErrorCopy"
+import {
+  cancelScheduledOAuthOtpHandoffClear,
+  clearOAuthOtpHandoff,
+  peekOAuthOtpHandoff,
+  readOAuthOtpHandoff,
+  scheduleOAuthOtpHandoffClearOnLeave,
+  writeOAuthOtpHandoff,
+} from "@/lib/oauthOtpHandoff"
 import {
   getOtpDestinationCopy,
   getOtpResentMessage,
@@ -74,6 +88,8 @@ type LoginStep = (typeof STEPS)[keyof typeof STEPS]
 
 function LoginPageContent() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
   const hasHydrated = useAuthStore((state) => state._hasHydrated)
   const token = useAuthStore((state) => state.token)
 
@@ -293,7 +309,75 @@ function LoginPageContent() {
     setStep(STEPS.VERIFY_OTP)
   }
 
+  useEffect(() => {
+    // Cancel leave-clear from a Strict Mode unmount so remount can still peek.
+    cancelScheduledOAuthOtpHandoffClear()
+
+    const fromState = readOAuthOtpHandoff(location.state)
+    if (fromState) {
+      writeOAuthOtpHandoff(fromState)
+    }
+
+    const handoff = fromState ?? peekOAuthOtpHandoff()
+    if (!handoff) {
+      return () => {
+        scheduleOAuthOtpHandoffClearOnLeave()
+      }
+    }
+
+    beginOtpChallenge(
+      handoff.email,
+      handoff.rememberDevice,
+      handoff.challenge
+    )
+
+    if (fromState) {
+      navigate(location.pathname + location.search, {
+        replace: true,
+        state: {},
+      })
+    }
+
+    return () => {
+      // Clear after OTP completes or user leaves (deferred; remount cancels).
+      scheduleOAuthOtpHandoffClearOnLeave()
+    }
+    // Intentional: apply OAuth OTP handoff on mount / state arrival.
+    // sessionStorage peek survives Strict Mode remount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handoff is one-shot
+  }, [location.state])
+
+  useEffect(() => {
+    const oauthError = searchParams.get("oauthError")
+    const oauthMessage = searchParams.get("oauthMessage")
+    const stashed = peekOAuthErrorMessage("login")
+
+    const message = resolveOAuthErrorBanner("login", {
+      oauthError,
+      oauthMessage,
+      stashed,
+    })
+
+    if (message) {
+      stashOAuthErrorMessage("login", message)
+      loginForm.setError("root", { message })
+    }
+
+    if (oauthError || oauthMessage) {
+      const next = new URLSearchParams(searchParams)
+      next.delete("oauthError")
+      next.delete("oauthMessage")
+      setSearchParams(next, { replace: true })
+    }
+    // Intentional: surface oauthError once then strip from the URL.
+    // sessionStorage stash survives Strict Mode remount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot banner
+  }, [])
+
   const onLoginSubmit = async (values: SignInCredentialsValues) => {
+    cancelScheduledOAuthOtpHandoffClear()
+    clearOAuthOtpHandoff()
+    clearOAuthErrorMessage()
     loginForm.clearErrors("root")
 
     try {
@@ -408,6 +492,8 @@ function LoginPageContent() {
         return
       }
 
+      cancelScheduledOAuthOtpHandoffClear()
+      clearOAuthOtpHandoff()
       navigateAfterSession(verified, verified.deviceToken)
     } catch (error) {
       if (isAxiosError(error)) {

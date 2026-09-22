@@ -18,7 +18,7 @@ Shared Auth chrome for marketing Create account / Log in / Self-service Pilot / 
 | Workspace selection (A5) | Partial — UI + backend flag exist; **dormant** (one restaurant per operator today); workspace APIs not implemented |
 | Activation Code screen | Shipped |
 | New device notification email | Shipped |
-| Social Sign-in (Google + Microsoft) on marketing chrome | Planned |
+| Social Sign-in (Google + Microsoft) on marketing chrome | Shipped |
 
 ## Domain terms
 
@@ -232,6 +232,10 @@ flowchart TD
 | Custom analytics events | Planned |
 | In-login password reset | Removed — standalone `/reset-password` only |
 | Admin account lock on `universal-login` | Gap — lock only enforced on dedicated `admin-login` |
+
+## Ops note — OAuth redirect URIs
+
+Register redirect URIs per environment for the Google Cloud OAuth client and Microsoft Entra app registration so they match `ExternalAuth__*__RedirectUri` (see `backend/TummlyBackend/.env.example`).
 
 ## Implementation notes
 

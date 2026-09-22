@@ -109,7 +109,7 @@ export function SignupForm({ form, onSubmit }: SignupFormProps) {
           <div className="h-px min-w-0 flex-1 bg-[#d2d2d2]" />
         </div>
 
-        <AuthSocialContinueButtons layout="row" />
+        <AuthSocialContinueButtons layout="row" returnPath="/signup" />
       </div>
 
       <p className="m-0 flex flex-wrap items-center justify-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">

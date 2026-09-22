@@ -10,7 +10,7 @@ UI may say Get started, Create an account, Set up your account, or Start 30-day 
 |---------|--------|
 | Marketing entry (Home / Pricing → Get started / Start 30-day Pilot) | Planned |
 | Email verification (link) | Planned |
-| Social start (Google + Microsoft) | Planned |
+| Social start (Google + Microsoft) | Shipped |
 | Guest Loop onboarding — account / restaurant / location / plan | Planned |
 | Plan choice — Pilot happy path | Planned |
 | Plan choice — paid Starter / Growth / Group | Planned (stub — checkout/billing out of scope) |

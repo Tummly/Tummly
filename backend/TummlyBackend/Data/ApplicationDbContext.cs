@@ -105,6 +105,10 @@ namespace TummlyBackend.Data
 
         public DbSet<PendingSignup> PendingSignups { get; set; }
 
+        public DbSet<UserExternalLogin> UserExternalLogins { get; set; }
+
+        public DbSet<ExternalAuthTicket> ExternalAuthTickets { get; set; }
+
         public DbSet<AdminPaymentRefundIntent> AdminPaymentRefundIntents
         {
             get;
@@ -215,6 +219,24 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
                 .IsUnique();
+
+            /*
+             =========================================
+             USER EXTERNAL LOGIN / OAUTH TICKETS
+             =========================================
+            */
+
+            modelBuilder.Entity<UserExternalLogin>(e =>
+            {
+                e.HasIndex(x => new { x.Provider, x.ProviderSubject }).IsUnique();
+                e.HasIndex(x => new { x.UserId, x.Provider }).IsUnique();
+                e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
+            });
+            modelBuilder.Entity<ExternalAuthTicket>(e =>
+            {
+                e.HasIndex(x => x.Token).IsUnique();
+                e.HasIndex(x => x.ExpiresAtUtc);
+            });
 
             /*
              =========================================
