@@ -407,7 +407,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task SubmitFeedback_WithActiveThankYouAttach_WhenOptOut_SucceedsWithoutIssue()
+        public async Task SubmitFeedback_WithActiveThankYouAttach_WhenOptOut_ReturnsUnlockOffer()
         {
             const string token = "thank-you-issue-optout-1234567890";
             await SeedGuestLocationWithThankYouOfferAsync(
@@ -420,7 +420,7 @@ namespace TummlyBackend.Tests.Integration
                 new
                 {
                     guestName = "Alex Guest",
-                    guestContact = "alex-optout@example.com",
+                    guestContact = "07123456789",
                     comment = "A useful visit.",
                     offersOptOut = true
                 }
@@ -431,6 +431,19 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.True(body.GetProperty("success").GetBoolean());
             Assert.Equal(JsonValueKind.Null, body.GetProperty("offer").ValueKind);
+
+            var unlock = body.GetProperty("unlockOffer");
+            Assert.Equal(JsonValueKind.Object, unlock.ValueKind);
+            Assert.Equal(
+                "Thanks for visiting",
+                unlock.GetProperty("title").GetString()
+            );
+            Assert.Equal("sms", unlock.GetProperty("channel").GetString());
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    unlock.GetProperty("unlockToken").GetString()
+                )
+            );
 
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -446,7 +459,74 @@ namespace TummlyBackend.Tests.Integration
                     item => item.RestaurantLocationId == locationId
                 )
             );
-            Assert.Empty(await context.OfferIssues.ToListAsync());
+            Assert.Empty(
+                await context.OfferIssues
+                    .Where(issue =>
+                        issue.LocationGuest!.RestaurantLocationId == locationId
+                    )
+                    .ToListAsync()
+            );
+        }
+
+        [Fact]
+        public async Task UnlockThankYouOffer_AfterOptOutSubmit_IssuesOffer()
+        {
+            const string token = "thank-you-unlock-after-optout-1234567890";
+            await SeedGuestLocationWithThankYouOfferAsync(
+                token,
+                offerStatus: "active"
+            );
+
+            var submit = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "07123456789",
+                    comment = "A useful visit.",
+                    offersOptOut = true
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+            var submitBody = await ReadJsonAsync(submit);
+            var unlockToken = submitBody
+                .GetProperty("unlockOffer")
+                .GetProperty("unlockToken")
+                .GetString();
+            Assert.False(string.IsNullOrWhiteSpace(unlockToken));
+
+            var unlock = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/thank-you-offer/unlock",
+                new { unlockToken }
+            );
+            Assert.Equal(HttpStatusCode.OK, unlock.StatusCode);
+            var unlockBody = await ReadJsonAsync(unlock);
+            Assert.True(unlockBody.GetProperty("success").GetBoolean());
+            var offer = unlockBody.GetProperty("offer");
+            Assert.Equal(
+                "Thanks for visiting",
+                offer.GetProperty("title").GetString()
+            );
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    offer.GetProperty("claimCode").GetString()
+                )
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+            Assert.Single(
+                await context.OfferIssues
+                    .Where(issue =>
+                        issue.LocationGuest!.RestaurantLocationId == locationId
+                    )
+                    .ToListAsync()
+            );
         }
 
         [Fact]

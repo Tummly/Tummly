@@ -8,7 +8,7 @@ namespace TummlyBackend.Helpers
     public static class GuestFormConsentCopy
     {
         public const string FeedbackFollowUpWording =
-            "They may contact you about this feedback using the details you provide.";
+            "They may follow up using the contact details you provide.";
     }
 
 }

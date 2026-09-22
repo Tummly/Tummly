@@ -38,6 +38,16 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Live Active thank-you catalog title when marketing blocks issue
+        /// (unlock screen). Null when no live attach or marketing already allows.
+        /// </summary>
+        Task<string?> TryGetUnlockableThankYouOfferTitleAsync(
+            int locationId,
+            int locationGuestId,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
         /// Recovery Send: issue from durable Recovery catalog attach.
         /// No-op when offer missing/inactive or guest opted out.
         /// MVP Claim proxy sets ClaimedAt at issue (Accepted-style).

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Scan;
 using TummlyBackend.DTOs.SmartGuestLink;
@@ -23,6 +24,7 @@ namespace TummlyBackend.Controllers
         private readonly ISpeechToTextProvider _speechToText;
         private readonly IOfferIssueService _offerIssues;
         private readonly IGuestFormPermissionApplyService _guestFormPermissions;
+        private readonly IConfiguration _configuration;
 
         public ScanController(
             ApplicationDbContext context,
@@ -33,7 +35,8 @@ namespace TummlyBackend.Controllers
             IFeedbackClassificationWork classificationWork,
             ISpeechToTextProvider speechToText,
             IOfferIssueService offerIssues,
-            IGuestFormPermissionApplyService guestFormPermissions
+            IGuestFormPermissionApplyService guestFormPermissions,
+            IConfiguration configuration
         )
         {
             _context = context;
@@ -45,6 +48,7 @@ namespace TummlyBackend.Controllers
             _speechToText = speechToText;
             _offerIssues = offerIssues;
             _guestFormPermissions = guestFormPermissions;
+            _configuration = configuration;
         }
 
         /*
@@ -301,6 +305,7 @@ namespace TummlyBackend.Controllers
                         locationGuest,
                         restaurant,
                         location.Id,
+                        location.LocationName,
                         !dto.OffersOptOut,
                         contactType,
                         submitAt
@@ -345,10 +350,11 @@ namespace TummlyBackend.Controllers
                 );
             }
 
-            // Catalog thank-you Issue: live Active attach + not opted out;
-            // otherwise no-op (submit still succeeds). Paint payload is null
-            // when issue is skipped.
+            // Catalog thank-you Issue: live Active attach + marketing allowed;
+            // otherwise no-op (submit still succeeds). When marketing blocks a
+            // live attach, return unlockOffer for the Guest unlock screen.
             OfferIssue? issued = null;
+            ScanUnlockThankYouOfferDto? unlockOffer = null;
             if (feedback.LocationGuestId is int locationGuestId)
             {
                 issued = await _offerIssues.IssueOnThankYouSubmitAsync(
@@ -357,6 +363,16 @@ namespace TummlyBackend.Controllers
                     feedback.Id,
                     DateTime.UtcNow
                 );
+
+                if (issued == null)
+                {
+                    unlockOffer = await TryBuildUnlockOfferAsync(
+                        location,
+                        locationGuestId,
+                        feedback.Id,
+                        contactType
+                    );
+                }
             }
 
             // Wake after persist — guest path never awaits the model (ADR-0010).
@@ -376,8 +392,210 @@ namespace TummlyBackend.Controllers
                         ExpiryLabel = FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
                             issued.ExpiryAtUtc
                         )
-                    }
+                    },
+                unlockOffer,
             });
+        }
+
+        /// <summary>
+        /// Guest unlock CTA: grant channel marketing + issue thank-you offer.
+        /// </summary>
+        [HttpPost("{token}/thank-you-offer/unlock")]
+        public async Task<IActionResult> UnlockThankYouOffer(
+            string token,
+            [FromBody] UnlockThankYouOfferRequest body
+        )
+        {
+            var normalizedToken = token?.Trim();
+
+            if (string.IsNullOrWhiteSpace(normalizedToken))
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Invalid link."
+                });
+            }
+
+            var resolution = await _smartGuestLink
+                .ResolveLocationForWriteAsync(normalizedToken);
+
+            if (resolution == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Link not found."
+                });
+            }
+
+            var location = resolution.Location;
+            var secret = UnsubscribeLink.ResolveSigningSecret(_configuration);
+            if (
+                string.IsNullOrEmpty(secret)
+                || !ThankYouOfferUnlockToken.TryVerify(
+                    body?.UnlockToken ?? string.Empty,
+                    secret,
+                    out var feedbackId,
+                    out var locationGuestId,
+                    out var tokenLocationId,
+                    out var channel,
+                    out _
+                )
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "This unlock link is invalid or has expired.",
+                });
+            }
+
+            if (tokenLocationId != location.Id)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "This unlock link is invalid or has expired.",
+                });
+            }
+
+            var contactType = channel switch
+            {
+                "email" => ContactType.Email,
+                "sms" => ContactType.Phone,
+                _ => ContactType.Unknown,
+            };
+            if (contactType == ContactType.Unknown)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "This unlock link is invalid or has expired.",
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .Include(row => row.LocationGuest)
+                .FirstOrDefaultAsync(row => row.Id == feedbackId);
+
+            if (
+                feedback == null
+                || feedback.RestaurantLocationId != location.Id
+                || feedback.LocationGuestId != locationGuestId
+                || feedback.LocationGuest == null
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "This unlock link is invalid or has expired.",
+                });
+            }
+
+            var restaurant = await _context.Restaurants
+                .FirstAsync(r => r.Id == location.RestaurantId);
+
+            var unlockAt = DateTime.UtcNow;
+            await _guestFormPermissions.ApplyOnSubmitAsync(
+                feedback.LocationGuest,
+                restaurant,
+                location.Id,
+                location.LocationName,
+                marketingConsentGranted: true,
+                contactType,
+                unlockAt
+            );
+
+            feedback.OffersOptOut = false;
+            // Persist marketing grant before thank-you issue (issue gate reads
+            // ledger + preference from the database).
+            await _context.SaveChangesAsync();
+
+            var issued = await _offerIssues.IssueOnThankYouSubmitAsync(
+                location.Id,
+                locationGuestId,
+                feedback.Id,
+                unlockAt
+            );
+
+            if (issued == null)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = "This offer is no longer available.",
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                offer = new ScanThankYouOfferDto
+                {
+                    Title = issued.Title,
+                    Description = issued.Description,
+                    ClaimCode = issued.ClaimCode,
+                    ExpiryLabel = FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
+                        issued.ExpiryAtUtc
+                    ),
+                },
+            });
+        }
+
+        private async Task<ScanUnlockThankYouOfferDto?> TryBuildUnlockOfferAsync(
+            RestaurantLocation location,
+            int locationGuestId,
+            int feedbackId,
+            ContactType contactType
+        )
+        {
+            var channel = contactType switch
+            {
+                ContactType.Email => "email",
+                ContactType.Phone => "sms",
+                _ => null,
+            };
+            if (channel == null)
+            {
+                return null;
+            }
+
+            var title = await _offerIssues.TryGetUnlockableThankYouOfferTitleAsync(
+                location.Id,
+                locationGuestId
+            );
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return null;
+            }
+
+            var secret = UnsubscribeLink.ResolveSigningSecret(_configuration);
+            if (string.IsNullOrEmpty(secret))
+            {
+                return null;
+            }
+
+            var restaurant = await LoadRestaurantForLocationAsync(location.Id);
+            var unlockToken = ThankYouOfferUnlockToken.Create(
+                feedbackId,
+                locationGuestId,
+                location.Id,
+                channel,
+                DateTime.UtcNow,
+                secret
+            );
+
+            return new ScanUnlockThankYouOfferDto
+            {
+                Title = title,
+                Channel = channel,
+                RestaurantName = restaurant.Name ?? string.Empty,
+                LocationName = location.LocationName ?? string.Empty,
+                UnlockToken = unlockToken,
+            };
         }
 
         /*

@@ -23,6 +23,8 @@ import { PERFORMANCE_HEADER_COPY_CLASS } from "@/lib/operatorHome/performanceOve
 
 type CaptureDigitalGuestLinksSectionProps = {
   digitalGuestLinks: OperatorCaptureDigitalGuestLinksView
+  /** Current Capture location — used to load Connected offer options. */
+  locationId: number
   pauseActivateEnabled?: boolean
   onCreate: (
     input: CreateDigitalGuestLinkModuleInput
@@ -38,6 +40,7 @@ type CaptureDigitalGuestLinksSectionProps = {
 /** Digital guest links section — empty chrome or populated table + Create dialog. */
 export function CaptureDigitalGuestLinksSection({
   digitalGuestLinks,
+  locationId,
   pauseActivateEnabled = true,
   onCreate,
   onViewDetails,
@@ -100,6 +103,7 @@ export function CaptureDigitalGuestLinksSection({
         open={createOpen}
         onOpenChange={setCreateOpen}
         busy={creating}
+        selectedLocationId={locationId}
         onSubmit={async (input) => {
           setCreating(true)
           try {

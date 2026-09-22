@@ -3,6 +3,7 @@ import {
   OPERATOR_CAPTURE_LOCATION_ROW_ACTION_DEFS,
   type OperatorCaptureLocationRowActionId,
 } from "@/lib/operatorCapture/capturePresentation"
+import { CAPTURE_THANK_YOU_OFFER_COPY } from "@/lib/operatorCapture/captureThankYouOfferPresentation"
 import {
   buildLocationCaptureConfirm,
   type LocationCaptureConfirmView,
@@ -195,6 +196,15 @@ export type OperatorMultiCapturePageAdapters = {
   onCreateDigitalGuestLinkError?: (message: string) => void
   onDigitalGuestLinkCreated?: (message: string) => void
   onLocationCaptureError?: (message: string) => void
+  putCaptureThankYouOffer?: (
+    locationId: number,
+    offerId: number | null
+  ) => Promise<{
+    thankYouOfferId: number | null
+    thankYouOfferTitle: string | null
+    thankYouOfferLive: boolean
+  }>
+  onThankYouOfferError?: (message: string) => void
   /** Optional delay seam for tests and brief first-load spinner. */
   scheduleReady?: () => Promise<void>
   debounceMs?: number
@@ -996,6 +1006,22 @@ export function createOperatorMultiCapturePageModule(
         }
         adapters.onCreateDigitalGuestLinkError?.(result.message)
         return "failed"
+      }
+
+      if (
+        input.connectedOfferId != null
+        && adapters.putCaptureThankYouOffer != null
+      ) {
+        try {
+          await adapters.putCaptureThankYouOffer(
+            locationId,
+            input.connectedOfferId
+          )
+        } catch {
+          adapters.onThankYouOfferError?.(
+            CAPTURE_THANK_YOU_OFFER_COPY.attachError
+          )
+        }
       }
 
       state = {

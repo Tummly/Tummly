@@ -5,6 +5,7 @@ import {
   parseGuestFormConsentFromScanMetadata,
   type GuestFormConsentConfig,
 } from "@/lib/guestFeedback/guestFormConsentPresentation"
+import type { GuestFeedbackUnlockChannel } from "@/lib/guestFeedback/guestFeedbackUnlockPresentation"
 import type { GuestSttResult } from "@/lib/guestFeedback/createGuestMicSttModule"
 import type { GuestFeedbackFormValues } from "@/schemas/guestFeedback"
 import { toGuestFeedbackPayload } from "@/schemas/guestFeedback"
@@ -24,6 +25,19 @@ export type GuestThankYouOffer = {
   expiryLabel: string
 }
 
+export type GuestUnlockThankYouOffer = {
+  title: string
+  channel: GuestFeedbackUnlockChannel
+  restaurantName: string
+  locationName: string
+  unlockToken: string
+}
+
+export type GuestFeedbackSubmitResult = {
+  offer: GuestThankYouOffer | null
+  unlockOffer: GuestUnlockThankYouOffer | null
+}
+
 type ScanMetadataResponse = {
   success: boolean
   restaurantName?: string
@@ -35,6 +49,13 @@ type ScanMetadataResponse = {
 }
 
 type ScanFeedbackResponse = {
+  success: boolean
+  message?: string
+  offer?: GuestThankYouOffer | null
+  unlockOffer?: GuestUnlockThankYouOffer | null
+}
+
+type ScanUnlockResponse = {
   success: boolean
   message?: string
   offer?: GuestThankYouOffer | null
@@ -72,7 +93,7 @@ export async function fetchScanLocationMetadata(
 export async function submitGuestFeedback(
   token: string,
   values: GuestFeedbackFormValues
-): Promise<GuestThankYouOffer | null> {
+): Promise<GuestFeedbackSubmitResult> {
   const payload = toGuestFeedbackPayload(values)
 
   const response = await axios.post<ScanFeedbackResponse>(
@@ -84,7 +105,31 @@ export async function submitGuestFeedback(
     throw new Error(response.data.message ?? "Unable to submit feedback.")
   }
 
-  return parseThankYouOffer(response.data.offer)
+  return {
+    offer: parseThankYouOffer(response.data.offer),
+    unlockOffer: parseUnlockThankYouOffer(response.data.unlockOffer),
+  }
+}
+
+export async function unlockGuestThankYouOffer(
+  token: string,
+  unlockToken: string
+): Promise<GuestThankYouOffer> {
+  const response = await axios.post<ScanUnlockResponse>(
+    `${API_BASE_URL}/scan/${encodeURIComponent(token)}/thank-you-offer/unlock`,
+    { unlockToken }
+  )
+
+  if (!response.data.success) {
+    throw new Error(response.data.message ?? "Unable to unlock this offer.")
+  }
+
+  const offer = parseThankYouOffer(response.data.offer)
+  if (offer == null) {
+    throw new Error("Unable to unlock this offer.")
+  }
+
+  return offer
 }
 
 function parseThankYouOffer(raw: unknown): GuestThankYouOffer | null {
@@ -107,6 +152,35 @@ function parseThankYouOffer(raw: unknown): GuestThankYouOffer | null {
     claimCode,
     expiryLabel:
       typeof offer.expiryLabel === "string" ? offer.expiryLabel.trim() : "",
+  }
+}
+
+function parseUnlockThankYouOffer(raw: unknown): GuestUnlockThankYouOffer | null {
+  if (raw == null || typeof raw !== "object") {
+    return null
+  }
+
+  const value = raw as Record<string, unknown>
+  const title = typeof value.title === "string" ? value.title.trim() : ""
+  const unlockToken =
+    typeof value.unlockToken === "string" ? value.unlockToken.trim() : ""
+  const channelRaw =
+    typeof value.channel === "string" ? value.channel.trim() : ""
+  if (title === "" || unlockToken === "") {
+    return null
+  }
+  if (channelRaw !== "email" && channelRaw !== "sms") {
+    return null
+  }
+
+  return {
+    title,
+    channel: channelRaw,
+    restaurantName:
+      typeof value.restaurantName === "string" ? value.restaurantName.trim() : "",
+    locationName:
+      typeof value.locationName === "string" ? value.locationName.trim() : "",
+    unlockToken,
   }
 }
 
@@ -141,8 +215,8 @@ export async function transcribeGuestAudio(
 
       const code = error.response?.data?.code
       if (
-        error.response?.status === 422 &&
-        code === "empty_speech"
+        error.response?.status === 422
+        && code === "empty_speech"
       ) {
         return { ok: false, reason: "empty_speech" }
       }

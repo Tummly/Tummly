@@ -8,6 +8,7 @@ import {
   getCapturePreviewOptions,
   pauseCaptureLocation,
   activateCaptureLocation,
+  putCaptureThankYouOffer,
 } from "@/api/dashboardApi"
 import { multiCapturePageModuleContext } from "@/components/dashboard/operator/Capture/utils/multiCapturePageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -35,6 +36,14 @@ export function MultiCapturePageModuleProvider({
       getCaptureLocations,
       getCapturePreviewOptions,
       ...createDigitalGuestLinkAdapters,
+      putCaptureThankYouOffer: async (locationId, offerId) => {
+        const response = await putCaptureThankYouOffer(locationId, offerId)
+        return {
+          thankYouOfferId: response.thankYouOfferId,
+          thankYouOfferTitle: response.thankYouOfferTitle,
+          thankYouOfferLive: response.thankYouOfferLive,
+        }
+      },
       pauseLocationCapture: async (locationId) => {
         try {
           const response = await pauseCaptureLocation(locationId)
@@ -87,6 +96,9 @@ export function MultiCapturePageModuleProvider({
         toast.error(message)
       },
       onLocationCaptureError: (message) => {
+        toast.error(message)
+      },
+      onThankYouOfferError: (message) => {
         toast.error(message)
       },
     })

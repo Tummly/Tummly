@@ -24,15 +24,19 @@ export const GUEST_FORM_CONSENT_DEMO: GuestFormConsentConfig = {
   smsConsentWording:
     "may send you offers and updates by SMS using the contact details you provide",
   feedbackFollowUpWording:
-    "They may contact you about this feedback using the details you provide.",
+    "They may follow up using the contact details you provide.",
 }
 
 /** Top copy under the form header — Feedback follow-up notice (not a checkbox). */
-export function buildGuestFormIntroCopy(restaurantName: string): string {
-  const display = restaurantName.trim() || "this restaurant"
+export function buildGuestFormIntroCopy(
+  restaurantName: string,
+  locationName: string
+): string {
+  const restaurant = restaurantName.trim() || "this restaurant"
+  const location = locationName.trim() || "this location"
   return (
-    `Your feedback is shared privately with ${display}. `
-    + "They may contact you about this feedback using the details you provide."
+    `Your feedback is shared privately with the team at ${restaurant}, ${location}. `
+    + "They may follow up using the contact details you provide."
   )
 }
 

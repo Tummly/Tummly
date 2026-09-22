@@ -41,6 +41,7 @@ namespace TummlyBackend.Tests.Services
                 guest,
                 restaurant,
                 guest.RestaurantLocationId,
+                locationName: "Camden",
                 marketingConsentGranted: true,
                 ContactType.Email,
                 at
@@ -91,6 +92,11 @@ namespace TummlyBackend.Tests.Services
                 followUpGrant.WordingVersion
             );
             Assert.Contains("shared privately", followUpGrant.WordingSnapshot);
+            Assert.Contains("team at Cafe, Camden", followUpGrant.WordingSnapshot);
+            Assert.Contains(
+                "They may follow up using the contact details you provide.",
+                followUpGrant.WordingSnapshot
+            );
         }
 
         [Fact]
@@ -116,6 +122,7 @@ namespace TummlyBackend.Tests.Services
                 guest,
                 restaurant,
                 guest.RestaurantLocationId,
+                locationName: "Camden",
                 marketingConsentGranted: false,
                 ContactType.Email,
                 at

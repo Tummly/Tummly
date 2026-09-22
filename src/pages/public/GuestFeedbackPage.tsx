@@ -6,6 +6,8 @@ import {
   fetchScanLocationMetadata,
   getScanApiErrorMessage,
   submitGuestFeedback,
+  unlockGuestThankYouOffer,
+  type GuestUnlockThankYouOffer,
   type ScanLocationMetadata,
 } from "@/api/scanApi"
 import { GuestFeedbackForm } from "@/components/guest-feedback/GuestFeedbackForm"
@@ -13,13 +15,14 @@ import { GuestFeedbackLoading } from "@/components/guest-feedback/GuestFeedbackL
 import { GuestFeedbackNotFound } from "@/components/guest-feedback/GuestFeedbackNotFound"
 import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShell"
 import { GuestFeedbackSuccess } from "@/components/guest-feedback/GuestFeedbackSuccess"
+import { GuestFeedbackUnlockOffer } from "@/components/guest-feedback/GuestFeedbackUnlockOffer"
 import {
   toIssuedGuestOfferCoupon,
   type GuestPreviewOfferCouponView,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import type { GuestFeedbackFormValues } from "@/schemas/guestFeedback"
 
-type PagePhase = "loading" | "ready" | "not-found" | "success"
+type PagePhase = "loading" | "ready" | "not-found" | "unlock" | "success"
 
 const fadeTransition = {
   duration: 0.28,
@@ -36,6 +39,11 @@ export default function GuestFeedbackPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [issuedOffer, setIssuedOffer] =
     useState<GuestPreviewOfferCouponView | null>(null)
+  const [unlockOffer, setUnlockOffer] = useState<GuestUnlockThankYouOffer | null>(
+    null
+  )
+  const [isUnlocking, setIsUnlocking] = useState(false)
+  const [unlockError, setUnlockError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -58,6 +66,8 @@ export default function GuestFeedbackPage() {
         setMetadata(result)
         setPhase("ready")
         setIssuedOffer(null)
+        setUnlockOffer(null)
+        setUnlockError(null)
       } catch (error) {
         if (cancelled) {
           return
@@ -86,8 +96,24 @@ export default function GuestFeedbackPage() {
       setSubmitError(null)
 
       try {
-        const offer = await submitGuestFeedback(token, values)
-        setIssuedOffer(toIssuedGuestOfferCoupon(offer))
+        const result = await submitGuestFeedback(token, values)
+        if (result.offer != null) {
+          setIssuedOffer(toIssuedGuestOfferCoupon(result.offer))
+          setUnlockOffer(null)
+          setPhase("success")
+          return
+        }
+
+        if (result.unlockOffer != null) {
+          setUnlockOffer(result.unlockOffer)
+          setIssuedOffer(null)
+          setUnlockError(null)
+          setPhase("unlock")
+          return
+        }
+
+        setIssuedOffer(null)
+        setUnlockOffer(null)
         setPhase("success")
       } catch (error) {
         setSubmitError(
@@ -107,14 +133,47 @@ export default function GuestFeedbackPage() {
     setSubmitError(null)
   }, [])
 
+  const handleUnlock = useCallback(async () => {
+    if (unlockOffer == null) {
+      return
+    }
+
+    setIsUnlocking(true)
+    setUnlockError(null)
+    try {
+      const offer = await unlockGuestThankYouOffer(
+        token,
+        unlockOffer.unlockToken
+      )
+      setIssuedOffer(toIssuedGuestOfferCoupon(offer))
+      setUnlockOffer(null)
+      setPhase("success")
+    } catch (error) {
+      setUnlockError(
+        getScanApiErrorMessage(
+          error,
+          "We couldn't unlock this offer. Please try again."
+        )
+      )
+    } finally {
+      setIsUnlocking(false)
+    }
+  }, [token, unlockOffer])
+
+  const handleDeclineUnlock = useCallback(() => {
+    setUnlockOffer(null)
+    setIssuedOffer(null)
+    setUnlockError(null)
+    setPhase("success")
+  }, [])
+
+  const centeredSuccessChrome =
+    phase === "success" || phase === "unlock"
+      ? "justify-center pb-6 pt-[clamp(3rem,10vw,4rem)]"
+      : undefined
+
   return (
-    <GuestFeedbackShell
-        contentClassName={
-          phase === "success"
-            ? "justify-center pb-6 pt-[clamp(3rem,10vw,4rem)]"
-            : undefined
-        }
-    >
+    <GuestFeedbackShell contentClassName={centeredSuccessChrome}>
       <AnimatePresence mode="wait">
         {phase === "loading" ? (
           <motion.div
@@ -162,6 +221,33 @@ export default function GuestFeedbackPage() {
               submitError={submitError}
               onSubmit={handleSubmit}
               onRetry={handleRetry}
+            />
+          </motion.div>
+        ) : null}
+
+        {phase === "unlock" && metadata && unlockOffer ? (
+          <motion.div
+            key="unlock"
+            initial={shouldReduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={shouldReduceMotion ? undefined : { opacity: 0 }}
+            transition={shouldReduceMotion ? { duration: 0 } : fadeTransition}
+            className="w-full"
+          >
+            <GuestFeedbackUnlockOffer
+              restaurantName={
+                unlockOffer.restaurantName || metadata.restaurantName
+              }
+              locationName={unlockOffer.locationName || metadata.locationName}
+              brandLogoPublicUrl={metadata.brandLogoPublicUrl}
+              offerTitle={unlockOffer.title}
+              channel={unlockOffer.channel}
+              isUnlocking={isUnlocking}
+              unlockError={unlockError}
+              onUnlock={() => {
+                void handleUnlock()
+              }}
+              onDecline={handleDeclineUnlock}
             />
           </motion.div>
         ) : null}

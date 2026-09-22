@@ -189,6 +189,7 @@ export function CaptureBody() {
       {viewModel != null ? (
         <CaptureDigitalGuestLinksSection
           digitalGuestLinks={viewModel.digitalGuestLinks}
+          locationId={viewModel.locationId}
           pauseActivateEnabled={!viewModel.perCodePauseActivateLocked}
           onCreate={createDigitalGuestLink}
           onViewDetails={openPlacementDetail}

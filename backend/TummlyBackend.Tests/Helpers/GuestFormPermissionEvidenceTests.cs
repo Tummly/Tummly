@@ -47,7 +47,8 @@ namespace TummlyBackend.Tests.Helpers
         public void ForFeedbackFollowUpGrant_UsesServiceFollowUpNoticeBasis()
         {
             var evidence = GuestFormPermissionEvidence.ForFeedbackFollowUpGrant(
-                "Cafe"
+                "Cafe",
+                "Camden High Street"
             );
             Assert.Equal(
                 LocationGuestPermissionBases.ServiceFollowUpNotice,
@@ -57,8 +58,11 @@ namespace TummlyBackend.Tests.Helpers
                 GuestFormPermissionEvidence.FeedbackFollowUpWordingVersion,
                 evidence.WordingVersion
             );
-            Assert.Contains("shared privately", evidence.WordingSnapshot);
-            Assert.Contains("Cafe", evidence.WordingSnapshot);
+            Assert.Equal(
+                "Your feedback is shared privately with the team at Cafe, Camden High Street. "
+                    + "They may follow up using the contact details you provide.",
+                evidence.WordingSnapshot
+            );
             Assert.Equal(
                 GuestFormPermissionEvidence.GuestFormVersion,
                 evidence.GuestFormVersion
@@ -90,12 +94,14 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void ForFeedbackFollowUpGrant_FallsBackWhenRestaurantNameEmpty()
+        public void ForFeedbackFollowUpGrant_FallsBackWhenRestaurantOrLocationEmpty()
         {
             var evidence = GuestFormPermissionEvidence.ForFeedbackFollowUpGrant(
+                "  ",
                 "  "
             );
             Assert.Contains("this restaurant", evidence.WordingSnapshot);
+            Assert.Contains("this location", evidence.WordingSnapshot);
         }
     }
 }

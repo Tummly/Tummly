@@ -24,6 +24,7 @@ namespace TummlyBackend.Services
             LocationGuest locationGuest,
             Restaurant restaurant,
             int restaurantLocationId,
+            string locationName,
             bool marketingConsentGranted,
             ContactType contactType,
             DateTime occurredAt,
@@ -73,7 +74,8 @@ namespace TummlyBackend.Services
                     kind,
                     eventKind,
                     contactType,
-                    restaurant
+                    restaurant,
+                    locationName
                 );
                 _ledger.RecordEvent(
                     locationGuest,
@@ -96,13 +98,15 @@ namespace TummlyBackend.Services
             LocationGuestPermissionKind kind,
             string eventKind,
             ContactType contactType,
-            Restaurant restaurant
+            Restaurant restaurant,
+            string locationName
         )
         {
             if (kind == LocationGuestPermissionKind.FeedbackFollowUp)
             {
                 return GuestFormPermissionEvidence.ForFeedbackFollowUpGrant(
-                    restaurant.Name
+                    restaurant.Name,
+                    locationName
                 );
             }
 

@@ -183,6 +183,34 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task TryGetUnlockableThankYouOfferTitle_WhenOptOutAndLiveAttach_ReturnsTitle()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync(offersOptOut: true);
+            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
+
+            var title = await _service.TryGetUnlockableThankYouOfferTitleAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId
+            );
+
+            Assert.Equal("10% off next visit", title);
+        }
+
+        [Fact]
+        public async Task TryGetUnlockableThankYouOfferTitle_WhenMarketingAllowed_ReturnsNull()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync(offersOptOut: false);
+            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
+
+            var title = await _service.TryGetUnlockableThankYouOfferTitleAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId
+            );
+
+            Assert.Null(title);
+        }
+
+        [Fact]
         public async Task IssueOnThankYouSubmit_WhenPersistedAttachPaused_IsNoOp()
         {
             var seeded = await SeedLocationGuestAndOfferAsync(

@@ -26,7 +26,10 @@ import {
   type CaptureThankYouOfferDialogSnapshot,
   type CaptureThankYouOfferModule,
 } from "@/lib/operatorCapture/createCaptureThankYouOfferModule"
-import type { CaptureThankYouOfferFact } from "@/lib/operatorCapture/captureThankYouOfferPresentation"
+import {
+  CAPTURE_THANK_YOU_OFFER_COPY,
+  type CaptureThankYouOfferFact,
+} from "@/lib/operatorCapture/captureThankYouOfferPresentation"
 import {
   buildGuestExperiencePreviewPicker,
   type GuestExperiencePreviewPickerView,
@@ -131,6 +134,11 @@ export type OperatorCaptureDigitalGuestLinksView = {
 export type CreateDigitalGuestLinkModuleInput = CreateDigitalGuestLinkRequest & {
   /** When set (Archive Duplicate as new), creates at this location. */
   locationId?: number
+  /**
+   * Optional location thank-you catalog offer to attach after create
+   * (Draft or Active). Not a per-QR FK.
+   */
+  connectedOfferId?: number | null
 }
 
 export type CreateDigitalGuestLinkAdapterResult =
@@ -547,6 +555,7 @@ export function createOperatorCapturePageModule(
     setAttached: (next) => {
       state = { ...state, thankYouOffer: next }
       rebuildGuestExperienceFromThankYou()
+      detailModule.setThankYouOffer(next)
     },
     createCatalogOffer: async (body) => {
       if (adapters.createCatalogOffer == null) {
@@ -750,16 +759,22 @@ export function createOperatorCapturePageModule(
         ? resolveDetailLocationName(archiveLocationId)
         : (state.viewModel?.locationName ?? FALLBACK_LOCATION_NAME))
     if (archiveLocationId != null) {
+      const thankYouOffer =
+        archiveLocationId === state.viewModel?.locationId
+          ? state.thankYouOffer
+          : emptyCaptureThankYouOfferFact()
       detailModule.openFromArchive({
         fact,
         locationId: archiveLocationId,
         locationName: locationName || FALLBACK_LOCATION_NAME,
+        thankYouOffer,
       })
     } else {
       detailModule.openFromLive({
         fact,
         locationName: locationName || FALLBACK_LOCATION_NAME,
         locationCapturePaused: state.captureLocationStatus === "Paused",
+        thankYouOffer: state.thankYouOffer,
       })
     }
     if (options?.descriptionDraft != null) {
@@ -1703,6 +1718,22 @@ export function createOperatorCapturePageModule(
 
       const createdQrCodeId = result.qrCodeId
       archiveModule.clearCreatePrefill()
+
+      if (
+        input.connectedOfferId != null
+        && adapters.putCaptureThankYouOffer != null
+      ) {
+        try {
+          await adapters.putCaptureThankYouOffer(
+            locationId,
+            input.connectedOfferId
+          )
+        } catch {
+          adapters.onThankYouOfferError?.(
+            CAPTURE_THANK_YOU_OFFER_COPY.attachError
+          )
+        }
+      }
 
       if (
         workspace != null
