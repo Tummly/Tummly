@@ -49,6 +49,7 @@ describe("buildPlacementDetailDrawer", () => {
       submissionRateText: "25%",
       channelLabel: null,
     })
+    expect(view.orderPrintMaterialsEnabled).toBe(true)
   })
 
   it("maps digital links with Link details and no Rotate / print materials", () => {
@@ -77,5 +78,6 @@ describe("buildPlacementDetailDrawer", () => {
       pauseActivateLabel: "Activate link",
       descriptionDraft: "note",
     })
+    expect(view.orderPrintMaterialsEnabled).toBe(false)
   })
 })

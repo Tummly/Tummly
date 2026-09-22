@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 
 type CampaignReviewStepProps = {
   review: CampaignReviewViewModel
+  brandLogoUrl?: string | null
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
   onEditMessage: () => void
@@ -56,6 +57,7 @@ function ReviewSectionRows({
  */
 export function CampaignReviewStep({
   review,
+  brandLogoUrl = null,
   onOpenGuestPreview,
   onCloseGuestPreview,
   onEditMessage,
@@ -108,6 +110,7 @@ export function CampaignReviewStep({
           message={review.guestPreview.body}
           locationName={review.guestPreview.locationName}
           locationAddress={review.guestPreview.locationAddress}
+          brandLogoUrl={brandLogoUrl}
           guestPreviewOpen={review.guestPreview.guestPreviewOpen}
           onOpenPreview={onOpenGuestPreview}
           onClosePreview={onCloseGuestPreview}

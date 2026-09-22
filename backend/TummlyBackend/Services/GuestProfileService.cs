@@ -59,6 +59,7 @@ namespace TummlyBackend.Services
                 )
                 .Select(f => new
                 {
+                    f.Id,
                     f.CreatedAt,
                     f.ClassificationStatus,
                     f.Sentiment,
@@ -70,12 +71,19 @@ namespace TummlyBackend.Services
                 .Select(f => new LocationGuestFeedbackFact(
                     f.CreatedAt,
                     f.ClassificationStatus,
-                    f.Sentiment
+                    f.Sentiment,
+                    f.Id
                 ))
                 .ToList();
 
             var feedbackStats = LocationGuestProjections.BuildFeedbackStats(
                 feedbackFacts
+            );
+
+            var marketingEligible = LocationGuestProjections.IsMarketingEligible(
+                locationGuest.MarketingPreference,
+                masterGuest.Email,
+                masterGuest.Mobile
             );
 
             var marketingStatus = LocationGuestProjections.DeriveMarketingStatus(
@@ -257,6 +265,9 @@ namespace TummlyBackend.Services
                 id = locationGuest.Id,
                 name = locationGuest.Name,
                 marketingStatus,
+                marketingEligible,
+                needsRecovery = feedbackStats.NeedsRecovery,
+                recoveryFeedbackId = feedbackStats.RecoveryFeedbackId,
                 marketingPreference =
                     locationGuest.MarketingPreference.ToWireString(),
                 permissionStates,

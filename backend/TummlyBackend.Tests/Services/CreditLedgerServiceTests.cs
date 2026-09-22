@@ -1265,6 +1265,41 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ReserveAsync_SucceedsWhenAmbientTransactionIsOpen()
+        {
+            // Campaign commit wraps Reserve in an outer transaction. On SQL Server a
+            // nested BeginTransaction throws; Reserve must join the ambient txn.
+            // EF InMemory ignores transactions, so we only assert success (no throw).
+            var harness = await SeedAsync();
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.PilotAllocation,
+                5,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: null,
+                channel: CreditChannels.Sms
+            );
+
+            await using var ambient =
+                await harness.Context.Database.BeginTransactionAsync();
+
+            var result = await harness.Ledger.ReserveAsync(
+                new CreditLedgerReserveRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Sms,
+                    Units = 2,
+                    LocationId = harness.LocationId,
+                }
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.False(string.IsNullOrWhiteSpace(result.ReservationRef));
+            await ambient.CommitAsync();
+        }
+
+        [Fact]
         public async Task SettleAsync_AcceptedGreaterThanReservedDoesNotConsumeExtra()
         {
             var harness = await SeedAsync();

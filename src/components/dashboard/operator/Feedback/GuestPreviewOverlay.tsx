@@ -37,6 +37,11 @@ export type GuestPreviewOverlayProps = {
   locationAddress: string | null
   /** Restaurant brand when available; falls back to location name. */
   brandName?: string | null
+  /**
+   * Settings brand logo public URL. Null/empty uses the email placeholder
+   * (same fall-back idea as Location picker / BrandLogoMark).
+   */
+  brandLogoUrl?: string | null
   /** Offer coupon block — only for Respond with a recovery offer. */
   offerCoupon?: ReactNode
   onClose: () => void
@@ -52,6 +57,8 @@ export type GuestPreviewEmailChromeProps = {
   locationAddress: string | null
   subject: string
   message: string
+  /** Settings brand logo; null/empty → email placeholder asset. */
+  brandLogoUrl?: string | null
   offerCoupon?: ReactNode
   device?: GuestPreviewDevice
   className?: string
@@ -69,6 +76,7 @@ export function GuestPreviewEmailChrome({
   locationAddress,
   subject,
   message,
+  brandLogoUrl = null,
   offerCoupon,
   device = GUEST_PREVIEW_DEVICE.desktop,
   className,
@@ -83,6 +91,7 @@ export function GuestPreviewEmailChrome({
       locationAddress={locationAddress}
       subject={subject}
       message={message}
+      brandLogoUrl={brandLogoUrl}
       offer={offerCoupon}
       className={className}
       maxWidthClass={
@@ -93,12 +102,12 @@ export function GuestPreviewEmailChrome({
   )
 }
 
-function SmsPreviewChrome({
+/** SMS bubble — Claim code must already live in `message` (no Offer claim QR). */
+export function SmsPreviewChrome({
   message,
 }: {
   message: string
 }) {
-  // SMS offer path: Claim code stays in message text only — no Offer claim QR image.
   return (
     <div
       className={cn(
@@ -125,6 +134,7 @@ export function GuestPreviewOverlay({
   locationName,
   locationAddress,
   brandName = null,
+  brandLogoUrl = null,
   offerCoupon,
   onClose,
   onEditText,
@@ -210,6 +220,7 @@ export function GuestPreviewOverlay({
           locationAddress={locationAddress}
           subject={subject}
           message={message}
+          brandLogoUrl={brandLogoUrl}
           offerCoupon={offerCoupon}
           device={device}
         />

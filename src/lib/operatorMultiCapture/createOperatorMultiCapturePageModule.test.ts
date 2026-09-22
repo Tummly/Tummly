@@ -405,7 +405,7 @@ describe("createOperatorMultiCapturePageModule", () => {
       {
         id: "order-print-materials",
         label: "Order print materials",
-        enabled: false,
+        enabled: true,
       },
       {
         id: "pause-location-capture",
@@ -433,7 +433,7 @@ describe("createOperatorMultiCapturePageModule", () => {
       {
         id: "order-print-materials",
         label: "Order print materials",
-        enabled: false,
+        enabled: true,
       },
       {
         id: "activate-location-capture",

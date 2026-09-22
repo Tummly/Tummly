@@ -1,10 +1,11 @@
 import { ChevronRightIcon, ShoppingBag } from "lucide-react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useOutletContext } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { CaptureBody } from "@/components/dashboard/operator/Capture/CaptureBody"
 import { CaptureLocationControl } from "@/components/dashboard/operator/Capture/CaptureLocationControl"
 import { useCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useCapturePageModule"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
   CAPTURE_BREADCRUMB_CURRENT_CLASS,
   CAPTURE_BREADCRUMB_LINK_CLASS,
@@ -21,7 +22,10 @@ import {
   OPERATOR_CAPTURE_HEADER_ACTIONS_COPY,
   OPERATOR_CAPTURE_NESTED_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
-import { operatorDashboardCaptureArchivePath } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardCaptureArchivePath,
+  operatorDashboardNavPath,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 
 type CaptureNestedShellProps = {
   locationName: string
@@ -41,6 +45,7 @@ export function CaptureNestedShell({
 }: CaptureNestedShellProps) {
   const { snapshot, openGuestExperiencePreview } = useCapturePageModule()
   const location = useLocation()
+  const { mode } = useOutletContext<DashboardOutletContext>()
   const previewDisabled =
     snapshot.viewModel?.guestExperience.previewEntry.kind === "disabled" ||
     snapshot.viewModel == null
@@ -49,6 +54,11 @@ export function CaptureNestedShell({
     locationId: selectedLocationId,
     from,
   })
+  const shopPath = operatorDashboardNavPath(
+    mode,
+    "tummly-shop",
+    selectedLocationId
+  )
 
   return (
     <div className={CAPTURE_PAGE_STACK_CLASS}>
@@ -84,11 +94,13 @@ export function CaptureNestedShell({
           <Button
             type="button"
             variant="op-primary"
-            disabled
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
+            asChild
           >
-            <ShoppingBag className="size-4" aria-hidden />
-            {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.orderPrintMaterials}
+            <Link to={shopPath}>
+              <ShoppingBag className="size-4" aria-hidden />
+              {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.orderPrintMaterials}
+            </Link>
           </Button>
           <Button
             type="button"

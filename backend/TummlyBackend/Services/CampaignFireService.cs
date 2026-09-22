@@ -332,17 +332,30 @@ namespace TummlyBackend.Services
                 CampaignOutboundSendResult sendResult;
                 GuestResponseEmailOfferBlock? offerBlock = null;
                 string? preallocatedClaimCode = null;
+                var outboundBody = entity.MessageBody ?? string.Empty;
                 try
                 {
-                    if (entity.OfferId is int offerIdForSend
-                        && string.Equals(channel, "email", StringComparison.Ordinal))
+                    if (entity.OfferId is int offerIdForSend)
                     {
-                        (offerBlock, preallocatedClaimCode) =
-                            await TryBuildCampaignOfferEmailBlockAsync(
-                                offerIdForSend,
-                                now,
-                                cancellationToken
-                            );
+                        if (string.Equals(channel, "email", StringComparison.Ordinal))
+                        {
+                            (offerBlock, preallocatedClaimCode) =
+                                await TryBuildCampaignOfferEmailBlockAsync(
+                                    offerIdForSend,
+                                    now,
+                                    cancellationToken
+                                );
+                        }
+                        else if (string.Equals(channel, "sms", StringComparison.Ordinal))
+                        {
+                            (outboundBody, preallocatedClaimCode) =
+                                await TryBuildCampaignOfferSmsBodyAsync(
+                                    offerIdForSend,
+                                    outboundBody,
+                                    now,
+                                    cancellationToken
+                                );
+                        }
                     }
 
                     sendResult = await _outbound.SendAsync(
@@ -353,7 +366,7 @@ namespace TummlyBackend.Services
                             Channel = channel,
                             ToAddress = toAddress,
                             Subject = entity.MessageSubject,
-                            Body = entity.MessageBody ?? string.Empty,
+                            Body = outboundBody,
                             Offer = offerBlock,
                         },
                         cancellationToken
@@ -706,6 +719,82 @@ namespace TummlyBackend.Services
                 ),
                 claimCode
             );
+        }
+
+        /// <summary>
+        /// Append Offer Claim code text for Campaign SMS (no QR). Issue row is
+        /// still written only after provider Accepted, using this same code.
+        /// </summary>
+        private async Task<(string Body, string? ClaimCode)> TryBuildCampaignOfferSmsBodyAsync(
+            int catalogOfferId,
+            string messageBody,
+            DateTime atUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var catalog = await _context.CatalogOffers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(o => o.Id == catalogOfferId, cancellationToken);
+
+            if (catalog == null
+                || !string.Equals(
+                    catalog.Status,
+                    OfferIssueService.ActiveStatus,
+                    StringComparison.OrdinalIgnoreCase
+                ))
+            {
+                return (messageBody, null);
+            }
+
+            var title = catalog.Title?.Trim() ?? string.Empty;
+            if (title.Length == 0)
+            {
+                return (messageBody, null);
+            }
+
+            var claimCode = await AllocateUniqueClaimCodeAsync(cancellationToken);
+            var expiryAt = CatalogOfferMapping.ComputeExpiryAt(
+                catalog.Validity,
+                atUtc,
+                catalog.CustomExpiryDate
+            );
+            var expiryLabel = FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
+                expiryAt
+            );
+
+            return (EnsureSmsOfferClaimBody(messageBody, title, claimCode, expiryLabel), claimCode);
+        }
+
+        /// <summary>
+        /// Replaces a prior Claim-code footer (e.g. preview <c>PREVIEW-CODE</c>)
+        /// so fire does not stack a second Offer block on draft bodies that
+        /// already carry sample Claim text.
+        /// </summary>
+        private static string EnsureSmsOfferClaimBody(
+            string messageBody,
+            string title,
+            string claimCode,
+            string expiryLabel
+        )
+        {
+            const string marker = "\nClaim code: ";
+            var markerIndex = messageBody.LastIndexOf(marker, StringComparison.Ordinal);
+            var baseBody = messageBody;
+            if (markerIndex >= 0)
+            {
+                var blockStart = messageBody.LastIndexOf(
+                    "\n\n",
+                    markerIndex,
+                    StringComparison.Ordinal
+                );
+                baseBody =
+                    blockStart >= 0
+                        ? messageBody[..blockStart]
+                        : messageBody[..markerIndex];
+                baseBody = baseBody.TrimEnd();
+            }
+
+            return $"{baseBody}\n\n{title}\nClaim code: {claimCode}\n{expiryLabel}";
         }
 
         private async Task<string> AllocateUniqueClaimCodeAsync(

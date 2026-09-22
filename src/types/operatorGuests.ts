@@ -54,6 +54,9 @@ export type OperatorGuestTableRow = {
   email: string
   mobile: string | null
   marketingStatusLabel: GuestMarketingStatusLabel
+  marketingEligible: boolean
+  needsRecovery: boolean
+  recoveryFeedbackId: number | null
   locationName: string
   latestFeedbackSentiment: GuestFeedbackSentiment
   feedbackSubmissionCount: number

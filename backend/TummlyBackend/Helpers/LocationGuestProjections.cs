@@ -5,24 +5,28 @@ namespace TummlyBackend.Helpers
     public sealed record LocationGuestFeedbackFact(
         DateTime CreatedAt,
         ClassificationStatus ClassificationStatus,
-        FeedbackSentiment? Sentiment
+        FeedbackSentiment? Sentiment,
+        int Id = 0
     );
 
     public sealed record LocationGuestScopedFeedbackFact(
         int LocationGuestId,
         DateTime CreatedAt,
         ClassificationStatus ClassificationStatus,
-        FeedbackSentiment? Sentiment
+        FeedbackSentiment? Sentiment,
+        int Id = 0
     )
     {
         public LocationGuestFeedbackFact ToFeedbackFact() =>
-            new(CreatedAt, ClassificationStatus, Sentiment);
+            new(CreatedAt, ClassificationStatus, Sentiment, Id);
     }
 
     public sealed record LocationGuestFeedbackStats(
         int FeedbackSubmissionCount,
         string LatestFeedbackSentiment,
-        DateTime? LastInteractionAt
+        DateTime? LastInteractionAt,
+        bool NeedsRecovery,
+        int? RecoveryFeedbackId
     );
 
     public sealed record LocationGuestContactEligibilityRow(
@@ -96,10 +100,19 @@ namespace TummlyBackend.Helpers
                         latestSucceeded.Sentiment
                     ) ?? "none";
 
+            var newestNegative = ordered.FirstOrDefault(feedback =>
+                feedback.ClassificationStatus == ClassificationStatus.Succeeded
+                && feedback.Sentiment == FeedbackSentiment.Negative
+            );
+
             return new LocationGuestFeedbackStats(
                 FeedbackSubmissionCount: ordered.Count,
                 LatestFeedbackSentiment: latestFeedbackSentiment,
-                LastInteractionAt: ordered.FirstOrDefault()?.CreatedAt
+                LastInteractionAt: ordered.FirstOrDefault()?.CreatedAt,
+                NeedsRecovery: newestNegative != null,
+                RecoveryFeedbackId: newestNegative is { Id: > 0 }
+                    ? newestNegative.Id
+                    : null
             );
         }
 

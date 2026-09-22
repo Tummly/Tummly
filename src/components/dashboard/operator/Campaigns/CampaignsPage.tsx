@@ -145,7 +145,8 @@ export function CampaignsPage() {
   const campaigns = useCampaignsPageModule()
   const { snapshot, clearTabCache } = campaigns
   const navigate = useNavigate()
-  const { locations, mode } = useOutletContext<DashboardOutletContext>()
+  const { locations, mode, brandLogoPublicUrl } =
+    useOutletContext<DashboardOutletContext>()
   const campaignsOverviewDateRange = useDashboardUiStore(
     (state) => state.campaignsOverviewDateRange
   )
@@ -785,6 +786,7 @@ export function CampaignsPage() {
       <CampaignTemplatePreviewDrawer
         snapshot={templatePreviewSnapshot}
         locationName={snapshot.viewModel.locationName}
+        brandLogoUrl={brandLogoPublicUrl}
         onOpenChange={handleTemplatePreviewOpenChange}
         onRetry={() => {
           void templatePreview.retryLoad()
@@ -795,6 +797,7 @@ export function CampaignsPage() {
       <CampaignDetailPreviewDrawer
         snapshot={campaignDetailPreviewSnapshot}
         locationName={snapshot.viewModel.locationName}
+        brandLogoUrl={brandLogoPublicUrl}
         onOpenChange={handleCampaignDetailPreviewOpenChange}
         onRetry={() => {
           void campaignDetailPreview.retryLoad()
@@ -804,6 +807,7 @@ export function CampaignsPage() {
       <CampaignWizardDialog
         snapshot={campaignWizardSnapshot}
         dashboardMode={mode}
+        brandLogoUrl={brandLogoPublicUrl}
         onRequestClose={campaignWizard.close}
         onSaveAndExit={() => {
           void handleSaveAndExit()

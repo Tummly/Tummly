@@ -503,10 +503,13 @@ builder.Services.AddScoped<
     ICampaignSendStartGate,
     ClearCampaignSendStartGate
 >();
-builder.Services.AddScoped<
-    ICampaignOutboundSender,
-    CampaignOutboundEmailSender
->();
+builder.Services.AddScoped<CampaignOutboundEmailSender>();
+builder.Services.AddScoped<ICampaignOutboundSender>(sp =>
+    new CampaignOutboundChannelSender(
+        sp.GetRequiredService<CampaignOutboundEmailSender>(),
+        sp.GetRequiredService<IRecoveryGuestSmsDelivery>()
+    )
+);
 builder.Services.AddScoped<
     ICampaignFireService,
     CampaignFireService

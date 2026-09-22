@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
@@ -406,13 +407,57 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(await _context.OfferIssues.ToListAsync());
         }
 
+        [Fact]
+        public async Task FireAsync_SmsWithOffer_PutsClaimCodeInBody_WithoutEmailOfferBlock()
+        {
+            var seeded = await SeedSendingCampaignAsync(
+                frozenEligibleCount: 1,
+                withCatalogOffer: true,
+                channel: "sms",
+                messageBody:
+                    "Hello\n\nFire offer\nClaim code: PREVIEW-CODE\nExpires: 7 days after issue"
+            );
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var issue = Assert.Single(await _context.OfferIssues.ToListAsync());
+            var call = Assert.Single(_outbound.Calls);
+            Assert.Null(call.Offer);
+            Assert.Contains($"Claim code: {issue.ClaimCode}", call.Body);
+            Assert.DoesNotContain("PREVIEW-CODE", call.Body);
+            Assert.Equal(1, Regex.Matches(call.Body, "Claim code:").Count);
+        }
+
+        [Fact]
+        public async Task FireAsync_SmsWithOffer_AppendsClaimWhenBodyHasNoFooter()
+        {
+            var seeded = await SeedSendingCampaignAsync(
+                frozenEligibleCount: 1,
+                withCatalogOffer: true,
+                channel: "sms",
+                messageBody: "Hello from SMS"
+            );
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var issue = Assert.Single(await _context.OfferIssues.ToListAsync());
+            var call = Assert.Single(_outbound.Calls);
+            Assert.StartsWith("Hello from SMS", call.Body);
+            Assert.Contains($"Claim code: {issue.ClaimCode}", call.Body);
+            Assert.Contains("Fire offer", call.Body);
+        }
+
         private async Task<(
             int CampaignId,
             IReadOnlyList<int> FrozenGuestIds,
             int? CatalogOfferId
         )> SeedSendingCampaignAsync(
             int frozenEligibleCount,
-            bool withCatalogOffer = false
+            bool withCatalogOffer = false,
+            string channel = "email",
+            string? messageBody = null
         )
         {
             return await SeedCommittedCampaignAsync(
@@ -420,7 +465,9 @@ namespace TummlyBackend.Tests.Services
                 scheduleMode: "send-now",
                 scheduledAtUtc: null,
                 frozenEligibleCount: frozenEligibleCount,
-                withCatalogOffer: withCatalogOffer
+                withCatalogOffer: withCatalogOffer,
+                channel: channel,
+                messageBody: messageBody
             );
         }
 
@@ -451,7 +498,9 @@ namespace TummlyBackend.Tests.Services
             string scheduleMode,
             DateTime? scheduledAtUtc,
             int frozenEligibleCount,
-            bool withCatalogOffer
+            bool withCatalogOffer,
+            string channel = "email",
+            string? messageBody = null
         )
         {
             var user = new User
@@ -509,12 +558,14 @@ namespace TummlyBackend.Tests.Services
             }
 
             var frozenIds = new List<int>();
+            var isSms = string.Equals(channel, "sms", StringComparison.OrdinalIgnoreCase);
             for (var i = 0; i < frozenEligibleCount; i++)
             {
                 var master = new MasterGuest
                 {
                     RestaurantId = restaurant.Id,
-                    Email = $"guest{i}@example.com",
+                    Email = isSms ? null : $"guest{i}@example.com",
+                    Mobile = isSms ? $"+44770090000{i}" : null,
                     CreatedAt = _now,
                 };
                 _context.MasterGuests.Add(master);
@@ -539,16 +590,18 @@ namespace TummlyBackend.Tests.Services
                 Name = "Thank recent guests",
                 GoalId = "thank-recent-guests",
                 AudienceKey = "all-eligible-guests",
-                Channel = "email",
+                Channel = channel,
                 OfferStance = withCatalogOffer ? "include-offer" : "no-offer",
                 OfferId = catalogOfferId,
-                MessageSubject = "Thanks",
-                MessageBody = "Hello",
+                MessageSubject = isSms ? null : "Thanks",
+                MessageBody = messageBody ?? "Hello",
                 ScheduleMode = scheduleMode,
                 ScheduledAtUtc = scheduledAtUtc,
                 ScheduleTimeZone = "Europe/London",
                 BillingReservationRef = "res-fire-1",
-                ReservedEstimate = frozenEligibleCount,
+                ReservedEstimate = isSms
+                    ? Math.Max(frozenEligibleCount * 10, 10)
+                    : frozenEligibleCount,
                 CreatedAt = _now,
                 UpdatedAt = _now,
             };

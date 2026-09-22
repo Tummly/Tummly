@@ -16,6 +16,7 @@ import type {
   GuestDetailsLoaded,
   GuestDetailsSnapshot,
 } from "@/lib/operatorGuests/createGuestDetailsModule"
+import { resolveGuestPrimaryCta } from "@/lib/operatorGuests/guestPrimaryCta"
 import {
   GUEST_PROFILE_ADD_NOTE_LABEL,
   GUEST_PROFILE_EMPTY_COPY,
@@ -49,6 +50,7 @@ type GuestDetailsDrawerProps = {
   onCreateNote: () => Promise<boolean>
   onOpenFeedback: (feedbackId: number) => void
   onStartRecovery?: (feedbackId: number) => void
+  onCreateCampaign?: () => void
 }
 
 function Section({
@@ -169,11 +171,24 @@ function GuestDetailsDrawerHeader({
   details,
   description,
   onViewFullProfile,
+  onCreateCampaign,
+  onStartRecovery,
 }: {
   details?: GuestDetailsLoaded
   description?: string
   onViewFullProfile?: () => void
+  onCreateCampaign?: () => void
+  onStartRecovery?: (feedbackId: number) => void
 }) {
+  const primaryCta =
+    details == null
+      ? null
+      : resolveGuestPrimaryCta({
+          marketingEligible: details.marketingEligible,
+          needsRecovery: details.needsRecovery,
+          recoveryFeedbackId: details.recoveryFeedbackId,
+        })
+
   return (
     <div className="flex shrink-0 items-start justify-between gap-[22px] px-[22px] pb-[22px] pt-8">
       <div className="flex min-w-0 flex-1 flex-col gap-[22px]">
@@ -208,17 +223,31 @@ function GuestDetailsDrawerHeader({
             >
               View full profile
             </Button>
-            <Button
-              type="button"
-              variant="op-secondary"
-              disabled
-              aria-disabled
-              aria-label="Create campaign (unavailable)"
-              title="Create campaign is unavailable"
-              className="rounded-[2px]"
-            >
-              Create campaign
-            </Button>
+            {primaryCta?.kind === "start-recovery" ? (
+              <Button
+                type="button"
+                variant="op-secondary"
+                className="rounded-[2px]"
+                disabled={onStartRecovery == null}
+                aria-disabled={onStartRecovery == null}
+                onClick={() => {
+                  onStartRecovery?.(primaryCta.feedbackId)
+                }}
+              >
+                {primaryCta.label}
+              </Button>
+            ) : primaryCta != null ? (
+              <Button
+                type="button"
+                variant="op-secondary"
+                className="rounded-[2px]"
+                disabled={!primaryCta.enabled || onCreateCampaign == null}
+                aria-disabled={!primaryCta.enabled || onCreateCampaign == null}
+                onClick={onCreateCampaign}
+              >
+                {primaryCta.label}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -494,6 +523,7 @@ export function GuestDetailsDrawer({
   onCreateNote,
   onOpenFeedback,
   onStartRecovery,
+  onCreateCampaign,
 }: GuestDetailsDrawerProps) {
   const navigate = useNavigate()
 
@@ -581,6 +611,8 @@ export function GuestDetailsDrawer({
                 onViewFullProfile={() => {
                   escalateToProfile()
                 }}
+                onCreateCampaign={onCreateCampaign}
+                onStartRecovery={onStartRecovery}
               />
               <div className={OPERATOR_RIGHT_DRAWER_BODY_CLASS}>
                 <LoadedBody

@@ -44,6 +44,8 @@ type GuestsBodyProps = {
   onEditGuest: (guestId: string) => void
   onExportGuest: (guestId: string) => void
   onDeleteGuest: (guestId: string) => void
+  onCreateCampaignWithGuest: (guestId: string) => void
+  onStartRecovery: (feedbackId: number) => void
   onCreateCampaign?: () => void
   onExportCsv: () => void
   onExportSelected?: () => void
@@ -83,6 +85,8 @@ export function GuestsBody({
   onEditGuest,
   onExportGuest,
   onDeleteGuest,
+  onCreateCampaignWithGuest,
+  onStartRecovery,
   onCreateCampaign,
   onExportCsv,
   onExportSelected,
@@ -173,6 +177,8 @@ export function GuestsBody({
         onEditGuest={onEditGuest}
         onExportGuest={onExportGuest}
         onDeleteGuest={onDeleteGuest}
+        onCreateCampaignWithGuest={onCreateCampaignWithGuest}
+        onStartRecovery={onStartRecovery}
         onCreateCampaign={onCreateCampaign}
         onExportSelected={onExportSelected}
         exportBusy={exportBusy}

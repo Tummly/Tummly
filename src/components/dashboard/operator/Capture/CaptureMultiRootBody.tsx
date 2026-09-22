@@ -1,4 +1,4 @@
-import { useOutletContext } from "react-router-dom"
+import { useNavigate, useOutletContext } from "react-router-dom"
 
 import { CaptureLocationPerformanceSection } from "@/components/dashboard/operator/Capture/CaptureLocationPerformanceSection"
 import { CaptureOverviewSection } from "@/components/dashboard/operator/Capture/CaptureOverviewSection"
@@ -25,6 +25,7 @@ import {
 } from "@/lib/operatorCapture/capturePresentation"
 import { captureLocationsFilterSheetSchema } from "@/lib/operatorMultiCapture/captureLocationsFilterSheetSchema"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
+import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
 
 function CaptureMultiSectionShell({
   title,
@@ -46,7 +47,8 @@ function CaptureMultiSectionShell({
 
 /** Multi Capture root body — Capture overview + Location performance. */
 export function CaptureMultiRootBody() {
-  const { locations } = useOutletContext<DashboardOutletContext>()
+  const navigate = useNavigate()
+  const { mode, locations } = useOutletContext<DashboardOutletContext>()
   const {
     snapshot,
     reloadForMultiCaptureOverviewDateRange,
@@ -110,6 +112,7 @@ export function CaptureMultiRootBody() {
         requestActivateLocationCapture(locationId)
         return
       case "order-print-materials":
+        navigate(operatorDashboardNavPath(mode, "tummly-shop", locationId))
         return
     }
   }

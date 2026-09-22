@@ -101,6 +101,11 @@ import {
   CAMPAIGN_SEND_TEST_SAMPLE_OFFER,
 } from "@/lib/operatorCampaigns/campaignSendTestPresentation"
 import {
+  campaignSmsOfferClaimPreviewFields,
+  ensureCampaignSmsOfferClaimInBody,
+  stripCampaignSmsOfferClaimFooter,
+} from "@/lib/operatorCampaigns/campaignSmsOfferClaimPresentation"
+import {
   buildGuestPreviewOfferCoupon,
   GUEST_PREVIEW_OFFER_COPY_LABEL,
   GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
@@ -881,7 +886,7 @@ function buildDraftFields(state: WizardState): {
   messageBody: string | null
 } {
   const messageSubject = state.messageSubject.trim()
-  const messageBody = state.messageBody.trim()
+  const messageBody = messageBodyWithSmsOfferClaim(state).trim()
   const offerStance = state.offerStanceId
   const offerId =
     offerStance === "no-offer" ? null : state.attachedOfferId
@@ -1228,7 +1233,7 @@ function buildMessageViewModel(
   return {
     writeEntry: state.messageWriteEntry,
     subject: state.messageSubject,
-    body: state.messageBody,
+    body: messageBodyWithSmsOfferClaim(state),
     channelId: state.channelId,
     showSubject: state.channelId === "email",
     prepareAiLive,
@@ -1367,6 +1372,40 @@ function buildReviewGuestPreviewOfferCoupon(
   }
 }
 
+/**
+ * SMS is one-way — Claim code must live in the body (preview, AI draft, save,
+ * credit estimate). Email keeps Offer claim QR chrome instead.
+ */
+function messageBodyWithSmsOfferClaim(
+  state: WizardState,
+  body: string = state.messageBody
+): string {
+  if (state.channelId !== "sms" || state.offerStanceId === "no-offer") {
+    return body
+  }
+  const coupon = buildReviewGuestPreviewOfferCoupon(state)
+  if (coupon == null) {
+    return body
+  }
+  return ensureCampaignSmsOfferClaimInBody(
+    body,
+    campaignSmsOfferClaimPreviewFields({
+      title: coupon.title,
+      expiryLabel: coupon.expiryLabel,
+    })
+  )
+}
+
+function stripSmsOfferClaimFromBodyIfNeeded(state: WizardState): WizardState {
+  if (state.messageBody.trim().length === 0) {
+    return state
+  }
+  return {
+    ...state,
+    messageBody: stripCampaignSmsOfferClaimFooter(state.messageBody),
+  }
+}
+
 function sendBlockedReason(
   state: WizardState,
   commitCampaignWired: boolean,
@@ -1421,8 +1460,9 @@ function buildReviewViewModel(
     state.channelId === "email"
       ? state.messageSubject.trim() || CAMPAIGN_REVIEW_COPY.emptyValue
       : null
+  const smsAwareBody = messageBodyWithSmsOfferClaim(state)
   const messageValue =
-    state.messageBody.trim() || CAMPAIGN_REVIEW_COPY.emptyValue
+    smsAwareBody.trim() || CAMPAIGN_REVIEW_COPY.emptyValue
 
   const sectionRows: Record<
     CampaignReviewSectionId,
@@ -1494,12 +1534,16 @@ function buildReviewViewModel(
     guestPreview: {
       channelId: state.channelId,
       subject: state.messageSubject,
-      body: state.messageBody,
+      body: smsAwareBody,
       locationName: state.locationName ?? "",
       locationAddress: state.locationAddress,
       guestPreviewOpen: state.guestPreviewOpen,
       sendTestAvailable,
-      offerCoupon: buildReviewGuestPreviewOfferCoupon(state),
+      // SMS paints Claim code in the body — no Offer claim QR chrome.
+      offerCoupon:
+        state.channelId === "sms"
+          ? null
+          : buildReviewGuestPreviewOfferCoupon(state),
     },
   }
 }
@@ -2166,6 +2210,10 @@ export function createCampaignWizardModule(
           nextSubject = priorSubject
           nextMessage = result.body
         }
+        nextMessage = messageBodyWithSmsOfferClaim(
+          { ...state, messageBody: nextMessage },
+          nextMessage
+        )
         state = {
           ...state,
           messageWriteEntry: "editor",
@@ -2815,15 +2863,17 @@ export function createCampaignWizardModule(
       }
       if (stanceId === "no-offer") {
         existingOfferPickerLoadGeneration += 1
-        state = clearExistingOfferPicker({
-          ...state,
-          offerStanceId: stanceId,
-          attachedOfferId: null,
-          attachedOfferTitle: null,
-          createOfferPanelOpen: false,
-          createOfferStatus: "idle",
-          createOfferError: null,
-        })
+        state = clearExistingOfferPicker(
+          stripSmsOfferClaimFromBodyIfNeeded({
+            ...state,
+            offerStanceId: stanceId,
+            attachedOfferId: null,
+            attachedOfferTitle: null,
+            createOfferPanelOpen: false,
+            createOfferStatus: "idle",
+            createOfferError: null,
+          })
+        )
         publish()
         return
       }
@@ -2999,7 +3049,7 @@ export function createCampaignWizardModule(
       try {
         const offer = await adapters.createOffer(body)
         existingOfferPickerLoadGeneration += 1
-        state = clearExistingOfferPicker({
+        const attached = clearExistingOfferPicker({
           ...state,
           offerStanceId: "create-new-offer",
           attachedOfferId: offer.id,
@@ -3011,6 +3061,10 @@ export function createCampaignWizardModule(
           editIssueCount: 0,
           pendingEditOfferSave: null,
         })
+        state = {
+          ...attached,
+          messageBody: messageBodyWithSmsOfferClaim(attached),
+        }
         publish()
         return "created"
       } catch {
@@ -3054,12 +3108,16 @@ export function createCampaignWizardModule(
         return
       }
       existingOfferPickerLoadGeneration += 1
-      state = clearExistingOfferPicker({
+      const attached = clearExistingOfferPicker({
         ...state,
         offerStanceId: "existing-offer",
         attachedOfferId: item.id,
         attachedOfferTitle: item.title,
       })
+      state = {
+        ...attached,
+        messageBody: messageBodyWithSmsOfferClaim(attached),
+      }
       publish()
     },
     async retryExistingOfferPicker() {
@@ -3199,7 +3257,13 @@ export function createCampaignWizardModule(
       if (state.messageWriteEntry !== "editor") {
         return
       }
-      state = { ...state, messageBody: value }
+      state = {
+        ...state,
+        messageBody: messageBodyWithSmsOfferClaim(
+          { ...state, messageBody: value },
+          value
+        ),
+      }
       publish()
     },
     openGuestPreview() {

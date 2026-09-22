@@ -860,6 +860,9 @@ export interface GuestsRow {
   email: string | null;
   mobile: string | null;
   marketingStatus: string;
+  marketingEligible?: boolean;
+  needsRecovery?: boolean;
+  recoveryFeedbackId?: number | null;
   locationName: string;
   latestFeedbackSentiment: string;
   feedbackSubmissionCount: number;
@@ -1064,6 +1067,9 @@ export interface GuestProfileResponse {
   id: number;
   name: string;
   marketingStatus: string;
+  marketingEligible?: boolean;
+  needsRecovery?: boolean;
+  recoveryFeedbackId?: number | null;
   marketingPreference: LocationGuestMarketingPreference;
   /**
    * Effective Location Guest permission ledger states.

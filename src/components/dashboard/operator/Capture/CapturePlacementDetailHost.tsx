@@ -1,11 +1,18 @@
+import { useNavigate, useOutletContext } from "react-router-dom"
+
 import { CapturePlacementDetailDrawer } from "@/components/dashboard/operator/Capture/CapturePlacementDetailDrawer"
 import { useCapturePlacementDetailModule } from "@/components/dashboard/operator/Capture/utils/useCapturePlacementDetailModule"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
 
 /**
  * Host that crosses only the Placement Detail seam so draft keystrokes do not
  * re-render Capture Body tables/shells subscribed to the live page module.
  */
 export function CapturePlacementDetailHost() {
+  const navigate = useNavigate()
+  const { mode, selectedLocationId } =
+    useOutletContext<DashboardOutletContext>()
   const {
     snapshot,
     closePlacementDetail,
@@ -17,6 +24,7 @@ export function CapturePlacementDetailHost() {
     requestPlacementDetailArchive,
     copyPlacementDetailLink,
     openPlacementDetailPreview,
+    getOpenContext,
   } = useCapturePlacementDetailModule()
 
   return (
@@ -29,6 +37,13 @@ export function CapturePlacementDetailHost() {
       }}
       onPreview={openPlacementDetailPreview}
       onCopyLink={copyPlacementDetailLink}
+      onOrderPrintMaterials={() => {
+        const detailLocationId =
+          getOpenContext().locationId ?? selectedLocationId
+        navigate(
+          operatorDashboardNavPath(mode, "tummly-shop", detailLocationId)
+        )
+      }}
       onPause={requestPlacementDetailPause}
       onActivate={requestPlacementDetailActivate}
       onRotate={requestPlacementDetailRotate}

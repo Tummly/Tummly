@@ -3092,6 +3092,82 @@ describe("createCampaignWizardModule", () => {
     expect(coupon!.expiryLabel).toBe("Expires: 30 days after issue")
   })
 
+  it("SMS with Offer puts Claim code in AI draft and guest preview body", async () => {
+    const prepareMessageDraft = vi.fn(
+      async (): Promise<PrepareCampaignMessageDraftResult> => ({
+        status: "succeeded",
+        body: "Thanks for visiting us recently.",
+        subject: null,
+        channel: "sms",
+      })
+    )
+    const createOffer = vi.fn(async () => ({
+      id: 91,
+      locationId: 42,
+      status: "active" as const,
+      offerType: "percentage_discount" as const,
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue" as const,
+      expiryDate: null,
+      discountPercentage: 10,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: "Ask for the code.",
+      issueCount: 0,
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }))
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      prepareMessageDraft,
+      createOffer,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    wizard.setChannelId("sms")
+    await wizard.continue()
+    wizard.setOfferStanceId("create-new-offer")
+    wizard.patchCreateOfferDraft({
+      offerType: "percentage_discount",
+      discountPercentage: "10",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+    })
+    await wizard.confirmCreateOffer()
+    await wizard.continue()
+
+    await wizard.prepareDraft()
+    const message = wizard.getSnapshot().message!
+    expect(message.body).toContain("Thanks for visiting us recently.")
+    expect(message.body).toContain("10% off next visit")
+    expect(message.body).toContain("Claim code: PREVIEW-CODE")
+    expect(message.body).toContain("Expires: 30 days after issue")
+
+    await wizard.continue()
+    wizard.setScheduleModeId("send-now")
+    await wizard.continue()
+
+    const review = wizard.getSnapshot().review!
+    expect(review.guestPreview.channelId).toBe("sms")
+    expect(review.guestPreview.offerCoupon).toBeNull()
+    expect(review.guestPreview.body).toContain("Claim code: PREVIEW-CODE")
+    expect(review.guestPreview.body).toContain("10% off next visit")
+  })
+
   it("Review step summarises wizard state and hard-blocks send without commitCampaign", async () => {
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),

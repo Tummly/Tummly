@@ -26,6 +26,7 @@ type CampaignTemplatePreviewDrawerProps = {
   brandName?: string | null
   locationName?: string | null
   locationAddress?: string | null
+  brandLogoUrl?: string | null
   onOpenChange: (open: boolean) => void
   onRetry: () => void
   onSelectChannel: (channelId: CampaignTemplatePreviewChannelId) => void
@@ -65,6 +66,7 @@ export function CampaignTemplatePreviewDrawer({
   brandName = null,
   locationName = null,
   locationAddress = null,
+  brandLogoUrl = null,
   onOpenChange,
   onRetry,
   onSelectChannel,
@@ -95,6 +97,7 @@ export function CampaignTemplatePreviewDrawer({
           brandName={brandName}
           locationName={locationName}
           locationAddress={locationAddress}
+          brandLogoUrl={brandLogoUrl}
           onSelectChannel={onSelectChannel}
         />
       ) : null}
@@ -107,12 +110,14 @@ function PreviewBody({
   brandName,
   locationName,
   locationAddress,
+  brandLogoUrl,
   onSelectChannel,
 }: {
   viewModel: CampaignTemplatePreviewViewModel
   brandName: string | null
   locationName: string | null
   locationAddress: string | null
+  brandLogoUrl: string | null
   onSelectChannel: (channelId: CampaignTemplatePreviewChannelId) => void
 }) {
   const copy = CAMPAIGN_TEMPLATE_PREVIEW_COPY
@@ -216,6 +221,7 @@ function PreviewBody({
                   brandName={brandName}
                   locationName={locationName}
                   locationAddress={locationAddress}
+                  brandLogoUrl={brandLogoUrl}
                   subject={message.subject ?? ""}
                   message={message.body}
                   offerCoupon={

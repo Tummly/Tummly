@@ -42,6 +42,7 @@ type CapturePlacementDetailDrawerProps = {
   onOpenChange: (open: boolean) => void
   onPreview: () => void
   onCopyLink: () => void
+  onOrderPrintMaterials: () => void
   onPause: () => void
   onActivate: () => void
   onRotate: () => void
@@ -95,6 +96,7 @@ function LoadedBody({
   details,
   onPreview,
   onCopyLink,
+  onOrderPrintMaterials,
   onPause,
   onActivate,
   onRotate,
@@ -105,6 +107,7 @@ function LoadedBody({
   details: PlacementDetailDrawerView
   onPreview: () => void
   onCopyLink: () => void
+  onOrderPrintMaterials: () => void
   onPause: () => void
   onActivate: () => void
   onRotate: () => void
@@ -332,6 +335,7 @@ function LoadedBody({
                 OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
                 "w-fit gap-2 rounded-[2px]"
               )}
+              onClick={onOrderPrintMaterials}
             >
               <PackageIcon className="size-4" aria-hidden />
               {copy.orderPrintMaterials}
@@ -388,6 +392,7 @@ export function CapturePlacementDetailDrawer({
   onOpenChange,
   onPreview,
   onCopyLink,
+  onOrderPrintMaterials,
   onPause,
   onActivate,
   onRotate,
@@ -414,6 +419,7 @@ export function CapturePlacementDetailDrawer({
                 details={snapshot.details}
                 onPreview={onPreview}
                 onCopyLink={onCopyLink}
+                onOrderPrintMaterials={onOrderPrintMaterials}
                 onPause={onPause}
                 onActivate={onActivate}
                 onRotate={onRotate}

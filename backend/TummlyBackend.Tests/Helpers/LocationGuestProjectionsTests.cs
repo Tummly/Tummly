@@ -120,6 +120,8 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(0, stats.FeedbackSubmissionCount);
             Assert.Equal("none", stats.LatestFeedbackSentiment);
             Assert.Null(stats.LastInteractionAt);
+            Assert.False(stats.NeedsRecovery);
+            Assert.Null(stats.RecoveryFeedbackId);
         }
 
         [Fact]
@@ -146,6 +148,43 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(2, stats.FeedbackSubmissionCount);
             Assert.Equal("positive", stats.LatestFeedbackSentiment);
             Assert.Equal(newerPending, stats.LastInteractionAt);
+            Assert.False(stats.NeedsRecovery);
+            Assert.Null(stats.RecoveryFeedbackId);
+        }
+
+        [Fact]
+        public void BuildFeedbackStats_SetsNeedsRecoveryAndNewestNegativeFeedbackId()
+        {
+            var olderNegative = new DateTime(2026, 7, 8, 12, 0, 0, DateTimeKind.Utc);
+            var newerNegative = new DateTime(2026, 7, 11, 12, 0, 0, DateTimeKind.Utc);
+            var newerPositive = new DateTime(2026, 7, 12, 12, 0, 0, DateTimeKind.Utc);
+
+            var stats = LocationGuestProjections.BuildFeedbackStats(
+                [
+                    new LocationGuestFeedbackFact(
+                        olderNegative,
+                        ClassificationStatus.Succeeded,
+                        FeedbackSentiment.Negative,
+                        Id: 10
+                    ),
+                    new LocationGuestFeedbackFact(
+                        newerNegative,
+                        ClassificationStatus.Succeeded,
+                        FeedbackSentiment.Negative,
+                        Id: 20
+                    ),
+                    new LocationGuestFeedbackFact(
+                        newerPositive,
+                        ClassificationStatus.Succeeded,
+                        FeedbackSentiment.Positive,
+                        Id: 30
+                    ),
+                ]
+            );
+
+            Assert.Equal("positive", stats.LatestFeedbackSentiment);
+            Assert.True(stats.NeedsRecovery);
+            Assert.Equal(20, stats.RecoveryFeedbackId);
         }
 
         [Fact]

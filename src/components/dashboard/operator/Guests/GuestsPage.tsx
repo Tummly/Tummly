@@ -180,6 +180,12 @@ export function GuestsPage() {
         onDeleteGuest={(guestId) => {
           setDeleteGuestId(guestId)
         }}
+        onCreateCampaignWithGuest={() => {
+          handleCreateCampaign()
+        }}
+        onStartRecovery={(feedbackId) => {
+          void guests.startRecovery(feedbackId)
+        }}
         onCreateCampaign={handleCreateCampaign}
         onExportCsv={() => {
           void guests.exportCsv()
@@ -275,6 +281,7 @@ export function GuestsPage() {
         onStartRecovery={(feedbackId) => {
           void guests.startRecovery(feedbackId)
         }}
+        onCreateCampaign={handleCreateCampaign}
       />
       <FeedbackDetailsDrawer
         snapshot={snapshot.feedbackDetails}

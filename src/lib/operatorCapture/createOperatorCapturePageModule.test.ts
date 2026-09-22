@@ -1534,7 +1534,7 @@ const placements = pageModule.getSnapshot().viewModel?.placements
       connectedOfferText: "No offers",
       assetsSectionTitle: "QR assets",
       showOrderPrintMaterials: true,
-      orderPrintMaterialsEnabled: false,
+      orderPrintMaterialsEnabled: true,
       pauseActivateLabel: "Pause placement",
       guestFormOpensText: "10",
       feedbackSubmittedText: "4",

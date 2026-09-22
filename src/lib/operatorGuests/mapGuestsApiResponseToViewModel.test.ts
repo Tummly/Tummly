@@ -90,6 +90,9 @@ describe("mapGuestsApiResponseToViewModel", () => {
         name: "Amelia Hughes",
         email: "amelia@example.com",
         marketingStatusLabel: "Eligible — Email",
+        marketingEligible: true,
+        needsRecovery: false,
+        recoveryFeedbackId: null,
       })
     )
     expect(viewModel.tableRows[1]).toEqual(

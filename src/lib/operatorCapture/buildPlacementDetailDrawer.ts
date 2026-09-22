@@ -44,7 +44,7 @@ export type PlacementDetailDrawerView = {
   lastUpdatedDisplay: string
   assetsSectionTitle: "QR assets" | "Link assets"
   showOrderPrintMaterials: boolean
-  orderPrintMaterialsEnabled: false
+  orderPrintMaterialsEnabled: boolean
   guestFormOpensText: string
   feedbackSubmittedText: string
   marketingOptInsText: string
@@ -198,7 +198,7 @@ export function buildPlacementDetailDrawer(
     ),
     assetsSectionTitle: isDigital ? "Link assets" : "QR assets",
     showOrderPrintMaterials: !isDigital,
-    orderPrintMaterialsEnabled: false,
+    orderPrintMaterialsEnabled: !isDigital,
     guestFormOpensText: String(fact.qrScans),
     feedbackSubmittedText: String(fact.feedbackSubmitted),
     marketingOptInsText: String(fact.marketingOptIns ?? 0),

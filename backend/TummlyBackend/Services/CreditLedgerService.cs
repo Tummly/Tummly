@@ -859,141 +859,170 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            await using var transaction =
-                await _context.Database.BeginTransactionAsync(
+            // Join Campaign commit (and other) ambient transactions — nested
+            // BeginTransaction throws on SQL Server ("already in a transaction").
+            var ambient = _context.Database.CurrentTransaction;
+            IDbContextTransaction? owned = null;
+            if (ambient is null)
+            {
+                owned = await _context.Database.BeginTransactionAsync(
                     IsolationLevel.ReadCommitted,
                     cancellationToken
                 );
-
-            var locked = await LockBillingAccountAsync(
-                request.RestaurantId,
-                cancellationToken
-            );
-            if (!locked)
-            {
-                return await AbortAsync(
-                    transaction,
-                    "insufficient_credits",
-                    cancellationToken
-                );
             }
 
-            var locationOk = await _context.RestaurantLocations.AnyAsync(
-                row =>
-                    row.Id == request.LocationId
-                    && row.RestaurantId == request.RestaurantId,
-                cancellationToken
-            );
-            if (!locationOk)
+            try
             {
-                return await AbortAsync(
-                    transaction,
-                    "location_not_in_account",
+                var locked = await LockBillingAccountAsync(
+                    request.RestaurantId,
                     cancellationToken
                 );
-            }
-
-            var now = _clock.GetUtcNow().UtcDateTime;
-            var entries = await LoadRestaurantEntriesAsync(
-                request.RestaurantId,
-                request.Channel,
-                cancellationToken
-            );
-
-            var states = CreditLedgerCalculator.Project(entries, now);
-            var poolAvailable = CreditLedgerCalculator.PoolAvailable(states);
-            if (poolAvailable <= 0)
-            {
-                return await AbortAsync(
-                    transaction,
-                    "channel_hard_stopped",
-                    cancellationToken
-                );
-            }
-
-            if (poolAvailable < request.Units)
-            {
-                return await AbortAsync(
-                    transaction,
-                    "insufficient_credits",
-                    cancellationToken
-                );
-            }
-
-            var fills = CreditLedgerCalculator.Bind(states, request.Units);
-            if (fills.Count == 0)
-            {
-                return await AbortAsync(
-                    transaction,
-                    "insufficient_credits",
-                    cancellationToken
-                );
-            }
-
-            var reservationRef = Guid.NewGuid().ToString("D");
-            var inserted = new List<CreditLedgerEntry>(fills.Count);
-            foreach (var fill in fills)
-            {
-                var row = new CreditLedgerEntry
+                if (!locked)
                 {
-                    Id = Guid.NewGuid(),
-                    RestaurantId = request.RestaurantId,
-                    Channel = request.Channel,
-                    EntryType = CreditLedgerEntryTypes.Reservation,
-                    Quantity = fill.Quantity,
-                    AllocationId = fill.AllocationId,
-                    ReservationRef = reservationRef,
-                    LocationId = request.LocationId,
-                    CreatedAtUtc = now,
-                };
-                inserted.Add(row);
-                _context.CreditLedgerEntries.Add(row);
-            }
-
-            var postState = CreditLedgerCalculator.Project(
-                [.. entries, .. inserted],
-                now
-            );
-            if (!CreditLedgerCalculator.InvariantsHold(postState))
-            {
-                foreach (var row in inserted)
-                {
-                    _context.CreditLedgerEntries.Remove(row);
+                    return await FailConsumeAsync(
+                        owned,
+                        "insufficient_credits",
+                        cancellationToken
+                    );
                 }
 
-                return await AbortAsync(
-                    transaction,
-                    "insufficient_credits",
+                var locationOk = await _context.RestaurantLocations.AnyAsync(
+                    row =>
+                        row.Id == request.LocationId
+                        && row.RestaurantId == request.RestaurantId,
                     cancellationToken
                 );
-            }
-
-            var thresholdApply = await _thresholdEvaluator.ApplyInTransactionAsync(
-                request.RestaurantId,
-                request.Channel,
-                [.. entries, .. inserted],
-                cancellationToken
-            );
-
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-
-            await _thresholdEvaluator.NotifyAfterCommitAsync(
-                thresholdApply,
-                cancellationToken
-            );
-
-            return CreditLedgerWriteResult.Ok(
-                inserted.Select(row => new CreditLedgerInsertedRow
+                if (!locationOk)
                 {
-                    Id = row.Id,
-                    AllocationId = row.AllocationId!.Value,
-                    EntryType = row.EntryType,
-                    Quantity = row.Quantity,
-                    ReservationRef = row.ReservationRef,
-                }).ToList(),
-                reservationRef: reservationRef
-            );
+                    return await FailConsumeAsync(
+                        owned,
+                        "location_not_in_account",
+                        cancellationToken
+                    );
+                }
+
+                var now = _clock.GetUtcNow().UtcDateTime;
+                var entries = await LoadRestaurantEntriesAsync(
+                    request.RestaurantId,
+                    request.Channel,
+                    cancellationToken
+                );
+
+                var states = CreditLedgerCalculator.Project(entries, now);
+                var poolAvailable = CreditLedgerCalculator.PoolAvailable(states);
+                if (poolAvailable <= 0)
+                {
+                    return await FailConsumeAsync(
+                        owned,
+                        "channel_hard_stopped",
+                        cancellationToken
+                    );
+                }
+
+                if (poolAvailable < request.Units)
+                {
+                    return await FailConsumeAsync(
+                        owned,
+                        "insufficient_credits",
+                        cancellationToken
+                    );
+                }
+
+                var fills = CreditLedgerCalculator.Bind(states, request.Units);
+                if (fills.Count == 0)
+                {
+                    return await FailConsumeAsync(
+                        owned,
+                        "insufficient_credits",
+                        cancellationToken
+                    );
+                }
+
+                var reservationRef = Guid.NewGuid().ToString("D");
+                var inserted = new List<CreditLedgerEntry>(fills.Count);
+                foreach (var fill in fills)
+                {
+                    var row = new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = request.RestaurantId,
+                        Channel = request.Channel,
+                        EntryType = CreditLedgerEntryTypes.Reservation,
+                        Quantity = fill.Quantity,
+                        AllocationId = fill.AllocationId,
+                        ReservationRef = reservationRef,
+                        LocationId = request.LocationId,
+                        CreatedAtUtc = now,
+                    };
+                    inserted.Add(row);
+                    _context.CreditLedgerEntries.Add(row);
+                }
+
+                var postState = CreditLedgerCalculator.Project(
+                    [.. entries, .. inserted],
+                    now
+                );
+                if (!CreditLedgerCalculator.InvariantsHold(postState))
+                {
+                    foreach (var row in inserted)
+                    {
+                        _context.CreditLedgerEntries.Remove(row);
+                    }
+
+                    return await FailConsumeAsync(
+                        owned,
+                        "insufficient_credits",
+                        cancellationToken
+                    );
+                }
+
+                var thresholdApply =
+                    await _thresholdEvaluator.ApplyInTransactionAsync(
+                        request.RestaurantId,
+                        request.Channel,
+                        [.. entries, .. inserted],
+                        cancellationToken
+                    );
+
+                await _context.SaveChangesAsync(cancellationToken);
+                if (owned is not null)
+                {
+                    await owned.CommitAsync(cancellationToken);
+                }
+
+                await _thresholdEvaluator.NotifyAfterCommitAsync(
+                    thresholdApply,
+                    cancellationToken
+                );
+
+                return CreditLedgerWriteResult.Ok(
+                    inserted.Select(row => new CreditLedgerInsertedRow
+                    {
+                        Id = row.Id,
+                        AllocationId = row.AllocationId!.Value,
+                        EntryType = row.EntryType,
+                        Quantity = row.Quantity,
+                        ReservationRef = row.ReservationRef,
+                    }).ToList(),
+                    reservationRef: reservationRef
+                );
+            }
+            catch
+            {
+                if (owned is not null)
+                {
+                    await owned.RollbackAsync(cancellationToken);
+                }
+
+                throw;
+            }
+            finally
+            {
+                if (owned is not null)
+                {
+                    await owned.DisposeAsync();
+                }
+            }
         }
 
         private async Task<CreditLedgerWriteResult> SettleLockedAsync(

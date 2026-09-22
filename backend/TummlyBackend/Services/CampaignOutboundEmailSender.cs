@@ -36,7 +36,7 @@ namespace TummlyBackend.Services
             {
                 return new CampaignOutboundSendResult.Rejected
                 {
-                    Message = "Campaign outbound supports email only in MVP.",
+                    Message = "CampaignOutboundEmailSender accepts email only.",
                 };
             }
 

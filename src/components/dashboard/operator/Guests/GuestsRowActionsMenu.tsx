@@ -16,29 +16,45 @@ import {
   GUESTS_ROW_ACTIONS_TRIGGER_CLASS,
   OPERATOR_GUEST_ROW_ACTIONS,
 } from "@/lib/operatorGuests/guestsPresentation"
+import { resolveGuestPrimaryCta } from "@/lib/operatorGuests/guestPrimaryCta"
 
 type GuestsRowActionsMenuProps = {
   guestId: string
   guestName: string
+  marketingEligible: boolean
+  needsRecovery: boolean
+  recoveryFeedbackId: number | null
   onManageTags: (guestId: string) => void
   onViewGuest: (guestId: string) => void
   onManageMarketingPermissions: (guestId: string) => void
   onEditGuest: (guestId: string) => void
   onExportGuest: (guestId: string) => void
   onDeleteGuest: (guestId: string) => void
+  onCreateCampaignWithGuest: (guestId: string) => void
+  onStartRecovery: (feedbackId: number) => void
 }
 
 /** Figma Guests table Actions menu — node `4213:61228`. */
 export function GuestsRowActionsMenu({
   guestId,
   guestName,
+  marketingEligible,
+  needsRecovery,
+  recoveryFeedbackId,
   onManageTags,
   onViewGuest,
   onManageMarketingPermissions,
   onEditGuest,
   onExportGuest,
   onDeleteGuest,
+  onCreateCampaignWithGuest,
+  onStartRecovery,
 }: GuestsRowActionsMenuProps) {
+  const primaryCta = resolveGuestPrimaryCta(
+    { marketingEligible, needsRecovery, recoveryFeedbackId },
+    { createCampaignLabel: "Create campaign with guest" }
+  )
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -114,6 +130,30 @@ export function GuestsRowActionsMenu({
               >
                 {action.label}
               </DropdownMenuItem>
+            ) : action.id === "create-campaign-with-guest" ? (
+              primaryCta.kind === "start-recovery" ? (
+                <DropdownMenuItem
+                  className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                  onClick={() => {
+                    onStartRecovery(primaryCta.feedbackId)
+                  }}
+                >
+                  {primaryCta.label}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  disabled={!primaryCta.enabled}
+                  className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                  onClick={() => {
+                    if (!primaryCta.enabled) {
+                      return
+                    }
+                    onCreateCampaignWithGuest(guestId)
+                  }}
+                >
+                  {primaryCta.label}
+                </DropdownMenuItem>
+              )
             ) : (
               <DropdownMenuItem
                 disabled

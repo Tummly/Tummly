@@ -121,6 +121,8 @@ type GuestsSmartGroupsSectionProps = {
   onEditGuest: (guestId: string) => void
   onExportGuest: (guestId: string) => void
   onDeleteGuest: (guestId: string) => void
+  onCreateCampaignWithGuest: (guestId: string) => void
+  onStartRecovery: (feedbackId: number) => void
   onCreateCampaign?: () => void
   onExportSelected?: () => void
   exportBusy?: boolean
@@ -183,6 +185,8 @@ export function GuestsSmartGroupsSection({
   onEditGuest,
   onExportGuest,
   onDeleteGuest,
+  onCreateCampaignWithGuest,
+  onStartRecovery,
   onCreateCampaign,
   onExportSelected,
   exportBusy = false,
@@ -468,6 +472,9 @@ export function GuestsSmartGroupsSection({
                           <GuestsRowActionsMenu
                             guestId={row.id}
                             guestName={row.name}
+                            marketingEligible={row.marketingEligible}
+                            needsRecovery={row.needsRecovery}
+                            recoveryFeedbackId={row.recoveryFeedbackId}
                             onManageTags={onManageGuestTags}
                             onViewGuest={onViewGuest}
                             onManageMarketingPermissions={
@@ -476,6 +483,10 @@ export function GuestsSmartGroupsSection({
                             onEditGuest={onEditGuest}
                             onExportGuest={onExportGuest}
                             onDeleteGuest={onDeleteGuest}
+                            onCreateCampaignWithGuest={
+                              onCreateCampaignWithGuest
+                            }
+                            onStartRecovery={onStartRecovery}
                           />
                         </div>
                       </TableCell>

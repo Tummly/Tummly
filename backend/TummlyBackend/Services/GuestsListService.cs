@@ -198,6 +198,9 @@ namespace TummlyBackend.Services
                     email = row.Email,
                     mobile = row.Mobile,
                     marketingStatus = row.MarketingStatus,
+                    marketingEligible = row.MarketingEligible,
+                    needsRecovery = row.NeedsRecovery,
+                    recoveryFeedbackId = row.RecoveryFeedbackId,
                     locationName = row.LocationName,
                     latestFeedbackSentiment = row.LatestFeedbackSentiment,
                     feedbackSubmissionCount = row.FeedbackSubmissionCount,
@@ -623,6 +626,13 @@ namespace TummlyBackend.Services
                     masterGuest.Email,
                     masterGuest.Mobile
                 ),
+                MarketingEligible = LocationGuestProjections.IsMarketingEligible(
+                    locationGuest.MarketingPreference,
+                    masterGuest.Email,
+                    masterGuest.Mobile
+                ),
+                NeedsRecovery = stats?.NeedsRecovery ?? false,
+                RecoveryFeedbackId = stats?.RecoveryFeedbackId,
                 TagIds = tags ?? new HashSet<int>(),
             };
         }
@@ -646,7 +656,8 @@ namespace TummlyBackend.Services
                     f.LocationGuestId!.Value,
                     f.CreatedAt,
                     f.ClassificationStatus,
-                    f.Sentiment
+                    f.Sentiment,
+                    f.Id
                 ))
                 .ToListAsync();
 
@@ -954,6 +965,12 @@ namespace TummlyBackend.Services
             public DateTime? LastInteractionAt { get; init; }
 
             public string MarketingStatus { get; init; } = "Not eligible";
+
+            public bool MarketingEligible { get; init; }
+
+            public bool NeedsRecovery { get; init; }
+
+            public int? RecoveryFeedbackId { get; init; }
 
             public HashSet<int> TagIds { get; init; } = new();
         }

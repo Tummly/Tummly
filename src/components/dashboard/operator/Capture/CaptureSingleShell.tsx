@@ -1,9 +1,10 @@
 import { ShoppingBag } from "lucide-react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useOutletContext } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { CaptureBody } from "@/components/dashboard/operator/Capture/CaptureBody"
 import { useCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useCapturePageModule"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
   CAPTURE_PAGE_ACTION_BUTTON_CLASS,
   CAPTURE_PAGE_ACTIONS_CLASS,
@@ -15,12 +16,17 @@ import {
   OPERATOR_CAPTURE_HEADER_ACTIONS_COPY,
   OPERATOR_CAPTURE_SINGLE_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
-import { operatorDashboardCaptureArchivePath } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardCaptureArchivePath,
+  operatorDashboardNavPath,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 
 /** Single-location Capture shell — title + description + header actions. */
 export function CaptureSingleShell() {
   const { snapshot, openGuestExperiencePreview } = useCapturePageModule()
   const location = useLocation()
+  const { mode, selectedLocationId } =
+    useOutletContext<DashboardOutletContext>()
   const previewDisabled =
     snapshot.viewModel?.guestExperience.previewEntry.kind === "disabled" ||
     snapshot.viewModel == null
@@ -28,6 +34,11 @@ export function CaptureSingleShell() {
   const archivePath = operatorDashboardCaptureArchivePath("single", {
     from: `${location.pathname}${location.search}`,
   })
+  const shopPath = operatorDashboardNavPath(
+    mode,
+    "tummly-shop",
+    selectedLocationId
+  )
 
   return (
     <div className={CAPTURE_PAGE_STACK_CLASS}>
@@ -44,11 +55,13 @@ export function CaptureSingleShell() {
           <Button
             type="button"
             variant="op-primary"
-            disabled
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
+            asChild
           >
-            <ShoppingBag className="size-4" aria-hidden />
-            {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.orderPrintMaterials}
+            <Link to={shopPath}>
+              <ShoppingBag className="size-4" aria-hidden />
+              {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.orderPrintMaterials}
+            </Link>
           </Button>
           <Button
             type="button"

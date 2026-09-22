@@ -81,6 +81,11 @@ export function mapGuestsApiResponseToViewModel(
       email: row.email ?? "",
       mobile: row.mobile,
       marketingStatusLabel: row.marketingStatus as GuestMarketingStatusLabel,
+      marketingEligible:
+        row.marketingEligible
+        ?? (row.marketingStatus as string).startsWith("Eligible —"),
+      needsRecovery: row.needsRecovery ?? false,
+      recoveryFeedbackId: row.recoveryFeedbackId ?? null,
       locationName: row.locationName,
       latestFeedbackSentiment:
         row.latestFeedbackSentiment as GuestFeedbackSentiment,

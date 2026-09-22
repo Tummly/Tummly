@@ -3,7 +3,7 @@ using TummlyBackend.Helpers.EmailTemplates;
 namespace TummlyBackend.Interfaces
 {
     /// <summary>
-    /// Provider send for one Campaign recipient (Email first). Tests inject fakes.
+    /// Provider send for one Campaign recipient (Email + SMS). Tests inject fakes.
     /// </summary>
     public interface ICampaignOutboundSender
     {

@@ -29,6 +29,8 @@ type GuestPreviewPanelProps = {
   locationName: string | null
   locationAddress: string | null
   brandName?: string | null
+  /** Settings brand logo; null/empty → email placeholder. */
+  brandLogoUrl?: string | null
   disabled?: boolean
   /** Controlled overlay open — when omitted, panel owns local open state. */
   guestPreviewOpen?: boolean
@@ -54,6 +56,7 @@ export function GuestPreviewPanel({
   locationName,
   locationAddress,
   brandName = null,
+  brandLogoUrl = null,
   disabled = false,
   guestPreviewOpen,
   onOpenPreview,
@@ -114,6 +117,7 @@ export function GuestPreviewPanel({
                 brandName={brandName}
                 locationName={locationName}
                 locationAddress={locationAddress}
+                brandLogoUrl={brandLogoUrl}
                 subject={subject}
                 message={message}
                 offerCoupon={offerCoupon}
@@ -172,6 +176,7 @@ export function GuestPreviewPanel({
         locationName={locationName}
         locationAddress={locationAddress}
         brandName={brandName}
+        brandLogoUrl={brandLogoUrl}
         offerCoupon={offerCoupon}
         onClose={closePreview}
         onEditText={handleEditText}

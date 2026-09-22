@@ -893,7 +893,7 @@ export function createOperatorMultiCapturePageModule(
           actions.push({
             id: def.id,
             label: def.label,
-            enabled: false,
+            enabled: true,
           })
           continue
         }

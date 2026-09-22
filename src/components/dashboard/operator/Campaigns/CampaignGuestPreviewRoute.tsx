@@ -4,7 +4,10 @@ import { XIcon } from "lucide-react"
 
 import { getCampaignDraftById, getCatalogOfferById } from "@/api/dashboardApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
-import { GuestPreviewEmailChrome } from "@/components/dashboard/operator/Feedback/GuestPreviewOverlay"
+import {
+  GuestPreviewEmailChrome,
+  SmsPreviewChrome,
+} from "@/components/dashboard/operator/Feedback/GuestPreviewOverlay"
 import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
 import { OperatorGuestPreviewShell } from "@/components/dashboard/operator/shared/OperatorGuestPreviewShell"
 import { Button } from "@/components/ui/button"
@@ -12,6 +15,10 @@ import {
   CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS,
   CAPTURE_GUEST_PREVIEW_TITLE_CLASS,
 } from "@/lib/operatorCapture/capturePresentation"
+import {
+  campaignSmsOfferClaimPreviewFields,
+  ensureCampaignSmsOfferClaimInBody,
+} from "@/lib/operatorCampaigns/campaignSmsOfferClaimPresentation"
 import {
   GUEST_PREVIEW_CLOSE_LABEL,
   GUEST_PREVIEW_DESKTOP_LABEL,
@@ -52,7 +59,7 @@ function closePreview(navigateBack: () => void): void {
 export function CampaignGuestPreviewRoute() {
   const { campaignId: campaignIdParam } = useParams<{ campaignId: string }>()
   const navigate = useNavigate()
-  const { mode, selectedLocationId, locations } =
+  const { mode, selectedLocationId, locations, brandLogoPublicUrl } =
     useOutletContext<DashboardOutletContext>()
   const campaignId = parseCampaignRouteId(campaignIdParam)
   const [device, setDevice] = useState<GuestPreviewDevice>(
@@ -64,6 +71,7 @@ export function CampaignGuestPreviewRoute() {
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [title, setTitle] = useState("Campaign")
+  const [channel, setChannel] = useState<"email" | "sms">("email")
   const [offerCoupon, setOfferCoupon] =
     useState<GuestPreviewOfferCouponView | null>(null)
 
@@ -86,14 +94,17 @@ export function CampaignGuestPreviewRoute() {
         if (cancelled) {
           return
         }
+        const isSms =
+          (response.campaign.channel ?? "").trim().toLowerCase() === "sms"
+        setChannel(isSms ? "sms" : "email")
         setTitle(response.campaign.name)
         setSubject(response.campaign.messageSubject?.trim() || response.campaign.name)
-        setMessage(
+        const baseMessage =
           response.campaign.messageBody?.trim()
           || "Campaign message preview is not available."
-        )
         const offerId = response.campaign.offerId
         if (offerId == null) {
+          setMessage(baseMessage)
           setOfferCoupon(null)
           setLoadStatus("loaded")
           return
@@ -104,21 +115,37 @@ export function CampaignGuestPreviewRoute() {
             return
           }
           const offer = offerResponse.offer
-          setOfferCoupon({
-            title: offer.title,
-            description: offer.description.trim(),
-            redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
-            expiryLabel: formatCatalogOfferExpiryLabel(
-              offer.validity,
-              offer.expiryDate
-            ),
-            copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
-            copyEnabled: false,
-          })
+          const expiryLabel = formatCatalogOfferExpiryLabel(
+            offer.validity,
+            offer.expiryDate
+          )
+          if (isSms) {
+            setMessage(
+              ensureCampaignSmsOfferClaimInBody(
+                baseMessage,
+                campaignSmsOfferClaimPreviewFields({
+                  title: offer.title,
+                  expiryLabel,
+                })
+              )
+            )
+            setOfferCoupon(null)
+          } else {
+            setMessage(baseMessage)
+            setOfferCoupon({
+              title: offer.title,
+              description: offer.description.trim(),
+              redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+              expiryLabel,
+              copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+              copyEnabled: false,
+            })
+          }
         } catch {
           if (cancelled) {
             return
           }
+          setMessage(baseMessage)
           setOfferCoupon(null)
         }
         setLoadStatus("loaded")
@@ -213,19 +240,24 @@ export function CampaignGuestPreviewRoute() {
         </div>
       }
     >
-      <GuestPreviewEmailChrome
-        brandName={selectedLocation?.locationName ?? null}
-        locationName={selectedLocation?.locationName ?? null}
-        locationAddress={selectedLocation?.address ?? null}
-        subject={subject}
-        message={message}
-        device={device}
-        offerCoupon={
-          offerCoupon != null ? (
-            <GuestPreviewOfferCoupon coupon={offerCoupon} />
-          ) : undefined
-        }
-      />
+      {channel === "sms" ? (
+        <SmsPreviewChrome message={message} />
+      ) : (
+        <GuestPreviewEmailChrome
+          brandName={selectedLocation?.locationName ?? null}
+          locationName={selectedLocation?.locationName ?? null}
+          locationAddress={selectedLocation?.address ?? null}
+          subject={subject}
+          message={message}
+          brandLogoUrl={brandLogoPublicUrl}
+          device={device}
+          offerCoupon={
+            offerCoupon != null ? (
+              <GuestPreviewOfferCoupon coupon={offerCoupon} />
+            ) : undefined
+          }
+        />
+      )}
     </OperatorGuestPreviewShell>
   )
 }

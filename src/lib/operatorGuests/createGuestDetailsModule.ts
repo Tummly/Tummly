@@ -44,6 +44,9 @@ export type GuestDetailsLoaded = {
   locationId: number
   name: string
   marketingStatusLabel: GuestMarketingStatusLabel
+  marketingEligible: boolean
+  needsRecovery: boolean
+  recoveryFeedbackId: number | null
   identitySubtitle: string
   email: string | null
   emailDisplay: string
@@ -271,6 +274,11 @@ export function mapGuestProfileToGuestDetails(
     name: response.name,
     marketingStatusLabel:
       response.marketingStatus as GuestMarketingStatusLabel,
+    marketingEligible:
+      response.marketingEligible
+      ?? response.marketingStatus.startsWith("Eligible —"),
+    needsRecovery: response.needsRecovery ?? false,
+    recoveryFeedbackId: response.recoveryFeedbackId ?? null,
     identitySubtitle: buildIdentitySubtitle(
       guestSinceDisplay,
       lastActivityRelative
