@@ -675,7 +675,12 @@ export const prepareCampaignMessageDraft = async (
       await axiosInstance.post<PrepareCampaignMessageDraftApiResponse>(
         "/campaigns/message-draft",
         body,
-        { signal }
+        {
+          signal,
+          headers: {
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+        }
       )
     return response.data
   } catch (error) {
@@ -1763,7 +1768,12 @@ export const sendFeedbackGuestResponse = async (
   const response =
     await axiosInstance.post<SendFeedbackGuestResponseResponse>(
       `/feedback/${feedbackId}/guest-responses`,
-      body
+      body,
+      {
+        headers: {
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      }
     )
   return response.data
 }
@@ -1863,7 +1873,12 @@ export const prepareFeedbackRecoveryDraft = async (
     await axiosInstance.post<PrepareFeedbackRecoveryDraftResponse>(
       `/feedback/${feedbackId}/recovery-draft`,
       body,
-      { signal }
+      {
+        signal,
+        headers: {
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      }
     )
   return response.data
 }

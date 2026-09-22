@@ -326,7 +326,12 @@ export async function sendAssistantTurn(input: {
       message: input.message,
       analysisScope: toAssistantAnalysisScopeDto(input.analysisScope),
     },
-    { signal: input.signal }
+    {
+      signal: input.signal,
+      headers: {
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    }
   )
   return fromConversationDto(response.data.conversation)
 }
@@ -354,7 +359,12 @@ export async function retryAssistantTurn(
   const response = await axiosInstance.post<AssistantConversationResponse>(
     `/assistant/conversations/${conversationId}/retry`,
     {},
-    { signal }
+    {
+      signal,
+      headers: {
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    }
   )
   return fromConversationDto(response.data.conversation)
 }
