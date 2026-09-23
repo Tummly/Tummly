@@ -27,6 +27,7 @@ type CaptureDigitalGuestLinkRowActionsMenuProps = {
   onPause: () => void
   onActivate: () => void
   onCopyLink: () => void
+  onChangeOffer: () => void
   onArchive: () => void
 }
 
@@ -39,6 +40,7 @@ export function CaptureDigitalGuestLinkRowActionsMenu({
   onPause,
   onActivate,
   onCopyLink,
+  onChangeOffer,
   onArchive,
 }: CaptureDigitalGuestLinkRowActionsMenuProps) {
   const isActive = status === "Active"
@@ -77,6 +79,12 @@ export function CaptureDigitalGuestLinkRowActionsMenu({
       label: copy.copyLink,
       disabled: false,
       onClick: onCopyLink,
+    },
+    {
+      id: "change-offer",
+      label: copy.changeOffer,
+      disabled: false,
+      onClick: onChangeOffer,
     },
     {
       id: "archive",

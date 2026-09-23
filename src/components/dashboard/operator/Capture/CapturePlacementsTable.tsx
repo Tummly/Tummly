@@ -31,6 +31,7 @@ type CapturePlacementsTableProps = {
   onResumePlacement: (qrCodeId: number) => void
   onRotatePlacement: (qrCodeId: number) => void
   onCopyPlacementLink: (qrCodeId: number) => void
+  onChangeOffer: () => void
   onArchivePlacement: (qrCodeId: number) => void
 }
 
@@ -43,6 +44,7 @@ export function CapturePlacementsTable({
   onResumePlacement,
   onRotatePlacement,
   onCopyPlacementLink,
+  onChangeOffer,
   onArchivePlacement,
 }: CapturePlacementsTableProps) {
   const columns = OPERATOR_CAPTURE_PLACEMENTS_COLUMNS
@@ -125,6 +127,7 @@ export function CapturePlacementsTable({
                   onCopyLink={() => {
                     onCopyPlacementLink(row.qrCodeId)
                   }}
+                  onChangeOffer={onChangeOffer}
                   onArchive={() => {
                     onArchivePlacement(row.qrCodeId)
                   }}

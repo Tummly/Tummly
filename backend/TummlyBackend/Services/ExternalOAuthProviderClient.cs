@@ -19,7 +19,7 @@ namespace TummlyBackend.Services
             "https://accounts.google.com/o/oauth2/v2/auth";
         private const string GoogleTokenUrl = "https://oauth2.googleapis.com/token";
         private const string GoogleUserInfoUrl =
-            "https://openidconnect.googleapis.com/userinfo";
+            "https://openidconnect.googleapis.com/v1/userinfo";
 
         private const string MicrosoftAuthorizeUrl =
             "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
@@ -201,9 +201,12 @@ namespace TummlyBackend.Services
             var raw = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                throw new InvalidOperationException(
-                    $"OAuth token exchange failed for {canonical}."
-                );
+                // Include provider error JSON (no secrets) so local/QA logs show
+                // invalid_grant / redirect_uri_mismatch / invalid_client.
+                var detail = TruncateForLog(raw, 500);
+                var message =
+                    $"OAuth token exchange failed for {canonical} (HTTP {(int)response.StatusCode}): {detail}";
+                throw new InvalidOperationException(message);
             }
 
             var token = JsonSerializer.Deserialize<TokenResponse>(raw, JsonOptions);
@@ -232,7 +235,13 @@ namespace TummlyBackend.Services
             using var response = await client.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                throw new InvalidOperationException("Google userinfo request failed.");
+                var detail = TruncateForLog(
+                    await response.Content.ReadAsStringAsync(cancellationToken),
+                    300
+                );
+                var message =
+                    $"Google userinfo request failed (HTTP {(int)response.StatusCode}): {detail}";
+                throw new InvalidOperationException(message);
             }
 
             var payload = await response.Content.ReadFromJsonAsync<GoogleUserInfo>(
@@ -412,6 +421,19 @@ namespace TummlyBackend.Services
             }
 
             return null;
+        }
+
+        private static string TruncateForLog(string? value, int maxLen)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "(empty body)";
+            }
+
+            var trimmed = value.Trim();
+            return trimmed.Length <= maxLen
+                ? trimmed
+                : trimmed[..maxLen] + "…";
         }
 
         private sealed class TokenResponse

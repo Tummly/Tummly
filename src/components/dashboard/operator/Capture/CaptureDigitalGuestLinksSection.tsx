@@ -34,6 +34,7 @@ type CaptureDigitalGuestLinksSectionProps = {
   onPause: (qrCodeId: number) => void
   onActivate: (qrCodeId: number) => void
   onCopyLink: (qrCodeId: number) => void
+  onChangeOffer: () => void
   onArchive: (qrCodeId: number) => void
 }
 
@@ -48,6 +49,7 @@ export function CaptureDigitalGuestLinksSection({
   onPause,
   onActivate,
   onCopyLink,
+  onChangeOffer,
   onArchive,
 }: CaptureDigitalGuestLinksSectionProps) {
   const copy = OPERATOR_CAPTURE_SECTION_COPY.digitalGuestLinks
@@ -95,6 +97,7 @@ export function CaptureDigitalGuestLinksSection({
           onPause={onPause}
           onActivate={onActivate}
           onCopyLink={onCopyLink}
+          onChangeOffer={onChangeOffer}
           onArchive={onArchive}
         />
       )}

@@ -2,7 +2,7 @@
 
 import { format } from "date-fns"
 import { CalendarIcon, Loader2Icon, XIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { RecoveryOfferTypeCards } from "@/components/dashboard/operator/Feedback/RecoveryOfferTypeCards"
 import { OffersConfirmDialog } from "@/components/dashboard/operator/Offers/OffersConfirmDialog"
@@ -436,22 +436,41 @@ export function CreateEditOfferDrawer({
   const copy = CREATE_EDIT_OFFER_DRAWER_COPY
   const idPrefix = mode === "edit" ? "edit-offer" : "create-offer"
   const [discardOpen, setDiscardOpen] = useState(false)
+  const discardOpenRef = useRef(false)
+  /** Nested confirm dismiss can make Vaul emit drawer close; ignore that once. */
+  const ignoreNextDrawerCloseRef = useRef(false)
   const showDetails = draft.offerType != null
+
+  useEffect(() => {
+    discardOpenRef.current = discardOpen
+  }, [discardOpen])
 
   useEffect(() => {
     if (open) {
       setDiscardOpen(false)
+      discardOpenRef.current = false
+      ignoreNextDrawerCloseRef.current = false
     }
   }, [open])
 
   function requestClose() {
-    if (saving) {
+    if (saving || discardOpenRef.current) {
       return
     }
+    discardOpenRef.current = true
     setDiscardOpen(true)
   }
 
+  function dismissDiscardConfirm() {
+    discardOpenRef.current = false
+    setDiscardOpen(false)
+    // Keep-editing / dialog dismiss: Vaul often fires drawer onOpenChange(false).
+    ignoreNextDrawerCloseRef.current = true
+  }
+
   function confirmDiscard() {
+    discardOpenRef.current = false
+    ignoreNextDrawerCloseRef.current = true
     setDiscardOpen(false)
     onOpenChange(false)
   }
@@ -463,9 +482,17 @@ export function CreateEditOfferDrawer({
         open={open}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
+            if (ignoreNextDrawerCloseRef.current) {
+              ignoreNextDrawerCloseRef.current = false
+              return
+            }
+            if (discardOpenRef.current) {
+              return
+            }
             requestClose()
             return
           }
+          ignoreNextDrawerCloseRef.current = false
           onOpenChange(true)
         }}
         shouldScaleBackground={false}
@@ -715,7 +742,7 @@ export function CreateEditOfferDrawer({
         className={CREATE_EDIT_OFFER_DISCARD_CONTENT_CLASS}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
-            setDiscardOpen(false)
+            dismissDiscardConfirm()
           }
         }}
         onConfirm={confirmDiscard}

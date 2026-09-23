@@ -502,6 +502,7 @@ export const OPERATOR_CAPTURE_DIGITAL_GUEST_LINK_ROW_ACTIONS = {
   pause: "Pause",
   activate: "Activate",
   copyLink: "Copy link",
+  changeOffer: "Change offer",
   archive: "Archive",
 } as const
 

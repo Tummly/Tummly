@@ -209,6 +209,15 @@ function LoadedBody({
                     label: copy.copyGuestLink,
                     onClick: onCopyLink,
                   },
+                  ...(details.editConnectedOfferEnabled
+                    ? [
+                        {
+                          id: "change-offer",
+                          label: copy.editConnectedOfferCta,
+                          onClick: onEditConnectedOffer,
+                        },
+                      ]
+                    : []),
                   ...(details.canPauseOrActivate &&
                   details.pauseActivateLabel != null
                     ? [

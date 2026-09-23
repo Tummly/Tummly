@@ -178,6 +178,7 @@ export function CaptureBody() {
           onResumePlacement={requestActivateConfirm}
           onRotatePlacement={requestRotate}
           onCopyPlacementLink={copyPlacementLink}
+          onChangeOffer={openThankYouOfferDialog}
           onArchivePlacement={archivePlacement}
         />
       ) : (
@@ -197,6 +198,7 @@ export function CaptureBody() {
           onPause={requestPauseConfirm}
           onActivate={requestActivateConfirm}
           onCopyLink={copyPlacementLink}
+          onChangeOffer={openThankYouOfferDialog}
           onArchive={requestDigitalGuestLinkArchive}
         />
       ) : (

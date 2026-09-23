@@ -22,6 +22,7 @@ type CapturePlacementsSectionProps = {
   onResumePlacement: (qrCodeId: number) => void
   onRotatePlacement: (qrCodeId: number) => void
   onCopyPlacementLink: (qrCodeId: number) => void
+  onChangeOffer: () => void
   onArchivePlacement: (qrCodeId: number) => void
 }
 
@@ -34,6 +35,7 @@ export function CapturePlacementsSection({
   onResumePlacement,
   onRotatePlacement,
   onCopyPlacementLink,
+  onChangeOffer,
   onArchivePlacement,
 }: CapturePlacementsSectionProps) {
   const copy = OPERATOR_CAPTURE_SECTION_COPY.placements
@@ -72,6 +74,7 @@ export function CapturePlacementsSection({
           onResumePlacement={onResumePlacement}
           onRotatePlacement={onRotatePlacement}
           onCopyPlacementLink={onCopyPlacementLink}
+          onChangeOffer={onChangeOffer}
           onArchivePlacement={onArchivePlacement}
         />
       )}

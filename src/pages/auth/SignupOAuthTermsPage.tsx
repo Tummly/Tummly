@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { isAxiosError } from "axios"
 import { useForm } from "react-hook-form"
@@ -45,7 +45,9 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 
 function SignupOAuthTermsPage() {
   const navigate = useNavigate()
-  const token = captureOAuthTicketToken("signup")
+  // Capture once: clearing the stash after accept must not re-render as
+  // "missing token" and bounce to /signup?oauthError=failed.
+  const [token] = useState(() => captureOAuthTicketToken("signup"))
 
   const form = useForm<OAuthTermsValues>({
     resolver: zodResolver(oauthTermsSchema),
@@ -72,8 +74,8 @@ function SignupOAuthTermsPage() {
         token,
         termsAccepted: values.termsAccepted === true,
       })
-      clearOAuthTicketToken("signup")
       saveSignupSessionToken(session.sessionToken)
+      clearOAuthTicketToken("signup")
       navigate("/signup/onboarding", { replace: true })
     } catch (error) {
       const message = getApiErrorMessage(
