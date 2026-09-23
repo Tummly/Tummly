@@ -65,7 +65,7 @@ export function LocationDetailTeamAccessTab({
           <Button
             type="button"
             variant="op-secondary"
-            className={LOCATION_DETAIL_ACTION_BUTTON_CLASS}
+            className={cn(LOCATION_DETAIL_ACTION_BUTTON_CLASS, "w-fit")}
             asChild
           >
             <Link to={teamPermissionsPath}>{copy.assignTeamMember}</Link>
@@ -118,7 +118,7 @@ export function LocationDetailTeamAccessTab({
           <Button
             type="button"
             variant="op-secondary"
-            className={LOCATION_DETAIL_ACTION_BUTTON_CLASS}
+            className={cn(LOCATION_DETAIL_ACTION_BUTTON_CLASS, "w-fit")}
             asChild
           >
             <Link to={teamPermissionsPath}>{copy.assignTeamMember}</Link>
