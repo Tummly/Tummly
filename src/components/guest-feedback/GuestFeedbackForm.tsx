@@ -195,7 +195,10 @@ export function GuestFeedbackForm({
     marketingChannel == null
       ? null
       : buildGuestFormConsentCheckboxLabel(displayRestaurant, marketingChannel)
-  const introCopy = buildGuestFormIntroCopy(displayRestaurant)
+  const introCopy = buildGuestFormIntroCopy(
+    displayRestaurant,
+    displayLocation
+  )
 
   const handleSubmit = form.handleSubmit(async (values) => {
     await onSubmit(values)
@@ -357,7 +360,8 @@ export function GuestFeedbackForm({
                   Your details
                 </CardTitle>
                 <CardDescription className="text-xs leading-relaxed text-guest-feedback-muted">
-                  Add your name and one contact method so the team can follow up.
+                  Add your name and one contact method so the team can respond
+                  to your feedback.
                 </CardDescription>
               </CardHeader>
               <CardContent>

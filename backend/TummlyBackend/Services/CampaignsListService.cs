@@ -311,6 +311,7 @@ namespace TummlyBackend.Services
                     campaign.UpdatedAt,
                     campaign.ScheduledAtUtc,
                     campaign.RowVersion,
+                    campaign.TerminalReason,
                 })
                 .ToListAsync(cancellationToken);
 
@@ -360,6 +361,7 @@ namespace TummlyBackend.Services
                         Engagement = null,
                         Redemptions = null,
                         RowVersion = campaign.RowVersion,
+                        TerminalReason = campaign.TerminalReason,
                     };
                 })
                 .ToList();

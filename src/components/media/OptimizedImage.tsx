@@ -17,7 +17,14 @@ type OptimizedImageProps = Omit<
 > & {
   picture: PictureOutput;
   sizes: string;
+  /** Above-the-fold / LCP — eager + high fetch priority. */
   priority?: boolean;
+  /**
+   * Start fetch as soon as the element is in the DOM (no IntersectionObserver
+   * delay). Does not raise fetch priority — use for below-fold heroes warmed
+   * by prefetch, not competing LCP images.
+   */
+  eager?: boolean;
 };
 
 const FORMAT_MIME: Record<string, string> = {
@@ -34,6 +41,7 @@ function OptimizedImage({
   picture,
   sizes,
   priority = false,
+  eager = false,
   className,
   alt = "",
   ...imgProps
@@ -44,6 +52,7 @@ function OptimizedImage({
     picture.sources.jpg ??
     picture.sources.jpeg ??
     picture.sources.webp;
+  const loadEager = priority || eager;
 
   return (
     <picture>
@@ -61,7 +70,7 @@ function OptimizedImage({
         srcSet={fallbackSrcSet}
         alt={alt}
         sizes={sizes}
-        loading={priority ? "eager" : "lazy"}
+        loading={loadEager ? "eager" : "lazy"}
         fetchPriority={priority ? "high" : undefined}
         decoding={priority ? "sync" : "async"}
         className={cn(className)}

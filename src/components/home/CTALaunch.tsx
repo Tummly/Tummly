@@ -28,6 +28,7 @@ function CTALaunch() {
             <OptimizedImage
               picture={ctaLaunchBgPicture}
               sizes={PANORAMIC_BG_IMAGE_SIZES}
+              eager
               alt=""
               className="absolute top-0 left-[-170.38%] h-full w-[321.73%] max-w-none object-cover object-[center_42%]"
             />
@@ -35,6 +36,7 @@ function CTALaunch() {
           <OptimizedImage
             picture={ctaLaunchBgPicture}
             sizes={PANORAMIC_BG_IMAGE_SIZES}
+            eager
             alt=""
             className="hidden size-full object-cover object-left lg:block"
           />

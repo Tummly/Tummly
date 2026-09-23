@@ -9,9 +9,15 @@ import {
 
 describe("guestFormConsentPresentation", () => {
   describe("buildGuestFormIntroCopy", () => {
-    it("uses the restaurant name in the private-share follow-up notice", () => {
-      expect(buildGuestFormIntroCopy("Camden Street")).toBe(
-        "Your feedback is shared privately with Camden Street. They may contact you about this feedback using the details you provide."
+    it("uses restaurant and location in the private-share follow-up notice", () => {
+      expect(buildGuestFormIntroCopy("KFC", "Camden High Street")).toBe(
+        "Your feedback is shared privately with the team at KFC, Camden High Street. They may follow up using the contact details you provide."
+      )
+    })
+
+    it("falls back when restaurant or location is blank", () => {
+      expect(buildGuestFormIntroCopy("  ", "")).toBe(
+        "Your feedback is shared privately with the team at this restaurant, this location. They may follow up using the contact details you provide."
       )
     })
   })

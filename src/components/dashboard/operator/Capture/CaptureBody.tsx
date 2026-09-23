@@ -178,6 +178,7 @@ export function CaptureBody() {
           onResumePlacement={requestActivateConfirm}
           onRotatePlacement={requestRotate}
           onCopyPlacementLink={copyPlacementLink}
+          onChangeOffer={openThankYouOfferDialog}
           onArchivePlacement={archivePlacement}
         />
       ) : (
@@ -189,6 +190,7 @@ export function CaptureBody() {
       {viewModel != null ? (
         <CaptureDigitalGuestLinksSection
           digitalGuestLinks={viewModel.digitalGuestLinks}
+          locationId={viewModel.locationId}
           pauseActivateEnabled={!viewModel.perCodePauseActivateLocked}
           onCreate={createDigitalGuestLink}
           onViewDetails={openPlacementDetail}
@@ -196,6 +198,7 @@ export function CaptureBody() {
           onPause={requestPauseConfirm}
           onActivate={requestActivateConfirm}
           onCopyLink={copyPlacementLink}
+          onChangeOffer={openThankYouOfferDialog}
           onArchive={requestDigitalGuestLinkArchive}
         />
       ) : (

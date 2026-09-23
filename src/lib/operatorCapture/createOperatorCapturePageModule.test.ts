@@ -72,12 +72,22 @@ function createModule(options?: {
       channel: string
       status: string
       locationId?: number
+      connectedOfferId?: number | null
     }
   ) => Promise<
     | { ok: true; qrCodeId: number }
     | { ok: false; reason: "duplicate_link_name"; message: string }
     | { ok: false; reason: "failed"; message: string }
   >
+  putCaptureThankYouOffer?: (
+    locationId: number,
+    offerId: number | null
+  ) => Promise<{
+    thankYouOfferId: number | null
+    thankYouOfferTitle: string | null
+    thankYouOfferLive: boolean
+  }>
+  onThankYouOfferError?: (message: string) => void
   updatePlacementInternalDescription?: (
     locationId: number,
     qrCodeId: number,
@@ -222,6 +232,10 @@ function createModule(options?: {
   )
   let range = options?.range ?? DEFAULT_RANGE
 
+  const putCaptureThankYouOffer = options?.putCaptureThankYouOffer
+    ? vi.fn(options.putCaptureThankYouOffer)
+    : undefined
+
   const pageModule = createOperatorCapturePageModule({
     getCaptureLocationSnapshot,
     getArchivedCapturePlacements,
@@ -232,12 +246,14 @@ function createModule(options?: {
     restoreCapturePlacement,
     createDigitalGuestLink,
     updatePlacementInternalDescription,
+    putCaptureThankYouOffer,
     copyText,
     getCapturePerformanceDateRange: () => range,
     onCaptureLoadError: options?.onCaptureLoadError,
     onPlacementActionError: options?.onPlacementActionError,
     onCopyPlacementLinkError: options?.onCopyPlacementLinkError,
     onCreateDigitalGuestLinkError: options?.onCreateDigitalGuestLinkError,
+    onThankYouOfferError: options?.onThankYouOfferError,
     nowMs: () => options?.nowMs ?? Date.parse("2026-07-16T12:00:00.000Z"),
   })
 
@@ -246,6 +262,7 @@ function createModule(options?: {
     getCaptureLocationSnapshot,
     getArchivedCapturePlacements,
     createDigitalGuestLink,
+    putCaptureThankYouOffer,
     pauseCapturePlacement,
     resumeCapturePlacement,
     rotateCapturePlacement,
@@ -1531,7 +1548,8 @@ const placements = pageModule.getSnapshot().viewModel?.placements
       typeValue: "Delivery insert",
       channelLabel: null,
       connectedGuestForm: "Default guest feedback form",
-      connectedOfferText: "No offers",
+      connectedOfferText: "No active offers",
+      editConnectedOfferEnabled: true,
       assetsSectionTitle: "QR assets",
       showOrderPrintMaterials: true,
       orderPrintMaterialsEnabled: true,
@@ -1911,6 +1929,200 @@ const placements = pageModule.getSnapshot().viewModel?.placements
     expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(true)
     expect(pageModule.getPlacementDetailModule().getSnapshot().selectedQrCodeId).toBe(55)
     expect(pageModule.getPlacementDetailModule().getSnapshot().details?.title).toBe("WhatsApp promo")
+  })
+
+  it("create Digital guest link with connectedOfferId attaches thank-you offer before refresh", async () => {
+    let placements = emptySnapshotResponse({
+      placements: [
+        {
+          qrCodeId: 1,
+          qrType: "SmartGuest",
+          status: "Active",
+          qrLinkUrl: "https://tummly.example/scan/sg",
+          qrScans: 0,
+          feedbackSubmitted: 0,
+          marketingOptIns: 0,
+          offerClaims: 0,
+          lastScanAt: null,
+        },
+      ],
+    })
+
+    const putOrder: string[] = []
+    const putCaptureThankYouOffer = vi.fn(async () => {
+      putOrder.push("put")
+      return {
+        thankYouOfferId: 88,
+        thankYouOfferTitle: "Free dessert",
+        thankYouOfferLive: true,
+      }
+    })
+
+    const { pageModule, createDigitalGuestLink } = createModule({
+      snapshot: async () => {
+        putOrder.push("snapshot")
+        return placements
+      },
+      createDigitalGuestLink: async () => {
+        putOrder.push("create")
+        return { ok: true, qrCodeId: 55 }
+      },
+      putCaptureThankYouOffer,
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    putOrder.length = 0
+
+    placements = emptySnapshotResponse({
+      thankYouOfferId: 88,
+      thankYouOfferTitle: "Free dessert",
+      thankYouOfferLive: true,
+      placements: [
+        {
+          qrCodeId: 1,
+          qrType: "SmartGuest",
+          status: "Active",
+          qrLinkUrl: "https://tummly.example/scan/sg",
+          qrScans: 0,
+          feedbackSubmitted: 0,
+          marketingOptIns: 0,
+          offerClaims: 0,
+          lastScanAt: null,
+        },
+        {
+          qrCodeId: 55,
+          qrType: "DigitalGuestLink",
+          status: "Active",
+          linkName: "WhatsApp promo",
+          channel: "WhatsApp",
+          internalDescription: "July blast",
+          qrLinkUrl: "https://tummly.example/scan/new",
+          qrScans: 0,
+          feedbackSubmitted: 0,
+          marketingOptIns: 0,
+          offerClaims: 0,
+          lastScanAt: null,
+        },
+      ],
+    })
+
+    const result = await pageModule.createDigitalGuestLink({
+      linkName: "WhatsApp promo",
+      internalDescription: "July blast",
+      channel: "WhatsApp",
+      status: "Active",
+      connectedOfferId: 88,
+    })
+
+    expect(result).toBe("created")
+    expect(createDigitalGuestLink).toHaveBeenCalledWith(42, {
+      linkName: "WhatsApp promo",
+      internalDescription: "July blast",
+      channel: "WhatsApp",
+      status: "Active",
+      connectedOfferId: 88,
+    })
+    expect(putCaptureThankYouOffer).toHaveBeenCalledWith(42, 88)
+    expect(putOrder.indexOf("create")).toBeLessThan(putOrder.indexOf("put"))
+    expect(putOrder.indexOf("put")).toBeLessThan(putOrder.indexOf("snapshot"))
+    expect(
+      pageModule.getSnapshot().viewModel?.guestExperience.thankYouOffer
+    ).toEqual({
+      offerId: 88,
+      title: "Free dessert",
+      live: true,
+    })
+  })
+
+  it("create Digital guest link without connectedOfferId skips thank-you attach", async () => {
+    const putCaptureThankYouOffer = vi.fn(async () => ({
+      thankYouOfferId: null,
+      thankYouOfferTitle: null,
+      thankYouOfferLive: false,
+    }))
+
+    const { pageModule } = createModule({
+      createDigitalGuestLink: async () => ({ ok: true, qrCodeId: 55 }),
+      putCaptureThankYouOffer,
+      snapshot: emptySnapshotResponse({
+        placements: [
+          {
+            qrCodeId: 55,
+            qrType: "DigitalGuestLink",
+            status: "Active",
+            linkName: "WhatsApp promo",
+            channel: "WhatsApp",
+            qrLinkUrl: "https://tummly.example/scan/new",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    await pageModule.createDigitalGuestLink({
+      linkName: "WhatsApp promo",
+      channel: "WhatsApp",
+      status: "Active",
+    })
+
+    expect(putCaptureThankYouOffer).not.toHaveBeenCalled()
+  })
+
+  it("create Digital guest link keeps created when thank-you attach fails", async () => {
+    const onThankYouOfferError = vi.fn()
+    const putCaptureThankYouOffer = vi.fn(async () => {
+      throw new Error("attach failed")
+    })
+
+    const { pageModule } = createModule({
+      createDigitalGuestLink: async () => ({ ok: true, qrCodeId: 55 }),
+      putCaptureThankYouOffer,
+      onThankYouOfferError,
+      snapshot: emptySnapshotResponse({
+        placements: [
+          {
+            qrCodeId: 55,
+            qrType: "DigitalGuestLink",
+            status: "Active",
+            linkName: "WhatsApp promo",
+            channel: "WhatsApp",
+            qrLinkUrl: "https://tummly.example/scan/new",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const result = await pageModule.createDigitalGuestLink({
+      linkName: "WhatsApp promo",
+      channel: "WhatsApp",
+      status: "Active",
+      connectedOfferId: 88,
+    })
+
+    expect(result).toBe("created")
+    expect(onThankYouOfferError).toHaveBeenCalled()
   })
 
   it("create Digital guest link duplicate Link name keeps dialog signal without opening drawer", async () => {

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
 import { MARKETING_FAQS_HASH } from "@/constants/marketingNav";
+import { warmCtaLaunchBg } from "@/lib/prefetchCtaLaunchBg";
 import Hero from "../../components/home/Hero";
 import About from "../../components/home/About";
 import Hospitality from "../../components/home/Hospitality";
@@ -15,6 +16,26 @@ import Footer from "../../components/home/Footer";
 
 function HomePage() {
   const { hash, pathname } = useLocation();
+
+  useEffect(() => {
+    if (pathname !== "/") {
+      return;
+    }
+
+    // Idle prefetch so the bottom CTA is warm without competing with hero LCP.
+    const idleId =
+      "requestIdleCallback" in window
+        ? window.requestIdleCallback(() => warmCtaLaunchBg())
+        : window.setTimeout(() => warmCtaLaunchBg(), 1);
+
+    return () => {
+      if ("cancelIdleCallback" in window && typeof idleId === "number") {
+        window.cancelIdleCallback(idleId);
+      } else {
+        window.clearTimeout(idleId);
+      }
+    };
+  }, [pathname]);
 
   useEffect(() => {
     if (pathname !== "/") {

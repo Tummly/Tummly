@@ -109,7 +109,7 @@ export function SignInForm({ form, onSubmit }: SignInFormProps) {
         </div>
 
         <div className="flex flex-col gap-5">
-          <AuthSocialContinueButtons />
+          <AuthSocialContinueButtons returnPath="/login" />
 
           <div className="flex w-full items-center gap-5">
             <div className="h-px min-w-0 flex-1 bg-[#d2d2d2]" />

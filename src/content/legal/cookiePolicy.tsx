@@ -3,8 +3,11 @@ import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import type { LegalPageContent } from "./types"
 
 export const cookiePolicyContent: LegalPageContent = {
-  title: "Cookie Policy",
-  description: "This Cookie Policy explains how Tummly.com Limited uses cookies and similar storage or access technologies when you visit Tummly.com, use the operator dashboard, open a guest page through a Smart Guest Link, use the help centre, interact with dashboard shop or checkout flows, or receive certain Tummly emails and messages. Effective date: 9 July 2026",
+  title: "Cookie Notice",
+  lastUpdated: "9 July 2026",
+  description:
+    "This Cookie Policy explains how Tummly.com Limited uses cookies and similar storage or access technologies when you visit Tummly.com, use the operator dashboard, open a guest page through a Smart Guest Link, use the help centre, interact with dashboard shop or checkout flows, or receive certain Tummly emails and messages.",
+  showManageCookiePreferences: true,
   documentKey: "cookie-policy",
   sections: [
   {

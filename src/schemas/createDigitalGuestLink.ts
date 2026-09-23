@@ -33,6 +33,7 @@ export const createDigitalGuestLinkFormSchema = z.object({
     .refine((value) => value !== "", { message: copy.channelRequired }),
   status: z.enum(statusValues),
   locationId: z.number().nullable().optional(),
+  connectedOfferId: z.number().nullable().default(null),
 })
 
 export type CreateDigitalGuestLinkFormValues = z.infer<

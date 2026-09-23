@@ -502,6 +502,7 @@ export const OPERATOR_CAPTURE_DIGITAL_GUEST_LINK_ROW_ACTIONS = {
   pause: "Pause",
   activate: "Activate",
   copyLink: "Copy link",
+  changeOffer: "Change offer",
   archive: "Archive",
 } as const
 
@@ -575,6 +576,7 @@ export const OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY = {
   createdLabel: "Created:",
   lastUpdatedLabel: "Last updated:",
   connectedOfferLabel: "Connected offer:",
+  editConnectedOfferCta: "Change offer",
   whereUsedLabel: "Where will you use it?",
   internalDescriptionTitle: "Internal description",
   addNoteCta: "Add note",

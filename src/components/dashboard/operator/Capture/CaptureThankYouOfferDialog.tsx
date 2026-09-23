@@ -100,7 +100,9 @@ export function CaptureThankYouOfferDialog({
         <DialogContent className="z-[140] max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{copy.dialogTitle}</DialogTitle>
-            <DialogDescription>{copy.dialogDescription}</DialogDescription>
+            <DialogDescription className="text-sm font-medium leading-normal text-[var(--op-color-gray-550)] dark:text-[var(--op-color-gray-550)]">
+              {copy.dialogDescription}
+            </DialogDescription>
           </DialogHeader>
 
           {attachedTitle.length > 0 ? (

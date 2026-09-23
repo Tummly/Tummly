@@ -31,5 +31,10 @@ namespace TummlyBackend.DTOs.Signup
 
         /// <summary>Always null — password hash is never returned.</summary>
         public string? PasswordHash { get; set; }
+
+        /// <summary>
+        /// Google | Microsoft when social pending; null for email signup.
+        /// </summary>
+        public string? AuthProvider { get; set; }
     }
 }

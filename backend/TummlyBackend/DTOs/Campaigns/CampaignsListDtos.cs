@@ -43,6 +43,11 @@ namespace TummlyBackend.DTOs.Campaigns
 
         /// <summary>Base64 SQL rowversion for list lifecycle actions (ticket 30).</summary>
         public byte[] RowVersion { get; init; } = [];
+
+        /// <summary>
+        /// Stable fire-close reason when Status is failed or partially-sent.
+        /// </summary>
+        public string? TerminalReason { get; init; }
     }
 
     public sealed class CampaignsTabCountsDto

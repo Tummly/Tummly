@@ -82,6 +82,36 @@ describe("buildHomeNeedsAttention", () => {
     })
   })
 
+  it("uses terminal reason copy for a partially-sent Campaign", () => {
+    const nowMs = Date.parse("2026-08-21T12:00:00.000Z")
+    const result = buildHomeNeedsAttention({
+      locationName: "Manchester",
+      nowMs,
+      campaigns: [
+        {
+          id: 42,
+          name: "Friday email",
+          status: "partially-sent",
+          updatedAt: "2026-08-21T11:30:00.000Z",
+          rowVersion: "rv-42",
+          terminalReason: "credit-hold-exhausted",
+        },
+      ],
+      offers: [],
+    })
+
+    expect(result.visibleRows[0]).toMatchObject({
+      sourceKind: "campaign",
+      campaignId: 42,
+      body:
+        "This campaign was only partially sent because the reserved credit hold ran out.",
+      ctas: [
+        { kind: "preview-campaign", label: "Preview" },
+        { kind: "retry-remaining", label: "Retry remaining" },
+      ],
+    })
+  })
+
   it("builds one named Offer row per Offer and sorts newest meta first", () => {
     const nowMs = Date.parse("2026-08-21T12:00:00.000Z")
     const result = buildHomeNeedsAttention({

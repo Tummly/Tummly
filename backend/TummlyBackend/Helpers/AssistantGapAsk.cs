@@ -51,11 +51,97 @@ namespace TummlyBackend.Helpers
         public const string CampaignTitleAskPrefix =
             "Which existing Campaign Draft should this attach to:";
 
+        public const string NoCampaignDraftsForAttachBody =
+            "There are no Campaign Drafts at this location. "
+            + "Create a Campaign Draft first, then ask me to attach the Offer.";
+
+        public const string CampaignTitleRemoveAskPrefix =
+            "Which Campaign Draft should I remove the Offer from:";
+
+        public const string NoCampaignDraftsWithOfferForRemoveBody =
+            "There are no Campaign Drafts with an attached Offer at this location.";
+
+        public const string OfferReplaceConfirmYes = "Yes";
+
+        public const string OfferReplaceConfirmNo = "No";
+
+        public const string OfferRemovedTitle = "Offer removed from Campaign Draft";
+
+        public const string OfferNotRemovedTitle = "Offer not removed";
+
         public const string CreateTargetAskPrefix =
             "Which should I create:";
 
         public const string FeedbackAskPrefix =
             "Which Feedback should I recover:";
+
+        public static string ForAttachCampaignDraftList(
+            IReadOnlyList<AssistantCombinedCreateCampaignRef> drafts
+        )
+        {
+            var lines = drafts.Select(DraftListLine).ToList();
+            return $"{CampaignTitleAskPrefix} {AssistantCreateLocationGap.Join(lines)}?";
+        }
+
+        public static string DraftListLine(AssistantCombinedCreateCampaignRef campaign)
+        {
+            if (string.IsNullOrWhiteSpace(campaign.AttachedOfferTitle))
+            {
+                return campaign.Name;
+            }
+
+            return $"{campaign.Name} — has {campaign.AttachedOfferTitle.Trim()}";
+        }
+
+        public static string ForOfferReplaceConfirm(
+            string campaignName,
+            string previousOfferTitle,
+            string newOfferTitle
+        )
+            => $"**{campaignName}** already has **{previousOfferTitle}**. "
+                + $"Replace it with **{newOfferTitle}**? "
+                + $"Reply {OfferReplaceConfirmYes} or {OfferReplaceConfirmNo}.";
+
+        public static string OfferReplaceCancelledBody(
+            string campaignName,
+            string previousOfferTitle
+        )
+            => $"Nothing was changed. **{campaignName}** still has **{previousOfferTitle}**.";
+
+        public static string ForRemoveCampaignDraftList(
+            IReadOnlyList<AssistantCombinedCreateCampaignRef> drafts
+        )
+        {
+            var lines = drafts.Select(DraftListLine).ToList();
+            return $"{CampaignTitleRemoveAskPrefix} {AssistantCreateLocationGap.Join(lines)}?";
+        }
+
+        public static string ForOfferRemoveConfirm(
+            string campaignName,
+            string offerTitle
+        )
+            => $"Remove **{offerTitle}** from **{campaignName}**? "
+                + $"Reply {OfferReplaceConfirmYes} or {OfferReplaceConfirmNo}.";
+
+        public static string OfferRemoveCancelledBody(
+            string campaignName,
+            string offerTitle
+        )
+            => $"Nothing was changed. **{campaignName}** still has **{offerTitle}**.";
+
+        public static string OfferRemovedBody(
+            string campaignName,
+            string offerTitle
+        )
+            => $"**{campaignName}** no longer has **{offerTitle}** attached. "
+                + "The Offer stays in the Offers catalog.";
+
+        public static string OfferAlreadyDetachedBody(string campaignName)
+            => $"**{campaignName}** has no attached Offer.";
+
+        public const string NoAttachableOffersForAttachBody =
+            "I could not find an attachable Offer at this location. "
+            + "Create an Offer first, or name an Active or Draft Offer to attach.";
 
         public static string ForOfferTerms(AssistantOfferPathTermsState terms)
         {
@@ -147,6 +233,10 @@ namespace TummlyBackend.Helpers
                     $"{OfferTitleAskPrefix} {AssistantCreateLocationGap.Join(options)}?",
                 AssistantGapTurn.KindCampaignTitle =>
                     $"{CampaignTitleAskPrefix} {AssistantCreateLocationGap.Join(options)}?",
+                AssistantGapTurn.KindOfferReplaceConfirm =>
+                    $"Replace the attached Offer? Reply {OfferReplaceConfirmYes} or {OfferReplaceConfirmNo}.",
+                AssistantGapTurn.KindOfferRemoveConfirm =>
+                    $"Remove the attached Offer? Reply {OfferReplaceConfirmYes} or {OfferReplaceConfirmNo}.",
                 AssistantGapTurn.KindCreateTarget =>
                     AssistantGapTurn.CreateTargetBody(options),
                 AssistantGapTurn.KindFeedback =>

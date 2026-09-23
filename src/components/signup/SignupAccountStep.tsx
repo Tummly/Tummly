@@ -13,6 +13,8 @@ import { PASSWORD_REQUIREMENTS_HINT } from "@/constants/passwordCopy"
 import {
   signupAccountStepFields,
   signupAccountStepSchema,
+  signupAccountStepSocialFields,
+  signupAccountStepSocialSchema,
   type SignupOnboardingFormValues,
 } from "@/schemas/signupOnboarding"
 
@@ -20,32 +22,36 @@ type SignupAccountStepProps = {
   form: UseFormReturn<SignupOnboardingFormValues>
   onContinue: () => void | Promise<void>
   isSubmitting?: boolean
+  /** Social OAuth pending — hide password fields. */
+  isSocial?: boolean
 }
 
 export function SignupAccountStep({
   form,
   onContinue,
   isSubmitting = false,
+  isSocial = false,
 }: SignupAccountStepProps) {
   const password = form.watch("password")
-  const canContinue = useGuestLoopStepCanSubmit(
-    form,
-    signupAccountStepFields,
-    signupAccountStepSchema
-  )
+  const fields = isSocial
+    ? signupAccountStepSocialFields
+    : signupAccountStepFields
+  const stepSchema = isSocial
+    ? signupAccountStepSocialSchema
+    : signupAccountStepSchema
 
-  useGuestLoopStepValidationFeedback(
-    form,
-    signupAccountStepFields,
-    signupAccountStepSchema,
-    canContinue,
-    {
-      shouldSkipValidationFeedback: (fieldPath) =>
-        fieldPath === "password" || fieldPath === "confirmPassword",
-    }
-  )
+  const canContinue = useGuestLoopStepCanSubmit(form, fields, stepSchema)
+
+  useGuestLoopStepValidationFeedback(form, fields, stepSchema, canContinue, {
+    shouldSkipValidationFeedback: (fieldPath) =>
+      fieldPath === "password" || fieldPath === "confirmPassword",
+  })
 
   useEffect(() => {
+    if (isSocial) {
+      return
+    }
+
     const subscription = form.watch((_value, { name, type }) => {
       if (type !== "change" || name !== "password") {
         return
@@ -83,16 +89,19 @@ export function SignupAccountStep({
     })
 
     return () => subscription.unsubscribe()
-  }, [form])
+  }, [form, isSocial])
 
   const isDisabled = !canContinue || isSubmitting
+  const description = isSocial
+    ? "Confirm your details for your Tummly account."
+    : "Add your details and create a password for your Tummly account."
 
   return (
     <div className="flex w-full flex-col gap-[50px]">
       <GuestLoopSignupProgress
         activeStep={1}
         title="Set up your account"
-        description="Add your details and create a password for your Tummly account."
+        description={description}
       />
 
       <div className="flex flex-col gap-9">
@@ -122,33 +131,37 @@ export function SignupAccountStep({
             required
           />
 
-          <div className="flex flex-col gap-3">
-            <FormFloatingInput
-              control={form.control}
-              name="password"
-              type="password"
-              label="Password"
-              autoComplete="new-password"
-              required
-              blurThenLiveValidate
-            />
+          {!isSocial ? (
+            <>
+              <div className="flex flex-col gap-3">
+                <FormFloatingInput
+                  control={form.control}
+                  name="password"
+                  type="password"
+                  label="Password"
+                  autoComplete="new-password"
+                  required
+                  blurThenLiveValidate
+                />
 
-            <PasswordStrengthMeter password={password ?? ""} />
+                <PasswordStrengthMeter password={password ?? ""} />
 
-            <p className="m-0 text-sm font-medium tracking-[-0.28px] text-[#232323]">
-              {PASSWORD_REQUIREMENTS_HINT}
-            </p>
-          </div>
+                <p className="m-0 text-sm font-medium tracking-[-0.28px] text-[#232323]">
+                  {PASSWORD_REQUIREMENTS_HINT}
+                </p>
+              </div>
 
-          <FormFloatingInput
-            control={form.control}
-            name="confirmPassword"
-            type="password"
-            label="Confirm password"
-            autoComplete="new-password"
-            required
-            blurThenLiveValidate
-          />
+              <FormFloatingInput
+                control={form.control}
+                name="confirmPassword"
+                type="password"
+                label="Confirm password"
+                autoComplete="new-password"
+                required
+                blurThenLiveValidate
+              />
+            </>
+          ) : null}
         </div>
 
         <Button

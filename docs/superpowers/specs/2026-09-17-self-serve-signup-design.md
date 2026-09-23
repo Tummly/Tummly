@@ -3,6 +3,8 @@
 Date: 2026-09-17  
 Status: draft for review
 
+> **OAuth:** Google / Microsoft OAuth in this doc is superseded by [2026-09-22-google-microsoft-oauth-design.md](./2026-09-22-google-microsoft-oauth-design.md).
+
 ## Goal
 
 Replace the retired Request Trial path with one self-serve operator Signup flow. The user verifies email (OTP), completes Guest Loop onboarding (single or multi by location count), chooses a plan, then gets a real account only after Essential confirm or Pro Revolut payment success. After provisioning animations, the user signs in.

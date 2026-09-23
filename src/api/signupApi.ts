@@ -22,6 +22,8 @@ export type SignupResume = SignupSession & {
   primaryPhone: string | null
   businessLink: string | null
   onboardingJson: string | null
+  /** Google | Microsoft when social pending; null for email signup. */
+  authProvider: string | null
 }
 
 export type SignupOnboardingLocation = {
@@ -74,6 +76,8 @@ function asSignupResume(data: Record<string, unknown>): SignupResume {
       typeof data.businessLink === "string" ? data.businessLink : null,
     onboardingJson:
       typeof data.onboardingJson === "string" ? data.onboardingJson : null,
+    authProvider:
+      typeof data.authProvider === "string" ? data.authProvider : null,
   }
 }
 

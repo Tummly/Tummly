@@ -27,6 +27,7 @@ type CapturePlacementRowActionsMenuProps = {
   onResume: () => void
   onRotate: () => void
   onCopyLink: () => void
+  onChangeOffer: () => void
   onArchive: () => void
 }
 
@@ -39,6 +40,7 @@ export function CapturePlacementRowActionsMenu({
   onResume,
   onRotate,
   onCopyLink,
+  onChangeOffer,
   onArchive,
 }: CapturePlacementRowActionsMenuProps) {
   const isActive = status === "Active"
@@ -76,6 +78,12 @@ export function CapturePlacementRowActionsMenu({
       label: "Copy link",
       disabled: false,
       onClick: onCopyLink,
+    },
+    {
+      id: "change-offer",
+      label: OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.editConnectedOfferCta,
+      disabled: false,
+      onClick: onChangeOffer,
     },
     {
       id: "archive",

@@ -26,9 +26,10 @@ fi
 export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
 export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"
 export ASPNETCORE_ENVIRONMENT=Development
-export ConnectionStrings__DefaultConnection="Server=localhost,1433;Database=TummlyDB;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True;"
 
-# Optional backend secrets (Ideal Postcodes, Twilio, etc.) — see backend/TummlyBackend/.env.example
+# Optional backend secrets (Ideal Postcodes, Twilio, ExternalAuth, etc.)
+# See backend/TummlyBackend/.env.example. Connection string is set after this
+# so Docker SQL always wins over any ConnectionStrings__* in .env.
 BACKEND_ENV="$ROOT/backend/TummlyBackend/.env"
 if [[ -f "$BACKEND_ENV" ]]; then
   set -a
@@ -37,10 +38,18 @@ if [[ -f "$BACKEND_ENV" ]]; then
     line="${line//$'\r'/}"
     [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
     [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || continue
-    export "$line"
+    key="${line%%=*}"
+    val="${line#*=}"
+    # Strip optional surrounding quotes (common when pasting secrets).
+    if [[ "$val" =~ ^\".*\"$ ]]; then val="${val:1:-1}"; fi
+    if [[ "$val" =~ ^\'.*\'$ ]]; then val="${val:1:-1}"; fi
+    export "${key}=${val}"
   done < "$BACKEND_ENV"
   set +a
 fi
+
+# Always use local Docker SQL (do not keep Azure / quoted CS from .env).
+export ConnectionStrings__DefaultConnection="Server=localhost,1433;Database=TummlyDB;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True;"
 
 cd "$ROOT/backend/TummlyBackend"
 exec dotnet run --launch-profile http "$@"

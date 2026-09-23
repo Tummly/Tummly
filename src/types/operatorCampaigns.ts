@@ -56,6 +56,8 @@ export type CampaignsListItem = {
   engagement: string | null
   /** Null for Draft — no redemptions. */
   redemptions: string | null
+  /** Stable fire-close reason when failed / partially-sent. */
+  terminalReason?: string | null
 }
 
 export type CampaignsCreatedByOption = {

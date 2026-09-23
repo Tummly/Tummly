@@ -68,6 +68,7 @@ function mapCampaign(
     status: item.status,
     updatedAt: item.updatedAt,
     rowVersion: item.rowVersion,
+    terminalReason: item.terminalReason ?? null,
   }
 }
 

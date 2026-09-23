@@ -13,17 +13,19 @@ namespace TummlyBackend.Helpers
         public const string EmailMarketingWordingVersion = "email-marketing-v1";
         public const string SmsMarketingWordingVersion = "sms-marketing-v1";
         public const string FeedbackFollowUpWordingVersion =
-            "feedback-follow-up-v1";
+            "feedback-follow-up-v2";
 
         private const int MaxSnapshotLength = 512;
 
         public static PermissionLedgerEvidence ForFeedbackFollowUpGrant(
-            string restaurantName
+            string restaurantName,
+            string locationName
         )
         {
-            var display = DisplayRestaurantName(restaurantName);
+            var restaurant = DisplayRestaurantName(restaurantName);
+            var location = DisplayLocationName(locationName);
             var snapshot =
-                $"Your feedback is shared privately with {display}. "
+                $"Your feedback is shared privately with the team at {restaurant}, {location}. "
                 + GuestFormConsentCopy.FeedbackFollowUpWording;
 
             return new PermissionLedgerEvidence(
@@ -124,6 +126,12 @@ namespace TummlyBackend.Helpers
         {
             var trimmed = (restaurantName ?? string.Empty).Trim();
             return trimmed.Length == 0 ? "this restaurant" : trimmed;
+        }
+
+        private static string DisplayLocationName(string locationName)
+        {
+            var trimmed = (locationName ?? string.Empty).Trim();
+            return trimmed.Length == 0 ? "this location" : trimmed;
         }
 
         private static string TruncateSnapshot(string snapshot)

@@ -73,6 +73,13 @@ namespace TummlyBackend.Models
         /// <summary>Settled credits on the open Billing reservation.</summary>
         public int SettledUnits { get; set; }
 
+        /// <summary>
+        /// Stable fire-close reason when Status is failed or partially-sent
+        /// (see <c>CampaignTerminalReasons</c>). Null otherwise.
+        /// </summary>
+        [MaxLength(64)]
+        public string? TerminalReason { get; set; }
+
         /// <summary>SQL Server rowversion concurrency token (DB-managed).</summary>
         [Timestamp]
         public byte[] RowVersion { get; set; } = [];

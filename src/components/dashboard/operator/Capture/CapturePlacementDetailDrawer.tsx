@@ -47,6 +47,7 @@ type CapturePlacementDetailDrawerProps = {
   onActivate: () => void
   onRotate: () => void
   onArchive: () => void
+  onEditConnectedOffer: () => void
   onDescriptionDraftChange: (value: string) => void
   onSaveDescription: () => void
 }
@@ -101,6 +102,7 @@ function LoadedBody({
   onActivate,
   onRotate,
   onArchive,
+  onEditConnectedOffer,
   onDescriptionDraftChange,
   onSaveDescription,
 }: {
@@ -112,6 +114,7 @@ function LoadedBody({
   onActivate: () => void
   onRotate: () => void
   onArchive: () => void
+  onEditConnectedOffer: () => void
   onDescriptionDraftChange: (value: string) => void
   onSaveDescription: () => void
 }) {
@@ -206,6 +209,15 @@ function LoadedBody({
                     label: copy.copyGuestLink,
                     onClick: onCopyLink,
                   },
+                  ...(details.editConnectedOfferEnabled
+                    ? [
+                        {
+                          id: "change-offer",
+                          label: copy.editConnectedOfferCta,
+                          onClick: onEditConnectedOffer,
+                        },
+                      ]
+                    : []),
                   ...(details.canPauseOrActivate &&
                   details.pauseActivateLabel != null
                     ? [
@@ -317,9 +329,25 @@ function LoadedBody({
           </p>
         </DetailField>
         <DetailField label={copy.connectedOfferLabel}>
-          <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
-            {details.connectedOfferText}
-          </p>
+          {details.editConnectedOfferEnabled ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
+                {details.connectedOfferText}
+              </p>
+              <Button
+                type="button"
+                variant="op-tertiary"
+                className="h-auto min-h-0 px-0 py-0 text-sm font-medium"
+                onClick={onEditConnectedOffer}
+              >
+                {copy.editConnectedOfferCta}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
+              {details.connectedOfferText}
+            </p>
+          )}
         </DetailField>
       </Section>
 
@@ -397,6 +425,7 @@ export function CapturePlacementDetailDrawer({
   onActivate,
   onRotate,
   onArchive,
+  onEditConnectedOffer,
   onDescriptionDraftChange,
   onSaveDescription,
 }: CapturePlacementDetailDrawerProps) {
@@ -424,6 +453,7 @@ export function CapturePlacementDetailDrawer({
                 onActivate={onActivate}
                 onRotate={onRotate}
                 onArchive={onArchive}
+                onEditConnectedOffer={onEditConnectedOffer}
                 onDescriptionDraftChange={onDescriptionDraftChange}
                 onSaveDescription={onSaveDescription}
               />

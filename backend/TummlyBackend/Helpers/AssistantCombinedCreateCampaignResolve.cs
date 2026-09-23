@@ -6,7 +6,9 @@ namespace TummlyBackend.Helpers
     public sealed record AssistantCombinedCreateCampaignRef(
         int Id,
         string Name,
-        string Status
+        string Status,
+        int? OfferId = null,
+        string? AttachedOfferTitle = null
     );
 
     public abstract record AssistantCombinedCreateCampaignOutcome
@@ -44,7 +46,8 @@ namespace TummlyBackend.Helpers
         public static AssistantCombinedCreateCampaignOutcome Resolve(
             string userMessage,
             IReadOnlyList<AssistantCombinedCreateCampaignRef> locationCampaigns,
-            string? chosenCampaignTitle = null
+            string? chosenCampaignTitle = null,
+            bool attachOnly = false
         )
         {
             var namedTitle = ExtractNamedCampaignTitle(userMessage);
@@ -55,7 +58,7 @@ namespace TummlyBackend.Helpers
 
             if (namedTitle is null)
             {
-                return new AssistantCombinedCreateCampaignOutcome.CreateNew(null);
+                return AttachOnlyOrCreateNew(attachOnly, null, locationCampaigns);
             }
 
             var titleMatches = MatchTitles(userMessage, locationCampaigns, namedTitle);
@@ -88,7 +91,7 @@ namespace TummlyBackend.Helpers
                     );
                 }
 
-                return new AssistantCombinedCreateCampaignOutcome.CreateNew(namedTitle);
+                return AttachOnlyOrCreateNew(attachOnly, namedTitle, locationCampaigns);
             }
 
             var inFlightMatches = MatchInFlightTitles(
@@ -105,7 +108,39 @@ namespace TummlyBackend.Helpers
                 );
             }
 
-            return new AssistantCombinedCreateCampaignOutcome.CreateNew(namedTitle);
+            return AttachOnlyOrCreateNew(attachOnly, namedTitle, locationCampaigns);
+        }
+
+        private static AssistantCombinedCreateCampaignOutcome AttachOnlyOrCreateNew(
+            bool attachOnly,
+            string? namedTitle,
+            IReadOnlyList<AssistantCombinedCreateCampaignRef> locationCampaigns
+        )
+            => attachOnly
+                ? AttachDraftListGap(locationCampaigns)
+                : new AssistantCombinedCreateCampaignOutcome.CreateNew(namedTitle);
+
+        public static AssistantCombinedCreateCampaignOutcome AttachDraftListGap(
+            IReadOnlyList<AssistantCombinedCreateCampaignRef> locationCampaigns
+        )
+        {
+            var drafts = locationCampaigns
+                .Where(campaign => IsDraft(campaign.Status) && campaign.Name.Length > 0)
+                .OrderBy(campaign => campaign.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (drafts.Count == 0)
+            {
+                return new AssistantCombinedCreateCampaignOutcome.Gap(
+                    [],
+                    AssistantGapAsk.NoCampaignDraftsForAttachBody
+                );
+            }
+
+            var titles = drafts.Select(campaign => campaign.Name).ToList();
+            return new AssistantCombinedCreateCampaignOutcome.Gap(
+                titles,
+                AssistantGapAsk.ForAttachCampaignDraftList(drafts)
+            );
         }
 
         public static string? ExtractNamedCampaignTitle(string userMessage)
@@ -283,14 +318,35 @@ namespace TummlyBackend.Helpers
         private static IEnumerable<Regex> AttachToCampaignPatterns()
         {
             yield return AttachToNamedCampaignRegex();
+            yield return AttachOfferNameToCampaignRegex();
             yield return AttachItToRegex();
+            yield return RemoveFromNamedCampaignRegex();
         }
+
+        /// <summary>
+        /// "Remove the offer from Summer win-back campaign".
+        /// </summary>
+        [GeneratedRegex(
+            @"(?:remove|detach|unattach|clear).{0,40}?\bfrom\s+(?:the\s+)?(.+?)\s+campaign\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
+        private static partial Regex RemoveFromNamedCampaignRegex();
 
         [GeneratedRegex(
             @"attach(?:\s+it)?\s+to\s+(?:the\s+)?(.+?)\s+campaign\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
         )]
         private static partial Regex AttachToNamedCampaignRegex();
+
+        /// <summary>
+        /// "Attach Happy Hour to Summer win-back campaign" — Offer name between
+        /// attach and to; capture the Campaign title before the campaign noun.
+        /// </summary>
+        [GeneratedRegex(
+            @"attach\s+.+\s+to\s+(?:the\s+)?(.+?)\s+campaign\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
+        private static partial Regex AttachOfferNameToCampaignRegex();
 
         [GeneratedRegex(
             @"attach(?:\s+it)?\s+to\s+(?:the\s+)?(.+?)(?:\s*[—–-]\s*if|\s*,|\s*\.|\s*$)",

@@ -1,3 +1,7 @@
+import {
+  formatCaptureConnectedOffersText,
+  type CaptureThankYouOfferFact,
+} from "@/lib/operatorCapture/captureThankYouOfferPresentation"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import type {
   CaptureDigitalGuestLinkChannel,
@@ -12,7 +16,9 @@ export const PLACEMENT_INTERNAL_DESCRIPTION_MAX_LENGTH = 500
 export const PLACEMENT_DETAIL_CONNECTED_GUEST_FORM =
   "Default guest feedback form" as const
 
-export const PLACEMENT_DETAIL_CONNECTED_OFFER_STUB = "No offers" as const
+/** @deprecated Prefer formatCaptureConnectedOffersText — kept for call-site greps. */
+export const PLACEMENT_DETAIL_CONNECTED_OFFER_STUB =
+  "No active offers" as const
 
 export type PlacementDetailKind = "catalog" | "smartGuest" | "digital"
 
@@ -22,7 +28,10 @@ export type PlacementDetailDrawerView = {
   title: string
   status: CaptureQrCodeStatus
   locationName: string
-  editGuestFormEnabled: false
+  /** Guest form designer is not shipped — always false for now. */
+  editGuestFormEnabled: boolean
+  /** Opens location thank-you offer attach (same dialog as Guest experience). */
+  editConnectedOfferEnabled: boolean
   previewGuestExperienceEnabled: boolean
   canCopy: boolean
   canPauseOrActivate: boolean
@@ -39,7 +48,7 @@ export type PlacementDetailDrawerView = {
   typeValue: string
   channelLabel: string | null
   connectedGuestForm: typeof PLACEMENT_DETAIL_CONNECTED_GUEST_FORM
-  connectedOfferText: typeof PLACEMENT_DETAIL_CONNECTED_OFFER_STUB
+  connectedOfferText: string
   createdDisplay: string
   lastUpdatedDisplay: string
   assetsSectionTitle: "QR assets" | "Link assets"
@@ -137,6 +146,8 @@ export type BuildPlacementDetailDrawerInput = {
   descriptionDraft: string
   /** When true, Pause/Activate is disabled (location capture paused). */
   locationCapturePaused?: boolean
+  /** Location thank-you catalog attach (shared across placements). */
+  thankYouOffer?: CaptureThankYouOfferFact | null
   nowMs?: number
 }
 
@@ -168,6 +179,7 @@ export function buildPlacementDetailDrawer(
     status: fact.status,
     locationName,
     editGuestFormEnabled: false,
+    editConnectedOfferEnabled: !isArchived,
     previewGuestExperienceEnabled: !isArchived,
     canCopy: !isArchived,
     canPauseOrActivate: !isArchived && !locationCapturePaused,
@@ -187,7 +199,7 @@ export function buildPlacementDetailDrawer(
     typeValue: isDigital ? "Digital guest link" : typeLabel,
     channelLabel: isDigital ? digitalChannelDisplay(fact) : null,
     connectedGuestForm: PLACEMENT_DETAIL_CONNECTED_GUEST_FORM,
-    connectedOfferText: PLACEMENT_DETAIL_CONNECTED_OFFER_STUB,
+    connectedOfferText: formatCaptureConnectedOffersText(input.thankYouOffer),
     createdDisplay: formatActorTimestamp(
       fact.createdAt,
       fact.createdByDisplayName

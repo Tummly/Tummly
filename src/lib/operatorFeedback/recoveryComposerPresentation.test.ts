@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   RECOVERY_COMPOSER_COPY,
+  RECOVERY_COMPOSER_ELIGIBILITY_NOTICE_CLASS,
+  RECOVERY_COMPOSER_STATUS_BANNER_CLASS,
   buildRecoveryComposerStatusBanner,
   mapRecoveryComposerSendFailure,
   resolveRecoveryComposerMarketingChannel,
@@ -19,6 +21,21 @@ allRestaurantOn["sms-marketing"] = true
 allRestaurantOn["feedback-follow-up"] = true
 
 describe("recoveryComposerPresentation", () => {
+  it("uses theme-aware Main Bg tokens for status and eligibility banners", () => {
+    expect(RECOVERY_COMPOSER_STATUS_BANNER_CLASS).toContain(
+      "bg-op-background-primary"
+    )
+    expect(RECOVERY_COMPOSER_STATUS_BANNER_CLASS).not.toContain(
+      "op-color-gray-995"
+    )
+    expect(RECOVERY_COMPOSER_ELIGIBILITY_NOTICE_CLASS).toContain(
+      "bg-op-background-primary"
+    )
+    expect(RECOVERY_COMPOSER_ELIGIBILITY_NOTICE_CLASS).not.toContain(
+      "op-color-gray-995"
+    )
+  })
+
   it("RC-01: service-only banner when marketing is not granted", () => {
     const permissionStates = emptyFeedbackDetailPermissionStates()
     permissionStates["feedback-follow-up"] = "granted"

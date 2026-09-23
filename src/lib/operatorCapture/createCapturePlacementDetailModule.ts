@@ -3,10 +3,15 @@ import {
   PLACEMENT_INTERNAL_DESCRIPTION_MAX_LENGTH,
   type PlacementDetailDrawerView,
 } from "@/lib/operatorCapture/buildPlacementDetailDrawer"
+import type { CaptureThankYouOfferFact } from "@/lib/operatorCapture/captureThankYouOfferPresentation"
 import type {
   CapturePlacementItem,
   CaptureQrCodeStatus,
 } from "@/types/dashboard"
+
+function emptyThankYouOffer(): CaptureThankYouOfferFact {
+  return { offerId: null, title: null, live: false }
+}
 
 export type PlacementDetailFact = Omit<CapturePlacementItem, "status"> & {
   status: CaptureQrCodeStatus
@@ -34,12 +39,14 @@ export type OpenFromLiveInput = {
   fact: PlacementDetailFact
   locationName: string
   locationCapturePaused: boolean
+  thankYouOffer?: CaptureThankYouOfferFact | null
 }
 
 export type OpenFromArchiveInput = {
   fact: PlacementDetailFact
   locationId: number
   locationName: string
+  thankYouOffer?: CaptureThankYouOfferFact | null
 }
 
 export type PatchFactInput = {
@@ -48,6 +55,7 @@ export type PatchFactInput = {
   locationCapturePaused: boolean
   descriptionDraft?: string
   locationId?: number | null
+  thankYouOffer?: CaptureThankYouOfferFact | null
 }
 
 export type CapturePlacementDetailModule = {
@@ -59,6 +67,7 @@ export type CapturePlacementDetailModule = {
   close: () => void
   reset: () => void
   setDescriptionDraft: (value: string) => void
+  setThankYouOffer: (next: CaptureThankYouOfferFact) => void
   patchFact: (input: PatchFactInput) => void
 }
 
@@ -70,6 +79,7 @@ type DetailState = {
   locationId: number | null
   locationName: string
   locationCapturePaused: boolean
+  thankYouOffer: CaptureThankYouOfferFact
 }
 
 function closedSnapshot(): PlacementDetailDrawerSnapshot {
@@ -89,6 +99,7 @@ function clearDetailState(): DetailState {
     locationId: null,
     locationName: "",
     locationCapturePaused: false,
+    thankYouOffer: emptyThankYouOffer(),
   }
 }
 
@@ -112,6 +123,7 @@ function toSnapshot(
       locationName: state.locationName,
       descriptionDraft: state.descriptionDraft,
       locationCapturePaused: state.locationCapturePaused,
+      thankYouOffer: state.thankYouOffer,
       nowMs,
     }),
   }
@@ -161,6 +173,7 @@ export function createCapturePlacementDetailModule(
         locationId: null,
         locationName: input.locationName,
         locationCapturePaused: input.locationCapturePaused,
+        thankYouOffer: input.thankYouOffer ?? emptyThankYouOffer(),
       }
       publish()
       return "opened"
@@ -174,6 +187,7 @@ export function createCapturePlacementDetailModule(
         locationId: input.locationId,
         locationName: input.locationName,
         locationCapturePaused: false,
+        thankYouOffer: input.thankYouOffer ?? emptyThankYouOffer(),
       }
       publish()
       return "opened"
@@ -202,6 +216,13 @@ export function createCapturePlacementDetailModule(
       }
       publish()
     },
+    setThankYouOffer(next) {
+      if (!state.isOpen) {
+        return
+      }
+      state = { ...state, thankYouOffer: next }
+      publish()
+    },
     patchFact(input) {
       if (!state.isOpen || state.selectedQrCodeId !== input.fact.qrCodeId) {
         return
@@ -218,6 +239,10 @@ export function createCapturePlacementDetailModule(
           input.locationId !== undefined
             ? input.locationId
             : state.locationId,
+        thankYouOffer:
+          input.thankYouOffer !== undefined
+            ? (input.thankYouOffer ?? emptyThankYouOffer())
+            : state.thankYouOffer,
       }
       publish()
     },

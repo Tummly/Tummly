@@ -69,6 +69,10 @@ export const CAMPAIGN_CHANNEL_COPY = {
     "There are not enough credits left on this channel. Schedule and send stay blocked.",
 } as const
 
+/** Channel shortfall wash — Main Bg (light gray-55 / dark gray-995). */
+export const CAMPAIGN_CHANNEL_SHORTFALL_BANNER_CLASS =
+  "flex w-full flex-col gap-[22px] rounded-[4px] bg-op-background-primary p-[18px]"
+
 export const CAMPAIGN_CHANNEL_OPTIONS: readonly CampaignChannelOptionDef[] = [
   {
     id: "email",

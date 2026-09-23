@@ -27,6 +27,14 @@ export const RECOVERY_COMPOSER_COPY = {
   sendFailed: "Could not send the response. Please try again.",
 } as const
 
+/** RC-01 / RC-02 status wash — Main Bg (light gray-55 / dark gray-995). */
+export const RECOVERY_COMPOSER_STATUS_BANNER_CLASS =
+  "flex w-full flex-col gap-3 rounded-[4px] bg-op-background-primary p-[18px]"
+
+/** RC-03 eligibility notice — bordered Main Bg wash. */
+export const RECOVERY_COMPOSER_ELIGIBILITY_NOTICE_CLASS =
+  "flex w-full flex-col gap-2 rounded-[4px] border border-op-card-border bg-op-background-primary p-[18px]"
+
 export type RecoveryComposerMarketingChannel = "email" | "sms"
 
 export type RecoveryComposerStatusBanner = {

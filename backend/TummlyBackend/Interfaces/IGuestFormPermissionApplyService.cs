@@ -13,6 +13,7 @@ namespace TummlyBackend.Interfaces
             LocationGuest locationGuest,
             Restaurant restaurant,
             int restaurantLocationId,
+            string locationName,
             bool marketingConsentGranted,
             ContactType contactType,
             DateTime occurredAt,

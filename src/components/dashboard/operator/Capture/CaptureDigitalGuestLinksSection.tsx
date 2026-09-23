@@ -23,6 +23,8 @@ import { PERFORMANCE_HEADER_COPY_CLASS } from "@/lib/operatorHome/performanceOve
 
 type CaptureDigitalGuestLinksSectionProps = {
   digitalGuestLinks: OperatorCaptureDigitalGuestLinksView
+  /** Current Capture location — used to load Connected offer options. */
+  locationId: number
   pauseActivateEnabled?: boolean
   onCreate: (
     input: CreateDigitalGuestLinkModuleInput
@@ -32,12 +34,14 @@ type CaptureDigitalGuestLinksSectionProps = {
   onPause: (qrCodeId: number) => void
   onActivate: (qrCodeId: number) => void
   onCopyLink: (qrCodeId: number) => void
+  onChangeOffer: () => void
   onArchive: (qrCodeId: number) => void
 }
 
 /** Digital guest links section — empty chrome or populated table + Create dialog. */
 export function CaptureDigitalGuestLinksSection({
   digitalGuestLinks,
+  locationId,
   pauseActivateEnabled = true,
   onCreate,
   onViewDetails,
@@ -45,6 +49,7 @@ export function CaptureDigitalGuestLinksSection({
   onPause,
   onActivate,
   onCopyLink,
+  onChangeOffer,
   onArchive,
 }: CaptureDigitalGuestLinksSectionProps) {
   const copy = OPERATOR_CAPTURE_SECTION_COPY.digitalGuestLinks
@@ -92,6 +97,7 @@ export function CaptureDigitalGuestLinksSection({
           onPause={onPause}
           onActivate={onActivate}
           onCopyLink={onCopyLink}
+          onChangeOffer={onChangeOffer}
           onArchive={onArchive}
         />
       )}
@@ -100,6 +106,7 @@ export function CaptureDigitalGuestLinksSection({
         open={createOpen}
         onOpenChange={setCreateOpen}
         busy={creating}
+        selectedLocationId={locationId}
         onSubmit={async (input) => {
           setCreating(true)
           try {

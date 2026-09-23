@@ -95,6 +95,7 @@ namespace TummlyBackend.Services
             {
                 return await FailCannotStartAsync(
                     entity,
+                    CampaignTerminalReasons.ChannelMissing,
                     cancellationToken
                 );
             }
@@ -106,8 +107,12 @@ namespace TummlyBackend.Services
             );
             if (gate is not CampaignSendStartGateResult.Clear)
             {
+                var gateReason =
+                    CampaignTerminalReasons.FromSendStartGate(gate)
+                    ?? CampaignTerminalReasons.MidSendStop;
                 return await FailCannotStartAsync(
                     entity,
+                    gateReason,
                     cancellationToken
                 );
             }
@@ -128,6 +133,7 @@ namespace TummlyBackend.Services
             {
                 return await FailCannotStartAsync(
                     entity,
+                    CampaignTerminalReasons.EligibilityInvalid,
                     cancellationToken
                 );
             }
@@ -191,6 +197,7 @@ namespace TummlyBackend.Services
 
                 return await FailCannotStartAsync(
                     entity,
+                    CampaignTerminalReasons.ZeroEligible,
                     cancellationToken
                 );
             }
@@ -215,6 +222,7 @@ namespace TummlyBackend.Services
             if (!preSettle.Succeeded)
             {
                 entity.Status = PartiallySentStatus;
+                entity.TerminalReason = CampaignTerminalReasons.SettleFailed;
                 entity.UpdatedAt = now;
                 await _context.SaveChangesAsync(cancellationToken);
                 _analytics.TrackSendTerminal(entity.Id, PartiallySentStatus);
@@ -255,6 +263,7 @@ namespace TummlyBackend.Services
 
             var acceptedThisRun = 0;
             var skippedThisRun = 0;
+            var creditHoldExhausted = false;
 
             foreach (var guestId in newlyIneligibleFrozen)
             {
@@ -326,6 +335,7 @@ namespace TummlyBackend.Services
                 if (perRecipientEstimate > localRemaining)
                 {
                     // Not-attempted: leave without a delivery fact for retry.
+                    creditHoldExhausted = true;
                     continue;
                 }
 
@@ -456,6 +466,9 @@ namespace TummlyBackend.Services
             {
                 return await FailCannotStartAsync(
                     entity,
+                    creditHoldExhausted
+                        ? CampaignTerminalReasons.CreditHoldExhausted
+                        : CampaignTerminalReasons.NoAcceptedSends,
                     cancellationToken
                 );
             }
@@ -475,6 +488,10 @@ namespace TummlyBackend.Services
                     remainingUnsent >= 1 || totalAccepted < frozenRows.Count
                         ? PartiallySentStatus
                         : SendingStatus;
+                if (entity.Status == PartiallySentStatus)
+                {
+                    entity.TerminalReason = CampaignTerminalReasons.SettleFailed;
+                }
                 entity.UpdatedAt = now;
                 await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -517,6 +534,10 @@ namespace TummlyBackend.Services
                     remainingUnsent >= 1
                         ? PartiallySentStatus
                         : SendingStatus;
+                if (entity.Status == PartiallySentStatus)
+                {
+                    entity.TerminalReason = CampaignTerminalReasons.CloseFailed;
+                }
                 entity.UpdatedAt = now;
                 await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -547,6 +568,14 @@ namespace TummlyBackend.Services
 
             entity.Status =
                 remainingUnsent >= 1 ? PartiallySentStatus : SentStatus;
+            entity.TerminalReason =
+                entity.Status == PartiallySentStatus
+                    ? (
+                        creditHoldExhausted
+                            ? CampaignTerminalReasons.CreditHoldExhausted
+                            : CampaignTerminalReasons.MidSendStop
+                    )
+                    : null;
             entity.UpdatedAt = now;
             await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -571,6 +600,7 @@ namespace TummlyBackend.Services
 
         private async Task<CampaignFireResult> FailCannotStartAsync(
             Campaign entity,
+            string terminalReason,
             CancellationToken cancellationToken
         )
         {
@@ -589,6 +619,7 @@ namespace TummlyBackend.Services
                 );
                 if (close.SettleFailed || close.ReleaseFailed)
                 {
+                    entity.TerminalReason = CampaignTerminalReasons.CloseFailed;
                     entity.UpdatedAt = now;
                     await _context.SaveChangesAsync(CancellationToken.None);
                     return new CampaignFireResult.CannotStart
@@ -604,6 +635,7 @@ namespace TummlyBackend.Services
             }
 
             entity.Status = FailedStatus;
+            entity.TerminalReason = terminalReason;
             entity.UpdatedAt = now;
             await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -846,6 +878,7 @@ namespace TummlyBackend.Services
                 SkippedIneligibleCount = skippedIneligibleCount,
                 RemainingUnsentCount = remainingUnsentCount,
                 BillingReservationRef = entity.BillingReservationRef,
+                TerminalReason = entity.TerminalReason,
                 RowVersion = entity.RowVersion,
             };
         }

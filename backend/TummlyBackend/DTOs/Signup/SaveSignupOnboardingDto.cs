@@ -3,13 +3,14 @@ namespace TummlyBackend.DTOs.Signup
     /// <summary>
     /// Guest Loop onboarding payload for a verified pending signup.
     /// Shape matches CompleteSetupDto fields used by ProvisionFromPendingAsync
-    /// (password is hashed on save; not stored in OnboardingJson).
+    /// (password is hashed on save for email signup; not stored in OnboardingJson).
+    /// Password / ConfirmPassword are optional for social (AuthProvider) pending.
     /// </summary>
     public class SaveSignupOnboardingDto
     {
-        public string Password { get; set; } = string.Empty;
+        public string? Password { get; set; }
 
-        public string ConfirmPassword { get; set; } = string.Empty;
+        public string? ConfirmPassword { get; set; }
 
         public string FullName { get; set; } = string.Empty;
 

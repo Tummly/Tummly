@@ -1,5 +1,5 @@
 import { XIcon } from "lucide-react"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 
@@ -40,6 +40,10 @@ import {
   DIGITAL_GUEST_LINK_STATUS_OPTIONS,
   OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
+import {
+  createDigitalGuestLinkAdapters,
+  type ConnectedOfferOption,
+} from "@/lib/operatorCapture/createDigitalGuestLinkAdapters"
 import type { CreateDigitalGuestLinkModuleInput } from "@/lib/operatorCapture/createOperatorCapturePageModule"
 import {
   createDigitalGuestLinkFormSchemaWithLocation,
@@ -49,6 +53,8 @@ import type {
   CaptureDigitalGuestLinkChannel,
   CapturePlacementStatus,
 } from "@/types/dashboard"
+
+const CONNECTED_OFFER_NONE_VALUE = "none"
 
 type CaptureCreateDigitalGuestLinkDialogProps = {
   open: boolean
@@ -65,6 +71,9 @@ type CaptureCreateDigitalGuestLinkDialogProps = {
   locationBound?: boolean
   selectedLocationId?: number | null
   onLocationIdChange?: (locationId: number | null) => void
+  listConnectedOffers?: (
+    locationId: number
+  ) => Promise<ConnectedOfferOption[]>
   onSubmit: (
     input: CreateDigitalGuestLinkModuleInput
   ) => Promise<"created" | "duplicate_link_name" | "failed" | "noop">
@@ -85,6 +94,7 @@ export function CaptureCreateDigitalGuestLinkDialog({
   locationBound = false,
   selectedLocationId = null,
   onLocationIdChange,
+  listConnectedOffers = createDigitalGuestLinkAdapters.listConnectedOfferOptions,
   onSubmit,
 }: CaptureCreateDigitalGuestLinkDialogProps) {
   const copy = OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY
@@ -107,8 +117,16 @@ export function CaptureCreateDigitalGuestLinkDialog({
       channel: "",
       status: "Active",
       locationId: selectedLocationId,
+      connectedOfferId: null,
     },
   })
+
+  const watchedLocationId = form.watch("locationId")
+  const offerLocationId =
+    watchedLocationId ?? selectedLocationId ?? null
+
+  const [offerOptions, setOfferOptions] = useState<ConnectedOfferOption[]>([])
+  const [offersLoading, setOffersLoading] = useState(false)
 
   useEffect(() => {
     if (!open) {
@@ -120,8 +138,49 @@ export function CaptureCreateDigitalGuestLinkDialog({
       channel: prefill?.channel ?? "",
       status: prefill?.status ?? "Active",
       locationId: selectedLocationId,
+      connectedOfferId: null,
     })
   }, [open, prefill, selectedLocationId, form])
+
+  useEffect(() => {
+    if (!open || offerLocationId == null) {
+      setOfferOptions([])
+      setOffersLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setOffersLoading(true)
+    void listConnectedOffers(offerLocationId)
+      .then((options) => {
+        if (cancelled) {
+          return
+        }
+        setOfferOptions(options)
+      })
+      .catch(() => {
+        if (cancelled) {
+          return
+        }
+        setOfferOptions([])
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setOffersLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, offerLocationId, listConnectedOffers])
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+    form.setValue("connectedOfferId", null)
+  }, [offerLocationId, open, form])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (busy && !nextOpen) {
@@ -153,6 +212,9 @@ export function CaptureCreateDigitalGuestLinkDialog({
                 status: values.status,
                 ...(values.locationId != null
                   ? { locationId: values.locationId }
+                  : {}),
+                ...(values.connectedOfferId != null
+                  ? { connectedOfferId: values.connectedOfferId }
                   : {}),
               })
               if (result === "created") {
@@ -345,17 +407,66 @@ export function CaptureCreateDigitalGuestLinkDialog({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-semibold leading-5 text-op-text-primary">
-                  {copy.connectedOfferLabel}
-                </span>
-                <div
-                  aria-disabled
-                  className="flex min-h-[50px] items-center justify-between rounded border border-op-input-border px-[15px] py-[15px] text-sm text-op-text-muted opacity-60"
-                >
-                  <span>{copy.connectedOfferPlaceholder}</span>
-                </div>
-              </div>
+              <FormField
+                control={form.control}
+                name="connectedOfferId"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-2">
+                    <FormLabel className="text-sm font-semibold leading-5 text-op-text-primary">
+                      {copy.connectedOfferLabel}
+                    </FormLabel>
+                    <Select
+                      value={
+                        field.value != null
+                          ? String(field.value)
+                          : CONNECTED_OFFER_NONE_VALUE
+                      }
+                      onValueChange={(value) => {
+                        if (value === CONNECTED_OFFER_NONE_VALUE) {
+                          field.onChange(null)
+                          return
+                        }
+                        const nextId = Number(value)
+                        if (!Number.isFinite(nextId)) {
+                          return
+                        }
+                        field.onChange(nextId)
+                      }}
+                      disabled={busy || offersLoading || offerLocationId == null}
+                    >
+                      <FormControl>
+                        <SelectTrigger className={fieldTriggerClass}>
+                          <SelectValue
+                            placeholder={copy.connectedOfferPlaceholder}
+                          />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent
+                        position="popper"
+                        align="start"
+                        className={CAPTURE_DIALOG_SELECT_MENU_CLASS}
+                      >
+                        <SelectItem
+                          value={CONNECTED_OFFER_NONE_VALUE}
+                          className={CAPTURE_DIALOG_SELECT_ITEM_CLASS}
+                        >
+                          {copy.connectedOfferPlaceholder}
+                        </SelectItem>
+                        {offerOptions.map((option) => (
+                          <SelectItem
+                            key={option.id}
+                            value={String(option.id)}
+                            className={CAPTURE_DIALOG_SELECT_ITEM_CLASS}
+                          >
+                            {option.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}

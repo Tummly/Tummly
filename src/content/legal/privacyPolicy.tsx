@@ -3,8 +3,10 @@ import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import type { LegalPageContent } from "./types"
 
 export const privacyPolicyContent: LegalPageContent = {
-  title: "Privacy Policy",
-  description: "Also referred to as our Privacy Policy. This notice explains how Tummly handles personal data across the website, trial request flow, operator accounts, Smart Guest Links, guest pages, dashboard shop, support and related services. Effective date: 9 July 2026",
+  title: "Privacy Notice",
+  lastUpdated: "9 July 2026",
+  description:
+    "Also referred to as our Privacy Policy. This notice explains how Tummly handles personal data across the website, trial request flow, operator accounts, Smart Guest Links, guest pages, dashboard shop, support and related services.",
   documentKey: "privacy",
   sections: [
   {

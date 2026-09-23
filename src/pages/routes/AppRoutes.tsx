@@ -16,12 +16,14 @@ import TeamInvitationAcceptPage from "../auth/TeamInvitationAcceptPage";
 
 import HomePage from "../public/HomePage";
 import LoginPage from "../auth/LoginPage";
+import LoginOAuthCompletePage from "../auth/LoginOAuthCompletePage";
 import RegisterSinglePage from "../auth/RegisterSinglePage";
 import RegisterMultiPage from "../auth/RegisterMultiPage";
 import ResetPasswordPage from "../auth/ResetPasswordPage";
 import ForgotPasswordPage from "../auth/ForgotPasswordPage";
 import VerifyEmailPage from "../auth/VerifyEmailPage";
 import SignupPage from "../auth/SignupPage";
+import SignupOAuthTermsPage from "../auth/SignupOAuthTermsPage";
 import SignupVerifyPage from "../auth/SignupVerifyPage";
 import SignupOnboardingPage from "../auth/SignupOnboardingPage";
 import SignupChoosePlanRedirectPage from "../auth/SignupChoosePlanRedirectPage";
@@ -30,7 +32,11 @@ import GuestFeedbackPage from "../public/GuestFeedbackPage";
 import PrivacyPage from "../public/PrivacyPage";
 import TermsPage from "../public/TermsPage";
 import CookiePolicyPage from "../public/CookiePolicyPage";
+import AccessibilityPage from "../public/AccessibilityPage";
+import AcceptableUsePage from "../public/AcceptableUsePage";
+import ShopPrintTermsPage from "../public/ShopPrintTermsPage";
 import FaqsPage from "../public/FaqsPage";
+import TrustPrivacyPage from "../public/TrustPrivacyPage";
 import UnsubscribePage from "../public/UnsubscribePage";
 import NotFoundPage from "../public/NotFoundPage";
 import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
@@ -112,6 +118,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="login/oauth/complete"
+          element={
+            <ErrorBoundary>
+              <LoginOAuthCompletePage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
           path="forgot-password"
           element={
             <ErrorBoundary>
@@ -132,6 +146,14 @@ function AppRoutes() {
           element={
             <ErrorBoundary>
               <SignupPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/oauth/terms"
+          element={
+            <ErrorBoundary>
+              <SignupOAuthTermsPage />
             </ErrorBoundary>
           }
         />
@@ -507,7 +529,11 @@ function AppRoutes() {
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="terms" element={<TermsPage />} />
           <Route path="cookie-policy" element={<CookiePolicyPage />} />
+          <Route path="accessibility" element={<AccessibilityPage />} />
+          <Route path="acceptable-use" element={<AcceptableUsePage />} />
+          <Route path="shop-print-terms" element={<ShopPrintTermsPage />} />
           <Route path="faqs" element={<FaqsPage />} />
+          <Route path="trust-privacy" element={<TrustPrivacyPage />} />
           <Route path="unsubscribe" element={<UnsubscribePage />} />
 
           <Route path={HELP_CENTRE_ROUTES.hub} element={<HelpCentreHubPage />} />

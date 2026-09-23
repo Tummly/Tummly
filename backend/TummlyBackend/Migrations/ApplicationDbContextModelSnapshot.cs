@@ -635,6 +635,10 @@ namespace TummlyBackend.Migrations
                     b.Property<int?>("TemplateVersion")
                         .HasColumnType("int");
 
+                    b.Property<string>("TerminalReason")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -933,6 +937,45 @@ namespace TummlyBackend.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("DataMigrationMarkers");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ExternalAuthTicket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ConsumedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("ExternalAuthTickets");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.Feedback", b =>
@@ -2484,6 +2527,10 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
+                    b.Property<string>("AuthProvider")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("ChosenCadence")
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
@@ -2517,6 +2564,10 @@ namespace TummlyBackend.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("PasswordHash")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ProviderSubject")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -4333,7 +4384,6 @@ namespace TummlyBackend.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("PasswordHash")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PhoneNumber")
@@ -4361,6 +4411,41 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("SelectedLocationId");
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.UserExternalLogin", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Provider", "ProviderSubject")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Provider")
+                        .IsUnique();
+
+                    b.ToTable("UserExternalLogins");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.WeeklyBrief", b =>
@@ -5582,6 +5667,17 @@ namespace TummlyBackend.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("SelectedLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.UserExternalLogin", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.WeeklyBrief", b =>

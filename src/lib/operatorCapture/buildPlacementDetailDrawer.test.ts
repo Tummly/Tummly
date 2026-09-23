@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   buildPlacementDetailDrawer,
   PLACEMENT_DETAIL_CONNECTED_GUEST_FORM,
-  PLACEMENT_DETAIL_CONNECTED_OFFER_STUB,
   placementDetailKindForQrType,
 } from "./buildPlacementDetailDrawer"
+import { CAPTURE_CONNECTED_OFFERS_NONE } from "./captureThankYouOfferPresentation"
 import type { CapturePlacementItem } from "@/types/dashboard"
 
 function fact(
@@ -45,11 +45,73 @@ describe("buildPlacementDetailDrawer", () => {
       canRotate: true,
       showOrderPrintMaterials: true,
       connectedGuestForm: PLACEMENT_DETAIL_CONNECTED_GUEST_FORM,
-      connectedOfferText: PLACEMENT_DETAIL_CONNECTED_OFFER_STUB,
+      connectedOfferText: CAPTURE_CONNECTED_OFFERS_NONE,
+      editConnectedOfferEnabled: true,
+      editGuestFormEnabled: false,
       submissionRateText: "25%",
       channelLabel: null,
     })
     expect(view.orderPrintMaterialsEnabled).toBe(true)
+  })
+
+  it("shows live thank-you offer title as Connected offer", () => {
+    const view = buildPlacementDetailDrawer({
+      fact: fact({
+        qrCodeId: 1,
+        qrType: "TableTent",
+        status: "Active",
+      }),
+      locationName: "Camden",
+      descriptionDraft: "",
+      thankYouOffer: {
+        offerId: 88,
+        title: "Free dessert",
+        live: true,
+      },
+    })
+
+    expect(view.connectedOfferText).toBe("Free dessert")
+    expect(view.editConnectedOfferEnabled).toBe(true)
+  })
+
+  it("shows No active offers when thank-you attach is not live", () => {
+    const view = buildPlacementDetailDrawer({
+      fact: fact({
+        qrCodeId: 1,
+        qrType: "TableTent",
+        status: "Active",
+      }),
+      locationName: "Camden",
+      descriptionDraft: "",
+      thankYouOffer: {
+        offerId: 88,
+        title: "Draft treat",
+        live: false,
+      },
+    })
+
+    expect(view.connectedOfferText).toBe(CAPTURE_CONNECTED_OFFERS_NONE)
+  })
+
+  it("disables edit connected offer when placement is archived", () => {
+    const view = buildPlacementDetailDrawer({
+      fact: fact({
+        qrCodeId: 1,
+        qrType: "TableTent",
+        status: "Archived",
+      }),
+      locationName: "Camden",
+      descriptionDraft: "",
+      thankYouOffer: {
+        offerId: 88,
+        title: "Free dessert",
+        live: true,
+      },
+    })
+
+    expect(view.connectedOfferText).toBe("Free dessert")
+    expect(view.editConnectedOfferEnabled).toBe(false)
+    expect(view.editGuestFormEnabled).toBe(false)
   })
 
   it("maps digital links with Link details and no Rotate / print materials", () => {
@@ -77,6 +139,7 @@ describe("buildPlacementDetailDrawer", () => {
       assetsSectionTitle: "Link assets",
       pauseActivateLabel: "Activate link",
       descriptionDraft: "note",
+      editConnectedOfferEnabled: true,
     })
     expect(view.orderPrintMaterialsEnabled).toBe(false)
   })

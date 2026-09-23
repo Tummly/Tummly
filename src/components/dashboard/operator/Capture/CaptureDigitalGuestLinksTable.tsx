@@ -31,6 +31,7 @@ type CaptureDigitalGuestLinksTableProps = {
   onPause: (qrCodeId: number) => void
   onActivate: (qrCodeId: number) => void
   onCopyLink: (qrCodeId: number) => void
+  onChangeOffer: () => void
   onArchive: (qrCodeId: number) => void
 }
 
@@ -43,6 +44,7 @@ export function CaptureDigitalGuestLinksTable({
   onPause,
   onActivate,
   onCopyLink,
+  onChangeOffer,
   onArchive,
 }: CaptureDigitalGuestLinksTableProps) {
   const columns = OPERATOR_CAPTURE_DIGITAL_GUEST_LINKS_COLUMNS
@@ -125,6 +127,7 @@ export function CaptureDigitalGuestLinksTable({
                   onCopyLink={() => {
                     onCopyLink(row.qrCodeId)
                   }}
+                  onChangeOffer={onChangeOffer}
                   onArchive={() => {
                     onArchive(row.qrCodeId)
                   }}

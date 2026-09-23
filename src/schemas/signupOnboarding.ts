@@ -37,6 +37,12 @@ export const signupAccountStepFields = [
   "confirmPassword",
 ] as const
 
+export const signupAccountStepSocialFields = [
+  "email",
+  "firstName",
+  "lastName",
+] as const
+
 export const signupRestaurantStepFields = [
   "restaurantName",
   "businessCategory",
@@ -109,6 +115,19 @@ export const signupAccountStepSchema = signupOnboardingBaseSchema
     passwordMatchRefine
   )
 
+export const signupAccountStepSocialSchema = signupOnboardingBaseSchema.pick({
+  email: true,
+  firstName: true,
+  lastName: true,
+})
+
+/** Full onboarding for social sessions — password fields may be empty. */
+export const signupOnboardingSocialSchema = signupOnboardingBaseSchema
+  .extend({
+    password: z.string(),
+    confirmPassword: z.string(),
+  })
+
 export const signupRestaurantStepSchema = signupOnboardingBaseSchema.pick({
   restaurantName: true,
   businessCategory: true,
@@ -151,15 +170,38 @@ export const signupOnboardingDefaultValues: SignupOnboardingFormValues = {
   timezone: "Europe/London",
 }
 
+export function splitSignupFullName(fullName: string | null | undefined): {
+  firstName: string
+  lastName: string
+} {
+  const trimmed = (fullName ?? "").trim()
+  if (trimmed.length === 0) {
+    return { firstName: "", lastName: "" }
+  }
+
+  const spaceIndex = trimmed.indexOf(" ")
+  if (spaceIndex < 0) {
+    return { firstName: trimmed, lastName: "" }
+  }
+
+  return {
+    firstName: trimmed.slice(0, spaceIndex),
+    lastName: trimmed.slice(spaceIndex + 1).trimStart(),
+  }
+}
+
 export function toSignupOnboardingPayload(
-  values: SignupOnboardingFormValues
+  values: SignupOnboardingFormValues,
+  options?: { isSocial?: boolean }
 ): SignupOnboardingPayload {
-  const parsed = signupOnboardingSchema.parse(values)
+  const parsed = options?.isSocial
+    ? signupOnboardingSocialSchema.parse(values)
+    : signupOnboardingSchema.parse(values)
   const fullName = joinSignupFullName(parsed.firstName, parsed.lastName)
 
   return {
-    password: parsed.password,
-    confirmPassword: parsed.confirmPassword,
+    password: options?.isSocial ? "" : parsed.password,
+    confirmPassword: options?.isSocial ? "" : parsed.confirmPassword,
     fullName,
     groupName: parsed.restaurantName,
     businessCategory: parsed.businessCategory,

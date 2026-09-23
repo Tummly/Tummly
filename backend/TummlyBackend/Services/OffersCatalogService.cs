@@ -358,27 +358,23 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            CatalogOfferInFlightSyncResult attachedResult =
-                new CatalogOfferInFlightSyncResult.Ok();
-            if (nextOfferId is int attachedId)
-            {
-                attachedResult = await SyncInFlightStoredStatusAsync(
-                    attachedId,
-                    cancellationToken
-                );
-                if (attachedResult is not CatalogOfferInFlightSyncResult.Ok)
-                {
-                    return attachedResult;
-                }
-            }
-
+            // Clear first so a replace frees an Active slot before promoting a
+            // Draft. Cap counts stored Active status, not live attaches.
             if (previousOfferId is int clearedId
                 && clearedId != nextOfferId)
             {
                 await SyncInFlightStoredStatusAsync(clearedId, cancellationToken);
             }
 
-            return attachedResult;
+            if (nextOfferId is int attachedId)
+            {
+                return await SyncInFlightStoredStatusAsync(
+                    attachedId,
+                    cancellationToken
+                );
+            }
+
+            return new CatalogOfferInFlightSyncResult.Ok();
         }
 
         public async Task<CatalogOffersListResponse> ListAsync(

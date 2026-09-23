@@ -147,6 +147,7 @@ namespace TummlyBackend.Tests.Services
                 guest,
                 restaurant,
                 guest.RestaurantLocationId,
+                locationName: "Camden",
                 marketingConsentGranted: true,
                 ContactType.Email,
                 at

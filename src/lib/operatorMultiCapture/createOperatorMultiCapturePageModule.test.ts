@@ -106,6 +106,15 @@ function createModule(options?: {
   onCreateDigitalGuestLinkError?: (message: string) => void
   onDigitalGuestLinkCreated?: (message: string) => void
   onLocationCaptureError?: (message: string) => void
+  putCaptureThankYouOffer?: (
+    locationId: number,
+    offerId: number | null
+  ) => Promise<{
+    thankYouOfferId: number | null
+    thankYouOfferTitle: string | null
+    thankYouOfferLive: boolean
+  }>
+  onThankYouOfferError?: (message: string) => void
   navigateToCaptureLocation?: (
     locationId: number,
     navOptions?: { openPlacementDetailQrCodeId?: number }
@@ -192,6 +201,10 @@ function createModule(options?: {
   )
   const onDigitalGuestLinkCreated = vi.fn(options?.onDigitalGuestLinkCreated)
   const onLocationCaptureError = vi.fn(options?.onLocationCaptureError)
+  const putCaptureThankYouOffer = options?.putCaptureThankYouOffer
+    ? vi.fn(options.putCaptureThankYouOffer)
+    : undefined
+  const onThankYouOfferError = vi.fn(options?.onThankYouOfferError)
   const navigateToCaptureLocation = vi.fn(options?.navigateToCaptureLocation)
   const canManageLocationCapture = vi.fn(
     options?.canManageLocationCapture ?? (() => true)
@@ -206,6 +219,7 @@ function createModule(options?: {
     createDigitalGuestLink,
     pauseLocationCapture,
     activateLocationCapture,
+    putCaptureThankYouOffer,
     getMultiCaptureOverviewDateRange: () => options?.range ?? DEFAULT_RANGE,
     navigateToCaptureLocation,
     canManageLocationCapture,
@@ -214,6 +228,7 @@ function createModule(options?: {
     onCreateDigitalGuestLinkError,
     onDigitalGuestLinkCreated,
     onLocationCaptureError,
+    onThankYouOfferError,
     scheduleReady,
     debounceMs: options?.debounceMs ?? 0,
   })
@@ -224,6 +239,7 @@ function createModule(options?: {
     getCaptureLocations,
     getCapturePreviewOptions,
     createDigitalGuestLink,
+    putCaptureThankYouOffer,
     pauseLocationCapture,
     activateLocationCapture,
     navigateToCaptureLocation,
@@ -513,6 +529,42 @@ describe("createOperatorMultiCapturePageModule", () => {
       "Digital guest link created"
     )
     expect(pageModule.getSnapshot().createDialog.isOpen).toBe(false)
+    expect(navigateToCaptureLocation).toHaveBeenCalledWith(2, {
+      openPlacementDetailQrCodeId: 77,
+    })
+  })
+
+  it("create Digital guest link with connectedOfferId attaches thank-you offer before navigate", async () => {
+    const putCaptureThankYouOffer = vi.fn(async () => ({
+      thankYouOfferId: 88,
+      thankYouOfferTitle: "Free dessert",
+      thankYouOfferLive: true,
+    }))
+    const { pageModule, navigateToCaptureLocation } = createModule({
+      createDigitalGuestLink: async () => ({ ok: true, qrCodeId: 77 }),
+      putCaptureThankYouOffer,
+    })
+
+    await pageModule.syncWorkspace({
+      locations: [
+        { id: 1, locationName: "Camden" },
+        { id: 2, locationName: "Shoreditch" },
+      ],
+    })
+
+    pageModule.openCreateDialog()
+    pageModule.setCreateDialogLocationId(2)
+
+    const result = await pageModule.createDigitalGuestLink({
+      linkName: "Instagram",
+      internalDescription: null,
+      channel: "SocialMedia",
+      status: "Active",
+      connectedOfferId: 88,
+    })
+
+    expect(result).toBe("created")
+    expect(putCaptureThankYouOffer).toHaveBeenCalledWith(2, 88)
     expect(navigateToCaptureLocation).toHaveBeenCalledWith(2, {
       openPlacementDetailQrCodeId: 77,
     })

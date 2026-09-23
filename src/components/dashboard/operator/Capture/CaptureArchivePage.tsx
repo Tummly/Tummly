@@ -458,6 +458,7 @@ export function CaptureArchivePage({
       <CaptureCreateDigitalGuestLinkDialog
         open={createOpen}
         busy={createBusy}
+        selectedLocationId={archive?.createPrefill?.locationId ?? null}
         prefill={
           archive?.createPrefill == null
             ? undefined

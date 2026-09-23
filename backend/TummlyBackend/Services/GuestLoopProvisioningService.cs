@@ -134,10 +134,19 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(pending.PasswordHash))
+            var isSocial = !string.IsNullOrWhiteSpace(pending.AuthProvider);
+
+            if (string.IsNullOrWhiteSpace(pending.PasswordHash) && !isSocial)
             {
                 throw new ArgumentException(
                     "Pending signup is missing a password hash."
+                );
+            }
+
+            if (isSocial && string.IsNullOrWhiteSpace(pending.ProviderSubject))
+            {
+                throw new ArgumentException(
+                    "Pending signup is missing a provider subject."
                 );
             }
 
@@ -195,7 +204,33 @@ namespace TummlyBackend.Services
 
             if (existingUser != null)
             {
-                // Race / retry: user already exists — mark complete and exit.
+                // Race / retry: user already exists — ensure social link if missing,
+                // mark complete and exit.
+                if (
+                    isSocial
+                    && !string.IsNullOrWhiteSpace(pending.ProviderSubject)
+                )
+                {
+                    var hasLink = await _context.UserExternalLogins.AnyAsync(x =>
+                        x.UserId == existingUser.Id
+                        && x.Provider == pending.AuthProvider
+                        && x.ProviderSubject == pending.ProviderSubject
+                    );
+
+                    if (!hasLink)
+                    {
+                        _context.UserExternalLogins.Add(
+                            new UserExternalLogin
+                            {
+                                UserId = existingUser.Id,
+                                Provider = pending.AuthProvider!,
+                                ProviderSubject = pending.ProviderSubject!,
+                                CreatedAtUtc = DateTime.UtcNow,
+                            }
+                        );
+                    }
+                }
+
                 pending.Status = PendingSignupStatuses.Complete;
                 pending.UpdatedAtUtc = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
@@ -238,7 +273,9 @@ namespace TummlyBackend.Services
                     BusinessCategory: profile.BusinessCategory.Trim(),
                     PrimaryPhone: primaryPhone,
                     BusinessLink: profile.BusinessLink,
-                    Locations: locations
+                    Locations: locations,
+                    AuthProvider: pending.AuthProvider,
+                    ProviderSubject: pending.ProviderSubject
                 ),
                 afterUserSaved: () =>
                 {
@@ -373,6 +410,26 @@ namespace TummlyBackend.Services
                 _context.Users.Add(user);
                 afterUserSaved();
                 await _context.SaveChangesAsync();
+
+                if (!string.IsNullOrWhiteSpace(input.AuthProvider))
+                {
+                    if (string.IsNullOrWhiteSpace(input.ProviderSubject))
+                    {
+                        throw new ArgumentException(
+                            "Provider subject is required when AuthProvider is set."
+                        );
+                    }
+
+                    _context.UserExternalLogins.Add(
+                        new UserExternalLogin
+                        {
+                            UserId = user.Id,
+                            Provider = input.AuthProvider,
+                            ProviderSubject = input.ProviderSubject,
+                            CreatedAtUtc = now,
+                        }
+                    );
+                }
 
                 var restaurant = new Restaurant
                 {
@@ -638,7 +695,7 @@ namespace TummlyBackend.Services
 
         private sealed record ProvisionAccountInput(
             string Email,
-            string PasswordHash,
+            string? PasswordHash,
             string FullName,
             string AccountType,
             bool TermsAccepted,
@@ -646,7 +703,9 @@ namespace TummlyBackend.Services
             string BusinessCategory,
             string? PrimaryPhone,
             string? BusinessLink,
-            IReadOnlyList<ProvisionLocationInput> Locations
+            IReadOnlyList<ProvisionLocationInput> Locations,
+            string? AuthProvider = null,
+            string? ProviderSubject = null
         );
     }
 }
