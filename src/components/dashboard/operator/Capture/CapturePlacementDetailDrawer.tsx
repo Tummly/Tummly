@@ -47,6 +47,7 @@ type CapturePlacementDetailDrawerProps = {
   onActivate: () => void
   onRotate: () => void
   onArchive: () => void
+  onEditGuestForm: () => void
   onEditConnectedOffer: () => void
   onDescriptionDraftChange: (value: string) => void
   onSaveDescription: () => void
@@ -102,6 +103,7 @@ function LoadedBody({
   onActivate,
   onRotate,
   onArchive,
+  onEditGuestForm,
   onEditConnectedOffer,
   onDescriptionDraftChange,
   onSaveDescription,
@@ -114,6 +116,7 @@ function LoadedBody({
   onActivate: () => void
   onRotate: () => void
   onArchive: () => void
+  onEditGuestForm: () => void
   onEditConnectedOffer: () => void
   onDescriptionDraftChange: (value: string) => void
   onSaveDescription: () => void
@@ -165,6 +168,7 @@ function LoadedBody({
                 OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
                 "w-fit rounded-[2px]"
               )}
+              onClick={onEditGuestForm}
             >
               {copy.editGuestFormCta}
             </Button>
@@ -425,6 +429,7 @@ export function CapturePlacementDetailDrawer({
   onActivate,
   onRotate,
   onArchive,
+  onEditGuestForm,
   onEditConnectedOffer,
   onDescriptionDraftChange,
   onSaveDescription,
@@ -453,6 +458,7 @@ export function CapturePlacementDetailDrawer({
                 onActivate={onActivate}
                 onRotate={onRotate}
                 onArchive={onArchive}
+                onEditGuestForm={onEditGuestForm}
                 onEditConnectedOffer={onEditConnectedOffer}
                 onDescriptionDraftChange={onDescriptionDraftChange}
                 onSaveDescription={onSaveDescription}

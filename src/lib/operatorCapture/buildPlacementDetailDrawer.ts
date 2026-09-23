@@ -28,7 +28,10 @@ export type PlacementDetailDrawerView = {
   title: string
   status: CaptureQrCodeStatus
   locationName: string
-  /** Guest form designer is not shipped — always false for now. */
+  /**
+   * Opens Guest form thank-you settings (location catalog attach) so the
+   * restaurant can review the form’s connected offer and change it.
+   */
   editGuestFormEnabled: boolean
   /** Opens location thank-you offer attach (same dialog as Guest experience). */
   editConnectedOfferEnabled: boolean
@@ -178,7 +181,7 @@ export function buildPlacementDetailDrawer(
     title,
     status: fact.status,
     locationName,
-    editGuestFormEnabled: false,
+    editGuestFormEnabled: !isArchived,
     editConnectedOfferEnabled: !isArchived,
     previewGuestExperienceEnabled: !isArchived,
     canCopy: !isArchived,

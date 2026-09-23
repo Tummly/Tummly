@@ -136,9 +136,6 @@ describe("capturePresentation — operator token audit", () => {
     expect(OPERATOR_CAPTURE_GUEST_PREVIEW_COPY.connectedOfferLabel).toBe(
       "Connected offer"
     )
-    expect(OPERATOR_CAPTURE_GUEST_PREVIEW_COPY.openPreviewInNewTabCta).toBe(
-      "Open preview in new tab"
-    )
     expect(OPERATOR_CAPTURE_GUEST_PREVIEW_COPY.feedbackPageTab).toBe(
       "Feedback page"
     )

@@ -527,7 +527,6 @@ export const OPERATOR_CAPTURE_GUEST_PREVIEW_COPY = {
   guestFormValue: CAPTURE_GUEST_FORM_STUB,
   connectedOfferLabel: "Connected offer",
   editGuestFormCta: "Edit guest form",
-  openPreviewInNewTabCta: "Open preview in new tab",
   feedbackPageTab: "Feedback page",
   thankYouPageTab: "Thank you page",
   desktopDevice: "Desktop",

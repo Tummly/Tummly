@@ -47,11 +47,25 @@ describe("buildPlacementDetailDrawer", () => {
       connectedGuestForm: PLACEMENT_DETAIL_CONNECTED_GUEST_FORM,
       connectedOfferText: CAPTURE_CONNECTED_OFFERS_NONE,
       editConnectedOfferEnabled: true,
-      editGuestFormEnabled: false,
+      editGuestFormEnabled: true,
       submissionRateText: "25%",
       channelLabel: null,
     })
     expect(view.orderPrintMaterialsEnabled).toBe(true)
+  })
+
+  it("enables Edit guest form when placement is not archived", () => {
+    const view = buildPlacementDetailDrawer({
+      fact: fact({
+        qrCodeId: 1,
+        qrType: "TableTent",
+        status: "Active",
+      }),
+      locationName: "Camden",
+      descriptionDraft: "",
+    })
+
+    expect(view.editGuestFormEnabled).toBe(true)
   })
 
   it("shows live thank-you offer title as Connected offer", () => {

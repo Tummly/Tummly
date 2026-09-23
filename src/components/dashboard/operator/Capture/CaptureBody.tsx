@@ -110,6 +110,7 @@ export function CaptureBody() {
           <CaptureGuestExperienceSection
             guestExperience={viewModel.guestExperience}
             onPreviewGuestExperience={openGuestExperiencePreview}
+            onManageGuestForms={openThankYouOfferDialog}
             onViewOffers={openThankYouOfferDialog}
           />
           <CaptureThankYouOfferDialog
@@ -147,6 +148,10 @@ export function CaptureBody() {
               snapshot.guestExperiencePreviewPlacementLabel
             }
             onClose={closeGuestExperiencePreview}
+            onEditGuestForm={() => {
+              closeGuestExperiencePreview()
+              openThankYouOfferDialog()
+            }}
           />
           <CaptureGuestExperiencePreviewPickerDialog
             picker={snapshot.guestExperiencePreviewPicker}

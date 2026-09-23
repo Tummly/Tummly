@@ -17,6 +17,7 @@ import { PERFORMANCE_HEADER_COPY_CLASS } from "@/lib/operatorHome/performanceOve
 type CaptureGuestExperienceSectionProps = {
   guestExperience: OperatorCaptureGuestExperienceView
   onPreviewGuestExperience: () => void
+  onManageGuestForms: () => void
   onViewOffers: () => void
 }
 
@@ -39,6 +40,7 @@ function GuestExperienceRow({
 export function CaptureGuestExperienceSection({
   guestExperience,
   onPreviewGuestExperience,
+  onManageGuestForms,
   onViewOffers,
 }: CaptureGuestExperienceSectionProps) {
   const copy = OPERATOR_CAPTURE_SECTION_COPY.guestExperience
@@ -96,7 +98,11 @@ export function CaptureGuestExperienceSection({
           >
             {copy.previewCta}
           </Button>
-          <Button type="button" variant="op-tertiary" disabled>
+          <Button
+            type="button"
+            variant="op-tertiary"
+            onClick={onManageGuestForms}
+          >
             {copy.manageGuestFormsCta}
           </Button>
           <Button type="button" variant="op-tertiary" onClick={onViewOffers}>

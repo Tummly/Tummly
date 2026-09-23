@@ -10,9 +10,9 @@ import {
  */
 
 export const CAPTURE_THANK_YOU_OFFER_COPY = {
-  dialogTitle: "Connected offers",
+  dialogTitle: "Guest form settings",
   dialogDescription:
-    "Attach one catalog offer to the Guest form thank-you for this location.",
+    "Review the Guest form for this location and choose which catalog offer appears on thank-you.",
   createStanceTitle: "Create a new offer",
   createStanceDescription: "Build an Active catalog offer and attach it here.",
   existingStanceTitle: "Use an existing offer",

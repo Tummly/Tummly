@@ -1539,7 +1539,7 @@ const placements = pageModule.getSnapshot().viewModel?.placements
       title: "Delivery insert",
       status: "Active",
       locationName: "Camden",
-      editGuestFormEnabled: false,
+      editGuestFormEnabled: true,
       previewGuestExperienceEnabled: true,
       canRotate: true,
       canArchive: true,

@@ -49,6 +49,7 @@ export function CapturePlacementDetailHost() {
       onActivate={requestPlacementDetailActivate}
       onRotate={requestPlacementDetailRotate}
       onArchive={requestPlacementDetailArchive}
+      onEditGuestForm={openThankYouOfferDialog}
       onEditConnectedOffer={openThankYouOfferDialog}
       onDescriptionDraftChange={setPlacementDetailDescriptionDraft}
       onSaveDescription={() => {

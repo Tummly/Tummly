@@ -38,6 +38,8 @@ type CaptureGuestExperiencePreviewOverlayProps = {
   /** When set (e.g. from Placement Detail), overrides the Smart Guest default label. */
   previewPlacementLabel?: string | null
   onClose: () => void
+  /** Opens Guest form thank-you / connected-offer settings. */
+  onEditGuestForm?: () => void
 }
 
 type PreviewPageTab =
@@ -83,6 +85,7 @@ export function CaptureGuestExperiencePreviewOverlay({
   guestExperience,
   previewPlacementLabel = null,
   onClose,
+  onEditGuestForm,
 }: CaptureGuestExperiencePreviewOverlayProps) {
   const [pageTab, setPageTab] = useState<PreviewPageTab>(
     CAPTURE_GUEST_PREVIEW_PAGE_TAB.feedback
@@ -181,11 +184,14 @@ export function CaptureGuestExperiencePreviewOverlay({
         }
         headerActions={
           <div className={CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS}>
-            <Button type="button" variant="op-tertiary" disabled>
+            <Button
+              type="button"
+              variant="op-tertiary"
+              disabled={onEditGuestForm == null}
+              aria-disabled={onEditGuestForm == null}
+              onClick={onEditGuestForm}
+            >
               {copy.editGuestFormCta}
-            </Button>
-            <Button type="button" variant="op-tertiary" disabled>
-              {copy.openPreviewInNewTabCta}
             </Button>
             <Button
               type="button"
