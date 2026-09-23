@@ -24,13 +24,70 @@ namespace TummlyBackend.Helpers
                 ? "1 feedback item needs attention"
                 : $"{count} feedback items need attention";
 
-        public static string CampaignBody(string status)
-            => status switch
+        public static string CampaignBody(string status, string? terminalReason = null)
+        {
+            // Keep in sync with campaignNeedsAttentionBody (TS).
+            if (!string.IsNullOrWhiteSpace(terminalReason))
+            {
+                var reason = terminalReason.Trim();
+                if (status == "failed")
+                {
+                    return reason switch
+                    {
+                        "soft-locked" =>
+                            "This campaign failed because the account was soft-locked at send time.",
+                        "workspace-paused" =>
+                            "This campaign failed because the workspace was paused at send time.",
+                        "location-inactive" =>
+                            "This campaign failed because the location was not active at send time.",
+                        "location-missing" =>
+                            "This campaign failed because the campaign location was not found.",
+                        "channel-missing" =>
+                            "This campaign failed because no send channel was set.",
+                        "eligibility-invalid" =>
+                            "This campaign failed because audience eligibility could not be evaluated.",
+                        "zero-eligible" =>
+                            "This campaign failed because no frozen recipients were still eligible.",
+                        "credit-hold-exhausted" =>
+                            "This campaign failed because the reserved credit hold ran out before any send was accepted.",
+                        "no-accepted-sends" =>
+                            "This campaign failed because no messages were accepted by the provider.",
+                        "settle-failed" =>
+                            "This campaign failed while settling reserved credits.",
+                        "close-failed" =>
+                            "This campaign failed while closing the credit hold.",
+                        "mid-send-stop" =>
+                            "This campaign failed after send work stopped early.",
+                        _ => "This campaign failed.",
+                    };
+                }
+
+                if (status == "partially-sent")
+                {
+                    return reason switch
+                    {
+                        "credit-hold-exhausted" =>
+                            "This campaign was only partially sent because the reserved credit hold ran out.",
+                        "settle-failed" =>
+                            "This campaign was only partially sent; settling reserved credits failed.",
+                        "close-failed" =>
+                            "This campaign was only partially sent; closing the credit hold failed.",
+                        "mid-send-stop" =>
+                            "This campaign was only partially sent; send work stopped before all recipients.",
+                        "zero-eligible" =>
+                            "This campaign was only partially sent; remaining recipients were no longer eligible.",
+                        _ => "This campaign was only partially sent.",
+                    };
+                }
+            }
+
+            return status switch
             {
                 "failed" => "This campaign failed.",
                 "partially-sent" => "This campaign was only partially sent.",
                 _ => "This campaign needs attention.",
             };
+        }
 
         public static string OfferTitle(
             bool hasOpenVoid,
@@ -121,7 +178,7 @@ namespace TummlyBackend.Helpers
                     new AssistantHomeNeedsAttentionItem(
                         "campaign",
                         campaign.Name,
-                        CampaignBody(campaign.Status),
+                        CampaignBody(campaign.Status, campaign.TerminalReason),
                         MetaLine(
                             "warning",
                             campaign.UpdatedAtUtc,
@@ -213,7 +270,8 @@ namespace TummlyBackend.Helpers
         int Id,
         string Name,
         string Status,
-        DateTime UpdatedAtUtc
+        DateTime UpdatedAtUtc,
+        string? TerminalReason = null
     );
 
     public sealed record AssistantHomeNeedsAttentionOfferFact(

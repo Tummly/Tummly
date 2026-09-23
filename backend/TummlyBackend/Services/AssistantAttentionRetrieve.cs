@@ -354,7 +354,8 @@ namespace TummlyBackend.Services
                         item.Id,
                         item.Name,
                         item.Status,
-                        DateTime.SpecifyKind(item.UpdatedAt, DateTimeKind.Utc)
+                        DateTime.SpecifyKind(item.UpdatedAt, DateTimeKind.Utc),
+                        item.TerminalReason
                     ))
                     .ToList();
                 var voids = voidsTask.Result;

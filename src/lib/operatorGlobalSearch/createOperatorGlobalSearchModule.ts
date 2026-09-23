@@ -186,7 +186,8 @@ type SearchState = {
 export function isGlobalSearchOpenShortcut(
   input: OperatorGlobalSearchShortcutInput
 ): boolean {
-  if (input.key.toLowerCase() !== "k") {
+  // Plain Event("keydown") and some synthetic events omit `key`.
+  if (typeof input.key !== "string" || input.key.toLowerCase() !== "k") {
     return false
   }
   if (input.isApplePlatform) {

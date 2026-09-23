@@ -14,6 +14,9 @@ namespace TummlyBackend.DTOs.Campaigns
 
         public string? BillingReservationRef { get; init; }
 
+        /// <summary>Stable fire-close reason when failed / partially-sent.</summary>
+        public string? TerminalReason { get; init; }
+
         public byte[] RowVersion { get; init; } = [];
     }
 

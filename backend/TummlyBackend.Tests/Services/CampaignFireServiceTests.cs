@@ -92,6 +92,11 @@ namespace TummlyBackend.Tests.Services
 
             var failed = Assert.IsType<CampaignFireResult.CannotStart>(result);
             Assert.Equal(CampaignFireService.FailedStatus, failed.Campaign.Status);
+            Assert.Equal(
+                CampaignTerminalReasons.SoftLocked,
+                (await _context.Campaigns.SingleAsync(c => c.Id == seeded.CampaignId))
+                    .TerminalReason
+            );
             Assert.Single(_reserve.ReleaseCalls);
             Assert.Empty(_outbound.Calls);
         }
@@ -247,6 +252,11 @@ namespace TummlyBackend.Tests.Services
 
             var ok = Assert.IsType<CampaignFireResult.Ok>(result);
             Assert.Equal(CampaignFireService.PartiallySentStatus, ok.Campaign.Status);
+            Assert.Equal(
+                CampaignTerminalReasons.MidSendStop,
+                (await _context.Campaigns.SingleAsync(c => c.Id == seeded.CampaignId))
+                    .TerminalReason
+            );
             Assert.True(ok.Campaign.AcceptedCount >= 1);
             Assert.True(ok.Campaign.RemainingUnsentCount >= 1);
 
@@ -255,6 +265,34 @@ namespace TummlyBackend.Tests.Services
             // Mid-send stop closes the hold (Settle then Release) per lock 04.
             Assert.Single(_reserve.ReleaseCalls);
             Assert.Null(ok.Campaign.BillingReservationRef);
+        }
+
+        [Fact]
+        public async Task FireAsync_CreditHoldExhausted_SetsPartiallySentWithReason()
+        {
+            var seeded = await SeedSendingCampaignAsync(frozenEligibleCount: 3);
+            var campaign = await _context.Campaigns.SingleAsync(
+                c => c.Id == seeded.CampaignId
+            );
+            campaign.ReservedEstimate = 1;
+            campaign.SettledUnits = 0;
+            await _context.SaveChangesAsync();
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            var ok = Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Equal(CampaignFireService.PartiallySentStatus, ok.Campaign.Status);
+            Assert.Equal(1, ok.Campaign.AcceptedCount);
+            Assert.True(ok.Campaign.RemainingUnsentCount >= 1);
+            Assert.Equal(
+                CampaignTerminalReasons.CreditHoldExhausted,
+                (await _context.Campaigns.SingleAsync(c => c.Id == seeded.CampaignId))
+                    .TerminalReason
+            );
+            Assert.Equal(
+                CampaignTerminalReasons.CreditHoldExhausted,
+                ok.Campaign.TerminalReason
+            );
         }
 
         [Fact]

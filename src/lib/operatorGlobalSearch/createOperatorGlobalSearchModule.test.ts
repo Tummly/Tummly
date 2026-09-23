@@ -135,6 +135,18 @@ describe("isGlobalSearchOpenShortcut", () => {
       })
     ).toBe(false)
   })
+
+  it("returns false when key is missing (non-KeyboardEvent keydown)", () => {
+    expect(
+      isGlobalSearchOpenShortcut({
+        // Runtime keydowns can omit key (e.g. plain Event("keydown")).
+        key: undefined as unknown as string,
+        metaKey: true,
+        ctrlKey: false,
+        isApplePlatform: true,
+      })
+    ).toBe(false)
+  })
 })
 
 describe("shortcutModifierLabel", () => {

@@ -2,9 +2,10 @@ import type { LucideIcon } from "lucide-react"
 import { MailIcon, MessageSquareIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import type {
-  CampaignChannelId,
-  CampaignChannelShortfall,
+import {
+  CAMPAIGN_CHANNEL_SHORTFALL_BANNER_CLASS,
+  type CampaignChannelId,
+  type CampaignChannelShortfall,
 } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import type {
   CampaignChannelOptionViewModel,
@@ -116,7 +117,7 @@ export function CampaignChannelShortfallBanner({
     shortfall.buyCreditsLabel != null || shortfall.changePlanLabel != null
 
   return (
-    <div className="flex w-full flex-col gap-[22px] rounded-[4px] bg-[var(--op-color-gray-995)] p-[18px]">
+    <div className={CAMPAIGN_CHANNEL_SHORTFALL_BANNER_CLASS}>
       <div className="flex flex-col gap-1.5">
         <p className="m-0 text-sm font-medium text-op-text-primary">
           {shortfall.title}

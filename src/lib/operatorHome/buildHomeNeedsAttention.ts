@@ -1,5 +1,6 @@
 /** Pure Home Needs attention projection (ticket 01). */
 
+import { campaignNeedsAttentionBody } from "@/lib/operatorCampaigns/campaignTerminalReasonPresentation"
 import type { CreditChannelId } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 import {
   HOME_NEEDS_ATTENTION_ACCOUNT_WIDE_SCOPE,
@@ -42,6 +43,8 @@ export type HomeNeedsAttentionCampaignFact = {
   updatedAt: string
   /** Base64 SQL rowversion for Duplicate as Draft. */
   rowVersion: string
+  /** Stable fire-close reason when present. */
+  terminalReason?: string | null
 }
 
 export type HomeNeedsAttentionCreditFact = {
@@ -186,13 +189,11 @@ function mapFeedbackRow(input: {
   }
 }
 
-function campaignBody(status: HomeNeedsAttentionCampaignFact["status"]): string {
-  switch (status) {
-    case "failed":
-      return "This campaign failed."
-    case "partially-sent":
-      return "This campaign was only partially sent."
-  }
+function campaignBody(fact: HomeNeedsAttentionCampaignFact): string {
+  return campaignNeedsAttentionBody({
+    status: fact.status,
+    terminalReason: fact.terminalReason,
+  })
 }
 
 function campaignCtas(
@@ -224,7 +225,7 @@ function mapCampaignRow(input: {
     campaignId: input.fact.id,
     rowVersion: input.fact.rowVersion,
     title: input.fact.name,
-    body: campaignBody(input.fact.status),
+    body: campaignBody(input.fact),
     metaKind: "warning",
     metaLine: buildMetaLine({
       metaKind: "warning",

@@ -662,6 +662,7 @@ namespace TummlyBackend.Services
             entity.BillingReservationRef = reserved.ReservationRef;
             entity.ReservedEstimate = estimatedUnits;
             entity.SettledUnits = 0;
+            entity.TerminalReason = null;
             entity.UpdatedAt = now;
 
             if (resumeTarget)
@@ -766,6 +767,7 @@ namespace TummlyBackend.Services
             }
 
             entity.Status = SendingStatus;
+            entity.TerminalReason = null;
             entity.UpdatedAt = now;
 
             return await SaveLifecycleAsync(entity, cancellationToken);
@@ -860,6 +862,7 @@ namespace TummlyBackend.Services
             entity.BillingReservationRef = null;
             entity.ReservedEstimate = null;
             entity.SettledUnits = 0;
+            entity.TerminalReason = null;
         }
 
         private static CampaignLifecycleResult MapReserveFailure(
