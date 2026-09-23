@@ -96,6 +96,51 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        /// <summary>
+        /// Replace Active→Draft on one Campaign must free the Active slot before
+        /// promoting the Draft. Campaign.OfferId already points at the new Offer
+        /// (same order as CampaignDraftService.PatchAsync).
+        /// </summary>
+        [Fact]
+        public async Task SyncInFlight_ForAttachChange_ReplaceActiveWithDraft_AtCap_Succeeds()
+        {
+            var locationId = await SeedPilotLocationAsync();
+            var previousId = await SeedOfferAsync(locationId, CatalogOfferStatus.Active);
+            var nextId = await SeedOfferAsync(locationId, CatalogOfferStatus.Draft);
+            _context.Campaigns.Add(
+                new Campaign
+                {
+                    RestaurantLocationId = locationId,
+                    Name = "Summer win-back",
+                    Status = "draft",
+                    AudienceKey = "all-eligible-guests",
+                    MessageBody = "Come back.",
+                    OfferId = nextId,
+                    OfferStance = "existing-offer",
+                    CreatedAt = _now,
+                    UpdatedAt = _now,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var result = await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+                previousId,
+                nextId
+            );
+
+            Assert.IsType<CatalogOfferInFlightSyncResult.Ok>(result);
+            Assert.Equal(
+                CatalogOfferStatus.Draft,
+                (await _context.CatalogOffers.FirstAsync(row => row.Id == previousId))
+                    .Status
+            );
+            Assert.Equal(
+                CatalogOfferStatus.Active,
+                (await _context.CatalogOffers.FirstAsync(row => row.Id == nextId))
+                    .Status
+            );
+        }
+
         private async Task<int> SeedLocationWithoutBillingAsync()
         {
             var restaurant = new Restaurant

@@ -33,7 +33,7 @@ import { clearAuthSession } from "@/pages/utils/authHelpers"
 import { useAuthStore } from "@/stores/authStore"
 
 const pilotButtonClass =
-  "h-auto min-h-0 w-[164px] rounded-[4px] bg-[#14a74a] px-[18px] py-3 text-sm font-medium leading-5 text-white hover:bg-[#14a74a]/90"
+  "h-auto min-h-0 w-auto rounded-[4px] bg-[#14a74a] px-[18px] py-3 text-sm font-medium leading-5 whitespace-nowrap text-white hover:bg-[#14a74a]/90"
 
 const logInClass =
   "rounded-sm px-[18px] py-2.5 text-sm font-medium text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
@@ -167,7 +167,7 @@ export default function MarketingHeader() {
                   Log in
                 </SignInLink>
                 <Button asChild className={pilotButtonClass}>
-                  <RequestTrialLink>Sign up</RequestTrialLink>
+                  <RequestTrialLink>Start 30 day Pilot</RequestTrialLink>
                 </Button>
               </>
             )}
@@ -253,7 +253,7 @@ export default function MarketingHeader() {
                       </SignInLink>
                       <Button asChild className={cn(pilotButtonClass, "w-full")}>
                         <RequestTrialLink onClick={closeMobile}>
-                          Sign up
+                          Start 30 day Pilot
                         </RequestTrialLink>
                       </Button>
                     </>

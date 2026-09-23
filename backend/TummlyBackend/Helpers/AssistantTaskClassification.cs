@@ -134,7 +134,8 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
-            if (LooksLikeAttachToCampaignIntent(message))
+            if (LooksLikeAttachToCampaignIntent(message)
+                || LooksLikeRemoveOfferFromCampaign(message))
             {
                 return true;
             }
@@ -172,21 +173,146 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
-            if (!ContainsAny(lower, "campaign"))
+            return ContainsAny(lower, "campaign");
+        }
+
+        /// <summary>
+        /// Attach to an existing Campaign Draft without creating a new Campaign.
+        /// True for bare attach asks; false when the ask also creates a Campaign.
+        /// Does not treat Offer titles that contain "Draft" as a create ask.
+        /// </summary>
+        public static bool LooksLikeAttachOnlyToCampaign(string message)
+        {
+            if (!LooksLikeAttachToCampaignIntent(message)
+                || LooksLikeRemoveOfferFromCampaign(message))
+            {
+                return false;
+            }
+
+            var lower = message.Trim().ToLowerInvariant();
+            // Explicit create verbs only — CreateCampaignOutcomeRegex also matches
+            // bare "draft … campaign", which false-positives Offer titles like
+            // "Live Draft Nine".
+            return !ContainsAny(
+                lower,
+                "create a campaign",
+                "create campaign",
+                "can you create a campaign",
+                "start a campaign",
+                "help me create a campaign",
+                "create an email",
+                "create an sms",
+                "prepare a campaign",
+                "make a campaign",
+                "make a draft campaign",
+                "write a campaign",
+                "build a campaign",
+                "draft a campaign",
+                "draft an campaign"
+            );
+        }
+
+        /// <summary>
+        /// Clear the Offer attach on an existing Campaign Draft
+        /// ("remove the offer from Summer campaign").
+        /// </summary>
+        public static bool LooksLikeRemoveOfferFromCampaign(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            if (!NamesCampaignNoun(lower))
+            {
+                return false;
+            }
+
+            if (!ContainsAny(lower, "offer", "offers"))
+            {
+                return false;
+            }
+
+            return ContainsAny(
+                lower,
+                "remove",
+                "detach",
+                "unattach",
+                "clear the offer",
+                "clear offer",
+                "take off the offer",
+                "take the offer off"
+            );
+        }
+
+        /// <summary>
+        /// True when the ask names a catalog Offer between attach and to
+        /// (for example "Attach Happy Hour to Summer campaign"), so a miss
+        /// must Gap instead of falling back to <c>CreatedOfferId</c>.
+        /// </summary>
+        public static bool LooksLikeNamedOfferAttachAsk(string message)
+        {
+            var match = NamedOfferAttachRegex().Match(message.Trim());
+            if (!match.Success)
+            {
+                return false;
+            }
+
+            var fragment = match.Groups[1].Value.Trim();
+            if (fragment.Length == 0)
+            {
+                return false;
+            }
+
+            var lower = fragment.ToLowerInvariant();
+            return lower is not "it"
+                and not "this"
+                and not "that"
+                and not "this offer"
+                and not "that offer"
+                and not "the offer";
+        }
+
+        /// <summary>
+        /// True when the ask refers to the conversation's prior Offer
+        /// ("attach it", "this offer") rather than a named catalog title.
+        /// </summary>
+        public static bool LooksLikeReferToPriorCreatedOffer(string message)
+        {
+            if (LooksLikeNamedOfferAttachAsk(message))
+            {
+                return false;
+            }
+
+            var lower = message.Trim().ToLowerInvariant();
+            if (lower.Contains("this offer", StringComparison.Ordinal)
+                || lower.Contains("that offer", StringComparison.Ordinal)
+                || lower.Contains("attach it", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return LooksLikeAttachToCampaignIntent(message);
+        }
+
+        /// <summary>
+        /// Attach an existing Offer (or conversation CreatedOfferId) without
+        /// creating a new Offers catalog Draft from commercial terms.
+        /// </summary>
+        public static bool LooksLikeAttachExistingOfferOnly(string message)
+        {
+            if (!LooksLikeAttachToCampaignIntent(message))
             {
                 return false;
             }
 
             if (LooksLikeOfferPath(message))
             {
-                return true;
+                return false;
             }
 
             var terms = AssistantOfferPathTerms.Parse(message);
-            return terms.OfferType is not null
-                || terms.DiscountPercentage is not null
-                || terms.DiscountAmount is not null
-                || !string.IsNullOrWhiteSpace(terms.FreeItemText);
+            return terms.OfferType is null
+                && terms.DiscountPercentage is null
+                && terms.DiscountAmount is null
+                && string.IsNullOrWhiteSpace(terms.FreeItemText)
+                && string.IsNullOrWhiteSpace(terms.ReplacementItemText);
         }
 
         public static bool LooksLikeCreateCampaignDraft(string message)
@@ -349,5 +475,16 @@ namespace TummlyBackend.Helpers
             | System.Text.RegularExpressions.RegexOptions.CultureInvariant
         )]
         private static partial System.Text.RegularExpressions.Regex CreateCampaignOutcomeRegex();
+
+        /// <summary>
+        /// "Attach Happy Hour to Summer campaign" — capture the Offer name
+        /// between attach and to.
+        /// </summary>
+        [System.Text.RegularExpressions.GeneratedRegex(
+            @"attach\s+(.+?)\s+to\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            | System.Text.RegularExpressions.RegexOptions.CultureInvariant
+        )]
+        private static partial System.Text.RegularExpressions.Regex NamedOfferAttachRegex();
     }
 }

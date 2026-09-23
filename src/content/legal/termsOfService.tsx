@@ -3,8 +3,10 @@ import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import type { LegalPageContent } from "./types"
 
 export const termsOfServiceContent: LegalPageContent = {
-  title: "Terms of Service",
-  description: "These Terms and Conditions explain how you may access and use Tummly. They apply to the Tummly website, trial request flow, operator account setup, operator dashboard, Smart Guest Links, QR codes, guest feedback pages, help centre, dashboard shop and related services made available by Tummly.com Limited. Effective date: 9 July 2026",
+  title: "Term of use",
+  lastUpdated: "9 July 2026",
+  description:
+    "These Terms and Conditions explain how you may access and use Tummly. They apply to the Tummly website, trial request flow, operator account setup, operator dashboard, Smart Guest Links, QR codes, guest feedback pages, help centre, dashboard shop and related services made available by Tummly.com Limited.",
   documentKey: "terms",
   sections: [
   {

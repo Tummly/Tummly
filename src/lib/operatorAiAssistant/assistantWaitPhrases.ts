@@ -435,6 +435,9 @@ function looksLikeCreateCampaignWithOffer(lower: string): boolean {
   if (looksLikeRecoveryPath(lower)) {
     return false
   }
+  if (looksLikeAttachToCampaign(lower)) {
+    return true
+  }
   if (
     containsAny(lower, [
       "with an offer",
@@ -462,6 +465,15 @@ function looksLikeCreateCampaignWithOffer(lower: string): boolean {
       "$",
     ])
   )
+}
+
+function looksLikeAttachToCampaign(lower: string): boolean {
+  if (
+    !containsAny(lower, ["attach", "attach it", "attach to"])
+  ) {
+    return false
+  }
+  return namesCampaignNoun(lower)
 }
 
 function looksLikeRefuse(lower: string): boolean {

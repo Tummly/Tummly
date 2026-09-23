@@ -2256,6 +2256,360 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_AttachOnly_NoCampaignName_ListsDraftsWithOfferMarks()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var priorOfferId = await SeedCatalogOfferAsync(locationId, "Prior Brunch");
+            var withOfferId = await SeedCampaignAsync(locationId, "Summer win-back", "draft");
+            await SeedCampaignAsync(locationId, "Quiet Tuesday", "draft");
+            var withOffer = await _context.Campaigns.FindAsync(withOfferId);
+            Assert.NotNull(withOffer);
+            withOffer!.OfferId = priorOfferId;
+            withOffer.OfferStance = "existing-offer";
+            await _context.SaveChangesAsync();
+
+            var created = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenOfferPathAsk)
+                )
+            );
+            Assert.NotNull(_context.AssistantConversations.Single().CreatedOfferId);
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Attach it to a campaign",
+                    created.Conversation.Id
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("gap", ok.Conversation.Messages[^1].Class);
+            Assert.Contains(
+                AssistantGapAsk.CampaignTitleAskPrefix,
+                ok.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("has Prior Brunch", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Contains("Quiet Tuesday", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_AttachOnly_NamedOfferToEmptyDraft_AttachesWithoutCreate()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+            var offerId = await SeedCatalogOfferAsync(locationId, "Happy Hour");
+            var campaignId = await SeedCampaignAsync(
+                locationId,
+                "Quiet Tuesday",
+                "draft",
+                audienceKey: "all-eligible-guests"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Attach Happy Hour to Quiet Tuesday campaign"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("Campaign Draft saved with Offer", ok.Conversation.Messages[^1].Title);
+            Assert.Equal(1, await _context.CatalogOffers.CountAsync());
+            var campaign = await _context.Campaigns.FindAsync(campaignId);
+            Assert.NotNull(campaign);
+            Assert.Equal(offerId, campaign!.OfferId);
+            Assert.Equal("existing-offer", campaign.OfferStance);
+        }
+
+        [Fact]
+        public async Task SendTurn_AttachOnly_ExistingOffer_AsksReplaceThenYesPatches()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+            var previousOfferId = await SeedCatalogOfferAsync(locationId, "10% Off Lunch");
+            var newOfferId = await SeedCatalogOfferAsync(locationId, "Happy Hour");
+            var campaignId = await SeedCampaignAsync(
+                locationId,
+                "Summer win-back",
+                "draft",
+                audienceKey: "all-eligible-guests"
+            );
+            var campaign = await _context.Campaigns.FindAsync(campaignId);
+            Assert.NotNull(campaign);
+            campaign!.OfferId = previousOfferId;
+            campaign.OfferStance = "existing-offer";
+            await _context.SaveChangesAsync();
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Attach Happy Hour to Summer win-back campaign"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            Assert.Contains("Replace", started.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Equal(previousOfferId, (await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+
+            var confirmed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Yes", started.Conversation.Id)
+                )
+            );
+            Assert.Equal("Campaign Draft saved with Offer", confirmed.Conversation.Messages[^1].Title);
+            Assert.Equal(newOfferId, (await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathThenAttachIt_UsesCreatedOfferId()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+            var campaignId = await SeedCampaignAsync(
+                locationId,
+                "Quiet Tuesday",
+                "draft",
+                audienceKey: "all-eligible-guests"
+            );
+
+            var created = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenOfferPathAsk)
+                )
+            );
+            var offerId = Assert.Single(_context.CatalogOffers).Id;
+            Assert.Equal(offerId, _context.AssistantConversations.Single().CreatedOfferId);
+
+            var attached = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Attach it to Quiet Tuesday campaign",
+                        created.Conversation.Id
+                    )
+                )
+            );
+            Assert.Equal("Campaign Draft saved with Offer", attached.Conversation.Messages[^1].Title);
+            Assert.Equal(offerId, (await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+            Assert.Equal(1, await _context.CatalogOffers.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_AttachOnly_NamedOfferMiss_ListsAttachableOffers_NotCreatedOfferId()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedCatalogOfferAsync(locationId, "Happy Hour");
+            await SeedCampaignAsync(
+                locationId,
+                "Quiet Tuesday",
+                "draft",
+                audienceKey: "all-eligible-guests"
+            );
+
+            var created = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenOfferPathAsk)
+                )
+            );
+            Assert.NotNull(_context.AssistantConversations.Single().CreatedOfferId);
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Attach Missing Brunch Deal to Quiet Tuesday campaign",
+                    created.Conversation.Id
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("gap", ok.Conversation.Messages[^1].Class);
+            Assert.Contains("Happy Hour", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Equal(
+                0,
+                await _context.Campaigns.CountAsync(c => c.OfferId != null)
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_AttachOnly_ExistingOffer_AsksReplaceThenNoKeepsPrevious()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+            var previousOfferId = await SeedCatalogOfferAsync(locationId, "10% Off Lunch");
+            await SeedCatalogOfferAsync(locationId, "Happy Hour");
+            var campaignId = await SeedCampaignAsync(
+                locationId,
+                "Summer win-back",
+                "draft",
+                audienceKey: "all-eligible-guests"
+            );
+            var campaign = await _context.Campaigns.FindAsync(campaignId);
+            Assert.NotNull(campaign);
+            campaign!.OfferId = previousOfferId;
+            campaign.OfferStance = "existing-offer";
+            await _context.SaveChangesAsync();
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Attach Happy Hour to Summer win-back campaign"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            Assert.Contains("Replace", started.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+
+            var declined = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "No", started.Conversation.Id)
+                )
+            );
+            Assert.Equal("Offer not replaced", declined.Conversation.Messages[^1].Title);
+            Assert.Equal(previousOfferId, (await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+            Assert.Null(_context.AssistantConversations.Single().DraftInterviewJson);
+        }
+
+        [Fact]
+        public async Task SendTurn_AttachOnly_ScheduledCampaign_RefusesInFlight()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedCatalogOfferAsync(locationId, "Happy Hour");
+            await SeedCampaignAsync(
+                locationId,
+                "Summer win-back",
+                CampaignsListService.ScheduledStatus
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Attach Happy Hour to Summer win-back campaign"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Contains("Summer win-back", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Contains("Campaigns UI", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Equal(
+                0,
+                await _context.Campaigns.CountAsync(c => c.OfferId != null)
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_RemoveOffer_AsksConfirmThenYesClearsOfferId()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var offerId = await SeedCatalogOfferAsync(locationId, "Happy Hour");
+            var campaignId = await SeedCampaignAsync(
+                locationId,
+                "Summer win-back",
+                "draft",
+                audienceKey: "all-eligible-guests"
+            );
+            var campaign = await _context.Campaigns.FindAsync(campaignId);
+            Assert.NotNull(campaign);
+            campaign!.OfferId = offerId;
+            campaign.OfferStance = "existing-offer";
+            await _context.SaveChangesAsync();
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Remove the offer from Summer win-back campaign"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            Assert.Contains("Remove", started.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Contains("Happy Hour", started.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+
+            var cleared = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Yes", started.Conversation.Id)
+                )
+            );
+            Assert.Equal(AssistantGapAsk.OfferRemovedTitle, cleared.Conversation.Messages[^1].Title);
+            Assert.Null((await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+            Assert.Null(_context.AssistantConversations.Single().DraftInterviewJson);
+        }
+
+        [Fact]
+        public async Task SendTurn_RemoveOffer_NoKeepsOfferId()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var offerId = await SeedCatalogOfferAsync(locationId, "Happy Hour");
+            var campaignId = await SeedCampaignAsync(
+                locationId,
+                "Summer win-back",
+                "draft",
+                audienceKey: "all-eligible-guests"
+            );
+            var campaign = await _context.Campaigns.FindAsync(campaignId);
+            Assert.NotNull(campaign);
+            campaign!.OfferId = offerId;
+            campaign.OfferStance = "existing-offer";
+            await _context.SaveChangesAsync();
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Remove the offer from Summer win-back campaign"
+                    )
+                )
+            );
+            var declined = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "No", started.Conversation.Id)
+                )
+            );
+            Assert.Equal(AssistantGapAsk.OfferNotRemovedTitle, declined.Conversation.Messages[^1].Title);
+            Assert.Equal(offerId, (await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+        }
+
+        [Fact]
         public async Task SendTurn_CombinedCreate_LocationAndTermsOpen_LocationGapFirst()
         {
             var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");

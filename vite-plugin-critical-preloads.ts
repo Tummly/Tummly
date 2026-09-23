@@ -24,18 +24,28 @@ function buildPreloadTags(bundle: OutputBundle): string {
   const heroSrcset = extractAvifSrcset(bundle, "hero-bg");
   const helpCenterSrcset = extractAvifSrcset(bundle, "help-center-bg");
   const authSignInPanelSrcset = extractAvifSrcset(bundle, "auth-sign-in-panel");
+  const ctaLaunchBgSrcset = extractAvifSrcset(bundle, "cta-launch-bg");
 
-  if (!heroSrcset && !authSignInPanelSrcset && !helpCenterSrcset) {
+  if (
+    !heroSrcset &&
+    !authSignInPanelSrcset &&
+    !helpCenterSrcset &&
+    !ctaLaunchBgSrcset
+  ) {
     return "";
   }
 
   const authSizes = "(min-width: 1024px) 41.3vw, 0px";
+  const panoramicSizes = "(min-width: 1726px) 100vw, 1726px";
   const heroSrcsetJson = heroSrcset ? JSON.stringify(heroSrcset) : "null";
   const helpCenterSrcsetJson = helpCenterSrcset
     ? JSON.stringify(helpCenterSrcset)
     : "null";
   const authSignInPanelJson = authSignInPanelSrcset
     ? JSON.stringify(authSignInPanelSrcset)
+    : "null";
+  const ctaLaunchBgJson = ctaLaunchBgSrcset
+    ? JSON.stringify(ctaLaunchBgSrcset)
     : "null";
 
   const loginPreloadScript = `<script>
@@ -52,6 +62,15 @@ function buildPreloadTags(bundle: OutputBundle): string {
     document.head.appendChild(link);
   }
 
+  function appendPrefetch(attrs) {
+    var link = document.createElement("link");
+    link.rel = "prefetch";
+    for (var key in attrs) {
+      if (attrs[key]) link.setAttribute(key, attrs[key]);
+    }
+    document.head.appendChild(link);
+  }
+
   if (path === "/" || path === "") {
     var heroSrcset = ${heroSrcsetJson};
     if (heroSrcset) {
@@ -60,6 +79,44 @@ function buildPreloadTags(bundle: OutputBundle): string {
         type: "image/avif",
         imagesrcset: heroSrcset,
         imagesizes: "100vw"
+      });
+    }
+    var ctaLaunchBgSrcsetHome = ${ctaLaunchBgJson};
+    if (ctaLaunchBgSrcsetHome) {
+      appendPrefetch({
+        as: "image",
+        type: "image/avif",
+        imagesrcset: ctaLaunchBgSrcsetHome,
+        imagesizes: ${JSON.stringify(panoramicSizes)}
+      });
+    }
+  }
+
+  if (
+    path === "/faqs" ||
+    path === "/faqs/" ||
+    path === "/trust-privacy" ||
+    path === "/trust-privacy/" ||
+    path === "/privacy" ||
+    path === "/privacy/" ||
+    path === "/terms" ||
+    path === "/terms/" ||
+    path === "/cookie-policy" ||
+    path === "/cookie-policy/" ||
+    path === "/accessibility" ||
+    path === "/accessibility/" ||
+    path === "/acceptable-use" ||
+    path === "/acceptable-use/" ||
+    path === "/shop-print-terms" ||
+    path === "/shop-print-terms/"
+  ) {
+    var ctaLaunchBgSrcsetMarketing = ${ctaLaunchBgJson};
+    if (ctaLaunchBgSrcsetMarketing) {
+      appendPreload({
+        as: "image",
+        type: "image/avif",
+        imagesrcset: ctaLaunchBgSrcsetMarketing,
+        imagesizes: ${JSON.stringify(panoramicSizes)}
       });
     }
   }

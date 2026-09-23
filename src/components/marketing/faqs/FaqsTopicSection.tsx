@@ -2,9 +2,8 @@ import { Accordion } from "@/components/ui/accordion"
 import { FaqsAccordionItem } from "@/components/marketing/faqs/FaqsAccordionItem"
 import type { FaqsPageSection } from "@/content/marketing/faqsPage"
 import {
+  marketingChromeContentInset,
   marketingSectionHeading,
-  marketingSectionInset,
-  marketingSectionPadding,
 } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
@@ -13,6 +12,7 @@ type FaqsTopicSectionProps = {
   defaultOpenValue?: string
 }
 
+/** Figma topic stack: pad 50/70/60, 60px column gap, 30px accordion gap. */
 export function FaqsTopicSection({
   section,
   defaultOpenValue,
@@ -29,12 +29,12 @@ export function FaqsTopicSection({
     >
       <div
         className={cn(
-          "mx-auto flex w-full flex-col gap-8 sm:gap-10 lg:flex-row lg:items-start lg:gap-10 xl:gap-16 2xl:gap-24 min-[1728px]:gap-47.5",
-          marketingSectionInset,
-          marketingSectionPadding,
+          "mx-auto flex w-full flex-col gap-8 sm:gap-10 lg:flex-row lg:items-start lg:gap-15",
+          marketingChromeContentInset,
+          "pt-12.5 pb-17.5",
         )}
       >
-        <header className="flex w-full shrink-0 flex-col gap-3 sm:max-w-sm lg:max-w-72 xl:max-w-99.5">
+        <header className="flex w-full shrink-0 flex-col gap-3 lg:sticky lg:top-44 lg:w-137 lg:max-w-137 lg:pt-5">
           <h2 className={cn("m-0 text-[#141414]", marketingSectionHeading)}>
             {section.title}
           </h2>
@@ -43,7 +43,7 @@ export function FaqsTopicSection({
         <Accordion
           type="single"
           collapsible
-          className="min-w-0 flex-1 gap-8.5"
+          className="min-w-0 flex-1 gap-7.5 lg:pt-5"
           defaultValue={sectionDefault}
         >
           {section.items.map((item) => (
@@ -52,6 +52,7 @@ export function FaqsTopicSection({
               value={`${section.id}::${item.id}`}
               question={item.question}
               answer={item.answer}
+              cta={item.cta}
             />
           ))}
         </Accordion>

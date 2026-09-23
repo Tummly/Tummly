@@ -6,12 +6,34 @@ namespace TummlyBackend.Tests.Helpers
     public class AssistantCombinedCreateCampaignResolveTests
     {
         [Fact]
+        public void ExtractNamedCampaignTitle_AttachNamedOfferToNamedCampaign()
+        {
+            Assert.Equal(
+                "Summer win-back",
+                AssistantCombinedCreateCampaignResolve.ExtractNamedCampaignTitle(
+                    "Attach Happy Hour to Summer win-back campaign"
+                )
+            );
+        }
+
+        [Fact]
         public void ExtractNamedCampaignTitle_AttachItToNamedCampaign()
         {
             Assert.Equal(
                 "Summer win-back",
                 AssistantCombinedCreateCampaignResolve.ExtractNamedCampaignTitle(
                     "Create 10% off and attach it to Summer win-back campaign"
+                )
+            );
+        }
+
+        [Fact]
+        public void ExtractNamedCampaignTitle_RemoveOfferFromNamedCampaign()
+        {
+            Assert.Equal(
+                "Summer win-back",
+                AssistantCombinedCreateCampaignResolve.ExtractNamedCampaignTitle(
+                    "Remove the offer from Summer win-back campaign"
                 )
             );
         }
@@ -99,6 +121,99 @@ namespace TummlyBackend.Tests.Helpers
 
             var create = Assert.IsType<AssistantCombinedCreateCampaignOutcome.CreateNew>(outcome);
             Assert.Equal("New launch", create.NamedTitle);
+        }
+
+        [Fact]
+        public void Resolve_AttachOnly_NoName_ListsAllDraftsWithMarks()
+        {
+            var campaigns = new[]
+            {
+                new AssistantCombinedCreateCampaignRef(
+                    1,
+                    "Summer win-back",
+                    CampaignDraftService.DraftStatus,
+                    OfferId: 9,
+                    AttachedOfferTitle: "10% Off Lunch"
+                ),
+                new AssistantCombinedCreateCampaignRef(
+                    2,
+                    "Quiet Tuesday",
+                    CampaignDraftService.DraftStatus
+                ),
+            };
+
+            var outcome = AssistantCombinedCreateCampaignResolve.Resolve(
+                "Attach it to a campaign",
+                campaigns,
+                attachOnly: true
+            );
+
+            var gap = Assert.IsType<AssistantCombinedCreateCampaignOutcome.Gap>(outcome);
+            Assert.Equal(2, gap.Options.Count);
+            Assert.Contains("Quiet Tuesday", gap.Options);
+            Assert.Contains("Summer win-back", gap.Options);
+            Assert.Contains("has 10% Off Lunch", gap.Body, StringComparison.Ordinal);
+            Assert.Contains("Quiet Tuesday", gap.Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Resolve_AttachOnly_ZeroMatch_ListsDraftsInsteadOfCreateNew()
+        {
+            var campaigns = new[]
+            {
+                new AssistantCombinedCreateCampaignRef(
+                    1,
+                    "Quiet Tuesday",
+                    CampaignDraftService.DraftStatus
+                ),
+            };
+
+            var outcome = AssistantCombinedCreateCampaignResolve.Resolve(
+                "Attach Happy Hour to Missing name campaign",
+                campaigns,
+                attachOnly: true
+            );
+
+            var gap = Assert.IsType<AssistantCombinedCreateCampaignOutcome.Gap>(outcome);
+            Assert.Equal(["Quiet Tuesday"], gap.Options);
+        }
+
+        [Fact]
+        public void Resolve_AttachOnly_NoDrafts_EmptyGap()
+        {
+            var outcome = AssistantCombinedCreateCampaignResolve.Resolve(
+                "Attach it to a campaign",
+                [],
+                attachOnly: true
+            );
+
+            var gap = Assert.IsType<AssistantCombinedCreateCampaignOutcome.Gap>(outcome);
+            Assert.Empty(gap.Options);
+            Assert.Equal(AssistantGapAsk.NoCampaignDraftsForAttachBody, gap.Body);
+        }
+
+        [Fact]
+        public void Resolve_AttachOnly_ScheduledCampaign_RefusesInFlight()
+        {
+            var campaigns = new[]
+            {
+                new AssistantCombinedCreateCampaignRef(
+                    1,
+                    "Summer win-back",
+                    CampaignsListService.ScheduledStatus
+                ),
+            };
+
+            var outcome = AssistantCombinedCreateCampaignResolve.Resolve(
+                "Attach Happy Hour to Summer win-back campaign",
+                campaigns,
+                attachOnly: true
+            );
+
+            var refuse = Assert.IsType<AssistantCombinedCreateCampaignOutcome.RefuseInFlight>(
+                outcome
+            );
+            Assert.Contains("Summer win-back", refuse.Body, StringComparison.Ordinal);
         }
     }
 }

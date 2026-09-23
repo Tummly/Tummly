@@ -10,7 +10,13 @@ export type LegalSection = {
 
 export type LegalPageContent = {
   title: string
-  description: string
-  documentKey: LegalDocumentKey
+  /** Hero intro; string or paragraph list. */
+  description: string | readonly string[]
+  /** Shown as “Last updated: …”. Omit when the date is not ready. */
+  lastUpdated?: string
+  /** Cookie Notice hero control that opens cookie settings. */
+  showManageCookiePreferences?: boolean
+  /** When set, show the download control for the matching DOCX. */
+  documentKey?: LegalDocumentKey
   sections: LegalSection[]
 }

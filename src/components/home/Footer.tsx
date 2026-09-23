@@ -1,30 +1,21 @@
 import { Link } from "react-router-dom"
 
-import { CookieSettingsTrigger } from "@/components/common/CookieSettingsDialog"
 import { MarketingLogo } from "@/components/marketing/MarketingLogo"
 import { MarketingNavLink } from "@/components/marketing/MarketingNavLink"
 import { MARKETING_FOOTER_COLUMNS } from "@/constants/marketingNav"
-import {
-  marketingChromeBackground,
-  marketingChromeContentInset,
-} from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
-const footerLinkClass = "text-sm text-[#141414]"
+const footerLinkClass = "text-sm font-normal text-[#141414]"
 const footerHeadingClass =
   "m-0 text-base font-medium leading-normal text-[#141414]"
 
+/** Figma marketing Footer (`4116:13302` / FAQ `4974:26425`). */
 export default function Footer() {
   return (
-    <footer className={cn("w-full", marketingChromeBackground)}>
-      <div
-        className={cn(
-          "flex w-full flex-col gap-10 rounded-tl-[8px] rounded-tr-[8px] pb-10 pt-[60px] lg:gap-0",
-          marketingChromeContentInset,
-        )}
-      >
-        <div className="flex flex-col gap-10 lg:flex-row lg:items-stretch lg:justify-between lg:gap-12">
-          <div className="flex flex-col justify-between gap-8 lg:min-h-[251px]">
+    <footer className="w-full pt-5">
+      <div className="flex w-full flex-col justify-center overflow-hidden rounded-tl-[8px] rounded-tr-[8px] bg-[#f0f0f0] px-6.25 py-10 sm:px-10 lg:min-h-[311px] lg:px-15 lg:py-15">
+        <div className="flex w-full flex-col gap-10 lg:flex-row lg:items-stretch lg:gap-[70px]">
+          <div className="flex flex-col justify-between gap-8 lg:min-h-[211px] lg:flex-1">
             <Link
               to="/"
               className="shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
@@ -35,12 +26,17 @@ export default function Footer() {
                 className="h-[26px] max-w-[min(141px,50vw)]"
               />
             </Link>
-            <p className="m-0 text-sm text-[#141414]">
-              © 2026 Limited. All rights reserved.
+            <p className="m-0 text-sm font-normal leading-normal text-[#141414]">
+              © 2026 Tummly.com Limited. All rights reserved.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:flex lg:flex-wrap lg:gap-x-[60px] xl:gap-x-[120px]">
+          <div
+            className={cn(
+              "grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3",
+              "lg:flex lg:shrink-0 lg:flex-nowrap lg:gap-x-10 xl:gap-x-20 2xl:gap-x-40",
+            )}
+          >
             {MARKETING_FOOTER_COLUMNS.map((column) => (
               <div
                 key={column.id}
@@ -49,44 +45,16 @@ export default function Footer() {
                 <p className={footerHeadingClass}>{column.title}</p>
                 <nav
                   aria-label={column.title}
-                  className="flex flex-col gap-[18px]"
+                  className="flex flex-col gap-4.5"
                 >
-                  {column.items.map((item) => {
-                    if (
-                      column.id === "trust"
-                      && item.id === "cookies"
-                    ) {
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex flex-col gap-2"
-                        >
-                          <MarketingNavLink
-                            label={item.label}
-                            href={item.href}
-                            className={footerLinkClass}
-                          />
-                          <CookieSettingsTrigger
-                            className={cn(
-                              footerLinkClass,
-                              "rounded-sm text-left no-underline hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30",
-                            )}
-                          >
-                            Cookie Settings
-                          </CookieSettingsTrigger>
-                        </div>
-                      )
-                    }
-
-                    return (
-                      <MarketingNavLink
-                        key={item.id}
-                        label={item.label}
-                        href={item.href}
-                        className={footerLinkClass}
-                      />
-                    )
-                  })}
+                  {column.items.map((item) => (
+                    <MarketingNavLink
+                      key={item.id}
+                      label={item.label}
+                      href={item.href}
+                      className={footerLinkClass}
+                    />
+                  ))}
                 </nav>
               </div>
             ))}

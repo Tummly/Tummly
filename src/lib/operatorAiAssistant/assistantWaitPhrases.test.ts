@@ -20,6 +20,12 @@ describe("assistantWaitPhrases", () => {
     expect(
       classifyAssistantWaitGate("Create a campaign with a 20% off offer")
     ).toBe("create-campaign-with-offer")
+    expect(classifyAssistantWaitGate("Attach it to a campaign")).toBe(
+      "create-campaign-with-offer"
+    )
+    expect(
+      classifyAssistantWaitGate("Attach Happy Hour to Summer campaign")
+    ).toBe("create-campaign-with-offer")
     expect(classifyAssistantWaitGate("Draft an offer for free dessert")).toBe(
       "offer-path"
     )

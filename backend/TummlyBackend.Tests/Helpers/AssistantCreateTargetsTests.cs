@@ -122,6 +122,77 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void BareAttachToCampaign_RoutesToCombinedCreate()
+        {
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify("Attach it to a campaign")
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify(
+                    "Attach Happy Hour to Summer win-back campaign"
+                )
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    "Attach it to a campaign"
+                )
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeAttachExistingOfferOnly(
+                    "Attach Happy Hour to Summer win-back campaign"
+                )
+            );
+            Assert.False(
+                AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    "Create a campaign with 10% off and attach to Summer win-back campaign"
+                )
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeNamedOfferAttachAsk(
+                    "Attach Happy Hour to Summer win-back campaign"
+                )
+            );
+            Assert.False(
+                AssistantTaskClassification.LooksLikeReferToPriorCreatedOffer(
+                    "Attach Happy Hour to Summer win-back campaign"
+                )
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeReferToPriorCreatedOffer(
+                    "Attach it to Quiet Tuesday campaign"
+                )
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeRemoveOfferFromCampaign(
+                    "Remove the offer from Summer win-back campaign"
+                )
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify(
+                    "Detach offer from Quiet Tuesday campaign"
+                )
+            );
+            Assert.False(
+                AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    "Remove the offer from Summer win-back campaign"
+                )
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    "Attach Live Draft Nine to Live Replace Draft campaign"
+                )
+            );
+            Assert.False(
+                AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    "Create a campaign and attach Happy Hour to it"
+                )
+            );
+        }
+
+        [Fact]
         public void UnnamedCreate_ListsCampaignOfferAndRecovery()
         {
             Assert.Equal(

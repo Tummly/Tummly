@@ -19,6 +19,7 @@ export type MarketingNavItem = {
 
 export const MARKETING_FAQS_HASH = "#faqs"
 export const MARKETING_FAQS_PATH = "/faqs"
+export const MARKETING_TRUST_PRIVACY_PATH = "/trust-privacy"
 
 export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
   { id: "product", label: "Product", href: { kind: "placeholder" } },
@@ -41,7 +42,7 @@ export const MARKETING_RESOURCES_NAV: MarketingNavItem[] = [
   {
     id: "trust-privacy",
     label: "Trust & privacy",
-    href: { kind: "placeholder" },
+    href: { kind: "route", to: MARKETING_TRUST_PRIVACY_PATH },
   },
   {
     id: "faq",
@@ -94,7 +95,7 @@ export const MARKETING_FOOTER_TRUST: MarketingNavItem[] = [
   {
     id: "trust-privacy",
     label: "Trust & privacy",
-    href: { kind: "placeholder" },
+    href: { kind: "route", to: MARKETING_TRUST_PRIVACY_PATH },
   },
   {
     id: "privacy",
@@ -109,12 +110,12 @@ export const MARKETING_FOOTER_TRUST: MarketingNavItem[] = [
   {
     id: "accessibility",
     label: "Accessibility",
-    href: { kind: "placeholder" },
+    href: { kind: "route", to: LEGAL_ROUTES.accessibility },
   },
   {
     id: "acceptable-use",
     label: "Acceptable Use",
-    href: { kind: "placeholder" },
+    href: { kind: "route", to: LEGAL_ROUTES.acceptableUse },
   },
 ]
 
@@ -128,7 +129,7 @@ export const MARKETING_FOOTER_COMPANY: MarketingNavItem[] = [
   {
     id: "shop-print-terms",
     label: "Shop & Print Terms",
-    href: { kind: "placeholder" },
+    href: { kind: "route", to: LEGAL_ROUTES.shopPrintTerms },
   },
   {
     id: "contact",
@@ -138,7 +139,6 @@ export const MARKETING_FOOTER_COMPANY: MarketingNavItem[] = [
 ]
 
 export const MARKETING_FOOTER_SOCIAL: MarketingNavItem[] = [
-  { id: "youtube", label: "YouTube", href: { kind: "placeholder" } },
   { id: "instagram", label: "Instagram", href: { kind: "placeholder" } },
   { id: "tiktok", label: "TikTok", href: { kind: "placeholder" } },
   { id: "x", label: "X", href: { kind: "placeholder" } },

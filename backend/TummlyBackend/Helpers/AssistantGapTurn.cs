@@ -31,6 +31,44 @@ namespace TummlyBackend.Helpers
         /// <see cref="AssistantGapTurn.GapSourceModelRequested"/>.
         /// </summary>
         public string? GapSource { get; set; }
+
+        /// <summary>
+        /// Pending replace payload for <see cref="AssistantGapTurn.KindOfferReplaceConfirm"/>.
+        /// </summary>
+        public AssistantOfferReplaceConfirmPending? OfferReplaceConfirm { get; set; }
+
+        /// <summary>
+        /// Pending clear payload for <see cref="AssistantGapTurn.KindOfferRemoveConfirm"/>.
+        /// </summary>
+        public AssistantOfferRemoveConfirmPending? OfferRemoveConfirm { get; set; }
+    }
+
+    /// <summary>
+    /// Ids and titles held while the Operator confirms replacing a Campaign Draft Offer.
+    /// </summary>
+    public sealed class AssistantOfferReplaceConfirmPending
+    {
+        public int CampaignId { get; set; }
+
+        public string CampaignName { get; set; } = string.Empty;
+
+        public int OfferId { get; set; }
+
+        public string NewOfferTitle { get; set; } = string.Empty;
+
+        public string PreviousOfferTitle { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Ids and titles held while the Operator confirms clearing a Campaign Draft Offer.
+    /// </summary>
+    public sealed class AssistantOfferRemoveConfirmPending
+    {
+        public int CampaignId { get; set; }
+
+        public string CampaignName { get; set; } = string.Empty;
+
+        public string OfferTitle { get; set; } = string.Empty;
     }
 
     public static class AssistantGapTurn
@@ -43,6 +81,8 @@ namespace TummlyBackend.Helpers
         public const string KindChannel = "channel";
         public const string KindOfferTerms = "offer-terms";
         public const string KindCampaignTitle = "campaign-title";
+        public const string KindOfferReplaceConfirm = "offer-replace-confirm";
+        public const string KindOfferRemoveConfirm = "offer-remove-confirm";
         public const string KindFeedback = "feedback";
 
         public const string GapKindCreation = "creation";
@@ -125,6 +165,60 @@ namespace TummlyBackend.Helpers
                 Options = options.ToList(),
                 SourceUserMessage = sourceUserMessage,
                 OfferTermsJson = offerTermsJson,
+            };
+
+        public static AssistantGapState CreateOfferReplaceConfirm(
+            int campaignId,
+            string campaignName,
+            int offerId,
+            string newOfferTitle,
+            string previousOfferTitle,
+            string sourceUserMessage,
+            string assistantTask
+        )
+            => new()
+            {
+                Kind = KindOfferReplaceConfirm,
+                AssistantTask = assistantTask,
+                Options =
+                [
+                    AssistantGapAsk.OfferReplaceConfirmYes,
+                    AssistantGapAsk.OfferReplaceConfirmNo,
+                ],
+                SourceUserMessage = sourceUserMessage,
+                OfferReplaceConfirm = new AssistantOfferReplaceConfirmPending
+                {
+                    CampaignId = campaignId,
+                    CampaignName = campaignName,
+                    OfferId = offerId,
+                    NewOfferTitle = newOfferTitle,
+                    PreviousOfferTitle = previousOfferTitle,
+                },
+            };
+
+        public static AssistantGapState CreateOfferRemoveConfirm(
+            int campaignId,
+            string campaignName,
+            string offerTitle,
+            string sourceUserMessage,
+            string assistantTask
+        )
+            => new()
+            {
+                Kind = KindOfferRemoveConfirm,
+                AssistantTask = assistantTask,
+                Options =
+                [
+                    AssistantGapAsk.OfferReplaceConfirmYes,
+                    AssistantGapAsk.OfferReplaceConfirmNo,
+                ],
+                SourceUserMessage = sourceUserMessage,
+                OfferRemoveConfirm = new AssistantOfferRemoveConfirmPending
+                {
+                    CampaignId = campaignId,
+                    CampaignName = campaignName,
+                    OfferTitle = offerTitle,
+                },
             };
 
         public static AssistantGapState CreateOffer(
@@ -261,7 +355,9 @@ namespace TummlyBackend.Helpers
         private static bool IsKnownKind(string kind)
             => kind is KindCreateTarget or KindLocation
                 or KindOffer or KindAudience or KindChannel
-                or KindOfferTerms or KindCampaignTitle or KindFeedback
+                or KindOfferTerms or KindCampaignTitle or KindOfferReplaceConfirm
+                or KindOfferRemoveConfirm
+                or KindFeedback
                 or KindAdvisoryScope or KindAdvisoryRange or KindAdvisoryMetric
                 or KindAdvisoryData or KindAdvisoryModel;
 
@@ -308,7 +404,7 @@ namespace TummlyBackend.Helpers
 
         public static bool LooksLikeContinueAnswer(string message)
         {
-            var normalized = message.Trim().Trim('.', ',', ';', ':').ToLowerInvariant();
+            var normalized = NormalizeGapReply(message);
             return normalized is "ok"
                 or "okay"
                 or "yes"
@@ -319,6 +415,35 @@ namespace TummlyBackend.Helpers
                 or "go ahead"
                 or "proceed";
         }
+
+        /// <summary>
+        /// Accept replies for <see cref="KindOfferReplaceConfirm"/> only.
+        /// Does not widen <see cref="LooksLikeContinueAnswer"/> for other gaps.
+        /// </summary>
+        public static bool LooksLikeReplaceConfirmAccept(string message)
+        {
+            var normalized = NormalizeGapReply(message);
+            return LooksLikeContinueAnswer(message)
+                || normalized is "replace"
+                or "replace it";
+        }
+
+        public static bool LooksLikeDeclineAnswer(string message)
+        {
+            var normalized = NormalizeGapReply(message);
+            return normalized is "no"
+                or "n"
+                or "nope"
+                or "cancel"
+                or "stop"
+                or "don't"
+                or "do not"
+                or "keep"
+                or "keep it";
+        }
+
+        private static string NormalizeGapReply(string message)
+            => message.Trim().Trim('.', ',', ';', ':').ToLowerInvariant();
 
         public static string RepeatLocationBody(AssistantGapState state)
             => AssistantCreateLocationGap.RepeatBody(
