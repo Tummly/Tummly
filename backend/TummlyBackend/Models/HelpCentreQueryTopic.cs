@@ -2,16 +2,14 @@ namespace TummlyBackend.Models
 {
     public enum HelpCentreQueryTopic
     {
-        Setup,
-        QrNotWorking,
-        MaterialsDamaged,
-        ReorderMaterials,
-        GuestFeedback,
-        OfferRedemption,
-        Campaign,
-        Billing,
-        PrivacyData,
-        RequestDemo,
+        StartingWithTummly,
+        PlansAndPricing,
+        MultiLocationSetup,
+        QrMaterialsOrStarterKit,
+        ExistingAccount,
+        BillingOrSubscription,
+        PrivacyOrDataRequest,
+        PartnershipMediaOrCompany,
         SomethingElse,
     }
 
@@ -20,16 +18,18 @@ namespace TummlyBackend.Models
         public static string ToSlug(this HelpCentreQueryTopic topic) =>
             topic switch
             {
-                HelpCentreQueryTopic.Setup => "setup",
-                HelpCentreQueryTopic.QrNotWorking => "qr-not-working",
-                HelpCentreQueryTopic.MaterialsDamaged => "materials-damaged",
-                HelpCentreQueryTopic.ReorderMaterials => "reorder-materials",
-                HelpCentreQueryTopic.GuestFeedback => "guest-feedback",
-                HelpCentreQueryTopic.OfferRedemption => "offer-redemption",
-                HelpCentreQueryTopic.Campaign => "campaign",
-                HelpCentreQueryTopic.Billing => "billing",
-                HelpCentreQueryTopic.PrivacyData => "privacy-data",
-                HelpCentreQueryTopic.RequestDemo => "request-demo",
+                HelpCentreQueryTopic.StartingWithTummly => "starting-with-tummly",
+                HelpCentreQueryTopic.PlansAndPricing => "plans-and-pricing",
+                HelpCentreQueryTopic.MultiLocationSetup => "multi-location-setup",
+                HelpCentreQueryTopic.QrMaterialsOrStarterKit =>
+                    "qr-materials-or-starter-kit",
+                HelpCentreQueryTopic.ExistingAccount => "existing-account",
+                HelpCentreQueryTopic.BillingOrSubscription =>
+                    "billing-or-subscription",
+                HelpCentreQueryTopic.PrivacyOrDataRequest =>
+                    "privacy-or-data-request",
+                HelpCentreQueryTopic.PartnershipMediaOrCompany =>
+                    "partnership-media-or-company",
                 HelpCentreQueryTopic.SomethingElse => "something-else",
                 _ => topic.ToString(),
             };
@@ -37,26 +37,22 @@ namespace TummlyBackend.Models
         public static string ToDisplayLabel(this HelpCentreQueryTopic topic) =>
             topic switch
             {
-                HelpCentreQueryTopic.Setup =>
-                    "I need help setting up Tummly",
-                HelpCentreQueryTopic.QrNotWorking =>
-                    "My QR code is not working",
-                HelpCentreQueryTopic.MaterialsDamaged =>
-                    "My printed materials are damaged or missing",
-                HelpCentreQueryTopic.ReorderMaterials =>
-                    "I need to reorder QR materials",
-                HelpCentreQueryTopic.GuestFeedback =>
-                    "I need help with guest feedback",
-                HelpCentreQueryTopic.OfferRedemption =>
-                    "I need help with an offer or redemption",
-                HelpCentreQueryTopic.Campaign =>
-                    "I need help with a campaign",
-                HelpCentreQueryTopic.Billing =>
-                    "I have a billing or credits question",
-                HelpCentreQueryTopic.PrivacyData =>
-                    "I need help with consent, privacy or data",
-                HelpCentreQueryTopic.RequestDemo =>
-                    "I want to request a demo",
+                HelpCentreQueryTopic.StartingWithTummly =>
+                    "Starting with Tummly",
+                HelpCentreQueryTopic.PlansAndPricing =>
+                    "Plans and pricing",
+                HelpCentreQueryTopic.MultiLocationSetup =>
+                    "Multi-Location setup",
+                HelpCentreQueryTopic.QrMaterialsOrStarterKit =>
+                    "QR materials or Starter Kit",
+                HelpCentreQueryTopic.ExistingAccount =>
+                    "Help with an existing Tummly account",
+                HelpCentreQueryTopic.BillingOrSubscription =>
+                    "Billing or subscription",
+                HelpCentreQueryTopic.PrivacyOrDataRequest =>
+                    "Privacy or data request",
+                HelpCentreQueryTopic.PartnershipMediaOrCompany =>
+                    "Partnership, media or company enquiry",
                 HelpCentreQueryTopic.SomethingElse =>
                     "Something else",
                 _ => topic.ToString(),
@@ -71,35 +67,29 @@ namespace TummlyBackend.Models
 
             switch (normalized)
             {
-                case "setup":
-                    topic = HelpCentreQueryTopic.Setup;
+                case "starting-with-tummly":
+                    topic = HelpCentreQueryTopic.StartingWithTummly;
                     return true;
-                case "qr-not-working":
-                    topic = HelpCentreQueryTopic.QrNotWorking;
+                case "plans-and-pricing":
+                    topic = HelpCentreQueryTopic.PlansAndPricing;
                     return true;
-                case "materials-damaged":
-                    topic = HelpCentreQueryTopic.MaterialsDamaged;
+                case "multi-location-setup":
+                    topic = HelpCentreQueryTopic.MultiLocationSetup;
                     return true;
-                case "reorder-materials":
-                    topic = HelpCentreQueryTopic.ReorderMaterials;
+                case "qr-materials-or-starter-kit":
+                    topic = HelpCentreQueryTopic.QrMaterialsOrStarterKit;
                     return true;
-                case "guest-feedback":
-                    topic = HelpCentreQueryTopic.GuestFeedback;
+                case "existing-account":
+                    topic = HelpCentreQueryTopic.ExistingAccount;
                     return true;
-                case "offer-redemption":
-                    topic = HelpCentreQueryTopic.OfferRedemption;
+                case "billing-or-subscription":
+                    topic = HelpCentreQueryTopic.BillingOrSubscription;
                     return true;
-                case "campaign":
-                    topic = HelpCentreQueryTopic.Campaign;
+                case "privacy-or-data-request":
+                    topic = HelpCentreQueryTopic.PrivacyOrDataRequest;
                     return true;
-                case "billing":
-                    topic = HelpCentreQueryTopic.Billing;
-                    return true;
-                case "privacy-data":
-                    topic = HelpCentreQueryTopic.PrivacyData;
-                    return true;
-                case "request-demo":
-                    topic = HelpCentreQueryTopic.RequestDemo;
+                case "partnership-media-or-company":
+                    topic = HelpCentreQueryTopic.PartnershipMediaOrCompany;
                     return true;
                 case "something-else":
                     topic = HelpCentreQueryTopic.SomethingElse;

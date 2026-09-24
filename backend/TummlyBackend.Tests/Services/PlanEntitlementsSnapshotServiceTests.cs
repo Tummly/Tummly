@@ -69,6 +69,25 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task GetAccountAsync_Free_ReturnsZeroCapsAvailable()
+        {
+            var restaurantId = await SeedRestaurantAsync(
+                BillingSubscriptionPlans.Free
+            );
+
+            var snapshot = await _service.GetAccountAsync(restaurantId);
+
+            Assert.True(snapshot.Locations.Available);
+            Assert.Equal(0, snapshot.Locations.Cap);
+            Assert.Equal(1, snapshot.Locations.Current);
+            Assert.True(snapshot.Locations.AtCap);
+            Assert.True(snapshot.TeamMembers.Available);
+            Assert.Equal(0, snapshot.TeamMembers.Cap);
+            Assert.True(snapshot.ActiveOffers.Available);
+            Assert.Equal(0, snapshot.ActiveOffers.Cap);
+        }
+
+        [Fact]
         public async Task GetAccountAsync_Starter_ReturnsExpectedCaps()
         {
             var restaurantId = await SeedRestaurantAsync(

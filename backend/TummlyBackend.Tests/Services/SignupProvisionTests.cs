@@ -20,6 +20,7 @@ namespace TummlyBackend.Tests.Services
         private readonly GuestLoopProvisioningService _provisioning;
         private readonly IPricebookCatalog _pricebook;
         private readonly IConfiguration _configuration;
+        private readonly CountingCreditLedger _mintLedger = new();
         private readonly string _email = "pilot-owner@example.com";
         private Guid _sessionToken;
         private PendingSignup _pending = null!;
@@ -70,8 +71,9 @@ namespace TummlyBackend.Tests.Services
                 ),
                 _configuration,
                 _pricebook,
-                new NoOpCreditLedger(),
-                new NoOpBillingAccountLifecycle()
+                _mintLedger,
+                new NoOpBillingAccountLifecycle(),
+                new RecordingFirstPaidConversionPaySession(_db)
             );
 
             _signup = new SignupService(
@@ -82,7 +84,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SaveOnboarding_Verified_ProvisionsPilotAndCompletes()
+        public async Task SaveOnboarding_Verified_ProvisionsFreeAndCompletes()
         {
             await SeedVerifiedPendingAsync();
 
@@ -96,7 +98,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(PendingSignupStatuses.Complete, result.Status);
             Assert.True(await _db.Users.AnyAsync(u => u.Email == _email));
             Assert.Equal(PendingSignupStatuses.Complete, _pending.Status);
-            Assert.Equal(BillingSubscriptionPlans.Pilot, _pending.ChosenPlan);
+            Assert.Equal(BillingSubscriptionPlans.Free, _pending.ChosenPlan);
             Assert.Equal("monthly", _pending.ChosenCadence);
             Assert.Equal("Single", _pending.AccountType);
 
@@ -106,9 +108,11 @@ namespace TummlyBackend.Tests.Services
 
             var billing = await _db.BillingAccounts.SingleAsync();
             Assert.Equal(
-                BillingSubscriptionPlans.Pilot,
+                BillingSubscriptionPlans.Free,
                 billing.SubscriptionPlan
             );
+            Assert.Equal(BillingStatuses.Free, billing.BillingStatus);
+            Assert.Equal(0, _mintLedger.MintPilotCallCount);
         }
 
         [Fact]
@@ -138,15 +142,15 @@ namespace TummlyBackend.Tests.Services
 
             Assert.True(await _db.Users.AnyAsync(u => u.Email == _email));
             Assert.Equal(PendingSignupStatuses.Complete, _pending.Status);
-            Assert.Equal(BillingSubscriptionPlans.Pilot, _pending.ChosenPlan);
+            Assert.Equal(BillingSubscriptionPlans.Free, _pending.ChosenPlan);
 
             var restaurant = await _db.Restaurants.SingleAsync();
             var billing = await _db.BillingAccounts.SingleAsync();
             Assert.Equal(
-                BillingSubscriptionPlans.Pilot,
+                BillingSubscriptionPlans.Free,
                 billing.SubscriptionPlan
             );
-            Assert.Equal(BillingStatuses.Pilot, billing.BillingStatus);
+            Assert.Equal(BillingStatuses.Free, billing.BillingStatus);
             Assert.Equal(restaurant.Id, billing.RestaurantId);
             Assert.True(
                 await _db.GuestLoopSetups.AnyAsync(g =>
@@ -180,6 +184,74 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(PendingSignupStatuses.Complete, status.Status);
             Assert.True(status.Ready);
+        }
+
+        [Fact]
+        public async Task RetryProvision_ChosenPlanPilot_ProvisionsPilot()
+        {
+            await SeedOnboardingCompletePendingWithPlanAsync(
+                BillingSubscriptionPlans.Pilot
+            );
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Equal(
+                BillingSubscriptionPlans.Pilot,
+                billing.SubscriptionPlan
+            );
+            Assert.Equal(BillingStatuses.Pilot, billing.BillingStatus);
+            Assert.NotNull(billing.PilotPeriodEnd);
+            Assert.Equal(1, _mintLedger.MintPilotCallCount);
+        }
+
+        [Fact]
+        public async Task RetryProvision_ChosenPlanStarter_StaysFree_AndOpensPaySession()
+        {
+            await SeedOnboardingCompletePendingWithPlanAsync(
+                BillingSubscriptionPlans.Starter
+            );
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Equal(
+                BillingSubscriptionPlans.Free,
+                billing.SubscriptionPlan
+            );
+            Assert.Equal(BillingStatuses.Free, billing.BillingStatus);
+
+            var session = await _db.RevolutPendingPaySessions.SingleAsync();
+            Assert.True(session.IsOpen);
+            Assert.Equal(
+                BillingSubscriptionPlans.Starter,
+                session.TargetPlan
+            );
+            Assert.Equal(
+                RecordingFirstPaidConversionPaySession.CheckoutUrl,
+                session.CheckoutUrl
+            );
+
+            var status = await _signup.GetProvisioningStatusAsync(_sessionToken);
+            Assert.True(status.Ready);
+            Assert.Equal(
+                PendingSignupStatuses.AwaitingPayment,
+                status.Status
+            );
+            Assert.Equal(
+                RecordingFirstPaidConversionPaySession.CheckoutUrl,
+                status.PaymentRedirectUrl
+            );
+        }
+
+        private async Task SeedOnboardingCompletePendingWithPlanAsync(
+            string chosenPlan
+        )
+        {
+            await SeedOnboardingCompletePendingAsync();
+            _pending.ChosenPlan = chosenPlan;
+            _pending.ChosenCadence = "monthly";
+            await _db.SaveChangesAsync();
         }
 
         private static SaveSignupOnboardingDto BuildValidOnboardingDto() =>
@@ -335,6 +407,23 @@ namespace TummlyBackend.Tests.Services
         public void Dispose()
         {
             _db.Dispose();
+        }
+
+        private sealed class CountingCreditLedger : NoOpCreditLedger
+        {
+            public int MintPilotCallCount { get; private set; }
+
+            public override Task<CreditLedgerWriteResult> MintPilotAtActivationAsync(
+                int restaurantId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                MintPilotCallCount++;
+                return base.MintPilotAtActivationAsync(
+                    restaurantId,
+                    cancellationToken
+                );
+            }
         }
 
         private sealed class TrackingEmailService : EmailServiceStubBase

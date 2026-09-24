@@ -29,7 +29,7 @@ export function ShopCatalogSection({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+        <h3 className="font-jakarta text-xl font-bold tracking-tight text-foreground sm:text-2xl">
           A suggested QR materials kit
         </h3>
         <p className="text-xs font-normal text-muted-foreground sm:text-sm">

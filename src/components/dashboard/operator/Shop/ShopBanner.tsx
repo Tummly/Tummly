@@ -24,7 +24,7 @@ export function ShopBanner({
         <span className="text-xs font-semibold uppercase tracking-wider text-neutral-600">
           Materials pack
         </span>
-        <h2 className="mt-2 text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">
+        <h2 className="mt-2 font-jakarta text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">
           Review the materials pack
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-neutral-700">

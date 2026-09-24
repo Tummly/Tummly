@@ -4,8 +4,15 @@ import type { DashboardOutletContext } from "@/components/dashboard/operator/Das
 import { HomePage } from "@/components/dashboard/operator/Home/HomePage"
 
 export function HomeRoute() {
-  const { activationPeriodBadge } =
+  const { activationPeriodBadge, subscriptionPlan, mode, selectedLocationId } =
     useOutletContext<DashboardOutletContext>()
 
-  return <HomePage activationPeriodBadge={activationPeriodBadge} />
+  return (
+    <HomePage
+      activationPeriodBadge={activationPeriodBadge}
+      subscriptionPlan={subscriptionPlan}
+      mode={mode}
+      selectedLocationId={selectedLocationId}
+    />
+  )
 }

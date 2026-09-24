@@ -13,12 +13,42 @@ namespace TummlyBackend.Tests.Services
 {
     public class BillingCreditsServiceTests
     {
+        [Fact]
+        public void CreateDefaultBillingAccount_IsFree()
+        {
+            var account = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurantId: 1,
+                contractedPricebookId: "TUMMLY-UK-GBP-2026-08-V3"
+            );
+
+            Assert.Equal(BillingSubscriptionPlans.Free, account.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.Free, account.BillingStatus);
+        }
+
+        [Fact]
+        public void ApplyPilotSignupBilling_SetsFreshPilotPeriodEnd()
+        {
+            var account = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurantId: 1,
+                contractedPricebookId: "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            var now = new DateTime(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc);
+
+            BillingCreditsService.ApplyPilotSignupBilling(account, now);
+
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.Pilot, account.BillingStatus);
+            Assert.Equal(now.AddDays(30), account.PilotPeriodEnd);
+        }
+
         [Theory]
         [InlineData("Pilot", "Starter", true, null, "monthly", true)]
         [InlineData("Starter", "Growth", false, "monthly", "monthly", true)]
         [InlineData("Starter", "Growth", false, "monthly", "annual", false)]
         [InlineData("Growth", "Starter", false, "monthly", "monthly", false)]
         [InlineData("Growth", "Growth", false, "monthly", "annual", false)]
+        [InlineData("Free", "Pilot", false, null, "monthly", false)]
+        [InlineData("Free", "Starter", false, null, "monthly", true)]
         public void ResolvePlanChangeRequiresPay_MatchesContract(
             string currentPlan,
             string targetPlan,
@@ -220,6 +250,7 @@ namespace TummlyBackend.Tests.Services
                 new EmptyTummlyVatInvoiceService(),
                 new NoOpCycleEndPlanChange(),
                 new NoOpCycleEndPlanCancel(),
+                new NoOpCreditLedger(),
                 Options.Create(sellerVat)
             );
             return new Harness(context, service, restaurant.Id, owner.Id);
@@ -315,6 +346,11 @@ namespace TummlyBackend.Tests.Services
                 throw new NotImplementedException(
                     "First paid conversion is not under test here."
                 );
+
+            public Task AbandonOpenSessionsAsync(
+                int restaurantId,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
 
         private sealed class ThrowingSameCadenceUpgradePaySession

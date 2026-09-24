@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import type { SignupOnboardingPayload } from "@/api/signupApi"
+import { readSignupPlanIntent, clearSignupPlanIntent } from "@/lib/signupPlanIntent"
 import { validationMessages } from "@/schemas/messages"
 import {
   emailSchema,
@@ -199,6 +200,11 @@ export function toSignupOnboardingPayload(
     : signupOnboardingSchema.parse(values)
   const fullName = joinSignupFullName(parsed.firstName, parsed.lastName)
 
+  const intent = readSignupPlanIntent()
+  if (intent != null) {
+    clearSignupPlanIntent()
+  }
+
   return {
     password: options?.isSocial ? "" : parsed.password,
     confirmPassword: options?.isSocial ? "" : parsed.confirmPassword,
@@ -218,5 +224,14 @@ export function toSignupOnboardingPayload(
         ...(parsed.addressOverridden ? { addressOverridden: true } : {}),
       },
     ],
+    ...(intent != null
+      ? {
+          chosenPlan: intent.plan,
+          chosenCadence:
+            intent.plan === "Pilot"
+              ? "monthly"
+              : (intent.cadence ?? "monthly"),
+        }
+      : {}),
   }
 }

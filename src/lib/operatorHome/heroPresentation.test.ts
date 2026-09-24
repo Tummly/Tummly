@@ -4,6 +4,7 @@ import type { ActivationPeriodBadgeCopy } from "./activationPeriod"
 import {
   formatActivationPeriodBadgeAriaLabel,
   formatActivationPeriodBadgeFullVisibleText,
+  OPERATOR_HOME_FREE_HERO_COPY,
   OPERATOR_HOME_HERO_BADGE_CLASS,
   OPERATOR_HOME_HERO_BAND_CLASS,
   OPERATOR_HOME_HERO_CTA_ROW_CLASS,
@@ -12,6 +13,7 @@ import {
   OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS,
   OPERATOR_HOME_HERO_SUBTITLE_CLASS,
   OPERATOR_HOME_HERO_TITLE_CLASS,
+  resolveOperatorHomeHeroMode,
 } from "./heroPresentation"
 
 const sampleBadge: ActivationPeriodBadgeCopy = {
@@ -43,7 +45,7 @@ describe("heroPresentation", () => {
   })
 
   it("uses serif 36px title and title-colour body at sm+", () => {
-    expect(OPERATOR_HOME_HERO_TITLE_CLASS).toContain("font-serif")
+    expect(OPERATOR_HOME_HERO_TITLE_CLASS).toContain("font-jakarta")
     expect(OPERATOR_HOME_HERO_TITLE_CLASS).toContain("text-2xl")
     expect(OPERATOR_HOME_HERO_TITLE_CLASS).toContain("sm:text-[36px]")
     expect(OPERATOR_HOME_HERO_TITLE_CLASS).toContain("text-op-card-title-color")
@@ -74,9 +76,15 @@ describe("heroPresentation", () => {
     )
   })
 
-  it("keeps full aria-label regardless of visible breakpoint copy", () => {
+  it("builds full aria-label regardless of visible breakpoint copy", () => {
     expect(formatActivationPeriodBadgeAriaLabel(sampleBadge)).toBe(
       "25 days left in your free trial. Ends 13 Aug 2026"
     )
+  })
+
+  it("resolves Free hero mode from subscription plan", () => {
+    expect(resolveOperatorHomeHeroMode("Free")).toBe("free")
+    expect(resolveOperatorHomeHeroMode("Pilot")).toBe("live")
+    expect(OPERATOR_HOME_FREE_HERO_COPY.choosePlanCta).toBe("Choose a plan")
   })
 })

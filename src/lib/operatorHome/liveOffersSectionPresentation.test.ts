@@ -33,8 +33,10 @@ describe("liveOffersSectionPresentation", () => {
     expect(LIVE_OFFERS_TITLE_CLASS).toContain("text-lg")
     expect(LIVE_OFFERS_TITLE_CLASS).toContain("sm:text-xl")
     expect(LIVE_OFFERS_TITLE_CLASS).toContain("font-bold")
+    expect(LIVE_OFFERS_TITLE_CLASS).toContain("font-jakarta")
     expect(LIVE_OFFERS_SUBTITLE_CLASS).toContain("text-op-sm")
     expect(LIVE_OFFERS_SUBTITLE_CLASS).toContain("text-op-card-subtitle-color")
+    expect(LIVE_OFFERS_SUBTITLE_CLASS).toContain("font-sans")
   })
 
   it("uses Figma empty copy typography", () => {

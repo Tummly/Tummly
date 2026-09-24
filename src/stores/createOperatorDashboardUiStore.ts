@@ -70,6 +70,9 @@ export type OperatorDashboardUiState = {
   setCampaignsIntent: (intent: AssistantCampaignsIntent | null) => void
   offersIntent: AssistantOffersIntent | null
   setOffersIntent: (intent: AssistantOffersIntent | null) => void
+  /** Increment to re-open Activate Tummly dialog (Free write gate). */
+  activateDialogNonce: number
+  requestActivateDialog: () => void
 }
 
 export type OperatorDashboardUiStore = StoreApi<OperatorDashboardUiState>
@@ -106,5 +109,8 @@ export function createOperatorDashboardUiStore(): OperatorDashboardUiStore {
     setCampaignsIntent: (campaignsIntent) => set({ campaignsIntent }),
     offersIntent: null,
     setOffersIntent: (offersIntent) => set({ offersIntent }),
+    activateDialogNonce: 0,
+    requestActivateDialog: () =>
+      set((state) => ({ activateDialogNonce: state.activateDialogNonce + 1 })),
   }))
 }

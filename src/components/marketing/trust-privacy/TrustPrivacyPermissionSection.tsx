@@ -3,7 +3,7 @@ import { marketingChromeContentInset } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
 const sectionHeading =
-  "font-serif text-[34px] font-medium leading-normal text-[#141414] lg:text-[46px]"
+  "font-jakarta text-[34px] font-medium leading-normal text-[#141414] lg:text-[46px]"
 
 const sectionBody =
   "text-base font-normal leading-[22px] text-[#141414] lg:text-[18px] lg:leading-6"

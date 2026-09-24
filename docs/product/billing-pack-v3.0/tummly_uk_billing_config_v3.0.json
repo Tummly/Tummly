@@ -43,6 +43,23 @@
     "credit_note_prefix": "TCN"
   },
   "plans": {
+    "free": {
+      "price_pence": 0,
+      "payment_method_required": false,
+      "auto_convert": false,
+      "locations": 0,
+      "users": 0,
+      "published_guest_forms_per_location": 0,
+      "draft_guest_forms_per_location": 0,
+      "active_qr_placements_per_location": 0,
+      "active_offers_account": 0,
+      "credits_one_time": {
+        "ai": 0,
+        "email": 0,
+        "sms": 0
+      },
+      "topups_allowed": false
+    },
     "pilot": {
       "price_pence": 0,
       "duration_days": 30,

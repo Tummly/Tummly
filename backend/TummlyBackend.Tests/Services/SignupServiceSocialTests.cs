@@ -67,7 +67,8 @@ namespace TummlyBackend.Tests.Services
                 _configuration,
                 _pricebook,
                 new NoOpCreditLedger(),
-                new NoOpBillingAccountLifecycle()
+                new NoOpBillingAccountLifecycle(),
+                new NoOpFirstPaidConversionPaySession()
             );
 
             _signup = new SignupService(

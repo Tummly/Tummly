@@ -8,6 +8,7 @@ import { CaptureLocationCaptureConfirmDialog } from "@/components/dashboard/oper
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { useMultiCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useMultiCapturePageModule"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
   CAPTURE_CONNECTED_OFFERS_STUB,
@@ -75,6 +76,7 @@ export function CaptureMultiRootBody() {
     closeFilters,
     setFiltersSession,
   } = useMultiCapturePageModule()
+  const gateFreeProductWrite = useGateFreeProductWrite()
   const multiCaptureOverviewDateRange = useDashboardUiStore(
     (state) => state.multiCaptureOverviewDateRange
   )
@@ -100,7 +102,9 @@ export function CaptureMultiRootBody() {
         navigateToLocationCapture(locationId)
         return
       case "create-digital-guest-link":
-        openCreateDialog({ locationId })
+        gateFreeProductWrite(() => {
+          openCreateDialog({ locationId })
+        })
         return
       case "preview-guest-experience":
         void openLocationPreview(locationId)

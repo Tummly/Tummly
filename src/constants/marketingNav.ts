@@ -1,8 +1,11 @@
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 
-/** Future Pricing page — banner “For groups” CTA and related links. */
+/** Marketing Pricing page — banner “For groups” CTA and related links. */
 export const MARKETING_PRICING_PATH = "/pricing"
+
+/** Marketing How it works page — Contact CTA (page ships later). */
+export const MARKETING_HOW_IT_WORKS_PATH = "/how-it-works"
 
 export type MarketingNavHref =
   | { kind: "route"; to: string }

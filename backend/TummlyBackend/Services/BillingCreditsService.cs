@@ -28,6 +28,7 @@ namespace TummlyBackend.Services
         private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly ICycleEndPlanChange _cycleEndPlanChange;
         private readonly ICycleEndPlanCancel _cycleEndPlanCancel;
+        private readonly ICreditLedger _creditLedger;
         private readonly TummlySellerVatSettings _sellerVat;
 
         public BillingCreditsService(
@@ -44,6 +45,7 @@ namespace TummlyBackend.Services
             ITummlyVatInvoiceService vatInvoices,
             ICycleEndPlanChange cycleEndPlanChange,
             ICycleEndPlanCancel cycleEndPlanCancel,
+            ICreditLedger creditLedger,
             IOptions<TummlySellerVatSettings> sellerVat
         )
         {
@@ -60,6 +62,7 @@ namespace TummlyBackend.Services
             _vatInvoices = vatInvoices;
             _cycleEndPlanChange = cycleEndPlanChange;
             _cycleEndPlanCancel = cycleEndPlanCancel;
+            _creditLedger = creditLedger;
             _sellerVat = sellerVat.Value;
         }
 
@@ -113,7 +116,8 @@ namespace TummlyBackend.Services
             }
 
             var eligibleMembers = await LoadEligibleMembersAsync(restaurantId);
-            var pilotEndsAt = owner?.ActivationExpiresAt;
+            var pilotEndsAt =
+                billingAccount.PilotPeriodEnd ?? owner?.ActivationExpiresAt;
             var renewalDateLabel = isPilot && pilotEndsAt != null
                 ? $"Pilot ends {UkDateLabels.Format(pilotEndsAt.Value)}"
                 : isPilot
@@ -293,6 +297,15 @@ namespace TummlyBackend.Services
             );
         }
 
+        private static bool IsFreeBillingAccount(BillingAccount billingAccount)
+        {
+            return string.Equals(
+                billingAccount.SubscriptionPlan,
+                BillingSubscriptionPlans.Free,
+                StringComparison.Ordinal
+            );
+        }
+
         private void EnsureMerchantCreateReady(string? planVariationLookupKey)
         {
             var code = _revolutMerchantCreateGate.Evaluate(planVariationLookupKey);
@@ -430,6 +443,7 @@ namespace TummlyBackend.Services
             var isPilot = simulatePaidGrowth
                 ? false
                 : IsPilotBillingAccount(billingAccount);
+            var isFree = !simulatePaidGrowth && IsFreeBillingAccount(billingAccount);
             var currentPlan = simulatePaidGrowth
                 ? "Growth"
                 : isPilot
@@ -439,6 +453,18 @@ namespace TummlyBackend.Services
                 ? "monthly"
                 : MapBillingCycleToApi(billingAccount.BillingCycle);
             var billingStatus = billingAccount.BillingStatus;
+
+            if (
+                string.Equals(
+                    targetPlan,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.Ordinal
+                )
+                && !isFree
+            )
+            {
+                throw new InvalidOperationException("invalid_plan_target");
+            }
 
             if (isPilot)
             {
@@ -459,6 +485,48 @@ namespace TummlyBackend.Services
                 }
             }
 
+            if (
+                isFree
+                && string.Equals(
+                    targetPlan,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                var nowUtc = DateTime.UtcNow;
+                await _firstPaidConversionPaySession.AbandonOpenSessionsAsync(
+                    restaurantId
+                );
+                ApplyPilotSignupBilling(billingAccount, nowUtc);
+                var ownerRow = await _context.Users.FirstOrDefaultAsync(row =>
+                    row.Id == restaurant.OwnerUserId
+                );
+                if (ownerRow != null)
+                {
+                    ownerRow.ActivationExpiresAt = nowUtc.AddDays(
+                        ActivationCodeHelper.ActivationPeriodDays
+                    );
+                }
+
+                await _context.SaveChangesAsync();
+
+                var mint = await _creditLedger.MintPilotAtActivationAsync(
+                    restaurantId
+                );
+                if (
+                    !mint.Succeeded
+                    && mint.Code != "pilot_already_minted"
+                )
+                {
+                    throw new InvalidOperationException(
+                        mint.Code ?? "pilot_mint_failed"
+                    );
+                }
+
+                return new PlanChangeResultDto { Outcome = "applied" };
+            }
+
             var payNow = ResolvePlanChangeRequiresPay(
                 currentPlan,
                 targetPlan,
@@ -476,6 +544,7 @@ namespace TummlyBackend.Services
 
                 if (
                     !isPilot
+                    && !isFree
                     && !string.Equals(
                         billingStatus,
                         BillingStatuses.Active,
@@ -492,7 +561,7 @@ namespace TummlyBackend.Services
                 );
                 EnsureMerchantCreateReady(lookupKey);
 
-                if (isPilot)
+                if (isPilot || isFree)
                 {
                     var owner = await _context.Users
                         .AsNoTracking()
@@ -613,6 +682,22 @@ namespace TummlyBackend.Services
             };
         }
 
+        public async Task<bool> ContinuePendingPaymentOnFreeAsync(int restaurantId)
+        {
+            var hadOpen = await _context.RevolutPendingPaySessions.AnyAsync(row =>
+                row.RestaurantId == restaurantId && row.IsOpen
+            );
+            if (!hadOpen)
+            {
+                return false;
+            }
+
+            await _firstPaidConversionPaySession.AbandonOpenSessionsAsync(
+                restaurantId
+            );
+            return true;
+        }
+
         public async Task<(bool Success, string? ErrorCode)?> ClearScheduledChangeAsync(
             int userId,
             int restaurantId
@@ -676,13 +761,9 @@ namespace TummlyBackend.Services
             }
 
             var planKey = rawPlan.Trim().ToLowerInvariant();
-            if (planKey is "pilot")
-            {
-                return false;
-            }
-
             targetPlan = planKey switch
             {
+                "pilot" => BillingSubscriptionPlans.Pilot,
                 "starter" => BillingSubscriptionPlans.Starter,
                 "growth" => BillingSubscriptionPlans.Growth,
                 "group" => BillingSubscriptionPlans.Group,
@@ -694,6 +775,24 @@ namespace TummlyBackend.Services
             }
 
             targetCadenceApi = rawCadence.Trim().ToLowerInvariant();
+            if (
+                string.Equals(
+                    targetPlan,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                // Pilot has no paid cadence; accept monthly as the API default.
+                if (targetCadenceApi is not ("monthly" or "annual"))
+                {
+                    return false;
+                }
+
+                targetBillingCycle = BillingCycles.Monthly;
+                return true;
+            }
+
             targetBillingCycle = targetCadenceApi switch
             {
                 "monthly" => BillingCycles.Monthly,
@@ -749,6 +848,22 @@ namespace TummlyBackend.Services
             }
 
             if (
+                string.Equals(
+                    currentPlan,
+                    BillingSubscriptionPlans.Free,
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && string.Equals(
+                    targetPlan,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return false;
+            }
+
+            if (
                 string.Equals(currentPlan, targetPlan, StringComparison.OrdinalIgnoreCase)
                 && liveCadence != null
                 && !string.Equals(liveCadence, targetCadence, StringComparison.OrdinalIgnoreCase)
@@ -772,6 +887,8 @@ namespace TummlyBackend.Services
         {
             return plan switch
             {
+                "Free" => 0,
+                "Pilot" => 0,
                 "Starter" => 1,
                 "Growth" => 2,
                 "Group" => 3,
@@ -1182,9 +1299,9 @@ namespace TummlyBackend.Services
             {
                 RestaurantId = restaurantId,
                 RevolutCustomerId = null,
-                SubscriptionPlan = BillingSubscriptionPlans.Pilot,
+                SubscriptionPlan = BillingSubscriptionPlans.Free,
                 BillingCycle = null,
-                BillingStatus = BillingStatuses.Pilot,
+                BillingStatus = BillingStatuses.Free,
                 ContractedPricebookId = contractedPricebookId,
                 LowCreditAlertOwner = true,
                 LowCreditAlertAdmin = false,
@@ -1206,6 +1323,29 @@ namespace TummlyBackend.Services
             );
             billingAccount.BillingStatus = BillingStatuses.Active;
             billingAccount.BillingCycle = BillingCycles.Monthly;
+        }
+
+        /// <summary>
+        /// Post-provision / Free→Pilot billing for Pilot. Sets a fresh 30-day
+        /// <see cref="BillingAccount.PilotPeriodEnd"/> from <paramref name="nowUtc"/>.
+        /// </summary>
+        public static void ApplyPilotSignupBilling(
+            BillingAccount billingAccount,
+            DateTime nowUtc
+        )
+        {
+            billingAccount.SubscriptionPlan = BillingSubscriptionPlans.Pilot;
+            billingAccount.BillingCycle = null;
+            billingAccount.BillingStatus = BillingStatuses.Pilot;
+            billingAccount.PilotPeriodEnd = nowUtc.AddDays(
+                ActivationCodeHelper.ActivationPeriodDays
+            );
+            billingAccount.SoftLockEnteredAt = null;
+            billingAccount.DormantEnteredAt = null;
+            billingAccount.GuestRetentionPurgedAtUtc = null;
+            billingAccount.PilotSoftLockNotified = false;
+            billingAccount.PilotDormantNotified = false;
+            billingAccount.RenewalDateUtc = null;
         }
 
         /// <summary>

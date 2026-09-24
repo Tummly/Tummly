@@ -100,7 +100,7 @@ export function SignInForm({ form, onSubmit }: SignInFormProps) {
 
       <div className="flex flex-col gap-10">
         <div className="flex flex-col gap-3 text-[#141414]">
-          <h1 className="m-0 font-serif text-[clamp(1.75rem,4vw,2.25rem)] font-medium leading-normal">
+          <h1 className="m-0 font-jakarta text-[clamp(1.75rem,4vw,2.25rem)] font-medium leading-normal">
             Welcome back
           </h1>
           <p className="m-0 text-base leading-[22px]">

@@ -45,11 +45,14 @@ export type SignupOnboardingPayload = {
   primaryPhone?: string | null
   businessLink?: string | null
   locations: SignupOnboardingLocation[]
+  chosenPlan?: string | null
+  chosenCadence?: string | null
 }
 
 export type SignupProvisioningStatus = {
   status: string
   ready: boolean
+  paymentRedirectUrl?: string | null
 }
 
 function asSignupSession(data: Record<string, unknown>): SignupSession {
@@ -161,5 +164,9 @@ export async function getSignupProvisioningStatus(
   return {
     status: String(payload.status ?? ""),
     ready: payload.ready === true,
+    paymentRedirectUrl:
+      typeof payload.paymentRedirectUrl === "string"
+        ? payload.paymentRedirectUrl
+        : null,
   }
 }

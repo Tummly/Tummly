@@ -33,7 +33,7 @@ export function AuthHeroPanel() {
 
         {/* Copy — Figma `5017:1570` panel-relative: top 71.31% */}
         <div className="absolute left-1/2 top-[71.31%] z-[2] flex w-[74.1%] max-w-[529px] -translate-x-1/2 flex-col items-center gap-5 text-center">
-          <h2 className="m-0 flex w-full flex-col items-center font-serif text-[clamp(1.75rem,2.2vw,2.375rem)] font-medium leading-[1.29]">
+          <h2 className="m-0 flex w-full flex-col items-center font-jakarta text-[clamp(1.75rem,2.2vw,2.375rem)] font-medium leading-[1.29]">
             <span className="relative inline-block whitespace-nowrap text-[#141414]">
               <img
                 src={authHeadlineBrush}

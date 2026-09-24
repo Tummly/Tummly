@@ -62,8 +62,10 @@ describe("operatorHomeSectionPresentation", () => {
     expect(OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS).toContain("text-lg")
     expect(OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS).toContain("sm:text-xl")
     expect(OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS).toContain("font-bold")
+    expect(OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS).toContain("font-jakarta")
     expect(OPERATOR_HOME_WHITE_CARD_TITLE_CLASS).toContain("text-lg")
     expect(OPERATOR_HOME_WHITE_CARD_TITLE_CLASS).toContain("font-semibold")
+    expect(OPERATOR_HOME_WHITE_CARD_TITLE_CLASS).toContain("font-jakarta")
     expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain("size-[42px]")
     expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain(
       "bg-op-button-collapse-background"

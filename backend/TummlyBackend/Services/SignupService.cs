@@ -220,8 +220,11 @@ namespace TummlyBackend.Services
                     Locations = dto.Locations,
                 }
             );
-            pending.ChosenPlan = BillingSubscriptionPlans.Pilot;
-            pending.ChosenCadence = "monthly";
+            pending.ChosenPlan = ResolveChosenPlan(dto.ChosenPlan);
+            pending.ChosenCadence = ResolveChosenCadence(
+                pending.ChosenPlan,
+                dto.ChosenCadence
+            );
             pending.Status = PendingSignupStatuses.Provisioning;
             pending.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -288,8 +291,11 @@ namespace TummlyBackend.Services
                 );
             }
 
-            pending.ChosenPlan = BillingSubscriptionPlans.Pilot;
-            pending.ChosenCadence = "monthly";
+            if (string.IsNullOrWhiteSpace(pending.ChosenPlan))
+            {
+                pending.ChosenPlan = BillingSubscriptionPlans.Free;
+                pending.ChosenCadence = "monthly";
+            }
             pending.Status = PendingSignupStatuses.Provisioning;
             pending.UpdatedAtUtc = DateTime.UtcNow;
             await _context.SaveChangesAsync();
@@ -302,11 +308,86 @@ namespace TummlyBackend.Services
         )
         {
             var pending = await FindBySessionTokenAsync(sessionToken);
+            var paymentRedirectUrl = await ResolveOpenPaymentRedirectAsync(
+                pending
+            );
+
+            var status = pending.Status;
+            if (
+                paymentRedirectUrl != null
+                && status == PendingSignupStatuses.Complete
+                && IsPaidChosenPlan(pending.ChosenPlan)
+            )
+            {
+                status = PendingSignupStatuses.AwaitingPayment;
+            }
+
             return new SignupProvisioningStatusResponse
             {
-                Status = pending.Status,
+                Status = status,
                 Ready = pending.Status == PendingSignupStatuses.Complete,
+                PaymentRedirectUrl = paymentRedirectUrl,
             };
+        }
+
+        public static readonly TimeSpan PaidSignupPaySessionTtl = TimeSpan.FromHours(24);
+
+        private async Task<string?> ResolveOpenPaymentRedirectAsync(
+            PendingSignup pending
+        )
+        {
+            if (!IsPaidChosenPlan(pending.ChosenPlan))
+            {
+                return null;
+            }
+
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Email == pending.Email);
+            if (user?.SelectedRestaurantId is not int restaurantId || restaurantId == 0)
+            {
+                return null;
+            }
+
+            var open = await _context.RevolutPendingPaySessions
+                .OrderByDescending(row => row.CreatedAtUtc)
+                .FirstOrDefaultAsync(row =>
+                    row.RestaurantId == restaurantId && row.IsOpen
+                );
+            if (open == null)
+            {
+                return null;
+            }
+
+            if (DateTime.UtcNow - open.CreatedAtUtc >= PaidSignupPaySessionTtl)
+            {
+                open.IsOpen = false;
+                await _context.SaveChangesAsync();
+                return null;
+            }
+
+            return string.IsNullOrWhiteSpace(open.CheckoutUrl)
+                ? null
+                : open.CheckoutUrl;
+        }
+
+        private static bool IsPaidChosenPlan(string? chosenPlan)
+        {
+            if (string.IsNullOrWhiteSpace(chosenPlan))
+            {
+                return false;
+            }
+
+            return !string.Equals(
+                    chosenPlan,
+                    BillingSubscriptionPlans.Free,
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && !string.Equals(
+                    chosenPlan,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.OrdinalIgnoreCase
+                );
         }
 
         private async Task<PendingSignup> FindBySessionTokenAsync(
@@ -367,6 +448,56 @@ namespace TummlyBackend.Services
             {
                 throw new Exception("Exactly one location is required.");
             }
+        }
+
+        private static string ResolveChosenPlan(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return BillingSubscriptionPlans.Free;
+            }
+
+            return raw.Trim().ToLowerInvariant() switch
+            {
+                "free" => BillingSubscriptionPlans.Free,
+                "pilot" => BillingSubscriptionPlans.Pilot,
+                "starter" => BillingSubscriptionPlans.Starter,
+                "growth" => BillingSubscriptionPlans.Growth,
+                "group" => BillingSubscriptionPlans.Group,
+                _ => throw new Exception("Invalid plan selection."),
+            };
+        }
+
+        private static string ResolveChosenCadence(string plan, string? raw)
+        {
+            if (
+                string.Equals(
+                    plan,
+                    BillingSubscriptionPlans.Free,
+                    StringComparison.Ordinal
+                )
+                || string.Equals(
+                    plan,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return "monthly";
+            }
+
+            if (
+                string.Equals(
+                    raw?.Trim(),
+                    "annual",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return "annual";
+            }
+
+            return "monthly";
         }
 
         private static string ResolveLastStepHint(PendingSignup pending) =>

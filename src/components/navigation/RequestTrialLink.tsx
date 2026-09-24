@@ -1,15 +1,25 @@
 import type { ComponentProps } from "react"
 import { Link } from "react-router-dom"
 
-/** Marketing entry to self-serve Signup (replaces scroll-to Request Trial). */
-export const SIGNUP_PATH = "/signup"
+import {
+  buildSignupPath,
+  SIGNUP_PATH,
+  type SignupPlanIntent,
+} from "@/lib/signupPlanIntent"
 
-type RequestTrialLinkProps = Omit<ComponentProps<typeof Link>, "to">
+export { SIGNUP_PATH }
+
+type RequestTrialLinkProps = Omit<ComponentProps<typeof Link>, "to"> & {
+  /** When set, navigates to `/signup?plan=&cadence=`. */
+  planIntent?: SignupPlanIntent | null
+}
 
 /**
- * Kept name for call-site stability. Navigates to `/signup`.
- * Prefer updating visible labels to Signup / Pilot copy at each call site.
+ * Kept name for call-site stability. Navigates to `/signup` (optionally with plan intent).
  */
-export function RequestTrialLink(props: RequestTrialLinkProps) {
-  return <Link to={SIGNUP_PATH} {...props} />
+export function RequestTrialLink({
+  planIntent,
+  ...props
+}: RequestTrialLinkProps) {
+  return <Link to={buildSignupPath(planIntent)} {...props} />
 }

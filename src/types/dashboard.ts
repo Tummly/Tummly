@@ -39,10 +39,15 @@ export interface LocationsResponse {
    * Export still shows the Guest consent row (CODING_STANDARDS chrome omit).
    */
   privacyConsentAccess?: "none" | "view" | "manage";
-  /** Live subscription plan name for shell chrome (Pilot, Starter, Growth, Group). */
+  /** Live subscription plan name for shell chrome (Pilot, Free, Starter, Growth, Group). */
   subscriptionPlan?: string;
   /** Soft lock / Dormant / Active / Pilot / Past due for Lock Alert chrome. */
   billingStatus?: string;
+  /**
+   * Open Revolut checkout after paid Pricing signup while still Free.
+   * Omit / null when no pending pay session.
+   */
+  pendingPaymentCheckoutUrl?: string | null;
   /**
    * Chargeback overlay. Omit or false keeps purchase CTAs enabled;
    * only explicit true disables (CODING_STANDARDS chrome omit default).

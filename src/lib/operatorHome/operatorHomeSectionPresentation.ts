@@ -23,16 +23,16 @@ export const OPERATOR_HOME_HEADER_COPY_CLASS =
   "flex min-w-0 flex-col gap-op-2 leading-[0]"
 
 export const OPERATOR_HOME_TITLE_CLASS =
-  "m-0 text-op-lg font-bold leading-normal text-op-card-title-color"
+  "m-0 font-jakarta text-op-lg font-bold leading-normal text-op-card-title-color"
 
 export const OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS =
-  "m-0 text-lg font-bold leading-normal text-op-card-title-color sm:text-xl"
+  "m-0 font-jakarta text-lg font-bold leading-normal text-op-card-title-color sm:text-xl"
 
 export const OPERATOR_HOME_WHITE_CARD_TITLE_CLASS =
-  "m-0 text-lg font-semibold leading-normal text-op-card-title-color"
+  "m-0 font-jakarta text-lg font-semibold leading-normal text-op-card-title-color"
 
 export const OPERATOR_HOME_SUBTITLE_CLASS =
-  "m-0 text-op-sm font-medium leading-normal text-op-card-subtitle-color"
+  "m-0 font-sans text-op-sm font-medium leading-normal text-op-card-subtitle-color"
 
 /** Collapse / refresh chrome — Figma Button Collaps (node 3360:66302). */
 export const OPERATOR_HOME_CHROME_BUTTON_CLASS =
@@ -47,20 +47,20 @@ export const OPERATOR_HOME_EMPTY_COPY_STACK_CLASS =
   "flex flex-col items-center gap-2.5 text-center"
 
 export const OPERATOR_HOME_EMPTY_TITLE_CLASS =
-  "m-0 text-base font-medium leading-normal text-op-empty-title-color"
+  "m-0 font-jakarta text-base font-medium leading-normal text-op-empty-title-color"
 
 export const OPERATOR_HOME_EMPTY_TITLE_SEMIBOLD_CLASS =
-  "m-0 text-base font-semibold leading-normal text-op-empty-title-color"
+  "m-0 font-jakarta text-base font-semibold leading-normal text-op-empty-title-color"
 
 export const OPERATOR_HOME_EMPTY_HELPER_CLASS =
-  "m-0 max-w-[324px] text-op-sm font-medium leading-[18px] text-op-card-subtitle-color"
+  "m-0 max-w-[324px] font-sans text-op-sm font-medium leading-[18px] text-op-card-subtitle-color"
 
 /** Latest activity — responsive stepped gutters (ticket 16). */
 export const LATEST_ACTIVITY_STEPPED_PADDING_CLASS =
   "px-4 sm:px-5 md:px-6"
 
 export const LATEST_ACTIVITY_TITLE_CLASS =
-  "m-0 text-lg sm:text-xl font-bold leading-normal text-op-card-title-color"
+  "m-0 font-jakarta text-lg sm:text-xl font-bold leading-normal text-op-card-title-color"
 
 export const LATEST_ACTIVITY_HEADER_CLASS = `flex w-full flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between ${LATEST_ACTIVITY_STEPPED_PADDING_CLASS} pb-5`
 
@@ -100,16 +100,16 @@ export const WEEKLY_BRIEF_EMPTY_COPY_CLASS =
   "flex flex-col gap-2.5 px-4 sm:px-5 md:px-6 text-op-card-subtitle-color"
 
 export const WEEKLY_BRIEF_EMPTY_TITLE_CLASS =
-  "m-0 text-base font-semibold leading-normal text-op-empty-title-color"
+  "m-0 font-jakarta text-base font-semibold leading-normal text-op-empty-title-color"
 
 export const WEEKLY_BRIEF_EMPTY_HELPER_CLASS =
-  "m-0 text-op-sm font-normal leading-normal text-op-card-subtitle-color"
+  "m-0 font-sans text-op-sm font-normal leading-normal text-op-card-subtitle-color"
 
 export const WEEKLY_BRIEF_BODY_CLASS =
   "flex flex-col gap-5 px-4 sm:px-5 md:px-6"
 
 export const WEEKLY_BRIEF_HEADLINE_CLASS =
-  "m-0 text-base font-semibold leading-normal text-op-card-title-color"
+  "m-0 font-jakarta text-base font-semibold leading-normal text-op-card-title-color"
 
 export const WEEKLY_BRIEF_DOMAIN_BLOCK_CLASS = "flex flex-col gap-1.5"
 
@@ -170,10 +170,10 @@ export const NEEDS_ATTENTION_ROW_COPY_CLASS =
   "flex min-w-0 flex-1 flex-col gap-[6px] leading-[0]"
 
 export const NEEDS_ATTENTION_ROW_TITLE_CLASS =
-  "m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-op-card-title-color"
+  "m-0 font-jakarta text-base font-semibold leading-6 tracking-[-0.4px] text-op-card-title-color"
 
 export const NEEDS_ATTENTION_ROW_BODY_CLASS =
-  "m-0 text-sm font-medium leading-[17px] text-op-card-title-color"
+  "m-0 font-sans text-sm font-medium leading-[17px] text-op-card-title-color"
 
 export const NEEDS_ATTENTION_ROW_META_CLASS =
   "m-0 text-xs font-medium leading-[15px] tracking-[-0.4px] text-op-needs-attention-row-meta"

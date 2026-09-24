@@ -65,7 +65,7 @@ export function SignupVerifyStep({
     <div className="flex w-full max-w-[434px] flex-col items-center gap-[30px]">
       <div className="flex w-full flex-col items-center gap-10">
         <div className="flex flex-col gap-3 text-center text-[#141414]">
-          <h1 className="m-0 font-serif text-[clamp(1.75rem,4vw,2.25rem)] font-medium leading-normal">
+          <h1 className="m-0 font-jakarta text-[clamp(1.75rem,4vw,2.25rem)] font-medium leading-normal">
             Verify your email
           </h1>
           <p className="m-0 text-base leading-[22px]">

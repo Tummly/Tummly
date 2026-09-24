@@ -20,7 +20,11 @@ Single-context — `CONTEXT.md` at repo root, ADRs in `docs/adr/`. See `docs/age
 
 Prefer the **Figma MCP** plugin (`get_design_context`) for design-to-code. Optional REST API fallback: set `FIGMA_ACCESS_TOKEN` in a gitignored root `.env` (see `.env.example`). Token: Figma → Settings → Security → Personal access tokens.
 
-**Icons and controls:** When implementing Figma chrome, prefer existing **Lucide** icons and **shadcn/ui** primitives (`Checkbox`, `Button`, etc.) over downloading or committing one-off Figma SVG exports. Use Figma assets only when no project icon/component matches the glyph or control (e.g. unique brand artwork). Layout, spacing, and copy still follow the Figma reference.
+**Icons and controls:** When implementing Figma chrome, prefer existing **Lucide** icons and **shadcn/ui** primitives (`Checkbox`, `Button`, etc.) over downloading or committing one-off Figma SVG exports. Use Figma assets only when no project icon/component matches the glyph or control (e.g. unique brand artwork). Layout, spacing, and copy still follow the Figma reference. **Font family** follows `docs/agents/typography.md` (*headline* / *functional* / *editorial*) even when a Figma frame still names a legacy typeface; weight, size, line-height, and letter-spacing still come from Figma.
+
+### Typography
+
+**Typography** — pick *headline* (Plus Jakarta Sans), *functional* (Helvetica Neue), or *editorial* (Lora) before any UI text, heading, font-family, or text-style token work; marketing vs WebApp rules differ. See `docs/agents/typography.md`.
 
 ### UI components
 
@@ -31,7 +35,7 @@ Before adding or styling custom markup:
 1. **Reuse first** — check `src/components/ui/` (and nearby feature wrappers) for an existing component (`Button`, `Badge`, `Checkbox` / `CheckboxLabel`, `Textarea`, `Select` / `FloatingLabelSelect`, `Drawer`, etc.). Prefer variants/`className` on that component over a parallel control.
 2. **Registry next** — if nothing fits, search the **shadcn registry** (`npx shadcn@latest search` / docs) and **suggest** adding that component before building a custom solution. Only hand-roll UI when no installed or registry component can express the interaction.
 3. **Defer deliberate gaps** — some Operator patterns (filter tabs, spinners, empty states) are still duplicated on purpose; see `docs/adr/0014-extract-shared-operator-ui-primitives.md`. Prefer extracting or adopting a registry primitive when next touching those surfaces, not inventing a third copy.
-4. **Use Design Tokens for Operator Dashboard and it's children** - use design tokens when creating compoenents, compare hex codes from figma to the current design tokens and use the closest match. If the hex code is not in the design tokens, add it to the design tokens.
+4. **Use Design Tokens for Operator Dashboard and it's children** - use design tokens when creating compoenents, compare hex codes from figma to the current design tokens and use the closest match. If the hex code is not in the design tokens, add it to the design tokens. Typography family + text-style tokens follow `docs/agents/typography.md`.
 5. For the dropdowns or popup or menus, if they are inside a sheet, drawer, dialogue or modal make surethey come on top of the parent and not behind it.
 
 ### Review

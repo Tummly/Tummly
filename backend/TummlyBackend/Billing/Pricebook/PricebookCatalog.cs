@@ -149,7 +149,7 @@ namespace TummlyBackend.Billing.Pricebook
         {
             var book = GetRequired(CurrentPricebookId);
             var plans = new List<BillingCatalogPlanCardDto>();
-            foreach (var key in new[] { "pilot", "starter", "growth", "group" })
+            foreach (var key in new[] { "free", "pilot", "starter", "growth", "group" })
             {
                 if (!book.Plans.TryGetValue(key, out var plan))
                 {
@@ -256,7 +256,7 @@ namespace TummlyBackend.Billing.Pricebook
 
             var plansElement = root.GetProperty("plans");
             var plans = new Dictionary<string, PricebookPlan>(StringComparer.Ordinal);
-            foreach (var key in new[] { "pilot", "starter", "growth", "group" })
+            foreach (var key in new[] { "free", "pilot", "starter", "growth", "group" })
             {
                 if (!plansElement.TryGetProperty(key, out var planElement))
                 {

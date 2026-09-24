@@ -9,7 +9,7 @@ export function shouldOpenActivateTummlyPilotDialog(input: {
   if (input.status !== "loaded") {
     return false
   }
-  if (input.subscriptionPlan !== "Pilot") {
+  if (input.subscriptionPlan !== "Pilot" && input.subscriptionPlan !== "Free") {
     return false
   }
   if (input.isDismissed) {

@@ -12,6 +12,7 @@ import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -42,6 +43,7 @@ export function GuestsPage() {
   const setCampaignsIntent = useDashboardUiStore(
     (state) => state.setCampaignsIntent
   )
+  const gateFreeProductWrite = useGateFreeProductWrite()
   const [deleteGuestId, setDeleteGuestId] = useState<string | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
 
@@ -58,8 +60,10 @@ export function GuestsPage() {
   }
 
   const handleCreateCampaign = () => {
-    setCampaignsIntent({ openBlankCreate: true })
-    navigate(operatorDashboardNavPath(mode, "campaigns", selectedLocationId))
+    gateFreeProductWrite(() => {
+      setCampaignsIntent({ openBlankCreate: true })
+      navigate(operatorDashboardNavPath(mode, "campaigns", selectedLocationId))
+    })
   }
 
   const privacyCopy = GUEST_EDIT_PAGE.dataPrivacy

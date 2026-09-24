@@ -23,7 +23,7 @@ namespace TummlyBackend.Models
         public string? RevolutCustomerId { get; set; }
 
         [MaxLength(32)]
-        public string SubscriptionPlan { get; set; } = BillingSubscriptionPlans.Pilot;
+        public string SubscriptionPlan { get; set; } = BillingSubscriptionPlans.Free;
 
         /// <summary>
         /// Empty on Pilot. Monthly or Annual when paid.
@@ -32,7 +32,7 @@ namespace TummlyBackend.Models
         public string? BillingCycle { get; set; }
 
         [MaxLength(32)]
-        public string BillingStatus { get; set; } = BillingStatuses.Pilot;
+        public string BillingStatus { get; set; } = BillingStatuses.Free;
 
         /// <summary>
         /// This account's contracted catalog id (<c>pricebook.id</c>).
@@ -165,6 +165,8 @@ namespace TummlyBackend.Models
 
     public static class BillingSubscriptionPlans
     {
+        public const string Free = "Free";
+
         public const string Pilot = "Pilot";
 
         public const string Starter = "Starter";
@@ -176,6 +178,8 @@ namespace TummlyBackend.Models
 
     public static class BillingStatuses
     {
+        public const string Free = "Free";
+
         public const string Pilot = "Pilot";
 
         public const string Active = "Active";

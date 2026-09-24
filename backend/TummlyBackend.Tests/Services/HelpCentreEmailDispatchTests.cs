@@ -120,7 +120,7 @@ namespace TummlyBackend.Tests.Services
         private static CreateHelpCentreQueryDto CreateDto() =>
             new()
             {
-                Topic = "billing",
+                Topic = "billing-or-subscription",
                 BusinessName = "Test Cafe",
                 SubmitterName = "Jane",
                 SubmitterEmail = "jane@example.com",
@@ -142,7 +142,7 @@ namespace TummlyBackend.Tests.Services
 
             var query = new HelpCentreQuery
             {
-                Topic = HelpCentreQueryTopic.Billing,
+                Topic = HelpCentreQueryTopic.BillingOrSubscription,
                 SubmitterName = "Jane",
                 SubmitterEmail = "jane@example.com",
                 BusinessName = "Test Cafe",

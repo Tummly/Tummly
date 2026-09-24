@@ -71,21 +71,21 @@ export function marketingCarouselItemClassCompact(index: number, slideCount: num
 /** Shared vertical section padding for marketing homepage blocks. */
 export const marketingSectionPadding = "py-12 sm:py-16 lg:py-22.5";
 
-/** Section H2: 34px below `lg`; fluid scale at `lg+`. */
+/** Section H2: *headline* Jakarta; 34px below `lg`; fluid scale at `lg+`. */
 export const marketingSectionHeading =
-  "text-[34px] font-bold leading-[normal] text-[#232323] lg:text-[clamp(1.75rem,4vw,2.625rem)]";
+  "font-jakarta text-[34px] font-bold leading-[normal] text-[#232323] lg:text-[clamp(1.75rem,4vw,2.625rem)]";
 
-/** Section body: 16px / 22px below `lg`; desktop scale at `lg+`. */
+/** Section body: *functional* Helvetica Neue; 16px / 22px below `lg`; desktop scale at `lg+`. */
 export const marketingSectionBody =
-  "text-base font-medium leading-[22px] text-[#232323] lg:text-[17px] lg:leading-6.5 lg:text-lg";
+  "font-sans text-base font-medium leading-[22px] text-[#232323] lg:text-[17px] lg:leading-6.5 lg:text-lg";
 
-/** Hero H1 on marketing homepage below `lg`. */
+/** Hero H1 — *headline* Plus Jakarta Sans. */
 export const marketingHeroHeading =
-  "text-[36px] font-bold leading-[normal] lg:text-[46px]";
+  "font-jakarta text-[36px] font-bold leading-[normal] lg:text-[46px]";
 
-/** Hero body copy below `lg`. */
+/** Hero body — *functional* Helvetica Neue. */
 export const marketingHeroBody =
-  "text-base font-medium leading-[22px] lg:text-[18px] lg:leading-[24px]";
+  "font-sans text-base font-medium leading-[22px] lg:text-[18px] lg:leading-[24px]";
 
 export function marketingSectionShell(...extra: Array<string | undefined>) {
   return cn(

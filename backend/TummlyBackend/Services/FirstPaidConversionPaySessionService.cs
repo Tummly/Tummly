@@ -217,6 +217,33 @@ namespace TummlyBackend.Services
             return PayResult(checkoutUrl);
         }
 
+        public async Task AbandonOpenSessionsAsync(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var open = await _context.RevolutPendingPaySessions
+                .Where(row => row.RestaurantId == restaurantId && row.IsOpen)
+                .ToListAsync(cancellationToken);
+            if (open.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var pending in open)
+            {
+                var cancel = await _merchant.CancelSubscriptionAsync(
+                    pending.RevolutSubscriptionId,
+                    cancellationToken
+                );
+                // Close locally even when merchant cancel fails so Free unlocks.
+                _ = cancel;
+                pending.IsOpen = false;
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         private async Task CancelPendingAsync(
             RevolutPendingPaySession pending,
             CancellationToken cancellationToken

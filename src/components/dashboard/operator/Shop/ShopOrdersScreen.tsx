@@ -296,7 +296,7 @@ export function ShopOrdersScreen({
       {/* Header & Location Switcher */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-op-text-primary sm:text-3xl">
+          <h1 className="font-jakarta text-2xl font-bold tracking-tight text-op-text-primary sm:text-3xl">
             Orders
           </h1>
           <p className="text-sm font-normal text-op-text-muted">
@@ -325,7 +325,7 @@ export function ShopOrdersScreen({
             <span className="text-sm font-medium text-op-text-secondary">
               Orders in progress
             </span>
-            <span className="text-3xl font-extrabold leading-none text-op-text-primary">
+            <span className="font-jakarta text-3xl font-extrabold leading-none text-op-text-primary">
               {aggregates.inProgress}
             </span>
             <span className="text-xs text-op-text-muted">
@@ -337,7 +337,7 @@ export function ShopOrdersScreen({
             <span className="text-sm font-medium text-op-text-secondary">
               Dispatched
             </span>
-            <span className="text-3xl font-extrabold leading-none text-op-text-primary">
+            <span className="font-jakarta text-3xl font-extrabold leading-none text-op-text-primary">
               {aggregates.dispatched}
             </span>
             <span className="text-xs text-op-text-muted">
@@ -349,7 +349,7 @@ export function ShopOrdersScreen({
             <span className="text-sm font-medium text-op-text-secondary">
               Delivered
             </span>
-            <span className="text-3xl font-extrabold leading-none text-op-text-primary">
+            <span className="font-jakarta text-3xl font-extrabold leading-none text-op-text-primary">
               {aggregates.deliveredLast90Days}
             </span>
             <span className="text-xs text-op-text-muted">

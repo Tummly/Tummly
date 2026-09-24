@@ -24,7 +24,7 @@ export function ShopHeader({
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+        <h1 className="font-jakarta text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           Tummly Shop
         </h1>
         <p className="text-sm font-normal text-muted-foreground">

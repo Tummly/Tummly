@@ -19,6 +19,7 @@ import {
   buildSignupVerifyPath,
   saveSignupSessionToken,
 } from "@/lib/signupSession"
+import { captureSignupPlanIntentFromSearch } from "@/lib/signupPlanIntent"
 import {
   signupStartDefaultValues,
   signupStartSchema,
@@ -47,6 +48,10 @@ function SignupPage() {
     defaultValues: signupStartDefaultValues,
     ...defaultFormValidationOptions,
   })
+
+  useEffect(() => {
+    captureSignupPlanIntentFromSearch(searchParams)
+  }, [searchParams])
 
   useEffect(() => {
     const oauthError = searchParams.get("oauthError")

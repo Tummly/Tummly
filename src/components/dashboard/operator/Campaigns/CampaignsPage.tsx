@@ -34,6 +34,7 @@ import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/Filte
 import { useCampaignsPageModule } from "@/components/dashboard/operator/Campaigns/utils/useCampaignsPageModule"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -157,6 +158,7 @@ export function CampaignsPage() {
   const setCampaignsIntent = useDashboardUiStore(
     (state) => state.setCampaignsIntent
   )
+  const gateFreeProductWrite = useGateFreeProductWrite()
   const [deleteDraftTarget, setDeleteDraftTarget] = useState<{
     campaignId: number
     rowVersion: string
@@ -394,10 +396,12 @@ export function CampaignsPage() {
     if (viewModel == null) {
       return
     }
-    campaignWizard.openBlankCreate({
-      locationId: viewModel.locationId,
-      locationName: viewModel.locationName,
-      locationAddress: selectedLocationAddress,
+    gateFreeProductWrite(() => {
+      campaignWizard.openBlankCreate({
+        locationId: viewModel.locationId,
+        locationName: viewModel.locationName,
+        locationAddress: selectedLocationAddress,
+      })
     })
   }
 
@@ -408,11 +412,13 @@ export function CampaignsPage() {
     if (viewModel == null) {
       return
     }
-    void campaignWizard.openFromRecommendation({
-      locationId: viewModel.locationId,
-      locationName: viewModel.locationName,
-      locationAddress: selectedLocationAddress,
-      draftPrefill,
+    gateFreeProductWrite(() => {
+      void campaignWizard.openFromRecommendation({
+        locationId: viewModel.locationId,
+        locationName: viewModel.locationName,
+        locationAddress: selectedLocationAddress,
+        draftPrefill,
+      })
     })
   }
 
@@ -426,7 +432,9 @@ export function CampaignsPage() {
   }
 
   const handleOpenTemplatePicker = () => {
-    void templatePicker.open()
+    gateFreeProductWrite(() => {
+      void templatePicker.open()
+    })
   }
 
   const handleBrowseTemplatesFromWizard = () => {

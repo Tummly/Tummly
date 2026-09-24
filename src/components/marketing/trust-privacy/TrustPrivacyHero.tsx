@@ -5,13 +5,13 @@ import { TRUST_PRIVACY_HERO } from "@/content/marketing/trustPrivacyPage"
 import { marketingChromeContentInset } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
-/** Figma Trust hero title: Season Mix 66 / 74 on desktop. */
+/** Trust hero title — *headline* Plus Jakarta Sans; 66 / 74 on desktop. */
 const heroHeading =
-  "font-serif text-[36px] font-medium leading-10 tracking-normal lg:text-[66px] lg:leading-[74px]"
+  "font-jakarta text-[36px] font-medium leading-10 tracking-normal lg:text-[66px] lg:leading-[74px]"
 
-/** Figma Trust hero body: Helvetica Neue 18 / 24. */
+/** Trust hero body — *functional* Helvetica Neue 18 / 24. */
 const heroBody =
-  "text-base font-normal leading-[22px] tracking-normal lg:text-[18px] lg:leading-6"
+  "font-sans text-base font-normal leading-[22px] tracking-normal lg:text-[18px] lg:leading-6"
 
 const primaryButtonClass =
   "h-auto min-h-0 w-full gap-1.5 rounded-[4px] bg-[#14a74a] px-[18px] py-3 text-sm font-medium leading-[22px] text-white shadow-none hover:bg-[#14a74a]/90 sm:w-auto"

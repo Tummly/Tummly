@@ -15,6 +15,7 @@ import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSear
 import { useCaptureArchiveModule } from "@/components/dashboard/operator/Capture/utils/useCaptureArchiveModule"
 import { useCapturePageModuleApi } from "@/components/dashboard/operator/Capture/utils/capturePageModuleContext"
 import { useCapturePlacementDetailModule } from "@/components/dashboard/operator/Capture/utils/useCapturePlacementDetailModule"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -88,6 +89,7 @@ export function CaptureArchivePage({
   const archiveModule = useCaptureArchiveModule()
   const detailModule = useCapturePlacementDetailModule()
   const pageModule = useCapturePageModuleApi()
+  const gateFreeProductWrite = useGateFreeProductWrite()
   // Live snapshot for Pause/Activate and Rotate confirms (not Placement Detail).
   const liveSnapshot = useSyncExternalStore(
     pageModule.subscribe,
@@ -143,10 +145,16 @@ export function CaptureArchivePage({
   }, [archiveModule.enter, defaultReturnPath, locations, searchParams, showLocationFilter])
 
   useEffect(() => {
-    if (archive?.createPrefill != null) {
-      setCreateOpen(true)
+    if (archive?.createPrefill == null) {
+      return
     }
-  }, [archive?.createPrefill])
+    const blocked = gateFreeProductWrite(() => {
+      setCreateOpen(true)
+    })
+    if (blocked) {
+      archiveModule.clearCreatePrefill()
+    }
+  }, [archive?.createPrefill, archiveModule.clearCreatePrefill, gateFreeProductWrite])
 
   const archiveFilterCatalog = {
     showLocationFilter,
@@ -317,10 +325,14 @@ export function CaptureArchivePage({
                 archiveModule.openArchivePlacementDetail(qrCodeId)
               }}
               onRestore={(qrCodeId) => {
-                archiveModule.requestRestore(qrCodeId)
+                gateFreeProductWrite(() => {
+                  archiveModule.requestRestore(qrCodeId)
+                })
               }}
               onDuplicateAsNew={(qrCodeId) => {
-                archiveModule.requestDuplicateAsNew(qrCodeId)
+                gateFreeProductWrite(() => {
+                  archiveModule.requestDuplicateAsNew(qrCodeId)
+                })
               }}
             />
             <div className={GUESTS_PAGINATION_ROW_CLASS}>

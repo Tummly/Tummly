@@ -22,6 +22,8 @@ export type OperatorWorkspaceSnapshot = {
   billingStatus: string
   /** Omit / false = not restricted (chrome stays available). */
   chargebackRestricted: boolean
+  /** Open Revolut checkout while Free after paid Pricing signup. */
+  pendingPaymentCheckoutUrl: string | null
   permissionRole: string
   aiAssistantAccess: boolean
   locationSwitcherInteractive: boolean
@@ -69,6 +71,7 @@ type WorkspaceAction =
       subscriptionPlan: string
       billingStatus: string
       chargebackRestricted: boolean
+      pendingPaymentCheckoutUrl: string | null
       permissionRole: string
       aiAssistantAccess: boolean
       queryLocationId: number | null
@@ -117,6 +120,7 @@ function reduce(
         subscriptionPlan: action.subscriptionPlan,
         billingStatus: action.billingStatus,
         chargebackRestricted: action.chargebackRestricted,
+        pendingPaymentCheckoutUrl: action.pendingPaymentCheckoutUrl,
         permissionRole: action.permissionRole,
         aiAssistantAccess: action.aiAssistantAccess,
         lastQueryLocationId: action.queryLocationId,
@@ -159,6 +163,7 @@ export function createOperatorWorkspaceSession(
     subscriptionPlan: "Pilot",
     billingStatus: "Pilot",
     chargebackRestricted: false,
+    pendingPaymentCheckoutUrl: null,
     permissionRole: "",
     aiAssistantAccess: true,
     locationSwitcherInteractive: config.mode === "multi",
@@ -182,6 +187,7 @@ export function createOperatorWorkspaceSession(
     subscriptionPlan: state.subscriptionPlan,
     billingStatus: state.billingStatus,
     chargebackRestricted: state.chargebackRestricted,
+    pendingPaymentCheckoutUrl: state.pendingPaymentCheckoutUrl,
     permissionRole: state.permissionRole,
     aiAssistantAccess: state.aiAssistantAccess,
     locationSwitcherInteractive: state.locationSwitcherInteractive,
@@ -213,6 +219,7 @@ export function createOperatorWorkspaceSession(
       subscriptionPlan: state.subscriptionPlan,
       billingStatus: state.billingStatus,
       chargebackRestricted: state.chargebackRestricted,
+      pendingPaymentCheckoutUrl: state.pendingPaymentCheckoutUrl,
       permissionRole: state.permissionRole,
       aiAssistantAccess: state.aiAssistantAccess,
       locationSwitcherInteractive: state.locationSwitcherInteractive,
@@ -282,6 +289,11 @@ export function createOperatorWorkspaceSession(
         subscriptionPlan: locationsResult.subscriptionPlan ?? "Pilot",
         billingStatus: locationsResult.billingStatus ?? "Pilot",
         chargebackRestricted: locationsResult.chargebackRestricted === true,
+        pendingPaymentCheckoutUrl:
+          typeof locationsResult.pendingPaymentCheckoutUrl === "string"
+            && locationsResult.pendingPaymentCheckoutUrl.length > 0
+            ? locationsResult.pendingPaymentCheckoutUrl
+            : null,
         permissionRole: locationsResult.permissionRole?.trim() ?? "",
         aiAssistantAccess: locationsResult.aiAssistantAccess !== false,
         queryLocationId,

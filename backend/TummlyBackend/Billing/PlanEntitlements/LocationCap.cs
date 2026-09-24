@@ -28,9 +28,15 @@ namespace TummlyBackend.Billing.PlanEntitlements
             }
 
             var included = plan.IncludedLocations;
-            if (included < 1)
+            if (included < 0)
             {
                 return false;
+            }
+
+            if (included == 0)
+            {
+                entitled = 0;
+                return true;
             }
 
             if (key == "group")

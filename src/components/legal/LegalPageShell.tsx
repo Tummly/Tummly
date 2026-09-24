@@ -35,7 +35,7 @@ const stickyMaxHeightClass = "lg:max-h-[calc(100vh-12.5rem)]"
 const sectionScrollMarginClass = "scroll-mt-[180px]"
 
 const heroHeading =
-  "font-serif text-[36px] font-medium leading-10 tracking-normal lg:text-[66px] lg:leading-[74px]"
+  "font-jakarta text-[36px] font-medium leading-10 tracking-normal lg:text-[66px] lg:leading-[74px]"
 
 const heroMeta =
   "text-base font-medium leading-[22px] tracking-normal lg:text-[18px] lg:leading-6"

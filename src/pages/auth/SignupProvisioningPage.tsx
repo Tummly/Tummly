@@ -123,7 +123,17 @@ function SignupProvisioningPage() {
         }
 
         if (status.status === "AwaitingPayment") {
-          // Paid signup checkout is retired — send them back to finish Pilot setup.
+          if (
+            typeof status.paymentRedirectUrl === "string"
+            && status.paymentRedirectUrl.length > 0
+          ) {
+            window.location.assign(status.paymentRedirectUrl)
+            return "redirected"
+          }
+          // Pay session abandoned or TTL — continue to Free ready path.
+          if (status.ready) {
+            return "ok"
+          }
           navigate("/signup/onboarding", { replace: true })
           return "redirected"
         }
@@ -149,6 +159,13 @@ function SignupProvisioningPage() {
         const status = await getSignupProvisioningStatus(sessionToken)
 
         if (status.ready || status.status === "Complete") {
+          if (
+            typeof status.paymentRedirectUrl === "string"
+            && status.paymentRedirectUrl.length > 0
+          ) {
+            window.location.assign(status.paymentRedirectUrl)
+            return
+          }
           return
         }
 

@@ -10,13 +10,13 @@ type FaqsPageHeroProps = {
   onSearchQueryChange: (value: string) => void
 }
 
-/** Figma FAQ title: Season Mix 66 / 74 on desktop. */
+/** Figma FAQ title metrics; family is *headline* Plus Jakarta Sans. */
 const faqHeroHeading =
-  "text-[36px] font-medium leading-10 tracking-normal lg:text-[66px] lg:leading-[74px]"
+  "font-jakarta text-[36px] font-medium leading-10 tracking-normal lg:text-[66px] lg:leading-[74px]"
 
-/** Figma FAQ body: Helvetica Neue 18 / 24. */
+/** Figma FAQ body: *functional* Helvetica Neue 18 / 24. */
 const faqHeroBody =
-  "text-base font-normal leading-[22px] tracking-normal lg:text-[18px] lg:leading-6"
+  "font-sans text-base font-normal leading-[22px] tracking-normal lg:text-[18px] lg:leading-6"
 
 /**
  * Figma `Frame 269` (`4974:26244`): #fafafa, pad 70/60, title→body 18px,

@@ -416,7 +416,7 @@ namespace TummlyBackend.Tests.Services
 
             var pending = await _db.PendingSignups.SingleAsync();
             Assert.Equal("Single", pending.AccountType);
-            Assert.Equal(BillingSubscriptionPlans.Pilot, pending.ChosenPlan);
+            Assert.Equal(BillingSubscriptionPlans.Free, pending.ChosenPlan);
             Assert.Equal("monthly", pending.ChosenCadence);
             Assert.Equal(PendingSignupStatuses.Provisioning, pending.Status);
             Assert.Equal("Single Owner", pending.FullName);
