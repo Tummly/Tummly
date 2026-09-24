@@ -121,7 +121,7 @@ function PricingPlanCardView({
       }
     >
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex min-h-9 items-center justify-between gap-3">
           <h3 className={MANAGE_PLAN_CARD_TITLE_CLASS}>{card.id}</h3>
           {card.isMostPopular ? (
             <span className="shrink-0 rounded bg-[#14a74a]/18 px-3 py-2 text-xs font-medium text-[#14a74a]">
@@ -129,7 +129,9 @@ function PricingPlanCardView({
             </span>
           ) : null}
         </div>
-        <p className={MANAGE_PLAN_CARD_DESCRIPTION_CLASS}>{card.description}</p>
+        <p className={cn(MANAGE_PLAN_CARD_DESCRIPTION_CLASS, "min-h-19")}>
+          {card.description}
+        </p>
       </div>
 
       <div className="flex flex-col gap-5">
@@ -138,10 +140,10 @@ function PricingPlanCardView({
             <span className={MANAGE_PLAN_PRICE_AMOUNT_CLASS}>{price.amount}</span>
             <span className={MANAGE_PLAN_PRICE_SUFFIX_CLASS}>{price.suffix}</span>
           </p>
-          <p className="m-0 min-h-5 text-sm font-medium text-[#737373] lg:hidden">
+          <p className="m-0 min-h-10 text-sm font-medium leading-5 text-[#737373] lg:hidden">
             {price.sublineMobile}
           </p>
-          <p className="m-0 hidden min-h-5 text-sm font-medium text-[#737373] lg:block">
+          <p className="m-0 hidden min-h-10 text-sm font-medium leading-5 text-[#737373] lg:block">
             {price.subline}
           </p>
         </div>
