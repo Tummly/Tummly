@@ -211,8 +211,27 @@ export const PRICING_GROUP_BANNER = {
   secondaryTo: HELP_CENTRE_CONTACT_URL,
 } as const
 
-/** Shared Pricing section inset — 20px mobile, 60px desktop (Figma). */
+/** Shared Pricing section inset — 20px mobile, 60px desktop (Figma `5139:4326`). */
 export const PRICING_SECTION_INSET = "px-5 lg:px-[60px]"
+
+/** Shared Pricing section vertical pad — 50px mobile, 70px desktop. */
+export const PRICING_SECTION_Y = "py-12.5 lg:py-[70px]"
+
+/**
+ * Pricing section H2 — *headline* Jakarta Medium 500 (Figma), not Bold.
+ * Use `font-[500]` so variable-font weight cannot fall back to browser h2 bold.
+ * Do not compose with `marketingSectionHeading` (that token is Bold).
+ */
+export const PRICING_SECTION_HEADING =
+  "font-jakarta text-[34px] font-[500] leading-normal text-black lg:text-[46px]"
+
+/** Pricing hero H1 — Jakarta Medium 66/74 desktop (Figma `5437:13643`). */
+export const PRICING_HERO_HEADING =
+  "font-jakarta text-[34px] font-[500] leading-normal text-[#141414] lg:text-[66px] lg:leading-[74px]"
+
+/** Pricing body — *functional* Helvetica Neue Regular 18/24. */
+export const PRICING_SECTION_BODY =
+  "font-sans text-base font-normal leading-[22px] text-[#141414] lg:text-[18px] lg:leading-6"
 
 export const PRICING_GUEST_LOOP = {
   title: "Every plan starts with the same Guest Loop.",

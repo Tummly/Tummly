@@ -6,17 +6,12 @@ import {
   PRICING_PLAN_CARDS,
   PRICING_PLAN_IDS,
   PRICING_SECTION_INSET,
+  PRICING_SECTION_Y,
   pricingCompareAnnualSubline,
   pricingPlanPrice,
   type PricingPlanId,
 } from "@/content/marketing/pricingPage"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
-import {
-  MANAGE_PLAN_CARD_TITLE_CLASS,
-  MANAGE_PLAN_COPY,
-  MANAGE_PLAN_PRICE_AMOUNT_CLASS,
-  MANAGE_PLAN_PRICE_SUFFIX_CLASS,
-} from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
 
 const secondaryButtonClass =
@@ -25,12 +20,18 @@ const secondaryButtonClass =
 const primaryButtonClass =
   "h-11 w-full rounded-[4px] bg-[#14a74a] text-sm font-medium text-white shadow-none hover:bg-[#14a74a]/90"
 
+/**
+ * Figma compare header (`5437:13879`): Feature 224px + four equal plan cols,
+ * gap 22px, light grey strip `#f8f8f8`, pad 24px.
+ */
 function ComparisonPlanHeader({
   planId,
   cadence,
+  showDivider,
 }: {
   planId: PricingPlanId
   cadence: BillingCadence
+  showDivider: boolean
 }) {
   const card = PRICING_PLAN_CARDS.find((entry) => entry.id === planId)
   if (card == null) {
@@ -41,26 +42,26 @@ function ComparisonPlanHeader({
     cadence === "monthly" ? pricingCompareAnnualSubline(planId) : null
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className={cn(MANAGE_PLAN_CARD_TITLE_CLASS, "text-[25px]")}>
-            {card.id}
-          </h3>
-          {card.isMostPopular ? (
-            <span className="rounded bg-[#14a74a]/18 px-3 py-2 text-xs font-medium text-[#14a74a]">
-              {MANAGE_PLAN_COPY.mostPopular}
-            </span>
-          ) : null}
-        </div>
+    <div
+      className={cn(
+        "flex min-h-[198px] min-w-0 flex-1 flex-col justify-between",
+        showDivider && "border-l border-[#e0e0e0] pl-[22px]",
+      )}
+    >
+      <div className="flex flex-col gap-[22px]">
+        <h3 className="m-0 font-jakarta text-xl font-[500] leading-normal text-[#141414]">
+          {card.id}
+        </h3>
         <div className="flex flex-col gap-2">
-          <p className="flex flex-wrap items-baseline gap-x-1 text-[#141414]">
-            <span className={cn(MANAGE_PLAN_PRICE_AMOUNT_CLASS, "text-[34px]")}>
+          <p className="m-0 flex flex-wrap items-baseline text-[#141414]">
+            <span className="font-jakarta text-[28px] font-[500] leading-normal">
               {price.amount}
             </span>
-            <span className={MANAGE_PLAN_PRICE_SUFFIX_CLASS}>{price.suffix}</span>
+            <span className="font-sans text-sm font-medium leading-normal">
+              {price.suffix}
+            </span>
           </p>
-          <p className="m-0 min-h-5 text-sm font-medium text-[#737373]">
+          <p className="m-0 min-h-5 max-w-[200px] text-sm font-medium text-[#7c7c7c]">
             {annualLine ?? price.subline}
           </p>
         </div>
@@ -87,66 +88,81 @@ type PricingComparePlansProps = {
   cadence: BillingCadence
 }
 
-/** Figma Compare plans matrix (`5152:10808`). */
+/**
+ * Figma Compare plans (`5437:13695`):
+ * white section, Jakarta Medium 46 heading, 60px gap to table,
+ * sticky `#f8f8f8` plan header, 224px feature col.
+ */
 export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
   return (
-    <section id="compare-plans" className="w-full scroll-mt-[180px] bg-[#f0f0f0]">
+    <section id="compare-plans" className="w-full scroll-mt-45 bg-white">
       <div
         className={cn(
-          "mx-auto flex w-full max-w-[1668px] flex-col gap-8 py-[70px]",
+          "flex w-full flex-col gap-15",
           PRICING_SECTION_INSET,
+          PRICING_SECTION_Y,
         )}
       >
-        <h2 className="m-0 font-serif text-[34px] font-medium leading-none text-[#141414] lg:text-[46px]">
+        <h2 className="m-0 font-jakarta text-[34px] font-[500] leading-normal text-black lg:text-[46px]">
           {PRICING_COMPARE_HEADING}
         </h2>
 
-        <div className="-mx-5 overflow-x-auto rounded-[6px] bg-white sm:mx-0">
-          <div className="min-w-240">
-            <div className="grid grid-cols-[160px_repeat(4,minmax(140px,1fr))] gap-x-4 border-b border-[#e0e0e0] px-4 pb-6 pt-6 sm:grid-cols-[224px_repeat(4,minmax(0,1fr))] sm:gap-x-5 sm:px-6">
-              <div className="flex items-end pb-1">
-                <p className="m-0 text-lg font-medium text-[#141414]">
-                  {MANAGE_PLAN_COPY.comparisonFeature}
+        <div className="-mx-5 overflow-x-auto rounded-[6px] sm:mx-0">
+          <div className="min-w-[960px] sm:min-w-0">
+            {/* Plan header strip — Figma sticky `#f8f8f8` (`5437:13879`). */}
+            <div className="flex items-end gap-[22px] border-b border-[#e0e0e0] bg-[#f8f8f8] p-6">
+              <div className="flex w-[140px] shrink-0 items-center sm:w-[224px]">
+                <p className="m-0 text-lg font-semibold text-[#141414]">
+                  Feature
                 </p>
               </div>
-              {PRICING_PLAN_IDS.map((planId) => (
-                <ComparisonPlanHeader
-                  key={planId}
-                  planId={planId}
-                  cadence={cadence}
-                />
-              ))}
+              <div className="flex min-w-0 flex-1 gap-[22px]">
+                {PRICING_PLAN_IDS.map((planId, index) => (
+                  <ComparisonPlanHeader
+                    key={planId}
+                    planId={planId}
+                    cadence={cadence}
+                    showDivider={index > 0}
+                  />
+                ))}
+              </div>
             </div>
 
-            <div className="px-4 py-2 sm:px-6">
+            {/* Feature matrix body */}
+            <div className="flex flex-col gap-[26px] bg-white px-6 py-[26px]">
               {PRICING_COMPARISON_GROUPS.map((group) => (
-                <div key={group.id} className="py-4">
-                  <p className="m-0 pb-4 text-base font-semibold text-[#141414]">
-                    {group.title}
-                  </p>
+                <div key={group.id} className="flex flex-col">
+                  <div className="flex min-h-12.5 items-start">
+                    <p className="m-0 w-[140px] shrink-0 text-base font-bold text-[#141414] sm:w-[224px]">
+                      {group.title}
+                    </p>
+                  </div>
                   {group.rows.map((row) => (
                     <div
                       key={row.label}
-                      className="grid grid-cols-[160px_repeat(4,minmax(140px,1fr))] gap-x-4 border-b border-[#e0e0e0]/60 py-4 last:border-b-0 sm:grid-cols-[224px_repeat(4,minmax(0,1fr))] sm:gap-x-5"
+                      className="flex min-h-12.5 items-start gap-[22px]"
                     >
-                      <p className="m-0 text-sm font-medium text-[#141414]">
+                      <p className="m-0 w-[140px] shrink-0 py-3.5 text-sm font-semibold text-[#141414] sm:w-[224px]">
                         {row.label}
                       </p>
-                      {PRICING_PLAN_IDS.map((planId) => {
-                        const value = row.values[planId]
-                        const isDash = value === "—" || value === "ー"
-                        return (
-                          <p
-                            key={planId}
-                            className={cn(
-                              "m-0 text-sm font-normal",
-                              isDash ? "text-[#737373]" : "text-[#141414]",
-                            )}
-                          >
-                            {isDash ? "—" : value}
-                          </p>
-                        )
-                      })}
+                      <div className="flex min-w-0 flex-1 gap-[22px]">
+                        {PRICING_PLAN_IDS.map((planId, index) => {
+                          const value = row.values[planId]
+                          const isDash = value === "—" || value === "ー"
+                          return (
+                            <p
+                              key={planId}
+                              className={cn(
+                                "m-0 min-w-0 flex-1 py-3.5 text-sm font-normal",
+                                index > 0 && "border-l border-[#e0e0e0] pl-[22px]",
+                                isDash ? "text-[#7c7c7c]" : "text-[#141414]",
+                              )}
+                            >
+                              {isDash ? "—" : value}
+                            </p>
+                          )
+                        })}
+                      </div>
                     </div>
                   ))}
                 </div>

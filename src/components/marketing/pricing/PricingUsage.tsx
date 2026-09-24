@@ -1,11 +1,13 @@
 import { CoinsIcon, MailIcon, MessageSquareIcon } from "lucide-react"
 
-import { PRICING_USAGE, PRICING_SECTION_INSET } from "@/content/marketing/pricingPage"
-import type { PlanFeatureIcon } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import {
-  marketingHeroBody,
-  marketingSectionHeading,
-} from "@/lib/marketing-layout"
+  PRICING_USAGE,
+  PRICING_SECTION_BODY,
+  PRICING_SECTION_HEADING,
+  PRICING_SECTION_INSET,
+  PRICING_SECTION_Y,
+} from "@/content/marketing/pricingPage"
+import type { PlanFeatureIcon } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
 
 function ChannelIcon({ icon }: { icon: PlanFeatureIcon }) {
@@ -25,32 +27,22 @@ const channelToneClass = {
   sms: "bg-[#f3fff7]",
 } as const
 
-/** Figma Usage + top-ups (`4974:29434`). */
+/** Figma Usage + top-ups (`5437:13921` / `4974:29434`). */
 export function PricingUsage() {
   return (
     <section className="w-full bg-[#f0f0f0]">
       <div
         className={cn(
-          "mx-auto flex w-full max-w-[1668px] flex-col gap-8 py-[70px] lg:flex-row lg:items-start lg:gap-3",
+          "flex w-full flex-col gap-8 lg:flex-row lg:items-start lg:gap-3",
           PRICING_SECTION_INSET,
+          PRICING_SECTION_Y,
         )}
       >
         <div className="flex w-full max-w-[592px] shrink-0 flex-col gap-[18px]">
-          <h2
-            className={cn(
-              "m-0 font-medium text-black",
-              marketingSectionHeading,
-              "lg:text-[46px]",
-            )}
-          >
+          <h2 className={cn("m-0", PRICING_SECTION_HEADING)}>
             {PRICING_USAGE.title}
           </h2>
-          <p
-            className={cn(
-              "m-0 max-w-[525px] font-normal text-[#141414]",
-              marketingHeroBody,
-            )}
-          >
+          <p className={cn("m-0 max-w-[525px]", PRICING_SECTION_BODY)}>
             {PRICING_USAGE.body}
           </p>
         </div>
@@ -97,17 +89,22 @@ export function PricingUsage() {
               <div key={row.id}>
                 <hr className="mb-[23px] border-[#e0e0e0]" />
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
-                  <div className="flex w-full max-w-[392px] items-center gap-3">
+                  <div className="flex w-full shrink-0 items-center gap-3 lg:w-[392px]">
                     <ChannelIcon icon={row.icon} />
                     <p className="m-0 text-lg font-semibold text-[#262626]">
                       {row.label}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-x-8 gap-y-2 lg:gap-x-[100px]">
+                  <div
+                    className={cn(
+                      "grid w-full grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-x-8",
+                      "lg:max-w-[441px] lg:grid-cols-[75px_83px_minmax(75px,1fr)] lg:gap-x-[100px]",
+                    )}
+                  >
                     {row.packs.map((pack) => (
                       <p
                         key={pack}
-                        className="m-0 py-1 text-sm font-normal text-[#262626]"
+                        className="m-0 py-1 text-sm font-normal whitespace-nowrap text-[#262626]"
                       >
                         {pack}
                       </p>

@@ -7,19 +7,18 @@ import { Button } from "@/components/ui/button"
 import {
   PRICING_CADENCE_COPY,
   PRICING_GROUP_BANNER,
+  PRICING_HERO_HEADING,
   PRICING_PAGE_HERO,
   PRICING_PLAN_CARDS,
+  PRICING_SECTION_BODY,
   PRICING_SECTION_INSET,
+  PRICING_SECTION_Y,
   pricingPlanPrice,
   type PricingFeatureRow,
   type PricingPlanCard,
 } from "@/content/marketing/pricingPage"
 import type { BillingCadence, PlanFeatureIcon } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import {
-  MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS,
-  MANAGE_PLAN_CADENCE_ITEM_CLASS,
-  MANAGE_PLAN_CADENCE_SAVE_BADGE_CLASS,
-  MANAGE_PLAN_CADENCE_SHELL_CLASS,
   MANAGE_PLAN_CARD_CLASS,
   MANAGE_PLAN_CARD_DESCRIPTION_CLASS,
   MANAGE_PLAN_CARD_POPULAR_CLASS,
@@ -33,11 +32,20 @@ import {
   MANAGE_PLAN_PRICE_AMOUNT_CLASS,
   MANAGE_PLAN_PRICE_SUFFIX_CLASS,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
-import {
-  marketingHeroBody,
-  marketingHeroHeading,
-} from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
+
+/** Marketing cadence shell — Figma `5139:7672` (not Operator op-* tokens). */
+const pricingCadenceShellClass =
+  "flex items-center gap-2.5 rounded-[6px] border border-[rgba(38,38,38,0.21)] p-3"
+
+const pricingCadenceItemClass =
+  "inline-flex h-[41px] items-center justify-center gap-2.5 rounded px-3 text-sm font-medium text-[#7c7c7c] transition-colors"
+
+/** Selected tab — Figma Main Bg `#202020` + white title. */
+const pricingCadenceItemActiveClass = "bg-[#202020] text-white"
+
+const pricingCadenceSaveBadgeClass =
+  "rounded-full bg-[#14a74a] px-2.5 py-2 text-[10px] font-medium leading-none text-white"
 
 const pilotButtonClass =
   "h-11 w-full shrink-0 rounded-[4px] border border-[#4e4e4e] bg-transparent text-sm font-medium text-[#141414] shadow-none hover:bg-[#141414]/5"
@@ -168,94 +176,93 @@ type PricingHeroPlansProps = {
   onCadenceChange: (cadence: BillingCadence) => void
 }
 
-/** Figma Pricing hero + plan cards (`4974:29050` / mobile `4974:29544`). */
+/** Figma Pricing hero + plan cards (`5139:4326` / mobile `4974:29544`). */
 export function PricingHeroPlans({
   cadence,
   onCadenceChange,
 }: PricingHeroPlansProps) {
   return (
-    <section className="w-full bg-white">
+    <section className="-mt-5 w-full bg-[#fafafa]">
       <div
         className={cn(
-          "mx-auto flex w-full max-w-[1668px] flex-col gap-10 py-[70px]",
+          "flex w-full flex-col gap-10",
           PRICING_SECTION_INSET,
+          PRICING_SECTION_Y,
         )}
       >
-        <div className="flex w-full max-w-[857px] flex-col items-start gap-4 text-left lg:mx-auto lg:items-center lg:text-center">
-          <h1
-            className={cn(
-              "m-0 max-w-[857px] font-medium text-[#141414]",
-              marketingHeroHeading,
-              "text-[34px] lg:text-[66px] lg:leading-[74px]",
-            )}
-          >
-            {PRICING_PAGE_HERO.title}
-          </h1>
-          <p
-            className={cn(
-              "m-0 max-w-[740px] font-normal text-[#141414] lg:hidden",
-              marketingHeroBody,
-            )}
-          >
-            {PRICING_PAGE_HERO.bodyMobile}
-          </p>
-          <p
-            className={cn(
-              "m-0 hidden max-w-[740px] font-normal text-[#141414] lg:block",
-              marketingHeroBody,
-            )}
-          >
-            {PRICING_PAGE_HERO.body}
-          </p>
-          <div className="hidden flex-wrap items-center justify-center gap-x-8 gap-y-2 pt-2 lg:flex">
-            {PRICING_PAGE_HERO.trustItems.map((item) => (
+        <div className="flex w-full flex-col items-start gap-[46px] lg:items-center">
+          <div className="flex w-full max-w-[857px] flex-col items-start gap-[26px] text-left lg:mx-auto lg:items-center lg:text-center">
+            <div className="flex w-full flex-col items-start gap-[18px] lg:items-center">
+              <h1 className={cn("m-0 max-w-[857px]", PRICING_HERO_HEADING)}>
+                {PRICING_PAGE_HERO.title}
+              </h1>
               <p
-                key={item}
-                className="m-0 flex items-center gap-2 text-[15px] font-normal leading-[15px] text-[#141414]"
+                className={cn(
+                  "m-0 max-w-[740px] lg:hidden",
+                  PRICING_SECTION_BODY,
+                )}
               >
-                <CheckIcon className="size-3 shrink-0 text-[#14a74a]" aria-hidden />
-                {item}
+                {PRICING_PAGE_HERO.bodyMobile}
               </p>
-            ))}
+              <p
+                className={cn(
+                  "m-0 hidden max-w-[740px] lg:block",
+                  PRICING_SECTION_BODY,
+                )}
+              >
+                {PRICING_PAGE_HERO.body}
+              </p>
+            </div>
+            <div className="hidden flex-wrap items-center justify-center gap-x-[35px] gap-y-2 lg:flex">
+              {PRICING_PAGE_HERO.trustItems.map((item) => (
+                <p
+                  key={item}
+                  className="m-0 flex items-center gap-2 text-xs font-medium leading-normal text-[#727272]"
+                >
+                  <CheckIcon className="size-3 shrink-0 text-[#14a74a]" aria-hidden />
+                  {item}
+                </p>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="flex justify-start lg:justify-center">
-          <div
-            className={MANAGE_PLAN_CADENCE_SHELL_CLASS}
-            role="group"
-            aria-label="Billing cadence"
-          >
-            <button
-              type="button"
-              aria-pressed={cadence === "monthly"}
-              className={cn(
-                MANAGE_PLAN_CADENCE_ITEM_CLASS,
-                "min-w-20",
-                cadence === "monthly" && MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS,
-              )}
-              onClick={() => {
-                onCadenceChange("monthly")
-              }}
+          <div className="flex justify-start lg:justify-center">
+            <div
+              className={pricingCadenceShellClass}
+              role="group"
+              aria-label="Billing cadence"
             >
-              {PRICING_CADENCE_COPY.monthly}
-            </button>
-            <button
-              type="button"
-              aria-pressed={cadence === "annual"}
-              className={cn(
-                MANAGE_PLAN_CADENCE_ITEM_CLASS,
-                cadence === "annual" && MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS,
-              )}
-              onClick={() => {
-                onCadenceChange("annual")
-              }}
-            >
-              {PRICING_CADENCE_COPY.annual}
-              <span className={MANAGE_PLAN_CADENCE_SAVE_BADGE_CLASS}>
-                {PRICING_CADENCE_COPY.saveBadge}
-              </span>
-            </button>
+              <button
+                type="button"
+                aria-pressed={cadence === "monthly"}
+                className={cn(
+                  pricingCadenceItemClass,
+                  "min-w-20",
+                  cadence === "monthly" && pricingCadenceItemActiveClass,
+                )}
+                onClick={() => {
+                  onCadenceChange("monthly")
+                }}
+              >
+                {PRICING_CADENCE_COPY.monthly}
+              </button>
+              <button
+                type="button"
+                aria-pressed={cadence === "annual"}
+                className={cn(
+                  pricingCadenceItemClass,
+                  cadence === "annual" && pricingCadenceItemActiveClass,
+                )}
+                onClick={() => {
+                  onCadenceChange("annual")
+                }}
+              >
+                {PRICING_CADENCE_COPY.annual}
+                <span className={pricingCadenceSaveBadgeClass}>
+                  {PRICING_CADENCE_COPY.saveBadge}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -270,7 +277,7 @@ export function PricingHeroPlans({
           className="order-2 flex scroll-mt-[180px] flex-col gap-8 rounded-[6px] bg-[#dfebe3] px-8 py-7 lg:order-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:bg-[#f3fff7] lg:px-10 lg:py-8"
         >
           <div className="flex max-w-[720px] flex-col gap-[18px] lg:gap-3">
-            <h2 className="m-0 font-serif text-[28px] font-medium leading-none text-[#141414]">
+            <h2 className="m-0 font-jakarta text-[28px] font-medium leading-none text-[#141414]">
               {PRICING_GROUP_BANNER.title}
             </h2>
             <p className="m-0 text-base font-normal leading-6 text-[#141414] lg:hidden">

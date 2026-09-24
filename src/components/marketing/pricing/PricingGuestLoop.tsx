@@ -1,38 +1,30 @@
 import { ArrowRightIcon } from "lucide-react"
 
-import { PRICING_GUEST_LOOP, PRICING_SECTION_INSET } from "@/content/marketing/pricingPage"
 import {
-  marketingHeroBody,
-  marketingSectionHeading,
-} from "@/lib/marketing-layout"
+  PRICING_GUEST_LOOP,
+  PRICING_SECTION_BODY,
+  PRICING_SECTION_HEADING,
+  PRICING_SECTION_INSET,
+  PRICING_SECTION_Y,
+} from "@/content/marketing/pricingPage"
 import { cn } from "@/lib/utils"
 
-/** Figma Guest Loop strip (`5141:8494`). */
+/** Figma Guest Loop strip (`5437:13673` / `5141:8494`). */
 export function PricingGuestLoop() {
   return (
     <section className="w-full bg-white">
       <div
         className={cn(
-          "mx-auto flex w-full max-w-[1668px] flex-col gap-10 py-[70px] lg:flex-row lg:items-center lg:justify-between lg:gap-[60px]",
+          "flex w-full flex-col gap-10 lg:flex-row lg:items-center lg:justify-between lg:gap-[60px]",
           PRICING_SECTION_INSET,
+          PRICING_SECTION_Y,
         )}
       >
         <div className="flex max-w-[548px] flex-col gap-[18px]">
-          <h2
-            className={cn(
-              "m-0 font-medium text-black",
-              marketingSectionHeading,
-              "lg:text-[46px]",
-            )}
-          >
+          <h2 className={cn("m-0", PRICING_SECTION_HEADING)}>
             {PRICING_GUEST_LOOP.title}
           </h2>
-          <p
-            className={cn(
-              "m-0 font-normal text-[#141414]",
-              marketingHeroBody,
-            )}
-          >
+          <p className={cn("m-0", PRICING_SECTION_BODY)}>
             {PRICING_GUEST_LOOP.body}
           </p>
         </div>

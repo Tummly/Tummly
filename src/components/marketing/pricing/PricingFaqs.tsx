@@ -4,10 +4,11 @@ import { ArrowRightIcon } from "lucide-react"
 import { FaqsAccordionItem } from "@/components/marketing/faqs/FaqsAccordionItem"
 import { Button } from "@/components/ui/button"
 import { Accordion } from "@/components/ui/accordion"
-import { PRICING_FAQS, PRICING_SECTION_INSET } from "@/content/marketing/pricingPage"
 import {
-  marketingSectionHeading,
-} from "@/lib/marketing-layout"
+  PRICING_FAQS,
+  PRICING_SECTION_HEADING,
+  PRICING_SECTION_INSET,
+} from "@/content/marketing/pricingPage"
 import { cn } from "@/lib/utils"
 
 const exploreButtonClass =
@@ -24,19 +25,13 @@ export function PricingFaqs() {
     <section className="w-full bg-white">
       <div
         className={cn(
-          "mx-auto flex w-full flex-col gap-8 sm:gap-10 lg:flex-row lg:items-start lg:gap-15",
+          "flex w-full flex-col gap-8 sm:gap-10 lg:flex-row lg:items-start lg:gap-[60px]",
           PRICING_SECTION_INSET,
           "pt-12.5 pb-17.5",
         )}
       >
         <header className="flex w-full shrink-0 flex-col lg:sticky lg:top-44 lg:w-137 lg:max-w-137 lg:pt-5">
-          <h2
-            className={cn(
-              "m-0 font-medium text-[#141414]",
-              marketingSectionHeading,
-              "lg:text-[46px]",
-            )}
-          >
+          <h2 className={cn("m-0", PRICING_SECTION_HEADING)}>
             {PRICING_FAQS.title}
           </h2>
         </header>
