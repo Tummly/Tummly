@@ -11,6 +11,7 @@ import { FieldErrorSlot } from "@/components/ui/field"
 import { Form } from "@/components/ui/form"
 import { HELP_CENTRE_URL } from "@/config/support"
 import { prefetchHelpCentreHero } from "@/lib/prefetchHelpCentreHero"
+import { buildSignupPath } from "@/lib/signupPlanIntent"
 import type { SignInCredentialsValues } from "@/schemas/signIn"
 
 interface SignInFormProps {
@@ -185,7 +186,7 @@ export function SignInForm({ form, onSubmit }: SignInFormProps) {
           <SignInFooterLink
             label="New to Tummly?"
             linkLabel="Start 30-day Pilot"
-            to="/signup"
+            to={buildSignupPath({ plan: "Pilot" })}
           />
           <SignInFooterLink
             label="Need help?"
