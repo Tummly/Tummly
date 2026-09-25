@@ -36,7 +36,8 @@ const EMAIL_SURFACE = {
     "border-[var(--op-color-gray-950)] bg-[color-mix(in_srgb,var(--op-color-gray-900)_15%,transparent)]",
   codeText: "text-[var(--op-color-gray-550)]",
   codeDivider: "border-[var(--op-color-gray-950)]",
-  copyButton: "text-[var(--op-color-gray-550)]",
+  copyButton:
+    "text-[var(--op-color-gray-550)] hover:text-[var(--op-color-white)]",
   expiry: "text-[var(--op-color-white)]/50",
 } as const
 
@@ -47,7 +48,9 @@ const THANK_YOU_SURFACE = {
   codeRow: "border-guest-feedback-border bg-guest-feedback-surface/15",
   codeText: "text-guest-feedback-placeholder",
   codeDivider: "border-guest-feedback-border",
-  copyButton: "text-guest-feedback-placeholder",
+  // Override op-ghost `hover:text-foreground` (near-black on guest dark bg).
+  copyButton:
+    "text-guest-feedback-placeholder hover:text-guest-feedback-text",
   expiry: "text-guest-feedback-text/50",
 } as const
 

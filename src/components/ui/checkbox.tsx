@@ -13,7 +13,7 @@ const checkboxVariants = cva(
         default:
           "size-4 rounded-[4px] border-input dark:bg-input/30 data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary",
         ghost:
-          "size-[18px] rounded-[2px] border-[rgba(74,74,76,0.3)] bg-transparent text-white data-checked:border-[rgba(74,74,76,0.3)] data-checked:bg-transparent data-checked:text-white dark:border-[rgba(74,74,76,0.3)] dark:bg-transparent dark:data-checked:border-[rgba(74,74,76,0.3)] dark:data-checked:bg-transparent",
+          "size-[18px] rounded-[2px] border-[rgba(74,74,76,0.3)] bg-transparent text-white data-checked:border-guest-feedback-accent data-checked:bg-guest-feedback-accent data-checked:text-white dark:border-[rgba(74,74,76,0.3)] dark:bg-transparent dark:data-checked:border-guest-feedback-accent dark:data-checked:bg-guest-feedback-accent",
       },
     },
     defaultVariants: {
@@ -36,7 +36,6 @@ function GhostCheckIcon({ className }: { className?: string }) {
       <path
         d="M4 9.4L0 5.4L1.4 4L4 6.6L10.6 0L12 1.4L4 9.4Z"
         fill="currentColor"
-        fillOpacity={0.3}
       />
     </svg>
   )

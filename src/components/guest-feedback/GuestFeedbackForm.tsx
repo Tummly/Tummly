@@ -413,7 +413,7 @@ export function GuestFeedbackForm({
                       variant="ghost"
                       disabled={isSubmitting}
                       className="pt-1"
-                      labelClassName="cursor-pointer text-xs font-normal leading-relaxed text-guest-feedback-muted"
+                      labelClassName="cursor-pointer text-[12px] font-normal leading-relaxed text-guest-feedback-muted"
                     >
                       {consentCheckboxLabel}
                     </FormCheckboxLabel>

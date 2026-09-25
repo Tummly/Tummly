@@ -16,7 +16,7 @@ type CheckboxLabelProps = {
   labelClassName?: string
   reserveSpace?: boolean
   reserveClassName?: string
-  /** `ghost` — low-contrast tick/border for dark guest-feedback surfaces. */
+  /** `ghost` — muted border on dark guest-feedback; primary green fill + white tick when checked. */
   variant?: "default" | "ghost"
 }
 
