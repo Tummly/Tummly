@@ -231,9 +231,9 @@ export function CampaignsPage() {
       loadAudienceEligibility,
       // Shared with overview Messaging usage — live Credits & usage snapshot.
       loadMessagingBalances: loadCampaignMessagingBalances,
-      // Billing Reserve IsLive is still false (UnavailableCampaignBillingReserve).
-      // Flip to true when LiveBillingReserve ships so unexpected 503 uses live copy.
-      billingReserveLive: false,
+      // Backend DI registers LiveCampaignBillingReserve (IsLive true).
+      // Unexpected 503 uses live credit-failure copy, not the Phase-A stub line.
+      billingReserveLive: true,
       prepareMessageDraft: prepareCampaignMessageDraft,
       createDraft: async (body) => {
         const response = await createCampaignDraft(body)
@@ -609,6 +609,18 @@ export function CampaignsPage() {
     }
   }
 
+  const handleEditCampaignFromPreview = () => {
+    const campaignId = campaignDetailPreviewSnapshot.viewModel?.campaignId
+    if (
+      campaignId == null
+      || campaignDetailPreviewSnapshot.loadStatus !== "loaded"
+    ) {
+      return
+    }
+    campaignDetailPreview.close()
+    handleContinueEditing(campaignId)
+  }
+
   const handleSaveAndExit = async () => {
     await campaignWizard.saveAndExit()
     if (!campaignWizard.getSnapshot().isOpen) {
@@ -811,6 +823,7 @@ export function CampaignsPage() {
           void campaignDetailPreview.retryLoad()
         }}
         onSelectChannel={campaignDetailPreview.setSelectedChannel}
+        onEditCampaign={handleEditCampaignFromPreview}
       />
       <CampaignWizardDialog
         snapshot={campaignWizardSnapshot}

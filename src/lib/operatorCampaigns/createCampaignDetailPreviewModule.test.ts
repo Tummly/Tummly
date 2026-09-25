@@ -53,6 +53,7 @@ describe("createCampaignDetailPreviewModule", () => {
         subject: "Quiet Tuesday lunch?",
       },
       sendLogicLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.notScheduled,
+      editCampaignLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.editCampaign,
       closeLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.close,
     })
     expect(snapshot.viewModel).not.toHaveProperty("useThisTemplateLabel")

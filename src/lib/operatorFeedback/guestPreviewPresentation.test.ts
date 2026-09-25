@@ -183,7 +183,7 @@ describe("guestPreviewPresentation", () => {
       copyEnabled: false,
     })
     // Offer claim QR payload is the same sample Claim code (no Issue).
-    expect(coupon?.redemptionCode).toBe("PREVIEW-CODE")
+    expect(coupon?.redemptionCode).toBe("{PREVIEW-CODE}")
     expect(GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER).not.toMatch(
       /^TUM-/
     )

@@ -749,6 +749,20 @@ export type PrepareCampaignMessageDraftApiRequest = {
   mode: "prepare" | "rewrite_subject" | "rewrite_message"
   currentBody?: string | null
   currentSubject?: string | null
+  confirmedOffer?: {
+    offerType: string
+    title: string
+    description: string
+    validity: string
+    expiryDate?: string | null
+    discountPercentage?: number | null
+    discountAmount?: number | null
+    freeItemText?: string | null
+    purchaseRequirement?: string | null
+    minimumSpend?: number | null
+    additionalExclusions?: string | null
+    replacementItemText?: string | null
+  } | null
 }
 
 export type PrepareCampaignMessageDraftApiResponse = {

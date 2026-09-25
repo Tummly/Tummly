@@ -68,6 +68,26 @@ namespace TummlyBackend.Services
                 ? null
                 : request.CampaignName.Trim();
 
+            CampaignMessageDraftConfirmedOffer? offerContext = null;
+            if (request.ConfirmedOffer != null)
+            {
+                var confirmed = request.ConfirmedOffer;
+                offerContext = new CampaignMessageDraftConfirmedOffer(
+                    OfferType: confirmed.OfferType,
+                    Title: confirmed.Title,
+                    Description: confirmed.Description,
+                    Validity: confirmed.Validity,
+                    ExpiryDate: confirmed.ExpiryDate,
+                    DiscountPercentage: confirmed.DiscountPercentage,
+                    DiscountAmount: confirmed.DiscountAmount,
+                    FreeItemText: confirmed.FreeItemText,
+                    PurchaseRequirement: confirmed.PurchaseRequirement,
+                    MinimumSpend: confirmed.MinimumSpend,
+                    AdditionalExclusions: confirmed.AdditionalExclusions,
+                    ReplacementItemText: confirmed.ReplacementItemText
+                );
+            }
+
             var input = new CampaignMessageDraftInput(
                 LocationName: locationName,
                 Channel: channel,
@@ -79,7 +99,8 @@ namespace TummlyBackend.Services
                 IncludeNotes: notes,
                 Mode: mode,
                 CurrentBody: request.CurrentBody,
-                CurrentSubject: request.CurrentSubject
+                CurrentSubject: request.CurrentSubject,
+                ConfirmedOffer: offerContext
             );
 
             CampaignMessageDraftProviderResult providerResult;

@@ -289,6 +289,67 @@ export type CreateCatalogOfferRequestBody = {
   staffInstructions?: string | null
 }
 
+/** Confirmed catalog Offer facts for Campaign message-draft AI (no claim codes). */
+export type ConfirmedCampaignOfferPayload = {
+  offerType: CampaignCatalogOfferTypeId
+  title: string
+  description: string
+  validity: CampaignCatalogOfferValidityId
+  expiryDate: string | null
+  discountPercentage: number | null
+  discountAmount: number | null
+  freeItemText: string | null
+  purchaseRequirement: CampaignCatalogOfferPurchaseRequirementId | null
+  minimumSpend: number | null
+  additionalExclusions: string | null
+  replacementItemText: string | null
+}
+
+export function toConfirmedCampaignOfferPayload(
+  offer: CampaignCatalogOfferDetailsDraft
+): ConfirmedCampaignOfferPayload | null {
+  if (!canConfirmCampaignCatalogOfferDetails(offer) || offer.offerType == null) {
+    return null
+  }
+
+  return {
+    offerType: offer.offerType,
+    title: offer.title.trim(),
+    description: offer.description.trim(),
+    validity: offer.validity,
+    expiryDate:
+      offer.validity === "choose_expiry_date"
+        ? offer.expiryDate.trim()
+        : null,
+    discountPercentage:
+      offer.offerType === "percentage_discount"
+        ? parsePositiveNumber(offer.discountPercentage)
+        : null,
+    discountAmount:
+      offer.offerType === "fixed_discount"
+        ? parsePositiveNumber(offer.discountAmount)
+        : null,
+    freeItemText:
+      offer.offerType === "free_item" ? offer.freeItemText.trim() : null,
+    purchaseRequirement:
+      offer.offerType === "free_item" ? offer.purchaseRequirement : null,
+    minimumSpend:
+      offer.offerType === "free_item"
+      && offer.purchaseRequirement === "with_minimum_spend"
+        ? parsePositiveNumber(offer.minimumSpend)
+        : null,
+    additionalExclusions:
+      offer.offerType === "free_item"
+      && offer.additionalExclusions.trim() !== ""
+        ? offer.additionalExclusions.trim()
+        : null,
+    replacementItemText:
+      offer.offerType === "replacement_item"
+        ? offer.replacementItemText.trim()
+        : null,
+  }
+}
+
 export function toCreateCatalogOfferRequestBody(input: {
   locationId: number
   draft: CampaignCatalogOfferDetailsDraft

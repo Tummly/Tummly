@@ -38,6 +38,7 @@ export async function prepareCampaignMessageDraft(
     mode: request.mode,
     currentBody: request.currentBody,
     currentSubject: request.currentSubject,
+    confirmedOffer: request.confirmedOffer,
   }
 
   try {

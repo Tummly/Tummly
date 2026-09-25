@@ -64,8 +64,10 @@ import {
   isDirtyBenefitOrValidity,
   mergeCampaignCatalogOfferDraftPatch,
   shouldConfirmEditOfferSave,
+  toConfirmedCampaignOfferPayload,
   toCreateCatalogOfferRequestBody,
   type CampaignCatalogOfferDetailsDraft,
+  type ConfirmedCampaignOfferPayload,
   type CreateCatalogOfferRequestBody,
 } from "@/lib/operatorOffers/offerCatalogPresentation"
 import { emptySelection } from "@/lib/operatorFilterSheet"
@@ -210,6 +212,8 @@ export type PrepareCampaignMessageDraftRequest = {
   mode: CampaignMessageDraftMode
   currentBody: string | null
   currentSubject: string | null
+  /** Confirmed catalog Offer facts when an offer is attached. */
+  confirmedOffer: ConfirmedCampaignOfferPayload | null
 }
 
 export type PrepareCampaignMessageDraftResult =
@@ -445,6 +449,16 @@ export type CampaignMessageViewModel = {
   }
   messagingFixture: CampaignsMessagingBalancesFixture | null
   channelShortfall: CampaignChannelShortfall | null
+  /**
+   * Helper under Message when an offer is attached (Email coupon + SMS footer).
+   * Null when no offer.
+   */
+  claimCodeTokenHelper: string | null
+  /**
+   * Email Guest preview coupon with `{PREVIEW-CODE}` — SMS keeps claim code in
+   * the body instead (offerCoupon stays null).
+   */
+  offerCoupon: GuestPreviewOfferCouponView | null
 }
 
 export type CampaignScheduleOptionViewModel = {
@@ -1265,6 +1279,14 @@ function buildMessageViewModel(
     },
     messagingFixture: balancesReady ? state.messagingFixture : null,
     channelShortfall: resolveChannelShortfallForState(state),
+    claimCodeTokenHelper:
+      state.offerStanceId === "no-offer"
+        ? null
+        : CAMPAIGN_MESSAGE_COPY.claimCodeTokenHelper,
+    offerCoupon:
+      state.channelId === "sms" || state.offerStanceId === "no-offer"
+        ? null
+        : buildReviewGuestPreviewOfferCoupon(state),
   }
 }
 
@@ -2117,6 +2139,21 @@ export function createCampaignWizardModule(
       return
     }
 
+    if (
+      state.offerStanceId !== "no-offer"
+      && state.attachedOfferId != null
+      && toConfirmedCampaignOfferPayload(state.createOfferDraft) == null
+    ) {
+      await hydrateAttachedOffer(state.attachedOfferId)
+      if (
+        !state.isOpen
+        || state.stepId !== "message"
+        || state.aiDraftStatus === "running"
+      ) {
+        return
+      }
+    }
+
     const locationId = state.locationId
     const channel = state.channelId
     const goalId = state.goalId
@@ -2161,6 +2198,10 @@ export function createCampaignWizardModule(
       mode,
       currentBody: isRewrite ? priorMessage : null,
       currentSubject: isRewrite && channel === "email" ? priorSubject : null,
+      confirmedOffer:
+        offerStance === "no-offer"
+          ? null
+          : toConfirmedCampaignOfferPayload(state.createOfferDraft),
     }
 
     try {
@@ -2761,18 +2802,13 @@ export function createCampaignWizardModule(
       if (!forceNoOfferLand && draft.offerId != null) {
         await hydrateAttachedOffer(draft.offerId)
       }
-      if (stepId === "audience" || stepId === "offer") {
-        await Promise.all([
-          loadAudienceCounts(),
-          refreshMessagingBalances(),
-          refreshOperatorSenderEmail(),
-        ])
-      } else {
-        await Promise.all([
-          refreshMessagingBalances(),
-          refreshOperatorSenderEmail(),
-        ])
-      }
+      // Always load eligibility — AI / message-resume lands on Schedule and
+      // still needs channel meters + Review send gates (not "Counts unavailable").
+      await Promise.all([
+        loadAudienceCounts(),
+        refreshMessagingBalances(),
+        refreshOperatorSenderEmail(),
+      ])
     },
     async openFromRecommendation(input) {
       audienceLoadGeneration += 1
@@ -3119,6 +3155,7 @@ export function createCampaignWizardModule(
         messageBody: messageBodyWithSmsOfferClaim(attached),
       }
       publish()
+      void hydrateAttachedOffer(item.id)
     },
     async retryExistingOfferPicker() {
       if (
@@ -3578,8 +3615,15 @@ export function createCampaignWizardModule(
         publish()
         return
       }
-      state = { ...state, stepId: NUMBERED_STEP_ORDER[index - 1]! }
+      const nextStep = NUMBERED_STEP_ORDER[index - 1]!
+      state = { ...state, stepId: nextStep }
       publish()
+      if (
+        nextStep === "audience"
+        && state.audienceLoadStatus !== "loaded"
+      ) {
+        void loadAudienceCounts()
+      }
     },
   }
 }

@@ -158,6 +158,13 @@ export const CAMPAIGNS_PAGE_SIZE = 25
 export const CAMPAIGNS_PAGE_META_CLASS =
   "m-0 text-op-sm font-medium leading-normal text-muted-foreground"
 
+/**
+ * Campaign column subtitle — goal · Updated relative (Figma list row).
+ * 12px / Main Bg Subtitle `#7c7c7c` / `--op-color-gray-550`.
+ */
+export const CAMPAIGNS_TABLE_META_LINE_CLASS =
+  "m-0 text-xs font-normal leading-4 text-[var(--op-color-gray-550)]"
+
 /** True-empty action row — Figma 4026:45652 (12px gap). */
 export const CAMPAIGNS_TRUE_EMPTY_ACTIONS_CLASS =
   "mt-[30px] flex items-center justify-center gap-3"

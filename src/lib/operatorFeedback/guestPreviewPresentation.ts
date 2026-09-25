@@ -155,8 +155,20 @@ export const GUEST_PREVIEW_POWERED_BY_LABEL = "Powered by"
 /**
  * Placeholder redemption code in Guest preview — not an issued code.
  * Real codes are created only on Send and issue offer.
+ * Braced form marks the token as programmatic so operators do not treat it as
+ * editable guest copy.
  */
-export const GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER = "PREVIEW-CODE"
+export const GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER = "{PREVIEW-CODE}"
+
+/** Hover / helper copy for the preview claim-code token (Email coupon + SMS). */
+export const GUEST_PREVIEW_OFFER_CLAIM_CODE_TOKEN_HELPER =
+  "Tummly replaces {PREVIEW-CODE} with a unique claim code for each guest when the message is sent. Do not change or remove this token."
+
+export function isGuestPreviewOfferClaimCodePlaceholder(
+  redemptionCode: string
+): boolean {
+  return redemptionCode.trim() === GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER
+}
 
 export const GUEST_PREVIEW_OFFER_COPY_LABEL = "Copy"
 
@@ -223,7 +235,7 @@ export type GuestPreviewOfferCouponView = {
   title: string
   description: string
   /**
-   * Preview sample (`PREVIEW-CODE`) or a live issued Offer Claim code.
+   * Preview sample (`{PREVIEW-CODE}`) or a live issued Offer Claim code.
    * Offer claim QR encodes this same string.
    */
   redemptionCode: string

@@ -798,7 +798,7 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Replaces a prior Claim-code footer (e.g. preview <c>PREVIEW-CODE</c>)
+        /// Replaces a prior Claim-code footer (e.g. preview <c>{PREVIEW-CODE}</c>)
         /// so fire does not stack a second Offer block on draft bodies that
         /// already carry sample Claim text.
         /// </summary>

@@ -566,9 +566,11 @@ describe("createCampaignWizardModule", () => {
   })
 
   it("Continue editing opens get-by-id Draft at Schedule when message is saved", async () => {
+    const loadAudienceEligibility = vi.fn(async () => liveEligibility())
     const wizard = createCampaignWizardModule({
-      ...defaultAudienceAdapters(),
+      ...defaultAudienceAdapters({ loadAudienceEligibility }),
       getNow: () => new Date("2026-08-14T14:18:00"),
+      commitCampaign: vi.fn(),
     })
 
     await wizard.openFromDraft({
@@ -602,7 +604,17 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.headerSubtitle).toBe(
       "Boost a quieter time · Camden · August"
     )
+    // AI / message-resume lands past Audience — still load eligibility for
+    // channel meters and Review send gates (not "Counts unavailable" / 0).
+    expect(loadAudienceEligibility).toHaveBeenCalled()
 
+    await wizard.continue()
+    expect(wizard.getSnapshot().stepId).toBe("review")
+    expect(wizard.getSnapshot().review!.sendAvailable).toBe(true)
+    expect(wizard.getSnapshot().review!.sendBlockedReason).toBeNull()
+
+    wizard.back()
+    expect(wizard.getSnapshot().stepId).toBe("schedule")
     wizard.back()
     expect(wizard.getSnapshot().stepId).toBe("message")
     expect(wizard.getSnapshot().message?.body).toBe("Come for lunch")
@@ -2380,6 +2392,7 @@ describe("createCampaignWizardModule", () => {
         mode: "prepare",
         currentBody: null,
         currentSubject: null,
+        confirmedOffer: null,
       }),
       expect.any(AbortSignal)
     )
@@ -2398,6 +2411,80 @@ describe("createCampaignWizardModule", () => {
     })
     expect(wizard.getSnapshot().draftId).toBeNull()
     expect(wizard.getSnapshot().canContinue).toBe(true)
+  })
+
+  it("Prepare with AI sends confirmedOffer facts when an offer is attached", async () => {
+    const createOffer = vi.fn(async () => ({
+      id: 501,
+      locationId: 42,
+      status: "active" as const,
+      offerType: "percentage_discount",
+      title: "15% off your next visit",
+      description: "Enjoy 15% off your next meal with us.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: 15,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: "Ask for the code.",
+      issueCount: 0,
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }))
+    const prepareMessageDraft = vi.fn(
+      async (): Promise<PrepareCampaignMessageDraftResult> => ({
+        status: "succeeded",
+        body: "Enjoy 15% off your next visit.",
+        subject: "15% off for you",
+        channel: "email",
+      })
+    )
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createOffer,
+      prepareMessageDraft,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    wizard.setOfferStanceId("create-new-offer")
+    wizard.patchCreateOfferDraft({
+      offerType: "percentage_discount",
+      discountPercentage: "15",
+      title: "15% off your next visit",
+      description: "Enjoy 15% off your next meal with us.",
+      validity: "30_days_after_issue",
+    })
+    await wizard.confirmCreateOffer()
+    await wizard.continue()
+
+    await wizard.prepareDraft()
+
+    expect(prepareMessageDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offerStance: "create-new-offer",
+        mode: "prepare",
+        confirmedOffer: expect.objectContaining({
+          offerType: "percentage_discount",
+          title: "15% off your next visit",
+          discountPercentage: 15,
+          description: "Enjoy 15% off your next meal with us.",
+        }),
+      }),
+      expect.any(AbortSignal)
+    )
   })
 
   it("Prepare failure unlocks retry; rewrite keeps prior text on fail", async () => {
@@ -3080,6 +3167,12 @@ describe("createCampaignWizardModule", () => {
     wizard.writeManually()
     wizard.setSubject("Thanks for visiting")
     wizard.setMessage("Hi guest,\n\nThank you for joining us.")
+
+    const message = wizard.getSnapshot().message!
+    expect(message.claimCodeTokenHelper).toContain("{PREVIEW-CODE}")
+    expect(message.offerCoupon).not.toBeNull()
+    expect(message.offerCoupon!.redemptionCode).toBe("{PREVIEW-CODE}")
+
     await wizard.continue()
     wizard.setScheduleModeId("send-now")
     await wizard.continue()
@@ -3088,7 +3181,7 @@ describe("createCampaignWizardModule", () => {
     expect(coupon).not.toBeNull()
     expect(coupon!.title).toBe("10% off next visit")
     expect(coupon!.description).toBe("Enjoy 10% off your next meal.")
-    expect(coupon!.redemptionCode).toBe("PREVIEW-CODE")
+    expect(coupon!.redemptionCode).toBe("{PREVIEW-CODE}")
     expect(coupon!.expiryLabel).toBe("Expires: 30 days after issue")
   })
 
@@ -3154,8 +3247,11 @@ describe("createCampaignWizardModule", () => {
     const message = wizard.getSnapshot().message!
     expect(message.body).toContain("Thanks for visiting us recently.")
     expect(message.body).toContain("10% off next visit")
-    expect(message.body).toContain("Claim code: PREVIEW-CODE")
+    expect(message.body).toContain("Claim code: {PREVIEW-CODE}")
     expect(message.body).toContain("Expires: 30 days after issue")
+    expect(message.claimCodeTokenHelper).toContain("{PREVIEW-CODE}")
+    expect(message.claimCodeTokenHelper).toContain("Do not change or remove")
+    expect(message.offerCoupon).toBeNull()
 
     await wizard.continue()
     wizard.setScheduleModeId("send-now")
@@ -3164,7 +3260,7 @@ describe("createCampaignWizardModule", () => {
     const review = wizard.getSnapshot().review!
     expect(review.guestPreview.channelId).toBe("sms")
     expect(review.guestPreview.offerCoupon).toBeNull()
-    expect(review.guestPreview.body).toContain("Claim code: PREVIEW-CODE")
+    expect(review.guestPreview.body).toContain("Claim code: {PREVIEW-CODE}")
     expect(review.guestPreview.body).toContain("10% off next visit")
   })
 
@@ -3298,6 +3394,7 @@ describe("createCampaignWizardModule", () => {
   it("CampaignsPage wires commitCampaign to commitCampaignSchedule", () => {
     expect(campaignsPageSource).toContain("commitCampaignSchedule")
     expect(campaignsPageSource).toContain("commitCampaign:")
+    expect(campaignsPageSource).toContain("billingReserveLive: true")
     expect(campaignsPageSource).not.toContain(
       "do not wire commitCampaign until Billing Reserve is live"
     )
@@ -3317,7 +3414,14 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.review!.sendBlockedReason).toBe(
       CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
     )
-    expect(campaignWizardDialogSource).toContain("sendBlockedReason")
+    const primaryButtonIndex = campaignWizardDialogSource.indexOf(
+      "{snapshot.primaryActionLabel}"
+    )
+    const blockedReasonIndex = campaignWizardDialogSource.indexOf(
+      "snapshot.review.sendBlockedReason"
+    )
+    expect(primaryButtonIndex).toBeGreaterThan(-1)
+    expect(blockedReasonIndex).toBeGreaterThan(primaryButtonIndex)
   })
 
   it("surfaces Soft-lock blocked reason on Review and keeps Save / Send test", async () => {

@@ -1,6 +1,20 @@
 import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { OfferClaimQrImage } from "@/components/dashboard/operator/Feedback/OfferClaimQrImage"
-import type { GuestPreviewOfferCouponView } from "@/lib/operatorFeedback/guestPreviewPresentation"
+import {
+  GUEST_PREVIEW_OFFER_CLAIM_CODE_TOKEN_HELPER,
+  isGuestPreviewOfferClaimCodePlaceholder,
+  type GuestPreviewOfferCouponView,
+} from "@/lib/operatorFeedback/guestPreviewPresentation"
+import {
+  OPERATOR_SHELL_TOOLTIP_ARROW_CLASS,
+  OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 type GuestPreviewOfferCouponSurface = "email" | "thankYou"
@@ -36,6 +50,45 @@ const THANK_YOU_SURFACE = {
   copyButton: "text-guest-feedback-placeholder",
   expiry: "text-guest-feedback-text/50",
 } as const
+
+function PreviewClaimCodeLabel({
+  code,
+  className,
+}: {
+  code: string
+  className: string
+}) {
+  if (!isGuestPreviewOfferClaimCodePlaceholder(code)) {
+    return (
+      <p className={cn("m-0 truncate text-sm font-normal", className)}>{code}</p>
+    )
+  }
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <p
+            className={cn(
+              "m-0 truncate text-sm font-normal underline decoration-dotted underline-offset-4",
+              className
+            )}
+          >
+            {code}
+          </p>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          sideOffset={6}
+          className={`${OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS} z-[140] max-w-sm px-3 py-2 text-left text-xs leading-5 whitespace-normal`}
+          arrowClassName={OPERATOR_SHELL_TOOLTIP_ARROW_CLASS}
+        >
+          {GUEST_PREVIEW_OFFER_CLAIM_CODE_TOKEN_HELPER}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
 
 /**
  * Guest-facing offer coupon — Offer claim QR, title, description, code, Copy,
@@ -86,9 +139,10 @@ export function GuestPreviewOfferCoupon({
           )}
         >
           <div className="flex min-w-0 flex-1 items-center px-3 py-3">
-            <p className={cn("m-0 truncate text-sm font-normal", tokens.codeText)}>
-              {coupon.redemptionCode}
-            </p>
+            <PreviewClaimCodeLabel
+              code={coupon.redemptionCode}
+              className={tokens.codeText}
+            />
           </div>
           <div
             className={cn("flex shrink-0 items-center border-l", tokens.codeDivider)}

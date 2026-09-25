@@ -41,6 +41,11 @@ export const CAMPAIGN_MESSAGE_COPY = {
   preparingOverlayTitle: "Preparing campaign draft…",
   preparingOverlayDescription:
     "Tummly is drafting subject and message from your campaign choices. You can edit everything before Save.",
+  /**
+   * Shown when an offer is attached — Email coupon + SMS body share {PREVIEW-CODE}.
+   */
+  claimCodeTokenHelper:
+    "Tummly replaces {PREVIEW-CODE} with a unique claim code for each guest when the campaign is sent. Do not change or remove this token.",
 } as const
 
 export function isCampaignMessageDraftRewriteMode(

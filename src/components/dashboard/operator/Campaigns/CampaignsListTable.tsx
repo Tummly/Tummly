@@ -1,5 +1,6 @@
 import { CampaignsRowActionsMenu } from "@/components/dashboard/operator/Campaigns/CampaignsRowActionsMenu"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -13,6 +14,7 @@ import {
   type CampaignRowActionId,
   type OperatorCampaignsListTableRow,
 } from "@/lib/operatorCampaigns/campaignListPresentation"
+import { CAMPAIGNS_TABLE_META_LINE_CLASS } from "@/lib/operatorCampaigns/campaignsPresentation"
 import {
   GUESTS_TABLE_ACTIONS_CELL_CLASS,
   GUESTS_TABLE_BODY_CELL_CLASS,
@@ -85,9 +87,19 @@ export function CampaignsListTable({
             <TableRow key={row.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
               <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                 <div className="flex flex-col gap-1.5">
-                  <p className={GUESTS_TABLE_GUEST_NAME_CLASS}>{row.name}</p>
+                  <Button
+                    type="button"
+                    variant="link"
+                    aria-label={`${copy.preview}: ${row.name}`}
+                    className={`${GUESTS_TABLE_GUEST_NAME_CLASS} h-auto min-h-0 cursor-pointer justify-start p-0 text-left font-semibold`}
+                    onClick={() => {
+                      onRowAction(row.id, row.rowVersion, "preview")
+                    }}
+                  >
+                    {row.name}
+                  </Button>
                   {row.metaLine.length > 0 ? (
-                    <p className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
+                    <p className={CAMPAIGNS_TABLE_META_LINE_CLASS}>
                       {row.metaLine}
                     </p>
                   ) : null}

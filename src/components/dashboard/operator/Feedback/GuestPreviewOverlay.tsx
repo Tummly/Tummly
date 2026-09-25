@@ -8,6 +8,12 @@ import { BaseNonTransactionalEmail } from "@/components/email/BaseNonTransaction
 import { OperatorGuestPreviewShell } from "@/components/dashboard/operator/shared/OperatorGuestPreviewShell"
 import { Button } from "@/components/ui/button"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS,
   CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS,
   CAPTURE_GUEST_PREVIEW_TITLE_CLASS,
@@ -20,11 +26,17 @@ import {
   GUEST_PREVIEW_EMPTY_VALUE,
   GUEST_PREVIEW_HEADING,
   GUEST_PREVIEW_MOBILE_LABEL,
+  GUEST_PREVIEW_OFFER_CLAIM_CODE_TOKEN_HELPER,
+  GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
   GUEST_PREVIEW_OVERLAY_BODY_CLASS,
   GUEST_PREVIEW_OVERLAY_CLASS,
   GUEST_PREVIEW_SEND_TEST_LABEL,
   type GuestPreviewDevice,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
+import {
+  OPERATOR_SHELL_TOOLTIP_ARROW_CLASS,
+  OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import type { RespondToGuestChannel } from "@/lib/operatorFeedback/respondToGuestPresentation"
 import { cn } from "@/lib/utils"
 
@@ -108,6 +120,12 @@ export function SmsPreviewChrome({
 }: {
   message: string
 }) {
+  const trimmed = message.trim()
+  const content =
+    trimmed === ""
+      ? GUEST_PREVIEW_EMPTY_VALUE
+      : renderSmsMessageWithClaimCodeToken(trimmed)
+
   return (
     <div
       className={cn(
@@ -116,9 +134,44 @@ export function SmsPreviewChrome({
       )}
     >
       <p className="m-0 whitespace-pre-wrap text-sm font-medium leading-5 text-op-text-primary">
-        {message.trim() || GUEST_PREVIEW_EMPTY_VALUE}
+        {content}
       </p>
     </div>
+  )
+}
+
+function renderSmsMessageWithClaimCodeToken(message: string): ReactNode {
+  const token = GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER
+  const index = message.indexOf(token)
+  if (index < 0) {
+    return message
+  }
+
+  const before = message.slice(0, index)
+  const after = message.slice(index + token.length)
+
+  return (
+    <>
+      {before}
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="underline decoration-dotted underline-offset-4">
+              {token}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent
+            side="top"
+            sideOffset={6}
+            className={`${OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS} z-[140] max-w-sm px-3 py-2 text-left text-xs leading-5 whitespace-normal`}
+            arrowClassName={OPERATOR_SHELL_TOOLTIP_ARROW_CLASS}
+          >
+            {GUEST_PREVIEW_OFFER_CLAIM_CODE_TOKEN_HELPER}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      {after}
+    </>
   )
 }
 
