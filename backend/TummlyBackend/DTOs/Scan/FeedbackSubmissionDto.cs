@@ -14,5 +14,9 @@ namespace TummlyBackend.DTOs.Scan
         public string? Comment { get; set; }
 
         public bool OffersOptOut { get; set; }
+
+        /// <summary>Google reCAPTCHA v3 token from grecaptcha.execute.</summary>
+        [MaxLength(4000)]
+        public string? RecaptchaToken { get; set; }
     }
 }

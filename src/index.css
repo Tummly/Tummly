@@ -874,3 +874,11 @@ html.op.dark .toaster [data-rich-colors="true"][data-sonner-toast] [data-close-b
 .operator-global-search-input::-webkit-search-decoration {
   -webkit-appearance: none;
 }
+
+/*
+  Google reCAPTCHA v3 badge — hidden site-wide (Guest Form uses text
+  attribution instead; required when the badge is not shown).
+*/
+.grecaptcha-badge {
+  visibility: hidden !important;
+}

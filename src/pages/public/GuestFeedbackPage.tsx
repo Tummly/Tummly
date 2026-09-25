@@ -16,6 +16,7 @@ import { GuestFeedbackNotFound } from "@/components/guest-feedback/GuestFeedback
 import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShell"
 import { GuestFeedbackSuccess } from "@/components/guest-feedback/GuestFeedbackSuccess"
 import { GuestFeedbackUnlockOffer } from "@/components/guest-feedback/GuestFeedbackUnlockOffer"
+import { executeGuestFeedbackRecaptcha } from "@/lib/guestFeedback/executeGuestFeedbackRecaptcha"
 import {
   toIssuedGuestOfferCoupon,
   type GuestPreviewOfferCouponView,
@@ -96,7 +97,10 @@ export default function GuestFeedbackPage() {
       setSubmitError(null)
 
       try {
-        const result = await submitGuestFeedback(token, values)
+        const recaptchaToken = await executeGuestFeedbackRecaptcha()
+        const result = await submitGuestFeedback(token, values, {
+          recaptchaToken,
+        })
         if (result.offer != null) {
           setIssuedOffer(toIssuedGuestOfferCoupon(result.offer))
           setUnlockOffer(null)

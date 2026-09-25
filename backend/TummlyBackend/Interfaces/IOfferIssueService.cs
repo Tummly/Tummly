@@ -28,18 +28,23 @@ namespace TummlyBackend.Interfaces
         /// Guest form thank-you submit: issue when a live thank-you catalog
         /// attach exists; otherwise no-op. MVP Claim proxy sets ClaimedAt at
         /// issue. Scan submit returns the issued offer for thank-you paint.
+        /// One issue per Location Guest + catalog offer: re-shows a redeemable
+        /// pass; suppresses when redeemed, cancelled, or expired. When
+        /// <paramref name="allowNewIssue"/> is false, never creates a new row.
         /// </summary>
         Task<OfferIssue?> IssueOnThankYouSubmitAsync(
             int locationId,
             int locationGuestId,
             int? feedbackId,
             DateTime atUtc,
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken = default,
+            bool allowNewIssue = true
         );
 
         /// <summary>
         /// Live Active thank-you catalog title when marketing blocks issue
-        /// (unlock screen). Null when no live attach or marketing already allows.
+        /// (unlock screen). Null when no live attach, marketing already allows,
+        /// or a thank-you issue already exists for this guest + offer.
         /// </summary>
         Task<string?> TryGetUnlockableThankYouOfferTitleAsync(
             int locationId,

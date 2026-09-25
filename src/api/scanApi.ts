@@ -92,9 +92,15 @@ export async function fetchScanLocationMetadata(
 
 export async function submitGuestFeedback(
   token: string,
-  values: GuestFeedbackFormValues
+  values: GuestFeedbackFormValues,
+  options?: { recaptchaToken?: string | null }
 ): Promise<GuestFeedbackSubmitResult> {
-  const payload = toGuestFeedbackPayload(values)
+  const payload = {
+    ...toGuestFeedbackPayload(values),
+    ...(options?.recaptchaToken
+      ? { recaptchaToken: options.recaptchaToken }
+      : {}),
+  }
 
   const response = await axios.post<ScanFeedbackResponse>(
     `${API_BASE_URL}/scan/${encodeURIComponent(token)}/feedback`,

@@ -24,6 +24,7 @@ namespace TummlyBackend.Controllers
         private readonly ISpeechToTextProvider _speechToText;
         private readonly IOfferIssueService _offerIssues;
         private readonly IGuestFormPermissionApplyService _guestFormPermissions;
+        private readonly IRecaptchaVerifier _recaptcha;
         private readonly IConfiguration _configuration;
 
         public ScanController(
@@ -36,6 +37,7 @@ namespace TummlyBackend.Controllers
             ISpeechToTextProvider speechToText,
             IOfferIssueService offerIssues,
             IGuestFormPermissionApplyService guestFormPermissions,
+            IRecaptchaVerifier recaptcha,
             IConfiguration configuration
         )
         {
@@ -48,6 +50,7 @@ namespace TummlyBackend.Controllers
             _speechToText = speechToText;
             _offerIssues = offerIssues;
             _guestFormPermissions = guestFormPermissions;
+            _recaptcha = recaptcha;
             _configuration = configuration;
         }
 
@@ -241,6 +244,31 @@ namespace TummlyBackend.Controllers
 
             /*
              =========================================
+             reCAPTCHA v3 (when Recaptcha:SecretKey is set)
+             =========================================
+            */
+
+            var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var captcha = await _recaptcha.VerifyGuestFeedbackAsync(
+                dto.RecaptchaToken,
+                clientIp
+            );
+            if (
+                captcha.Status
+                is RecaptchaVerifyStatus.MissingToken
+                    or RecaptchaVerifyStatus.Failed
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = captcha.Message
+                        ?? "Security check failed. Please try again.",
+                });
+            }
+
+            /*
+             =========================================
              PER-TOKEN RATE LIMIT (10 submissions / hour)
              =========================================
             */
@@ -353,16 +381,35 @@ namespace TummlyBackend.Controllers
             // Catalog thank-you Issue: live Active attach + marketing allowed;
             // otherwise no-op (submit still succeeds). When marketing blocks a
             // live attach, return unlockOffer for the Guest unlock screen.
+            // Anti-abuse: re-show redeemable codes; suppress after redeem;
+            // cap new issues per token / IP.
             OfferIssue? issued = null;
             ScanUnlockThankYouOfferDto? unlockOffer = null;
             if (feedback.LocationGuestId is int locationGuestId)
             {
+                var allowNewIssue = ThankYouIssueAbuseCaps.IsUnderCap(
+                    _cache,
+                    normalizedToken,
+                    clientIp
+                );
+                var issueAt = DateTime.UtcNow;
+
                 issued = await _offerIssues.IssueOnThankYouSubmitAsync(
                     location.Id,
                     locationGuestId,
                     feedback.Id,
-                    DateTime.UtcNow
+                    issueAt,
+                    allowNewIssue: allowNewIssue
                 );
+
+                if (issued != null && issued.IssuedAtUtc == issueAt)
+                {
+                    ThankYouIssueAbuseCaps.RecordNewIssue(
+                        _cache,
+                        normalizedToken,
+                        clientIp
+                    );
+                }
 
                 if (issued == null)
                 {
@@ -512,11 +559,19 @@ namespace TummlyBackend.Controllers
             // ledger + preference from the database).
             await _context.SaveChangesAsync();
 
+            var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var allowNewIssue = ThankYouIssueAbuseCaps.IsUnderCap(
+                _cache,
+                normalizedToken,
+                clientIp
+            );
+
             var issued = await _offerIssues.IssueOnThankYouSubmitAsync(
                 location.Id,
                 locationGuestId,
                 feedback.Id,
-                unlockAt
+                unlockAt,
+                allowNewIssue: allowNewIssue
             );
 
             if (issued == null)
@@ -526,6 +581,15 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message = "This offer is no longer available.",
                 });
+            }
+
+            if (issued.IssuedAtUtc == unlockAt)
+            {
+                ThankYouIssueAbuseCaps.RecordNewIssue(
+                    _cache,
+                    normalizedToken,
+                    clientIp
+                );
             }
 
             await _context.SaveChangesAsync();
