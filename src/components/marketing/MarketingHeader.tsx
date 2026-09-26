@@ -167,7 +167,9 @@ export default function MarketingHeader() {
                   Log in
                 </SignInLink>
                 <Button asChild className={pilotButtonClass}>
-                  <RequestTrialLink>Start 30 day Pilot</RequestTrialLink>
+                  <RequestTrialLink planIntent={{ plan: "Pilot" }}>
+                    Start 30 day Pilot
+                  </RequestTrialLink>
                 </Button>
               </>
             )}
@@ -252,7 +254,10 @@ export default function MarketingHeader() {
                         Log in
                       </SignInLink>
                       <Button asChild className={cn(pilotButtonClass, "w-full")}>
-                        <RequestTrialLink onClick={closeMobile}>
+                        <RequestTrialLink
+                          planIntent={{ plan: "Pilot" }}
+                          onClick={closeMobile}
+                        >
                           Start 30 day Pilot
                         </RequestTrialLink>
                       </Button>

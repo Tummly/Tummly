@@ -114,7 +114,7 @@ namespace TummlyBackend.Tests.Services
             _context.HelpCentreQueries.Add(
                 new HelpCentreQuery
                 {
-                    Topic = HelpCentreQueryTopic.Setup,
+                    Topic = HelpCentreQueryTopic.StartingWithTummly,
                     SubmitterName = "Riverside Owner",
                     SubmitterEmail = "owner@riverside.test",
                     BusinessName = "Riverside Bistro",
@@ -160,7 +160,7 @@ namespace TummlyBackend.Tests.Services
 
             var query = new HelpCentreQuery
             {
-                Topic = HelpCentreQueryTopic.Setup,
+                Topic = HelpCentreQueryTopic.StartingWithTummly,
                 SubmitterName = "Pat",
                 SubmitterEmail = "pat@example.com",
                 BusinessName = "Pat Cafe",
@@ -238,7 +238,7 @@ namespace TummlyBackend.Tests.Services
                 _context.HelpCentreQueries.Add(
                     new HelpCentreQuery
                     {
-                        Topic = HelpCentreQueryTopic.Billing,
+                        Topic = HelpCentreQueryTopic.BillingOrSubscription,
                         SubmitterName = $"Person {i}",
                         SubmitterEmail = $"person{i}@example.com",
                         BusinessName = $"Business {i}",

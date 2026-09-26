@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react"
 import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 
 import { ActivateTummlyPilotDialogHost } from "@/components/dashboard/operator/ActivateTummlyPilotDialogHost"
+import { PendingPaymentInterstitialHost } from "@/components/dashboard/operator/PendingPaymentInterstitialHost"
 import { DashboardShell } from "@/components/dashboard/operator/DashboardShell"
 import {
   DashboardUiStoreProvider,
@@ -526,6 +527,17 @@ function DashboardContent({ mode }: DashboardProps) {
           subscriptionPlan={workspace.snapshot.subscriptionPlan}
           selectedLocationId={selectedLocationId}
           billingCreditsAccess={workspace.snapshot.billingCreditsAccess}
+          pendingPaymentCheckoutUrl={
+            workspace.snapshot.pendingPaymentCheckoutUrl
+          }
+          reloadWorkspace={() => workspace.load()}
+        />
+        <PendingPaymentInterstitialHost
+          status={workspace.snapshot.status}
+          pendingPaymentCheckoutUrl={
+            workspace.snapshot.pendingPaymentCheckoutUrl
+          }
+          reloadWorkspace={() => workspace.load()}
         />
         <Outlet
           context={{
@@ -543,6 +555,7 @@ function DashboardContent({ mode }: DashboardProps) {
             mode,
             selectLocation: handleSelectLocation,
             applyRestaurantIdentity: workspace.applyRestaurantIdentity,
+            reloadWorkspace: () => workspace.load(),
             summariseFeedbackWithAi: (reportingPeriod: HomePerformanceDateRange) => {
               aiAssistant.summariseFeedbackForPeriod({
                 operatorFirstName: presentation.profileFirstName,
@@ -604,5 +617,6 @@ export type DashboardOutletContext = {
     restaurantName: string
     brandLogoPublicUrl: string | null
   }) => void
+  reloadWorkspace: () => Promise<void>
   summariseFeedbackWithAi: (reportingPeriod: HomePerformanceDateRange) => void
 }

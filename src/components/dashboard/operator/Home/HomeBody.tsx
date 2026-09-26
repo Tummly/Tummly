@@ -34,6 +34,7 @@ import {
   type LiveOffersEmptyActionId,
 } from "@/lib/operatorHome/liveOffersSectionPresentation"
 import { OPERATOR_HOME_HERO_BAND_CLASS } from "@/lib/operatorHome/heroPresentation"
+import type { OperatorHomeHeroMode } from "@/lib/operatorHome/heroPresentation"
 import { OPERATOR_HOME_CARD_CLASS, OPERATOR_HOME_MAIN_STACK_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import type { ActivationPeriodBadgePresentation } from "@/lib/operatorHome/activationPeriod"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
@@ -54,6 +55,9 @@ import type {
 
 type HomeBodyProps = {
   viewModel: OperatorHomeViewModel
+  heroMode?: OperatorHomeHeroMode
+  choosePlanHref?: string | null
+  onStartPilot?: () => void
   activationPeriodBadge: ActivationPeriodBadgePresentation | null
   selectedDateRange: HomePerformanceDateRange
   onCommitHomePerformanceDateRange: (range: HomePerformanceDateRange) => void
@@ -140,6 +144,9 @@ type HomeBodyProps = {
 /** Home body sections composed from the Operator Home view-model (Figma stack). */
 export function HomeBody({
   viewModel,
+  heroMode = "live",
+  choosePlanHref = null,
+  onStartPilot,
   activationPeriodBadge,
   selectedDateRange,
   onCommitHomePerformanceDateRange,
@@ -221,6 +228,9 @@ export function HomeBody({
     <div className="flex flex-col">
       <div className={OPERATOR_HOME_HERO_BAND_CLASS}>
         <HomeHero
+          mode={heroMode}
+          choosePlanHref={choosePlanHref}
+          onStartPilot={onStartPilot}
           activationPeriodBadge={activationPeriodBadge}
           canPreviewGuestForm={viewModel.canPreviewGuestForm}
           canCopySmartGuestLink={viewModel.canCopySmartGuestLink}

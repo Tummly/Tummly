@@ -135,7 +135,7 @@ namespace TummlyBackend.Services
                 Phone = string.IsNullOrWhiteSpace(dto.Phone)
                     ? null
                     : dto.Phone.Trim(),
-                BusinessName = dto.BusinessName.Trim(),
+                BusinessName = (dto.BusinessName ?? string.Empty).Trim(),
                 UserId = userId,
                 RestaurantLocationId = locationId,
                 Status = HelpCentreQueryStatus.New,

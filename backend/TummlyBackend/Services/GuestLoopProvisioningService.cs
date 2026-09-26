@@ -22,6 +22,7 @@ namespace TummlyBackend.Services
         private readonly IPricebookCatalog _pricebookCatalog;
         private readonly ICreditLedger _creditLedger;
         private readonly IBillingAccountLifecycle _lifecycle;
+        private readonly IFirstPaidConversionPaySession _firstPaidConversionPaySession;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
@@ -31,7 +32,8 @@ namespace TummlyBackend.Services
             IConfiguration configuration,
             IPricebookCatalog pricebookCatalog,
             ICreditLedger creditLedger,
-            IBillingAccountLifecycle lifecycle
+            IBillingAccountLifecycle lifecycle,
+            IFirstPaidConversionPaySession firstPaidConversionPaySession
         )
         {
             _context = context;
@@ -42,6 +44,7 @@ namespace TummlyBackend.Services
             _pricebookCatalog = pricebookCatalog;
             _creditLedger = creditLedger;
             _lifecycle = lifecycle;
+            _firstPaidConversionPaySession = firstPaidConversionPaySession;
         }
 
         public async Task<InviteTokenResult> ValidateInviteTokenAsync(string token)
@@ -114,7 +117,8 @@ namespace TummlyBackend.Services
                 {
                     trialRequest.IsAccountCreated = true;
                     trialRequest.Status = TrialRequestStatus.AccountCreated;
-                }
+                },
+                mintPilotCredits: true
             );
         }
 
@@ -252,13 +256,20 @@ namespace TummlyBackend.Services
                 ))
                 .ToList();
 
-            // Pilot uses CreateDefaultBillingAccount defaults.
-            // Paid plans apply Active + ChosenPlan after create (Task 9).
+            // Free uses CreateDefaultBillingAccount defaults.
+            // Pilot / paid plans apply after create from ChosenPlan.
+            var chosenPlan = pending.ChosenPlan?.Trim() ?? BillingSubscriptionPlans.Free;
+            var isPilotPlan = string.Equals(
+                chosenPlan,
+                BillingSubscriptionPlans.Pilot,
+                StringComparison.OrdinalIgnoreCase
+            );
             var isPaidPlan =
                 !string.IsNullOrWhiteSpace(pending.ChosenPlan)
+                && !isPilotPlan
                 && !string.Equals(
-                    pending.ChosenPlan,
-                    BillingSubscriptionPlans.Pilot,
+                    chosenPlan,
+                    BillingSubscriptionPlans.Free,
                     StringComparison.OrdinalIgnoreCase
                 );
 
@@ -281,23 +292,78 @@ namespace TummlyBackend.Services
                 {
                     pending.Status = PendingSignupStatuses.Complete;
                     pending.UpdatedAtUtc = DateTime.UtcNow;
-                }
+                },
+                mintPilotCredits: false
             );
 
-            if (isPaidPlan)
+            if (isPilotPlan)
             {
-                await ApplyPaidSignupBillingAsync(
+                await ApplyPilotSignupBillingAsync(pending.Email);
+            }
+            else if (isPaidPlan)
+            {
+                // Stay Free until Revolut webhook; open pay session for checkout.
+                await StartPaidSignupPaySessionAsync(
                     pending.Email,
                     pending.ChosenPlan!,
-                    pending.ChosenCadence ?? "monthly"
+                    pending.ChosenCadence ?? "monthly",
+                    pending.Id
                 );
             }
         }
 
-        private async Task ApplyPaidSignupBillingAsync(
+        private async Task ApplyPilotSignupBillingAsync(string email)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(x =>
+                x.Email == email
+            );
+            if (user == null)
+            {
+                return;
+            }
+
+            var restaurant = await _context.Restaurants.FirstOrDefaultAsync(x =>
+                x.OwnerUserId == user.Id
+            );
+            if (restaurant == null)
+            {
+                return;
+            }
+
+            var billing = await _context.BillingAccounts.FirstOrDefaultAsync(
+                x => x.RestaurantId == restaurant.Id
+            );
+            if (billing == null)
+            {
+                return;
+            }
+
+            var nowUtc = DateTime.UtcNow;
+            BillingCreditsService.ApplyPilotSignupBilling(billing, nowUtc);
+            user.ActivationExpiresAt = nowUtc.AddDays(
+                ActivationCodeHelper.ActivationPeriodDays
+            );
+            await _context.SaveChangesAsync();
+
+            var mintResult = await _creditLedger.MintPilotAtActivationAsync(
+                restaurant.Id
+            );
+            if (
+                !mintResult.Succeeded
+                && mintResult.Code != "pilot_already_minted"
+            )
+            {
+                throw new InvalidOperationException(
+                    mintResult.Code ?? "Unable to complete Pilot credit mint."
+                );
+            }
+        }
+
+        private async Task StartPaidSignupPaySessionAsync(
             string email,
             string chosenPlan,
-            string chosenCadence
+            string chosenCadence,
+            Guid pendingSignupId
         )
         {
             var user = await _context.Users.FirstOrDefaultAsync(x =>
@@ -324,13 +390,33 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            BillingCreditsService.ApplyPaidSignupBilling(
-                billing,
-                chosenPlan,
-                chosenCadence,
-                DateTime.UtcNow
-            );
-            await _context.SaveChangesAsync();
+            var locationId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurant.Id)
+                .OrderBy(row => row.Id)
+                .Select(row => row.Id)
+                .FirstOrDefaultAsync();
+            if (locationId == 0)
+            {
+                locationId = restaurant.Id;
+            }
+
+            try
+            {
+                await _firstPaidConversionPaySession.StartAsync(
+                    billing,
+                    user,
+                    restaurant.AccountType,
+                    locationId,
+                    chosenPlan,
+                    chosenCadence,
+                    pendingSignupId.ToString("D")
+                );
+            }
+            catch (InvalidOperationException)
+            {
+                // Leave Free; operator can convert from Manage Plan later.
+            }
         }
 
         public async Task GenerateActivationCodeAsync(string inviteToken)
@@ -374,7 +460,8 @@ namespace TummlyBackend.Services
 
         private async Task CreateOperatorAccountAsync(
             ProvisionAccountInput input,
-            Action afterUserSaved
+            Action afterUserSaved,
+            bool mintPilotCredits
         )
         {
             await using var transaction =
@@ -529,14 +616,17 @@ namespace TummlyBackend.Services
 
                 _context.GuestLoopSetups.Add(guestLoop);
 
-                var mintResult = await _creditLedger.MintPilotAtActivationAsync(
-                    restaurant.Id
-                );
-                if (!mintResult.Succeeded)
+                if (mintPilotCredits)
                 {
-                    throw new InvalidOperationException(
-                        "Unable to complete account activation."
+                    var mintResult = await _creditLedger.MintPilotAtActivationAsync(
+                        restaurant.Id
                     );
+                    if (!mintResult.Succeeded)
+                    {
+                        throw new InvalidOperationException(
+                            "Unable to complete account activation."
+                        );
+                    }
                 }
 
                 await _context.SaveChangesAsync();

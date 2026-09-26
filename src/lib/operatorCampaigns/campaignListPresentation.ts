@@ -2,6 +2,8 @@
  * Campaigns list table — Figma Draft row projection (ticket 30 / 3462:61988).
  */
 
+import { format } from "date-fns"
+
 import { CAMPAIGN_CHANNEL_OPTIONS } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import { CAMPAIGN_DETAIL_PREVIEW_COPY } from "@/lib/operatorCampaigns/campaignDetailPreviewPresentation"
 import { CAMPAIGN_OFFER_OPTIONS } from "@/lib/operatorCampaigns/campaignOfferPresentation"
@@ -9,6 +11,7 @@ import {
   labelForCampaignGoalId,
   type CampaignGoalId,
 } from "@/lib/operatorCampaigns/campaignWizardPresentation"
+import { formatCatalogOfferExpiryLabel } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import type { CampaignsListItem } from "@/types/operatorCampaigns"
 
@@ -36,6 +39,10 @@ export const CAMPAIGNS_LIST_TABLE_COPY = {
   duplicateAsDraft: "Duplicate / retry as new Draft",
   metricDash: "—",
   updatedPrefix: "Updated",
+  recipientsSuffix: "recipients",
+  partsEachSuffix: "parts each",
+  processedSuffix: "processed",
+  redeemedSuffix: "redeemed",
   deleteDraftDialogTitle: "Delete this draft?",
   deleteDraftDialogDescription:
     "This removes the campaign draft. No campaign messages have been sent.",
@@ -167,7 +174,7 @@ function offerTitleForStance(offerStance: string | null): string {
   return match?.title ?? CAMPAIGNS_LIST_TABLE_COPY.metricDash
 }
 
-function metricOrDash(value: string | null): string {
+function metricOrDash(value: string | null | undefined): string {
   if (value == null || value.trim().length === 0) {
     return CAMPAIGNS_LIST_TABLE_COPY.metricDash
   }
@@ -185,6 +192,86 @@ function statusLabelForItem(status: string): string {
     return CAMPAIGNS_LIST_TABLE_COPY.metricDash
   }
   return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
+function resolveOfferTitle(item: CampaignsListItem): string {
+  const attached = item.offerTitle?.trim() ?? ""
+  if (attached.length > 0) {
+    return attached
+  }
+  return offerTitleForStance(item.offerStance)
+}
+
+function resolveOfferDetail(item: CampaignsListItem): string | null {
+  const attached = item.offerTitle?.trim() ?? ""
+  if (attached.length === 0) {
+    return null
+  }
+  const validity = item.offerValidity?.trim() ?? ""
+  if (validity.length === 0) {
+    return null
+  }
+  return formatCatalogOfferExpiryLabel(validity, item.offerExpiryDate)
+}
+
+/** Figma Channel subline — `{n} recipients · {p} parts each` for SMS. */
+export function formatCampaignListChannelDetail(
+  item: CampaignsListItem
+): string | null {
+  const recipients = item.recipientCount
+  if (recipients == null || recipients <= 0) {
+    return null
+  }
+  const recipientsPart = `${recipients} ${CAMPAIGNS_LIST_TABLE_COPY.recipientsSuffix}`
+  const parts = item.smsPartsPerMessage
+  if (item.channel === "sms" && parts != null && parts > 0) {
+    return `${recipientsPart} · ${parts} ${CAMPAIGNS_LIST_TABLE_COPY.partsEachSuffix}`
+  }
+  return recipientsPart
+}
+
+/** Figma Send date — `18 Aug · 10:00 AM` from ISO UTC. */
+export function formatCampaignListSendDate(
+  sendDate: string | null | undefined
+): string {
+  if (sendDate == null || sendDate.trim().length === 0) {
+    return CAMPAIGNS_LIST_TABLE_COPY.metricDash
+  }
+  const parsed = new Date(sendDate)
+  if (Number.isNaN(parsed.getTime())) {
+    return CAMPAIGNS_LIST_TABLE_COPY.metricDash
+  }
+  return format(parsed, "d MMM · h:mm a")
+}
+
+/** Figma Delivery — `126 of 162 processed` when freeze total is known. */
+export function formatCampaignListDeliveryLabel(
+  item: CampaignsListItem
+): string {
+  const acceptedRaw = item.delivery?.trim() ?? ""
+  const accepted =
+    acceptedRaw.length > 0 && /^\d+$/.test(acceptedRaw)
+      ? Number(acceptedRaw)
+      : null
+  const total = item.recipientCount
+  if (accepted != null && total != null && total > 0) {
+    return `${accepted} of ${total} ${CAMPAIGNS_LIST_TABLE_COPY.processedSuffix}`
+  }
+  return metricOrDash(item.delivery)
+}
+
+/** Figma Redemptions — `12 redeemed`. */
+export function formatCampaignListRedemptionsLabel(
+  redemptions: string | null | undefined
+): string {
+  const raw = redemptions?.trim() ?? ""
+  if (raw.length === 0) {
+    return CAMPAIGNS_LIST_TABLE_COPY.metricDash
+  }
+  if (/^\d+$/.test(raw)) {
+    return `${raw} ${CAMPAIGNS_LIST_TABLE_COPY.redeemedSuffix}`
+  }
+  return raw
 }
 
 export function mapCampaignListItemToTableRow(
@@ -213,13 +300,13 @@ export function mapCampaignListItemToTableRow(
     statusLabel: statusLabelForItem(item.status),
     locationName: item.locationName,
     channelLabel: channelBadgeLabel(item.channel),
-    channelDetail: null,
-    offerTitle: offerTitleForStance(item.offerStance),
-    offerDetail: null,
-    sendDateLabel: metricOrDash(item.sendDate),
-    deliveryLabel: metricOrDash(item.delivery),
-    // Engagement stays dash until report ingestion (ticket 26 / PRD honesty).
+    channelDetail: formatCampaignListChannelDetail(item),
+    offerTitle: resolveOfferTitle(item),
+    offerDetail: resolveOfferDetail(item),
+    sendDateLabel: formatCampaignListSendDate(item.sendDate),
+    deliveryLabel: formatCampaignListDeliveryLabel(item),
+    // Engagement stays dash until open/click ingestion exists.
     engagementLabel: CAMPAIGNS_LIST_TABLE_COPY.metricDash,
-    redemptionsLabel: metricOrDash(item.redemptions),
+    redemptionsLabel: formatCampaignListRedemptionsLabel(item.redemptions),
   }
 }

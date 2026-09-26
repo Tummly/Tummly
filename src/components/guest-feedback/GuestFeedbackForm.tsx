@@ -45,6 +45,7 @@ import {
   resolveGuestFormMarketingChannel,
   type GuestFormConsentConfig,
 } from "@/lib/guestFeedback/guestFormConsentPresentation"
+import { getRecaptchaSiteKey } from "@/lib/guestFeedback/executeGuestFeedbackRecaptcha"
 import { cn } from "@/lib/utils"
 import { defaultFormValidationOptions } from "@/lib/form"
 import {
@@ -118,6 +119,7 @@ export function GuestFeedbackForm({
   onRetry,
 }: GuestFeedbackFormProps) {
   const shouldReduceMotion = useReducedMotion()
+  const showRecaptchaAttribution = getRecaptchaSiteKey() != null
   const form = useForm<GuestFeedbackFormValues>({
     ...defaultFormValidationOptions,
     resolver: zodResolver(guestFeedbackSchema),
@@ -413,7 +415,7 @@ export function GuestFeedbackForm({
                       variant="ghost"
                       disabled={isSubmitting}
                       className="pt-1"
-                      labelClassName="cursor-pointer text-xs font-normal leading-relaxed text-guest-feedback-muted"
+                      labelClassName="cursor-pointer text-[12px] font-normal leading-relaxed text-guest-feedback-muted"
                     >
                       {consentCheckboxLabel}
                     </FormCheckboxLabel>
@@ -427,15 +429,40 @@ export function GuestFeedbackForm({
         <motion.nav
           variants={shouldReduceMotion ? undefined : itemVariants}
           aria-label="Legal"
-          className="flex items-center justify-center gap-2 text-xs text-guest-feedback-muted"
+          className="flex flex-col items-center gap-2 text-xs text-guest-feedback-muted"
         >
-          <Link to={LEGAL_ROUTES.terms} className={legalLinkClassName}>
-            Terms &amp; Conditions
-          </Link>
-          <span aria-hidden>·</span>
-          <Link to={LEGAL_ROUTES.privacy} className={legalLinkClassName}>
-            Privacy Notice
-          </Link>
+          <div className="flex items-center justify-center gap-2">
+            <Link to={LEGAL_ROUTES.terms} className={legalLinkClassName}>
+              Terms &amp; Conditions
+            </Link>
+            <span aria-hidden>·</span>
+            <Link to={LEGAL_ROUTES.privacy} className={legalLinkClassName}>
+              Privacy Notice
+            </Link>
+          </div>
+          {showRecaptchaAttribution ? (
+            <p className="max-w-sm text-center text-[11px] leading-relaxed text-guest-feedback-muted/80">
+              This site is protected by reCAPTCHA and the Google{" "}
+              <a
+                href="https://policies.google.com/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={legalLinkClassName}
+              >
+                Privacy Policy
+              </a>{" "}
+              and{" "}
+              <a
+                href="https://policies.google.com/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={legalLinkClassName}
+              >
+                Terms of Service
+              </a>{" "}
+              apply.
+            </p>
+          ) : null}
         </motion.nav>
 
         <motion.div

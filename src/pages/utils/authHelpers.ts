@@ -14,6 +14,7 @@ import {
 } from "@/lib/apiEnvelope"
 import { revokeRefreshToken } from "@/api/sessionRefresh"
 import { clearActivateTummlyPilotDialogDismissed } from "@/lib/operatorHome/activateTummlyPilotDialogGate"
+import { clearPendingPaymentInterstitialDismissed } from "@/lib/operatorHome/pendingPaymentInterstitialDismiss"
 
 export const DEVICE_TOKEN_KEY = "deviceToken"
 export const SELECTED_LOCATION_KEY = "selectedLocationId"
@@ -90,6 +91,7 @@ export function clearAuthSession() {
   const refreshToken = getRefreshToken()
   useAuthStore.getState().clearSession()
   clearActivateTummlyPilotDialogDismissed()
+  clearPendingPaymentInterstitialDismissed()
 
   if (refreshToken) {
     void revokeRefreshToken(refreshToken)

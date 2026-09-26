@@ -243,7 +243,7 @@ namespace TummlyBackend.Tests.Services
         {
             var query = new HelpCentreQuery
             {
-                Topic = HelpCentreQueryTopic.Billing,
+                Topic = HelpCentreQueryTopic.BillingOrSubscription,
                 SubmitterName = "Jane",
                 SubmitterEmail = "jane@example.com",
                 BusinessName = "Test Cafe",

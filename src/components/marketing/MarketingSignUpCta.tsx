@@ -7,6 +7,7 @@ import OptimizedImage from "@/components/media/OptimizedImage"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import { Button } from "@/components/ui/button"
 import { PANORAMIC_BG_IMAGE_SIZES } from "@/lib/imagePresets"
+import type { SignupPlanIntent } from "@/lib/signupPlanIntent"
 import {
   marketingHeroBody,
   marketingSectionHeading,
@@ -30,6 +31,8 @@ export type MarketingSignUpCtaContent = {
   secondaryLabel: string
   secondaryTo: string
   badge: string
+  /** When set, primary CTA opens signup with this plan intent. */
+  planIntent?: SignupPlanIntent | null
 }
 
 type MarketingSignUpCtaProps = {
@@ -86,7 +89,7 @@ export function MarketingSignUpCta({ content }: MarketingSignUpCtaProps) {
           <div className="flex flex-col items-start gap-5">
             <div className="flex w-full flex-col items-stretch gap-5 sm:w-auto sm:flex-row sm:items-center">
               <Button asChild className={primaryButtonClass}>
-                <RequestTrialLink>
+                <RequestTrialLink planIntent={content.planIntent}>
                   {content.primaryLabel}
                   <img
                     src={marketingArrowRight}

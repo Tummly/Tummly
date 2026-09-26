@@ -9,7 +9,7 @@ import { marketingChromeContentInset } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
 const linkTitle =
-  "font-serif text-[20px] font-medium leading-normal text-[#141414] lg:text-[22px]"
+  "font-jakarta text-[20px] font-medium leading-normal text-[#141414] lg:text-[22px]"
 
 const linkDescription =
   "text-base font-normal leading-normal text-[#141414]"
@@ -84,7 +84,7 @@ export function LegalRelatedLinks({
         {title ? (
           <h2
             className={cn(
-              "m-0 max-w-137 font-serif text-[34px] font-medium leading-normal text-[#141414] lg:text-[46px]",
+              "m-0 max-w-137 font-jakarta text-[34px] font-medium leading-normal text-[#141414] lg:text-[46px]",
             )}
           >
             {title}

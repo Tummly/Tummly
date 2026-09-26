@@ -133,6 +133,7 @@ namespace TummlyBackend.Tests.Services
                 new EmptyTummlyVatInvoiceService(),
                 new NoOpCycleEndPlanChange(),
                 new NoOpCycleEndPlanCancel(),
+                new NoOpCreditLedger(),
                 Options.Create(new TummlySellerVatSettings { IsActive = false })
             );
             return new Harness(context, service, restaurant.Id);
@@ -204,6 +205,11 @@ namespace TummlyBackend.Tests.Services
                     "First paid conversion is not under test here."
                 );
             }
+
+            public Task AbandonOpenSessionsAsync(
+                int restaurantId,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
 
         private sealed class ThrowingSameCadenceUpgradePaySession

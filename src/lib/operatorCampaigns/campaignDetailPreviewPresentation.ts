@@ -17,6 +17,7 @@ export const CAMPAIGN_DETAIL_PREVIEW_COPY = {
   emptyValue: "—",
   footerDisclaimer:
     "This is a summary of the selected campaign. It is not a performance report.",
+  editCampaign: "Edit campaign",
   close: "Close",
   closeAriaLabel: "Close campaign preview",
   loadError: "Could not load this campaign preview. Please try again.",

@@ -34,6 +34,7 @@ import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/Filte
 import { useCampaignsPageModule } from "@/components/dashboard/operator/Campaigns/utils/useCampaignsPageModule"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -157,6 +158,7 @@ export function CampaignsPage() {
   const setCampaignsIntent = useDashboardUiStore(
     (state) => state.setCampaignsIntent
   )
+  const gateFreeProductWrite = useGateFreeProductWrite()
   const [deleteDraftTarget, setDeleteDraftTarget] = useState<{
     campaignId: number
     rowVersion: string
@@ -229,9 +231,9 @@ export function CampaignsPage() {
       loadAudienceEligibility,
       // Shared with overview Messaging usage — live Credits & usage snapshot.
       loadMessagingBalances: loadCampaignMessagingBalances,
-      // Billing Reserve IsLive is still false (UnavailableCampaignBillingReserve).
-      // Flip to true when LiveBillingReserve ships so unexpected 503 uses live copy.
-      billingReserveLive: false,
+      // Backend DI registers LiveCampaignBillingReserve (IsLive true).
+      // Unexpected 503 uses live credit-failure copy, not the Phase-A stub line.
+      billingReserveLive: true,
       prepareMessageDraft: prepareCampaignMessageDraft,
       createDraft: async (body) => {
         const response = await createCampaignDraft(body)
@@ -394,10 +396,12 @@ export function CampaignsPage() {
     if (viewModel == null) {
       return
     }
-    campaignWizard.openBlankCreate({
-      locationId: viewModel.locationId,
-      locationName: viewModel.locationName,
-      locationAddress: selectedLocationAddress,
+    gateFreeProductWrite(() => {
+      campaignWizard.openBlankCreate({
+        locationId: viewModel.locationId,
+        locationName: viewModel.locationName,
+        locationAddress: selectedLocationAddress,
+      })
     })
   }
 
@@ -408,11 +412,13 @@ export function CampaignsPage() {
     if (viewModel == null) {
       return
     }
-    void campaignWizard.openFromRecommendation({
-      locationId: viewModel.locationId,
-      locationName: viewModel.locationName,
-      locationAddress: selectedLocationAddress,
-      draftPrefill,
+    gateFreeProductWrite(() => {
+      void campaignWizard.openFromRecommendation({
+        locationId: viewModel.locationId,
+        locationName: viewModel.locationName,
+        locationAddress: selectedLocationAddress,
+        draftPrefill,
+      })
     })
   }
 
@@ -426,7 +432,9 @@ export function CampaignsPage() {
   }
 
   const handleOpenTemplatePicker = () => {
-    void templatePicker.open()
+    gateFreeProductWrite(() => {
+      void templatePicker.open()
+    })
   }
 
   const handleBrowseTemplatesFromWizard = () => {
@@ -599,6 +607,18 @@ export function CampaignsPage() {
     if (!open) {
       campaignDetailPreview.close()
     }
+  }
+
+  const handleEditCampaignFromPreview = () => {
+    const campaignId = campaignDetailPreviewSnapshot.viewModel?.campaignId
+    if (
+      campaignId == null
+      || campaignDetailPreviewSnapshot.loadStatus !== "loaded"
+    ) {
+      return
+    }
+    campaignDetailPreview.close()
+    handleContinueEditing(campaignId)
   }
 
   const handleSaveAndExit = async () => {
@@ -803,6 +823,7 @@ export function CampaignsPage() {
           void campaignDetailPreview.retryLoad()
         }}
         onSelectChannel={campaignDetailPreview.setSelectedChannel}
+        onEditCampaign={handleEditCampaignFromPreview}
       />
       <CampaignWizardDialog
         snapshot={campaignWizardSnapshot}

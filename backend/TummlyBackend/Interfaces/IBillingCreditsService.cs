@@ -28,6 +28,11 @@ namespace TummlyBackend.Interfaces
             string? idempotencyKey = null
         );
 
+        /// <summary>
+        /// Closes open paid-signup Revolut sessions so the Free account stays unlocked.
+        /// </summary>
+        Task<bool> ContinuePendingPaymentOnFreeAsync(int restaurantId);
+
         Task<(bool Success, string? ErrorCode)?> ClearScheduledChangeAsync(
             int userId,
             int restaurantId

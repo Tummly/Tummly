@@ -1,5 +1,37 @@
 namespace TummlyBackend.DTOs.Campaigns
 {
+    /// <summary>
+    /// Confirmed catalog Offer facts for Campaign message-draft AI.
+    /// Mirrors recovery offer payload shape; no live redemption codes.
+    /// </summary>
+    public sealed class CampaignMessageDraftOfferPayloadDto
+    {
+        public string OfferType { get; set; } = string.Empty;
+
+        public string Title { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+
+        public string Validity { get; set; } = string.Empty;
+
+        /// <summary>ISO date (yyyy-MM-dd) when validity is choose_expiry_date.</summary>
+        public string? ExpiryDate { get; set; }
+
+        public decimal? DiscountPercentage { get; set; }
+
+        public decimal? DiscountAmount { get; set; }
+
+        public string? FreeItemText { get; set; }
+
+        public string? PurchaseRequirement { get; set; }
+
+        public decimal? MinimumSpend { get; set; }
+
+        public string? AdditionalExclusions { get; set; }
+
+        public string? ReplacementItemText { get; set; }
+    }
+
     public sealed class PrepareCampaignMessageDraftRequest
     {
         public int LocationId { get; init; }
@@ -23,6 +55,8 @@ namespace TummlyBackend.DTOs.Campaigns
         public string? CurrentBody { get; init; }
 
         public string? CurrentSubject { get; init; }
+
+        public CampaignMessageDraftOfferPayloadDto? ConfirmedOffer { get; init; }
     }
 
     public abstract record CampaignMessageDraftServiceResult

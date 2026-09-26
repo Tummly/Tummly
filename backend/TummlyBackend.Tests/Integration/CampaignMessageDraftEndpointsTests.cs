@@ -380,6 +380,76 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task PostMessageDraft_WithConfirmedOffer_ForwardsOfferFactsToProvider()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaign-msg-confirmed-offer"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeCampaignMessageDraftProvider>();
+            fake.ResetCallCount();
+            fake.SucceedWith(
+                "Enjoy 15% off your next visit.",
+                "15% off for you",
+                "email"
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns/message-draft",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    channel = "email",
+                    goalId = "thank-recent-guests",
+                    audienceKey = "all-eligible-guests",
+                    offerStance = "existing-offer",
+                    campaignName = (string?)null,
+                    tone = "friendly_and_clear",
+                    includeNotes = (string?)null,
+                    mode = "prepare",
+                    currentBody = (string?)null,
+                    currentSubject = (string?)null,
+                    confirmedOffer = new
+                    {
+                        offerType = "percentage_discount",
+                        title = "15% off your next visit",
+                        description = "Enjoy 15% off your next meal with us.",
+                        validity = "30_days_after_issue",
+                        expiryDate = (string?)null,
+                        discountPercentage = 15m,
+                        discountAmount = (decimal?)null,
+                        freeItemText = (string?)null,
+                        purchaseRequirement = (string?)null,
+                        minimumSpend = (decimal?)null,
+                        additionalExclusions = (string?)null,
+                        replacementItemText = (string?)null,
+                    },
+                },
+                idempotencyKey: Guid.NewGuid().ToString("D")
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            Assert.Equal(1, fake.CallCount);
+            Assert.NotNull(fake.LastInput);
+            Assert.Equal("existing-offer", fake.LastInput!.OfferStance);
+            Assert.NotNull(fake.LastInput.ConfirmedOffer);
+            Assert.Equal(
+                "percentage_discount",
+                fake.LastInput.ConfirmedOffer!.OfferType
+            );
+            Assert.Equal(15m, fake.LastInput.ConfirmedOffer.DiscountPercentage);
+            Assert.Equal(
+                "15% off your next visit",
+                fake.LastInput.ConfirmedOffer.Title
+            );
+        }
+
         private static object PrepareBody(
             int locationId,
             string mode,

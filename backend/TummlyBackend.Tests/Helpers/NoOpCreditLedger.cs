@@ -6,7 +6,7 @@ namespace TummlyBackend.Tests.Helpers
     /// Test double for AuthService paths that must not touch the ledger.
     /// MintPilot returns Ok so ActivateAccountAsync can succeed without grants.
     /// </summary>
-    internal sealed class NoOpCreditLedger : ICreditLedger
+    internal class NoOpCreditLedger : ICreditLedger
     {
         public Task<CreditLedgerWriteResult> ConsumeOnSuccessAsync(
             CreditLedgerConsumeRequest request,
@@ -88,7 +88,7 @@ namespace TummlyBackend.Tests.Helpers
             return Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
         }
 
-        public Task<CreditLedgerWriteResult> MintPilotAtActivationAsync(
+        public virtual Task<CreditLedgerWriteResult> MintPilotAtActivationAsync(
             int restaurantId,
             CancellationToken cancellationToken = default
         )

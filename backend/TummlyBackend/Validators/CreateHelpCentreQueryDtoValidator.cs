@@ -16,7 +16,12 @@ namespace TummlyBackend.Validators
 
             RuleFor(x => x.BusinessName)
                 .NotEmpty()
-                .MaximumLength(200);
+                .MaximumLength(200)
+                .When(x => HasAccountRequestKind(x));
+
+            RuleFor(x => x.BusinessName)
+                .MaximumLength(200)
+                .When(x => !HasAccountRequestKind(x));
 
             RuleFor(x => x.SubmitterName)
                 .NotEmpty()

@@ -453,7 +453,7 @@ namespace TummlyBackend.Tests.Services
                 withCatalogOffer: true,
                 channel: "sms",
                 messageBody:
-                    "Hello\n\nFire offer\nClaim code: PREVIEW-CODE\nExpires: 7 days after issue"
+                    "Hello\n\nFire offer\nClaim code: {PREVIEW-CODE}\nExpires: 7 days after issue"
             );
 
             var result = await _fire.FireAsync(seeded.CampaignId);
@@ -463,7 +463,7 @@ namespace TummlyBackend.Tests.Services
             var call = Assert.Single(_outbound.Calls);
             Assert.Null(call.Offer);
             Assert.Contains($"Claim code: {issue.ClaimCode}", call.Body);
-            Assert.DoesNotContain("PREVIEW-CODE", call.Body);
+            Assert.DoesNotContain("{PREVIEW-CODE}", call.Body);
             Assert.Equal(1, Regex.Matches(call.Body, "Claim code:").Count);
         }
 

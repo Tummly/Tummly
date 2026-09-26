@@ -30,7 +30,7 @@ export function AuthFormHeader({
       </Link>
 
       <div className="flex flex-col gap-3 text-[#141414]">
-        <h1 className="m-0 font-serif text-[clamp(1.75rem,4vw,2.25rem)] font-medium leading-normal">
+        <h1 className="m-0 font-jakarta text-[clamp(1.75rem,4vw,2.25rem)] font-medium leading-normal">
           {title}
         </h1>
         {description ? (

@@ -49,7 +49,7 @@ namespace TummlyBackend.Models
         [MaxLength(16)]
         public string? AccountType { get; set; }
 
-        /// <summary>Pilot|Starter|Growth|Group</summary>
+        /// <summary>Pilot|Free|Starter|Growth|Group</summary>
         [MaxLength(32)]
         public string? ChosenPlan { get; set; }
 

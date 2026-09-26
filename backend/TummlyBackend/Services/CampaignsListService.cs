@@ -3,6 +3,7 @@ using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
@@ -304,6 +305,15 @@ namespace TummlyBackend.Services
                     campaign.Channel,
                     campaign.AudienceKey,
                     campaign.OfferStance,
+                    campaign.OfferId,
+                    OfferTitle = campaign.Offer != null ? campaign.Offer.Title : null,
+                    OfferValidity = campaign.Offer != null
+                        ? campaign.Offer.Validity
+                        : (CatalogOfferValidity?)null,
+                    OfferExpiryDate = campaign.Offer != null
+                        ? campaign.Offer.CustomExpiryDate
+                        : null,
+                    campaign.MessageBody,
                     campaign.CreatedByUserId,
                     CreatedByDisplayName = campaign.CreatedByUser != null
                         ? campaign.CreatedByUser.FullName
@@ -331,10 +341,51 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
 
+            var redemptionsByCampaign = await _context.OfferIssues
+                .AsNoTracking()
+                .Where(
+                    issue =>
+                        issue.CampaignId != null
+                        && pageIds.Contains(issue.CampaignId.Value)
+                        && issue.RedeemedAtUtc != null
+                        && issue.RedemptionVoidedAtUtc == null
+                )
+                .GroupBy(issue => issue.CampaignId!.Value)
+                .Select(group => new { CampaignId = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(
+                    row => row.CampaignId,
+                    row => row.Count,
+                    cancellationToken
+                );
+
+            var recipientsByCampaign = await _context.CampaignFrozenRecipients
+                .AsNoTracking()
+                .Where(row => pageIds.Contains(row.CampaignId))
+                .GroupBy(row => row.CampaignId)
+                .Select(group => new { CampaignId = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(
+                    row => row.CampaignId,
+                    row => row.Count,
+                    cancellationToken
+                );
+
             var items = pageRows
                 .Select(campaign =>
                 {
                     acceptedByCampaign.TryGetValue(campaign.Id, out var accepted);
+                    redemptionsByCampaign.TryGetValue(
+                        campaign.Id,
+                        out var redemptions
+                    );
+                    recipientsByCampaign.TryGetValue(
+                        campaign.Id,
+                        out var recipients
+                    );
+                    var isSms = string.Equals(
+                        campaign.Channel,
+                        "sms",
+                        StringComparison.Ordinal
+                    );
                     return new CampaignsListItemDto
                     {
                         Id = campaign.Id,
@@ -351,6 +402,17 @@ namespace TummlyBackend.Services
                         Channel = campaign.Channel,
                         AudienceKey = campaign.AudienceKey,
                         OfferStance = campaign.OfferStance,
+                        OfferTitle = string.IsNullOrWhiteSpace(campaign.OfferTitle)
+                            ? null
+                            : campaign.OfferTitle.Trim(),
+                        OfferValidity = campaign.OfferValidity == null
+                            ? null
+                            : CatalogOfferMapping.ToWireValidity(
+                                campaign.OfferValidity.Value
+                            ),
+                        OfferExpiryDate = campaign.OfferExpiryDate?.ToString(
+                            "yyyy-MM-dd"
+                        ),
                         CreatedByUserId = campaign.CreatedByUserId,
                         CreatedByDisplayName = campaign.CreatedByDisplayName,
                         UpdatedAt = campaign.UpdatedAt,
@@ -359,7 +421,14 @@ namespace TummlyBackend.Services
                             : campaign.ScheduledAtUtc.Value.ToString("O"),
                         Delivery = accepted > 0 ? accepted.ToString() : null,
                         Engagement = null,
-                        Redemptions = null,
+                        Redemptions =
+                            redemptions > 0 ? redemptions.ToString() : null,
+                        RecipientCount = recipients > 0 ? recipients : null,
+                        SmsPartsPerMessage = isSms
+                            ? CampaignSmsSegmentCalculator.CountSegments(
+                                campaign.MessageBody
+                            )
+                            : null,
                         RowVersion = campaign.RowVersion,
                         TerminalReason = campaign.TerminalReason,
                     };

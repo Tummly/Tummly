@@ -1,5 +1,7 @@
 /** Figma Campaign template Preview / Detail drawer — node 5116:19403. */
 
+import { OPERATOR_RIGHT_DRAWER_CONTENT_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
+
 export const CAMPAIGN_TEMPLATE_PREVIEW_COPY = {
   subtitle:
     "See the suggested audience, channel, offer, message and send logic before using this template.",
@@ -28,11 +30,15 @@ export const CAMPAIGN_TEMPLATE_PREVIEW_COPY = {
   retry: "Retry",
 } as const
 
-/** Above template picker Dialog (z-[140]) so Preview stacks on top. */
-export const CAMPAIGN_TEMPLATE_PREVIEW_OVERLAY_CLASS = "z-[150]"
+/**
+ * Above template picker Dialog (z-[140]). No blur — same as Feedback /
+ * Operator right drawers (`supports-backdrop-filter:backdrop-blur-none`).
+ */
+export const CAMPAIGN_TEMPLATE_PREVIEW_OVERLAY_CLASS =
+  "z-[150] supports-backdrop-filter:backdrop-blur-none"
 
-export const CAMPAIGN_TEMPLATE_PREVIEW_CONTENT_CLASS =
-  "z-[155] flex h-full max-h-dvh flex-col overflow-hidden rounded-l-[2px] bg-op-surface-secondary dark:bg-[var(--op-color-gray-1000)] data-[vaul-drawer-direction=right]:w-[min(620px,100vw)] data-[vaul-drawer-direction=right]:sm:max-w-[620px]"
+/** Shared Operator right-drawer chrome + stack above picker Dialog. */
+export const CAMPAIGN_TEMPLATE_PREVIEW_CONTENT_CLASS = `z-[155] flex flex-col ${OPERATOR_RIGHT_DRAWER_CONTENT_CLASS}`
 
 export const CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS =
   "flex w-full flex-col gap-6 border-t border-op-card-border p-[22px]"

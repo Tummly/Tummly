@@ -2344,6 +2344,11 @@ namespace TummlyBackend.Migrations
                         .IsUnique()
                         .HasFilter("[CampaignId] IS NOT NULL");
 
+                    b.HasIndex("LocationGuestId", "CatalogOfferId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_OfferIssues_ThankYou_LocationGuestId_CatalogOfferId")
+                        .HasFilter("[Source] = N'guest_form_thank_you'");
+
                     b.ToTable("OfferIssues");
                 });
 

@@ -9,6 +9,7 @@ import {
   mergeCampaignCatalogOfferDraftPatch,
   OFFER_CATALOG_DEFAULT_STAFF_INSTRUCTIONS,
   shouldConfirmEditOfferSave,
+  toConfirmedCampaignOfferPayload,
   toCreateCatalogOfferRequestBody,
 } from "@/lib/operatorOffers/offerCatalogPresentation"
 
@@ -20,6 +21,29 @@ describe("offerCatalogPresentation draft helpers", () => {
     expect(draft.staffInstructions).toBe(OFFER_CATALOG_DEFAULT_STAFF_INSTRUCTIONS)
     expect(draft.validity).toBe("30_days_after_issue")
     expect(canConfirmCampaignCatalogOfferDetails(draft)).toBe(false)
+  })
+
+  it("maps percentage offer facts for campaign message-draft AI", () => {
+    const draft = emptyCampaignCatalogOfferDetailsDraft()
+    draft.offerType = "percentage_discount"
+    draft.discountPercentage = "15"
+    draft.title = "15% off your next visit"
+    draft.description = "Enjoy 15% off your next meal with us."
+
+    expect(toConfirmedCampaignOfferPayload(draft)).toEqual({
+      offerType: "percentage_discount",
+      title: "15% off your next visit",
+      description: "Enjoy 15% off your next meal with us.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: 15,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+    })
   })
 
   it("maps free-item additional exclusions for any purchase requirement", () => {

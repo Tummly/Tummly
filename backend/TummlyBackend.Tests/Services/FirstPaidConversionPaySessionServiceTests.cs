@@ -429,6 +429,10 @@ namespace TummlyBackend.Tests.Services
                 restaurant.Id,
                 "TUMMLY-UK-GBP-2026-08-V3"
             );
+            BillingCreditsService.ApplyPilotSignupBilling(
+                account,
+                DateTime.UtcNow
+            );
             context.BillingAccounts.Add(account);
             await context.SaveChangesAsync();
             return (account, owner);

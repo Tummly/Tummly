@@ -15,10 +15,10 @@ export const PERFORMANCE_HEADER_ROW_CLASS =
 export const PERFORMANCE_HEADER_COPY_CLASS = "flex flex-col gap-2 leading-[0]"
 
 export const PERFORMANCE_TITLE_CLASS =
-  "m-0 text-lg font-bold leading-normal text-op-card-title-color sm:text-xl"
+  "m-0 font-jakarta text-lg font-bold leading-normal text-op-card-title-color sm:text-xl"
 
 export const PERFORMANCE_SUBTITLE_CLASS =
-  "m-0 text-op-sm font-medium leading-normal text-op-card-subtitle-color"
+  "m-0 font-sans text-op-sm font-medium leading-normal text-op-card-subtitle-color"
 
 /** Date-range trigger — same outlined chrome as Guests Sort. */
 export const PERFORMANCE_DATE_BUTTON_CLASS = OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS
@@ -63,14 +63,14 @@ export const PERFORMANCE_KPI_CONTENT_CLASS =
   "flex min-w-0 w-full flex-col items-stretch gap-0.5 pb-[4.25px]"
 
 export const PERFORMANCE_KPI_LABEL_CLASS =
-  "m-0 text-op-sm font-medium leading-normal text-op-kpi-label-color"
+  "m-0 font-sans text-op-sm font-medium leading-normal text-op-kpi-label-color"
 
 /** Big value + metric icon — space-between on one row. */
 export const PERFORMANCE_KPI_VALUE_ROW_CLASS =
   "flex w-full items-center justify-between gap-3"
 
 export const PERFORMANCE_KPI_VALUE_CLASS =
-  "m-0 text-op-xl font-extrabold leading-9 text-op-kpi-value-color"
+  "m-0 font-jakarta text-op-xl font-extrabold leading-9 text-op-kpi-value-color"
 
 export type KpiTrendTone = "positive" | "negative" | "neutral" | "unknown"
 

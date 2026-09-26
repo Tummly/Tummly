@@ -1,41 +1,63 @@
-import { useEffect, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { isAxiosError } from "axios"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
+import { Link, useNavigate } from "react-router-dom"
 
 import {
   createHelpCentreQuery,
   getHelpCentreContactPrefill,
 } from "@/api/helpCentreApi"
-import Footer from "@/components/home/Footer"
-import { HelpCentreAttachmentUpload } from "@/components/help-centre/HelpCentreAttachmentUpload"
-import { HelpCentreFormPanel } from "@/components/help-centre/HelpCentreFormPanel"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
 import { FormFloatingTextarea } from "@/components/form/FormFloatingTextarea"
+import { ContactPageShell } from "@/components/help-centre/ContactPageShell"
 import { Button } from "@/components/ui/button"
 import { Form } from "@/components/ui/form"
+import { HELP_CENTRE_CONTACT_SUCCESS_URL } from "@/config/support"
 import {
-  HELP_CENTRE_CONTACT_SUCCESS_URL,
-} from "@/config/support"
+  HELP_CENTRE_ALREADY_USING_OPTIONS,
+  HELP_CENTRE_LOCATION_COUNT_OPTIONS,
+  HELP_CENTRE_QUERY_TOPICS,
+} from "@/content/helpCentre/queryTopics"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
-import { HELP_CENTRE_QUERY_TOPICS } from "@/content/helpCentre/queryTopics"
 import { getFetchErrorMessage } from "@/lib/apiEnvelope"
-import { validateHelpCentreAttachments } from "@/lib/helpCentreAttachments"
-import { resolveHelpCentreContactPrefillLocationId } from "@/lib/helpCentreContactPrefill"
 import {
-  helpCentreGuestContactFormSchema,
-  helpCentreOperatorContactFormSchema,
-  type HelpCentreGuestContactFormValues,
-  type HelpCentreOperatorContactFormValues,
+  buildHelpCentreContactMessage,
+  getContactTopicFieldFlags,
+  resolveHelpCentreContactBusinessName,
+} from "@/lib/helpCentreContactForm"
+import type { HelpCentreContactSuccessState } from "@/lib/helpCentreContactSuccess"
+import { FEEDBACK_DIALOG_SELECT_ITEM_CLASS } from "@/lib/operatorFeedback/feedbackPresentation"
+import { OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
+import {
+  helpCentreContactFormSchema,
+  type HelpCentreContactFormValues,
 } from "@/schemas/helpCentreContact"
 import { useAuthStore } from "@/stores/authStore"
+
+/** Opaque panel — Operator fill tokens are only set under `html.op`. */
+const contactSelectMenuClass = `${OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS} z-50 min-w-40 gap-0 bg-white p-0 px-0 py-1 text-[#171717]`
 
 const topicOptions = HELP_CENTRE_QUERY_TOPICS.map((topic) => ({
   value: topic.slug,
   label: topic.label,
 }))
+
+const locationCountOptions = HELP_CENTRE_LOCATION_COUNT_OPTIONS.map(
+  (option) => ({
+    value: option.value,
+    label: option.label,
+  })
+)
+
+const alreadyUsingOptions = HELP_CENTRE_ALREADY_USING_OPTIONS.map((option) => ({
+  value: option.value,
+  label: option.label,
+}))
+
+const submitButtonClass =
+  "h-auto min-h-0 w-full gap-1.5 rounded-[4px] bg-[#141414] px-[18px] py-[14px] text-sm font-medium leading-5 text-white shadow-none hover:bg-[#141414]/90 disabled:bg-[#e0e0e0] disabled:text-[#7d7d7d] disabled:opacity-100"
 
 export default function HelpCentreContactPage() {
   const navigate = useNavigate()
@@ -43,38 +65,24 @@ export default function HelpCentreContactPage() {
   const role = useAuthStore((state) => state.role)
   const isOperator = Boolean(token && role === "USER")
 
-  const guestForm = useForm<HelpCentreGuestContactFormValues>({
-    resolver: zodResolver(helpCentreGuestContactFormSchema),
+  const form = useForm<HelpCentreContactFormValues>({
+    resolver: zodResolver(helpCentreContactFormSchema),
     mode: "onChange",
     defaultValues: {
       topic: "",
-      businessName: "",
       submitterName: "",
       submitterEmail: "",
-      phone: "",
-      restaurantLocationId: "",
+      businessName: "",
+      locationCount: "",
+      alreadyUsingTummly: "",
+      alternateEmail: "",
       message: "",
     },
   })
 
-  const operatorForm = useForm<HelpCentreOperatorContactFormValues>({
-    resolver: zodResolver(helpCentreOperatorContactFormSchema),
-    mode: "onChange",
-    defaultValues: {
-      topic: "",
-      businessName: "",
-      submitterName: "",
-      submitterEmail: "",
-      restaurantLocationId: "",
-      message: "",
-    },
-  })
-
-  const [locations, setLocations] = useState<
-    Array<{ id: number; label: string }>
-  >([])
-  const [attachments, setAttachments] = useState<File[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const topic = form.watch("topic")
+  const fieldFlags = getContactTopicFieldFlags(topic)
 
   useEffect(() => {
     if (!isOperator) {
@@ -90,17 +98,13 @@ export default function HelpCentreContactPage() {
           return
         }
 
-        operatorForm.reset({
-          topic: operatorForm.getValues("topic"),
-          businessName: prefill.businessName,
-          submitterName: prefill.submitterName,
-          submitterEmail: prefill.submitterEmail,
-          restaurantLocationId: resolveHelpCentreContactPrefillLocationId(
-            prefill.locations
-          ),
-          message: operatorForm.getValues("message"),
+        form.reset({
+          ...form.getValues(),
+          submitterName: prefill.submitterName || form.getValues("submitterName"),
+          submitterEmail:
+            prefill.submitterEmail || form.getValues("submitterEmail"),
+          businessName: prefill.businessName || form.getValues("businessName"),
         })
-        setLocations(prefill.locations)
       } catch {
         // Prefill is best-effort.
       }
@@ -109,59 +113,34 @@ export default function HelpCentreContactPage() {
     return () => {
       active = false
     }
-  }, [isOperator, operatorForm])
+  }, [isOperator, form])
 
-  const locationOptions = locations.map((location) => ({
-    value: String(location.id),
-    label: location.label,
-  }))
-
-  const submitGuest = guestForm.handleSubmit(async (values) => {
+  const onSubmit = form.handleSubmit(async (values) => {
     setSubmitError(null)
 
-    try {
-      await createHelpCentreQuery({
-        topic: values.topic,
-        businessName: values.businessName.trim(),
-        submitterName: values.submitterName.trim(),
-        submitterEmail: values.submitterEmail.trim(),
-        phone: values.phone.trim() || undefined,
-        message: values.message.trim(),
-      })
-
-      navigate(HELP_CENTRE_CONTACT_SUCCESS_URL)
-    } catch (error) {
+    const message = buildHelpCentreContactMessage(values)
+    if (message.length > 5000) {
       setSubmitError(
-        isAxiosError(error)
-          ? getFetchErrorMessage(error.response?.data, "Unable to submit request.")
-          : "Unable to submit request."
+        "Message is too long after adding the extra details. Shorten your message."
       )
-    }
-  })
-
-  const submitOperator = operatorForm.handleSubmit(async (values) => {
-    setSubmitError(null)
-
-    const attachmentError = validateHelpCentreAttachments(attachments)
-    if (attachmentError) {
-      setSubmitError(attachmentError)
       return
     }
 
     try {
-      await createHelpCentreQuery({
+      const result = await createHelpCentreQuery({
         topic: values.topic,
-        businessName: values.businessName.trim(),
+        businessName: resolveHelpCentreContactBusinessName(values),
         submitterName: values.submitterName.trim(),
         submitterEmail: values.submitterEmail.trim(),
-        restaurantLocationId: values.restaurantLocationId
-          ? Number(values.restaurantLocationId)
-          : undefined,
-        message: values.message.trim(),
-        attachments,
+        message,
       })
 
-      navigate(HELP_CENTRE_CONTACT_SUCCESS_URL)
+      const successState: HelpCentreContactSuccessState = {
+        queryId: result.id,
+        email: values.submitterEmail.trim(),
+      }
+
+      navigate(HELP_CENTRE_CONTACT_SUCCESS_URL, { state: successState })
     } catch (error) {
       setSubmitError(
         isAxiosError(error)
@@ -171,190 +150,140 @@ export default function HelpCentreContactPage() {
     }
   })
 
-  const guestValid = guestForm.formState.isValid
-  const operatorValid =
-    operatorForm.formState.isValid
-    && validateHelpCentreAttachments(attachments) === null
-
   return (
-    <div className="flex w-full flex-1 flex-col bg-white">
-      <HelpCentreFormPanel className="flex flex-1 flex-col">
-        <div className="flex w-full flex-col gap-[50px]">
-          <header className="flex flex-col items-center gap-3.5 text-center text-[#232323]">
-            <h1 className="m-0 text-[36px] font-bold tracking-[-0.72px]">
-              Contact us
-            </h1>
-            <p className="m-0 max-w-[400px] text-lg leading-6 tracking-[-0.36px]">
-              Tell us what you need help with and we&apos;ll route your request
-              to the right team.
+    <ContactPageShell
+      panel={
+        <>
+          <header className="flex flex-col gap-[18px]">
+            <h2 className="m-0 font-jakarta text-[30px] font-medium leading-normal text-black lg:text-[54px]">
+              How can we help?
+            </h2>
+            <p className="m-0 max-w-[590px] text-base leading-[22px] text-[#141414] lg:text-lg lg:leading-6">
+              Tell us how we can help. Do not include passwords, payment card
+              details or identity documents.
             </p>
           </header>
 
-          {isOperator ? (
-            <Form {...operatorForm}>
-              <form
-                onSubmit={submitOperator}
-                className="flex w-full flex-col gap-6"
+          <Form {...form}>
+            <form onSubmit={onSubmit} className="flex w-full flex-col gap-6">
+              <FormFloatingSelect
+                control={form.control}
+                name="topic"
+                label="Choose a topic"
+                options={topicOptions}
+                disableFocusRing
+                contentClassName={contactSelectMenuClass}
+                itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
+              />
+
+              {fieldFlags.showQrOrderHint && (
+                <p className="m-0 text-base leading-[22px] text-[#141414]">
+                  For an existing order, include your order reference if you
+                  have it.
+                </p>
+              )}
+
+              {fieldFlags.showAlreadyUsing && (
+                <FormFloatingSelect
+                  control={form.control}
+                  name="alreadyUsingTummly"
+                  label="Are you already using Tummly?"
+                  options={alreadyUsingOptions}
+                  disableFocusRing
+                  contentClassName={contactSelectMenuClass}
+                  itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
+                />
+              )}
+
+              <FormFloatingInput
+                control={form.control}
+                name="submitterName"
+                label="Full name *"
+              />
+
+              <div className="flex flex-col gap-3">
+                <FormFloatingInput
+                  control={form.control}
+                  name="submitterEmail"
+                  label="Email address *"
+                  type="email"
+                />
+                <p className="m-0 text-sm leading-5 text-black">
+                  We&apos;ll reply to this email address.
+                </p>
+              </div>
+
+              {fieldFlags.showAlternateEmail && (
+                <FormFloatingInput
+                  control={form.control}
+                  name="alternateEmail"
+                  label={fieldFlags.alternateEmailLabel}
+                  type="email"
+                  optional
+                />
+              )}
+
+              {fieldFlags.showBusinessName && (
+                <FormFloatingInput
+                  control={form.control}
+                  name="businessName"
+                  label={fieldFlags.businessNameLabel}
+                  optional
+                />
+              )}
+
+              {fieldFlags.showLocationCount && (
+                <FormFloatingSelect
+                  control={form.control}
+                  name="locationCount"
+                  label="How many locations do you operate? (optional)."
+                  options={locationCountOptions}
+                  disableFocusRing
+                  contentClassName={contactSelectMenuClass}
+                  itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
+                />
+              )}
+
+              <div className="flex flex-col gap-3.5">
+                <FormFloatingTextarea
+                  control={form.control}
+                  name="message"
+                  label="Message *"
+                  className="min-h-[176px]"
+                />
+                <p className="m-0 text-xs leading-4 text-black">
+                  Use 5,000 characters or fewer.
+                </p>
+              </div>
+
+              <p className="m-0 max-w-[480px] text-xs font-medium leading-[18px] text-[#7c7c7c]">
+                We&apos;ll use your details to respond to your enquiry. Read our{" "}
+                <Link
+                  to={LEGAL_ROUTES.privacy}
+                  className="underline underline-offset-2"
+                >
+                  Privacy Notice
+                </Link>{" "}
+                to learn how we handle your personal data.
+              </p>
+
+              {submitError && (
+                <p className="m-0 text-sm text-destructive" role="alert">
+                  {submitError}
+                </p>
+              )}
+
+              <Button
+                type="submit"
+                disabled={!form.formState.isValid || form.formState.isSubmitting}
+                className={submitButtonClass}
               >
-                <div className="flex flex-col gap-6">
-                  <FormFloatingInput
-                    control={operatorForm.control}
-                    name="businessName"
-                    label="Business name"
-                  />
-
-                  <FormFloatingInput
-                    control={operatorForm.control}
-                    name="submitterEmail"
-                    label="Email"
-                    type="email"
-                  />
-
-                  {locations.length > 1 && (
-                    <FormFloatingSelect
-                      control={operatorForm.control}
-                      name="restaurantLocationId"
-                      label="Location"
-                      options={locationOptions}
-                    />
-                  )}
-
-                  <FormFloatingSelect
-                    control={operatorForm.control}
-                    name="topic"
-                    label="I need help with"
-                    options={topicOptions}
-                  />
-
-                  <FormFloatingInput
-                    control={operatorForm.control}
-                    name="submitterName"
-                    label="Your name"
-                  />
-
-                  <FormFloatingTextarea
-                    control={operatorForm.control}
-                    name="message"
-                    label="Message"
-                    className="min-h-[191px]"
-                  />
-
-                  <HelpCentreAttachmentUpload
-                    files={attachments}
-                    onChange={setAttachments}
-                  />
-
-                  <hr className="m-0 border-0 border-t border-[#e5e5e5]" />
-                </div>
-
-                <ContactFormFooter
-                  submitError={submitError}
-                  isSubmitting={operatorForm.formState.isSubmitting}
-                  isValid={operatorValid}
-                />
-              </form>
-            </Form>
-          ) : (
-            <Form {...guestForm}>
-              <form onSubmit={submitGuest} className="flex w-full flex-col gap-6">
-                <div className="flex flex-col gap-6">
-                  <FormFloatingSelect
-                    control={guestForm.control}
-                    name="topic"
-                    label="I need help with"
-                    options={topicOptions}
-                  />
-
-                  <FormFloatingInput
-                    control={guestForm.control}
-                    name="businessName"
-                    label="Restaurant/business name"
-                  />
-
-                  <FormFloatingInput
-                    control={guestForm.control}
-                    name="submitterName"
-                    label="Your name"
-                  />
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormFloatingInput
-                      control={guestForm.control}
-                      name="submitterEmail"
-                      label="Email"
-                      type="email"
-                    />
-                    <FormFloatingInput
-                      control={guestForm.control}
-                      name="phone"
-                      label="Phone"
-                      optional
-                    />
-                  </div>
-
-                  <FormFloatingTextarea
-                    control={guestForm.control}
-                    name="message"
-                    label="Message"
-                    className="min-h-[191px]"
-                  />
-
-                  <hr className="m-0 border-0 border-t border-[#e5e5e5]" />
-                </div>
-
-                <ContactFormFooter
-                  submitError={submitError}
-                  isSubmitting={guestForm.formState.isSubmitting}
-                  isValid={guestValid}
-                />
-              </form>
-            </Form>
-          )}
-        </div>
-      </HelpCentreFormPanel>
-      <div className="mt-auto shrink-0">
-        <Footer />
-      </div>
-    </div>
-  )
-}
-
-function ContactFormFooter({
-  submitError,
-  isSubmitting,
-  isValid,
-}: {
-  submitError: string | null
-  isSubmitting: boolean
-  isValid: boolean
-}) {
-  return (
-    <div className="flex flex-col gap-[50px]">
-      <p className="m-0 text-sm leading-normal text-[#141414]">
-        By submitting this request, you confirm that the information provided may
-        be used to manage and respond to your support case in line with our{" "}
-        <Link
-          to={LEGAL_ROUTES.privacy}
-          className="text-[#141414] underline underline-offset-2"
-        >
-          Privacy Policy
-        </Link>
-        .
-      </p>
-
-      {submitError && (
-        <p className="m-0 text-sm text-destructive" role="alert">
-          {submitError}
-        </p>
-      )}
-
-      <Button
-        type="submit"
-        disabled={!isValid || isSubmitting}
-        className="h-[50px] w-full rounded-[54px] border border-transparent px-[21px] py-[11px] text-base font-medium disabled:bg-[#e0e0e0] disabled:text-[#7d7d7d] disabled:opacity-100 enabled:bg-[#14a74a] enabled:text-white enabled:hover:bg-[#129641]"
-      >
-        {isSubmitting ? "Submitting..." : "Submit"}
-      </Button>
-    </div>
+                {form.formState.isSubmitting ? "Sending..." : "Send enquiry"}
+              </Button>
+            </form>
+          </Form>
+        </>
+      }
+    />
   )
 }

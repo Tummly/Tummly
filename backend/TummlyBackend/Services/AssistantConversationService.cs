@@ -2641,6 +2641,7 @@ namespace TummlyBackend.Services
                         CampaignName = fields.Name,
                         Tone = "friendly_and_clear",
                         Mode = "prepare",
+                        ConfirmedOffer = ToCampaignMessageDraftOfferPayload(offer),
                     },
                     cancellationToken
                 );
@@ -2748,6 +2749,24 @@ namespace TummlyBackend.Services
                 fields.AudienceKey
             );
         }
+
+        private static CampaignMessageDraftOfferPayloadDto ToCampaignMessageDraftOfferPayload(
+            CatalogOfferDto offer
+        ) => new()
+        {
+            OfferType = offer.OfferType,
+            Title = offer.Title,
+            Description = offer.Description,
+            Validity = offer.Validity,
+            ExpiryDate = offer.ExpiryDate,
+            DiscountPercentage = offer.DiscountPercentage,
+            DiscountAmount = offer.DiscountAmount,
+            FreeItemText = offer.FreeItemText,
+            PurchaseRequirement = offer.PurchaseRequirement,
+            MinimumSpend = offer.MinimumSpend,
+            AdditionalExclusions = offer.AdditionalExclusions,
+            ReplacementItemText = offer.ReplacementItemText,
+        };
 
         private async Task<CombinedCreateTurn> BuildCombinedCreateSuccessTurnAsync(
             int locationId,

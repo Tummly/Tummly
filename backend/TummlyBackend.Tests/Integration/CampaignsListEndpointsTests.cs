@@ -541,6 +541,213 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetCampaigns_CountsNonVoidedRedemptionsFromOfferIssues()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaigns-list-redemptions"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = seeded.LocationId,
+                Status = "active",
+                OfferType = CatalogOfferType.FixedDiscount,
+                Title = "£5 off",
+                Description = "List redemptions test offer",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountAmount = 5m,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
+
+            var campaign = new Campaign
+            {
+                RestaurantLocationId = seeded.LocationId,
+                Status = "sent",
+                Name = "Lunch push",
+                GoalId = "boost-quieter-time",
+                Channel = "sms",
+                OfferId = offer.Id,
+                OfferStance = "existing-offer",
+                ScheduleMode = "send-now",
+                ScheduledAtUtc = now.AddDays(-2),
+                CreatedAt = now.AddDays(-3),
+                UpdatedAt = now.AddDays(-2),
+            };
+            var otherCampaign = new Campaign
+            {
+                RestaurantLocationId = seeded.LocationId,
+                Status = "sent",
+                Name = "Other push",
+                GoalId = "thank-recent-guests",
+                Channel = "email",
+                OfferId = offer.Id,
+                OfferStance = "existing-offer",
+                ScheduleMode = "send-now",
+                ScheduledAtUtc = now.AddDays(-1),
+                CreatedAt = now.AddDays(-2),
+                UpdatedAt = now.AddDays(-1),
+            };
+            context.Campaigns.AddRange(campaign, otherCampaign);
+            await context.SaveChangesAsync();
+
+            var restaurantId = (
+                await context.RestaurantLocations.FindAsync(seeded.LocationId)
+            )!.RestaurantId;
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurantId,
+                Email = $"list-redeem-{Guid.NewGuid():N}@example.com",
+                CreatedAt = now,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var guest = new LocationGuest
+            {
+                RestaurantLocationId = seeded.LocationId,
+                MasterGuestId = master.Id,
+                Name = "Maya",
+                CreatedAt = now,
+            };
+            context.LocationGuests.Add(guest);
+            await context.SaveChangesAsync();
+
+            OfferIssue Issue(
+                string code,
+                int? campaignId,
+                DateTime? redeemedAt,
+                DateTime? voidedAt = null
+            )
+            {
+                return new OfferIssue
+                {
+                    CatalogOfferId = offer.Id,
+                    LocationGuestId = guest.Id,
+                    ClaimCode = code,
+                    IssuedAtUtc = now.AddDays(-5),
+                    ClaimedAtUtc = now.AddDays(-4),
+                    RedeemedAtUtc = redeemedAt,
+                    RedemptionVoidedAtUtc = voidedAt,
+                    Source = OfferIssueSources.Campaign,
+                    CampaignId = campaignId,
+                    ExpiryAtUtc = now.AddDays(9),
+                    OfferType = CatalogOfferType.FixedDiscount,
+                    Title = "£5 off",
+                    Description = "List redemptions test issue",
+                    Validity = CatalogOfferValidity.Days14AfterIssue,
+                    DiscountAmount = 5m,
+                };
+            }
+
+            context.OfferIssues.AddRange(
+                Issue("TUM-100001", campaign.Id, now.AddDays(-1)),
+                Issue("TUM-100002", campaign.Id, now.AddHours(-3)),
+                Issue(
+                    "TUM-100003",
+                    campaign.Id,
+                    now.AddHours(-2),
+                    voidedAt: now.AddHours(-1)
+                ),
+                Issue("TUM-100004", campaign.Id, redeemedAt: null),
+                Issue("TUM-100005", otherCampaign.Id, now.AddHours(-4))
+            );
+            await context.SaveChangesAsync();
+
+            using var request = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "sent") + "&q=Lunch",
+                seeded.Jwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            Assert.Equal(1, body.GetProperty("items").GetArrayLength());
+            var item = body.GetProperty("items")[0];
+            Assert.Equal("Lunch push", item.GetProperty("name").GetString());
+            Assert.Equal("2", item.GetProperty("redemptions").GetString());
+            Assert.Equal(JsonValueKind.Null, item.GetProperty("engagement").ValueKind);
+        }
+
+        [Fact]
+        public async Task GetCampaigns_IncludesAttachedCatalogOfferTitleAndExpiry()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaigns-list-offer-title"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = seeded.LocationId,
+                Status = "active",
+                OfferType = CatalogOfferType.PercentageDiscount,
+                Title = "10% off next visit",
+                Description = "List offer title test",
+                Validity = CatalogOfferValidity.ChooseExpiryDate,
+                CustomExpiryDate = new DateOnly(2026, 8, 31),
+                DiscountPercentage = 10m,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
+
+            context.Campaigns.Add(
+                new Campaign
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Status = "sent",
+                    Name = "Offer title campaign",
+                    GoalId = "thank-recent-guests",
+                    Channel = "sms",
+                    MessageBody = "Hello guest",
+                    OfferId = offer.Id,
+                    OfferStance = "existing-offer",
+                    ScheduleMode = "send-now",
+                    ScheduledAtUtc = now.AddDays(-1),
+                    CreatedAt = now.AddDays(-2),
+                    UpdatedAt = now.AddDays(-1),
+                }
+            );
+            await context.SaveChangesAsync();
+
+            using var request = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "sent"),
+                seeded.Jwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            Assert.Equal(1, body.GetProperty("items").GetArrayLength());
+            var item = body.GetProperty("items")[0];
+            Assert.Equal(
+                "10% off next visit",
+                item.GetProperty("offerTitle").GetString()
+            );
+            Assert.Equal(
+                "choose_expiry_date",
+                item.GetProperty("offerValidity").GetString()
+            );
+            Assert.Equal(
+                "2026-08-31",
+                item.GetProperty("offerExpiryDate").GetString()
+            );
+            Assert.Equal(
+                "existing-offer",
+                item.GetProperty("offerStance").GetString()
+            );
+            Assert.True(item.TryGetProperty("smsPartsPerMessage", out var parts));
+            Assert.True(parts.GetInt32() >= 1);
+        }
+
+        [Fact]
         public async Task GetCampaigns_RejectsAwaitingApprovalView()
         {
             var seeded = await SeedOwnerWithLocationAsync(

@@ -70,6 +70,23 @@ describe("resolvePlanCardCta", () => {
     ).toBe(true)
   })
 
+  it("enables Start Pilot on Free", () => {
+    expect(
+      resolvePlanCardCta({
+        cardPlanId: "Pilot",
+        currentPlanId: "Free",
+        isPilot: false,
+        liveCadence: null,
+        previewCadence: "monthly",
+      })
+    ).toEqual({
+      kind: "action",
+      label: "Start 30-day Pilot",
+      disabled: false,
+      changeKind: "convert",
+    })
+  })
+
   it("offers switch cadence on the current paid card when preview differs", () => {
     expect(
       resolvePlanCardCta({
@@ -197,6 +214,18 @@ describe("buildPlanChangeConfirmCopy", () => {
         renewalDateLabel: null,
       }).requiresPay
     ).toBe(true)
+  })
+
+  it("uses activate copy for Free to Pilot", () => {
+    const copy = buildPlanChangeConfirmCopy({
+      currentPlanId: "Free",
+      targetPlanId: "Pilot",
+      changeKind: "convert",
+      previewCadence: "monthly",
+      renewalDateLabel: null,
+    })
+    expect(copy.requiresPay).toBe(false)
+    expect(copy.primaryLabel).toBe("Start 30-day Pilot")
   })
 
   it("uses schedule copy for downgrades", () => {

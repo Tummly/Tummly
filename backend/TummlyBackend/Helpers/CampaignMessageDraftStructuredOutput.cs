@@ -16,6 +16,11 @@ namespace TummlyBackend.Helpers
 
         public const string ProsePunctuationRevision = "2026-08-08";
 
+        /// <summary>
+        /// Bumped when offer-grounding / rewrite quality prompt rules change.
+        /// </summary>
+        public const string OfferGroundingRevision = "2026-09-25";
+
         private static readonly JsonSerializerOptions RequestJsonOptions = new()
         {
             WriteIndented = false
@@ -41,6 +46,31 @@ namespace TummlyBackend.Helpers
                 ["currentBody"] = input.CurrentBody,
                 ["currentSubject"] = input.CurrentSubject,
             };
+
+            if (input.ConfirmedOffer is { } offer)
+            {
+                userPayload["confirmedOffer"] = new JsonObject
+                {
+                    ["offerType"] = offer.OfferType,
+                    ["title"] = offer.Title,
+                    ["description"] = offer.Description,
+                    ["validity"] = offer.Validity,
+                    ["expiryDate"] = offer.ExpiryDate,
+                    ["discountPercentage"] = offer.DiscountPercentage.HasValue
+                        ? JsonValue.Create(offer.DiscountPercentage.Value)
+                        : null,
+                    ["discountAmount"] = offer.DiscountAmount.HasValue
+                        ? JsonValue.Create(offer.DiscountAmount.Value)
+                        : null,
+                    ["freeItemText"] = offer.FreeItemText,
+                    ["purchaseRequirement"] = offer.PurchaseRequirement,
+                    ["minimumSpend"] = offer.MinimumSpend.HasValue
+                        ? JsonValue.Create(offer.MinimumSpend.Value)
+                        : null,
+                    ["additionalExclusions"] = offer.AdditionalExclusions,
+                    ["replacementItemText"] = offer.ReplacementItemText,
+                };
+            }
 
             var request = new JsonObject
             {
@@ -106,6 +136,7 @@ namespace TummlyBackend.Helpers
                 You draft a UK hospitality marketing campaign message for an operator.
                 Prompt/schema version: {promptSchemaVersion}.
                 Prose punctuation revision: {ProsePunctuationRevision}.
+                Offer grounding revision: {OfferGroundingRevision}.
 
                 Return Structured Outputs only.
                 Write one-shot editable prose for the operator - not a classification.
@@ -113,13 +144,27 @@ namespace TummlyBackend.Helpers
                 from the user payload.
                 For sms, subject must be null. For email, subject must be non-empty.
                 Never invent or include guest email, phone, or other guest PII.
+
+                Offer facts:
+                When confirmedOffer is present, use only those facts for any discount,
+                free item, replacement, title, description, validity, or expiry wording.
+                Do not invent offer terms, percentages, amounts, items, or validity.
+                Never invent a redemption code, claim code, promo code, or QR claim.
+                When offerStance is no-offer or confirmedOffer is absent, do not invent
+                an offer, discount, or claim code.
+
                 When mode is prepare, draft both body and subject (subject null for sms).
                 When mode is rewrite_subject, rewrite only the subject from
-                currentSubject (and context). Return the improved subject; return
-                currentBody unchanged as body.
+                currentSubject (and context). Improve clarity, tone fit, and pull;
+                Do not only paraphrase. Preserve exact offer facts and numbers from
+                confirmedOffer and from currentSubject. Return the improved subject;
+                return currentBody unchanged as body.
                 When mode is rewrite_message, rewrite only the body from
-                currentBody (and context). Return the improved body; for email
-                return currentSubject unchanged as subject (null for sms).
+                currentBody (and context). Improve clarity, tone fit, and channel fit;
+                Do not only paraphrase. Preserve exact offer facts and numbers from
+                confirmedOffer and from currentBody. Never invent a redemption code.
+                Return the improved body; for email return currentSubject unchanged
+                as subject (null for sms).
 
                 Punctuation (body and subject):
                 Use plain ASCII only: apostrophe ('), hyphen (-), double quote ("),

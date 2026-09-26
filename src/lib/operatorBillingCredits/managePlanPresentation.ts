@@ -4,6 +4,9 @@ export const MANAGE_PLAN_IDS = ["Pilot", "Starter", "Growth", "Group"] as const
 
 export type ManagePlanId = (typeof MANAGE_PLAN_IDS)[number]
 
+/** Catalog cards plus Free (not shown as a card; current-plan only). */
+export type ManagePlanCurrentId = ManagePlanId | "Free"
+
 export type BillingCadence = "monthly" | "annual"
 
 export type PlanChangeKind =
@@ -488,6 +491,9 @@ export const MANAGE_PLAN_COPY = {
     cadence === "annual" ? "Switch to annual billing" : "Switch to monthly billing",
   confirmPayBody:
     "You will confirm this change on Tummly, then pay on Revolut. Your plan updates after payment succeeds.",
+  confirmActivatePilotBody:
+    "Start your 30-day Pilot now. No payment card is required. You can choose a paid plan any time from Manage plan.",
+  confirmPrimaryActivatePilot: "Start 30-day Pilot",
   confirmScheduleBody: (renewalDateLabel: string | null) =>
     renewalDateLabel == null
       ? "This change takes effect on your renewal date."
@@ -502,13 +508,13 @@ export const MANAGE_PLAN_PAGE_STACK_CLASS =
 export const MANAGE_PLAN_BREADCRUMB_CLASS =
   "flex items-center gap-2.5 text-base font-medium"
 export const MANAGE_PLAN_BREADCRUMB_CURRENT_CLASS = "text-muted-foreground"
-/** Season Mix stand-in: Roboto Serif (free hybrid with a light serif whisper). */
-export const MANAGE_PLAN_DISPLAY_FONT_CLASS = "font-serif font-medium"
+/** *headline* — Plus Jakarta Sans (docs/agents/typography.md). */
+export const MANAGE_PLAN_DISPLAY_FONT_CLASS = "font-jakarta font-medium"
 export const MANAGE_PLAN_BODY_STACK_CLASS = "flex flex-col gap-5"
 export const MANAGE_PLAN_CURRENT_PLAN_CARD_CLASS =
   "flex flex-col overflow-clip rounded-[6px] border border-border bg-op-surface-primary p-6 dark:bg-op-color-gray-992"
 export const MANAGE_PLAN_CURRENT_PLAN_NAME_CLASS =
-  "m-0 font-serif text-[28px] font-medium leading-none text-foreground"
+  "m-0 font-jakarta text-[28px] font-medium leading-none text-foreground"
 export const MANAGE_PLAN_CARDS_GRID_CLASS =
   "grid grid-cols-1 gap-6 xl:grid-cols-[repeat(4,minmax(0,1fr))] xl:gap-4"
 export const MANAGE_PLAN_CARD_CLASS =
@@ -516,7 +522,7 @@ export const MANAGE_PLAN_CARD_CLASS =
 export const MANAGE_PLAN_CARD_POPULAR_CLASS =
   "flex h-full w-full min-w-0 flex-col gap-10 rounded-[6px] bg-primary/[0.05] px-3 py-6 ring-1 ring-inset ring-primary"
 export const MANAGE_PLAN_CARD_TITLE_CLASS =
-  "m-0 font-serif text-[30px] font-medium leading-none text-foreground"
+  "m-0 font-jakarta text-[30px] font-medium leading-none text-foreground"
 export const MANAGE_PLAN_CARD_DESCRIPTION_CLASS =
   "m-0 max-w-[346px] text-sm font-normal leading-[19px] text-foreground"
 export const MANAGE_PLAN_FEATURE_ROW_CLASS =
@@ -524,13 +530,14 @@ export const MANAGE_PLAN_FEATURE_ROW_CLASS =
 export const MANAGE_PLAN_FEATURE_LABEL_CLASS = "shrink-0 font-medium"
 export const MANAGE_PLAN_FEATURE_VALUE_CLASS = "shrink-0 text-right font-normal"
 export const MANAGE_PLAN_PRICE_AMOUNT_CLASS =
-  "font-serif text-[36px] font-medium leading-none text-foreground"
+  "font-jakarta text-[36px] font-medium leading-none text-foreground"
 export const MANAGE_PLAN_PRICE_SUFFIX_CLASS =
   "font-sans text-sm font-medium leading-none text-foreground"
 export const MANAGE_PLAN_SECTION_HEADING_CLASS =
-  "m-0 font-serif text-[46px] font-medium leading-none text-foreground"
+  "m-0 font-jakarta text-[46px] font-medium leading-none text-foreground"
+/** FAQ questions are *functional* (Helvetica Neue), not headline. */
 export const MANAGE_PLAN_FAQ_QUESTION_CLASS =
-  "text-left font-serif text-[22px] font-medium leading-none text-foreground"
+  "text-left font-sans text-[22px] font-medium leading-none text-foreground"
 export const MANAGE_PLAN_FAQ_ANSWER_CLASS =
   "text-base font-normal leading-normal text-muted-foreground"
 /** Figma Plan cadence shell — Cards/Border + Cards/Radius. */
@@ -560,10 +567,17 @@ function normalizePlanId(plan: string): ManagePlanId {
   return "Pilot"
 }
 
+export function normalizeCurrentPlanId(plan: string): ManagePlanCurrentId {
+  if (plan === "Free") {
+    return "Free"
+  }
+  return normalizePlanId(plan)
+}
+
 export function liveCadenceFromSnapshot(
   plan: PlanSubscriptionSnapshot
 ): BillingCadence | null {
-  if (plan.isPilot || plan.billingCycle == null) {
+  if (plan.isPilot || plan.subscriptionPlan === "Free" || plan.billingCycle == null) {
     return null
   }
   return plan.billingCycle.toLowerCase() === "annual" ? "annual" : "monthly"
@@ -576,7 +590,7 @@ export function defaultPreviewCadence(
 }
 
 export function resolvePlanChangeKind(options: {
-  currentPlanId: ManagePlanId
+  currentPlanId: ManagePlanCurrentId
   targetPlanId: ManagePlanId
   liveCadence: BillingCadence | null
   previewCadence: BillingCadence
@@ -587,7 +601,7 @@ export function resolvePlanChangeKind(options: {
     return "cadence-only"
   }
 
-  if (currentPlanId === "Pilot") {
+  if (currentPlanId === "Pilot" || currentPlanId === "Free") {
     return "convert"
   }
 
@@ -607,7 +621,7 @@ export function resolvePlanChangeKind(options: {
 
 export function resolvePlanCardCta(options: {
   cardPlanId: ManagePlanId
-  currentPlanId: ManagePlanId
+  currentPlanId: ManagePlanCurrentId
   isPilot: boolean
   liveCadence: BillingCadence | null
   previewCadence: BillingCadence
@@ -624,6 +638,21 @@ export function resolvePlanCardCta(options: {
   } = options
 
   if (cardPlanId === "Pilot" && !isPilot) {
+    if (currentPlanId === "Free") {
+      if (lockMode === "dunning") {
+        return {
+          kind: "disabled",
+          label: MANAGE_PLAN_COPY.startPilot,
+          disabled: true,
+        }
+      }
+      return {
+        kind: "action",
+        label: MANAGE_PLAN_COPY.startPilot,
+        disabled: false,
+        changeKind: "convert",
+      }
+    }
     return {
       kind: "disabled",
       label: MANAGE_PLAN_COPY.startPilot,
@@ -774,7 +803,7 @@ export function buildManagePlanCardViewModels(options: {
   /** Catalog / API rate in basis points; 0 hides “+ VAT”. */
   vatRateBps?: number
 }): ManagePlanCardViewModel[] {
-  const currentPlanId = normalizePlanId(options.plan.subscriptionPlan)
+  const currentPlanId = normalizeCurrentPlanId(options.plan.subscriptionPlan)
   const liveCadence = liveCadenceFromSnapshot(options.plan)
   const vatRateBps = options.vatRateBps ?? 0
 
@@ -815,7 +844,7 @@ export function buildManagePlanCardViewModels(options: {
 }
 
 export function buildPlanChangeConfirmCopy(options: {
-  currentPlanId: ManagePlanId
+  currentPlanId: ManagePlanCurrentId
   targetPlanId: ManagePlanId
   changeKind: PlanChangeKind
   previewCadence: BillingCadence
@@ -829,7 +858,20 @@ export function buildPlanChangeConfirmCopy(options: {
     renewalDateLabel,
   } = options
 
-  const requiresPay = changeKind === "convert" || changeKind === "upgrade"
+  const isActivatePilot =
+    currentPlanId === "Free" && targetPlanId === "Pilot"
+  const requiresPay =
+    !isActivatePilot
+    && (changeKind === "convert" || changeKind === "upgrade")
+
+  if (isActivatePilot) {
+    return {
+      title: MANAGE_PLAN_COPY.startPilot,
+      body: MANAGE_PLAN_COPY.confirmActivatePilotBody,
+      primaryLabel: MANAGE_PLAN_COPY.confirmPrimaryActivatePilot,
+      requiresPay: false,
+    }
+  }
 
   const title =
     changeKind === "convert"
@@ -837,7 +879,8 @@ export function buildPlanChangeConfirmCopy(options: {
       : changeKind === "upgrade"
         ? MANAGE_PLAN_COPY.confirmUpgradeTitle(targetPlanId)
         : changeKind === "plan-and-cadence"
-          ? PLAN_RANK[targetPlanId] > PLAN_RANK[currentPlanId]
+          ? PLAN_RANK[targetPlanId]
+            > PLAN_RANK[currentPlanId as ManagePlanId]
             ? MANAGE_PLAN_COPY.confirmUpgradeTitle(targetPlanId)
             : MANAGE_PLAN_COPY.confirmDowngradeTitle(targetPlanId)
           : changeKind === "downgrade"
@@ -857,6 +900,9 @@ export function buildPlanChangeConfirmCopy(options: {
 }
 
 export function formatCurrentPlanSummary(plan: PlanSubscriptionSnapshot): string {
+  if (plan.subscriptionPlan === "Free") {
+    return `${plan.planPriceNet ?? "£0"} · Free`
+  }
   if (plan.isPilot) {
     return `${plan.planPriceNet ?? "£0"}/ for 30 days · ${plan.renewalDateLabel ?? "Pilot"}`
   }

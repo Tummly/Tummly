@@ -11,6 +11,7 @@ import { CaptureRotateConfirmDialog } from "@/components/dashboard/operator/Capt
 import { CaptureThankYouOfferDialog } from "@/components/dashboard/operator/Capture/CaptureThankYouOfferDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { useCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useCapturePageModule"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import {
   CAPTURE_PAGE_STACK_CLASS,
   CAPTURE_SECTION_CLASS,
@@ -74,6 +75,7 @@ export function CaptureBody() {
     cancelRotateConfirm,
     confirmRotate,
   } = useCapturePageModule()
+  const gateFreeProductWrite = useGateFreeProductWrite()
   const capturePerformanceDateRange = useDashboardUiStore(
     (state) => state.capturePerformanceDateRange
   )
@@ -122,18 +124,26 @@ export function CaptureBody() {
               }
             }}
             onSelectCreate={() => {
-              void selectThankYouOfferStance("create-new-offer")
+              gateFreeProductWrite(() => {
+                void selectThankYouOfferStance("create-new-offer")
+              })
             }}
             onSelectExisting={() => {
-              void selectThankYouOfferStance("existing-offer")
+              gateFreeProductWrite(() => {
+                void selectThankYouOfferStance("existing-offer")
+              })
             }}
             onClear={() => {
-              void selectThankYouOfferStance("clear-offer")
+              gateFreeProductWrite(() => {
+                void selectThankYouOfferStance("clear-offer")
+              })
             }}
             onBackToStances={backThankYouOfferStances}
             onPatchCreateDraft={patchThankYouCreateDraft}
             onConfirmCreate={() => {
-              void confirmThankYouCreateOffer()
+              gateFreeProductWrite(() => {
+                void confirmThankYouCreateOffer()
+              })
             }}
             onExistingSearchChange={setThankYouExistingSearchQuery}
             onSelectExistingOffer={(offerId) => {

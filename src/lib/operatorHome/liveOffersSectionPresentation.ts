@@ -25,7 +25,7 @@ export const LIVE_OFFERS_EMPTY_COPY_CLASS = OPERATOR_HOME_EMPTY_COPY_STACK_CLASS
 export const LIVE_OFFERS_EMPTY_TITLE_CLASS = OPERATOR_HOME_EMPTY_TITLE_CLASS
 
 export const LIVE_OFFERS_EMPTY_HELPER_CLASS =
-  "m-0 max-w-[450px] text-op-sm font-medium leading-[18px] text-op-card-subtitle-color text-center"
+  "m-0 max-w-[450px] font-sans text-op-sm font-medium leading-[18px] text-op-card-subtitle-color text-center"
 
 export const LIVE_OFFERS_EMPTY_ACTIONS_CLASS =
   "flex flex-wrap items-center justify-center gap-3"
@@ -57,10 +57,10 @@ export const LIVE_OFFERS_CARD_STATUS_BADGE_CLASS =
   "rounded-[2px] bg-op-card-background px-2.5 py-1.5 text-xs font-normal text-op-card-title-color dark:bg-op-card-background"
 
 export const LIVE_OFFERS_CARD_TITLE_CLASS =
-  "m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-op-text-primary"
+  "m-0 font-jakarta text-base font-semibold leading-6 tracking-[-0.4px] text-op-text-primary"
 
 export const LIVE_OFFERS_CARD_METRICS_CLASS =
-  "m-0 flex flex-wrap items-start gap-2 text-op-xs font-normal text-op-card-subtitle-color"
+  "m-0 flex flex-wrap items-start gap-2 font-sans text-op-xs font-normal text-op-card-subtitle-color"
 
 export const LIVE_OFFERS_CARD_ACTIONS_CLASS =
   "flex shrink-0 flex-wrap items-center gap-3"

@@ -4,7 +4,15 @@ import {
 } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
+import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import type { ActivationPeriodBadgePresentation } from "@/lib/operatorHome/activationPeriod"
+import { operatorDashboardBillingCreditsManagePlanPath } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import {
+  ACTIVATE_PILOT_FROM_FREE_CONFIRM,
+  submitActivatePilotFromFree,
+} from "@/lib/operatorHome/activatePilotFromFree"
+import { shouldGateFreeProductWrite } from "@/lib/operatorHome/freeProductWriteGate"
+import { resolveOperatorHomeHeroMode } from "@/lib/operatorHome/heroPresentation"
 import { homeCampaignRecommendationDraftPrefill } from "@/lib/operatorHome/homeCampaignRecommendationDraftPrefill"
 import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecommendationPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
@@ -13,16 +21,21 @@ import {
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
   operatorDashboardOfferDetailsPath,
+  type OperatorDashboardMode,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import { NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { planHomeNeedsAttentionCta } from "@/lib/operatorHome/planHomeNeedsAttentionCta"
 import type { HomeRecommendation } from "@/types/operatorHome"
 import { HELP_CENTRE_URL } from "@/config/support"
+import { useState } from "react"
 import { useNavigate, useOutletContext } from "react-router-dom"
 import { toast } from "sonner"
 
 type HomePageProps = {
   activationPeriodBadge: ActivationPeriodBadgePresentation | null
+  subscriptionPlan: string
+  mode: OperatorDashboardMode
+  selectedLocationId: number | null
 }
 
 function openInNewTab(path: string): void {
@@ -31,11 +44,21 @@ function openInNewTab(path: string): void {
 
 export function HomePage({
   activationPeriodBadge,
+  subscriptionPlan,
+  mode,
+  selectedLocationId,
 }: HomePageProps) {
   const home = useHomePageModule()
   const navigate = useNavigate()
-  const { mode, selectedLocationId, locations } =
+  const { locations, reloadWorkspace } =
     useOutletContext<DashboardOutletContext>()
+  const heroMode = resolveOperatorHomeHeroMode(subscriptionPlan)
+  const choosePlanHref =
+    selectedLocationId != null
+      ? operatorDashboardBillingCreditsManagePlanPath(mode, selectedLocationId)
+      : null
+  const [pilotConfirmOpen, setPilotConfirmOpen] = useState(false)
+  const [pilotConfirmBusy, setPilotConfirmBusy] = useState(false)
   const homePerformanceDateRange = useDashboardUiStore(
     (state) => state.homePerformanceDateRange
   )
@@ -50,6 +73,9 @@ export function HomePage({
   )
   const setFeedbackInboxIntent = useDashboardUiStore(
     (state) => state.setFeedbackInboxIntent
+  )
+  const requestActivateDialog = useDashboardUiStore(
+    (state) => state.requestActivateDialog
   )
 
   const navigateToGuestProfile = (locationGuestId: number) => {
@@ -66,6 +92,10 @@ export function HomePage({
     recommendation: HomeRecommendation
   ) => {
     if (isHomeRecommendationCampaignType(recommendation.type)) {
+      if (shouldGateFreeProductWrite(subscriptionPlan)) {
+        requestActivateDialog()
+        return
+      }
       const draftPrefill =
         homeCampaignRecommendationDraftPrefill(recommendation)
       if (draftPrefill != null) {
@@ -184,6 +214,17 @@ export function HomePage({
       ) : null}
       <HomeBody
         viewModel={viewModel}
+        heroMode={heroMode}
+        choosePlanHref={choosePlanHref}
+        onStartPilot={() => {
+          if (heroMode === "free") {
+            setPilotConfirmOpen(true)
+            return
+          }
+          if (choosePlanHref != null) {
+            navigate(choosePlanHref)
+          }
+        }}
         activationPeriodBadge={activationPeriodBadge}
         selectedDateRange={homePerformanceDateRange}
         onCommitHomePerformanceDateRange={handleCommitHomePerformanceDateRange}
@@ -196,6 +237,10 @@ export function HomePage({
         liveOffersError={home.snapshot.liveOffersError}
         liveOffersPauseBusy={home.snapshot.liveOffersPauseBusy}
         onLiveOffersEmptyAction={(actionId) => {
+          if (shouldGateFreeProductWrite(subscriptionPlan)) {
+            requestActivateDialog()
+            return
+          }
           if (actionId === "create-offer") {
             setOffersIntent({ openBlankCreate: true })
             navigate(operatorDashboardNavPath(mode, "offers", locationId))
@@ -224,7 +269,13 @@ export function HomePage({
             })
           )
         }}
-        onPauseLiveCampaign={(campaignId) => home.pauseLiveCampaign(campaignId)}
+        onPauseLiveCampaign={(campaignId) => {
+          if (shouldGateFreeProductWrite(subscriptionPlan)) {
+            requestActivateDialog()
+            return
+          }
+          home.pauseLiveCampaign(campaignId)
+        }}
         needsAttentionLoadStatus={home.snapshot.needsAttentionLoadStatus}
         needsAttention={home.snapshot.needsAttention}
         needsAttentionError={home.snapshot.needsAttentionError}
@@ -239,6 +290,10 @@ export function HomePage({
             locationId,
           })
           if (plan.kind === "duplicate-as-draft") {
+            if (shouldGateFreeProductWrite(subscriptionPlan)) {
+              requestActivateDialog()
+              return
+            }
             void (async () => {
               const result = await home.duplicateNeedsAttentionCampaign(
                 plan.campaignId
@@ -401,6 +456,37 @@ export function HomePage({
         onCancelFeedbackNoteDelete={home.cancelFeedbackNoteDelete}
         onConfirmFeedbackNoteDelete={() => {
           void home.confirmFeedbackNoteDelete()
+        }}
+      />
+      <AccountWorkspaceConfirmDialog
+        open={pilotConfirmOpen}
+        title={ACTIVATE_PILOT_FROM_FREE_CONFIRM.title}
+        body={ACTIVATE_PILOT_FROM_FREE_CONFIRM.body}
+        primaryLabel={ACTIVATE_PILOT_FROM_FREE_CONFIRM.primaryLabel}
+        busy={pilotConfirmBusy}
+        onOpenChange={(next) => {
+          if (!next && !pilotConfirmBusy) {
+            setPilotConfirmOpen(false)
+          }
+        }}
+        onPrimary={() => {
+          void (async () => {
+            setPilotConfirmBusy(true)
+            try {
+              await submitActivatePilotFromFree()
+              setPilotConfirmOpen(false)
+              await reloadWorkspace()
+            } catch {
+              toast.error("Could not start Pilot. Please try again.")
+            } finally {
+              setPilotConfirmBusy(false)
+            }
+          })()
+        }}
+        onCancel={() => {
+          if (!pilotConfirmBusy) {
+            setPilotConfirmOpen(false)
+          }
         }}
       />
     </>

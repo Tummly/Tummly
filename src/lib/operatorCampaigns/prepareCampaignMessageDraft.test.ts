@@ -35,6 +35,7 @@ const sampleRequest: PrepareCampaignMessageDraftRequest = {
   mode: "prepare",
   currentBody: null,
   currentSubject: null,
+  confirmedOffer: null,
 }
 
 describe("prepareCampaignMessageDraft", () => {
@@ -93,6 +94,44 @@ describe("prepareCampaignMessageDraft", () => {
     const result = await prepareCampaignMessageDraft(sampleRequest)
 
     expect(result).toEqual({ status: "failed", retryable: true })
+  })
+
+  it("forwards confirmedOffer on the API body", async () => {
+    prepareCampaignMessageDraftApiMock.mockResolvedValue({
+      success: true,
+      body: "Enjoy 15% off.",
+      subject: "15% off",
+      channel: "email",
+    })
+
+    const confirmedOffer = {
+      offerType: "percentage_discount" as const,
+      title: "15% off your next visit",
+      description: "Enjoy 15% off your next meal with us.",
+      validity: "30_days_after_issue" as const,
+      expiryDate: null,
+      discountPercentage: 15,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+    }
+
+    await prepareCampaignMessageDraft({
+      ...sampleRequest,
+      offerStance: "existing-offer",
+      confirmedOffer,
+    })
+
+    expect(prepareCampaignMessageDraftApiMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offerStance: "existing-offer",
+        confirmedOffer,
+      }),
+      expect.any(AbortSignal)
+    )
   })
 
   it("maps rewrite mode through to the API body", async () => {

@@ -38,6 +38,7 @@ import {
   formatCurrentPlanSummary,
   isCancelScheduled,
   liveCadenceFromSnapshot,
+  normalizeCurrentPlanId,
   resolvePlanChangeKind,
   ADDITIONAL_GROUP_LOCATION_COPY,
   type AdditionalGroupLocationViewModel,
@@ -160,7 +161,7 @@ export type PlanChangeRequest = {
 }
 
 export type PlanChangeResult = {
-  outcome: "pay" | "scheduled"
+  outcome: "pay" | "scheduled" | "applied"
   redirectUrl?: string | null
   scheduledChangeLine?: string | null
 }
@@ -1067,7 +1068,7 @@ export function createOperatorBillingCreditsPageModule(
         return
       }
 
-      const currentPlanId = plan.subscriptionPlan as ManagePlanId
+      const currentPlanId = normalizeCurrentPlanId(plan.subscriptionPlan)
       const liveCadence = liveCadenceFromSnapshot(plan)
       const changeKind = resolvePlanChangeKind({
         currentPlanId,
@@ -1119,6 +1120,11 @@ export function createOperatorBillingCreditsPageModule(
         if (result.outcome === "pay" && result.redirectUrl != null) {
           pendingPayRedirectUrl = result.redirectUrl
           refreshSnapshot()
+          return
+        }
+
+        if (result.outcome === "applied") {
+          await load()
           return
         }
 

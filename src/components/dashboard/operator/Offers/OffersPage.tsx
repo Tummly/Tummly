@@ -9,6 +9,7 @@ import { StaffRedeemDialog } from "@/components/dashboard/operator/Offers/StaffR
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { useOffersPageModule } from "@/components/dashboard/operator/Offers/utils/useOffersPageModule"
@@ -42,6 +43,7 @@ export function OffersPage() {
   const navigate = useNavigate()
   const offersIntent = useDashboardUiStore((state) => state.offersIntent)
   const setOffersIntent = useDashboardUiStore((state) => state.setOffersIntent)
+  const gateFreeProductWrite = useGateFreeProductWrite()
 
   useEffect(
     () => () => {
@@ -81,12 +83,15 @@ export function OffersPage() {
       return
     }
     setOffersIntent(null)
-    openCreateOfferDrawer()
+    gateFreeProductWrite(() => {
+      openCreateOfferDrawer()
+    })
   }, [
     offersIntent,
     openCreateOfferDrawer,
     setOffersIntent,
     snapshot.viewModel,
+    gateFreeProductWrite,
   ])
 
   const redemptionLogHref = useMemo(() => {
@@ -149,11 +154,19 @@ export function OffersPage() {
         createOfferDrawer={snapshot.createOfferDrawer}
         redemptionLogHref={redemptionLogHref}
         onOpenCreateOffer={() => {
-          void openCreateOffer()
+          gateFreeProductWrite(() => {
+            void openCreateOffer()
+          })
         }}
-        onCreateOfferFromEmpty={openCreateOfferDrawer}
+        onCreateOfferFromEmpty={() => {
+          gateFreeProductWrite(() => {
+            openCreateOfferDrawer()
+          })
+        }}
         onUseTemplateFromEmpty={() => {
-          void openCreateOffer()
+          gateFreeProductWrite(() => {
+            void openCreateOffer()
+          })
         }}
         onCloseCreateOffer={closeCreateOfferDrawer}
         onPatchCreateOfferDraft={patchCreateOfferDraft}

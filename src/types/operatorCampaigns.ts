@@ -43,6 +43,12 @@ export type CampaignsListItem = {
   channel: string | null
   audienceKey: string | null
   offerStance: string | null
+  /** Catalog Offer title when attached — list Offer column (ticket 30). */
+  offerTitle?: string | null
+  /** Wire validity when an Offer is attached. */
+  offerValidity?: string | null
+  /** Calendar expiry (yyyy-MM-dd) when validity is choose_expiry_date. */
+  offerExpiryDate?: string | null
   createdByUserId?: number | null
   createdByDisplayName?: string | null
   updatedAt: string
@@ -56,6 +62,10 @@ export type CampaignsListItem = {
   engagement: string | null
   /** Null for Draft — no redemptions. */
   redemptions: string | null
+  /** Frozen recipient count after commit — Channel detail / Delivery total. */
+  recipientCount?: number | null
+  /** SMS segments per message; null when not SMS. */
+  smsPartsPerMessage?: number | null
   /** Stable fire-close reason when failed / partially-sent. */
   terminalReason?: string | null
 }
@@ -749,6 +759,20 @@ export type PrepareCampaignMessageDraftApiRequest = {
   mode: "prepare" | "rewrite_subject" | "rewrite_message"
   currentBody?: string | null
   currentSubject?: string | null
+  confirmedOffer?: {
+    offerType: string
+    title: string
+    description: string
+    validity: string
+    expiryDate?: string | null
+    discountPercentage?: number | null
+    discountAmount?: number | null
+    freeItemText?: string | null
+    purchaseRequirement?: string | null
+    minimumSpend?: number | null
+    additionalExclusions?: string | null
+    replacementItemText?: string | null
+  } | null
 }
 
 export type PrepareCampaignMessageDraftApiResponse = {

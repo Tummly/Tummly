@@ -19,6 +19,7 @@ import {
   ACTIVATE_TUMMLY_PILOT_DIALOG_HERO_CLASS,
   ACTIVATE_TUMMLY_PILOT_DIALOG_TITLE_CLASS,
   ACTIVATE_TUMMLY_PILOT_DIALOG_TITLE_ROW_CLASS,
+  activateDialogCopyForPlan,
 } from "@/lib/operatorHome/activateTummlyPilotDialogPresentation"
 
 export type ActivateTummlyPilotDialogProps = {
@@ -26,6 +27,8 @@ export type ActivateTummlyPilotDialogProps = {
   onOpenChange: (open: boolean) => void
   onStartPilot: () => void
   onViewPlans: () => void
+  /** Pilot (default) or Free — selects dialog copy. */
+  subscriptionPlan?: string
 }
 
 export function ActivateTummlyPilotDialog({
@@ -33,8 +36,12 @@ export function ActivateTummlyPilotDialog({
   onOpenChange,
   onStartPilot,
   onViewPlans,
+  subscriptionPlan = "Pilot",
 }: ActivateTummlyPilotDialogProps) {
-  const copy = ACTIVATE_TUMMLY_PILOT_DIALOG_COPY
+  const copy =
+    subscriptionPlan === "Free"
+      ? activateDialogCopyForPlan("Free")
+      : ACTIVATE_TUMMLY_PILOT_DIALOG_COPY
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

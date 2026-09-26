@@ -1,67 +1,71 @@
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 
-import Footer from "@/components/home/Footer"
-import { HelpCentreFormPanel } from "@/components/help-centre/HelpCentreFormPanel"
+import { ContactPageShell } from "@/components/help-centre/ContactPageShell"
+import { Button } from "@/components/ui/button"
 import {
-  HELP_CENTRE_CONTACT_URL,
-  HELP_CENTRE_MY_QUERIES_URL,
-  HELP_CENTRE_URL,
-} from "@/config/support"
-import { cn } from "@/lib/utils"
-import { useAuthStore } from "@/stores/authStore"
+  formatHelpCentreQueryReference,
+  maskHelpCentreContactEmail,
+  type HelpCentreContactSuccessState,
+} from "@/lib/helpCentreContactSuccess"
 
-const successLinkClass =
-  "text-sm font-medium underline underline-offset-2 sm:text-base"
+const backHomeClass =
+  "h-auto min-h-11 w-fit gap-1.5 rounded-[4px] border border-[#4e4e4e] bg-transparent px-[19px] py-[13px] text-sm font-medium leading-5 text-[#141414] shadow-none hover:border-[#707070] hover:bg-black/5"
+
+function isSuccessState(value: unknown): value is HelpCentreContactSuccessState {
+  if (!value || typeof value !== "object") {
+    return false
+  }
+
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.queryId === "number" &&
+    Number.isFinite(record.queryId) &&
+    typeof record.email === "string" &&
+    record.email.trim().length > 0
+  )
+}
 
 export default function HelpCentreContactSuccessPage() {
-  const token = useAuthStore((state) => state.token)
-  const role = useAuthStore((state) => state.role)
-  const isOperator = Boolean(token && role === "USER")
+  const location = useLocation()
+  const state = isSuccessState(location.state) ? location.state : null
 
   return (
-    <div className="flex w-full flex-1 flex-col bg-white">
-      <HelpCentreFormPanel className="flex flex-1 flex-col justify-center">
-        <div className="flex w-full flex-col items-center text-center text-[#232323]">
-          <div className="flex flex-col items-center gap-[22px]">
-            <h1 className="m-0 max-w-[478px] text-[36px] font-bold tracking-[-0.72px]">
-              Thanks — we&apos;ve received your request
-            </h1>
-            <p className="m-0 max-w-[318px] text-lg leading-6 tracking-[-0.36px]">
-              We&apos;ll review the details and contact you using the details
-              provided.
-            </p>
+    <ContactPageShell
+      panel={
+        <>
+          <div className="flex flex-col gap-[18px] text-[#141414]">
+            <h2 className="m-0 font-jakarta text-[34px] font-medium leading-normal text-black">
+              We&apos;ve received your enquiry.
+            </h2>
+            {state ? (
+              <>
+                <p className="m-0 max-w-[553px] text-lg leading-6">
+                  Thank you. We&apos;ll reply to{" "}
+                  {maskHelpCentreContactEmail(state.email)}.
+                </p>
+                <div className="flex flex-wrap items-center gap-3 text-lg leading-6">
+                  <span className="font-bold">Reference:</span>
+                  <span>
+                    {formatHelpCentreQueryReference(state.queryId)}
+                  </span>
+                </div>
+                <p className="m-0 max-w-[553px] text-lg leading-6">
+                  Keep this reference for any follow-up.
+                </p>
+              </>
+            ) : (
+              <p className="m-0 max-w-[553px] text-lg leading-6">
+                Thank you. We&apos;ll review the details and contact you using
+                the details provided.
+              </p>
+            )}
           </div>
 
-          <nav
-            aria-label="Help Centre next steps"
-            className="mt-[50px] flex w-full items-center justify-between gap-4"
-          >
-            <Link
-              to={HELP_CENTRE_URL}
-              className={cn(successLinkClass, "text-[#14a74a]")}
-            >
-              Back to Help Centre
-            </Link>
-            {isOperator && (
-              <Link
-                to={HELP_CENTRE_MY_QUERIES_URL}
-                className={cn(successLinkClass, "text-[#14a74a]")}
-              >
-                View my queries
-              </Link>
-            )}
-            <Link
-              to={HELP_CENTRE_CONTACT_URL}
-              className={cn(successLinkClass, "text-[#141414]")}
-            >
-              Submit another request
-            </Link>
-          </nav>
-        </div>
-      </HelpCentreFormPanel>
-      <div className="mt-auto shrink-0">
-        <Footer />
-      </div>
-    </div>
+          <Button asChild variant="outline" className={backHomeClass}>
+            <Link to="/">Back to home</Link>
+          </Button>
+        </>
+      }
+    />
   )
 }

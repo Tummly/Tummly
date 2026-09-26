@@ -10,6 +10,7 @@ import type {
 import {
   formatActivationPeriodBadgeAriaLabel,
   formatActivationPeriodBadgeFullVisibleText,
+  OPERATOR_HOME_FREE_HERO_COPY,
   OPERATOR_HOME_HERO_BADGE_CLASS,
   OPERATOR_HOME_HERO_COPY_CLASS,
   OPERATOR_HOME_HERO_CTA_ROW_CLASS,
@@ -18,16 +19,21 @@ import {
   OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS,
   OPERATOR_HOME_HERO_SUBTITLE_CLASS,
   OPERATOR_HOME_HERO_TITLE_CLASS,
+  type OperatorHomeHeroMode,
 } from "@/lib/operatorHome/heroPresentation"
 import { cn } from "@/lib/utils"
 
 type HomeHeroProps = {
+  mode?: OperatorHomeHeroMode
   activationPeriodBadge: ActivationPeriodBadgePresentation | null
   canPreviewGuestForm: boolean
   canCopySmartGuestLink: boolean
   previewBusy?: boolean
+  choosePlanHref?: string | null
   onPreviewGuestForm?: () => void
   onCopySmartGuestLink?: () => void
+  onChoosePlan?: () => void
+  onStartPilot?: () => void
 }
 
 /** Warning/urgent only — default tone keeps `variant="soft"` chip tokens. */
@@ -41,15 +47,66 @@ const ACTIVATION_PERIOD_BADGE_TONE_CLASS: Record<
     "bg-[#f9dfdf] text-foreground dark:bg-[#f9dfdf]/25 dark:text-[#f4f4f4]",
 }
 
-/** Figma “Your Guest Loop is live” hero — Preview + Copy Smart Guest Link. */
+/** Figma hero — live Guest Loop CTAs, or Free workspace CTAs (`5043:10201`). */
 export function HomeHero({
+  mode = "live",
   activationPeriodBadge,
   canPreviewGuestForm,
   canCopySmartGuestLink,
   previewBusy = false,
+  choosePlanHref = null,
   onPreviewGuestForm,
   onCopySmartGuestLink,
+  onChoosePlan,
+  onStartPilot,
 }: HomeHeroProps) {
+  if (mode === "free") {
+    const copy = OPERATOR_HOME_FREE_HERO_COPY
+    return (
+      <section className={OPERATOR_HOME_HERO_INNER_CLASS}>
+        <div className={OPERATOR_HOME_HERO_COPY_CLASS}>
+          <div className="flex flex-col gap-4">
+            <h1 className={OPERATOR_HOME_HERO_TITLE_CLASS}>{copy.title}</h1>
+            <p className={OPERATOR_HOME_HERO_SUBTITLE_CLASS}>{copy.subtitle}</p>
+          </div>
+        </div>
+
+        <div className={OPERATOR_HOME_HERO_CTA_ROW_CLASS}>
+          {choosePlanHref != null ? (
+            <Button
+              asChild
+              className={OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS}
+              variant="op-primary"
+            >
+              <Link to={choosePlanHref}>
+                <CrownIcon className="size-4" aria-hidden />
+                {copy.choosePlanCta}
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              className={OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS}
+              variant="op-primary"
+              onClick={onChoosePlan}
+            >
+              <CrownIcon className="size-4" aria-hidden />
+              {copy.choosePlanCta}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="op-secondary"
+            className={OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS}
+            onClick={onStartPilot}
+          >
+            {copy.startPilotCta}
+          </Button>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className={OPERATOR_HOME_HERO_INNER_CLASS}>
       <div className={OPERATOR_HOME_HERO_COPY_CLASS}>

@@ -141,6 +141,10 @@ builder.Services.Configure<IdealPostcodesSettings>(
     builder.Configuration.GetSection("IdealPostcodes")
 );
 
+builder.Services.Configure<RecaptchaSettings>(
+    builder.Configuration.GetSection(RecaptchaSettings.SectionName)
+);
+
 builder.Services.AddQueryAttachmentStorage(builder.Configuration);
 if (builder.Environment.IsEnvironment("Testing"))
 {
@@ -725,6 +729,15 @@ builder.Services.AddHttpClient(
 );
 
 builder.Services.AddScoped<IAddressLookupService, AddressLookupService>();
+
+builder.Services.AddHttpClient(
+    RecaptchaVerifier.HttpClientName,
+    client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(10);
+    }
+);
+builder.Services.AddScoped<IRecaptchaVerifier, RecaptchaVerifier>();
 
 builder.Services.AddHttpClient(
     FeedbackClassificationStructuredOutput.HttpClientName,

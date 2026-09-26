@@ -6,12 +6,8 @@ import {
   getSignupProvisioningStatus,
   retrySignupProvision,
 } from "@/api/signupApi"
-import { GuestLoopReadyStep } from "@/components/guest-loop/GuestLoopReadyStep"
 import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
-import {
-  runProvisioningPhases,
-  type ProvisioningPhaseStatus,
-} from "@/lib/runProvisioningPhases"
+import { Button } from "@/components/ui/button"
 import {
   clearSignupSessionToken,
   readSignupSessionToken,
@@ -19,8 +15,8 @@ import {
 
 const POLL_INTERVAL_MS = 2000
 
-const PREPARING_COPY =
-  "We're preparing the core setup for this location. You can sign in once setup finishes."
+/** Figma provisioning loading copy (`4974:23056`). */
+const PROVISIONING_LOADING_COPY = "Setting up your Tummly workspace…"
 
 async function kickPilotProvision(sessionToken: string) {
   await retrySignupProvision(sessionToken)
@@ -48,26 +44,15 @@ function SignupProvisioningPage() {
   const navigate = useNavigate()
   const sessionToken = readSignupSessionToken()
 
-  const [phase1Status, setPhase1Status] =
-    useState<ProvisioningPhaseStatus>("idle")
-  const [phase2Status, setPhase2Status] =
-    useState<ProvisioningPhaseStatus>("idle")
-  const [phase3Status, setPhase3Status] =
-    useState<ProvisioningPhaseStatus>("idle")
-  const [isWorkspaceReady, setIsWorkspaceReady] = useState(false)
   const [provisioningError, setProvisioningError] = useState<string | null>(
     null
   )
+  const [isBusy, setIsBusy] = useState(false)
   const [provisioningAttempt, setProvisioningAttempt] = useState(0)
 
   const provisioningRunId = useRef(0)
   /** Avoid /signup bounce when goToLogin clears the session before navigate lands. */
   const leavingForLoginRef = useRef(false)
-
-  const isProvisioningActive =
-    phase1Status === "loading" ||
-    phase2Status === "loading" ||
-    phase3Status === "loading"
 
   const goToLogin = useCallback(() => {
     leavingForLoginRef.current = true
@@ -92,8 +77,7 @@ function SignupProvisioningPage() {
     const runId = ++provisioningRunId.current
     let cancelled = false
 
-    const isCurrent = () =>
-      !cancelled && runId === provisioningRunId.current
+    const isCurrent = () => !cancelled && runId === provisioningRunId.current
 
     const pollUntilProvisionable = async (): Promise<"ok" | "redirected"> => {
       while (isCurrent()) {
@@ -123,15 +107,25 @@ function SignupProvisioningPage() {
         }
 
         if (status.status === "AwaitingPayment") {
-          // Paid signup checkout is retired — send them back to finish Pilot setup.
+          if (
+            typeof status.paymentRedirectUrl === "string"
+            && status.paymentRedirectUrl.length > 0
+          ) {
+            window.location.assign(status.paymentRedirectUrl)
+            return "redirected"
+          }
+          // Pay session abandoned or TTL — continue to Free ready path.
+          if (status.ready) {
+            return "ok"
+          }
           navigate("/signup/onboarding", { replace: true })
           return "redirected"
         }
 
         if (
-          status.status === "Provisioning" ||
-          status.status === "Complete" ||
-          status.ready
+          status.status === "Provisioning"
+          || status.status === "Complete"
+          || status.ready
         ) {
           return "ok"
         }
@@ -149,6 +143,13 @@ function SignupProvisioningPage() {
         const status = await getSignupProvisioningStatus(sessionToken)
 
         if (status.ready || status.status === "Complete") {
+          if (
+            typeof status.paymentRedirectUrl === "string"
+            && status.paymentRedirectUrl.length > 0
+          ) {
+            window.location.assign(status.paymentRedirectUrl)
+            return
+          }
           return
         }
 
@@ -173,34 +174,15 @@ function SignupProvisioningPage() {
 
     void (async () => {
       setProvisioningError(null)
-      setIsWorkspaceReady(false)
-      setPhase1Status("idle")
-      setPhase2Status("idle")
-      setPhase3Status("idle")
 
       try {
         const gate = await pollUntilProvisionable()
         if (!isCurrent() || gate === "redirected") return
 
-        const result = await runProvisioningPhases(
-          () => waitUntilReady(),
-          (snapshot) => {
-            if (!isCurrent()) return
-            setPhase1Status(snapshot.phase1)
-            setPhase2Status(snapshot.phase2)
-            setPhase3Status(snapshot.phase3)
-          }
-        )
-
+        await waitUntilReady()
         if (!isCurrent()) return
 
-        if (result.success) {
-          setIsWorkspaceReady(true)
-          goToLogin()
-          return
-        }
-
-        setProvisioningError(result.message)
+        goToLogin()
       } catch (error) {
         if (!isCurrent()) return
         setProvisioningError(
@@ -221,14 +203,11 @@ function SignupProvisioningPage() {
   }, [goToLogin, navigate, provisioningAttempt, sessionToken])
 
   const handleRetry = () => {
-    if (isProvisioningActive || !sessionToken) return
+    if (isBusy || !sessionToken) return
 
     void (async () => {
+      setIsBusy(true)
       setProvisioningError(null)
-      setIsWorkspaceReady(false)
-      setPhase1Status("idle")
-      setPhase2Status("idle")
-      setPhase3Status("idle")
 
       try {
         await kickPilotProvision(sessionToken)
@@ -239,11 +218,13 @@ function SignupProvisioningPage() {
             "We couldn't restart setup. Please try again."
           )
         )
+        setIsBusy(false)
         return
       }
 
       provisioningRunId.current += 1
       setProvisioningAttempt((current) => current + 1)
+      setIsBusy(false)
     })()
   }
 
@@ -253,26 +234,41 @@ function SignupProvisioningPage() {
 
   return (
     <GuestLoopShell
-      contentAlign="start"
+      contentAlign="center"
+      contentMaxWidthClassName="max-w-none"
       showBackButton={Boolean(provisioningError)}
       backButtonDisabled={false}
       onBack={provisioningError ? goToOnboarding : undefined}
     >
-      <GuestLoopReadyStep
-        activeStep={3}
-        phaseStatuses={{
-          phase1: phase1Status,
-          phase2: phase2Status,
-          phase3: phase3Status,
-        }}
-        isWorkspaceReady={isWorkspaceReady}
-        provisioningError={provisioningError}
-        isProvisioningActive={isProvisioningActive}
-        description={PREPARING_COPY}
-        primaryActionLabel="Continue to sign in"
-        onOpenWorkspace={goToLogin}
-        onRetry={handleRetry}
-      />
+      {provisioningError ? (
+        <div className="mx-auto flex w-full max-w-[473px] flex-col gap-6">
+          <p className="m-0 text-center font-sans text-lg font-normal leading-6 text-[#141414]">
+            We couldn&apos;t finish setting up your account.
+          </p>
+          <div
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700"
+            role="alert"
+          >
+            {provisioningError}
+          </div>
+          <Button
+            type="button"
+            disabled={isBusy}
+            onClick={handleRetry}
+            className="h-[45px] w-full rounded-[4px] bg-[#14a74a] text-sm font-medium text-white shadow-none hover:bg-[#14a74a]/90"
+          >
+            {isBusy ? "Retrying…" : "Retry"}
+          </Button>
+        </div>
+      ) : (
+        <p
+          className="m-0 text-center font-sans text-lg font-normal leading-6 text-[#141414]"
+          role="status"
+          aria-live="polite"
+        >
+          {PROVISIONING_LOADING_COPY}
+        </p>
+      )}
     </GuestLoopShell>
   )
 }

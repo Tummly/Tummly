@@ -64,6 +64,7 @@ export type CampaignDetailPreviewViewModel = {
   offerLogic: CampaignDetailPreviewOfferLogicRow[]
   sendLogicLabel: string
   footerDisclaimer: string
+  editCampaignLabel: string
   closeLabel: string
 }
 
@@ -203,6 +204,7 @@ function buildViewModel(
     offerLogic: [],
     sendLogicLabel: sendLogicLabelForStatus(campaign.status),
     footerDisclaimer: CAMPAIGN_DETAIL_PREVIEW_COPY.footerDisclaimer,
+    editCampaignLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.editCampaign,
     closeLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.close,
   }
 }

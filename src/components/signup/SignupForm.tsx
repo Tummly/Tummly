@@ -41,7 +41,7 @@ export function SignupForm({ form, onSubmit }: SignupFormProps) {
     <div className="flex w-full flex-col gap-10">
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-3 text-center text-[#141414]">
-          <h1 className="m-0 font-serif text-[clamp(1.75rem,4vw,2.375rem)] font-medium leading-normal">
+          <h1 className="m-0 font-jakarta text-[clamp(1.75rem,4vw,2.375rem)] font-medium leading-normal">
             Create your Tummly account
           </h1>
           <p className="m-0 text-base leading-[22px]">

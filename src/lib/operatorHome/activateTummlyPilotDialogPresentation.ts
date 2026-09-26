@@ -5,6 +5,20 @@ export const ACTIVATE_TUMMLY_PILOT_DIALOG_COPY = {
   viewPlansCta: "View plans",
 } as const
 
+/** Free-plan dialog copy (same shell; not “you are on Pilot”). */
+export const ACTIVATE_TUMMLY_FREE_DIALOG_COPY = {
+  title: "Activate Guest Loop at this Location",
+  body: "Your Free workspace is ready. Start a 30-day Pilot or choose a paid plan to unlock capture, offers and campaigns.",
+  startCta: "Start 30-day Pilot",
+  viewPlansCta: "Choose a plan",
+} as const
+
+export function activateDialogCopyForPlan(subscriptionPlan: string) {
+  return subscriptionPlan === "Free"
+    ? ACTIVATE_TUMMLY_FREE_DIALOG_COPY
+    : ACTIVATE_TUMMLY_PILOT_DIALOG_COPY
+}
+
 /** Overrides default DialogContent marketing hex with Operator theme tokens.
  * Figma root uses 30px between the CTA block and the hero (`gap-[30px]`).
  */
@@ -18,11 +32,11 @@ export const ACTIVATE_TUMMLY_PILOT_DIALOG_TITLE_ROW_CLASS =
   "flex w-full items-start gap-[22px]"
 
 export const ACTIVATE_TUMMLY_PILOT_DIALOG_TITLE_CLASS =
-  "pr-0 text-2xl font-bold tracking-normal text-op-text-primary"
+  "pr-0 font-jakarta text-2xl font-bold tracking-normal text-op-text-primary"
 
 /** Figma Main Bg/Title (#171717) — same token as the heading, not Subtitle. */
 export const ACTIVATE_TUMMLY_PILOT_DIALOG_BODY_CLASS =
-  "max-w-none text-sm font-semibold leading-[19px] text-op-text-primary"
+  "max-w-none font-sans text-sm font-semibold leading-[19px] text-op-text-primary"
 
 export const ACTIVATE_TUMMLY_PILOT_DIALOG_ACTIONS_CLASS =
   "flex flex-wrap items-center gap-3"

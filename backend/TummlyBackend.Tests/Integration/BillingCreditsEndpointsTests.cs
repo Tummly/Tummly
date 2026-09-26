@@ -632,6 +632,51 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostPlanChange_AppliesPilot_FromFree_WithoutPay()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var account = await context.BillingAccounts
+                    .FirstAsync(row => row.RestaurantId == seeded.RestaurantId);
+                account.SubscriptionPlan = BillingSubscriptionPlans.Free;
+                account.BillingStatus = BillingStatuses.Free;
+                account.BillingCycle = null;
+                account.RenewalDateUtc = null;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(new
+            {
+                targetPlan = "Pilot",
+                targetCadence = "monthly",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("applied", body.GetProperty("outcome").GetString());
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var account = await context.BillingAccounts
+                    .AsNoTracking()
+                    .FirstAsync(row => row.RestaurantId == seeded.RestaurantId);
+                Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+                Assert.Equal(BillingStatuses.Pilot, account.BillingStatus);
+            }
+        }
+
+        [Fact]
         public async Task PostPlanChange_Returns400_IdempotencyKeyRequired_WhenPayNow()
         {
             var seeded = await SeedWorkspaceAsync();

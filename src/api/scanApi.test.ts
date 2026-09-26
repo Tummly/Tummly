@@ -100,6 +100,41 @@ describe("submitGuestFeedback", () => {
       unlockOffer: null,
     })
   })
+
+  it("includes recaptchaToken in the submit body when provided", async () => {
+    mock.onPost(`${API_BASE_URL}/scan/guest-token/feedback`).reply((config) => {
+      const body = JSON.parse(config.data as string) as {
+        recaptchaToken?: string
+        guestName?: string
+      }
+      expect(body.recaptchaToken).toBe("captcha-token-1")
+      expect(body.guestName).toBe("Alex Guest")
+      return [
+        200,
+        {
+          success: true,
+          message: "Feedback submitted successfully.",
+          offer: null,
+        },
+      ]
+    })
+
+    await expect(
+      submitGuestFeedback(
+        "guest-token",
+        {
+          comment: "Great meal",
+          guestName: "Alex Guest",
+          guestContact: "alex@example.com",
+          acceptsOffers: true,
+        },
+        { recaptchaToken: "captcha-token-1" }
+      )
+    ).resolves.toEqual({
+      offer: null,
+      unlockOffer: null,
+    })
+  })
 })
 
 describe("unlockGuestThankYouOffer", () => {

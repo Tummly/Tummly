@@ -31,7 +31,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task PostQuery_ContactUs_CreatesKindNullQuery()
         {
             var response = await PostContactQueryAsync(
-                topic: "billing",
+                topic: "billing-or-subscription",
                 message: "Need help with credits."
             );
 
@@ -49,7 +49,40 @@ namespace TummlyBackend.Tests.Integration
                 .FirstAsync();
             Assert.Null(query.AccountRequestKind);
             Assert.Null(query.RestaurantId);
-            Assert.Equal(HelpCentreQueryTopic.Billing, query.Topic);
+            Assert.Equal(
+                HelpCentreQueryTopic.BillingOrSubscription,
+                query.Topic
+            );
+        }
+
+        [Fact]
+        public async Task PostQuery_ContactUs_AllowsEmptyBusinessName()
+        {
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent("privacy-or-data-request"), "topic");
+            content.Add(new StringContent("Jane Doe"), "submitterName");
+            content.Add(new StringContent("jane@example.com"), "submitterEmail");
+            content.Add(new StringContent("Please delete my data."), "message");
+
+            var response = await _client.PostAsync(
+                "/api/help-centre/queries",
+                content
+            );
+
+            var responseBody = await response.Content.ReadAsStringAsync();
+            Assert.True(
+                response.StatusCode == HttpStatusCode.OK,
+                $"Expected OK but got {response.StatusCode}: {responseBody}"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var query = await context.HelpCentreQueries
+                .OrderByDescending(q => q.Id)
+                .FirstAsync();
+            Assert.Equal(HelpCentreQueryTopic.PrivacyOrDataRequest, query.Topic);
+            Assert.Equal(string.Empty, query.BusinessName);
         }
 
         [Theory]
@@ -60,12 +93,12 @@ namespace TummlyBackend.Tests.Integration
         )]
         [InlineData(
             "AccountExport",
-            "privacy-data",
+            "privacy-or-data-request",
             "Account export requested from Account controls."
         )]
         [InlineData(
             "AccountClosure",
-            "privacy-data",
+            "privacy-or-data-request",
             "Account closure requested from Account controls."
         )]
         public async Task PostQuery_AccountRequest_CreatesQueryWithKindTopicAndStatus(

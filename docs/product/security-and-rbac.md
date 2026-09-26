@@ -179,6 +179,9 @@ Endpoints: `validate-invite`, `setup-account`, `generate-activation-code` — un
 | Surface | Limit | Status |
 |---------|-------|--------|
 | Guest feedback per token | 10 / hour | Shipped (memory cache) |
+| Guest Form thank-you new issues per token | 5 / hour | Shipped (memory cache; re-shows exempt) |
+| Guest Form thank-you new issues per IP | 10 / hour | Shipped (memory cache; re-shows exempt) |
+| Guest Form reCAPTCHA v3 | Required when `Recaptcha:SecretKey` set | Shipped |
 | Activation code verify per user | 5 attempts / 15 min | Shipped (memory cache) |
 | Address suggest / resolve | 60 / 30 per 5 min (defaults) | Shipped |
 | Trial OTP resend (demo/sales) | 60s cooldown; max 5 resends | Shipped |

@@ -2223,6 +2223,14 @@ namespace TummlyBackend.Data
                 .HasFilter("[CampaignId] IS NOT NULL");
 
             modelBuilder.Entity<OfferIssue>()
+                .HasIndex(o => new { o.LocationGuestId, o.CatalogOfferId })
+                .IsUnique()
+                .HasDatabaseName(
+                    "IX_OfferIssues_ThankYou_LocationGuestId_CatalogOfferId"
+                )
+                .HasFilter("[Source] = N'guest_form_thank_you'");
+
+            modelBuilder.Entity<OfferIssue>()
                 .Property(o => o.DiscountPercentage)
                 .HasPrecision(8, 2);
 

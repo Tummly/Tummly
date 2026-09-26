@@ -210,7 +210,7 @@ namespace TummlyBackend.Services
 
         private static PlanEntitlementLimitDto Limit(int cap, int current)
         {
-            if (cap < 1)
+            if (cap < 0)
             {
                 return Unavailable();
             }

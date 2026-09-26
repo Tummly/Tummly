@@ -21,6 +21,7 @@ type AccountWorkspaceConfirmDialogProps = {
   title: string
   body: string
   primaryLabel: string
+  cancelLabel?: string
   busy?: boolean
   onOpenChange: (open: boolean) => void
   onPrimary: () => void
@@ -32,6 +33,7 @@ export function AccountWorkspaceConfirmDialog({
   title,
   body,
   primaryLabel,
+  cancelLabel = ACCOUNT_WORKSPACE_PAGE_COPY.cancel,
   busy = false,
   onOpenChange,
   onPrimary,
@@ -91,7 +93,7 @@ export function AccountWorkspaceConfirmDialog({
             disabled={busy}
             onClick={onCancel}
           >
-            {ACCOUNT_WORKSPACE_PAGE_COPY.cancel}
+            {cancelLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

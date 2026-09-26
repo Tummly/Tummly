@@ -75,9 +75,9 @@ namespace TummlyBackend.Models
                 HelpCentreAccountRequestKind.TransferOwnership =>
                     HelpCentreQueryTopic.SomethingElse,
                 HelpCentreAccountRequestKind.AccountExport =>
-                    HelpCentreQueryTopic.PrivacyData,
+                    HelpCentreQueryTopic.PrivacyOrDataRequest,
                 HelpCentreAccountRequestKind.AccountClosure =>
-                    HelpCentreQueryTopic.PrivacyData,
+                    HelpCentreQueryTopic.PrivacyOrDataRequest,
                 _ => HelpCentreQueryTopic.SomethingElse,
             };
     }

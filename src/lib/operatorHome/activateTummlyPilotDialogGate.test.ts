@@ -29,6 +29,16 @@ describe("shouldOpenActivateTummlyPilotDialog", () => {
     ).toBe(false)
   })
 
+  it("opens when loaded Free and not dismissed", () => {
+    expect(
+      shouldOpenActivateTummlyPilotDialog({
+        status: "loaded",
+        subscriptionPlan: "Free",
+        isDismissed: false,
+      })
+    ).toBe(true)
+  })
+
   it("does not open for non-Pilot plans", () => {
     expect(
       shouldOpenActivateTummlyPilotDialog({

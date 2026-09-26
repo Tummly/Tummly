@@ -5,6 +5,7 @@ import { CaptureMultiRootBody } from "@/components/dashboard/operator/Capture/Ca
 import { CaptureCreateDigitalGuestLinkDialog } from "@/components/dashboard/operator/Capture/CaptureCreateDigitalGuestLinkDialog"
 import { useMultiCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useMultiCapturePageModule"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import {
   CAPTURE_PAGE_ACTION_BUTTON_CLASS,
   CAPTURE_PAGE_ACTIONS_CLASS,
@@ -32,6 +33,7 @@ export function CaptureMultiRootShell() {
   const from = `${location.pathname}${location.search}`
   const archivePath = operatorDashboardCaptureArchivePath("multi", { from })
   const createDialog = snapshot.createDialog
+  const gateFreeProductWrite = useGateFreeProductWrite()
 
   return (
     <div className={CAPTURE_PAGE_STACK_CLASS}>
@@ -51,7 +53,9 @@ export function CaptureMultiRootShell() {
             disabled={!snapshot.canCreateDigitalGuestLink}
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
             onClick={() => {
-              openCreateDialog()
+              gateFreeProductWrite(() => {
+                openCreateDialog()
+              })
             }}
           >
             {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.createDigitalGuestLink}

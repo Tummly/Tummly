@@ -6,6 +6,7 @@ import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSear
 
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestsFilterChipRow } from "@/components/dashboard/operator/Guests/GuestsFilterChipRow"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
@@ -235,6 +236,7 @@ export function TeamPermissionsPage() {
   const navigate = useNavigate()
   const { mode, selectedLocationId, billingCreditsAccess, permissionRole } =
     useOutletContext<DashboardOutletContext>()
+  const gateFreeProductWrite = useGateFreeProductWrite()
   const roleOptions = assignableRolesForActor(snap.actorPermissionRole)
   const canUpgradePlan = billingCreditsHeaderActions({
     accessLevel: billingCreditsAccess,
@@ -331,7 +333,11 @@ export function TeamPermissionsPage() {
                 inviteAtCap={snap.inviteAtCap}
                 inviteAtCapMessage={inviteAtCapMessage}
                 upgradePlanHref={upgradePlanHref}
-                onInvite={() => pageModule.openInvite()}
+                onInvite={() => {
+                  gateFreeProductWrite(() => {
+                    pageModule.openInvite()
+                  })
+                }}
                 onUpgrade={(href) => navigate(href)}
                 showHelper={false}
               />
@@ -406,6 +412,11 @@ export function TeamPermissionsPage() {
               pageModule={pageModule}
               inviteAtCapMessage={inviteAtCapMessage}
               upgradePlanHref={upgradePlanHref}
+              onInvite={() => {
+                gateFreeProductWrite(() => {
+                  pageModule.openInvite()
+                })
+              }}
               onUpgrade={(href) => navigate(href)}
             />
           </TabsContent>
@@ -1073,6 +1084,7 @@ function InvitationsBody({
   pageModule,
   inviteAtCapMessage,
   upgradePlanHref,
+  onInvite,
   onUpgrade,
 }: {
   snap: ReturnType<
@@ -1081,6 +1093,7 @@ function InvitationsBody({
   pageModule: ReturnType<typeof useTeamPermissionsPageModuleApi>
   inviteAtCapMessage: string | null
   upgradePlanHref: string | null
+  onInvite: () => void
   onUpgrade: (href: string) => void
 }) {
   if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
@@ -1136,7 +1149,7 @@ function InvitationsBody({
               inviteAtCap={snap.inviteAtCap}
               inviteAtCapMessage={inviteAtCapMessage}
               upgradePlanHref={upgradePlanHref}
-              onInvite={() => pageModule.openInvite()}
+              onInvite={onInvite}
               onUpgrade={onUpgrade}
               align="start"
               showHelper={false}

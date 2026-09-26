@@ -7,7 +7,6 @@ import {
   type Transition,
 } from "framer-motion"
 
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
   PROVISIONING_PHASE_MIN_MS,
@@ -77,14 +76,6 @@ type GuestLoopReadyStepProps = {
   isProvisioningActive: boolean
   onOpenWorkspace: () => void
   onRetry: () => void
-  /** Override the default preparing-setup description (errors still win). */
-  description?: string
-  /** Label for the ready CTA (default: Open workspace). */
-  primaryActionLabel?: string
-  /** Optional secondary action below the primary CTA. */
-  secondaryActionLabel?: string
-  onSecondaryAction?: () => void
-  secondaryActionEnabled?: boolean
 }
 
 function PhaseSuccessIcon({
@@ -274,11 +265,6 @@ export function GuestLoopReadyStep({
   isProvisioningActive,
   onOpenWorkspace,
   onRetry,
-  description,
-  primaryActionLabel = "Open workspace",
-  secondaryActionLabel,
-  onSecondaryAction,
-  secondaryActionEnabled = true,
 }: GuestLoopReadyStepProps) {
   const phaseStatusList = [
     phaseStatuses.phase1,
@@ -290,11 +276,7 @@ export function GuestLoopReadyStep({
 
   const headerDescription = provisioningError
     ? "We couldn't finish setting up your Guest Loop. You can retry or go back to check your restaurant details."
-    : (description ??
-      "We're preparing the core setup for this location. You can review and adjust everything once you open your workspace.")
-
-  const showSecondary =
-    Boolean(secondaryActionLabel) && typeof onSecondaryAction === "function"
+    : "We're preparing the core setup for this location. You can review and adjust everything once you open your workspace."
 
   return (
     <div className="flex w-full flex-col gap-8 sm:gap-10 lg:gap-12 xl:gap-16">
@@ -350,36 +332,21 @@ export function GuestLoopReadyStep({
         activeStep={activeStep}
         markActiveStepComplete={isWorkspaceReady && !provisioningError}
       >
-        <div className="flex w-full flex-col gap-3">
-          {provisioningError ? (
-            <GuestLoopStepButton
-              enabled={!isProvisioningActive}
-              onClick={onRetry}
-            >
-              Retry
-            </GuestLoopStepButton>
-          ) : (
-            <GuestLoopStepButton
-              enabled={isWorkspaceReady}
-              onClick={onOpenWorkspace}
-            >
-              {primaryActionLabel}
-            </GuestLoopStepButton>
-          )}
-          {showSecondary ? (
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={!secondaryActionEnabled}
-              onClick={() => {
-                onSecondaryAction?.()
-              }}
-              className="h-auto min-h-0 px-2 py-2 text-sm font-medium text-[#232323] underline-offset-4 hover:underline"
-            >
-              {secondaryActionLabel}
-            </Button>
-          ) : null}
-        </div>
+        {provisioningError ? (
+          <GuestLoopStepButton
+            enabled={!isProvisioningActive}
+            onClick={onRetry}
+          >
+            Retry
+          </GuestLoopStepButton>
+        ) : (
+          <GuestLoopStepButton
+            enabled={isWorkspaceReady}
+            onClick={onOpenWorkspace}
+          >
+            Open workspace
+          </GuestLoopStepButton>
+        )}
       </GuestLoopStepFooter>
     </div>
   )

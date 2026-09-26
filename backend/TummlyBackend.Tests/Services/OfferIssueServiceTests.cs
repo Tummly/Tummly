@@ -257,6 +257,165 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task IssueOnThankYouSubmit_SecondCallSameGuest_ReShowsSameClaimCode()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync();
+            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
+
+            var first = await _service.IssueOnThankYouSubmitAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId,
+                feedbackId: 11,
+                _now
+            );
+            var second = await _service.IssueOnThankYouSubmitAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId,
+                feedbackId: 22,
+                _now.AddMinutes(5)
+            );
+
+            Assert.NotNull(first);
+            Assert.NotNull(second);
+            Assert.Equal(first!.ClaimCode, second!.ClaimCode);
+            Assert.Equal(first.Id, second.Id);
+            Assert.Equal(11, second.FeedbackId);
+            Assert.Equal(1, await _context.OfferIssues.CountAsync());
+        }
+
+        [Fact]
+        public async Task IssueOnThankYouSubmit_AfterRedeem_SuppressesNewIssue()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync();
+            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
+
+            var first = await _service.IssueOnThankYouSubmitAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId,
+                feedbackId: 11,
+                _now
+            );
+            Assert.NotNull(first);
+            first!.RedeemedAtUtc = _now.AddMinutes(1);
+            await _context.SaveChangesAsync();
+
+            var second = await _service.IssueOnThankYouSubmitAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId,
+                feedbackId: 22,
+                _now.AddMinutes(10)
+            );
+
+            Assert.Null(second);
+            Assert.Equal(1, await _context.OfferIssues.CountAsync());
+        }
+
+        [Fact]
+        public async Task IssueOnThankYouSubmit_AfterExpiry_SuppressesNewIssue()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync();
+            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
+
+            var first = await _service.IssueOnThankYouSubmitAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId,
+                feedbackId: 11,
+                _now
+            );
+            Assert.NotNull(first);
+            first!.ExpiryAtUtc = _now.AddMinutes(1);
+            await _context.SaveChangesAsync();
+
+            var second = await _service.IssueOnThankYouSubmitAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId,
+                feedbackId: 22,
+                _now.AddMinutes(10)
+            );
+
+            Assert.Null(second);
+            Assert.Equal(1, await _context.OfferIssues.CountAsync());
+        }
+
+        [Fact]
+        public async Task IssueOnThankYouSubmit_WhenAllowNewIssueFalse_AndNoExisting_ReturnsNull()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync();
+            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
+
+            var issue = await _service.IssueOnThankYouSubmitAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId,
+                feedbackId: 55,
+                _now,
+                allowNewIssue: false
+            );
+
+            Assert.Null(issue);
+            Assert.Empty(await _context.OfferIssues.ToListAsync());
+        }
+
+        [Fact]
+        public async Task IssueOnThankYouSubmit_WhenAllowNewIssueFalse_ReShowsExisting()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync();
+            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
+
+            var first = await _service.IssueOnThankYouSubmitAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId,
+                feedbackId: 11,
+                _now
+            );
+            var second = await _service.IssueOnThankYouSubmitAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId,
+                feedbackId: 22,
+                _now.AddMinutes(1),
+                allowNewIssue: false
+            );
+
+            Assert.NotNull(first);
+            Assert.NotNull(second);
+            Assert.Equal(first!.ClaimCode, second!.ClaimCode);
+            Assert.Equal(1, await _context.OfferIssues.CountAsync());
+        }
+
+        [Fact]
+        public async Task TryGetUnlockableThankYouOfferTitle_WhenThankYouAlreadyIssued_ReturnsNull()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync(offersOptOut: true);
+            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
+
+            _context.OfferIssues.Add(
+                new OfferIssue
+                {
+                    CatalogOfferId = seeded.CatalogOfferId,
+                    LocationGuestId = seeded.LocationGuestId,
+                    ClaimCode = "TUM-AAAAAA",
+                    IssuedAtUtc = _now,
+                    ClaimedAtUtc = _now,
+                    Source = OfferIssueSources.GuestFormThankYou,
+                    FeedbackId = 11,
+                    ExpiryAtUtc = _now.AddDays(14),
+                    OfferType = CatalogOfferType.PercentageDiscount,
+                    Title = "10% off next visit",
+                    Description = "Valid on your next visit.",
+                    Validity = CatalogOfferValidity.Days14AfterIssue,
+                    DiscountPercentage = 10m,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var title = await _service.TryGetUnlockableThankYouOfferTitleAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId
+            );
+
+            Assert.Null(title);
+        }
+
+        [Fact]
         public async Task IssueOnRecoverySend_WhenActiveCatalog_CreatesIssue()
         {
             var seeded = await SeedLocationGuestAndOfferAsync();

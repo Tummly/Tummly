@@ -161,7 +161,7 @@ namespace TummlyBackend.Tests.Services
                 "Show this code to the team on your next visit.",
                 _emailService.LastOffer.Description
             );
-            Assert.Equal("PREVIEW-CODE", _emailService.LastOffer.RedemptionCode);
+            Assert.Equal("{PREVIEW-CODE}", _emailService.LastOffer.RedemptionCode);
             Assert.Equal("Expires: 31 July 2026", _emailService.LastOffer.ExpiryLabel);
             Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());
             Assert.Equal(0, await _context.FeedbackRecoveryOffers.CountAsync());

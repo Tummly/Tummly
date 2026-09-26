@@ -63,7 +63,7 @@ function AccessStepCard({
         <p className="m-0 text-sm font-bold uppercase leading-[normal] text-black">
           {step}
         </p>
-        <h3 className="m-0 font-serif text-2xl leading-[normal] text-black">
+        <h3 className="m-0 font-jakarta text-2xl leading-[normal] text-black">
           {title}
         </h3>
         <p className="m-0 text-sm font-normal leading-4.75 text-black">

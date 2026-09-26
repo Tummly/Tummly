@@ -28,6 +28,7 @@ type CampaignDetailPreviewDrawerProps = {
   onOpenChange: (open: boolean) => void
   onRetry: () => void
   onSelectChannel: (channelId: CampaignTemplatePreviewChannelId) => void
+  onEditCampaign: () => void
 }
 
 function SummaryField({ label, value }: { label: string; value: string }) {
@@ -52,6 +53,7 @@ export function CampaignDetailPreviewDrawer({
   onOpenChange,
   onRetry,
   onSelectChannel,
+  onEditCampaign,
 }: CampaignDetailPreviewDrawerProps) {
   const copy = CAMPAIGN_DETAIL_PREVIEW_COPY
   const viewModel = snapshot.viewModel
@@ -66,10 +68,11 @@ export function CampaignDetailPreviewDrawer({
       loadError={snapshot.loadError ?? copy.loadError}
       retryLabel={copy.retry}
       footerDisclaimer={viewModel?.footerDisclaimer ?? null}
-      primaryActionLabel={null}
+      primaryActionLabel={viewModel?.editCampaignLabel ?? null}
       secondaryActionLabel={viewModel?.closeLabel ?? null}
       onOpenChange={onOpenChange}
       onRetry={onRetry}
+      onPrimaryAction={onEditCampaign}
     >
       {viewModel != null ? (
         <PreviewBody

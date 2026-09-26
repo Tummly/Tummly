@@ -5,6 +5,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -183,11 +184,43 @@ namespace TummlyBackend.Controllers
             string subscriptionPlan;
             string billingStatus;
             var chargebackRestricted = false;
+            string? pendingPaymentCheckoutUrl = null;
             if (billingAccount != null)
             {
                 subscriptionPlan = billingAccount.SubscriptionPlan;
                 billingStatus = billingAccount.BillingStatus;
                 chargebackRestricted = billingAccount.ChargebackRestricted;
+
+                if (
+                    string.Equals(
+                        subscriptionPlan,
+                        BillingSubscriptionPlans.Free,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    var openPay = await _context.RevolutPendingPaySessions
+                        .Where(row =>
+                            row.RestaurantId == restaurant.Id && row.IsOpen
+                        )
+                        .OrderByDescending(row => row.CreatedAtUtc)
+                        .FirstOrDefaultAsync();
+                    if (openPay != null)
+                    {
+                        if (
+                            DateTime.UtcNow - openPay.CreatedAtUtc
+                            >= SignupService.PaidSignupPaySessionTtl
+                        )
+                        {
+                            openPay.IsOpen = false;
+                            await _context.SaveChangesAsync();
+                        }
+                        else if (!string.IsNullOrWhiteSpace(openPay.CheckoutUrl))
+                        {
+                            pendingPaymentCheckoutUrl = openPay.CheckoutUrl;
+                        }
+                    }
+                }
             }
             else
             {
@@ -207,6 +240,7 @@ namespace TummlyBackend.Controllers
                 subscriptionPlan,
                 billingStatus,
                 chargebackRestricted,
+                pendingPaymentCheckoutUrl,
                 permissionRole,
                 aiAssistantAccess =
                     assistant.Status == RestaurantPermissionStatus.Allowed,

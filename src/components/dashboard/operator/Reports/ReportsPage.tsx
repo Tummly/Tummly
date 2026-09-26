@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
 import { ReportsKpiStrip } from "@/components/dashboard/operator/Reports/ReportsKpiStrip"
 import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
@@ -174,6 +175,7 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
     dashboardUiStore,
     (state) => state.setCampaignsIntent
   )
+  const gateFreeProductWrite = useGateFreeProductWrite()
   const reports = useReportsPageModule()
   const pageModule = useReportsPageModuleApi()
   const {
@@ -258,8 +260,10 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
             )
           }
           onCreateCampaign={() => {
-            setCampaignsIntent({ openBlankCreate: true })
-            navTo("campaigns")
+            gateFreeProductWrite(() => {
+              setCampaignsIntent({ openBlankCreate: true })
+              navTo("campaigns")
+            })
           }}
         />
 

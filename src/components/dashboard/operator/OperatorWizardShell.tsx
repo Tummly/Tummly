@@ -34,7 +34,7 @@ const SEND_CONFIRM_CONTENT_CLASS =
 const SEND_CONFIRM_HEADER_ROW_CLASS = "flex items-start gap-[22px]"
 
 const SEND_CONFIRM_TITLE_CLASS =
-  "pr-0 text-2xl font-bold leading-normal tracking-normal text-op-text-primary"
+  "pr-0 font-jakarta text-2xl font-bold leading-normal tracking-normal text-op-text-primary"
 
 const SEND_CONFIRM_DESCRIPTION_CLASS =
   "max-w-[395px] text-sm font-medium leading-[18px] tracking-normal text-[var(--op-color-gray-550)]"

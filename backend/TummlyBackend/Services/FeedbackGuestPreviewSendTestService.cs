@@ -18,7 +18,7 @@ namespace TummlyBackend.Services
         /// Sample redemption code for Guest preview send test — never an issued
         /// Recovery offer code (matches frontend Guest preview placeholder).
         /// </summary>
-        public const string SampleRedemptionCode = "PREVIEW-CODE";
+        public const string SampleRedemptionCode = "{PREVIEW-CODE}";
 
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;

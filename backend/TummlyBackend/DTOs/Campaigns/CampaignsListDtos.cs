@@ -23,6 +23,19 @@ namespace TummlyBackend.DTOs.Campaigns
 
         public string? OfferStance { get; init; }
 
+        /// <summary>
+        /// Catalog Offer title when attached; null for no-offer or missing catalog row.
+        /// </summary>
+        public string? OfferTitle { get; init; }
+
+        /// <summary>Wire validity when an Offer is attached.</summary>
+        public string? OfferValidity { get; init; }
+
+        /// <summary>
+        /// Calendar expiry (yyyy-MM-dd) when validity is choose_expiry_date.
+        /// </summary>
+        public string? OfferExpiryDate { get; init; }
+
         public int? CreatedByUserId { get; init; }
 
         public string? CreatedByDisplayName { get; init; }
@@ -40,6 +53,17 @@ namespace TummlyBackend.DTOs.Campaigns
 
         /// <summary>Null for Draft — no redemptions.</summary>
         public string? Redemptions { get; init; }
+
+        /// <summary>
+        /// Frozen recipient count after commit — drives Channel detail / Delivery of-total.
+        /// Null for Draft (no freeze yet).
+        /// </summary>
+        public int? RecipientCount { get; init; }
+
+        /// <summary>
+        /// SMS segments per message from current body; null when not SMS.
+        /// </summary>
+        public int? SmsPartsPerMessage { get; init; }
 
         /// <summary>Base64 SQL rowversion for list lifecycle actions (ticket 30).</summary>
         public byte[] RowVersion { get; init; } = [];

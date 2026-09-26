@@ -1,5 +1,6 @@
 import { CampaignChannelShortfallBanner } from "@/components/dashboard/operator/Campaigns/CampaignChannelStep"
 import { CampaignMessageChooser } from "@/components/dashboard/operator/Campaigns/CampaignMessageChooser"
+import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
 import { GuestPreviewOverlay } from "@/components/dashboard/operator/Feedback/GuestPreviewOverlay"
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
@@ -271,6 +272,11 @@ export function CampaignMessageStep({
                       "min-h-[220px]"
                     )}
                   />
+                  {message.claimCodeTokenHelper != null ? (
+                    <p className="m-0 text-xs font-medium leading-5 text-[var(--op-color-gray-550)]">
+                      {message.claimCodeTokenHelper}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div>
@@ -306,6 +312,11 @@ export function CampaignMessageStep({
         message={message.body}
         locationName={message.locationName}
         locationAddress={message.locationAddress}
+        offerCoupon={
+          message.offerCoupon != null ? (
+            <GuestPreviewOfferCoupon coupon={message.offerCoupon} />
+          ) : undefined
+        }
         onClose={onCloseGuestPreview}
         onEditText={onCloseGuestPreview}
         onSendTest={onSendTest}

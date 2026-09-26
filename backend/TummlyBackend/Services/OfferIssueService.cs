@@ -101,7 +101,8 @@ namespace TummlyBackend.Services
             int locationGuestId,
             int? feedbackId,
             DateTime atUtc,
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken = default,
+            bool allowNewIssue = true
         )
         {
             if (
@@ -126,6 +127,21 @@ namespace TummlyBackend.Services
                     cancellationToken
                 )
             )
+            {
+                return null;
+            }
+
+            var existing = await FindExistingThankYouIssueAsync(
+                locationGuestId,
+                offerId,
+                cancellationToken
+            );
+            if (existing != null)
+            {
+                return ResolveExistingThankYouIssue(existing, atUtc);
+            }
+
+            if (!allowNewIssue)
             {
                 return null;
             }
@@ -182,6 +198,16 @@ namespace TummlyBackend.Services
                     cancellationToken
                 )
             )
+            {
+                return null;
+            }
+
+            var existing = await FindExistingThankYouIssueAsync(
+                locationGuestId,
+                offerId,
+                cancellationToken
+            );
+            if (existing != null)
             {
                 return null;
             }
@@ -647,6 +673,42 @@ namespace TummlyBackend.Services
             return (restaurant, states);
         }
 
+        private async Task<OfferIssue?> FindExistingThankYouIssueAsync(
+            int locationGuestId,
+            int catalogOfferId,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.OfferIssues
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.Source == OfferIssueSources.GuestFormThankYou
+                        && row.LocationGuestId == locationGuestId
+                        && row.CatalogOfferId == catalogOfferId,
+                    cancellationToken
+                );
+        }
+
+        /// <summary>
+        /// Re-show when still redeemable; suppress when redeemed, cancelled, or expired.
+        /// </summary>
+        private static OfferIssue? ResolveExistingThankYouIssue(
+            OfferIssue existing,
+            DateTime atUtc
+        )
+        {
+            if (
+                existing.RedeemedAtUtc != null
+                || existing.CancelledAtUtc != null
+                || existing.ExpiryAtUtc <= atUtc
+            )
+            {
+                return null;
+            }
+
+            return existing;
+        }
+
         private async Task<bool> IsGuestLocationNotActiveAsync(
             int locationGuestId,
             CancellationToken cancellationToken
@@ -772,6 +834,19 @@ namespace TummlyBackend.Services
                 catch (DbUpdateException)
                 {
                     DetachIfTracked(issue);
+
+                    if (source == OfferIssueSources.GuestFormThankYou)
+                    {
+                        var existing = await FindExistingThankYouIssueAsync(
+                            locationGuestId,
+                            catalog.Id,
+                            cancellationToken
+                        );
+                        if (existing != null)
+                        {
+                            return ResolveExistingThankYouIssue(existing, atUtc);
+                        }
+                    }
 
                     if (lockedClaimCode != null || attempt >= MaxCodeAttempts)
                     {

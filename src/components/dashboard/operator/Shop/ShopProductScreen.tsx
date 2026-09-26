@@ -227,7 +227,7 @@ export function ShopProductScreen({
         <div className="flex flex-col gap-6 lg:col-span-6">
           {/* Title & Description */}
           <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-op-text-primary sm:text-3xl">
+            <h1 className="font-jakarta text-2xl font-bold tracking-tight text-op-text-primary sm:text-3xl">
               {product.title}
             </h1>
             <p className="text-sm leading-relaxed text-op-text-secondary">
@@ -379,7 +379,7 @@ export function ShopProductScreen({
             {/* Total and Actions */}
             <div className="flex flex-col gap-4 border-t border-op-border-default/60 pt-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="flex flex-col gap-0.5">
-                <span className="text-2xl font-bold text-op-text-primary sm:text-3xl">
+                <span className="font-jakarta text-2xl font-bold text-op-text-primary sm:text-3xl">
                   £{calculatedPrice}
                 </span>
                 <span className="text-xs text-op-text-muted">

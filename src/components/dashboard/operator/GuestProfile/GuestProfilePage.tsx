@@ -5,6 +5,7 @@ import { useGuestProfilePageModule } from "@/components/dashboard/operator/Guest
 import { GuestProfileShell } from "@/components/dashboard/operator/GuestProfile/GuestProfileShell"
 import { ManageMarketingPreferencesDialog } from "@/components/dashboard/operator/GuestProfile/ManageMarketingPreferencesDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -88,6 +89,7 @@ export function GuestProfilePage({
   const setCampaignsIntent = useDashboardUiStore(
     (state) => state.setCampaignsIntent
   )
+  const gateFreeProductWrite = useGateFreeProductWrite()
   const guestsListPath = operatorDashboardNavPath(
     mode,
     "guests",
@@ -254,10 +256,12 @@ export function GuestProfilePage({
         navigate(headerPaths.deleteGuestData)
       }}
       onCreateCampaign={() => {
-        setCampaignsIntent({ openBlankCreate: true })
-        navigate(
-          operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
-        )
+        gateFreeProductWrite(() => {
+          setCampaignsIntent({ openBlankCreate: true })
+          navigate(
+            operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
+          )
+        })
       }}
     />
       <ManageMarketingPreferencesDialog

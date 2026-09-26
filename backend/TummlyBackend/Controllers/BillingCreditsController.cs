@@ -206,6 +206,33 @@ namespace TummlyBackend.Controllers
             return Ok(usage);
         }
 
+        [HttpPost("pending-payment/continue-on-free")]
+        public async Task<IActionResult> ContinuePendingPaymentOnFree()
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var view = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.View
+            );
+            var forbidden = view.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            await _billingCredits.ContinuePendingPaymentOnFreeAsync(
+                view.RestaurantId
+            );
+            return Ok(new { success = true });
+        }
+
         [HttpPost("plan-change")]
         public async Task<IActionResult> PostPlanChange(
             [FromBody] PlanChangeRequestDto request

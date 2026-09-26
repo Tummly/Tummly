@@ -20,5 +20,14 @@ namespace TummlyBackend.Interfaces
             string idempotencyKey,
             CancellationToken cancellationToken = default
         );
+
+        /// <summary>
+        /// Best-effort Revolut cancel + close all open first-paid sessions
+        /// (Continue on Free / Free→Pilot).
+        /// </summary>
+        Task AbandonOpenSessionsAsync(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        );
     }
 }

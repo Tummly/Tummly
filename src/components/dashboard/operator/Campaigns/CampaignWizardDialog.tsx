@@ -251,11 +251,6 @@ export function CampaignWizardDialog({
             </Button>
           ) : (
             <div className="flex flex-col items-end gap-2">
-              {snapshot.review?.sendBlockedReason != null ? (
-                <p className="m-0 max-w-[360px] text-right text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
-                  {snapshot.review.sendBlockedReason}
-                </p>
-              ) : null}
               {snapshot.review?.channelShortfall != null ? (
                 <div className="flex flex-wrap items-center justify-end gap-3">
                   {snapshot.review.channelShortfall.buyCreditsLabel != null ? (
@@ -306,6 +301,11 @@ export function CampaignWizardDialog({
                   {snapshot.primaryActionLabel}
                 </Button>
               </div>
+              {snapshot.review?.sendBlockedReason != null ? (
+                <p className="m-0 max-w-[360px] text-right text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+                  {snapshot.review.sendBlockedReason}
+                </p>
+              ) : null}
             </div>
           )
         }

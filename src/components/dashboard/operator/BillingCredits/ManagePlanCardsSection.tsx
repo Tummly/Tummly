@@ -74,7 +74,7 @@ function PlanCard({
       }
     >
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex min-h-9 items-center justify-between gap-3">
           <h3 className={MANAGE_PLAN_CARD_TITLE_CLASS}>{card.id}</h3>
           {card.isMostPopular ? (
             <span className="shrink-0 rounded bg-primary/18 px-3 py-2 text-xs font-medium text-primary">
@@ -82,7 +82,9 @@ function PlanCard({
             </span>
           ) : null}
         </div>
-        <p className={MANAGE_PLAN_CARD_DESCRIPTION_CLASS}>{card.description}</p>
+        <p className={cn(MANAGE_PLAN_CARD_DESCRIPTION_CLASS, "min-h-19")}>
+          {card.description}
+        </p>
       </div>
 
         <div className="flex flex-col gap-5">
@@ -97,7 +99,7 @@ function PlanCard({
             </p>
             <p
               className={cn(
-                "m-0 min-h-5 text-sm font-medium text-muted-foreground",
+                "m-0 min-h-10 text-sm font-medium leading-5 text-muted-foreground",
                 card.priceSubline == null && "invisible"
               )}
               aria-hidden={card.priceSubline == null}

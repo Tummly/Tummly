@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { CaptureCreateDigitalGuestLinkDialog } from "@/components/dashboard/operator/Capture/CaptureCreateDigitalGuestLinkDialog"
 import { CaptureDigitalGuestLinksTable } from "@/components/dashboard/operator/Capture/CaptureDigitalGuestLinksTable"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import type {
   CreateDigitalGuestLinkModuleInput,
   CreateDigitalGuestLinkModuleResult,
@@ -55,6 +56,7 @@ export function CaptureDigitalGuestLinksSection({
   const copy = OPERATOR_CAPTURE_SECTION_COPY.digitalGuestLinks
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  const gateFreeProductWrite = useGateFreeProductWrite()
 
   return (
     <section className={CAPTURE_SECTION_CLASS}>
@@ -72,7 +74,9 @@ export function CaptureDigitalGuestLinksSection({
           type="button"
           variant="op-primary"
           onClick={() => {
-            setCreateOpen(true)
+            gateFreeProductWrite(() => {
+              setCreateOpen(true)
+            })
           }}
         >
           {copy.createCta}

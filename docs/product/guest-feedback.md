@@ -186,6 +186,8 @@ Component: `GuestFeedbackSuccess.tsx`
 
 The form captures Offers opt-out. On successful submit with a live Active thank-you attach and the guest not opted out, `POST /api/scan/{token}/feedback` creates an **Offer issue** and returns `offer: { title, description, claimCode, expiryLabel }`. The thank-you screen paints that offer. Opt-out / paused / null attach still succeed with `offer: null`.
 
+**Anti-abuse (thank-you only):** one Guest Form thank-you issue per Location Guest + catalog offer. A later submit with the same contact **re-shows** the same claim code while it is still redeemable; after redeem, cancel, or expiry the offer is omitted (`offer: null`) and no new code is created. New issues are also capped at **5 per QR token / hour** and **10 per client IP / hour** (re-shows do not consume).
+
 ---
 
 ## Operator view of feedback
@@ -228,7 +230,7 @@ sequenceDiagram
 | Issue tags / star rating | Planned — Services marketing copy |
 | Per-location thank-you / offers | Planned — `GuestLoopSetup` fields |
 | Guest-facing privacy policy link | Shipped — Terms + Privacy Notice on form |
-| reCAPTCHA / bot protection | Planned — rate limit only |
+| reCAPTCHA / bot protection | Shipped — Google reCAPTCHA v3 on Guest Form submit (`guest_feedback` action); skipped when site/secret keys unset |
 
 ## Implementation notes
 

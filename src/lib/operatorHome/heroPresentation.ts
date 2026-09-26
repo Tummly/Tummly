@@ -20,11 +20,11 @@ export const OPERATOR_HOME_HERO_COPY_CLASS =
   "flex min-w-0 flex-1 flex-col items-start gap-[26px]"
 
 export const OPERATOR_HOME_HERO_TITLE_CLASS =
-  "font-serif text-2xl leading-10 font-semibold text-op-card-title-color sm:text-[36px]"
+  "font-jakarta text-2xl leading-10 font-semibold text-op-card-title-color sm:text-[36px]"
 
 /** Figma Main Bg/Title on body copy (same as headline). */
 export const OPERATOR_HOME_HERO_SUBTITLE_CLASS =
-  "max-w-[555px] text-sm leading-6 text-op-card-title-color"
+  "max-w-[555px] font-sans text-sm leading-6 text-op-card-title-color"
 
 export const OPERATOR_HOME_HERO_CTA_ROW_CLASS =
   "flex shrink-0 flex-wrap items-center gap-3"
@@ -52,4 +52,21 @@ export function formatActivationPeriodBadgeAriaLabel(
   badge: ActivationPeriodBadgeCopy
 ): string {
   return `${badge.remaining} in your free trial. Ends ${badge.endsOn}`
+}
+
+/** Figma Free Home hero (`5043:10201`). */
+export const OPERATOR_HOME_FREE_HERO_COPY = {
+  title: "Your Tummly workspace is ready",
+  subtitle:
+    "Choose how you'd like to start to activate Guest Loop at this Location.",
+  choosePlanCta: "Choose a plan",
+  startPilotCta: "Start 30-day Pilot",
+} as const
+
+export type OperatorHomeHeroMode = "live" | "free"
+
+export function resolveOperatorHomeHeroMode(
+  subscriptionPlan: string | null | undefined
+): OperatorHomeHeroMode {
+  return subscriptionPlan === "Free" ? "free" : "live"
 }

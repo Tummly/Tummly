@@ -1,8 +1,12 @@
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
+import { buildSignupPath } from "@/lib/signupPlanIntent"
 
-/** Future Pricing page — banner “For groups” CTA and related links. */
+/** Marketing Pricing page — banner “For groups” CTA and related links. */
 export const MARKETING_PRICING_PATH = "/pricing"
+
+/** Marketing How it works page — Contact CTA (page ships later). */
+export const MARKETING_HOW_IT_WORKS_PATH = "/how-it-works"
 
 export type MarketingNavHref =
   | { kind: "route"; to: string }
@@ -71,7 +75,7 @@ export const MARKETING_FOOTER_RESTAURANTS: MarketingNavItem[] = [
   {
     id: "30-day-pilot",
     label: "30-day Pilot",
-    href: { kind: "route", to: "/signup" },
+    href: { kind: "route", to: buildSignupPath({ plan: "Pilot" }) },
   },
   {
     id: "multi-location",
