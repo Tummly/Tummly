@@ -73,7 +73,8 @@ namespace TummlyBackend.Tests.Services
                 _pricebook,
                 _mintLedger,
                 new NoOpBillingAccountLifecycle(),
-                new RecordingFirstPaidConversionPaySession(_db)
+                new RecordingFirstPaidConversionPaySession(_db),
+                new EmailServiceStubBase()
             );
 
             _signup = new SignupService(
@@ -428,7 +429,11 @@ namespace TummlyBackend.Tests.Services
 
         private sealed class TrackingEmailService : EmailServiceStubBase
         {
-            public override Task SendOtpEmailAsync(string toEmail, string otp) =>
+            public override Task SendOtpEmailAsync(
+                string toEmail,
+                string otp,
+                string? restaurantName = null
+            ) =>
                 Task.CompletedTask;
         }
 

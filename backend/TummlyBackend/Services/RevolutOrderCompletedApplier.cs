@@ -32,6 +32,7 @@ namespace TummlyBackend.Services
             private readonly IRevolutMerchantClient _merchant;
             private readonly TimeProvider _clock;
             private readonly TummlySellerVatSettings _sellerVat;
+            private readonly IShopOrderEmailNotifier _shopOrderEmail;
 
             public RevolutOrderCompletedApplier(
                 ApplicationDbContext context,
@@ -43,7 +44,8 @@ namespace TummlyBackend.Services
                 IRevolutMerchantClient merchant,
                 TimeProvider clock,
                 IOptions<TummlySellerVatSettings> sellerVat,
-                ITummlyVatInvoiceEmailDelivery? invoiceEmail = null
+                ITummlyVatInvoiceEmailDelivery? invoiceEmail = null,
+                IShopOrderEmailNotifier? shopOrderEmail = null
             )
             {
                 _context = context;
@@ -56,6 +58,7 @@ namespace TummlyBackend.Services
                 _merchant = merchant;
                 _clock = clock;
                 _sellerVat = sellerVat.Value;
+                _shopOrderEmail = shopOrderEmail ?? NoOpShopOrderEmailNotifier.Instance;
             }
 
         public static bool IsMintableBillingReason(string? billingReason)
@@ -778,6 +781,11 @@ namespace TummlyBackend.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            await _shopOrderEmail.TryNotifyConfirmedAsync(
+                shopOrder.Id,
+                cancellationToken
+            );
         }
 
         private static IReadOnlyList<TummlyVatInvoiceLineItemDto> BuildShopInvoiceLineItems(

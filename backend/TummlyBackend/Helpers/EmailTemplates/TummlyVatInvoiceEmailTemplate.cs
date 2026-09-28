@@ -1,10 +1,12 @@
+using System.Net;
 using TummlyBackend.Helpers;
 
 namespace TummlyBackend.Helpers.EmailTemplates
 {
     /// <summary>
     /// Non-transactional invoice notice — guest chrome with Tummly brand,
-    /// PDF attached separately by <c>EmailService</c>.
+    /// PDF attached separately by <c>EmailService</c>. Uses the same React
+    /// Email guest-response shell as venue guest mail.
     /// </summary>
     public static class TummlyVatInvoiceEmailTemplate
     {
@@ -29,6 +31,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
         }
 
         public static string GenerateHtml(
+            IWebHostEnvironment environment,
             string documentNumber,
             string lineDescription,
             int grossPence,
@@ -42,9 +45,11 @@ namespace TummlyBackend.Helpers.EmailTemplates
                 grossPence
             );
             var baseUrl = frontendBaseUrl.Trim().TrimEnd('/');
-            var logoUrl = $"{baseUrl}{BaseNonTransactionalEmailTemplate.PublicLogoPath}";
+            var logoUrl =
+                $"{baseUrl}{GuestResponseEmailTemplate.PublicLogoPath}";
 
-            return BaseNonTransactionalEmailTemplate.Generate(
+            return GuestResponseEmailTemplate.Generate(
+                environment,
                 BrandTitle,
                 brandSubtitle: null,
                 locationAddress: null,

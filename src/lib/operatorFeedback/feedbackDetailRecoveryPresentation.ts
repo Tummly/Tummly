@@ -43,6 +43,8 @@ export const FEEDBACK_DETAIL_RECOVERY_COPY = {
   addOfferCta: "Add Offer",
   marketingNotAvailableHelper:
     "Marketing permission is not available for this guest.",
+  emailMarketingRequiredReason:
+    "Email marketing opt-in is required to email this guest.",
   noContactReason: "No valid contact method available.",
   followUpUnavailableReason:
     "Feedback follow-up is not available for this guest.",
@@ -256,6 +258,16 @@ export function deriveFeedbackDetailRecoveryActions(input: {
   }
 
   // FD-01 / FD-02 — follow-up available + valid contact.
+  // Email channel guest mail also requires email-marketing opt-in.
+  if (input.contactType === "Email" && marketingChannel == null) {
+    return {
+      respondEnabled: false,
+      respondDisableReason: copy.emailMarketingRequiredReason,
+      addOfferEnabled: false,
+      addOfferHelper: copy.marketingNotAvailableHelper,
+    }
+  }
+
   if (marketingChannel == null) {
     return {
       respondEnabled: true,

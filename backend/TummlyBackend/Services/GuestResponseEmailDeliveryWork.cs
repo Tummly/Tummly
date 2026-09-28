@@ -411,6 +411,38 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
             }
+            catch (GuestResponseEmailMarketingNotGrantedException ex)
+            {
+                _logger.LogInformation(
+                    "Skipping guest response email {GuestResponseId} — email marketing not granted",
+                    ex.GuestResponseId
+                );
+
+                var skipped = await deps.Context.FeedbackGuestResponses
+                    .FirstOrDefaultAsync(
+                        r => r.Id == row.Id,
+                        cancellationToken
+                    );
+
+                if (
+                    skipped is null
+                    || skipped.EmailDeliveryStatus
+                        != GuestResponseEmailDeliveryStatus.Pending
+                    || skipped.EmailDeliveryClaimedAt != claimStamp
+                )
+                {
+                    return;
+                }
+
+                // Terminal skip — do not retry. Fact stays; mail is not sent.
+                skipped.EmailDeliveryStatus =
+                    GuestResponseEmailDeliveryStatus.Accepted;
+                skipped.EmailDeliveredAt = DateTime.UtcNow;
+                skipped.EmailDeliveryClaimedAt = null;
+                skipped.EmailDeliveryRetryAfter = null;
+                await deps.Context.SaveChangesAsync(cancellationToken);
+                return;
+            }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(
@@ -531,6 +563,26 @@ namespace TummlyBackend.Services
                     ? null
                     : location.LocationName;
 
+            var permissionStates = await ResolveEffectivePermissionStatesAsync(
+                deps.Context,
+                feedback,
+                cancellationToken
+            );
+
+            // Email channel guest mail only when email-marketing is granted.
+            if (
+                !LocationGuestChannelPermissionGate.CanSendOnChannel(
+                    restaurant,
+                    permissionStates,
+                    "email"
+                )
+            )
+            {
+                throw new GuestResponseEmailMarketingNotGrantedException(
+                    row.Id
+                );
+            }
+
             var offer = await ResolveOfferBlockAsync(
                 deps.Context,
                 row.Id,
@@ -559,6 +611,44 @@ namespace TummlyBackend.Services
                 ),
                 offer: offer,
                 unsubscribeHref: unsubscribeHref
+            );
+        }
+
+        private static async Task<
+            IReadOnlyDictionary<
+                LocationGuestPermissionKind,
+                LocationGuestPermissionState
+            >
+        > ResolveEffectivePermissionStatesAsync(
+            ApplicationDbContext context,
+            Feedback feedback,
+            CancellationToken cancellationToken
+        )
+        {
+            if (feedback.LocationGuestId is not int locationGuestId)
+            {
+                return LocationGuestPermissionKindExtensions.All.ToDictionary(
+                    kind => kind,
+                    _ => LocationGuestPermissionState.NotRecorded
+                );
+            }
+
+            var guest = await context.LocationGuests
+                .AsNoTracking()
+                .Where(g => g.Id == locationGuestId)
+                .Select(g => new { g.MarketingPreference })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var ledger = new LocationGuestPermissionLedgerService(context);
+            var ledgerStates = await ledger.GetCurrentStatesAsync(
+                locationGuestId,
+                cancellationToken
+            );
+
+            return LocationGuestChannelPermissionGate.ResolveEffectiveStates(
+                guest?.MarketingPreference
+                    ?? LocationGuestMarketingPreference.NotRecorded,
+                ledgerStates
             );
         }
 

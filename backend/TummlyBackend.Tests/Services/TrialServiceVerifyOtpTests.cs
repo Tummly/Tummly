@@ -81,21 +81,82 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public void TrialRequestReceivedEmailTemplate_GenerateBody_IncludesPersonalization()
+        public void TrialRequestReceivedEmailTemplate_Generate_IncludesPersonalization()
         {
-            var body = TrialRequestReceivedEmailTemplate.GenerateBody(
+            var contentRoot = FindBackendContentRoot();
+            var env = new StubWebHostEnvironment { ContentRootPath = contentRoot };
+
+            var html = TrialRequestReceivedEmailTemplate.Generate(
+                env,
                 "Jane Operator",
-                "Test Cafe"
+                "Test Cafe",
+                "https://app.tummly.test/help-center",
+                "https://app.tummly.test/terms",
+                "https://app.tummly.test/privacy",
+                "https://app.tummly.test/cookie-policy",
+                "https://app.tummly.test/email/tummly-logo-dark.png"
             );
 
-            Assert.Contains("Hi Jane,", body);
-            Assert.Contains("guided Tummly trial for Test Cafe", body);
-            Assert.Contains("What happens next", body);
-            Assert.Contains("We help prepare your QR guest prompts", body);
+            Assert.Contains("Hi Jane,", html);
+            Assert.Contains("guided Tummly trial for Test Cafe", html);
+            Assert.Contains("What happens next", html);
+            Assert.Contains("We help prepare your QR guest", html);
+            Assert.Contains("onboarding materials.", html);
             Assert.Equal(
                 "We've received your Tummly trial request",
                 TrialRequestReceivedEmailTemplate.Subject
             );
+            Assert.DoesNotContain("{{", html);
+        }
+
+        private static string FindBackendContentRoot()
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                var candidate = Path.Combine(
+                    dir.FullName,
+                    "Assets",
+                    "emails",
+                    "templates",
+                    "trial-request-received.html"
+                );
+                if (File.Exists(candidate))
+                {
+                    return dir.FullName;
+                }
+
+                var nested = Path.Combine(
+                    dir.FullName,
+                    "TummlyBackend",
+                    "Assets",
+                    "emails",
+                    "templates",
+                    "trial-request-received.html"
+                );
+                if (File.Exists(nested))
+                {
+                    return Path.Combine(dir.FullName, "TummlyBackend");
+                }
+
+                dir = dir.Parent;
+            }
+
+            throw new DirectoryNotFoundException(
+                "Could not locate trial-request-received.html for tests."
+            );
+        }
+
+        private sealed class StubWebHostEnvironment : Microsoft.AspNetCore.Hosting.IWebHostEnvironment
+        {
+            public string EnvironmentName { get; set; } = "Test";
+            public string ApplicationName { get; set; } = "Tests";
+            public string WebRootPath { get; set; } = ".";
+            public string ContentRootPath { get; set; } = ".";
+            public Microsoft.Extensions.FileProviders.IFileProvider WebRootFileProvider { get; set; } =
+                new Microsoft.Extensions.FileProviders.NullFileProvider();
+            public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
+                new Microsoft.Extensions.FileProviders.NullFileProvider();
         }
 
         private async Task SeedPendingTrialAsync(string email, string otp)

@@ -351,13 +351,11 @@ namespace TummlyBackend.Tests.Services
             Assert.NotEqual("old-token", updated.ApprovalToken);
             Assert.NotNull(updated.InviteExpiresAt);
             Assert.NotNull(updated.InviteSentAt);
-            Assert.Single(_emailService.SetupInvitationEmails);
-            Assert.Empty(_emailService.SetupReminderEmails);
             Assert.NotNull(result.SetupLink);
         }
 
         [Fact]
-        public async Task ApplyTransitionAsync_ResendInvite_RotatesTokenAndSendsReminder()
+        public async Task ApplyTransitionAsync_ResendInvite_RotatesTokenWithoutSetupEmail()
         {
             var request = Seed(
                 TrialRequestStatus.Approved,
@@ -374,8 +372,6 @@ namespace TummlyBackend.Tests.Services
             var updated = _context.TrialRequests.Single();
             Assert.Equal(TrialRequestStatus.InviteSent, updated.Status);
             Assert.NotEqual("old-token", updated.ApprovalToken);
-            Assert.Single(_emailService.SetupReminderEmails);
-            Assert.Empty(_emailService.SetupInvitationEmails);
         }
 
         [Fact]
@@ -490,44 +486,11 @@ namespace TummlyBackend.Tests.Services
 
         private sealed class TrackingEmailService : EmailServiceStubBase
         {
-            public List<(string Email, string FullName, string SetupLink)>
-                SetupInvitationEmails { get; } = [];
-
-            public List<(
-                string Email,
-                string FullName,
-                string SetupLink,
-                DateTime ExpiresAtUtc
-            )> SetupReminderEmails { get; } = [];
-
             public List<(string Email, string FullName, string Reason)>
                 DeclineEmails { get; } = [];
 
             public List<(string Email, string FullName, string Message)>
                 MoreInfoEmails { get; } = [];
-
-            public override Task SendAccountSetupEmailAsync(
-                string toEmail,
-                string fullName,
-                string setupLink
-            )
-            {
-                SetupInvitationEmails.Add((toEmail, fullName, setupLink));
-                return Task.CompletedTask;
-            }
-
-            public override Task SendAccountSetupReminderEmailAsync(
-                string toEmail,
-                string fullName,
-                string setupLink,
-                DateTime expiresAtUtc
-            )
-            {
-                SetupReminderEmails.Add(
-                    (toEmail, fullName, setupLink, expiresAtUtc)
-                );
-                return Task.CompletedTask;
-            }
 
             public override Task SendDeclineEmailAsync(
                 string toEmail,

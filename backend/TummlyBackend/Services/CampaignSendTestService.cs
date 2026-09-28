@@ -91,9 +91,14 @@ namespace TummlyBackend.Services
                 UnsubscribeLink.ResolveSigningSecret(_configuration)
             );
 
+            var emailSubject =
+                offerBlock is not null
+                    ? CampaignEmailSubject.Format(offerBlock.Title, brandTitle)
+                    : content.Subject!;
+
             await _emailService.SendGuestResponseEmailAsync(
                 nominatedEmail,
-                content.Subject!,
+                emailSubject,
                 brandTitle,
                 brandSubtitle,
                 location.Address,
@@ -103,7 +108,8 @@ namespace TummlyBackend.Services
                     _configuration["PublicApi:BaseUrl"]
                 ),
                 offer: offerBlock,
-                unsubscribeHref: unsubscribeHref
+                unsubscribeHref: unsubscribeHref,
+                ticketSubject: offerBlock is not null ? string.Empty : null
             );
 
             _analytics.TrackSendTest(locationId);

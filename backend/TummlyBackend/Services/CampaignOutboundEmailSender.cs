@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Services
@@ -88,16 +89,26 @@ namespace TummlyBackend.Services
                     UnsubscribeLink.ResolveSigningSecret(_configuration)
                 );
 
+                var subject =
+                    request.Offer is not null
+                        ? CampaignEmailSubject.Format(
+                            request.Offer.Title,
+                            brandTitle
+                        )
+                        : (request.Subject ?? string.Empty);
+
                 await _emailService.SendGuestResponseEmailAsync(
                     request.ToAddress,
-                    request.Subject ?? string.Empty,
+                    subject,
                     brandTitle,
                     brandSubtitle,
                     location.Address,
                     request.Body,
                     brandLogoUrl: brandLogoUrl,
                     offer: request.Offer,
-                    unsubscribeHref: unsubscribeHref
+                    unsubscribeHref: unsubscribeHref,
+                    // Offer unlocked Figma: message only in the ticket (no subject line).
+                    ticketSubject: request.Offer is not null ? string.Empty : null
                 );
                 return new CampaignOutboundSendResult.Accepted
                 {

@@ -6,6 +6,7 @@ using TummlyBackend.PrintReadyQrMaterials;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Hubs;
 using TummlyBackend.Infrastructure;
 using TummlyBackend.Interfaces;
@@ -612,6 +613,7 @@ builder.Services.AddScoped<IShopMaterialsOrderPaySession, ShopMaterialsOrderPayS
 builder.Services.AddScoped<IShopOrdersListService, ShopOrdersListService>();
 builder.Services.AddScoped<IShopOrderCancelReorderService, ShopOrderCancelReorderService>();
 builder.Services.AddScoped<IAdminShopOrderFulfilmentService, AdminShopOrderFulfilmentService>();
+builder.Services.AddScoped<IShopOrderEmailNotifier, ShopOrderEmailNotifier>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
 builder.Services.AddScoped<ICreditThresholdEvaluator, CreditThresholdEvaluator>();
@@ -1182,6 +1184,22 @@ app.UseMiddleware<ActivationGateMiddleware>();
 app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
+// Email chrome PNGs (React Email). Prefer PublicApi:BaseUrl/email/* in HTML
+// so assets ship with the API and do not wait on a frontend deploy.
+app.MapGet(
+    "/email/{fileName}",
+    (string fileName, IWebHostEnvironment environment) =>
+    {
+        var path = EmailAssets.TryContentRootFilePath(environment, fileName);
+        if (path == null)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.File(path, contentType: "image/png");
+    }
+);
 
 app.MapGet("/health/ready", async (
     ApplicationDbContext db,

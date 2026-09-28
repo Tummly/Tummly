@@ -48,8 +48,9 @@ describe("feedbackDetailRecoveryPresentation", () => {
     })
 
     expect(actions).toEqual({
-      respondEnabled: true,
-      respondDisableReason: null,
+      respondEnabled: false,
+      respondDisableReason:
+        FEEDBACK_DETAIL_RECOVERY_COPY.emailMarketingRequiredReason,
       addOfferEnabled: false,
       addOfferHelper: FEEDBACK_DETAIL_RECOVERY_COPY.marketingNotAvailableHelper,
     })
@@ -145,6 +146,10 @@ describe("feedbackDetailRecoveryPresentation", () => {
     })
 
     expect(actions.addOfferEnabled).toBe(false)
+    expect(actions.respondEnabled).toBe(false)
+    expect(actions.respondDisableReason).toBe(
+      FEEDBACK_DETAIL_RECOVERY_COPY.emailMarketingRequiredReason
+    )
   })
 
   it("FD-03: disables Respond when no valid contact", () => {

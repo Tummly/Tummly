@@ -109,7 +109,10 @@ namespace TummlyBackend.Services
             loaded.Invite.PendingPasswordHash = BCrypt.Net.BCrypt.HashPassword(
                 request.Password
             );
-            await SendEmailOtpAsync(loaded.Invite.Email);
+            await SendEmailOtpAsync(
+                loaded.Invite.Email,
+                restaurantName: loaded.Restaurant!.Name
+            );
             await _context.SaveChangesAsync();
             return null;
         }
@@ -135,7 +138,11 @@ namespace TummlyBackend.Services
                 return "Invalid email or password.";
             }
 
-            await SendEmailOtpAsync(user.Email, user.Id);
+            await SendEmailOtpAsync(
+                user.Email,
+                user.Id,
+                loaded.Restaurant!.Name
+            );
             await _context.SaveChangesAsync();
             return null;
         }
@@ -261,7 +268,11 @@ namespace TummlyBackend.Services
             );
         }
 
-        private async Task SendEmailOtpAsync(string email, int? userId = null)
+        private async Task SendEmailOtpAsync(
+            string email,
+            int? userId = null,
+            string? restaurantName = null
+        )
         {
             var old = await _context.OtpVerifications
                 .Where(row => row.Email == email && !row.IsUsed)
@@ -284,7 +295,7 @@ namespace TummlyBackend.Services
                     ExpiresAt = DateTime.UtcNow.AddMinutes(10),
                 }
             );
-            await _email.SendOtpEmailAsync(email, otpCode);
+            await _email.SendOtpEmailAsync(email, otpCode, restaurantName);
         }
 
         private async Task<User> CreateInviteeUserAsync(

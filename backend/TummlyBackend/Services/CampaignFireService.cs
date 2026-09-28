@@ -740,10 +740,12 @@ namespace TummlyBackend.Services
                 catalog.CustomExpiryDate
             );
 
+            // Description left empty so the Figma Offer unlocked instruction
+            // (QR / code helper copy) is used in RenderOfferBlock.
             return (
                 new GuestResponseEmailOfferBlock(
                     Title: title,
-                    Description: catalog.Description?.Trim() ?? string.Empty,
+                    Description: string.Empty,
                     RedemptionCode: claimCode,
                     ExpiryLabel: FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
                         expiryAt

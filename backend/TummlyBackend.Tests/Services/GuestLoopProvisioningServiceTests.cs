@@ -87,7 +87,8 @@ namespace TummlyBackend.Tests.Services
                 PricebookCatalog.LoadFromDirectory(packDir),
                 new NoOpCreditLedger(),
                 new NoOpBillingAccountLifecycle(),
-                new NoOpFirstPaidConversionPaySession()
+                new NoOpFirstPaidConversionPaySession(),
+                new EmailServiceStubBase()
             );
         }
 

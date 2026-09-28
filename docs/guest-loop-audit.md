@@ -37,10 +37,9 @@ sequenceDiagram
     Admin->>API: POST /admin/approve/{id}
     API->>API: AccountType Single if Locations == "1" else Multi
     API->>API: ApprovalToken (GUID), InviteExpiresAt +14d
-    API->>Email: SendAccountSetupEmailAsync(setupLink)
-    Email->>User: "Setup Account" button
+    Note over Email: Account-setup invite email retired (self-service onboarding)
 
-    User->>FE: Open link (prefer full browser)
+    User->>FE: Open setup link if issued (prefer full browser)
     FE->>API: GET /Trial/validate-setup-token?token=
     API-->>FE: email, fullName, businessName, accountType
     User->>FE: Steps 1–3 (Account, Restaurant, Guest Loop)

@@ -231,6 +231,21 @@ export function buildStartRecoveryIntents(input: {
       }
     }
 
+    // Email channel guest mail requires email-marketing opt-in.
+    if (
+      input.contactCapability === "email_available"
+      && !marketingEligible
+    ) {
+      return {
+        ...definition,
+        enabled: false,
+        disableReason:
+          input.permissionStates != null
+            ? MARKETING_NOT_AVAILABLE_REASON
+            : OFFERS_OPT_OUT_REASON,
+      }
+    }
+
     return {
       ...definition,
       enabled: true,

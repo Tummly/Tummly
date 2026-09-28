@@ -30,6 +30,7 @@ namespace TummlyBackend.Services
         private readonly ICycleEndPlanCancel _cycleEndPlanCancel;
         private readonly ICreditLedger _creditLedger;
         private readonly TummlySellerVatSettings _sellerVat;
+        private readonly IEmailService _emailService;
 
         public BillingCreditsService(
             ApplicationDbContext context,
@@ -46,7 +47,8 @@ namespace TummlyBackend.Services
             ICycleEndPlanChange cycleEndPlanChange,
             ICycleEndPlanCancel cycleEndPlanCancel,
             ICreditLedger creditLedger,
-            IOptions<TummlySellerVatSettings> sellerVat
+            IOptions<TummlySellerVatSettings> sellerVat,
+            IEmailService emailService
         )
         {
             _context = context;
@@ -64,6 +66,7 @@ namespace TummlyBackend.Services
             _cycleEndPlanCancel = cycleEndPlanCancel;
             _creditLedger = creditLedger;
             _sellerVat = sellerVat.Value;
+            _emailService = emailService;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -523,6 +526,12 @@ namespace TummlyBackend.Services
                         mint.Code ?? "pilot_mint_failed"
                     );
                 }
+
+                await TrySendPilotStartedEmailAsync(
+                    ownerRow,
+                    restaurant.Name,
+                    billingAccount.PilotPeriodEnd
+                );
 
                 return new PlanChangeResultDto { Outcome = "applied" };
             }
@@ -2026,6 +2035,36 @@ namespace TummlyBackend.Services
             if (wrote)
             {
                 await _context.SaveChangesAsync();
+            }
+        }
+
+        private async Task TrySendPilotStartedEmailAsync(
+            User? owner,
+            string restaurantName,
+            DateTime? pilotEndUtc
+        )
+        {
+            if (
+                owner == null
+                || string.IsNullOrWhiteSpace(owner.Email)
+                || pilotEndUtc == null
+            )
+            {
+                return;
+            }
+
+            try
+            {
+                await _emailService.SendPilotStartedEmailAsync(
+                    owner.Email,
+                    SignInMetadataResolver.ExtractFirstName(owner.FullName),
+                    restaurantName,
+                    LondonDateFormat.DMmmYyyy(pilotEndUtc.Value)
+                );
+            }
+            catch
+            {
+                // Plan change must not fail when outbound email fails.
             }
         }
     }

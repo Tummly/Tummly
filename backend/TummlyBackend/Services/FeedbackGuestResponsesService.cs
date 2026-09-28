@@ -97,6 +97,14 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            if (channel == FeedbackGuestResponseChannel.Email)
+            {
+                await EnsureEmailMarketingAllowedAsync(
+                    feedback,
+                    cancellationToken
+                );
+            }
+
             await EnsureOperatorBillingAllowsSendAsync(
                 feedback.RestaurantLocationId,
                 cancellationToken
@@ -643,6 +651,65 @@ namespace TummlyBackend.Services
             {
                 throw new ArgumentException(
                     "Guest has not granted feedback follow-up permission."
+                );
+            }
+        }
+
+        private async Task EnsureEmailMarketingAllowedAsync(
+            Feedback feedback,
+            CancellationToken cancellationToken
+        )
+        {
+            if (feedback.LocationGuestId is not { } locationGuestId)
+            {
+                throw new ArgumentException(
+                    "Guest has not opted in for email marketing."
+                );
+            }
+
+            var guestRow = await _context.LocationGuests
+                .AsNoTracking()
+                .Where(g => g.Id == locationGuestId)
+                .Select(g => new
+                {
+                    g.MarketingPreference,
+                    RestaurantId = g.RestaurantLocation!.RestaurantId,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (guestRow == null || guestRow.RestaurantId == 0)
+            {
+                throw new ArgumentException(
+                    "Guest has not opted in for email marketing."
+                );
+            }
+
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstAsync(r => r.Id == guestRow.RestaurantId, cancellationToken);
+
+            var ledgerStates = (
+                await _permissions.GetCurrentStatesBatchAsync(
+                    [locationGuestId],
+                    cancellationToken
+                )
+            )[locationGuestId];
+
+            var states = LocationGuestChannelPermissionGate.ResolveEffectiveStates(
+                guestRow.MarketingPreference,
+                ledgerStates
+            );
+
+            if (
+                !LocationGuestChannelPermissionGate.CanSendOnChannel(
+                    restaurant,
+                    states,
+                    "email"
+                )
+            )
+            {
+                throw new ArgumentException(
+                    "Guest has not opted in for email marketing."
                 );
             }
         }

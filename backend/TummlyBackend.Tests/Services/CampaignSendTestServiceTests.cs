@@ -116,6 +116,10 @@ namespace TummlyBackend.Tests.Services
                 _emailService.LastOffer.RedemptionCode
             );
             Assert.Equal(
+                "Your 15% off your next visit from Offer Venue",
+                _emailService.LastSubject
+            );
+            Assert.Equal(
                 campaignCountBefore,
                 await _context.Campaigns.CountAsync()
             );
@@ -341,7 +345,8 @@ namespace TummlyBackend.Tests.Services
                 string message,
                 string? brandLogoUrl = null,
                 GuestResponseEmailOfferBlock? offer = null,
-                string? unsubscribeHref = null
+                string? unsubscribeHref = null,
+                string? ticketSubject = null
             )
             {
                 CallCount++;

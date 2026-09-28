@@ -49,13 +49,15 @@ namespace TummlyBackend.Services
         private readonly IAdminAuditService _audit;
         private readonly TimeProvider _clock;
         private readonly IRevolutMerchantClient _merchant;
+        private readonly IShopOrderEmailNotifier _shopOrderEmail;
 
         public AdminShopOrderFulfilmentService(
             ApplicationDbContext context,
             IPrintReadyQrMaterialsService printReadyQrMaterials,
             IAdminAuditService audit,
             TimeProvider clock,
-            IRevolutMerchantClient merchant
+            IRevolutMerchantClient merchant,
+            IShopOrderEmailNotifier? shopOrderEmail = null
         )
         {
             _context = context;
@@ -63,6 +65,7 @@ namespace TummlyBackend.Services
             _audit = audit;
             _clock = clock;
             _merchant = merchant;
+            _shopOrderEmail = shopOrderEmail ?? NoOpShopOrderEmailNotifier.Instance;
         }
 
         public async Task<AdminShopOrderListResponseDto> GetListAsync(
@@ -197,6 +200,14 @@ namespace TummlyBackend.Services
 
             order.UpdatedAtUtc = now;
             await _context.SaveChangesAsync(cancellationToken);
+
+            if (transitioningToInTransit)
+            {
+                await _shopOrderEmail.TryNotifyDispatchedAsync(
+                    order.Id,
+                    cancellationToken
+                );
+            }
 
             return AdminShopOrderFulfilmentResult.Ok(
                 await MapWithPrintAssetsAsync(order, cancellationToken)

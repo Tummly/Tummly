@@ -83,15 +83,15 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            var billingContactEmail = await _context.Users
+            var billingContact = await _context.Users
                 .AsNoTracking()
                 .Where(user => user.Id == restaurant.BillingContactUserId)
-                .Select(user => user.Email)
+                .Select(user => new { user.Email, user.FullName })
                 .FirstOrDefaultAsync(cancellationToken);
 
             var toEmail = TummlyVatInvoiceEmailRecipient.Resolve(
                 billingAccount?.BillingEmail,
-                billingContactEmail
+                billingContact?.Email
             );
             if (string.IsNullOrWhiteSpace(toEmail))
             {
@@ -116,11 +116,36 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            var locationId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == invoice.RestaurantId)
+                .OrderBy(row => row.Id)
+                .Select(row => row.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var root = string.Equals(restaurant.AccountType, "Multi", StringComparison.Ordinal)
+                ? "/multi-dashboard"
+                : "/single-dashboard";
+            var billingUrl = locationId == 0
+                ? root
+                : $"{root}/settings/billing-credits?location={locationId}&tab=payment-invoices";
+
+            var firstName = SignInMetadataResolver.ExtractFirstName(
+                billingContact?.FullName ?? string.Empty
+            );
+            if (string.IsNullOrWhiteSpace(firstName))
+            {
+                firstName = "there";
+            }
+
             await _emailService.SendTummlyVatInvoiceEmailAsync(
                 toEmail,
+                firstName,
                 invoice.DocumentNumber,
                 invoice.LineDescription,
                 invoice.GrossPence,
+                invoice.InvoiceDateUtc,
+                billingUrl,
                 pdf.Value.Content,
                 pdf.Value.FileName
             );

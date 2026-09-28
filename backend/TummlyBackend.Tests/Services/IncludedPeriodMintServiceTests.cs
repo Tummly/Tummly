@@ -695,7 +695,11 @@ namespace TummlyBackend.Tests.Services
                 string periodKey,
                 string billingStatus,
                 bool isPilot,
-                CancellationToken cancellationToken = default
+                int used = 0,
+            int remaining = 0,
+            decimal usedShare = 0m,
+            string? resetDateLabel = null,
+            CancellationToken cancellationToken = default
             ) => Task.CompletedTask;
 
             public Task NotifyPaymentFailureDayStepAsync(

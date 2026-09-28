@@ -348,24 +348,11 @@ namespace TummlyBackend.Services
             string? reason
         )
         {
-            if (decision == TrialReviewDecision.Approve)
-            {
-                await _emailService.SendAccountSetupEmailAsync(
-                    trialRequest.Email,
-                    trialRequest.FullName,
-                    setupLink!
-                );
-            }
-            else if (decision == TrialReviewDecision.ResendInvite)
-            {
-                await _emailService.SendAccountSetupReminderEmailAsync(
-                    trialRequest.Email,
-                    trialRequest.FullName,
-                    setupLink!,
-                    trialRequest.InviteExpiresAt!.Value
-                );
-            }
-            else if (decision == TrialReviewDecision.Decline)
+            // Approve / ResendInvite no longer send mail — Operator onboarding is
+            // self-service (no account-setup invite or reminder email).
+            _ = setupLink;
+
+            if (decision == TrialReviewDecision.Decline)
             {
                 await _emailService.SendDeclineEmailAsync(
                     trialRequest.Email,

@@ -60,5 +60,7 @@ namespace TummlyBackend.Interfaces
         public int Remaining { get; init; }
 
         public int Used { get; init; }
+
+        public string? ResetDateLabel { get; init; }
     }
 }

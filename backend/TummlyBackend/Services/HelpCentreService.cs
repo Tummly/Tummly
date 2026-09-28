@@ -273,6 +273,20 @@ namespace TummlyBackend.Services
                 query.Id
             );
 
+            var reference =
+                ContactEnquiryReceivedEmailTemplate.FormatReference(query.Id);
+
+            _ = await EmailDispatch.TrySendAsync(
+                () => _emailService.SendContactEnquiryReceivedEmailAsync(
+                    query.SubmitterEmail,
+                    query.Topic.ToDisplayLabel(),
+                    reference
+                ),
+                _logger,
+                "Failed to send enquiry confirmation email for query {QueryId}",
+                query.Id
+            );
+
             return new
             {
                 id = query.Id,

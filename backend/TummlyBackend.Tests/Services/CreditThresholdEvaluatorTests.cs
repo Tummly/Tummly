@@ -239,6 +239,8 @@ namespace TummlyBackend.Tests.Services
                 PricebookId
             );
             billingAccount.BillingStatus = billingStatus;
+            // Threshold harness uses Pilot allocation grants; keep plan aligned.
+            billingAccount.SubscriptionPlan = BillingSubscriptionPlans.Pilot;
             context.BillingAccounts.Add(billingAccount);
 
             var location = new RestaurantLocation
@@ -370,7 +372,11 @@ namespace TummlyBackend.Tests.Services
                 string periodKey,
                 string billingStatus,
                 bool isPilot,
-                CancellationToken cancellationToken = default
+                int used = 0,
+            int remaining = 0,
+            decimal usedShare = 0m,
+            string? resetDateLabel = null,
+            CancellationToken cancellationToken = default
             )
             {
                 CreditThresholdCalls.Add(

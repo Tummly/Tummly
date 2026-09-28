@@ -104,8 +104,8 @@ namespace TummlyBackend.Tests.Services
             Assert.Single(_email.Sent);
             var staffEmail = Assert.Single(_email.Sent);
             Assert.Equal(seed.StaffEmail, staffEmail.ToEmail);
-            Assert.Null(staffEmail.CtaLabel);
-            Assert.Null(staffEmail.CtaHref);
+            Assert.Equal("View usage", staffEmail.CtaLabel);
+            Assert.Equal("/", staffEmail.CtaHref);
 
             var staffInbox = await _notifications.ListAsync(seed.StaffUserId);
             var notice = Assert.Single(staffInbox);
@@ -330,6 +330,92 @@ namespace TummlyBackend.Tests.Services
                         body,
                         ctaLabel,
                         ctaHref
+                    )
+                );
+                return Task.CompletedTask;
+            }
+
+            public override Task SendUsageWarningEmailAsync(
+                string toEmail,
+                string firstName,
+                string allowanceKind,
+                string percentUsed,
+                string usedAmount,
+                string remainingAmount,
+                string resetDate,
+                string usageUrl
+            )
+            {
+                Sent.Add(
+                    new SentBillingEmail(
+                        toEmail,
+                        firstName,
+                        $"You're nearing your {allowanceKind} allowance",
+                        percentUsed,
+                        "View usage",
+                        usageUrl
+                    )
+                );
+                return Task.CompletedTask;
+            }
+
+            public override Task SendUsageExhaustedEmailAsync(
+                string toEmail,
+                string firstName,
+                string allowanceKind,
+                string ctaUrl,
+                string ctaLabel
+            )
+            {
+                Sent.Add(
+                    new SentBillingEmail(
+                        toEmail,
+                        firstName,
+                        $"Your {allowanceKind} allowance has been used",
+                        string.Empty,
+                        ctaLabel,
+                        ctaUrl
+                    )
+                );
+                return Task.CompletedTask;
+            }
+
+            public override Task SendPaymentActionRequiredEmailAsync(
+                string toEmail,
+                string firstName,
+                string orderDescription,
+                string billingUrl,
+                string ctaLabel
+            )
+            {
+                Sent.Add(
+                    new SentBillingEmail(
+                        toEmail,
+                        firstName,
+                        "Action required for your Tummly payment",
+                        orderDescription,
+                        ctaLabel,
+                        billingUrl
+                    )
+                );
+                return Task.CompletedTask;
+            }
+
+            public override Task SendPilotEndedEmailAsync(
+                string toEmail,
+                string firstName,
+                string restaurantName,
+                string plansUrl
+            )
+            {
+                Sent.Add(
+                    new SentBillingEmail(
+                        toEmail,
+                        firstName,
+                        "Your Tummly Pilot has ended",
+                        restaurantName,
+                        "Choose a plan",
+                        plansUrl
                     )
                 );
                 return Task.CompletedTask;
