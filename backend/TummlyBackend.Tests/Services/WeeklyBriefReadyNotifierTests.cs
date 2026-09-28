@@ -59,6 +59,14 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("weekly-brief-ready", notice.Type);
             Assert.Equal("weekly-brief-reminders", notice.Category);
             Assert.Equal(
+                "Weekly brief ready — Harbour Kitchen",
+                notice.Title
+            );
+            Assert.Equal(
+                "Your weekly summary for Harbour Kitchen is ready.",
+                notice.Body
+            );
+            Assert.Equal(
                 $"{seed.LocationId}:2026-W33",
                 notice.DedupeKey
             );

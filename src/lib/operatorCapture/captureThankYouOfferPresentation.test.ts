@@ -10,7 +10,39 @@ import {
   buildCaptureThankYouPreviewCoupon,
   CAPTURE_CONNECTED_OFFERS_NONE,
   formatCaptureConnectedOffersText,
+  toDisplayedCaptureThankYouOffer,
 } from "./captureThankYouOfferPresentation"
+
+describe("toDisplayedCaptureThankYouOffer", () => {
+  it("keeps live Active attaches", () => {
+    expect(
+      toDisplayedCaptureThankYouOffer({
+        offerId: 9,
+        title: "Free dessert",
+        live: true,
+      })
+    ).toEqual({
+      offerId: 9,
+      title: "Free dessert",
+      live: true,
+    })
+  })
+
+  it("treats Draft or Paused attaches as none", () => {
+    expect(
+      toDisplayedCaptureThankYouOffer({
+        offerId: 9,
+        title: "Welcome draft",
+        live: false,
+      })
+    ).toEqual({ offerId: null, title: null, live: false })
+    expect(toDisplayedCaptureThankYouOffer(null)).toEqual({
+      offerId: null,
+      title: null,
+      live: false,
+    })
+  })
+})
 
 describe("formatCaptureConnectedOffersText", () => {
   it("returns the live attached title", () => {

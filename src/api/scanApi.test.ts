@@ -43,8 +43,35 @@ describe("submitGuestFeedback", () => {
         description: "Guest form thank-you",
         claimCode: "TUM-ABC234",
         expiryLabel: "Expires: 26 August 2026",
+        alreadyClaimed: false,
       },
       unlockOffer: null,
+    })
+  })
+
+  it("maps alreadyClaimed when Scan reuses an existing thank-you Claim", async () => {
+    mock.onPost(`${API_BASE_URL}/scan/guest-token/feedback`).reply(200, {
+      success: true,
+      message: "Feedback submitted successfully.",
+      offer: {
+        title: "Thanks for visiting",
+        description: "Guest form thank-you",
+        claimCode: "TUM-ABC234",
+        expiryLabel: "Expires: 26 August 2026",
+        alreadyClaimed: true,
+      },
+      unlockOffer: null,
+    })
+
+    await expect(
+      submitGuestFeedback("guest-token", {
+        comment: "Great meal",
+        guestName: "Alex Guest",
+        guestContact: "alex@example.com",
+        acceptsOffers: true,
+      })
+    ).resolves.toMatchObject({
+      offer: { alreadyClaimed: true },
     })
   })
 
@@ -168,6 +195,7 @@ describe("unlockGuestThankYouOffer", () => {
       description: "Enjoy",
       claimCode: "TUM-XYZ789",
       expiryLabel: "Expires: 1 October 2026",
+      alreadyClaimed: false,
     })
   })
 })

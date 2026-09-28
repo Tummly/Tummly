@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input"
 import { CAMPAIGN_EXISTING_OFFER_PICKER_COPY } from "@/lib/operatorCampaigns/campaignExistingOfferPickerPresentation"
 import {
   CAPTURE_THANK_YOU_OFFER_COPY,
+  toDisplayedCaptureThankYouOffer,
 } from "@/lib/operatorCapture/captureThankYouOfferPresentation"
 import type { CaptureThankYouOfferDialogSnapshot } from "@/lib/operatorCapture/createCaptureThankYouOfferModule"
 import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorOffers/offerCatalogPresentation"
@@ -89,7 +90,8 @@ export function CaptureThankYouOfferDialog({
   onRetryExisting,
 }: CaptureThankYouOfferDialogProps) {
   const copy = CAPTURE_THANK_YOU_OFFER_COPY
-  const attachedTitle = dialog.attached.title?.trim() ?? ""
+  const displayedAttached = toDisplayedCaptureThankYouOffer(dialog.attached)
+  const attachedTitle = displayedAttached.title?.trim() ?? ""
 
   return (
     <>
@@ -113,11 +115,6 @@ export function CaptureThankYouOfferDialog({
               <p className="m-0 mt-1 text-sm font-medium text-op-text-primary">
                 {attachedTitle}
               </p>
-              {!dialog.attached.live ? (
-                <p className="m-0 mt-1 text-xs text-op-text-secondary">
-                  {copy.notLiveHelper}
-                </p>
-              ) : null}
             </div>
           ) : null}
 
@@ -135,7 +132,7 @@ export function CaptureThankYouOfferDialog({
                 icon={TagIcon}
                 onClick={onSelectExisting}
               />
-              {dialog.attached.offerId != null ? (
+              {displayedAttached.offerId != null ? (
                 <StanceButton
                   title={copy.clearStanceTitle}
                   description={copy.clearStanceDescription}

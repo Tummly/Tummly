@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { buildGuestFeedbackUnlockCopy } from "@/lib/guestFeedback/guestFeedbackUnlockPresentation"
+import {
+  buildGuestFeedbackSharedPrivatelyBody,
+  buildGuestFeedbackUnlockCopy,
+} from "@/lib/guestFeedback/guestFeedbackUnlockPresentation"
 
 describe("buildGuestFeedbackUnlockCopy", () => {
   it("builds the Figma SMS unlock screen copy", () => {
@@ -22,6 +25,14 @@ describe("buildGuestFeedbackUnlockCopy", () => {
       declineCta: "No thanks",
       optOutNote: "You can opt out at any time.",
     })
+  })
+
+  it("builds the shared privately thank-you body for restaurant and location", () => {
+    expect(
+      buildGuestFeedbackSharedPrivatelyBody("KFC", "Camden High Street")
+    ).toBe(
+      "Your feedback has been shared privately with the team at KFC — Camden High Street."
+    )
   })
 
   it("builds the email channel CTA and unsubscribe note", () => {

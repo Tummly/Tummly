@@ -20,7 +20,6 @@ export const CAPTURE_THANK_YOU_OFFER_COPY = {
   clearStanceTitle: "Clear thank-you offer",
   clearStanceDescription: "Guests will not receive an offer on thank-you.",
   attachedLabel: "Attached offer",
-  notLiveHelper: "This offer is not Active. Replace it or clear the attach.",
   closeLabel: "Close",
   attachSuccessToast: "Thank-you offer updated",
   clearSuccessToast: "Thank-you offer cleared",
@@ -36,14 +35,25 @@ export type CaptureThankYouOfferFact = {
   live: boolean
 }
 
+/** Capture / DGL display: only live Active attaches count as attached. */
+export function toDisplayedCaptureThankYouOffer(
+  thankYou: CaptureThankYouOfferFact | null | undefined
+): CaptureThankYouOfferFact {
+  if (thankYou == null || thankYou.offerId == null || !thankYou.live) {
+    return { offerId: null, title: null, live: false }
+  }
+  return thankYou
+}
+
 export function formatCaptureConnectedOffersText(
   thankYou: CaptureThankYouOfferFact | null | undefined
 ): string {
-  if (thankYou == null || thankYou.offerId == null || !thankYou.live) {
+  const displayed = toDisplayedCaptureThankYouOffer(thankYou)
+  if (displayed.offerId == null) {
     return CAPTURE_CONNECTED_OFFERS_NONE
   }
 
-  const title = thankYou.title?.trim() ?? ""
+  const title = displayed.title?.trim() ?? ""
   if (title.length > 0) {
     return title
   }
@@ -58,11 +68,12 @@ export function formatCaptureConnectedOffersText(
 export function buildCaptureThankYouPreviewCoupon(
   thankYou: CaptureThankYouOfferFact | null | undefined
 ): GuestPreviewOfferCouponView | null {
-  if (thankYou == null || thankYou.offerId == null || !thankYou.live) {
+  const displayed = toDisplayedCaptureThankYouOffer(thankYou)
+  if (displayed.offerId == null) {
     return null
   }
 
-  const title = thankYou.title?.trim() ?? ""
+  const title = displayed.title?.trim() ?? ""
   if (title === "") {
     return null
   }

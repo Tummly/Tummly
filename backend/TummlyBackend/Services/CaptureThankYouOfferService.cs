@@ -33,8 +33,9 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            // Tracked: stale non-Active attaches are cleared so Capture / Digital
+            // guest link never show a Draft or Paused offer as attached.
             var location = await _context.RestaurantLocations
-                .AsNoTracking()
                 .FirstOrDefaultAsync(
                     row => row.Id == locationId,
                     cancellationToken
@@ -46,7 +47,21 @@ namespace TummlyBackend.Services
                 return Empty();
             }
 
-            return await BuildDtoAsync(locationId, offerId, cancellationToken);
+            var dto = await BuildDtoAsync(locationId, offerId, cancellationToken);
+            if (dto.ThankYouOfferId != null)
+            {
+                return dto;
+            }
+
+            var previousOfferId = location.ThankYouCatalogOfferId;
+            location.ThankYouCatalogOfferId = null;
+            await _context.SaveChangesAsync(cancellationToken);
+            await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+                previousOfferId,
+                nextOfferId: null,
+                cancellationToken
+            );
+            return Empty();
         }
 
         public async Task<CaptureThankYouOfferSetResult> SetAsync(
@@ -145,18 +160,22 @@ namespace TummlyBackend.Services
             }
 
             var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
-            var live = CatalogOfferStatus.IsAttachableActive(
-                offer.Status,
-                offer.Validity,
-                offer.CustomExpiryDate,
-                today
-            );
+            if (!CatalogOfferStatus.IsAttachableActive(
+                    offer.Status,
+                    offer.Validity,
+                    offer.CustomExpiryDate,
+                    today
+                ))
+            {
+                // Draft / Paused / Archived / expired — not attached for Capture.
+                return Empty();
+            }
 
             return new CaptureThankYouOfferDto
             {
                 ThankYouOfferId = offer.Id,
                 ThankYouOfferTitle = offer.Title,
-                ThankYouOfferLive = live,
+                ThankYouOfferLive = true,
             };
         }
 

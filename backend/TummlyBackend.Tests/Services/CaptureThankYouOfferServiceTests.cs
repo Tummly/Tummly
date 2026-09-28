@@ -110,7 +110,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task GetAsync_WhenStoredOfferPaused_ReturnsLiveFalse()
+        public async Task GetAsync_WhenStoredOfferPaused_ClearsAttachAndReturnsEmpty()
         {
             var seeded = await SeedLocationAndOfferAsync(status: "active");
             await _service.SetAsync(seeded.LocationId, seeded.OfferId);
@@ -122,9 +122,14 @@ namespace TummlyBackend.Tests.Services
 
             var get = await _service.GetAsync(seeded.LocationId);
 
-            Assert.Equal(seeded.OfferId, get.ThankYouOfferId);
-            Assert.Equal("Thank you 10%", get.ThankYouOfferTitle);
+            Assert.Null(get.ThankYouOfferId);
+            Assert.Null(get.ThankYouOfferTitle);
             Assert.False(get.ThankYouOfferLive);
+
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .FirstAsync(row => row.Id == seeded.LocationId);
+            Assert.Null(location.ThankYouCatalogOfferId);
         }
 
         private async Task<(int LocationId, int OfferId)> SeedLocationAndOfferAsync(

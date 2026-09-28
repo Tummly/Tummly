@@ -23,6 +23,8 @@ export type GuestThankYouOffer = {
   description: string
   claimCode: string
   expiryLabel: string
+  /** True when Scan returns an existing thank-you Claim for this guest. */
+  alreadyClaimed: boolean
 }
 
 export type GuestUnlockThankYouOffer = {
@@ -158,6 +160,7 @@ function parseThankYouOffer(raw: unknown): GuestThankYouOffer | null {
     claimCode,
     expiryLabel:
       typeof offer.expiryLabel === "string" ? offer.expiryLabel.trim() : "",
+    alreadyClaimed: offer.alreadyClaimed === true,
   }
 }
 

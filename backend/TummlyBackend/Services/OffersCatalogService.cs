@@ -775,6 +775,7 @@ namespace TummlyBackend.Services
 
             entity.Status = CatalogOfferStatus.Paused;
             entity.UpdatedAt = _utcNow();
+            await ClearThankYouAttachesForOfferAsync(offerId, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             var issueCount = await CountIssuesAsync(offerId, cancellationToken);
             return new CatalogOfferLifecycleResult.Ok
@@ -890,6 +891,7 @@ namespace TummlyBackend.Services
 
             entity.Status = CatalogOfferStatus.Archived;
             entity.UpdatedAt = _utcNow();
+            await ClearThankYouAttachesForOfferAsync(offerId, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             var issueCount = await CountIssuesAsync(offerId, cancellationToken);
             return new CatalogOfferLifecycleResult.Ok
@@ -1127,6 +1129,20 @@ namespace TummlyBackend.Services
             entity.UpdatedAt = _utcNow();
             await _context.SaveChangesAsync(cancellationToken);
             return new CatalogOfferInFlightSyncResult.Ok();
+        }
+
+        private async Task ClearThankYouAttachesForOfferAsync(
+            int offerId,
+            CancellationToken cancellationToken
+        )
+        {
+            var locations = await _context.RestaurantLocations
+                .Where(location => location.ThankYouCatalogOfferId == offerId)
+                .ToListAsync(cancellationToken);
+            foreach (var location in locations)
+            {
+                location.ThankYouCatalogOfferId = null;
+            }
         }
 
         private async Task<CatalogOffer?> LoadForMutationAsync(

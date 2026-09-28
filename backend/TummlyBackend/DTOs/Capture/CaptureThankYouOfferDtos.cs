@@ -7,7 +7,8 @@ namespace TummlyBackend.DTOs.Capture
     }
 
     /// <summary>
-    /// Persisted thank-you attach as shown on Capture (and for issue gating).
+    /// Live thank-you attach as shown on Capture / Digital guest link.
+    /// Non-Active stored FKs are returned as empty (not attached).
     /// </summary>
     public sealed class CaptureThankYouOfferDto
     {
@@ -16,7 +17,8 @@ namespace TummlyBackend.DTOs.Capture
         public string? ThankYouOfferTitle { get; init; }
 
         /// <summary>
-        /// True when the stored id is attachable Active for this location.
+        /// True when a live Active thank-you attach is returned.
+        /// Always false when <see cref="ThankYouOfferId"/> is null.
         /// </summary>
         public bool ThankYouOfferLive { get; init; }
     }

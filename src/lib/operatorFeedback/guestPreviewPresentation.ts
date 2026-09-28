@@ -172,6 +172,16 @@ export function isGuestPreviewOfferClaimCodePlaceholder(
 
 export const GUEST_PREVIEW_OFFER_COPY_LABEL = "Copy"
 
+/** Thank-you coupon eyebrow — Figma Guest-Loop-MVP 6778:28268. */
+export const GUEST_THANK_YOU_OFFER_EYEBROW = "Your thank-you offer"
+
+/** Thank-you coupon footer — Figma Guest-Loop-MVP 6778:28280. */
+export const GUEST_THANK_YOU_OFFER_TERMS_LABEL = "Terms apply"
+
+/** Re-claim status under the offer title — Figma Guest-Loop-MVP 6778:28270. */
+export const GUEST_THANK_YOU_OFFER_ALREADY_CLAIMED =
+  "You've already claimed this Offer."
+
 /** Em dash for missing brand/address chrome. */
 export const GUEST_PREVIEW_EMPTY_VALUE = "—"
 
@@ -245,6 +255,11 @@ export type GuestPreviewOfferCouponView = {
    * Live thank-you paint enables Copy. Preview / email chrome stays display-only.
    */
   copyEnabled?: boolean
+  /**
+   * True when Scan returns an existing thank-you Claim for this guest.
+   * Thank-you surface paints the already-claimed status line.
+   */
+  alreadyClaimed?: boolean
 }
 
 export type IssuedGuestThankYouOffer = {
@@ -252,6 +267,7 @@ export type IssuedGuestThankYouOffer = {
   description: string
   claimCode: string
   expiryLabel: string
+  alreadyClaimed?: boolean
 }
 
 /**
@@ -276,6 +292,7 @@ export function toIssuedGuestOfferCoupon(
     expiryLabel: offer.expiryLabel.trim(),
     copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
     copyEnabled: true,
+    alreadyClaimed: offer.alreadyClaimed === true,
   }
 }
 

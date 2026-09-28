@@ -252,8 +252,8 @@ export function CaptureGuestExperiencePreviewOverlay({
           <PreviewGuestCanvas device={device}>
             <div inert className="flex w-full justify-center pt-10">
               <GuestFeedbackSuccess
+                restaurantName={guestExperience.locationName}
                 locationName={guestExperience.locationName}
-                address={guestExperience.locationAddress}
                 offer={buildCaptureThankYouPreviewCoupon(
                   guestExperience.thankYouOffer
                 )}

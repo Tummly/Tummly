@@ -13,5 +13,10 @@ namespace TummlyBackend.DTOs.Scan
         public required string ClaimCode { get; init; }
 
         public required string ExpiryLabel { get; init; }
+
+        /// <summary>
+        /// True when the response reuses an existing thank-you Claim for this guest.
+        /// </summary>
+        public bool AlreadyClaimed { get; init; }
     }
 }

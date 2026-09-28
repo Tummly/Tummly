@@ -266,8 +266,8 @@ export default function GuestFeedbackPage() {
             className="w-full"
           >
             <GuestFeedbackSuccess
+              restaurantName={metadata.restaurantName}
               locationName={metadata.locationName}
-              address={metadata.address}
               brandLogoPublicUrl={metadata.brandLogoPublicUrl}
               offer={issuedOffer}
             />

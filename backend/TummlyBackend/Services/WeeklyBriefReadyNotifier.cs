@@ -59,6 +59,7 @@ namespace TummlyBackend.Services
                 .Where(location => location.Id == locationId)
                 .Select(location => new
                 {
+                    location.LocationName,
                     location.Restaurant!.OwnerUserId,
                     location.Restaurant.AccountType,
                 })
@@ -69,6 +70,10 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            var locationName = string.IsNullOrWhiteSpace(owner.LocationName)
+                ? "Location"
+                : owner.LocationName.Trim();
+
             try
             {
                 await _notifications.ProduceAsync(
@@ -76,8 +81,9 @@ namespace TummlyBackend.Services
                     {
                         UserId = owner.OwnerUserId,
                         Type = NotificationType,
-                        Title = "Weekly brief ready",
-                        Body = "Your weekly summary is ready.",
+                        Title = $"Weekly brief ready — {locationName}",
+                        Body =
+                            $"Your weekly summary for {locationName} is ready.",
                         CtaLabel = CtaLabel,
                         CtaHref = ReportsWeeklyBriefCtaHref(
                             owner.AccountType,

@@ -19,11 +19,11 @@ export type GuestFeedbackUnlockCopy = {
   optOutNote: string
 }
 
-function displayRestaurant(name: string): string {
+export function displayGuestFeedbackRestaurant(name: string): string {
   return name.trim() || "this restaurant"
 }
 
-function displayLocation(name: string): string {
+export function displayGuestFeedbackLocation(name: string): string {
   return name.trim() || "this location"
 }
 
@@ -31,17 +31,29 @@ function displayOfferTitle(title: string): string {
   return title.trim() || "this offer"
 }
 
+/** Shared thank-you body — Figma Guest-Loop-MVP 6778:28257 / unlock 6723:1094. */
+export function buildGuestFeedbackSharedPrivatelyBody(
+  restaurantName: string,
+  locationName: string
+): string {
+  const restaurant = displayGuestFeedbackRestaurant(restaurantName)
+  const location = displayGuestFeedbackLocation(locationName)
+  return `Your feedback has been shared privately with the team at ${restaurant} — ${location}.`
+}
+
 /** Figma unlock screen strings with restaurant / location / offer filled in. */
 export function buildGuestFeedbackUnlockCopy(
   input: GuestFeedbackUnlockCopyInput
 ): GuestFeedbackUnlockCopy {
-  const restaurant = displayRestaurant(input.restaurantName)
-  const location = displayLocation(input.locationName)
+  const restaurant = displayGuestFeedbackRestaurant(input.restaurantName)
   const offer = displayOfferTitle(input.offerTitle)
 
   return {
     thankYouHeading: "Thank you.",
-    sharedBody: `Your feedback has been shared privately with the team at ${restaurant} — ${location}.`,
+    sharedBody: buildGuestFeedbackSharedPrivatelyBody(
+      input.restaurantName,
+      input.locationName
+    ),
     wantHeading: `Want ${offer}?`,
     joinBody: `Join ${restaurant} for occasional offers and updates to unlock your welcome offer.`,
     unlockCta:
