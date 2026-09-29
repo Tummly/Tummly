@@ -228,6 +228,31 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            var recommendedActions =
+                await WeeklyBriefRecommendedActions.BuildFactsAsync(
+                    _context,
+                    locationId,
+                    new WeeklyBriefMetrics(
+                        GuestsJoined: 0,
+                        QrScanEvents: qrScans.Value,
+                        FeedbackCount: feedbackMessages.Value,
+                        PositiveFeedbackCount: 0,
+                        NeutralFeedbackCount: 0,
+                        NegativeFeedbackCount: 0,
+                        NeedsAttentionCount: followUpNeeded.Value,
+                        DetectedTagCounts: new Dictionary<string, int>(),
+                        ActiveOffers: activeOffersCurrent,
+                        ClaimsInWeek: offerClaims.Value,
+                        RedemptionsInWeek: offerRedemptions.Value,
+                        CampaignsSentInWeek: campaignsSent.Value,
+                        CampaignRecipientsReached: 0,
+                        UnsubscribesInWeek: unsubscribes.Value
+                    ),
+                    fromUtc,
+                    toUtc,
+                    cancellationToken
+                );
+
             return new ReportsOverviewDto
             {
                 LifetimeEmpty = false,
@@ -255,6 +280,7 @@ namespace TummlyBackend.Services
                     Unsubscribes = unsubscribes,
                 },
                 TopCaptureSources = topCaptureSources,
+                RecommendedActions = recommendedActions,
             };
         }
 

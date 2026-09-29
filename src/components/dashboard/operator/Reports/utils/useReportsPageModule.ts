@@ -24,6 +24,7 @@ export type OperatorReportsPageModuleApi = {
   openExportDialog: OperatorReportsPageModule["openExportDialog"]
   closeExportDialog: OperatorReportsPageModule["closeExportDialog"]
   requestExport: OperatorReportsPageModule["requestExport"]
+  exportActiveReport: OperatorReportsPageModule["exportActiveReport"]
   setCsvConsentChecked: OperatorReportsPageModule["setCsvConsentChecked"]
   confirmCsvExport: OperatorReportsPageModule["confirmCsvExport"]
   cancelCsvConsent: OperatorReportsPageModule["cancelCsvConsent"]
@@ -55,6 +56,7 @@ export function useReportsPageModule(): OperatorReportsPageModuleApi {
     openExportDialog: pageModule.openExportDialog,
     closeExportDialog: pageModule.closeExportDialog,
     requestExport: pageModule.requestExport,
+    exportActiveReport: pageModule.exportActiveReport,
     setCsvConsentChecked: pageModule.setCsvConsentChecked,
     confirmCsvExport: pageModule.confirmCsvExport,
     cancelCsvConsent: pageModule.cancelCsvConsent,

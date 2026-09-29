@@ -63,17 +63,6 @@ namespace TummlyBackend.Helpers
             "difference between",
         ];
 
-        private static readonly string[] AllPhrases =
-        [
-            "all locations",
-            "every location",
-            "all my locations",
-            "every location",
-            "all of them",
-            "compare all",
-            "all owned locations",
-        ];
-
         private static readonly string[] PeriodPhrases =
         [
             "last week",
@@ -407,17 +396,7 @@ namespace TummlyBackend.Helpers
         }
 
         private static bool LooksLikeAllLocations(string lower)
-        {
-            foreach (var phrase in AllPhrases)
-            {
-                if (lower.Contains(phrase, StringComparison.Ordinal))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
+            => AssistantScopeOverride.TryDetectCompareAllIntent(lower);
 
         private static bool LooksLikeBaseline(string lower)
             => lower.Contains("compare to", StringComparison.Ordinal)

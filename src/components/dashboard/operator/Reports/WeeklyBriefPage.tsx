@@ -347,6 +347,7 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
       mode,
       locationId,
       target: card.target,
+      qrCodeId: card.qrCodeId,
     })
     if (plan.feedbackInbox != null) {
       setFeedbackInboxIntent(plan.feedbackInbox)

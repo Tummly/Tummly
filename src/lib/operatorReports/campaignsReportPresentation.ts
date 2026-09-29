@@ -42,6 +42,9 @@ export const CAMPAIGNS_REPORT_PAGE_COPY = {
   goalHeader: "Goal",
   channelHeader: "Channel",
   sentHeader: "Sent",
+  claimsHeader: "Claims",
+  redemptionsHeader: "Redemptions",
+  unsubscribesHeader: "Unsubscribes",
   statusHeader: "Status",
 
   viewCampaigns: "View campaigns",
@@ -55,6 +58,9 @@ export type CampaignsReportPerformanceRow = {
   goal: string
   channel: string
   sent: number
+  claims: number
+  redemptions: number
+  unsubscribes: number
   status: string
   statusLabel: string
 }
@@ -127,6 +133,9 @@ export function buildCampaignsReportViewModel(
       metricToKpi("Campaigns sent", response.campaignsSent),
       metricToKpi("Guests messaged", response.guestsMessaged),
       metricToKpi("Failed sends", response.failedSends),
+      metricToKpi("Offer claims", response.offerClaims),
+      metricToKpi("Offer redemptions", response.offerRedemptions),
+      metricToKpi("Unsubscribes", response.unsubscribes),
     ],
     performance: response.performance.map((row) => ({
       campaignId: row.campaignId,
@@ -134,6 +143,9 @@ export function buildCampaignsReportViewModel(
       goal: labelForGoal(row.goal),
       channel: labelForChannel(row.channel),
       sent: row.sent,
+      claims: row.claims,
+      redemptions: row.redemptions,
+      unsubscribes: row.unsubscribes,
       status: row.status,
       statusLabel: labelForCampaignsReportStatus(row.status),
     })),

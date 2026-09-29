@@ -44,6 +44,9 @@ namespace TummlyBackend.Helpers
             "Goal",
             "Channel",
             "Sent",
+            "Claims",
+            "Redemptions",
+            "Unsubscribes",
             "Status",
         ];
 
@@ -166,6 +169,9 @@ namespace TummlyBackend.Helpers
                         row.Goal ?? "",
                         row.Channel ?? "",
                         row.Sent.ToString(CultureInfo.InvariantCulture),
+                        row.Claims.ToString(CultureInfo.InvariantCulture),
+                        row.Redemptions.ToString(CultureInfo.InvariantCulture),
+                        row.Unsubscribes.ToString(CultureInfo.InvariantCulture),
                         row.Status,
                     ]
                 );

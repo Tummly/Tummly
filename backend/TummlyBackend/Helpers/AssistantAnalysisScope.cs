@@ -193,6 +193,9 @@ namespace TummlyBackend.Helpers
                     ? FromUserMessage(message)
                     : null,
                 Actions = ParseActions(message.ActionsJson),
+                ScopeChange = message.Role == AssistantMessageRole.Assistant
+                    ? ParseScopeChange(message.ScopeChangeJson)
+                    : null,
             };
 
         public static AssistantConversationDto ToConversationDto(
@@ -289,6 +292,33 @@ namespace TummlyBackend.Helpers
             catch (JsonException)
             {
                 return [];
+            }
+        }
+
+        public static string? SerializeScopeChange(AssistantScopeChangeNoticeDto? notice)
+        {
+            if (notice is null || notice.Kinds.Count == 0)
+            {
+                return null;
+            }
+
+            return JsonSerializer.Serialize(notice);
+        }
+
+        public static AssistantScopeChangeNoticeDto? ParseScopeChange(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<AssistantScopeChangeNoticeDto>(json);
+            }
+            catch (JsonException)
+            {
+                return null;
             }
         }
 

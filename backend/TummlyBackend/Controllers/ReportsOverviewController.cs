@@ -144,6 +144,7 @@ namespace TummlyBackend.Controllers
                         marketingOptIns = row.MarketingOptIns,
                     }
                 ),
+                recommendedActions = dto.RecommendedActions ?? [],
             });
         }
     }

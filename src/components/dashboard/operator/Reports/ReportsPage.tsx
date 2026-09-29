@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -11,8 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
-import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
+import { ReportsInsightBanner } from "@/components/dashboard/operator/Reports/ReportsInsightBanner"
 import { ReportsKpiStrip } from "@/components/dashboard/operator/Reports/ReportsKpiStrip"
 import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
 import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
@@ -27,6 +28,7 @@ import {
   REPORTS_INSIGHT_BANNER_CLASS,
   REPORTS_INSIGHT_BODY_CLASS,
   REPORTS_INSIGHT_TITLE_CLASS,
+  REPORTS_SECTION_TITLE_CLASS,
   REPORTS_TABLE_BODY_CELL_CLASS,
   REPORTS_TABLE_BODY_ROW_CLASS,
   REPORTS_TABLE_CLASS,
@@ -45,13 +47,19 @@ import {
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import {
-  operatorDashboardNavPath,
   operatorDashboardCaptureReportPath,
   operatorDashboardFeedbackReportPath,
   operatorDashboardOffersReportPath,
   operatorDashboardCampaignsReportPath,
   operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  mapWeeklyBriefRecommendedActionFact,
+  planWeeklyBriefRecommendedActionCta,
+  shouldShowWeeklyBriefRecommendedActions,
+  WEEKLY_BRIEF_PAGE_COPY,
+  type WeeklyBriefRecommendedActionCard,
+} from "@/lib/operatorReports/weeklyBriefPresentation"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 
 type ReportsPageProps = {
@@ -64,7 +72,6 @@ function HubGuestLoopSection(props: {
   onGenerateBrief: () => void
   onRetry: () => void
   onViewWeeklyBrief: () => void
-  onCreateCampaign: () => void
 }) {
   const { weeklyBrief } = props
   return (
@@ -94,14 +101,6 @@ function HubGuestLoopSection(props: {
               onClick={props.onGenerateBrief}
             >
               {REPORTS_HUB_GUEST_LOOP_COPY.generateBrief}
-            </Button>
-            <Button
-              type="button"
-              variant="op-tertiary"
-              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-              onClick={props.onCreateCampaign}
-            >
-              {REPORTS_HUB_GUEST_LOOP_COPY.createCampaign}
             </Button>
           </div>
         </div>
@@ -149,17 +148,44 @@ function HubGuestLoopSection(props: {
             >
               {REPORTS_HUB_GUEST_LOOP_COPY.viewWeeklyBrief}
             </Button>
-            <Button
-              type="button"
-              variant="op-tertiary"
-              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-              onClick={props.onCreateCampaign}
-            >
-              {REPORTS_HUB_GUEST_LOOP_COPY.createCampaign}
-            </Button>
           </div>
         </div>
       ) : null}
+    </ReportsSection>
+  )
+}
+
+function HubRecommendedActionsSection(props: {
+  cards: readonly WeeklyBriefRecommendedActionCard[]
+  onAction: (card: WeeklyBriefRecommendedActionCard) => void
+}) {
+  return (
+    <ReportsSection>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <AiIcon size={22} />
+          <h2 className={REPORTS_SECTION_TITLE_CLASS}>
+            {WEEKLY_BRIEF_PAGE_COPY.recommendedActionsTitle}
+          </h2>
+        </div>
+        {props.cards.map((card) => (
+          <div key={card.id} className="flex flex-col gap-4">
+            <ReportsInsightBanner title={card.title}>
+              {card.subtitle}
+            </ReportsInsightBanner>
+            <div>
+              <Button
+                type="button"
+                variant="op-tertiary"
+                className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                onClick={() => props.onAction(card)}
+              >
+                {card.cta}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
     </ReportsSection>
   )
 }
@@ -171,11 +197,10 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
     dashboardUiStore,
     (state) => state.setReportsDateRange
   )
-  const setCampaignsIntent = useStore(
+  const setFeedbackInboxIntent = useStore(
     dashboardUiStore,
-    (state) => state.setCampaignsIntent
+    (state) => state.setFeedbackInboxIntent
   )
-  const gateFreeProductWrite = useGateFreeProductWrite()
   const reports = useReportsPageModule()
   const pageModule = useReportsPageModuleApi()
   const {
@@ -216,12 +241,27 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
     }
   }
 
-  const navTo = (
-    destination: "feedback" | "capture" | "campaigns" | "offers"
-  ) => {
-    navigateWithLocation((locationId) =>
-      operatorDashboardNavPath(mode, destination, locationId)
-    )
+  const recommendedActionCards =
+    hubOverview?.recommendedActions.map(mapWeeklyBriefRecommendedActionFact)
+    ?? []
+  const showRecommendedActions = shouldShowWeeklyBriefRecommendedActions(
+    hubOverview?.recommendedActions
+  )
+
+  const handleRecommendedAction = (card: WeeklyBriefRecommendedActionCard) => {
+    if (selectedLocationId == null) {
+      return
+    }
+    const plan = planWeeklyBriefRecommendedActionCta({
+      mode,
+      locationId: selectedLocationId,
+      target: card.target,
+      qrCodeId: card.qrCodeId,
+    })
+    if (plan.feedbackInbox != null) {
+      setFeedbackInboxIntent(plan.feedbackInbox)
+    }
+    navigate(plan.path)
   }
 
   const showDateRange = hubLoadStatus !== "lifetimeEmpty"
@@ -259,12 +299,6 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
               operatorDashboardWeeklyBriefPath(mode, locationId)
             )
           }
-          onCreateCampaign={() => {
-            gateFreeProductWrite(() => {
-              setCampaignsIntent({ openBlankCreate: true })
-              navTo("campaigns")
-            })
-          }}
         />
 
         {hubLoadStatus === "loading" || hubLoadStatus === "idle" ? (
@@ -435,6 +469,13 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
               </Button>
             </div>
           </ReportsSection>
+
+          {showRecommendedActions ? (
+            <HubRecommendedActionsSection
+              cards={recommendedActionCards}
+              onAction={handleRecommendedAction}
+            />
+          ) : null}
           </>
         ) : null}
       </div>

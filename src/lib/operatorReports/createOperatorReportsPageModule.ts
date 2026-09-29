@@ -30,6 +30,10 @@ import {
   type ReportsOverviewViewModel,
 } from "@/lib/operatorReports/reportsOverviewPresentation"
 import {
+  reportsExportKindForSurface,
+  reportsExportRequiresGuestDataAck,
+} from "@/lib/operatorReports/reportsExportPresentation"
+import {
   buildReportsWeeklyBriefHubSecondary,
   REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
 } from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
@@ -245,11 +249,17 @@ export type OperatorReportsPageModule = {
   openExportDialog: () => void
   closeExportDialog: () => void
   /**
-   * PDF downloads immediately (returns success). CSV opens the client-only
-   * consent step and returns false until confirmCsvExport.
+   * Downloads immediately when the kind has no guest/contact data
+   * (overview, capture, campaigns). Guest-data kinds open the client-only
+   * consent step and return false until confirmCsvExport.
    * No-op when export is not allowed.
    */
   requestExport: (kind: ReportsExportKind) => Promise<boolean>
+  /**
+   * Child-page Export (RPT-006): download the active surface report.
+   * Hub / unknown surfaces open the full picker instead.
+   */
+  exportActiveReport: () => Promise<boolean>
   setCsvConsentChecked: (checked: boolean) => void
   confirmCsvExport: () => Promise<boolean>
   cancelCsvConsent: () => void
@@ -1173,20 +1183,23 @@ export function createOperatorReportsPageModule(
       publish()
     },
     async requestExport(kind) {
+      return requestExportForKind(kind)
+    },
+    async exportActiveReport() {
       if (!state.exportAllowed) {
         return false
       }
-      if (kind === "overview") {
-        return runExportDownload(kind)
+      const kind = reportsExportKindForSurface(state.activeSurface)
+      if (kind == null) {
+        state = {
+          ...state,
+          exportDialogOpen: true,
+          exportDownloadError: null,
+        }
+        publish()
+        return false
       }
-      state = {
-        ...state,
-        pendingCsvExportKind: kind,
-        csvConsentChecked: false,
-        exportDownloadError: null,
-      }
-      publish()
-      return false
+      return requestExportForKind(kind)
     },
     setCsvConsentChecked(checked) {
       state = { ...state, csvConsentChecked: checked }
@@ -1211,6 +1224,25 @@ export function createOperatorReportsPageModule(
       }
       publish()
     },
+  }
+
+  async function requestExportForKind(
+    kind: ReportsExportKind
+  ): Promise<boolean> {
+    if (!state.exportAllowed) {
+      return false
+    }
+    if (!reportsExportRequiresGuestDataAck(kind)) {
+      return runExportDownload(kind)
+    }
+    state = {
+      ...state,
+      pendingCsvExportKind: kind,
+      csvConsentChecked: false,
+      exportDownloadError: null,
+    }
+    publish()
+    return false
   }
 
   async function runExportDownload(kind: ReportsExportKind): Promise<boolean> {

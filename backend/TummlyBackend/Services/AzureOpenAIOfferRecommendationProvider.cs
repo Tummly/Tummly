@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Text;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Helpers;
@@ -11,7 +8,8 @@ namespace TummlyBackend.Services
 {
     /// <summary>
     /// Production Offer recommendation provider: Azure OpenAI Structured Outputs.
-    /// Reuses FeedbackClassification Endpoint/ApiKey/Deployment settings.
+    /// Offer recommendation via one-wave surface read tools.
+    /// Domain type stays server-chosen. Reuses FeedbackClassification settings.
     /// </summary>
     public sealed class AzureOpenAIOfferRecommendationProvider
         : IOfferRecommendationProvider
@@ -44,25 +42,18 @@ namespace TummlyBackend.Services
 
                 try
                 {
-                    var attemptResult = await AttemptRecommendAsync(
-                        input,
-                        cancellationToken
-                    );
+                    var attemptResult = await AttemptRecommendWithToolsAsync(input, cancellationToken);
 
                     if (attemptResult.Kind == AttemptKind.Succeeded)
                     {
                         return attemptResult.Result
-                            ?? new OfferRecommendationProviderResult.Failed(
-                                Retryable: true
-                            );
+                            ?? new OfferRecommendationProviderResult.Failed(Retryable: true);
                     }
 
                     if (attemptResult.Kind == AttemptKind.Failed)
                     {
                         return attemptResult.Result
-                            ?? new OfferRecommendationProviderResult.Failed(
-                                Retryable: true
-                            );
+                            ?? new OfferRecommendationProviderResult.Failed(Retryable: true);
                     }
 
                     if (attempt >= maxAttempts)
@@ -78,7 +69,7 @@ namespace TummlyBackend.Services
                 {
                     throw;
                 }
-                catch (Exception ex) when (IsTransientException(ex))
+                catch (Exception ex) when (AzureOpenAIChatCompletions.IsTransientException(ex))
                 {
                     _logger.LogWarning(
                         ex,
@@ -99,7 +90,7 @@ namespace TummlyBackend.Services
             return new OfferRecommendationProviderResult.Failed(Retryable: true);
         }
 
-        private async Task<AttemptResult> AttemptRecommendAsync(
+        private async Task<AttemptResult> AttemptRecommendWithToolsAsync(
             OfferRecommendationProviderInput input,
             CancellationToken cancellationToken
         )
@@ -119,104 +110,76 @@ namespace TummlyBackend.Services
             var client = _httpClientFactory.CreateClient(
                 OfferRecommendationStructuredOutput.HttpClientName
             );
-
-            var requestUri = BuildChatCompletionsUri();
-            var body = OfferRecommendationStructuredOutput.BuildRequestJson(
-                _settings.DeploymentName,
-                input,
-                _settings.PromptSchemaVersion
-            );
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-            request.Headers.TryAddWithoutValidation("api-key", _settings.ApiKey);
-            request.Headers.Accept.Add(
-                new MediaTypeWithQualityHeaderValue("application/json")
-            );
-            request.Content = new StringContent(
-                body,
-                Encoding.UTF8,
-                "application/json"
-            );
-
-            using var response = await client.SendAsync(
-                request,
-                cancellationToken
-            );
-
-            if (IsTransientStatusCode(response.StatusCode))
+            var forced = new List<AssistantToolCallRequest>
             {
-                _logger.LogWarning(
-                    "Azure OpenAI returned {StatusCode} for offer recommendation",
-                    (int)response.StatusCode
-                );
-                return AttemptResult.Transient();
-            }
+                new(
+                    "forced_metrics",
+                    SurfaceReadToolCatalog.ReadOfferRecommendationMetrics,
+                    "{}"
+                ),
+            };
 
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogError(
-                    "Azure OpenAI offer recommendation failed with {StatusCode}",
-                    (int)response.StatusCode
-                );
-                return AttemptResult.Failed(
-                    new OfferRecommendationProviderResult.Failed(Retryable: true)
-                );
-            }
-
-            var responseJson = await response.Content.ReadAsStringAsync(
-                cancellationToken
-            );
-
-            if (!OfferRecommendationStructuredOutput.TryExtractMessageContent(
-                    responseJson,
-                    out var content
-                ))
-            {
-                return AttemptResult.InvalidOutput();
-            }
-
-            if (!OfferRecommendationStructuredOutput.TryParseModelContent(
-                    content,
-                    out var output,
-                    out var invalidOutput
-                )
-                || output is null)
-            {
-                if (invalidOutput)
+            var loop = await AzureOpenAIOneWaveToolLoop.RunAsync(
+                new AzureOpenAIOneWaveRequest
                 {
-                    return AttemptResult.InvalidOutput();
-                }
-
-                return AttemptResult.Failed(
-                    new OfferRecommendationProviderResult.Failed(
-                        Retryable: true
-                    )
-                );
-            }
-
-            return AttemptResult.Succeeded(
-                new OfferRecommendationProviderResult.Succeeded(output)
+                    SurfaceName = "offer recommendation",
+                    HttpClient = client,
+                    Endpoint = _settings.Endpoint,
+                    ApiKey = _settings.ApiKey,
+                    DeploymentName = _settings.DeploymentName,
+                    ApiVersion = _settings.ApiVersion,
+                    SeedMessages = OfferRecommendationStructuredOutput
+                        .BuildToolSeedMessages(
+                            input,
+                            _settings.PromptSchemaVersion
+                        ),
+                    ToolsArray = SurfaceReadToolCatalog.OfferRecommendationTools(),
+                    SchemaName = OfferRecommendationStructuredOutput.SchemaName,
+                    FinalSchema = OfferRecommendationStructuredOutput.BuildSchema(),
+                    ExecuteTools = (calls, _) => Task.FromResult(
+                        SurfaceReadToolHost.ExecuteOfferRecommendation(calls, input)
+                    ),
+                    ForcedToolCalls = forced,
+                    Logger = _logger,
+                },
+                cancellationToken
             );
+
+            return MapLoopResult(loop);
         }
 
-        private Uri BuildChatCompletionsUri()
-        {
-            var endpoint = _settings.Endpoint.TrimEnd('/') + "/";
-            var relative =
-                $"openai/deployments/{Uri.EscapeDataString(_settings.DeploymentName)}"
-                + $"/chat/completions?api-version={Uri.EscapeDataString(_settings.ApiVersion)}";
-
-            return new Uri(new Uri(endpoint), relative);
-        }
+        private AttemptResult MapLoopResult(AzureOpenAIOneWaveResult loop)
+            => loop switch
+            {
+                AzureOpenAIOneWaveResult.Succeeded succeeded =>
+                    OfferRecommendationStructuredOutput.TryParseModelContent(
+                        succeeded.Content,
+                        out var output,
+                        out var invalidOutput
+                    )
+                        ? AttemptResult.Succeeded(
+                            new OfferRecommendationProviderResult.Succeeded(output!)
+                        )
+                        : invalidOutput
+                            ? AttemptResult.InvalidOutput()
+                            : AttemptResult.Failed(
+                                new OfferRecommendationProviderResult.Failed(
+                                    Retryable: true
+                                )
+                            ),
+                AzureOpenAIOneWaveResult.Transient => AttemptResult.Transient(),
+                AzureOpenAIOneWaveResult.InvalidOutput => AttemptResult.InvalidOutput(),
+                _ => AttemptResult.Failed(
+                    new OfferRecommendationProviderResult.Failed(Retryable: true)
+                ),
+            };
 
         private async Task DelayBackoffAsync(
             int attempt,
             CancellationToken cancellationToken
         )
         {
-            var delayMs = Math.Max(0, _settings.InitialBackoffMilliseconds)
-                * attempt;
-
+            var delayMs = Math.Max(0, _settings.InitialBackoffMilliseconds) * attempt;
             if (delayMs <= 0)
             {
                 return;
@@ -224,14 +187,6 @@ namespace TummlyBackend.Services
 
             await Task.Delay(delayMs, cancellationToken);
         }
-
-        private static bool IsTransientStatusCode(HttpStatusCode statusCode)
-            => statusCode == HttpStatusCode.RequestTimeout
-                || statusCode == HttpStatusCode.TooManyRequests
-                || (int)statusCode >= 500;
-
-        private static bool IsTransientException(Exception ex)
-            => ex is HttpRequestException or TaskCanceledException;
 
         private enum AttemptKind
         {
@@ -246,9 +201,7 @@ namespace TummlyBackend.Services
             OfferRecommendationProviderResult? Result
         )
         {
-            public static AttemptResult Succeeded(
-                OfferRecommendationProviderResult result
-            )
+            public static AttemptResult Succeeded(OfferRecommendationProviderResult result)
                 => new(AttemptKind.Succeeded, result);
 
             public static AttemptResult Transient()
@@ -257,9 +210,7 @@ namespace TummlyBackend.Services
             public static AttemptResult InvalidOutput()
                 => new(AttemptKind.InvalidOutput, null);
 
-            public static AttemptResult Failed(
-                OfferRecommendationProviderResult result
-            )
+            public static AttemptResult Failed(OfferRecommendationProviderResult result)
                 => new(AttemptKind.Failed, result);
         }
     }

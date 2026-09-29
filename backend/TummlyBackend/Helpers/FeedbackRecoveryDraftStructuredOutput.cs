@@ -112,6 +112,42 @@ namespace TummlyBackend.Helpers
             return request.ToJsonString(RequestJsonOptions);
         }
 
+        /// <summary>
+        /// Seed messages for the tool-wave path. Feedback, location, and offer
+        /// facts come from read tools — not the user payload.
+        /// </summary>
+        public static JsonArray BuildToolSeedMessages(
+            FeedbackRecoveryDraftInput input,
+            string promptSchemaVersion
+        )
+        {
+            var userPayload = new JsonObject
+            {
+                ["channel"] = input.Channel,
+                ["purpose"] = input.Purpose,
+                ["tone"] = input.Tone,
+                ["includeNotes"] = input.IncludeNotes,
+                ["mode"] = input.Mode,
+                ["currentBody"] = input.CurrentBody,
+                ["currentSubject"] = input.CurrentSubject,
+                ["hasConfirmedOffer"] = input.ConfirmedOffer is not null,
+            };
+
+            return new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "system",
+                    ["content"] = BuildToolSystemPrompt(promptSchemaVersion),
+                },
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = userPayload.ToJsonString(RequestJsonOptions),
+                },
+            };
+        }
+
         public static JsonObject BuildSchema()
             => new()
             {
@@ -169,6 +205,17 @@ namespace TummlyBackend.Helpers
                 or other Unicode punctuation.
                 Do not emit control characters.
                 Example: I'm, you're, didn't, We're sorry - feedback like this.
+                """;
+
+        public static string BuildToolSystemPrompt(string promptSchemaVersion)
+            => $"""
+                {BuildSystemPrompt(promptSchemaVersion)}
+
+                Tool path: call read_location_display_name and
+                read_recovery_feedback_facts before drafting.
+                When hasConfirmedOffer is true, also call read_confirmed_offer_facts.
+                Ground guest wording only on tool results. Never invent email, phone,
+                or redemption codes.
                 """;
 
         public static bool TryParseModelContent(

@@ -403,6 +403,9 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ScopeChangeJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ScopeKind")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");

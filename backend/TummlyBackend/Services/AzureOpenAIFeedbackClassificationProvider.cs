@@ -11,6 +11,9 @@ namespace TummlyBackend.Services
 {
     /// <summary>
     /// Production classification provider: Azure OpenAI Structured Outputs on a mini-tier deployment.
+    /// Intentionally stays one-shot (no tool wave): input is comment-only tagging;
+    /// restaurant context tools would add latency without improving the product.
+    /// Revisit only if product wants venue context in classification.
     /// </summary>
     public sealed class AzureOpenAIFeedbackClassificationProvider
         : IFeedbackClassificationProvider

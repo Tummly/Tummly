@@ -88,6 +88,47 @@ namespace TummlyBackend.Helpers
             return request.ToJsonString(RequestJsonOptions);
         }
 
+        /// <summary>
+        /// Seed messages for the tool-wave path. Metrics come from
+        /// read_home_recommendation_metrics.
+        /// </summary>
+        public static JsonArray BuildToolSeedMessages(
+            HomeRecommendationProviderInput input,
+            string promptSchemaVersion
+        )
+        {
+            var userPayload = new JsonObject
+            {
+                ["selectedType"] = input.SelectedType,
+                ["overviewDatePreset"] = input.OverviewDatePreset,
+                ["fromUtc"] = input.FromUtc.ToString("O"),
+                ["toUtc"] = input.ToUtc.ToString("O"),
+            };
+
+            return new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "system",
+                    ["content"] = BuildToolSystemPrompt(promptSchemaVersion),
+                },
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = userPayload.ToJsonString(RequestJsonOptions),
+                },
+            };
+        }
+
+        public static string BuildToolSystemPrompt(string promptSchemaVersion)
+            => $"""
+                {BuildSystemPrompt(promptSchemaVersion)}
+
+                Tool path: call read_home_recommendation_metrics before writing copy.
+                Ground counts only on that tool result. selectedType is server-chosen.
+                Never invent guest PII.
+                """;
+
         public static JsonObject BuildSchema()
             => new()
             {

@@ -72,5 +72,11 @@ namespace TummlyBackend.DTOs.Reports
             get;
             init;
         }
+
+        /// <summary>
+        /// Windowed recommended-action facts (same kinds as Weekly Brief).
+        /// Empty when none fire; omit/null on LifetimeEmpty.
+        /// </summary>
+        public IReadOnlyList<object>? RecommendedActions { get; init; }
     }
 }
