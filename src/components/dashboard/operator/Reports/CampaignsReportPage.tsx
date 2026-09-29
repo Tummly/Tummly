@@ -60,7 +60,7 @@ export function CampaignsReportPage({
     dateRange,
     exportAllowed,
     generateBusy,
-    openExportDialog,
+    onExport,
     commitRange,
     onGenerateBrief,
   } = reportsChrome
@@ -92,7 +92,7 @@ export function CampaignsReportPage({
         <ReportsStandardHeaderActions
           onGenerateBrief={onGenerateBrief}
           generateBusy={generateBusy}
-          onExport={openExportDialog}
+          onExport={onExport}
           exportDisabled={!exportAllowed}
           selectedRange={dateRange}
           onCommitRange={commitRange}
@@ -172,6 +172,15 @@ export function CampaignsReportPage({
                       {CAMPAIGNS_REPORT_PAGE_COPY.sentHeader}
                     </TableHead>
                     <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
+                      {CAMPAIGNS_REPORT_PAGE_COPY.claimsHeader}
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
+                      {CAMPAIGNS_REPORT_PAGE_COPY.redemptionsHeader}
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
+                      {CAMPAIGNS_REPORT_PAGE_COPY.unsubscribesHeader}
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {CAMPAIGNS_REPORT_PAGE_COPY.statusHeader}
                     </TableHead>
                   </TableRow>
@@ -193,6 +202,15 @@ export function CampaignsReportPage({
                       </TableCell>
                       <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.sent}
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                        {row.claims}
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                        {row.redemptions}
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                        {row.unsubscribes}
                       </TableCell>
                       <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         <ReportsStatusBadge status={row.statusLabel} />

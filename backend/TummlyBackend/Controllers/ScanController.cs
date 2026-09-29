@@ -385,6 +385,9 @@ namespace TummlyBackend.Controllers
             // cap new issues per token / IP.
             OfferIssue? issued = null;
             ScanUnlockThankYouOfferDto? unlockOffer = null;
+            // Outside the LocationGuestId branch so thank-you paint can compare
+            // IssuedAtUtc for AlreadyClaimed after the if.
+            var issueAt = DateTime.UtcNow;
             if (feedback.LocationGuestId is int locationGuestId)
             {
                 var allowNewIssue = ThankYouIssueAbuseCaps.IsUnderCap(
@@ -392,7 +395,6 @@ namespace TummlyBackend.Controllers
                     normalizedToken,
                     clientIp
                 );
-                var issueAt = DateTime.UtcNow;
 
                 issued = await _offerIssues.IssueOnThankYouSubmitAsync(
                     location.Id,
@@ -438,7 +440,8 @@ namespace TummlyBackend.Controllers
                         ClaimCode = issued.ClaimCode,
                         ExpiryLabel = FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
                             issued.ExpiryAtUtc
-                        )
+                        ),
+                        AlreadyClaimed = issued.IssuedAtUtc != issueAt,
                     },
                 unlockOffer,
             });
@@ -605,6 +608,7 @@ namespace TummlyBackend.Controllers
                     ExpiryLabel = FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
                         issued.ExpiryAtUtc
                     ),
+                    AlreadyClaimed = issued.IssuedAtUtc != unlockAt,
                 },
             });
         }

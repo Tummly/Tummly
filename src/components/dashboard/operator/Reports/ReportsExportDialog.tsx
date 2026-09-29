@@ -142,7 +142,7 @@ export function ReportsExportDialog({
 
   const handleItemClick = async (item: ExportItem) => {
     const ok = await onRequestExport(item.kind)
-    if (item.format === "pdf" && ok) {
+    if (ok) {
       toast.success("Your file has been downloaded")
     }
   }

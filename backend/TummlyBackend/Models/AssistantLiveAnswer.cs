@@ -24,9 +24,16 @@ namespace TummlyBackend.Models
         string? DroppedUnknownSentence = null,
         bool SuppressMixedRefusal = false,
         bool CompareAll = false,
+        bool NamedCompare = false,
         IReadOnlyList<string>? FailedLocationNames = null,
         IReadOnlyList<string>? NotStartedLocationNames = null,
-        IReadOnlyList<AssistantLiveAnswerHistoryTurn>? History = null
+        IReadOnlyList<AssistantLiveAnswerHistoryTurn>? History = null,
+        AssistantRetrieveToolExecutor? ExecuteRetrieveTools = null,
+        AssistantRetrieveProgressCallback? OnRetrieveProgress = null,
+        Func<AssistantRetrievedEvidence>? ReadToolEvidence = null,
+        Func<IReadOnlyList<AssistantCompareLocationEvidence>?>? ReadToolCompareLocations = null,
+        Func<(IReadOnlyList<string> Failed, IReadOnlyList<string> NotStarted)>?
+            ReadToolCompareAllMeta = null
     );
 
     public abstract record AssistantLiveAnswerResult

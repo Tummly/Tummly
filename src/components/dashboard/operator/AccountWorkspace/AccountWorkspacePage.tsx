@@ -66,6 +66,7 @@ import {
 import type { AccountWorkspaceTabId } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import { operatorDashboardBillingCreditsPath } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import { BUSINESS_CATEGORY_OPTIONS } from "@/components/home/hero-trial-options"
+import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import {
   BROWSER_BACK_HREF,
   registerLeaveDirtyGuard,
@@ -226,8 +227,13 @@ function formatDateOnly(iso: string): string {
 
 export function AccountWorkspacePage() {
   const pageModule = useAccountWorkspacePageModuleApi()
-  const { billingCreditsAccess, selectedLocationId, locations, mode } =
-    useOutletContext<DashboardOutletContext>()
+  const {
+    billingCreditsAccess,
+    privacyConsentAccess,
+    selectedLocationId,
+    locations,
+    mode,
+  } = useOutletContext<DashboardOutletContext>()
   const snap = useSyncExternalStore(
     pageModule.subscribe,
     pageModule.getSnapshot,
@@ -309,8 +315,15 @@ export function AccountWorkspacePage() {
     selectedLocationId,
     { tab: "activity" }
   )
+  const privacyConsentHref = operatorDashboardNavPath(
+    mode,
+    "privacy-consent",
+    selectedLocationId
+  )
   const canOpenBillingCredits =
     billingCreditsAccess === "view" || billingCreditsAccess === "manage"
+  const canOpenPrivacyConsent =
+    privacyConsentAccess === "view" || privacyConsentAccess === "manage"
   const planStatusPresentation =
     status != null
       ? resolveAccountWorkspacePlanStatusPresentation({
@@ -1513,7 +1526,18 @@ export function AccountWorkspacePage() {
                 {ACCOUNT_WORKSPACE_PAGE_COPY.dataOwnershipBody}
               </p>
               <div className={ACCOUNT_CONTROLS_ACTIONS_CLASS}>
-                <Button type="button" variant="op-secondary" disabled>
+                <Button
+                  type="button"
+                  variant="op-secondary"
+                  className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                  disabled={!canOpenPrivacyConsent}
+                  onClick={() => {
+                    if (!pageModule.requestNavigateAway(privacyConsentHref)) {
+                      return
+                    }
+                    navigate(privacyConsentHref)
+                  }}
+                >
                   {ACCOUNT_WORKSPACE_PAGE_COPY.viewPrivacySettings}
                 </Button>
                 <Button

@@ -53,22 +53,6 @@ namespace TummlyBackend.Helpers
             "explain what needs attention",
         ];
 
-        private static readonly (string Needle, string? PresetId)[] PeriodNeedles =
-        [
-            ("last 7 days", "last7"),
-            ("last seven days", "last7"),
-            ("last7", "last7"),
-            ("last 30 days", "last30"),
-            ("last thirty days", "last30"),
-            ("last30", "last30"),
-            ("this month", "thisMonth"),
-            ("thismonth", "thisMonth"),
-            ("last week", null),
-            ("this week", null),
-            ("yesterday", null),
-            ("last month", null),
-        ];
-
         public static AssistantExplainWhyKind Detect(string message)
         {
             var lower = message.Trim().ToLowerInvariant();
@@ -210,19 +194,7 @@ namespace TummlyBackend.Helpers
         }
 
         public static string? NamedPeriodPreset(string message)
-        {
-            var lower = message.Trim().ToLowerInvariant();
-            foreach (var (needle, presetId) in PeriodNeedles)
-            {
-                if (presetId is not null
-                    && lower.Contains(needle, StringComparison.Ordinal))
-                {
-                    return presetId;
-                }
-            }
-
-            return null;
-        }
+            => AssistantScopeOverride.TryDetectPeriodPreset(message);
 
         public static AssistantOwnedLocationRef? NamedOtherLocation(
             string message,
@@ -257,7 +229,7 @@ namespace TummlyBackend.Helpers
             var currentPreset = (currentScope.ReportingPeriod.PresetId ?? "last7")
                 .Trim();
 
-            foreach (var (needle, presetId) in PeriodNeedles)
+            foreach (var (needle, presetId) in AssistantScopeOverride.PeriodNeedlesForExplainWhy())
             {
                 if (!lower.Contains(needle, StringComparison.Ordinal))
                 {

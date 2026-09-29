@@ -12,7 +12,6 @@ export const REPORTS_HUB_GUEST_LOOP_COPY = {
     "Generate a weekly brief to see a short summary of last week's guest loop.",
   viewWeeklyBrief: "View weekly brief",
   generateBrief: "Generate brief",
-  createCampaign: "Create campaign",
   retry: "Retry",
 } as const
 

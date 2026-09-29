@@ -28,6 +28,7 @@ import {
 } from "@/lib/operatorCapture/createCaptureThankYouOfferModule"
 import {
   CAPTURE_THANK_YOU_OFFER_COPY,
+  toDisplayedCaptureThankYouOffer,
   type CaptureThankYouOfferFact,
 } from "@/lib/operatorCapture/captureThankYouOfferPresentation"
 import {
@@ -945,11 +946,11 @@ export function createOperatorCapturePageModule(
     const placementsFacts = response.placements
     const lastJourneyUpdate = response.lastJourneyUpdate ?? null
     const captureLocationStatus = response.captureLocationStatus
-    const thankYouOffer: CaptureThankYouOfferFact = {
+    const thankYouOffer = toDisplayedCaptureThankYouOffer({
       offerId: response.thankYouOfferId ?? null,
       title: response.thankYouOfferTitle ?? null,
       live: response.thankYouOfferLive ?? false,
-    }
+    })
 
     const activeQrCap =
       response.entitlements?.activeQrPlacements?.available === false

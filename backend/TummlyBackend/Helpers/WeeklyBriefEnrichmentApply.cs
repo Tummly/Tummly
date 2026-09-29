@@ -92,6 +92,13 @@ namespace TummlyBackend.Helpers
                                 Title = wording.Title,
                                 Subtitle = wording.Subtitle,
                             },
+                        WeeklyBriefRecommendedActions.UnderperformQrFactDto underperform
+                            when byKind.TryGetValue(underperform.Kind, out var wording)
+                            => underperform with
+                            {
+                                Title = wording.Title,
+                                Subtitle = wording.Subtitle,
+                            },
                         _ => fact,
                     }
                 );
@@ -135,6 +142,15 @@ namespace TummlyBackend.Helpers
                     => !string.IsNullOrWhiteSpace(low.Title)
                         ? low.Title
                         : $"High claims, lower redemptions - {low.OfferTitle} ({low.Claims} claims, {low.Redemptions} redemptions)",
+                WeeklyBriefRecommendedActions.UnderperformQrFactDto underperform
+                    => !string.IsNullOrWhiteSpace(underperform.Title)
+                        ? underperform.Title
+                        : underperform.PlacementLabel.Equals(
+                              "Counter card",
+                              StringComparison.OrdinalIgnoreCase
+                          )
+                            ? "Move counter QR closer to payment"
+                            : $"Review your {underperform.PlacementLabel} placement",
                 _ => "Recommended action",
             };
     }

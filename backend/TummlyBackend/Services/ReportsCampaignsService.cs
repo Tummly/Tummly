@@ -3,6 +3,7 @@ using TummlyBackend.Data;
 using TummlyBackend.DTOs.Reports;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
@@ -90,6 +91,57 @@ namespace TummlyBackend.Services
                     )
             );
 
+            var offerClaims = await MetricPairAsync(
+                () =>
+                    CountOfferClaimsAsync(
+                        locationId,
+                        fromUtc,
+                        toUtc,
+                        cancellationToken
+                    ),
+                () =>
+                    CountOfferClaimsAsync(
+                        locationId,
+                        previousFromUtc,
+                        previousToUtc,
+                        cancellationToken
+                    )
+            );
+
+            var offerRedemptions = await MetricPairAsync(
+                () =>
+                    CountOfferRedemptionsAsync(
+                        locationId,
+                        fromUtc,
+                        toUtc,
+                        cancellationToken
+                    ),
+                () =>
+                    CountOfferRedemptionsAsync(
+                        locationId,
+                        previousFromUtc,
+                        previousToUtc,
+                        cancellationToken
+                    )
+            );
+
+            var unsubscribes = await MetricPairAsync(
+                () =>
+                    CountUnsubscribesAsync(
+                        locationId,
+                        fromUtc,
+                        toUtc,
+                        cancellationToken
+                    ),
+                () =>
+                    CountUnsubscribesAsync(
+                        locationId,
+                        previousFromUtc,
+                        previousToUtc,
+                        cancellationToken
+                    )
+            );
+
             var performance = await ListPerformanceAsync(
                 locationId,
                 fromUtc,
@@ -107,6 +159,9 @@ namespace TummlyBackend.Services
                 CampaignsSent = campaignsSent,
                 GuestsMessaged = guestsMessaged,
                 FailedSends = failedSends,
+                OfferClaims = offerClaims,
+                OfferRedemptions = offerRedemptions,
+                Unsubscribes = unsubscribes,
                 Performance = performance,
                 NeedsAttention = needsAttention,
             };
@@ -239,6 +294,47 @@ namespace TummlyBackend.Services
                 row => row.Units
             );
 
+            var claimsByCampaign = await (
+                from i in _context.OfferIssues.AsNoTracking()
+                join o in _context.CatalogOffers.AsNoTracking()
+                    on i.CatalogOfferId equals o.Id
+                where
+                    o.RestaurantLocationId == locationId
+                    && i.CampaignId != null
+                    && campaignIds.Contains(i.CampaignId.Value)
+                    && i.ClaimedAtUtc != null
+                    && i.ClaimedAtUtc >= fromUtc
+                    && i.ClaimedAtUtc < toUtc
+                group i by i.CampaignId!.Value into g
+                select new { CampaignId = g.Key, Count = g.Count() }
+            ).ToListAsync(cancellationToken);
+
+            var claimsById = claimsByCampaign.ToDictionary(
+                row => row.CampaignId,
+                row => row.Count
+            );
+
+            var redemptionsByCampaign = await (
+                from i in _context.OfferIssues.AsNoTracking()
+                join o in _context.CatalogOffers.AsNoTracking()
+                    on i.CatalogOfferId equals o.Id
+                where
+                    o.RestaurantLocationId == locationId
+                    && i.CampaignId != null
+                    && campaignIds.Contains(i.CampaignId.Value)
+                    && i.RedeemedAtUtc != null
+                    && i.RedemptionVoidedAtUtc == null
+                    && i.RedeemedAtUtc >= fromUtc
+                    && i.RedeemedAtUtc < toUtc
+                group i by i.CampaignId!.Value into g
+                select new { CampaignId = g.Key, Count = g.Count() }
+            ).ToListAsync(cancellationToken);
+
+            var redemptionsById = redemptionsByCampaign.ToDictionary(
+                row => row.CampaignId,
+                row => row.Count
+            );
+
             return campaigns
                 .Select(c => new ReportsCampaignsPerformanceRowDto
                 {
@@ -247,9 +343,74 @@ namespace TummlyBackend.Services
                     Goal = c.GoalId,
                     Channel = c.Channel,
                     Sent = unitsById.GetValueOrDefault(c.Id),
+                    Claims = claimsById.GetValueOrDefault(c.Id),
+                    Redemptions = redemptionsById.GetValueOrDefault(c.Id),
+                    // LocationActivity has no campaign attribution yet.
+                    Unsubscribes = 0,
                     Status = c.Status,
                 })
                 .ToList();
+        }
+
+        private Task<int> CountOfferClaimsAsync(
+            int locationId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            return (
+                from i in _context.OfferIssues.AsNoTracking()
+                join o in _context.CatalogOffers.AsNoTracking()
+                    on i.CatalogOfferId equals o.Id
+                where
+                    o.RestaurantLocationId == locationId
+                    && i.ClaimedAtUtc != null
+                    && i.ClaimedAtUtc >= fromUtc
+                    && i.ClaimedAtUtc < toUtc
+                select i.Id
+            ).CountAsync(cancellationToken);
+        }
+
+        private Task<int> CountOfferRedemptionsAsync(
+            int locationId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            return (
+                from i in _context.OfferIssues.AsNoTracking()
+                join o in _context.CatalogOffers.AsNoTracking()
+                    on i.CatalogOfferId equals o.Id
+                where
+                    o.RestaurantLocationId == locationId
+                    && i.RedeemedAtUtc != null
+                    && i.RedemptionVoidedAtUtc == null
+                    && i.RedeemedAtUtc >= fromUtc
+                    && i.RedeemedAtUtc < toUtc
+                select i.Id
+            ).CountAsync(cancellationToken);
+        }
+
+        private Task<int> CountUnsubscribesAsync(
+            int locationId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            return _context.LocationActivities
+                .AsNoTracking()
+                .CountAsync(
+                    a =>
+                        a.LocationId == locationId
+                        && a.Kind
+                            == LocationActivityKinds.GuestMarketingUnsubscribed
+                        && a.OccurredAt >= fromUtc
+                        && a.OccurredAt < toUtc,
+                    cancellationToken
+                );
         }
 
         private async Task<

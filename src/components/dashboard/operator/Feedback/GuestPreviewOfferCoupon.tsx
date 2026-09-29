@@ -8,6 +8,9 @@ import {
 import { OfferClaimQrImage } from "@/components/dashboard/operator/Feedback/OfferClaimQrImage"
 import {
   GUEST_PREVIEW_OFFER_CLAIM_CODE_TOKEN_HELPER,
+  GUEST_THANK_YOU_OFFER_ALREADY_CLAIMED,
+  GUEST_THANK_YOU_OFFER_EYEBROW,
+  GUEST_THANK_YOU_OFFER_TERMS_LABEL,
   isGuestPreviewOfferClaimCodePlaceholder,
   type GuestPreviewOfferCouponView,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
@@ -30,6 +33,7 @@ type GuestPreviewOfferCouponProps = {
 
 const EMAIL_SURFACE = {
   root: "rounded-op-xl bg-[var(--op-color-black)]",
+  eyebrow: "text-[var(--op-color-white)]",
   title: "text-[var(--op-color-white)]",
   description: "text-[var(--op-color-white)]/40",
   codeRow:
@@ -39,10 +43,12 @@ const EMAIL_SURFACE = {
   copyButton:
     "text-[var(--op-color-gray-550)] hover:text-[var(--op-color-white)]",
   expiry: "text-[var(--op-color-white)]/50",
+  terms: "text-[var(--op-color-white)]/50",
 } as const
 
 const THANK_YOU_SURFACE = {
   root: "rounded-[8px] bg-guest-feedback-bg",
+  eyebrow: "text-guest-feedback-text",
   title: "text-guest-feedback-text",
   description: "text-guest-feedback-text/40",
   codeRow: "border-guest-feedback-border bg-guest-feedback-surface/15",
@@ -52,6 +58,7 @@ const THANK_YOU_SURFACE = {
   copyButton:
     "text-guest-feedback-placeholder hover:text-guest-feedback-text",
   expiry: "text-guest-feedback-text/50",
+  terms: "text-guest-feedback-text/50",
 } as const
 
 function PreviewClaimCodeLabel({
@@ -102,7 +109,13 @@ export function GuestPreviewOfferCoupon({
   surface = "email",
 }: GuestPreviewOfferCouponProps) {
   const copyEnabled = coupon.copyEnabled === true
-  const tokens = surface === "thankYou" ? THANK_YOU_SURFACE : EMAIL_SURFACE
+  const isThankYou = surface === "thankYou"
+  const tokens = isThankYou ? THANK_YOU_SURFACE : EMAIL_SURFACE
+  const statusMessage = coupon.alreadyClaimed
+    ? GUEST_THANK_YOU_OFFER_ALREADY_CLAIMED
+    : coupon.description !== ""
+      ? coupon.description
+      : null
 
   return (
     <div
@@ -111,27 +124,41 @@ export function GuestPreviewOfferCoupon({
         tokens.root
       )}
     >
-      <OfferClaimQrImage claimCode={coupon.redemptionCode} />
+      <div className="flex w-full flex-col items-center gap-[18px]">
+        <OfferClaimQrImage claimCode={coupon.redemptionCode} />
 
-      <div className="flex w-full flex-col items-center gap-3">
-        <p
-          className={cn(
-            "m-0 text-center text-base font-medium leading-normal",
-            tokens.title
-          )}
-        >
-          {coupon.title}
-        </p>
-        {coupon.description !== "" ? (
-          <p
-            className={cn(
-              "m-0 max-w-sm text-center text-xs font-medium leading-[17px]",
-              tokens.description
-            )}
-          >
-            {coupon.description}
-          </p>
-        ) : null}
+        <div className="flex w-full flex-col items-center gap-3 text-center">
+          <div className="flex flex-col items-center gap-2">
+            {isThankYou ? (
+              <p
+                className={cn(
+                  "m-0 text-[10px] font-medium leading-normal",
+                  tokens.eyebrow
+                )}
+              >
+                {GUEST_THANK_YOU_OFFER_EYEBROW}
+              </p>
+            ) : null}
+            <p
+              className={cn(
+                "m-0 text-base font-medium leading-normal",
+                tokens.title
+              )}
+            >
+              {coupon.title}
+            </p>
+          </div>
+          {statusMessage != null ? (
+            <p
+              className={cn(
+                "m-0 max-w-sm text-xs font-medium leading-[17px]",
+                tokens.description
+              )}
+            >
+              {statusMessage}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex w-full max-w-sm flex-col items-stretch gap-2.5">
@@ -171,14 +198,28 @@ export function GuestPreviewOfferCoupon({
             </Button>
           </div>
         </div>
-        <p
-          className={cn(
-            "m-0 text-center text-xs font-medium leading-[17px]",
-            tokens.expiry
-          )}
-        >
-          {coupon.expiryLabel}
-        </p>
+        {isThankYou ? (
+          <div
+            className={cn(
+              "flex w-full items-center justify-between text-xs font-medium leading-[17px]",
+              tokens.expiry
+            )}
+          >
+            <p className="m-0">{coupon.expiryLabel}</p>
+            <p className={cn("m-0", tokens.terms)}>
+              {GUEST_THANK_YOU_OFFER_TERMS_LABEL}
+            </p>
+          </div>
+        ) : (
+          <p
+            className={cn(
+              "m-0 text-center text-xs font-medium leading-[17px]",
+              tokens.expiry
+            )}
+          >
+            {coupon.expiryLabel}
+          </p>
+        )}
       </div>
     </div>
   )

@@ -139,8 +139,9 @@ namespace TummlyBackend.Models
         /// <summary>
         /// Optional Offers catalog definition attached to Guest form thank-you
         /// for this Owned location. Null = no thank-you Issue on submit.
-        /// Persisted even if the offer later becomes non-Active; issue path
-        /// treats non-Active as null.
+        /// Capture reads treat non-Active as empty and clear the FK; Pause /
+        /// Archive of the offer also clears this attach. Issue path ignores
+        /// non-Active ids.
         /// </summary>
         public int? ThankYouCatalogOfferId { get; set; }
 

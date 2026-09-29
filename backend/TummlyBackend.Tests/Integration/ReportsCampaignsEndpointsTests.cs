@@ -197,9 +197,6 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.True(body.GetProperty("success").GetBoolean());
             Assert.False(body.GetProperty("lifetimeEmpty").GetBoolean());
-            Assert.False(body.TryGetProperty("offerClaims", out _));
-            Assert.False(body.TryGetProperty("offerRedemptions", out _));
-            Assert.False(body.TryGetProperty("unsubscribes", out _));
 
             var campaignsSent = body.GetProperty("campaignsSent");
             Assert.Equal(2, campaignsSent.GetProperty("value").GetInt32());
@@ -222,6 +219,15 @@ namespace TummlyBackend.Tests.Integration
                 failedSends.GetProperty("valuePrevious").GetInt32()
             );
 
+            Assert.True(body.TryGetProperty("offerClaims", out var offerClaims));
+            Assert.Equal(0, offerClaims.GetProperty("value").GetInt32());
+            Assert.True(
+                body.TryGetProperty("offerRedemptions", out var offerRedemptions)
+            );
+            Assert.Equal(0, offerRedemptions.GetProperty("value").GetInt32());
+            Assert.True(body.TryGetProperty("unsubscribes", out var unsubscribes));
+            Assert.Equal(0, unsubscribes.GetProperty("value").GetInt32());
+
             var performance = body.GetProperty("performance");
             Assert.Equal(2, performance.GetArrayLength());
             Assert.Equal(
@@ -241,19 +247,34 @@ namespace TummlyBackend.Tests.Integration
                 performance[0].GetProperty("channel").GetString()
             );
             Assert.Equal(0, performance[0].GetProperty("sent").GetInt32());
+            Assert.Equal(0, performance[0].GetProperty("claims").GetInt32());
+            Assert.Equal(
+                0,
+                performance[0].GetProperty("redemptions").GetInt32()
+            );
+            Assert.Equal(
+                0,
+                performance[0].GetProperty("unsubscribes").GetInt32()
+            );
             Assert.Equal(
                 CampaignLifecycleService.PartiallySentStatus,
                 performance[0].GetProperty("status").GetString()
             );
-            Assert.False(performance[0].TryGetProperty("claims", out _));
-            Assert.False(performance[0].TryGetProperty("redemptions", out _));
-            Assert.False(performance[0].TryGetProperty("unsubscribes", out _));
 
             Assert.Equal(
                 "Current sent",
                 performance[1].GetProperty("name").GetString()
             );
             Assert.Equal(3, performance[1].GetProperty("sent").GetInt32());
+            Assert.Equal(0, performance[1].GetProperty("claims").GetInt32());
+            Assert.Equal(
+                0,
+                performance[1].GetProperty("redemptions").GetInt32()
+            );
+            Assert.Equal(
+                0,
+                performance[1].GetProperty("unsubscribes").GetInt32()
+            );
 
             var attention = body.GetProperty("needsAttention");
             Assert.Equal(2, attention.GetArrayLength());

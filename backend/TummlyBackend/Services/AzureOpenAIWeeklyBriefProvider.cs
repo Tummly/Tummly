@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Text;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Helpers;
@@ -11,8 +8,8 @@ namespace TummlyBackend.Services
 {
     /// <summary>
     /// Production Weekly brief provider: Azure OpenAI Structured Outputs.
+    /// Weekly brief via one-wave surface read tools.
     /// Reuses FeedbackClassification Endpoint/ApiKey/Deployment settings.
-    /// Uses the Weekly-brief-owned schema (not Campaigns / Home recommendation).
     /// </summary>
     public sealed class AzureOpenAIWeeklyBriefProvider : IWeeklyBriefProvider
     {
@@ -44,10 +41,7 @@ namespace TummlyBackend.Services
 
                 try
                 {
-                    var attemptResult = await AttemptGenerateAsync(
-                        input,
-                        cancellationToken
-                    );
+                    var attemptResult = await AttemptGenerateWithToolsAsync(input, cancellationToken);
 
                     if (attemptResult.Kind == AttemptKind.Succeeded)
                     {
@@ -74,7 +68,7 @@ namespace TummlyBackend.Services
                 {
                     throw;
                 }
-                catch (Exception ex) when (IsTransientException(ex))
+                catch (Exception ex) when (AzureOpenAIChatCompletions.IsTransientException(ex))
                 {
                     _logger.LogWarning(
                         ex,
@@ -95,7 +89,7 @@ namespace TummlyBackend.Services
             return new WeeklyBriefProviderResult.Failed(Retryable: true);
         }
 
-        private async Task<AttemptResult> AttemptGenerateAsync(
+        private async Task<AttemptResult> AttemptGenerateWithToolsAsync(
             WeeklyBriefProviderInput input,
             CancellationToken cancellationToken
         )
@@ -115,87 +109,67 @@ namespace TummlyBackend.Services
             var client = _httpClientFactory.CreateClient(
                 WeeklyBriefStructuredOutput.HttpClientName
             );
-
-            var requestUri = BuildChatCompletionsUri();
-            var body = WeeklyBriefStructuredOutput.BuildRequestJson(
-                _settings.DeploymentName,
-                input,
-                _settings.PromptSchemaVersion
-            );
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-            request.Headers.TryAddWithoutValidation("api-key", _settings.ApiKey);
-            request.Headers.Accept.Add(
-                new MediaTypeWithQualityHeaderValue("application/json")
-            );
-            request.Content = new StringContent(
-                body,
-                Encoding.UTF8,
-                "application/json"
-            );
-
-            using var response = await client.SendAsync(request, cancellationToken);
-
-            if (IsTransientStatusCode(response.StatusCode))
+            var forced = new List<AssistantToolCallRequest>
             {
-                _logger.LogWarning(
-                    "Azure OpenAI returned {StatusCode} for weekly brief",
-                    (int)response.StatusCode
-                );
-                return AttemptResult.Transient();
-            }
+                new(
+                    "forced_metrics",
+                    SurfaceReadToolCatalog.ReadWeeklyBriefMetrics,
+                    "{}"
+                ),
+            };
 
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogError(
-                    "Azure OpenAI weekly brief failed with {StatusCode}",
-                    (int)response.StatusCode
-                );
-                return AttemptResult.Failed(
-                    new WeeklyBriefProviderResult.Failed(Retryable: true)
-                );
-            }
-
-            var responseJson = await response.Content.ReadAsStringAsync(
+            var loop = await AzureOpenAIOneWaveToolLoop.RunAsync(
+                new AzureOpenAIOneWaveRequest
+                {
+                    SurfaceName = "weekly brief",
+                    HttpClient = client,
+                    Endpoint = _settings.Endpoint,
+                    ApiKey = _settings.ApiKey,
+                    DeploymentName = _settings.DeploymentName,
+                    ApiVersion = _settings.ApiVersion,
+                    SeedMessages = WeeklyBriefStructuredOutput.BuildToolSeedMessages(
+                        input,
+                        _settings.PromptSchemaVersion
+                    ),
+                    ToolsArray = SurfaceReadToolCatalog.WeeklyBriefTools(),
+                    SchemaName = WeeklyBriefStructuredOutput.SchemaName,
+                    FinalSchema = WeeklyBriefStructuredOutput.BuildSchema(),
+                    ExecuteTools = (calls, _) => Task.FromResult(
+                        SurfaceReadToolHost.ExecuteWeeklyBrief(calls, input)
+                    ),
+                    ForcedToolCalls = forced,
+                    Logger = _logger,
+                },
                 cancellationToken
             );
 
-            if (!WeeklyBriefStructuredOutput.TryExtractMessageContent(
-                    responseJson,
-                    out var content
-                ))
-            {
-                return AttemptResult.InvalidOutput();
-            }
-
-            if (!WeeklyBriefStructuredOutput.TryParseModelContent(
-                    content,
-                    out var output,
-                    out var enrichment,
-                    out var invalidOutput
-                ))
-            {
-                return invalidOutput
-                    ? AttemptResult.InvalidOutput()
-                    : AttemptResult.Failed(
-                        new WeeklyBriefProviderResult.Failed(Retryable: true)
-                    );
-            }
-
-            return AttemptResult.Succeeded(
-                new WeeklyBriefProviderResult.Succeeded(output!, enrichment)
-            );
+            return MapLoopResult(loop);
         }
 
-        private Uri BuildChatCompletionsUri()
-        {
-            var endpoint = _settings.Endpoint.TrimEnd('/') + "/";
-            var relative =
-                $"openai/deployments/{Uri.EscapeDataString(_settings.DeploymentName)}"
-                + $"/chat/completions?api-version={Uri.EscapeDataString(_settings.ApiVersion)}";
-
-            return new Uri(new Uri(endpoint), relative);
-        }
+        private AttemptResult MapLoopResult(AzureOpenAIOneWaveResult loop)
+            => loop switch
+            {
+                AzureOpenAIOneWaveResult.Succeeded succeeded =>
+                    WeeklyBriefStructuredOutput.TryParseModelContent(
+                        succeeded.Content,
+                        out var output,
+                        out var enrichment,
+                        out var invalidOutput
+                    )
+                        ? AttemptResult.Succeeded(
+                            new WeeklyBriefProviderResult.Succeeded(output!, enrichment)
+                        )
+                        : invalidOutput
+                            ? AttemptResult.InvalidOutput()
+                            : AttemptResult.Failed(
+                                new WeeklyBriefProviderResult.Failed(Retryable: true)
+                            ),
+                AzureOpenAIOneWaveResult.Transient => AttemptResult.Transient(),
+                AzureOpenAIOneWaveResult.InvalidOutput => AttemptResult.InvalidOutput(),
+                _ => AttemptResult.Failed(
+                    new WeeklyBriefProviderResult.Failed(Retryable: true)
+                ),
+            };
 
         private async Task DelayBackoffAsync(
             int attempt,
@@ -203,7 +177,6 @@ namespace TummlyBackend.Services
         )
         {
             var delayMs = Math.Max(0, _settings.InitialBackoffMilliseconds) * attempt;
-
             if (delayMs <= 0)
             {
                 return;
@@ -211,14 +184,6 @@ namespace TummlyBackend.Services
 
             await Task.Delay(delayMs, cancellationToken);
         }
-
-        private static bool IsTransientStatusCode(HttpStatusCode statusCode)
-            => statusCode == HttpStatusCode.RequestTimeout
-                || statusCode == HttpStatusCode.TooManyRequests
-                || (int)statusCode >= 500;
-
-        private static bool IsTransientException(Exception ex)
-            => ex is HttpRequestException or TaskCanceledException;
 
         private enum AttemptKind
         {

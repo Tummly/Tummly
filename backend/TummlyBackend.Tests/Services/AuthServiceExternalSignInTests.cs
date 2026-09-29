@@ -195,7 +195,11 @@ namespace TummlyBackend.Tests.Services
         {
             public List<string> SentOtpEmails { get; } = [];
 
-            public override Task SendOtpEmailAsync(string toEmail, string otp)
+            public override Task SendOtpEmailAsync(
+                string toEmail,
+                string otp,
+                string? restaurantName = null
+            )
             {
                 SentOtpEmails.Add(toEmail);
                 return Task.CompletedTask;

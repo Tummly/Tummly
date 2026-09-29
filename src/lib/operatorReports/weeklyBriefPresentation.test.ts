@@ -185,6 +185,25 @@ describe("weeklyBriefPresentation", () => {
       cta: "Review offer",
       target: "offers",
     })
+
+    expect(
+      mapWeeklyBriefRecommendedActionFact({
+        kind: "underperform-qr",
+        qrCodeId: 17,
+        placementLabel: "Counter card",
+        scans: 1,
+        contactable: 0,
+        target: "capture",
+      })
+    ).toEqual({
+      id: "underperform-qr",
+      title: "Move counter QR closer to payment",
+      subtitle:
+        "Counter card had 1 scans this period — well below your strongest placement.",
+      cta: "View QR codes",
+      target: "capture",
+      qrCodeId: 17,
+    })
   })
 
   it("hides Recommended actions when the fact list is empty", () => {
@@ -229,6 +248,16 @@ describe("weeklyBriefPresentation", () => {
       })
     ).toEqual({
       path: "/multi-dashboard/offers?location=7",
+    })
+    expect(
+      planWeeklyBriefRecommendedActionCta({
+        mode: "single",
+        locationId: 42,
+        target: "capture",
+        qrCodeId: 17,
+      })
+    ).toEqual({
+      path: "/single-dashboard/capture?location=42&qrCodeId=17",
     })
   })
 

@@ -194,18 +194,24 @@ namespace TummlyBackend.Tests.Services
         {
             public List<(
                 string ToEmail,
+                string FirstName,
                 string DocumentNumber,
                 string LineDescription,
                 int GrossPence,
+                DateTime PaymentSuccessUtc,
+                string BillingUrl,
                 byte[] PdfContent,
                 string PdfFileName
             )> Calls { get; } = [];
 
             public override Task SendTummlyVatInvoiceEmailAsync(
                 string toEmail,
+                string firstName,
                 string documentNumber,
                 string lineDescription,
                 int grossPence,
+                DateTime paymentSuccessUtc,
+                string billingUrl,
                 byte[] pdfContent,
                 string pdfFileName
             )
@@ -213,9 +219,12 @@ namespace TummlyBackend.Tests.Services
                 Calls.Add(
                     (
                         toEmail,
+                        firstName,
                         documentNumber,
                         lineDescription,
                         grossPence,
+                        paymentSuccessUtc,
+                        billingUrl,
                         pdfContent,
                         pdfFileName
                     )

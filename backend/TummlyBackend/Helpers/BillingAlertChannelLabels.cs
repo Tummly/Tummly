@@ -12,5 +12,20 @@ namespace TummlyBackend.Helpers
                 _ => channel,
             };
         }
+
+        /// <summary>
+        /// Short channel name for usage email subject/heading
+        /// (Email / SMS / AI).
+        /// </summary>
+        public static string AllowanceKindFor(string channel)
+        {
+            return channel switch
+            {
+                "sms" => "SMS",
+                "email" => "Email",
+                "ai" => "AI",
+                _ => channel,
+            };
+        }
     }
 }

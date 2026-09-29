@@ -21,16 +21,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IMaterialsCatalog _catalog;
         private readonly IShopOrderNumberAllocator _orderNumbers;
+        private readonly IShopOrderEmailNotifier _emailNotifier;
 
         public ComplimentaryStarterShopOrderService(
             ApplicationDbContext context,
             IMaterialsCatalog catalog,
-            IShopOrderNumberAllocator orderNumbers
+            IShopOrderNumberAllocator orderNumbers,
+            IShopOrderEmailNotifier? emailNotifier = null
         )
         {
             _context = context;
             _catalog = catalog;
             _orderNumbers = orderNumbers;
+            _emailNotifier = emailNotifier ?? NoOpShopOrderEmailNotifier.Instance;
         }
 
         public async Task<ComplimentaryStarterShopOrderResult> EnsureForLocationAsync(
@@ -168,6 +171,11 @@ namespace TummlyBackend.Services
             _context.ShopOrders.Add(order);
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            await _emailNotifier.TryNotifyConfirmedAsync(
+                order.Id,
+                cancellationToken
+            );
 
             return new ComplimentaryStarterShopOrderResult(
                 order.Id,

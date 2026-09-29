@@ -2,8 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
-using TummlyBackend.DTOs.Auth;
-using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
@@ -13,7 +11,6 @@ namespace TummlyBackend.Tests.Services
     public class AdminServiceReminderTests : IDisposable
     {
         private readonly ApplicationDbContext _context;
-        private readonly TrackingEmailService _emailService;
         private readonly AdminService _service;
 
         public AdminServiceReminderTests()
@@ -23,7 +20,6 @@ namespace TummlyBackend.Tests.Services
                 .Options;
 
             _context = new ApplicationDbContext(options);
-            _emailService = new TrackingEmailService();
 
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(
@@ -36,7 +32,7 @@ namespace TummlyBackend.Tests.Services
 
             var trialReviewTransition = new TrialReviewTransition(
                 _context,
-                _emailService,
+                new EmailServiceStubBase(),
                 configuration,
                 NullLogger<TrialReviewTransition>.Instance,
                 new AdminAuditService(_context, TimeProvider.System)
@@ -77,7 +73,6 @@ namespace TummlyBackend.Tests.Services
                         _context,
                         new FakeFeedbackRecoveryDraftProvider()
                     ),
-                    new UnusedAssistantAttentionRetrieve(),
                     new CaptureThankYouOfferService(
                         _context,
                         new OffersCatalogService(_context)
@@ -101,7 +96,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProcessOperatorSetupInvitationRemindersAsync_SendsReminder_WhenInviteIsOlderThan14Days()
+        public async Task ProcessOperatorSetupInvitationRemindersAsync_RotatesInvite_WhenInviteIsOlderThan14Days()
         {
             var originalToken = "original-token";
             var inviteSentAt = DateTime.UtcNow.AddDays(-15);
@@ -135,7 +130,6 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(1, batch.Sent);
             Assert.Equal(0, batch.Failed);
-            Assert.Single(_emailService.SetupReminderEmails);
 
             var updated = await _context.TrialRequests.SingleAsync();
             Assert.Equal(TrialRequestStatus.InviteSent, updated.Status);
@@ -174,7 +168,6 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(0, batch.Sent);
             Assert.Equal(0, batch.Failed);
-            Assert.Empty(_emailService.SetupReminderEmails);
         }
 
         [Fact]
@@ -207,93 +200,11 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(0, batch.Sent);
             Assert.Equal(0, batch.Failed);
-            Assert.Empty(_emailService.SetupReminderEmails);
-        }
-
-        [Fact]
-        public async Task ProcessOperatorSetupInvitationRemindersAsync_CountsFailed_WhenEmailDispatchFails()
-        {
-            var inviteSentAt = DateTime.UtcNow.AddDays(-15);
-
-            _context.TrialRequests.Add(
-                new TrialRequest
-                {
-                    BusinessName = "Test Cafe",
-                    BusinessCategory = "Cafe / coffee shop",
-                    Locations = "1",
-                    FullName = "Jane Operator",
-                    Email = "jane@example.com",
-                    Mobile = "07123456789",
-                    Role = "Owner",
-                    Goal = "Grow repeat guests",
-                    TermsAccepted = true,
-                    IsApproved = true,
-                    IsAccountCreated = false,
-                    AccountType = "Single",
-                    Status = TrialRequestStatus.Approved,
-                    ApprovalToken = "original-token",
-                    InviteSentAt = inviteSentAt,
-                    InviteExpiresAt = inviteSentAt.AddDays(14),
-                }
-            );
-            await _context.SaveChangesAsync();
-            _emailService.ShouldThrowOnReminder = true;
-
-            var batch =
-                await _service
-                    .ProcessOperatorSetupInvitationRemindersAsync();
-
-            Assert.Equal(0, batch.Sent);
-            Assert.Equal(1, batch.Failed);
-            Assert.Empty(_emailService.SetupReminderEmails);
         }
 
         public void Dispose()
         {
             _context.Dispose();
-        }
-
-        private sealed class TrackingEmailService : EmailServiceStubBase
-        {
-            public List<(string Email, string FullName, string SetupLink)>
-                SetupInvitationEmails { get; } = [];
-
-            public List<(
-                string Email,
-                string FullName,
-                string SetupLink,
-                DateTime ExpiresAtUtc
-            )> SetupReminderEmails { get; } = [];
-
-            public bool ShouldThrowOnReminder { get; set; }
-
-            public override Task SendAccountSetupEmailAsync(
-                string toEmail,
-                string fullName,
-                string setupLink
-            )
-            {
-                SetupInvitationEmails.Add((toEmail, fullName, setupLink));
-                return Task.CompletedTask;
-            }
-
-            public override Task SendAccountSetupReminderEmailAsync(
-                string toEmail,
-                string fullName,
-                string setupLink,
-                DateTime expiresAtUtc
-            )
-            {
-                if (ShouldThrowOnReminder)
-                {
-                    throw new InvalidOperationException("Resend failed");
-                }
-
-                SetupReminderEmails.Add(
-                    (toEmail, fullName, setupLink, expiresAtUtc)
-                );
-                return Task.CompletedTask;
-            }
         }
     }
 }

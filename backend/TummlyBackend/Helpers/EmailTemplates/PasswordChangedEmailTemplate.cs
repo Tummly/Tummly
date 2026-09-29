@@ -1,143 +1,83 @@
 using System.Net;
 
-
-
 namespace TummlyBackend.Helpers.EmailTemplates
-
 {
-
+    /// <summary>
+    /// Password changed from React Email
+    /// (<c>emails/emails/password-changed.tsx</c>).
+    /// </summary>
     public static class PasswordChangedEmailTemplate
-
     {
+        private const string TemplateRelativePath =
+            "Assets/emails/templates/password-changed.html";
 
         public const string Subject = "Your Tummly password was changed";
 
+        private static string? _templateHtml;
 
-
-        private const string Title = Subject;
-
-        private const string Font = BaseEmailTemplate.FontFamily;
-
-        private const string SupportEmail = "support@tummly.com";
-
-
-
-        public static string GenerateBody(string firstName)
-
+        public static string Generate(
+            IWebHostEnvironment environment,
+            string firstName,
+            string helpCentreUrl,
+            string termsUrl,
+            string privacyUrl,
+            string cookiePolicyUrl,
+            string logoUrl
+        )
         {
+            var html = LoadTemplate(environment);
 
-            var safeFirstName = WebUtility.HtmlEncode(firstName);
-
-
-
-            return $@"
-
-                <div style='display:block;{Font}'>
-
-                    <h1 style='margin:0 0 32px;
-
-                               font-size:30px;
-
-                               font-weight:600;
-
-                               line-height:1.2;
-
-                               color:#141414;
-
-                               {Font}'>
-
-                        {Title}
-
-                    </h1>
-
-
-
-                    {BaseEmailTemplate.RenderDivider()}
-
-
-
-                    <div style='margin-top:32px;{Font}'>
-
-                        <p style='margin:0 0 14px;
-
-                                  font-size:14px;
-
-                                  line-height:20px;
-
-                                  color:#141414;
-
-                                  {Font}'>
-
-                            Hi {safeFirstName},
-
-                        </p>
-
-
-
-                        <p style='margin:0 0 14px;
-
-                                  font-size:14px;
-
-                                  line-height:20px;
-
-                                  color:#141414;
-
-                                  {Font}'>
-
-                            Your Tummly password was changed.
-
-                        </p>
-
-
-
-                        <p style='margin:0 0 14px;
-
-                                  font-size:14px;
-
-                                  line-height:20px;
-
-                                  color:#141414;
-
-                                  {Font}'>
-
-                            If you made this change, no action is needed.
-
-                        </p>
-
-
-
-                        <p style='margin:0;
-
-                                  font-size:14px;
-
-                                  line-height:20px;
-
-                                  color:#141414;
-
-                                  {Font}'>
-
-                            If you did not change your password,
-
-                            <a href='mailto:{SupportEmail}'
-
-                               style='color:#141414;text-decoration:underline;{Font}'>
-
-                                contact Tummly support
-
-                            </a>
-
-                            immediately.
-
-                        </p>
-
-                    </div>
-
-                </div>";
-
+            return html
+                .Replace(
+                    "{{first_name}}",
+                    WebUtility.HtmlEncode(firstName),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{help_centre_url}}",
+                    WebUtility.HtmlEncode(helpCentreUrl),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{terms_url}}",
+                    WebUtility.HtmlEncode(termsUrl),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{privacy_url}}",
+                    WebUtility.HtmlEncode(privacyUrl),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{cookie_policy_url}}",
+                    WebUtility.HtmlEncode(cookiePolicyUrl),
+                    StringComparison.Ordinal
+                )
+                .Replace("{{logo_url}}", logoUrl, StringComparison.Ordinal);
         }
 
+        private static string LoadTemplate(IWebHostEnvironment environment)
+        {
+            if (_templateHtml != null)
+            {
+                return _templateHtml;
+            }
+
+            var path = Path.Combine(
+                environment.ContentRootPath,
+                TemplateRelativePath.Replace('/', Path.DirectorySeparatorChar)
+            );
+
+            if (!File.Exists(path))
+            {
+                throw new FileNotFoundException(
+                    "Password changed email template was not found. Run `npm run email:export` from the repo root.",
+                    path
+                );
+            }
+
+            _templateHtml = File.ReadAllText(path);
+            return _templateHtml;
+        }
     }
-
 }
-
-

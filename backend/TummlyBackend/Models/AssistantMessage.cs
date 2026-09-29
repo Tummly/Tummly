@@ -42,6 +42,12 @@ namespace TummlyBackend.Models
         [MaxLength(10)]
         public string? ReportingPeriodEndDate { get; set; }
 
+        /// <summary>
+        /// JSON <see cref="DTOs.Assistant.AssistantScopeChangeNoticeDto"/> when
+        /// this assistant turn applied an NL Analysis scope override.
+        /// </summary>
+        public string? ScopeChangeJson { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

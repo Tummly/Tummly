@@ -7,6 +7,11 @@ import {
 
 import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
+import {
+  buildGuestFeedbackSharedPrivatelyBody,
+  displayGuestFeedbackLocation,
+  displayGuestFeedbackRestaurant,
+} from "@/lib/guestFeedback/guestFeedbackUnlockPresentation"
 import type { GuestPreviewOfferCouponView } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import { cn } from "@/lib/utils"
 
@@ -43,24 +48,25 @@ const itemVariants: Variants = {
 }
 
 type GuestFeedbackSuccessProps = {
+  restaurantName: string
   locationName: string
-  address: string
   brandLogoPublicUrl?: string | null
   className?: string
   /** Issued or preview-sample offer coupon painted under thank-you copy. */
   offer?: GuestPreviewOfferCouponView | null
 }
 
+/** Thank-you ticket — Figma Guest-Loop-MVP 6778:28257. */
 export function GuestFeedbackSuccess({
+  restaurantName,
   locationName,
-  address,
   brandLogoPublicUrl = null,
   className,
   offer = null,
 }: GuestFeedbackSuccessProps) {
   const shouldReduceMotion = useReducedMotion()
-  const displayLocation = locationName.trim() || "this location"
-  const displayAddress = address.trim()
+  const displayRestaurant = displayGuestFeedbackRestaurant(restaurantName)
+  const displayLocation = displayGuestFeedbackLocation(locationName)
 
   return (
     <motion.div
@@ -68,10 +74,10 @@ export function GuestFeedbackSuccess({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={shouldReduceMotion ? { duration: 0 } : cardSpring}
       className={cn(
-        "relative mx-auto flex w-full flex-col items-center rounded-[10px] border border-guest-feedback-border bg-guest-feedback-surface px-5 pb-7.5 text-center",
+        "relative mx-auto flex w-full flex-col items-center rounded-[10px] border border-guest-feedback-border bg-guest-feedback-surface px-5 pb-[30px] pt-0 text-center",
         offer != null
-          ? "max-w-[min(100%,400px)] sm:max-w-[min(100%,440px)] sm:px-8 sm:pb-10"
-          : "max-w-[min(100%,333px)] sm:max-w-[min(100%,400px)] sm:px-8 sm:pb-10 md:max-w-[min(100%,440px)]",
+          ? "max-w-[min(100%,400px)] sm:max-w-[min(100%,440px)] sm:px-8"
+          : "max-w-[min(100%,333px)] sm:max-w-[min(100%,400px)] sm:px-8 md:max-w-[min(100%,440px)]",
         className
       )}
     >
@@ -90,22 +96,20 @@ export function GuestFeedbackSuccess({
         transition={
           shouldReduceMotion ? { duration: 0 } : { ...cardSpring, delay: 0.08 }
         }
-        className="-mt-7 flex flex-col items-center gap-3"
+        className="-mt-7 flex flex-col items-center gap-[22px]"
       >
         <BrandLogoMark
           brandLogoPublicUrl={brandLogoPublicUrl}
           className="size-13"
-          roundedClassName="rounded-md"
+          roundedClassName="rounded-[2px]"
         />
         <span className="flex flex-col items-center gap-1">
           <span className="text-[22px] font-semibold leading-normal text-guest-feedback-text">
+            {displayRestaurant}
+          </span>
+          <span className="text-xs leading-normal text-guest-feedback-muted">
             {displayLocation}
           </span>
-          {displayAddress ? (
-            <span className="text-xs leading-normal text-guest-feedback-muted">
-              {displayAddress}
-            </span>
-          ) : null}
         </span>
       </motion.div>
 
@@ -113,26 +117,30 @@ export function GuestFeedbackSuccess({
         variants={shouldReduceMotion ? undefined : containerVariants}
         initial={shouldReduceMotion ? false : "hidden"}
         animate="visible"
-        className="mt-15 flex flex-col items-center gap-3"
+        className="mt-15 flex w-full flex-col items-center gap-[33px]"
       >
-        <motion.h1
-          variants={shouldReduceMotion ? undefined : itemVariants}
-          className="text-[22px] font-medium leading-normal text-guest-feedback-text"
-        >
-          Thank you.
-        </motion.h1>
-        <motion.p
-          variants={shouldReduceMotion ? undefined : itemVariants}
-          transition={shouldReduceMotion ? undefined : fadeTransition}
-          className="max-w-63.75 text-xs leading-4.5 text-guest-feedback-muted"
-        >
-          Your feedback has been shared with the team at {displayLocation}
-          {displayAddress ? `, ${displayAddress}` : ""}.
-        </motion.p>
+        <div className="flex flex-col items-center gap-3">
+          <motion.h1
+            variants={shouldReduceMotion ? undefined : itemVariants}
+            className="text-[22px] font-medium leading-normal text-guest-feedback-text"
+          >
+            Thank you.
+          </motion.h1>
+          <motion.p
+            variants={shouldReduceMotion ? undefined : itemVariants}
+            transition={shouldReduceMotion ? undefined : fadeTransition}
+            className="max-w-70 text-xs leading-4.5 text-guest-feedback-muted"
+          >
+            {buildGuestFeedbackSharedPrivatelyBody(
+              restaurantName,
+              locationName
+            )}
+          </motion.p>
+        </div>
         {offer != null ? (
           <motion.div
             variants={shouldReduceMotion ? undefined : itemVariants}
-            className="mt-2 w-full text-left"
+            className="w-full"
           >
             <GuestPreviewOfferCoupon coupon={offer} surface="thankYou" />
           </motion.div>

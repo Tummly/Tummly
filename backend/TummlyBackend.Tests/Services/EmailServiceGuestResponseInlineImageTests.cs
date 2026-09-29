@@ -42,11 +42,11 @@ namespace TummlyBackend.Tests.Services
 
             var html = root.GetProperty("html").GetString();
             Assert.Contains(
-                $"https://app.tummly.test{BaseNonTransactionalEmailTemplate.PublicLogoPath}",
+                $"https://app.tummly.test{GuestResponseEmailTemplate.PublicLogoPath}",
                 html
             );
             Assert.Contains(
-                $"https://app.tummly.test{BaseNonTransactionalEmailTemplate.PublicTopDecorationPath}",
+                $"https://app.tummly.test{GuestResponseEmailTemplate.PublicTopDecorationPath}",
                 html
             );
             Assert.Contains(

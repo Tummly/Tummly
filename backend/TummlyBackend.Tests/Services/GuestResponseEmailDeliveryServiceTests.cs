@@ -465,12 +465,23 @@ namespace TummlyBackend.Tests.Services
                 LocationGuestPermissionLedgerSources.GuestForm,
                 grantAt
             );
-            if (withRecoveryCatalogAttach)
+            if (contactType == ContactType.Email)
             {
                 permissions.RecordEvent(
                     locationGuest.Id,
                     locationGuest.RestaurantLocationId,
                     LocationGuestPermissionKind.EmailMarketing,
+                    LocationGuestPermissionLedgerEventKinds.Grant,
+                    LocationGuestPermissionLedgerSources.GuestForm,
+                    grantAt
+                );
+            }
+            else if (contactType == ContactType.Phone)
+            {
+                permissions.RecordEvent(
+                    locationGuest.Id,
+                    locationGuest.RestaurantLocationId,
+                    LocationGuestPermissionKind.SmsMarketing,
                     LocationGuestPermissionLedgerEventKinds.Grant,
                     LocationGuestPermissionLedgerSources.GuestForm,
                     grantAt
@@ -566,7 +577,8 @@ namespace TummlyBackend.Tests.Services
                 string message,
                 string? brandLogoUrl = null,
                 GuestResponseEmailOfferBlock? offer = null,
-                string? unsubscribeHref = null
+                string? unsubscribeHref = null,
+                string? ticketSubject = null
             )
             {
                 CallCount++;

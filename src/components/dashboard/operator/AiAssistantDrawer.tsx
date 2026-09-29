@@ -22,6 +22,7 @@ import { GroundedLiveAnswerBody } from "@/components/dashboard/operator/Grounded
 import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
 import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
 import { AiIcon } from "@/components/ui/ai-icon"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -55,6 +56,7 @@ import type {
   OperatorAiAssistantMessage,
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import { formatScopeChangeNotice } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import { cn } from "@/lib/utils"
@@ -118,11 +120,13 @@ function ThreadMessage({
   retryVisible,
   onRetry,
   onActivateAction,
+  onOpenChangeScope,
 }: {
   message: OperatorAiAssistantMessage
   retryVisible: boolean
   onRetry: () => void
   onActivateAction: (action: OperatorAiAssistantAction) => void
+  onOpenChangeScope: () => void
 }) {
   if (message.role === "user") {
     return (
@@ -148,6 +152,10 @@ function ThreadMessage({
     )
   }
 
+  const scopeNotice = message.scopeChange
+    ? formatScopeChangeNotice(message.scopeChange)
+    : null
+
   return (
     <div
       className="flex flex-col gap-[30px]"
@@ -169,6 +177,16 @@ function ThreadMessage({
                 {message.body}
               </p>
             )}
+            {scopeNotice ? (
+              <button
+                type="button"
+                onClick={onOpenChangeScope}
+                className="self-start"
+                data-assistant-scope-change={message.id}
+              >
+                <Badge variant="soft">{scopeNotice}</Badge>
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -673,6 +691,7 @@ export function AiAssistantDrawer({
                     retryVisible={snapshot.retryVisible}
                     onRetry={onRetry}
                     onActivateAction={onActivateAction}
+                    onOpenChangeScope={onOpenChangeScope}
                   />
                 ))}
               </div>

@@ -4,6 +4,7 @@ using TummlyBackend.DTOs.Notifications;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -26,7 +27,8 @@ namespace TummlyBackend.Tests.Services
             );
             _producer = new ActivationNotificationProducer(
                 _context,
-                _notifications
+                _notifications,
+                new EmailServiceStubBase()
             );
         }
 

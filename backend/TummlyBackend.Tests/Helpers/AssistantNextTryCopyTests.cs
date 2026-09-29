@@ -29,7 +29,7 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData("hello")]
         [InlineData("what is up?")]
         [InlineData("asdfghjkl")]
-        public void GroundedFromEvidence_VagueAsk_ClarifiesInsteadOfDefaultSummary(
+        public void GroundedFromEvidence_VagueAsk_DoesNotClarify_ServerOwnsVagueGate(
             string userMessage
         )
         {
@@ -56,10 +56,11 @@ namespace TummlyBackend.Tests.Helpers
                 evidence
             );
 
-            Assert.Equal(AssistantMessageClass.Clarify, result.Class);
-            Assert.Equal(AssistantLiveAnswerCopy.VagueAskClarifyBody, result.Body);
-            Assert.Null(result.Title);
-            Assert.Empty(result.Actions);
+            // CompleteTurnAsync refuses vague NotCompare asks before live answer.
+            // This helper must stay grounded so MentionCaveat / SingleCaveat
+            // turns can still attach the server caveat.
+            Assert.Equal(AssistantMessageClass.Grounded, result.Class);
+            Assert.NotEqual(AssistantLiveAnswerCopy.VagueAskClarifyBody, result.Body);
         }
 
         [Fact]

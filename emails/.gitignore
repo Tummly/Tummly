@@ -1,0 +1,7 @@
+# React Email templates (`email dev` / `email export`).
+# Preview: `npm run email:dev` from repo root.
+# Export into backend Assets: `npm run email:export`.
+
+node_modules/
+out/
+.react-email/

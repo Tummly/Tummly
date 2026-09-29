@@ -1,146 +1,125 @@
 using System.Net;
+using System.Text.RegularExpressions;
 
 namespace TummlyBackend.Helpers.EmailTemplates
 {
+    /// <summary>
+    /// Team invite HTML from React Email
+    /// (<c>emails/emails/team-invitation.tsx</c> →
+    /// <c>Assets/emails/templates/team-invitation.html</c>).
+    /// Re-export with <c>npm run email:export</c> after template edits.
+    /// </summary>
     public static class TeamInvitationEmailTemplate
     {
+        private const string TemplateRelativePath =
+            "Assets/emails/templates/team-invitation.html";
+
+        private static readonly Regex InvitationMessageParagraph = new(
+            @"<p[^>]*data-slot=[""']invitation-message[""'][^>]*>[\s\S]*?</p>",
+            RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        private static string? _templateHtml;
+
         public static string Subject(string workspaceName)
         {
             return $"You've been invited to {workspaceName} on Tummly";
         }
 
-        private const string Font = BaseEmailTemplate.FontFamily;
-
-        public static string GenerateBody(
+        /// <summary>
+        /// Full HTML document (not a body fragment).
+        /// </summary>
+        public static string Generate(
+            IWebHostEnvironment environment,
             string greetingName,
             string inviterName,
             string workspaceName,
             string roleName,
             string locationScope,
             string? invitationMessage,
-            string acceptUrl
+            string acceptUrl,
+            string helpCentreUrl,
+            string logoUrl
         )
         {
-            var greeting = string.IsNullOrWhiteSpace(greetingName)
+            var html = LoadTemplate(environment);
+
+            var greetingLine = string.IsNullOrWhiteSpace(greetingName)
                 ? "Hi,"
-                : $"Hi {WebUtility.HtmlEncode(greetingName)},";
-            var safeInviter = WebUtility.HtmlEncode(inviterName);
-            var safeWorkspace = WebUtility.HtmlEncode(workspaceName);
-            var safeRole = WebUtility.HtmlEncode(roleName);
-            var safeScope = WebUtility.HtmlEncode(locationScope);
-            var safeLink = WebUtility.HtmlEncode(acceptUrl);
-            var messageBlock = string.IsNullOrWhiteSpace(invitationMessage)
-                ? string.Empty
-                : $@"
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            {WebUtility.HtmlEncode(invitationMessage)}
-                        </p>";
+                : $"Hi {WebUtility.HtmlEncode(greetingName.Trim())},";
 
-            return $@"
-                <div style='display:block;{Font}'>
-                    <h1 style='margin:0;
-                               font-size:34px;
-                               font-weight:500;
-                               line-height:42px;
-                               color:#141414;
-                               text-align:center;
-                               {Font}'>
-                        {WebUtility.HtmlEncode(Subject(workspaceName))}
-                    </h1>
+            html = html
+                .Replace("{{greeting_line}}", greetingLine, StringComparison.Ordinal)
+                .Replace(
+                    "{{inviter_name}}",
+                    WebUtility.HtmlEncode(inviterName),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{workspace_name}}",
+                    WebUtility.HtmlEncode(workspaceName),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{role_name}}",
+                    WebUtility.HtmlEncode(roleName),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{location_scope}}",
+                    WebUtility.HtmlEncode(locationScope),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{accept_url}}",
+                    WebUtility.HtmlEncode(acceptUrl),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{help_centre_url}}",
+                    WebUtility.HtmlEncode(helpCentreUrl),
+                    StringComparison.Ordinal
+                )
+                .Replace("{{logo_url}}", logoUrl, StringComparison.Ordinal);
 
-                    {BaseEmailTemplate.RenderDivider()}
+            if (string.IsNullOrWhiteSpace(invitationMessage))
+            {
+                html = InvitationMessageParagraph.Replace(html, string.Empty);
+            }
+            else
+            {
+                html = html.Replace(
+                    "{{invitation_message}}",
+                    WebUtility.HtmlEncode(invitationMessage.Trim()),
+                    StringComparison.Ordinal
+                );
+            }
 
-                    <div style='margin-top:32px;{Font}'>
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            {greeting}
-                        </p>
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            {safeInviter} has invited you to join {safeWorkspace} on Tummly.
-                        </p>
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            You'll have access based on the role and Locations assigned to you:
-                        </p>
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            Role: {safeRole}<br />
-                            Location access: {safeScope}
-                        </p>
-                        {messageBlock}
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            Accept your invitation:
-                        </p>
-                        <div style='margin:0 0 14px;{Font}'>
-                            <a href='{safeLink}'
-                               target='_blank'
-                               rel='noopener noreferrer'
-                               style='background-color:#14a74a;
-                                      color:#ffffff;
-                                      display:inline-block;
-                                      padding:15px 17px;
-                                      border-radius:4px;
-                                      font-size:16px;
-                                      font-weight:500;
-                                      line-height:20px;
-                                      text-decoration:none;
-                                      text-align:center;
-                                      {Font}'>
-                                Accept invitation
-                            </a>
-                        </div>
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            After accepting, you'll be able to sign in to Tummly and access the areas available to your role.
-                        </p>
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            If you already have a Tummly account, sign in with the Email address this invitation was sent to. If not, you'll be guided through creating your account.
-                        </p>
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            If you weren't expecting this invitation, you can ignore this Email.
-                        </p>
-                        <p style='margin:0;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            Thanks,<br />
-                            Tummly
-                        </p>
-                    </div>
-                </div>";
+            return html;
+        }
+
+        private static string LoadTemplate(IWebHostEnvironment environment)
+        {
+            if (_templateHtml != null)
+            {
+                return _templateHtml;
+            }
+
+            var path = Path.Combine(
+                environment.ContentRootPath,
+                TemplateRelativePath.Replace('/', Path.DirectorySeparatorChar)
+            );
+
+            if (!File.Exists(path))
+            {
+                throw new FileNotFoundException(
+                    "Team invitation email template was not found. Run `npm run email:export` from the repo root.",
+                    path
+                );
+            }
+
+            _templateHtml = File.ReadAllText(path);
+            return _templateHtml;
         }
     }
 }

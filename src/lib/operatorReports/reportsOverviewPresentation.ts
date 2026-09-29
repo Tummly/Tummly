@@ -9,6 +9,7 @@ import type {
   ReportsOverviewCaptureSourceWire,
   ReportsOverviewResponse,
 } from "@/types/operatorReports"
+import type { WeeklyBriefRecommendedActionFact } from "@/types/operatorHome"
 
 export const REPORTS_HUB_LOAD_ERROR_MESSAGE =
   "Could not load report data. Please try again."
@@ -18,6 +19,7 @@ export type ReportsOverviewViewModel = {
   privateFeedbackKpis: ReportsKpiItem[]
   offersKpis: ReportsKpiItem[]
   topCaptureSources: ReportsOverviewCaptureSourceWire[]
+  recommendedActions: WeeklyBriefRecommendedActionFact[]
 }
 
 function metricToKpi(
@@ -79,5 +81,6 @@ export function buildReportsOverviewViewModel(
       metricToKpi("Unsubscribes", response.offersAndCampaigns.unsubscribes),
     ],
     topCaptureSources: response.topCaptureSources,
+    recommendedActions: response.recommendedActions ?? [],
   }
 }

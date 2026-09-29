@@ -251,7 +251,8 @@ namespace TummlyBackend.Tests.Services
                 new NoOpCycleEndPlanChange(),
                 new NoOpCycleEndPlanCancel(),
                 new NoOpCreditLedger(),
-                Options.Create(sellerVat)
+                Options.Create(sellerVat),
+                new EmailServiceStubBase()
             );
             return new Harness(context, service, restaurant.Id, owner.Id);
         }

@@ -37,6 +37,10 @@ namespace TummlyBackend.Services
             string periodKey,
             string billingStatus,
             bool isPilot,
+            int used = 0,
+            int remaining = 0,
+            decimal usedShare = 0m,
+            string? resetDateLabel = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -76,6 +80,11 @@ namespace TummlyBackend.Services
                 isPilot
             );
             var dedupeKey = $"{restaurantId}:{channel}:{thresholdBand}:{periodKey}";
+            var allowanceKind = BillingAlertChannelLabels.AllowanceKindFor(channel);
+            var percentUsed = FormatPercentUsed(usedShare, thresholdBand);
+            var resetLabel = string.IsNullOrWhiteSpace(resetDateLabel)
+                ? "your next billing period"
+                : resetDateLabel.Trim();
 
             await DeliverToRecipientsAsync(
                 recipients,
@@ -85,6 +94,36 @@ namespace TummlyBackend.Services
                 eventKind,
                 dedupeKey,
                 channel,
+                async (recipient, cta) =>
+                {
+                    var href = cta.Href ?? "/";
+                    var label = cta.Label
+                        ?? (thresholdBand == 100 ? "Add credits" : "View usage");
+
+                    if (thresholdBand == 100)
+                    {
+                        await _emailService.SendUsageExhaustedEmailAsync(
+                            recipient.Email,
+                            recipient.FirstName,
+                            allowanceKind,
+                            href,
+                            label
+                        );
+                    }
+                    else
+                    {
+                        await _emailService.SendUsageWarningEmailAsync(
+                            recipient.Email,
+                            recipient.FirstName,
+                            allowanceKind,
+                            percentUsed,
+                            used.ToString(),
+                            remaining.ToString(),
+                            resetLabel,
+                            href
+                        );
+                    }
+                },
                 cancellationToken
             );
         }
@@ -131,6 +170,16 @@ namespace TummlyBackend.Services
                 BillingAlertEventKind.PaymentFailureDunning,
                 dedupeKey,
                 channel: null,
+                async (recipient, cta) =>
+                {
+                    await _emailService.SendPaymentActionRequiredEmailAsync(
+                        recipient.Email,
+                        recipient.FirstName,
+                        context.WorkspaceName,
+                        cta.Href ?? "/",
+                        cta.Label ?? "Review billing"
+                    );
+                },
                 cancellationToken
             );
         }
@@ -170,6 +219,15 @@ namespace TummlyBackend.Services
                 BillingAlertEventKind.UnpaidPilotLock,
                 dedupeKey,
                 channel: null,
+                async (recipient, cta) =>
+                {
+                    await _emailService.SendPilotEndedEmailAsync(
+                        recipient.Email,
+                        recipient.FirstName,
+                        context.WorkspaceName,
+                        cta.Href ?? "/"
+                    );
+                },
                 cancellationToken
             );
         }
@@ -209,6 +267,17 @@ namespace TummlyBackend.Services
                 BillingAlertEventKind.UnpaidPilotLock,
                 dedupeKey,
                 channel: null,
+                async (recipient, cta) =>
+                {
+                    await _emailService.SendBillingAccountNoticeEmailAsync(
+                        recipient.Email,
+                        recipient.FirstName,
+                        copy.Title,
+                        copy.Body,
+                        cta.Label,
+                        cta.Href
+                    );
+                },
                 cancellationToken
             );
         }
@@ -219,6 +288,17 @@ namespace TummlyBackend.Services
                 || string.Equals(billingStatus, "Dormant", StringComparison.Ordinal);
         }
 
+        private static string FormatPercentUsed(decimal usedShare, int thresholdBand)
+        {
+            if (usedShare > 0m)
+            {
+                var pct = (int)Math.Round(usedShare * 100m, MidpointRounding.AwayFromZero);
+                return $"{Math.Clamp(pct, 1, 100)}%";
+            }
+
+            return $"{thresholdBand}%";
+        }
+
         private async Task DeliverToRecipientsAsync(
             IReadOnlyList<BillingAlertRecipient> recipients,
             RestaurantAlertContext context,
@@ -227,6 +307,7 @@ namespace TummlyBackend.Services
             BillingAlertEventKind eventKind,
             string dedupeKey,
             string? channel,
+            Func<BillingAlertRecipient, BillingAlertCta, Task> sendEmailAsync,
             CancellationToken cancellationToken
         )
         {
@@ -245,14 +326,7 @@ namespace TummlyBackend.Services
 
                 try
                 {
-                    await _emailService.SendBillingAccountNoticeEmailAsync(
-                        recipient.Email,
-                        recipient.FirstName,
-                        copy.Title,
-                        copy.Body,
-                        cta.Label,
-                        cta.Href
-                    );
+                    await sendEmailAsync(recipient, cta);
                 }
                 catch (Exception ex)
                 {

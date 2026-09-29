@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.FileProviders;
 using TummlyBackend.Helpers;
 using TummlyBackend.Helpers.EmailTemplates;
 
@@ -27,27 +29,32 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("Privacy", html);
             Assert.Contains("Cookie settings", html);
             Assert.Contains("Powered by", html);
-            Assert.Contains("role='presentation'", html);
+            Assert.Contains("role=\"presentation\"", html);
             Assert.Contains(
-                $"https://app.tummly.test{BaseNonTransactionalEmailTemplate.PublicLogoPath}",
+                $"https://app.tummly.test{GuestResponseEmailTemplate.PublicLogoPath}",
                 html
             );
             Assert.Contains(
-                $"https://app.tummly.test{BaseNonTransactionalEmailTemplate.PublicTopDecorationPath}",
+                $"https://app.tummly.test{GuestResponseEmailTemplate.PublicTopDecorationPath}",
+                html
+            );
+            Assert.Contains(
+                $"https://app.tummly.test{GuestResponseEmailTemplate.PublicBottomStripPath}",
                 html
             );
             Assert.DoesNotContain("cid:", html);
             Assert.DoesNotContain("cid:bottom-strip", html);
-            Assert.DoesNotContain("data-guest-response-footer-strip", html);
-            Assert.Contains("data-guest-response-top-decoration='1'", html);
-            Assert.Contains("width='560'", html);
-            Assert.Contains("margin-top:-330px", html);
-            Assert.Contains("border-radius:10px", html);
-            Assert.Contains("max-width:440px", html);
-            Assert.Contains("data-non-transactional-slot='brand'", html);
-            Assert.Contains("data-non-transactional-slot='ticket'", html);
-            Assert.Contains("data-non-transactional-slot='legal'", html);
-            Assert.Contains("data-non-transactional-slot='poweredBy'", html);
+            Assert.Contains("data-guest-response-footer-strip=\"1\"", html);
+            Assert.Contains("data-guest-response-top-decoration=\"1\"", html);
+            Assert.Contains("width=\"314\"", html);
+            Assert.Contains("margin-top:-138px", html);
+            Assert.Contains("border-radius:6px", html);
+            Assert.Contains("background-color:#191919", html);
+            Assert.Contains("border:1px solid #292929", html);
+            Assert.Contains("data-non-transactional-slot=\"brand\"", html);
+            Assert.Contains("data-non-transactional-slot=\"ticket\"", html);
+            Assert.Contains("data-non-transactional-slot=\"legal\"", html);
+            Assert.Contains("data-non-transactional-slot=\"poweredBy\"", html);
             Assert.DoesNotContain("background-color:#14a74a", html);
             Assert.DoesNotContain("data:image", html);
             Assert.DoesNotContain("position:absolute", html);
@@ -59,13 +66,19 @@ namespace TummlyBackend.Tests.Helpers
             );
             Assert.DoesNotContain("background-color:#36b468", html);
             Assert.DoesNotContain("Expires:", html);
-            Assert.DoesNotContain("Copy", html);
+            Assert.DoesNotContain("Copy offer code", html);
+            Assert.Contains(
+                $"https://app.tummly.test{GuestResponseEmailTemplate.PublicBrandLogoPlaceholderPath}",
+                html
+            );
+            Assert.DoesNotContain("{{", html);
         }
 
         [Fact]
         public void Generate_HtmlEncodesUserContent()
         {
             var html = GuestResponseEmailTemplate.Generate(
+                Env(),
                 brandTitle: "<Brand>",
                 brandSubtitle: null,
                 locationAddress: "A & B",
@@ -87,6 +100,7 @@ namespace TummlyBackend.Tests.Helpers
         public void Generate_OmitsSubjectAndSubtitleWhenMissing()
         {
             var html = GuestResponseEmailTemplate.Generate(
+                Env(),
                 brandTitle: "Solo Venue",
                 brandSubtitle: null,
                 locationAddress: null,
@@ -116,24 +130,48 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.Contains("data-guest-response-offer='1'", html);
+            Assert.Contains("Your thank-you offer", html);
             Assert.Contains("15% off your next order", html);
             Assert.Contains(
                 "Show this code to the team on your next visit. This offer is from Burger House and is subject to the terms below.",
                 html
             );
             Assert.Contains("BURGERCO-4829", html);
-            Assert.Contains("Copy", html);
+            Assert.Contains("Copy offer code", html);
+            Assert.Contains("Terms apply", html);
             Assert.Contains("Expires: 31 July 2026", html);
+            Assert.Contains("border-radius:14px", html);
+            Assert.Contains("border-radius:54px", html);
             Assert.Contains("data-guest-response-offer-qr='1'", html);
             Assert.Contains("data-non-transactional-slot='offer'", html);
-            Assert.Contains("data-guest-response-notch='1'", html);
-            Assert.Contains("#2c2c2c", html);
+            Assert.Contains("#2f2f30", html);
+            Assert.Contains("#232323", html);
             Assert.Contains(
                 OfferClaimQr.ToPngDataUri("BURGERCO-4829"),
                 html
             );
             Assert.DoesNotContain("cid:", html);
             Assert.DoesNotContain("Give feedback", html);
+        }
+
+        [Fact]
+        public void Generate_OfferBlock_UsesFigmaInstruction_WhenDescriptionEmpty()
+        {
+            var html = GenerateSample(
+                offer: new GuestResponseEmailOfferBlock(
+                    Title: "14% OFF YOUR NEXT ORDER",
+                    Description: string.Empty,
+                    RedemptionCode: "BURGERCO-4829",
+                    ExpiryLabel: "Expires: 31 July 2026"
+                )
+            );
+
+            Assert.Contains(
+                "Show this QR code or offer code to the team on your next eligible visit.",
+                html
+            );
+            Assert.Contains("Your thank-you offer", html);
+            Assert.Contains("text-transform:uppercase", html);
         }
 
         [Fact]
@@ -181,6 +219,7 @@ namespace TummlyBackend.Tests.Helpers
         public void Generate_HtmlEncodesOfferBlockContent()
         {
             var html = GuestResponseEmailTemplate.Generate(
+                Env(),
                 brandTitle: "Brand",
                 brandSubtitle: null,
                 locationAddress: null,
@@ -210,7 +249,7 @@ namespace TummlyBackend.Tests.Helpers
             var html = GenerateSample();
 
             Assert.Contains(
-                "href='https://app.tummly.test/unsubscribe'",
+                "href=\"https://app.tummly.test/unsubscribe\"",
                 html
             );
             Assert.DoesNotContain("unsubscribe?t=", html);
@@ -223,6 +262,7 @@ namespace TummlyBackend.Tests.Helpers
                 "https://app.tummly.test/unsubscribe?t=payload.sig";
 
             var html = GuestResponseEmailTemplate.Generate(
+                Env(),
                 brandTitle: "Burger House",
                 brandSubtitle: null,
                 locationAddress: "12 High Street",
@@ -234,9 +274,9 @@ namespace TummlyBackend.Tests.Helpers
                 unsubscribeHref: signed
             );
 
-            Assert.Contains($"href='{signed}'", html);
+            Assert.Contains($"href=\"{signed}\"", html);
             Assert.DoesNotContain(
-                "href='https://app.tummly.test/unsubscribe'",
+                "href=\"https://app.tummly.test/unsubscribe\"",
                 html
             );
         }
@@ -246,6 +286,7 @@ namespace TummlyBackend.Tests.Helpers
         )
         {
             return GuestResponseEmailTemplate.Generate(
+                Env(),
                 brandTitle: "Burger House",
                 brandSubtitle: "Camden High Street",
                 locationAddress: "12 High Street, London",
@@ -255,6 +296,62 @@ namespace TummlyBackend.Tests.Helpers
                 brandLogoUrl: null,
                 offer: offer
             );
+        }
+
+        private static StubWebHostEnvironment Env()
+        {
+            var contentRoot = FindBackendContentRoot();
+            return new StubWebHostEnvironment { ContentRootPath = contentRoot };
+        }
+
+        private static string FindBackendContentRoot()
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                var candidate = Path.Combine(
+                    dir.FullName,
+                    "Assets",
+                    "emails",
+                    "templates",
+                    "guest-response.html"
+                );
+                if (File.Exists(candidate))
+                {
+                    return dir.FullName;
+                }
+
+                var nested = Path.Combine(
+                    dir.FullName,
+                    "TummlyBackend",
+                    "Assets",
+                    "emails",
+                    "templates",
+                    "guest-response.html"
+                );
+                if (File.Exists(nested))
+                {
+                    return Path.Combine(dir.FullName, "TummlyBackend");
+                }
+
+                dir = dir.Parent;
+            }
+
+            throw new DirectoryNotFoundException(
+                "Could not locate Assets/emails/templates/guest-response.html for tests."
+            );
+        }
+
+        private sealed class StubWebHostEnvironment : IWebHostEnvironment
+        {
+            public string EnvironmentName { get; set; } = "Test";
+            public string ApplicationName { get; set; } = "Tests";
+            public string WebRootPath { get; set; } = ".";
+            public string ContentRootPath { get; set; } = ".";
+            public IFileProvider WebRootFileProvider { get; set; } =
+                new NullFileProvider();
+            public IFileProvider ContentRootFileProvider { get; set; } =
+                new NullFileProvider();
         }
     }
 }

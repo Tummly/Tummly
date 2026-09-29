@@ -28,7 +28,7 @@ namespace TummlyBackend.Helpers
             string promptSchemaVersion
         )
         {
-            var userPayload = DomainPayload(input.Evidence);
+            var userPayload = BuildEvidencePayload(input.Evidence);
             userPayload["userMessage"] = input.UserMessage;
             userPayload["ownedLocationName"] = input.OwnedLocationName;
             userPayload["periodPhrase"] = input.PeriodPhrase;
@@ -57,6 +57,7 @@ namespace TummlyBackend.Helpers
                     input,
                     userPayload
                 ),
+                ["max_completion_tokens"] = StructuredAnswerMaxCompletionTokens,
                 ["response_format"] = new JsonObject
                 {
                     ["type"] = "json_schema",
@@ -537,6 +538,248 @@ namespace TummlyBackend.Helpers
                 out content
             );
 
+        /// <summary>
+        /// Parses Azure chat completion message tool_calls (native function calling).
+        /// </summary>
+        public static bool TryExtractToolCalls(
+            string responseJson,
+            out IReadOnlyList<AssistantToolCallRequest> toolCalls
+        )
+        {
+            toolCalls = [];
+            try
+            {
+                using var document = JsonDocument.Parse(responseJson);
+                var root = document.RootElement;
+                if (!root.TryGetProperty("choices", out var choices)
+                    || choices.ValueKind != JsonValueKind.Array
+                    || choices.GetArrayLength() == 0)
+                {
+                    return false;
+                }
+
+                var message = choices[0].GetProperty("message");
+                if (!message.TryGetProperty("tool_calls", out var callsElement)
+                    || callsElement.ValueKind != JsonValueKind.Array
+                    || callsElement.GetArrayLength() == 0)
+                {
+                    return false;
+                }
+
+                var parsed = new List<AssistantToolCallRequest>();
+                foreach (var call in callsElement.EnumerateArray())
+                {
+                    if (call.ValueKind != JsonValueKind.Object)
+                    {
+                        continue;
+                    }
+
+                    var id = call.TryGetProperty("id", out var idElement)
+                        && idElement.ValueKind == JsonValueKind.String
+                            ? idElement.GetString() ?? string.Empty
+                            : string.Empty;
+                    if (!call.TryGetProperty("function", out var function)
+                        || function.ValueKind != JsonValueKind.Object
+                        || !function.TryGetProperty("name", out var nameElement)
+                        || nameElement.ValueKind != JsonValueKind.String)
+                    {
+                        continue;
+                    }
+
+                    var name = nameElement.GetString() ?? string.Empty;
+                    var args = "{}";
+                    if (function.TryGetProperty("arguments", out var argsElement)
+                        && argsElement.ValueKind == JsonValueKind.String)
+                    {
+                        args = argsElement.GetString() ?? "{}";
+                    }
+
+                    if (id.Length == 0 || name.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    parsed.Add(new AssistantToolCallRequest(id, name, args));
+                }
+
+                if (parsed.Count == 0)
+                {
+                    return false;
+                }
+
+                toolCalls = parsed;
+                return true;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+            catch (KeyNotFoundException)
+            {
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
+        public static string BuildRetrieveToolsSystemPrompt(string promptSchemaVersion)
+            => $"""
+                You write one complete live answer for an operator AI Assistant.
+                Prompt/schema version: {promptSchemaVersion}.
+
+                Call retrieve tools for restaurant facts. Do not invent counts,
+                guest contact details, or Location data. Scope and Reporting period
+                are server-owned — tools already bind them. Use compare_locations
+                for named Location compare and compare_all_locations for All-scope
+                compare. Do not call write or mutate tools — campaign, offer, and
+                recovery drafts persist on the server after your structured answer.
+
+                After tool results, return Structured Outputs only with answerClass
+                grounded, refusal, failure, or clarify; assistantTask retrieve,
+                create-campaign-draft, create-campaign-with-offer, offer-path,
+                recovery-path, or refuse; title; body; actions; conversationTitle;
+                offerTerms when creating an Offer. Grounded body Markdown allow-list:
+                ##/### headings, **bold**, top-level - lists and 1. lists. Refusal,
+                failure, and clarify bodies are plain text.
+
+                Question-first: answer only what was asked. Prefer parallel tool calls
+                for the domains needed. Empty tool evidence is a grounded empty answer.
+                """;
+
+        /// <summary>
+        /// gpt-5-mini (QA) spends reasoning tokens inside max_completion_tokens;
+        /// without headroom, Structured Outputs finish with empty content.
+        /// </summary>
+        public const int RetrieveToolsRoundMaxCompletionTokens = 512;
+
+        public const int StructuredAnswerMaxCompletionTokens = 4096;
+
+        public static string BuildRetrieveToolsRoundJson(
+            string deploymentName,
+            AssistantLiveAnswerInput input,
+            string promptSchemaVersion,
+            JsonArray messages,
+            bool allowTools
+        )
+        {
+            var request = new JsonObject
+            {
+                ["model"] = deploymentName,
+                ["messages"] = messages,
+            };
+
+            if (allowTools)
+            {
+                request["tools"] = AssistantRetrieveToolCatalog.BuildToolsArray();
+                request["tool_choice"] = "auto";
+                request["parallel_tool_calls"] = true;
+                request["max_completion_tokens"] = RetrieveToolsRoundMaxCompletionTokens;
+            }
+            else
+            {
+                // Do not send tool_choice without tools — Azure rejects it.
+                // Omit tools so the model cannot call another wave; require schema.
+                request["max_completion_tokens"] = StructuredAnswerMaxCompletionTokens;
+                request["response_format"] = new JsonObject
+                {
+                    ["type"] = "json_schema",
+                    ["json_schema"] = new JsonObject
+                    {
+                        ["name"] = SchemaName,
+                        ["strict"] = true,
+                        ["schema"] = BuildSchema()
+                    }
+                };
+            }
+
+            return request.ToJsonString(RequestJsonOptions);
+        }
+
+        public static JsonArray BuildRetrieveToolsSeedMessages(
+            AssistantLiveAnswerInput input,
+            string promptSchemaVersion
+        )
+        {
+            var messages = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "system",
+                    ["content"] = BuildRetrieveToolsSystemPrompt(promptSchemaVersion),
+                },
+            };
+
+            if (input.History is { Count: > 0 } history)
+            {
+                foreach (var turn in history)
+                {
+                    messages.Add(
+                        new JsonObject
+                        {
+                            ["role"] = turn.Role.ToWireString(),
+                            ["content"] = turn.Body,
+                        }
+                    );
+                }
+            }
+
+            var userPayload = new JsonObject
+            {
+                ["userMessage"] = input.UserMessage,
+                ["ownedLocationName"] = input.OwnedLocationName,
+                ["periodPhrase"] = input.PeriodPhrase,
+                ["caveat"] = input.Caveat,
+                ["droppedUnknownSentence"] = input.DroppedUnknownSentence,
+                ["compareAll"] = input.CompareAll,
+                ["namedCompare"] = input.NamedCompare,
+                ["askFocus"] = AssistantAskFocus.Detect(input.UserMessage).ToString(),
+            };
+            messages.Add(
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = userPayload.ToJsonString(RequestJsonOptions),
+                }
+            );
+            return messages;
+        }
+
+        public static void AppendAssistantToolCallsMessage(
+            JsonArray messages,
+            string responseJson
+        )
+        {
+            using var document = JsonDocument.Parse(responseJson);
+            var message = document.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message");
+            var node = JsonNode.Parse(message.GetRawText());
+            if (node is not null)
+            {
+                messages.Add(node);
+            }
+        }
+
+        public static void AppendToolResultMessages(
+            JsonArray messages,
+            IReadOnlyList<AssistantToolCallResult> results
+        )
+        {
+            foreach (var result in results)
+            {
+                messages.Add(
+                    new JsonObject
+                    {
+                        ["role"] = "tool",
+                        ["tool_call_id"] = result.ToolCallId,
+                        ["content"] = result.ContentJson,
+                    }
+                );
+            }
+        }
+
         public static bool TryParseModelContent(
             string? content,
             AssistantRetrievedEvidence evidence,
@@ -664,7 +907,7 @@ namespace TummlyBackend.Helpers
             return new JsonArray(
                 rows.Select(row =>
                 {
-                    var node = DomainPayload(row.Evidence);
+                    var node = BuildEvidencePayload(row.Evidence);
                     node["ownedLocationName"] = row.LocationName;
                     node["capturePaused"] =
                         row.CaptureStatus == CaptureLocationStatus.Paused;
@@ -673,7 +916,7 @@ namespace TummlyBackend.Helpers
             );
         }
 
-        private static JsonObject DomainPayload(AssistantRetrievedEvidence evidence)
+        public static JsonObject BuildEvidencePayload(AssistantRetrievedEvidence evidence)
         {
             var feedback = evidence.Feedback;
             var offers = evidence.Offers;

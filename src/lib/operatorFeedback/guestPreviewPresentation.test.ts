@@ -241,7 +241,20 @@ describe("guestPreviewPresentation", () => {
       expiryLabel: "Expires: 26 August 2026",
       copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
       copyEnabled: true,
+      alreadyClaimed: false,
     })
+  })
+
+  it("maps an already-claimed thank-you offer", () => {
+    expect(
+      toIssuedGuestOfferCoupon({
+        title: "Thanks for visiting",
+        description: "Guest form thank-you",
+        claimCode: "TUM-ABC234",
+        expiryLabel: "Expires: 26 August 2026",
+        alreadyClaimed: true,
+      })
+    ).toMatchObject({ alreadyClaimed: true })
   })
 
   it("returns null when issued offer title or claim code is missing", () => {

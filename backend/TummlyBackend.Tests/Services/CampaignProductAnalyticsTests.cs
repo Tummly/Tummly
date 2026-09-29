@@ -599,7 +599,8 @@ namespace TummlyBackend.Tests.Services
                 string message,
                 string? brandLogoUrl = null,
                 GuestResponseEmailOfferBlock? offer = null,
-                string? unsubscribeHref = null
+                string? unsubscribeHref = null,
+                string? ticketSubject = null
             )
             {
                 return Task.CompletedTask;

@@ -6,7 +6,7 @@ import {
 import type { ReportsCampaignsResponse } from "@/types/operatorReports"
 
 describe("campaignsReportPresentation", () => {
-  it("exports copy without claims, redemptions, or opt-outs", () => {
+  it("exports campaigns report copy constants", () => {
     expect(CAMPAIGNS_REPORT_PAGE_COPY.breadcrumbReports).toBe("Reports")
     expect(CAMPAIGNS_REPORT_PAGE_COPY.breadcrumbCampaignsReport).toBe(
       "Campaigns report",
@@ -16,12 +16,9 @@ describe("campaignsReportPresentation", () => {
       "No campaign reports yet",
     )
     expect(CAMPAIGNS_REPORT_PAGE_COPY.createCampaign).toBe("Create campaign")
-    expect(CAMPAIGNS_REPORT_PAGE_COPY.pageSubtitle).not.toMatch(
-      /opt-out|claim|redemption/i,
-    )
-    expect(CAMPAIGNS_REPORT_PAGE_COPY.emptySubtitle).not.toMatch(
-      /opt-out|claim|redemption/i,
-    )
+    expect(CAMPAIGNS_REPORT_PAGE_COPY.claimsHeader).toBe("Claims")
+    expect(CAMPAIGNS_REPORT_PAGE_COPY.redemptionsHeader).toBe("Redemptions")
+    expect(CAMPAIGNS_REPORT_PAGE_COPY.unsubscribesHeader).toBe("Unsubscribes")
     expect(CAMPAIGNS_REPORT_PAGE_COPY.performanceSectionTitle).toBe(
       "Campaign performance",
     )
@@ -30,7 +27,7 @@ describe("campaignsReportPresentation", () => {
     )
   })
 
-  it("maps a ready campaigns payload into three KPIs and labelled rows", () => {
+  it("maps a ready campaigns payload into six KPIs and labelled rows", () => {
     const response: Extract<
       ReportsCampaignsResponse,
       { lifetimeEmpty: false }
@@ -40,6 +37,9 @@ describe("campaignsReportPresentation", () => {
       campaignsSent: { value: 2, valuePrevious: 1 },
       guestsMessaged: { value: 4, valuePrevious: 2 },
       failedSends: { value: 1, valuePrevious: 0 },
+      offerClaims: { value: 5, valuePrevious: 3 },
+      offerRedemptions: { value: 2, valuePrevious: 1 },
+      unsubscribes: { value: 1, valuePrevious: 0 },
       performance: [
         {
           campaignId: 9,
@@ -47,6 +47,9 @@ describe("campaignsReportPresentation", () => {
           goal: "boost-quieter-time",
           channel: "sms",
           sent: 3,
+          claims: 2,
+          redemptions: 1,
+          unsubscribes: 0,
           status: "sent",
         },
       ],
@@ -60,8 +63,15 @@ describe("campaignsReportPresentation", () => {
     }
 
     const view = buildCampaignsReportViewModel(response)
-    expect(view.kpis).toHaveLength(3)
-    expect(view.kpis[0]?.label).toBe("Campaigns sent")
+    expect(view.kpis).toHaveLength(6)
+    expect(view.kpis.map((row) => row.label)).toEqual([
+      "Campaigns sent",
+      "Guests messaged",
+      "Failed sends",
+      "Offer claims",
+      "Offer redemptions",
+      "Unsubscribes",
+    ])
     expect(view.kpis[0]?.value).toBe("2")
     expect(view.performance[0]).toMatchObject({
       campaignId: 9,
@@ -69,6 +79,9 @@ describe("campaignsReportPresentation", () => {
       goal: "Boost a quieter time",
       channel: "SMS",
       sent: 3,
+      claims: 2,
+      redemptions: 1,
+      unsubscribes: 0,
       statusLabel: "Sent",
     })
     expect(view.attentionItems[0]).toMatchObject({

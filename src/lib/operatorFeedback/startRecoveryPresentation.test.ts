@@ -131,7 +131,8 @@ describe("startRecoveryPresentation", () => {
     expect(
       intents.find((i) => i.id === "respond-to-guest")
     ).toMatchObject({
-      enabled: true,
+      enabled: false,
+      disableReason: "Guest has opted out of offers",
     })
   })
 
@@ -144,6 +145,12 @@ describe("startRecoveryPresentation", () => {
 
     expect(
       intents.find((i) => i.id === "respond-with-recovery-offer")
+    ).toMatchObject({
+      enabled: false,
+      disableReason: "Guest has opted out of offers",
+    })
+    expect(
+      intents.find((i) => i.id === "respond-to-guest")
     ).toMatchObject({
       enabled: false,
       disableReason: "Guest has opted out of offers",

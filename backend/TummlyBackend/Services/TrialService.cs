@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
@@ -258,7 +258,8 @@ namespace TummlyBackend.Services
             await _emailService
                 .SendOtpEmailAsync(
                     dto.Email,
-                    otpCode
+                    otpCode,
+                    dto.BusinessName
                 );
 
             return trialRequest;
@@ -518,7 +519,8 @@ namespace TummlyBackend.Services
             await _emailService
                 .SendOtpEmailAsync(
                     email,
-                    otpCode
+                    otpCode,
+                    pendingRequest.BusinessName
                 );
         }
     }

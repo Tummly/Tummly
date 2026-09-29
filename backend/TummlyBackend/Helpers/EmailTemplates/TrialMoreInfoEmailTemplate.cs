@@ -2,93 +2,75 @@ using System.Net;
 
 namespace TummlyBackend.Helpers.EmailTemplates
 {
+    /// <summary>
+    /// Trial more-info request from React Email
+    /// (<c>emails/emails/trial-more-info.tsx</c>).
+    /// </summary>
     public static class TrialMoreInfoEmailTemplate
     {
+        private const string TemplateRelativePath =
+            "Assets/emails/templates/trial-more-info.html";
+
         public const string Subject = "Action required: Tummly trial request";
 
-        private const string Title = "More information needed";
-        private const string Font = BaseEmailTemplate.FontFamily;
-        private const string FeedbackHeading = "What we need from you";
-
-        public static string GenerateBody(
+        public static string Generate(
+            IWebHostEnvironment environment,
             string fullName,
-            string? moreInfoMessage = null
+            string? moreInfoMessage,
+            string helpCentreUrl,
+            string termsUrl,
+            string privacyUrl,
+            string cookiePolicyUrl,
+            string logoUrl
         )
         {
-            var firstName = ExtractFirstName(fullName);
-            var safeFirstName = WebUtility.HtmlEncode(firstName);
+            var firstName = ReactEmailHtmlFragments.ExtractFirstName(fullName);
+            var greetingLine = $"Hi {WebUtility.HtmlEncode(firstName)},";
             var feedbackBlock = string.IsNullOrWhiteSpace(moreInfoMessage)
-                ? RenderLegacyDetailsRequest()
-                : BaseEmailTemplate.RenderAdminFeedbackBlock(
-                    FeedbackHeading,
+                ? @"<p style='margin:0 0 14px;font-size:14px;line-height:20px;color:#141414;'>Reply to this email with your restaurant&apos;s physical address or business registration details.</p>"
+                : ReactEmailHtmlFragments.AdminFeedbackBlock(
+                    "What we need from you",
                     moreInfoMessage
                 );
 
-            return $@"
-                <div style='display:block;{Font}'>
-                    <h1 style='margin:0 0 32px;
-                               font-size:30px;
-                               font-weight:600;
-                               line-height:1.2;
-                               color:#141414;
-                               {Font}'>
-                        {Title}
-                    </h1>
+            var html = ReactEmailHtmlLoader.Load(
+                environment,
+                TemplateRelativePath,
+                "Trial more-info email template was not found. Run `npm run email:export` from the repo root."
+            );
 
-                    {BaseEmailTemplate.RenderDivider()}
-
-                    <div style='margin-top:32px;{Font}'>
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            Hi {safeFirstName},
-                        </p>
-
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            Our team needs a few more details before activating your trial.
-                        </p>
-
-                        {feedbackBlock}
-
-                        <p style='margin:0;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            We will process your application as soon as you reply.
-                        </p>
-                    </div>
-                </div>";
-        }
-
-        private static string RenderLegacyDetailsRequest()
-        {
-            return $@"
-                        <p style='margin:0 0 14px;
-                                  font-size:14px;
-                                  line-height:20px;
-                                  color:#141414;
-                                  {Font}'>
-                            Reply to this email with your restaurant&apos;s physical address or business registration details.
-                        </p>";
-        }
-
-        private static string ExtractFirstName(string? fullName)
-        {
-            if (string.IsNullOrWhiteSpace(fullName))
-            {
-                return "there";
-            }
-
-            var firstToken = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
-
-            return string.IsNullOrWhiteSpace(firstToken) ? "there" : firstToken;
+            return html
+                .Replace(
+                    "{{greeting_line}}",
+                    greetingLine,
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{feedback_block}}",
+                    feedbackBlock,
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{help_centre_url}}",
+                    WebUtility.HtmlEncode(helpCentreUrl),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{terms_url}}",
+                    WebUtility.HtmlEncode(termsUrl),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{privacy_url}}",
+                    WebUtility.HtmlEncode(privacyUrl),
+                    StringComparison.Ordinal
+                )
+                .Replace(
+                    "{{cookie_policy_url}}",
+                    WebUtility.HtmlEncode(cookiePolicyUrl),
+                    StringComparison.Ordinal
+                )
+                .Replace("{{logo_url}}", logoUrl, StringComparison.Ordinal);
         }
     }
 }

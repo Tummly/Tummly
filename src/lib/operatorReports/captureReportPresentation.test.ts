@@ -3,6 +3,8 @@ import { describe, it, expect } from "vitest"
 import {
   buildReportsCaptureViewModel,
   CAPTURE_REPORT_PAGE_COPY,
+  deriveCaptureFunnelInsight,
+  deriveCapturePlacementInsight,
 } from "./captureReportPresentation"
 import type { ReportsCaptureResponse } from "@/types/operatorReports"
 
@@ -53,6 +55,7 @@ describe("captureReportPresentation", () => {
     expect(CAPTURE_REPORT_PAGE_COPY.title).toBe("Capture report")
     expect(CAPTURE_REPORT_PAGE_COPY.subtitle).toContain("QR codes")
     expect(CAPTURE_REPORT_PAGE_COPY.emptyTitle).toBe("No QR activity yet")
+    expect(CAPTURE_REPORT_PAGE_COPY.createQr).toBe("Create QR")
     expect(CAPTURE_REPORT_PAGE_COPY.funnelSectionTitle).toBe(
       "Scan-to-guest funnel"
     )
@@ -89,5 +92,50 @@ describe("captureReportPresentation", () => {
     expect(view.placements[0]?.conversion).toBe("33%")
     expect(view.placements[1]?.conversion).toBe("—")
     expect(view.placements[0]?.qrName).toBe("Counter card")
+  })
+
+  it("derives funnel insight from the largest numeric drop-off", () => {
+    const view = buildReportsCaptureViewModel(readyCapture())
+    expect(view.funnelInsight).toBe(
+      "Most drop-off happened between QR scans and Feedback submitted."
+    )
+    expect(
+      deriveCaptureFunnelInsight([
+        { step: "A", count: 10, dropOff: "—" },
+        { step: "B", count: 10, dropOff: 0 },
+        { step: "C", count: 10, dropOff: 0 },
+      ])
+    ).toBeNull()
+  })
+
+  it("derives placement insight only for a clear underperformer", () => {
+    const view = buildReportsCaptureViewModel(readyCapture())
+    expect(view.placementInsight).toBe(
+      "Window sticker had 0 scans this period — well below your strongest placement."
+    )
+    expect(
+      deriveCapturePlacementInsight([
+        {
+          id: "1",
+          qrName: "A",
+          placement: "A",
+          status: "Active",
+          scans: 4,
+          feedback: 1,
+          contactable: 1,
+          conversion: "25%",
+        },
+        {
+          id: "2",
+          qrName: "B",
+          placement: "B",
+          status: "Active",
+          scans: 1,
+          feedback: 0,
+          contactable: 0,
+          conversion: "0%",
+        },
+      ])
+    ).toBeNull()
   })
 })

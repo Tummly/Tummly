@@ -147,6 +147,38 @@ export type OperatorAiAssistantMessage = {
   body: string
   analysisScope?: OperatorAiAssistantAnalysisScope
   actions?: OperatorAiAssistantAction[]
+  /** Server applied an NL Analysis scope override on this turn. */
+  scopeChange?: OperatorAiAssistantScopeChangeNotice | null
+}
+
+export type OperatorAiAssistantScopeChangeNotice = {
+  previousPeriodLabel?: string | null
+  nextPeriodLabel?: string | null
+  previousLocationLabel?: string | null
+  nextLocationLabel?: string | null
+  kinds: ReadonlyArray<"period" | "locations" | string>
+}
+
+export function formatScopeChangeNotice(
+  notice: OperatorAiAssistantScopeChangeNotice
+): string {
+  const parts: string[] = []
+  if (
+    notice.kinds.includes("period")
+    && notice.nextPeriodLabel
+  ) {
+    parts.push(`Reporting period updated to ${notice.nextPeriodLabel}`)
+  }
+  if (
+    notice.kinds.includes("locations")
+    && notice.nextLocationLabel
+  ) {
+    parts.push(`Scope updated to ${notice.nextLocationLabel}`)
+  }
+  if (parts.length === 0) {
+    return "Analysis scope updated"
+  }
+  return parts.join(". ")
 }
 
 export type OperatorAiAssistantConversationRow = {

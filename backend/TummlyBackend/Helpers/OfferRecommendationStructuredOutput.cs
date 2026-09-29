@@ -80,6 +80,48 @@ namespace TummlyBackend.Helpers
             return request.ToJsonString(RequestJsonOptions);
         }
 
+        /// <summary>
+        /// Seed messages for the tool-wave path. Offer metrics come from
+        /// read_offer_recommendation_metrics.
+        /// </summary>
+        public static JsonArray BuildToolSeedMessages(
+            OfferRecommendationProviderInput input,
+            string promptSchemaVersion
+        )
+        {
+            var userPayload = new JsonObject
+            {
+                ["selectedType"] = input.SelectedType,
+                ["reportingPeriod"] = input.ReportingPeriod,
+                ["fromUtc"] = input.FromUtc.ToString("O"),
+                ["toUtc"] = input.ToUtc.ToString("O"),
+                ["offerId"] = input.OfferId,
+            };
+
+            return new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "system",
+                    ["content"] = BuildToolSystemPrompt(promptSchemaVersion),
+                },
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = userPayload.ToJsonString(RequestJsonOptions),
+                },
+            };
+        }
+
+        public static string BuildToolSystemPrompt(string promptSchemaVersion)
+            => $"""
+                {BuildSystemPrompt(promptSchemaVersion)}
+
+                Tool path: call read_offer_recommendation_metrics before writing copy.
+                Ground offer title and counts only on that tool result.
+                selectedType is server-chosen. Never invent guest PII.
+                """;
+
         public static JsonObject BuildSchema()
             => new()
             {

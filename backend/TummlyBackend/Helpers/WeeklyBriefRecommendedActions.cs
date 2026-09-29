@@ -22,6 +22,17 @@ namespace TummlyBackend.Helpers
         /// </summary>
         public const double LowRedemptionRateThreshold = 0.4;
 
+        /// <summary>
+        /// Strongest peer placement must have at least this many scans in-window
+        /// before an underperform fact may fire.
+        /// </summary>
+        public const int UnderperformMinPeerScans = 5;
+
+        /// <summary>
+        /// Worst placement scans must be at or below best × this ratio.
+        /// </summary>
+        public const double UnderperformMaxScanRatio = 0.5;
+
         public const int Cap = 3;
 
         public sealed record FeedbackNeedsAttentionFactDto(
@@ -52,6 +63,17 @@ namespace TummlyBackend.Helpers
             string? Subtitle = null
         );
 
+        public sealed record UnderperformQrFactDto(
+            string Kind,
+            int QrCodeId,
+            string PlacementLabel,
+            int Scans,
+            int Contactable,
+            string Target,
+            string? Title = null,
+            string? Subtitle = null
+        );
+
         public sealed record SuggestedCampaignDto(
             int CampaignId,
             string Name,
@@ -59,9 +81,10 @@ namespace TummlyBackend.Helpers
         );
 
         /// <summary>
-        /// Priority: feedback-needs-attention → repeated-invalid → low-redemption;
-        /// then <see cref="Cap"/>. Offer facts need a coverage window; without one,
-        /// only feedback may emit. Does not apply Offers <c>LifetimeEmpty</c> gate.
+        /// Priority: feedback-needs-attention → underperform-qr → repeated-invalid
+        /// → low-redemption; then <see cref="Cap"/>. Windowed facts need a coverage
+        /// window; without one, only feedback may emit. Does not apply Offers
+        /// <c>LifetimeEmpty</c> gate.
         /// </summary>
         public static async Task<IReadOnlyList<object>> BuildFactsAsync(
             ApplicationDbContext context,
@@ -87,6 +110,18 @@ namespace TummlyBackend.Helpers
 
             if (fromUtc is DateTime from && toUtc is DateTime to)
             {
+                var underperformQr = await FindWorstUnderperformQrAsync(
+                    context,
+                    locationId,
+                    from,
+                    to,
+                    cancellationToken
+                );
+                if (underperformQr != null)
+                {
+                    facts.Add(underperformQr);
+                }
+
                 var repeatedInvalidCount = await context.OfferRedeemFailedAttempts
                     .AsNoTracking()
                     .CountAsync(
@@ -159,6 +194,119 @@ namespace TummlyBackend.Helpers
                 .FirstOrDefaultAsync(cancellationToken);
 
             return draft;
+        }
+
+        /// <summary>
+        /// Active/Paused physical or Digital placements only (excludes Smart Guest).
+        /// Needs ≥2 candidates; strongest peer ≥ <see cref="UnderperformMinPeerScans"/>;
+        /// worst scans strictly below best × <see cref="UnderperformMaxScanRatio"/>.
+        /// </summary>
+        public static async Task<UnderperformQrFactDto?> FindWorstUnderperformQrAsync(
+            ApplicationDbContext context,
+            int locationId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var placements = await context.QrCodes
+                .AsNoTracking()
+                .Where(q =>
+                    q.RestaurantLocationId == locationId
+                    && q.QrType != QrType.SmartGuest
+                    && (
+                        q.Status == QrCodeStatus.Active
+                        || q.Status == QrCodeStatus.Paused
+                    )
+                )
+                .Select(q => new
+                {
+                    q.Id,
+                    q.QrType,
+                    q.LinkName,
+                })
+                .ToListAsync(cancellationToken);
+
+            if (placements.Count < 2)
+            {
+                return null;
+            }
+
+            var qrIds = placements.Select(p => p.Id).ToList();
+            var scansByQr = (
+                await context.QrScanEvents
+                    .AsNoTracking()
+                    .Where(e =>
+                        e.QrCodeId != null
+                        && qrIds.Contains(e.QrCodeId.Value)
+                        && e.CreatedAt >= fromUtc
+                        && e.CreatedAt < toUtc
+                    )
+                    .GroupBy(e => e.QrCodeId!.Value)
+                    .Select(g => new { QrCodeId = g.Key, Count = g.Count() })
+                    .ToListAsync(cancellationToken)
+            ).ToDictionary(r => r.QrCodeId, r => r.Count);
+
+            var contactableByQr = (
+                await context.Feedbacks
+                    .AsNoTracking()
+                    .Where(f =>
+                        qrIds.Contains(f.QrCodeId)
+                        && f.CreatedAt >= fromUtc
+                        && f.CreatedAt < toUtc
+                        && !f.OffersOptOut
+                    )
+                    .GroupBy(f => f.QrCodeId)
+                    .Select(g => new { QrCodeId = g.Key, Count = g.Count() })
+                    .ToListAsync(cancellationToken)
+            ).ToDictionary(r => r.QrCodeId, r => r.Count);
+
+            var scored = placements
+                .Select(p =>
+                {
+                    scansByQr.TryGetValue(p.Id, out var scans);
+                    contactableByQr.TryGetValue(p.Id, out var contactable);
+                    var label =
+                        FeedbackQrSourceMapping.ToDisplay(
+                            new QrCode
+                            {
+                                QrType = p.QrType,
+                                LinkName = p.LinkName,
+                            }
+                        )
+                        ?? p.QrType.ToString();
+                    return new
+                    {
+                        p.Id,
+                        p.QrType,
+                        PlacementLabel = label,
+                        Scans = scans,
+                        Contactable = contactable,
+                    };
+                })
+                .ToList();
+
+            var bestScans = scored.Max(r => r.Scans);
+            if (bestScans < UnderperformMinPeerScans)
+            {
+                return null;
+            }
+
+            var maxAllowed = (int)Math.Floor(bestScans * UnderperformMaxScanRatio);
+            return scored
+                .Where(r => r.Scans < bestScans && r.Scans <= maxAllowed)
+                .OrderBy(r => r.Scans)
+                .ThenBy(r => r.Contactable)
+                .ThenBy(r => r.Id)
+                .Select(r => new UnderperformQrFactDto(
+                    "underperform-qr",
+                    r.Id,
+                    r.PlacementLabel,
+                    r.Scans,
+                    r.Contactable,
+                    "capture"
+                ))
+                .FirstOrDefault();
         }
 
         private static async Task<LowRedemptionFactDto?> FindWorstLowRedemptionAsync(

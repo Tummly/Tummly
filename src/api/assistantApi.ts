@@ -9,6 +9,7 @@ import type {
   OperatorAiAssistantConversationRow,
   OperatorAiAssistantListItem,
   OperatorAiAssistantMessage,
+  OperatorAiAssistantScopeChangeNotice,
   AssistantSendScheduleRoute,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import {
@@ -51,6 +52,14 @@ type AssistantActionDto = {
   campaignId?: number | null
 }
 
+type AssistantScopeChangeDto = {
+  previousPeriodLabel?: string | null
+  nextPeriodLabel?: string | null
+  previousLocationLabel?: string | null
+  nextLocationLabel?: string | null
+  kinds?: string[] | null
+}
+
 type AssistantMessageDto = {
   id: number
   role: string
@@ -59,6 +68,7 @@ type AssistantMessageDto = {
   body: string
   analysisScope?: AssistantAnalysisScopeDto | null
   actions?: AssistantActionDto[] | null
+  scopeChange?: AssistantScopeChangeDto | null
 }
 
 type AssistantConversationDto = {
@@ -178,6 +188,25 @@ function fromAnalysisScopeDto(
   }
 }
 
+function fromScopeChangeDto(
+  notice: AssistantScopeChangeDto | null | undefined
+): OperatorAiAssistantScopeChangeNotice | undefined {
+  if (notice == null) {
+    return undefined
+  }
+  const kinds = (notice.kinds ?? []).filter((kind) => kind.length > 0)
+  if (kinds.length === 0) {
+    return undefined
+  }
+  return {
+    previousPeriodLabel: notice.previousPeriodLabel,
+    nextPeriodLabel: notice.nextPeriodLabel,
+    previousLocationLabel: notice.previousLocationLabel,
+    nextLocationLabel: notice.nextLocationLabel,
+    kinds,
+  }
+}
+
 function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessage {
   const classValue = message.class
   const answerClass =
@@ -201,6 +230,7 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
     actions: (message.actions ?? [])
       .map(fromActionDto)
       .filter((action): action is OperatorAiAssistantAction => action != null),
+    scopeChange: fromScopeChangeDto(message.scopeChange),
   }
 }
 

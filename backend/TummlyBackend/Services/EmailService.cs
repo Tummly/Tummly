@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using MimeKit;
 using TummlyBackend.Configurations;
 using TummlyBackend.DTOs.Auth;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Helpers.EmailTemplates;
 
@@ -48,14 +49,10 @@ namespace TummlyBackend.Services
             }
 
             if (
-                !Uri.TryCreate(
-                    frontendBaseUrl,
-                    UriKind.Absolute,
-                    out var parsed
-                )
+                !Uri.TryCreate(frontendBaseUrl, UriKind.Absolute, out var uri)
                 || (
-                    parsed.Scheme != Uri.UriSchemeHttp
-                    && parsed.Scheme != Uri.UriSchemeHttps
+                    uri.Scheme != Uri.UriSchemeHttp
+                    && uri.Scheme != Uri.UriSchemeHttps
                 )
             )
             {
@@ -66,6 +63,12 @@ namespace TummlyBackend.Services
 
             return frontendBaseUrl;
         }
+
+        private string GetEmailChromeBaseUrl() =>
+            EmailAssets.ResolveChromeBaseUrl(_configuration);
+
+        private string GetDarkLogoUrl() =>
+            EmailAssets.GetDarkLogoPublicUrl(GetEmailChromeBaseUrl());
 
         private string FormatFromAddress() =>
             $"{_emailSettings.SenderName} <{_emailSettings.SenderEmail}>";
@@ -84,13 +87,18 @@ namespace TummlyBackend.Services
             IReadOnlyList<EmailFileAttachment>? fileAttachments = null
         )
         {
+            var (html, images) = EmbedLoopbackChromeImages(
+                htmlBody,
+                inlineImages
+            );
+
             if (UsesResend)
             {
                 await SendViaResendAsync(
                     toEmail,
                     subject,
-                    htmlBody,
-                    inlineImages,
+                    html,
+                    images,
                     fileAttachments
                 );
                 return;
@@ -99,10 +107,109 @@ namespace TummlyBackend.Services
             await SendViaSmtpAsync(
                 toEmail,
                 subject,
-                htmlBody,
-                inlineImages,
+                html,
+                images,
                 fileAttachments
             );
+        }
+
+        /// <summary>
+        /// When chrome assets resolve to a loopback host (local smoke),
+        /// rewrite <c>http(s)://localhost…/email/*.png</c> to CID attachments.
+        /// Remote clients cannot fetch loopback URLs — without CID, logos break.
+        /// </summary>
+        private (
+            string Html,
+            IReadOnlyList<EmailInlineImage>? InlineImages
+        ) EmbedLoopbackChromeImages(
+            string htmlBody,
+            IReadOnlyList<EmailInlineImage>? inlineImages
+        )
+        {
+            var chromeBase = GetEmailChromeBaseUrl();
+            if (!EmailAssets.IsLoopbackChromeBase(chromeBase))
+            {
+                return (htmlBody, inlineImages);
+            }
+
+            var replacements = new (string Path, string ContentId, string FileName)[]
+            {
+                (
+                    EmailAssets.PublicDarkLogoPath,
+                    EmailAssets.DarkLogoContentId,
+                    "tummly-logo-dark.png"
+                ),
+                (
+                    EmailAssets.PublicPoweredByLogoPath,
+                    EmailAssets.PoweredByLogoContentId,
+                    "logo.png"
+                ),
+                (
+                    EmailAssets.PublicWordmarkPath,
+                    EmailAssets.PoweredByLogoContentId,
+                    "tummly-wordmark.png"
+                ),
+                (
+                    EmailAssets.PublicTopDecorationPath,
+                    EmailAssets.TopDecorationContentId,
+                    "top-decoration.png"
+                ),
+                (
+                    EmailAssets.PublicBottomStripPath,
+                    EmailAssets.BottomStripContentId,
+                    "bottom-strip.png"
+                ),
+                (
+                    EmailAssets.PublicBrandLogoPlaceholderPath,
+                    EmailAssets.BrandLogoPlaceholderContentId,
+                    "brand-logo-placeholder.png"
+                ),
+            };
+
+            var html = htmlBody;
+            List<EmailInlineImage>? merged = null;
+
+            foreach (var (path, contentId, fileName) in replacements)
+            {
+                var absolute = $"{chromeBase.TrimEnd('/')}{path}";
+                if (
+                    html.IndexOf(absolute, StringComparison.OrdinalIgnoreCase)
+                    < 0
+                )
+                {
+                    continue;
+                }
+
+                html = html.Replace(
+                    absolute,
+                    $"cid:{contentId}",
+                    StringComparison.OrdinalIgnoreCase
+                );
+
+                merged ??= inlineImages?.ToList() ?? [];
+                if (
+                    merged.Any(image =>
+                        string.Equals(
+                            image.ContentId,
+                            contentId,
+                            StringComparison.Ordinal
+                        )
+                    )
+                )
+                {
+                    continue;
+                }
+
+                merged.Add(
+                    new EmailInlineImage(
+                        contentId,
+                        fileName,
+                        EmailAssets.ReadPublicPngBytes(_environment, fileName)
+                    )
+                );
+            }
+
+            return (html, merged ?? inlineImages);
         }
 
         private async Task SendViaResendAsync(
@@ -400,20 +507,22 @@ namespace TummlyBackend.Services
 
         public async Task SendOtpEmailAsync(
             string toEmail,
-            string otp
+            string otp,
+            string? restaurantName = null
         )
         {
-            var htmlBody = BaseEmailTemplate.Generate(
-                OtpEmailTemplate.Subject,
-                OtpEmailTemplate.GenerateBody(otp),
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment),
-                EmailFooterVariant.Otp
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = OtpEmailTemplate.Generate(
+                _environment,
+                otp,
+                restaurantName,
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
                 toEmail,
-                OtpEmailTemplate.Subject,
+                OtpEmailTemplate.Subject(restaurantName),
                 htmlBody
             );
         }
@@ -430,73 +539,21 @@ namespace TummlyBackend.Services
             string businessName
         )
         {
-            var htmlBody = BaseEmailTemplate.Generate(
-                TrialRequestReceivedEmailTemplate.Subject,
-                TrialRequestReceivedEmailTemplate.GenerateBody(
-                    fullName,
-                    businessName
-                ),
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment)
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = TrialRequestReceivedEmailTemplate.Generate(
+                _environment,
+                fullName,
+                businessName,
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                EmailFrontendUrls.Terms(frontendBaseUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CookiePolicy(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
                 toEmail,
                 TrialRequestReceivedEmailTemplate.Subject,
-                htmlBody
-            );
-        }
-
-        /*
-         =========================================
-         SEND ACCOUNT SETUP EMAIL
-         =========================================
-        */
-
-        public async Task SendAccountSetupEmailAsync(
-            string toEmail,
-            string fullName,
-            string setupLink
-        )
-        {
-            _ = fullName;
-
-            var htmlBody = BaseEmailTemplate.Generate(
-                AccountSetupEmailTemplate.Subject,
-                AccountSetupEmailTemplate.GenerateBody(setupLink),
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment)
-            );
-
-            await SendEmailAsync(
-                toEmail,
-                AccountSetupEmailTemplate.Subject,
-                htmlBody
-            );
-        }
-
-        public async Task SendAccountSetupReminderEmailAsync(
-            string toEmail,
-            string fullName,
-            string setupLink,
-            DateTime expiresAtUtc
-        )
-        {
-            _ = fullName;
-
-            var htmlBody = BaseEmailTemplate.Generate(
-                AccountSetupReminderEmailTemplate.Subject,
-                AccountSetupReminderEmailTemplate.GenerateBody(
-                    setupLink,
-                    expiresAtUtc
-                ),
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment)
-            );
-
-            await SendEmailAsync(
-                toEmail,
-                AccountSetupReminderEmailTemplate.Subject,
                 htmlBody
             );
         }
@@ -513,11 +570,16 @@ namespace TummlyBackend.Services
             string declineReason
         )
         {
-            var htmlBody = BaseEmailTemplate.Generate(
-                TrialDeclineEmailTemplate.Subject,
-                TrialDeclineEmailTemplate.GenerateBody(fullName, declineReason),
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment)
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = TrialDeclineEmailTemplate.Generate(
+                _environment,
+                fullName,
+                declineReason,
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                EmailFrontendUrls.Terms(frontendBaseUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CookiePolicy(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
@@ -539,11 +601,16 @@ namespace TummlyBackend.Services
             string moreInfoMessage
         )
         {
-            var htmlBody = BaseEmailTemplate.Generate(
-                TrialMoreInfoEmailTemplate.Subject,
-                TrialMoreInfoEmailTemplate.GenerateBody(fullName, moreInfoMessage),
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment)
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = TrialMoreInfoEmailTemplate.Generate(
+                _environment,
+                fullName,
+                moreInfoMessage,
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                EmailFrontendUrls.Terms(frontendBaseUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CookiePolicy(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
@@ -558,12 +625,15 @@ namespace TummlyBackend.Services
             string resetLink
         )
         {
-            var htmlBody = BaseEmailTemplate.Generate(
-                ResetPasswordEmailTemplate.Subject,
-                ResetPasswordEmailTemplate.GenerateBody(resetLink),
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment),
-                EmailFooterVariant.Transactional
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = ResetPasswordEmailTemplate.Generate(
+                _environment,
+                resetLink,
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                EmailFrontendUrls.Terms(frontendBaseUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CookiePolicy(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
@@ -578,12 +648,15 @@ namespace TummlyBackend.Services
             string firstName
         )
         {
-            var htmlBody = BaseEmailTemplate.Generate(
-                PasswordChangedEmailTemplate.Subject,
-                PasswordChangedEmailTemplate.GenerateBody(firstName),
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment),
-                EmailFooterVariant.Transactional
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = PasswordChangedEmailTemplate.Generate(
+                _environment,
+                firstName,
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                EmailFrontendUrls.Terms(frontendBaseUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CookiePolicy(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
@@ -598,22 +671,44 @@ namespace TummlyBackend.Services
             NewDeviceSignInDetails details
         )
         {
-            var htmlBody = BaseEmailTemplate.Generate(
-                NewDeviceSignInEmailTemplate.Subject,
-                NewDeviceSignInEmailTemplate.GenerateBody(
-                    details.FirstName,
-                    details.SignInTime,
-                    details.DeviceSummary,
-                    details.LocationSummary
-                ),
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment),
-                EmailFooterVariant.Otp
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = NewDeviceSignInEmailTemplate.Generate(
+                _environment,
+                details.FirstName,
+                details.SignInTime,
+                details.DeviceSummary,
+                details.LocationSummary,
+                EmailFrontendUrls.ForgotPassword(frontendBaseUrl),
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
                 toEmail,
                 NewDeviceSignInEmailTemplate.Subject,
+                htmlBody
+            );
+        }
+
+        public async Task SendContactEnquiryReceivedEmailAsync(
+            string toEmail,
+            string topicLabel,
+            string reference
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = ContactEnquiryReceivedEmailTemplate.Generate(
+                _environment,
+                topicLabel,
+                reference,
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                ContactEnquiryReceivedEmailTemplate.Subject(reference),
                 htmlBody
             );
         }
@@ -626,17 +721,22 @@ namespace TummlyBackend.Services
             string? myQueriesUrl
         )
         {
-            const string subject = "Reply from Tummly Support";
+            var frontendBaseUrl = GetFrontendBaseUrl();
             var htmlBody = HelpCentreSupportReplyEmailTemplate.Generate(
+                _environment,
                 submitterName,
                 topicLabel,
                 replyBody,
                 myQueriesUrl,
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment)
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
-            await SendEmailAsync(toEmail, subject, htmlBody);
+            await SendEmailAsync(
+                toEmail,
+                HelpCentreSupportReplyEmailTemplate.Subject,
+                htmlBody
+            );
         }
 
         public async Task SendHelpCentreResolvedEmailAsync(
@@ -647,13 +747,15 @@ namespace TummlyBackend.Services
             string? myQueriesUrl
         )
         {
+            var frontendBaseUrl = GetFrontendBaseUrl();
             var htmlBody = HelpCentreResolvedEmailTemplate.Generate(
+                _environment,
                 submitterName,
                 topicLabel,
                 excerptMessages,
                 myQueriesUrl,
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment)
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
@@ -675,8 +777,9 @@ namespace TummlyBackend.Services
             string supportDashboardUrl
         )
         {
-            const string subject = "Help Centre query escalated";
+            var frontendBaseUrl = GetFrontendBaseUrl();
             var htmlBody = HelpCentreEscalationEmailTemplate.Generate(
+                _environment,
                 topicLabel,
                 submitterName,
                 submitterEmail,
@@ -685,11 +788,15 @@ namespace TummlyBackend.Services
                 threadSummary,
                 escalationNote,
                 supportDashboardUrl,
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment)
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
-            await SendEmailAsync(toEmail, subject, htmlBody);
+            await SendEmailAsync(
+                toEmail,
+                HelpCentreEscalationEmailTemplate.Subject,
+                htmlBody
+            );
         }
 
         public async Task SendHelpCentreOperatorReplyEmailAsync(
@@ -706,21 +813,22 @@ namespace TummlyBackend.Services
                 .Get<HelpCentreSettings>()
                 ?? new HelpCentreSettings();
 
-            const string subject = "Operator replied to Help Centre query";
+            var frontendBaseUrl = GetFrontendBaseUrl();
             var htmlBody = HelpCentreOperatorReplyEmailTemplate.Generate(
+                _environment,
                 topicLabel,
                 submitterName,
                 submitterEmail,
                 businessName,
                 replyBody,
                 supportDashboardUrl,
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment)
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
                 settings.SupportNotificationEmail,
-                subject,
+                HelpCentreOperatorReplyEmailTemplate.Subject,
                 htmlBody
             );
         }
@@ -741,7 +849,9 @@ namespace TummlyBackend.Services
                 .Get<HelpCentreSettings>()
                 ?? new HelpCentreSettings();
 
+            var frontendBaseUrl = GetFrontendBaseUrl();
             var htmlBody = HelpCentreNewQueryEmailTemplate.Generate(
+                _environment,
                 topicLabel,
                 submitterName,
                 submitterEmail,
@@ -750,8 +860,8 @@ namespace TummlyBackend.Services
                 messagePreview,
                 attachmentCount,
                 supportDashboardUrl,
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment)
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
@@ -770,19 +880,22 @@ namespace TummlyBackend.Services
             string message,
             string? brandLogoUrl = null,
             GuestResponseEmailOfferBlock? offer = null,
-            string? unsubscribeHref = null
+            string? unsubscribeHref = null,
+            string? ticketSubject = null
         )
         {
             var htmlBody = GuestResponseEmailTemplate.Generate(
+                _environment,
                 brandTitle,
                 brandSubtitle,
                 locationAddress,
-                subject,
+                ticketSubject ?? subject,
                 message,
                 GetFrontendBaseUrl(),
                 brandLogoUrl,
                 offer,
-                unsubscribeHref
+                unsubscribeHref,
+                emailAssetsBaseUrl: GetEmailChromeBaseUrl()
             );
 
             await SendEmailAsync(toEmail, subject, htmlBody);
@@ -800,20 +913,19 @@ namespace TummlyBackend.Services
             string? invitationMessage
         )
         {
-            var htmlBody = BaseEmailTemplate.Generate(
-                subject,
-                TeamInvitationEmailTemplate.GenerateBody(
-                    firstName,
-                    inviterName,
-                    workspaceName,
-                    roleName,
-                    locationScope,
-                    invitationMessage,
-                    acceptUrl
-                ),
-                GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment),
-                EmailFooterVariant.Transactional
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = TeamInvitationEmailTemplate.Generate(
+                _environment,
+                firstName,
+                inviterName,
+                workspaceName,
+                roleName,
+                locationScope,
+                invitationMessage,
+                acceptUrl,
+                $"{frontendBaseUrl}/help-center",
+                // Hosted HTTPS — Gmail strips data: URIs (same pattern as guest chrome).
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(toEmail, subject, htmlBody);
@@ -829,44 +941,266 @@ namespace TummlyBackend.Services
         )
         {
             var frontendBaseUrl = GetFrontendBaseUrl();
-            var htmlBody = BaseEmailTemplate.Generate(
+            var htmlBody = BillingAccountNoticeEmailTemplate.Generate(
+                _environment,
+                firstName,
                 title,
-                BillingAccountNoticeEmailTemplate.GenerateBody(
-                    firstName,
-                    title,
-                    body,
-                    ctaLabel,
-                    ctaHref,
-                    frontendBaseUrl
-                ),
+                body,
+                ctaLabel,
+                ctaHref,
                 frontendBaseUrl,
-                EmailAssets.GetLogoDataUri(_environment),
-                EmailFooterVariant.Transactional
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(toEmail, title, htmlBody);
         }
 
-        public async Task SendTummlyVatInvoiceEmailAsync(
+        public async Task SendPilotStartedEmailAsync(
             string toEmail,
-            string documentNumber,
-            string lineDescription,
-            int grossPence,
-            byte[] pdfContent,
-            string pdfFileName
+            string firstName,
+            string restaurantName,
+            string pilotEndDateLabel
         )
         {
-            var subject = TummlyVatInvoiceEmailTemplate.Subject(documentNumber);
-            var htmlBody = TummlyVatInvoiceEmailTemplate.GenerateHtml(
-                documentNumber,
-                lineDescription,
-                grossPence,
-                GetFrontendBaseUrl()
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = PilotStartedEmailTemplate.Generate(
+                _environment,
+                firstName,
+                restaurantName,
+                pilotEndDateLabel,
+                EmailFrontendUrls.AppHome(frontendBaseUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
             );
 
             await SendEmailAsync(
                 toEmail,
-                subject,
+                PilotStartedEmailTemplate.Subject,
+                htmlBody
+            );
+        }
+
+        public async Task SendPilotEndingSoonEmailAsync(
+            string toEmail,
+            string firstName,
+            string restaurantName,
+            int daysRemaining,
+            string pilotEndDateLabel,
+            string plansUrl
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = PilotEndingSoonEmailTemplate.Generate(
+                _environment,
+                daysRemaining.ToString(),
+                firstName,
+                restaurantName,
+                pilotEndDateLabel,
+                EmailFrontendUrls.Absolute(frontendBaseUrl, plansUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                PilotEndingSoonEmailTemplate.Subject(daysRemaining),
+                htmlBody
+            );
+        }
+
+        public async Task SendPilotEndedEmailAsync(
+            string toEmail,
+            string firstName,
+            string restaurantName,
+            string plansUrl
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = PilotEndedEmailTemplate.Generate(
+                _environment,
+                firstName,
+                restaurantName,
+                EmailFrontendUrls.Absolute(frontendBaseUrl, plansUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                PilotEndedEmailTemplate.Subject,
+                htmlBody
+            );
+        }
+
+        public async Task SendPaymentActionRequiredEmailAsync(
+            string toEmail,
+            string firstName,
+            string orderDescription,
+            string billingUrl,
+            string ctaLabel
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = PaymentActionRequiredEmailTemplate.Generate(
+                _environment,
+                firstName,
+                orderDescription,
+                EmailFrontendUrls.Absolute(frontendBaseUrl, billingUrl),
+                ctaLabel,
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                PaymentActionRequiredEmailTemplate.Subject,
+                htmlBody
+            );
+        }
+
+        public async Task SendUsageWarningEmailAsync(
+            string toEmail,
+            string firstName,
+            string allowanceKind,
+            string percentUsed,
+            string usedAmount,
+            string remainingAmount,
+            string resetDate,
+            string usageUrl
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = UsageWarningEmailTemplate.Generate(
+                _environment,
+                allowanceKind,
+                firstName,
+                percentUsed,
+                usedAmount,
+                remainingAmount,
+                resetDate,
+                EmailFrontendUrls.Absolute(frontendBaseUrl, usageUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                UsageWarningEmailTemplate.Subject(allowanceKind),
+                htmlBody
+            );
+        }
+
+        public async Task SendUsageExhaustedEmailAsync(
+            string toEmail,
+            string firstName,
+            string allowanceKind,
+            string ctaUrl,
+            string ctaLabel
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = UsageExhaustedEmailTemplate.Generate(
+                _environment,
+                allowanceKind,
+                firstName,
+                EmailFrontendUrls.Absolute(frontendBaseUrl, ctaUrl),
+                ctaLabel,
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                UsageExhaustedEmailTemplate.Subject(allowanceKind),
+                htmlBody
+            );
+        }
+
+        public async Task SendWeeklyBriefEmailAsync(
+            string toEmail,
+            string firstName,
+            string locationName,
+            string periodLabel,
+            int qrScans,
+            int feedbackReceived,
+            int guestsCaptured,
+            int offerClaimed,
+            int redemptions,
+            int campaignEngagement,
+            string whatChanged,
+            string recommendedNextStep,
+            string weeklyBriefUrl
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = WeeklyBriefEmailTemplate.Generate(
+                _environment,
+                firstName,
+                locationName,
+                periodLabel,
+                qrScans,
+                feedbackReceived,
+                guestsCaptured,
+                offerClaimed,
+                redemptions,
+                campaignEngagement,
+                whatChanged,
+                recommendedNextStep,
+                EmailFrontendUrls.Absolute(frontendBaseUrl, weeklyBriefUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                WeeklyBriefEmailTemplate.Subject(locationName),
+                htmlBody
+            );
+        }
+
+        public async Task SendTummlyVatInvoiceEmailAsync(
+            string toEmail,
+            string firstName,
+            string documentNumber,
+            string lineDescription,
+            int grossPence,
+            DateTime paymentSuccessUtc,
+            string billingUrl,
+            byte[] pdfContent,
+            string pdfFileName
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var amount = TummlyVatInvoicePdfWriter.FormatAmountLabel(grossPence);
+            var paymentDate = LondonDateFormat.DMmmYyyy(paymentSuccessUtc);
+            var description = string.IsNullOrWhiteSpace(lineDescription)
+                ? "your purchase"
+                : lineDescription.Trim();
+
+            var htmlBody = PaymentConfirmedEmailTemplate.Generate(
+                _environment,
+                firstName,
+                description,
+                amount,
+                paymentDate,
+                documentNumber.Trim(),
+                EmailFrontendUrls.Absolute(frontendBaseUrl, billingUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                PaymentConfirmedEmailTemplate.Subject,
                 htmlBody,
                 inlineImages: null,
                 fileAttachments:
@@ -877,6 +1211,68 @@ namespace TummlyBackend.Services
                         "application/pdf"
                     ),
                 ]
+            );
+        }
+
+        public async Task SendShopOrderConfirmedEmailAsync(
+            string toEmail,
+            string firstName,
+            string locationName,
+            string orderNumber,
+            string materialsLinesHtml,
+            string deliveryAddressHtml,
+            string orderUrl
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = ShopOrderConfirmedEmailTemplate.Generate(
+                _environment,
+                firstName,
+                locationName,
+                orderNumber,
+                materialsLinesHtml,
+                deliveryAddressHtml,
+                EmailFrontendUrls.Absolute(frontendBaseUrl, orderUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                ShopOrderConfirmedEmailTemplate.Subject,
+                htmlBody
+            );
+        }
+
+        public async Task SendShopOrderDispatchedEmailAsync(
+            string toEmail,
+            string firstName,
+            string locationName,
+            string orderNumber,
+            string deliveryEstimate,
+            string trackingDetails,
+            string orderUrl
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = ShopOrderDispatchedEmailTemplate.Generate(
+                _environment,
+                firstName,
+                locationName,
+                orderNumber,
+                deliveryEstimate,
+                trackingDetails,
+                EmailFrontendUrls.Absolute(frontendBaseUrl, orderUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                ShopOrderDispatchedEmailTemplate.Subject,
+                htmlBody
             );
         }
 

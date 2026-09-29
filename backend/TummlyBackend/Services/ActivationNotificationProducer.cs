@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Notifications;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
@@ -16,16 +18,19 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IOperatorNotificationsService _notifications;
+        private readonly IEmailService _emailService;
         private readonly ILogger<ActivationNotificationProducer> _logger;
 
         public ActivationNotificationProducer(
             ApplicationDbContext context,
             IOperatorNotificationsService notifications,
+            IEmailService emailService,
             ILogger<ActivationNotificationProducer>? logger = null
         )
         {
             _context = context;
             _notifications = notifications;
+            _emailService = emailService;
             _logger = logger
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<
                     ActivationNotificationProducer
@@ -42,7 +47,13 @@ namespace TummlyBackend.Services
                 .Where(u =>
                     u.ActivatedAt != null && u.ActivationExpiresAt != null
                 )
-                .Select(u => new { u.Id, ExpiresAt = u.ActivationExpiresAt!.Value })
+                .Select(u => new
+                {
+                    u.Id,
+                    u.Email,
+                    u.FullName,
+                    ExpiresAt = u.ActivationExpiresAt!.Value,
+                })
                 .ToListAsync(cancellationToken);
 
             var produced = 0;
@@ -74,6 +85,18 @@ namespace TummlyBackend.Services
                     if (result.Status == ProduceNotificationStatus.Created)
                     {
                         produced++;
+
+                        if (notice.DaysRemaining is int daysRemaining)
+                        {
+                            await TrySendPilotEndingSoonEmailAsync(
+                                user.Id,
+                                user.Email,
+                                user.FullName,
+                                daysRemaining,
+                                user.ExpiresAt,
+                                cancellationToken
+                            );
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -95,6 +118,77 @@ namespace TummlyBackend.Services
             };
         }
 
+        private async Task TrySendPilotEndingSoonEmailAsync(
+            int userId,
+            string email,
+            string fullName,
+            int daysRemaining,
+            DateTime expiresAt,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                var restaurant = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.OwnerUserId == userId)
+                    .Select(row => new { row.Id, row.Name, row.AccountType })
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (restaurant == null)
+                {
+                    return;
+                }
+
+                var isPilot = await _context.BillingAccounts
+                    .AsNoTracking()
+                    .AnyAsync(
+                        row =>
+                            row.RestaurantId == restaurant.Id
+                            && row.SubscriptionPlan == BillingSubscriptionPlans.Pilot,
+                        cancellationToken
+                    );
+                if (!isPilot)
+                {
+                    return;
+                }
+
+                var locationId = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row => row.RestaurantId == restaurant.Id)
+                    .OrderBy(row => row.Id)
+                    .Select(row => row.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var root = string.Equals(
+                    restaurant.AccountType,
+                    "Multi",
+                    StringComparison.Ordinal
+                )
+                    ? "/multi-dashboard"
+                    : "/single-dashboard";
+                var plansUrl = locationId == 0
+                    ? $"{root}/settings/billing-credits"
+                    : $"{root}/settings/billing-credits?location={locationId}&tab=plan-subscription";
+
+                await _emailService.SendPilotEndingSoonEmailAsync(
+                    email,
+                    SignInMetadataResolver.ExtractFirstName(fullName),
+                    restaurant.Name,
+                    daysRemaining,
+                    LondonDateFormat.DMmmYyyy(expiresAt),
+                    plansUrl
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to send Pilot ending soon email for user {UserId}",
+                    userId
+                );
+            }
+        }
+
         /// <summary>
         /// Returns the notice to produce for this expiry, or null when not at a threshold.
         /// </summary>
@@ -108,7 +202,8 @@ namespace TummlyBackend.Services
                 return new ActivationThresholdNotice(
                     "activation-expired",
                     "Your Activation period has ended",
-                    "Your Activation period has ended. Subscribe or contact support to continue using the Operator dashboard."
+                    "Your Activation period has ended. Subscribe or contact support to continue using the Operator dashboard.",
+                    DaysRemaining: null
                 );
             }
 
@@ -122,12 +217,14 @@ namespace TummlyBackend.Services
                 15 => new ActivationThresholdNotice(
                     "activation-ending-15-days",
                     "Your Activation period ends in 15 days",
-                    "You have 15 days left in your Activation period."
+                    "You have 15 days left in your Activation period.",
+                    15
                 ),
                 5 => new ActivationThresholdNotice(
                     "activation-ending-5-days",
                     "Your Activation period ends in 5 days",
-                    "You have 5 days left in your Activation period."
+                    "You have 5 days left in your Activation period.",
+                    5
                 ),
                 _ => null,
             };
@@ -154,7 +251,8 @@ namespace TummlyBackend.Services
         internal sealed record ActivationThresholdNotice(
             string Type,
             string Title,
-            string Body
+            string Body,
+            int? DaysRemaining
         );
     }
 }

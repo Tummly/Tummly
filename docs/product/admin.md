@@ -115,8 +115,8 @@ Admins are **not** subject to the **Activation gate**.
 
 - Rotate invite token (GUID)
 - `InviteSentAt = now`, `InviteExpiresAt = now + 14d`
-- `SendAccountSetupEmailAsync` — subject: *Create your account and start your Tummly trial*
 - Setup link: `{Frontend:BaseUrl}/setup-account-single?token=` or `setup-account-multi?token=`
+- **No account-setup email** — Operator onboarding is self-service (signup), not invite-by-approval mail
 
 ### Edge cases
 
@@ -124,13 +124,13 @@ Admins are **not** subject to the **Activation gate**.
 |------|-----------|
 | Request not found | Error response |
 | Already declined | **UI blocks** re-approve (`canReviewTrialRequest`); API does not enforce |
-| `Frontend:BaseUrl` missing | Server error on send |
+| `Frontend:BaseUrl` missing | Server error when building setup link |
 
 ### Emails
 
 | Email | Trigger | Subject | Status |
 |-------|---------|---------|--------|
-| Operator Setup invitation | Approve or manual resend | Create your account and start your Tummly trial | Shipped |
+| Operator Setup invitation | — | — | Retired (self-service onboarding) |
 
 ---
 
@@ -222,8 +222,8 @@ Manual resend from table/drawer → `POST /api/admin/resend-invite/{id}`.
 
 ### Backend actions
 
-- New token and +14 day expiry (same as approve send path)
-- **Reminder email template** (`AccountSetupReminderEmailTemplate`) — same as automatic reminder, not the initial approval template
+- New token and +14 day expiry (same as approve path)
+- **No reminder email** — account-setup / reminder templates retired
 - Status → `INVITE_SENT`
 
 ---

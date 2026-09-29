@@ -26,6 +26,7 @@ namespace TummlyBackend.Models
         public const string FeedbackNeedsAttention = "feedback-needs-attention";
         public const string RepeatedInvalid = "repeated-invalid";
         public const string LowRedemption = "low-redemption";
+        public const string UnderperformQr = "underperform-qr";
 
         public static readonly IReadOnlySet<string> Allowed = new HashSet<string>(
             StringComparer.Ordinal
@@ -34,6 +35,7 @@ namespace TummlyBackend.Models
             FeedbackNeedsAttention,
             RepeatedInvalid,
             LowRedemption,
+            UnderperformQr,
         };
 
         public static bool IsAllowed(string? kind)

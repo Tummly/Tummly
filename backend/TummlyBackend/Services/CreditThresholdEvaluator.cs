@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -118,6 +119,11 @@ namespace TummlyBackend.Services
                     UsedShare = usedShare,
                     Remaining = remaining,
                     Used = used,
+                    ResetDateLabel = ResolveResetDateLabel(
+                        periodKey,
+                        isPilot,
+                        billingAccount.PilotPeriodEnd
+                    ),
                 })
                 .ToList();
 
@@ -147,6 +153,10 @@ namespace TummlyBackend.Services
                         pending.PeriodKey,
                         pending.BillingStatus,
                         pending.IsPilot,
+                        pending.Used,
+                        pending.Remaining,
+                        pending.UsedShare,
+                        pending.ResetDateLabel,
                         cancellationToken
                     );
                 }
@@ -197,6 +207,39 @@ namespace TummlyBackend.Services
             }
 
             return $"{period.Value.Start:yyyyMMdd}-{period.Value.End:yyyyMMdd}";
+        }
+
+        internal static string ResolveResetDateLabel(
+            string periodKey,
+            bool isPilot,
+            DateTime? pilotPeriodEnd
+        )
+        {
+            if (isPilot)
+            {
+                return pilotPeriodEnd == null
+                    ? "your Pilot end date"
+                    : LondonDateFormat.DMmmYyyy(pilotPeriodEnd.Value);
+            }
+
+            var dash = periodKey.IndexOf('-');
+            if (
+                dash > 0
+                && dash < periodKey.Length - 1
+                && DateTime.TryParseExact(
+                    periodKey[(dash + 1)..],
+                    "yyyyMMdd",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal
+                        | System.Globalization.DateTimeStyles.AdjustToUniversal,
+                    out var endUtc
+                )
+            )
+            {
+                return LondonDateFormat.DMmmYyyy(endUtc);
+            }
+
+            return "your next billing period";
         }
 
         private static int UsedThisCycle(

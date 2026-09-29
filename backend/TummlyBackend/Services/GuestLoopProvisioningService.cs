@@ -23,6 +23,7 @@ namespace TummlyBackend.Services
         private readonly ICreditLedger _creditLedger;
         private readonly IBillingAccountLifecycle _lifecycle;
         private readonly IFirstPaidConversionPaySession _firstPaidConversionPaySession;
+        private readonly IEmailService _emailService;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
@@ -33,7 +34,8 @@ namespace TummlyBackend.Services
             IPricebookCatalog pricebookCatalog,
             ICreditLedger creditLedger,
             IBillingAccountLifecycle lifecycle,
-            IFirstPaidConversionPaySession firstPaidConversionPaySession
+            IFirstPaidConversionPaySession firstPaidConversionPaySession,
+            IEmailService emailService
         )
         {
             _context = context;
@@ -45,6 +47,7 @@ namespace TummlyBackend.Services
             _creditLedger = creditLedger;
             _lifecycle = lifecycle;
             _firstPaidConversionPaySession = firstPaidConversionPaySession;
+            _emailService = emailService;
         }
 
         public async Task<InviteTokenResult> ValidateInviteTokenAsync(string token)
@@ -357,6 +360,38 @@ namespace TummlyBackend.Services
                     mintResult.Code ?? "Unable to complete Pilot credit mint."
                 );
             }
+
+            await TrySendPilotStartedEmailAsync(
+                user,
+                restaurant.Name,
+                billing.PilotPeriodEnd ?? user.ActivationExpiresAt
+            );
+        }
+
+        private async Task TrySendPilotStartedEmailAsync(
+            User user,
+            string restaurantName,
+            DateTime? pilotEndUtc
+        )
+        {
+            if (pilotEndUtc == null || string.IsNullOrWhiteSpace(user.Email))
+            {
+                return;
+            }
+
+            try
+            {
+                await _emailService.SendPilotStartedEmailAsync(
+                    user.Email,
+                    SignInMetadataResolver.ExtractFirstName(user.FullName),
+                    restaurantName,
+                    LondonDateFormat.DMmmYyyy(pilotEndUtc.Value)
+                );
+            }
+            catch
+            {
+                // Provisioning must not fail when outbound email fails.
+            }
         }
 
         private async Task StartPaidSignupPaySessionAsync(
@@ -470,6 +505,9 @@ namespace TummlyBackend.Services
             var complimentaryOrderIds = new List<Guid>();
             int? restaurantId = null;
             DateTime? activatedAt = null;
+            User? provisionedUser = null;
+            string? provisionedRestaurantName = null;
+            DateTime? provisionedPilotEnd = null;
 
             try
             {
@@ -618,6 +656,13 @@ namespace TummlyBackend.Services
 
                 if (mintPilotCredits)
                 {
+                    BillingCreditsService.ApplyPilotSignupBilling(
+                        restaurant.BillingAccount!,
+                        now
+                    );
+                    user.ActivationExpiresAt =
+                        ActivationCodeHelper.ComputeActivationExpiresAt(now);
+
                     var mintResult = await _creditLedger.MintPilotAtActivationAsync(
                         restaurant.Id
                     );
@@ -627,6 +672,10 @@ namespace TummlyBackend.Services
                             "Unable to complete account activation."
                         );
                     }
+
+                    provisionedUser = user;
+                    provisionedRestaurantName = restaurant.Name;
+                    provisionedPilotEnd = restaurant.BillingAccount!.PilotPeriodEnd;
                 }
 
                 await _context.SaveChangesAsync();
@@ -647,6 +696,15 @@ namespace TummlyBackend.Services
             {
                 await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
                     shopOrderId
+                );
+            }
+
+            if (provisionedUser != null && provisionedRestaurantName != null)
+            {
+                await TrySendPilotStartedEmailAsync(
+                    provisionedUser,
+                    provisionedRestaurantName,
+                    provisionedPilotEnd ?? provisionedUser.ActivationExpiresAt
                 );
             }
         }

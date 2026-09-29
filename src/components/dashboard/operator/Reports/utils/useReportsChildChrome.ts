@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 import { useStore } from "zustand"
 
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -32,7 +33,15 @@ export function useReportsChildChrome(
     dateRange: reports.snapshot.dateRange,
     exportAllowed: reports.snapshot.exportAllowed,
     generateBusy: reports.snapshot.weeklyBrief.generateBusy,
-    openExportDialog: reports.openExportDialog,
+    /** Surface-scoped export (RPT-006); guest-data kinds still open consent. */
+    onExport: () => {
+      void (async () => {
+        const ok = await reports.exportActiveReport()
+        if (ok) {
+          toast.success("Your file has been downloaded")
+        }
+      })()
+    },
     commitRange: (range: HomePerformanceDateRange) => {
       setReportsDateRange(range)
       void reports.reloadForReportsDateRange()

@@ -32,6 +32,69 @@ namespace TummlyBackend.Helpers
             string promptSchemaVersion
         )
         {
+            var request = new JsonObject
+            {
+                ["model"] = deploymentName,
+                ["messages"] = BuildOneShotMessages(input, promptSchemaVersion),
+                ["response_format"] = new JsonObject
+                {
+                    ["type"] = "json_schema",
+                    ["json_schema"] = new JsonObject
+                    {
+                        ["name"] = SchemaName,
+                        ["strict"] = true,
+                        ["schema"] = BuildSchema()
+                    }
+                }
+            };
+
+            return request.ToJsonString(RequestJsonOptions);
+        }
+
+        /// <summary>
+        /// Seed messages for the tool-wave path: channel/goal/mode only.
+        /// Location and offer facts come from read tools.
+        /// </summary>
+        public static JsonArray BuildToolSeedMessages(
+            CampaignMessageDraftInput input,
+            string promptSchemaVersion
+        )
+        {
+            var userPayload = new JsonObject
+            {
+                ["channel"] = input.Channel,
+                ["goalId"] = input.GoalId,
+                ["audienceKey"] = input.AudienceKey,
+                ["offerStance"] = input.OfferStance,
+                ["campaignName"] = input.CampaignName,
+                ["tone"] = input.Tone,
+                ["includeNotes"] = input.IncludeNotes,
+                ["mode"] = input.Mode,
+                ["currentBody"] = input.CurrentBody,
+                ["currentSubject"] = input.CurrentSubject,
+                ["hasConfirmedOffer"] = input.ConfirmedOffer is not null,
+            };
+
+            return new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "system",
+                    ["content"] = BuildToolSystemPrompt(promptSchemaVersion),
+                },
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = userPayload.ToJsonString(RequestJsonOptions),
+                },
+            };
+        }
+
+        private static JsonArray BuildOneShotMessages(
+            CampaignMessageDraftInput input,
+            string promptSchemaVersion
+        )
+        {
             var userPayload = new JsonObject
             {
                 ["locationName"] = input.LocationName,
@@ -72,35 +135,19 @@ namespace TummlyBackend.Helpers
                 };
             }
 
-            var request = new JsonObject
+            return new JsonArray
             {
-                ["model"] = deploymentName,
-                ["messages"] = new JsonArray
+                new JsonObject
                 {
-                    new JsonObject
-                    {
-                        ["role"] = "system",
-                        ["content"] = BuildSystemPrompt(promptSchemaVersion)
-                    },
-                    new JsonObject
-                    {
-                        ["role"] = "user",
-                        ["content"] = userPayload.ToJsonString(RequestJsonOptions)
-                    }
+                    ["role"] = "system",
+                    ["content"] = BuildSystemPrompt(promptSchemaVersion)
                 },
-                ["response_format"] = new JsonObject
+                new JsonObject
                 {
-                    ["type"] = "json_schema",
-                    ["json_schema"] = new JsonObject
-                    {
-                        ["name"] = SchemaName,
-                        ["strict"] = true,
-                        ["schema"] = BuildSchema()
-                    }
+                    ["role"] = "user",
+                    ["content"] = userPayload.ToJsonString(RequestJsonOptions)
                 }
             };
-
-            return request.ToJsonString(RequestJsonOptions);
         }
 
         public static JsonObject BuildSchema()
@@ -172,6 +219,17 @@ namespace TummlyBackend.Helpers
                 Do not use curly quotes, smart quotes, em dashes, en dashes,
                 or other Unicode punctuation.
                 Do not emit control characters.
+                """;
+
+        public static string BuildToolSystemPrompt(string promptSchemaVersion)
+            => $"""
+                {BuildSystemPrompt(promptSchemaVersion)}
+
+                Tool path: call read_location_display_name before drafting.
+                When hasConfirmedOffer is true, also call read_confirmed_offer_facts
+                and ground offer wording only on that tool result.
+                Do not invent location names or offer terms.
+                Never invent or include guest email, phone, or redemption codes.
                 """;
 
         public static bool TryParseModelContent(

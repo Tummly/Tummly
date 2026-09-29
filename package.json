@@ -10,7 +10,9 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "email:dev": "npm run dev --prefix emails",
+    "email:export": "npm run export:backend --prefix emails"
   },
   "dependencies": {
     "@fontsource-variable/lora": "^5.3.0",
