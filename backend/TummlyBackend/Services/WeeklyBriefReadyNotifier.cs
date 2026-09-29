@@ -10,9 +10,11 @@ namespace TummlyBackend.Services
 {
     /// <summary>
     /// Produces <c>weekly-brief-ready</c> after a successful first-write generate.
-    /// Preference gate and dedupe live in <see cref="IOperatorNotificationsService.ProduceAsync"/>.
-    /// On Created, also sends the Weekly Brief email to the workspace owner.
-    /// CTA opens the Reports Weekly Brief page for the location.
+    /// Recipients: restaurant owner plus active team members with Reports view (or
+    /// higher) and access to the Owned location. Preference gate and dedupe live in
+    /// <see cref="IOperatorNotificationsService.ProduceAsync"/> per user.
+    /// On Created for a recipient, also sends the Weekly Brief system email (0
+    /// Campaign credits). CTA opens the Reports Weekly Brief page for the location.
     /// </summary>
     public sealed class WeeklyBriefReadyNotifier : IWeeklyBriefReadyNotifier
     {
@@ -66,101 +68,217 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var owner = await _context.RestaurantLocations
+            var location = await _context.RestaurantLocations
                 .AsNoTracking()
-                .Where(location => location.Id == locationId)
-                .Select(location => new
+                .Where(row => row.Id == locationId)
+                .Select(row => new
                 {
-                    location.LocationName,
-                    location.Restaurant!.OwnerUserId,
-                    location.Restaurant.AccountType,
-                    OwnerEmail = location.Restaurant.OwnerUser!.Email,
-                    OwnerFullName = location.Restaurant.OwnerUser.FullName,
+                    row.LocationName,
+                    RestaurantId = row.Restaurant!.Id,
+                    row.Restaurant.OwnerUserId,
+                    row.Restaurant.AccountType,
                 })
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (owner is null)
+            if (location is null)
             {
                 return;
             }
 
-            var locationName = string.IsNullOrWhiteSpace(owner.LocationName)
+            var locationName = string.IsNullOrWhiteSpace(location.LocationName)
                 ? "Location"
-                : owner.LocationName.Trim();
+                : location.LocationName.Trim();
             var ctaHref = ReportsWeeklyBriefCtaHref(
-                owner.AccountType,
+                location.AccountType,
                 locationId
             );
-
-            ProduceNotificationResult produceResult;
-            try
-            {
-                produceResult = await _notifications.ProduceAsync(
-                    new ProduceNotificationRequest
-                    {
-                        UserId = owner.OwnerUserId,
-                        Type = NotificationType,
-                        Title = $"Weekly brief ready — {locationName}",
-                        Body =
-                            $"Your weekly summary for {locationName} is ready.",
-                        CtaLabel = CtaLabel,
-                        CtaHref = ctaHref,
-                        DedupeKey = DedupeKeyFor(
-                            locationId,
-                            closedWeek.WeekKey
-                        ),
-                    }
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Failed to produce weekly-brief-ready for location {LocationId} week {WeekKey}",
-                    locationId,
-                    closedWeek.WeekKey
-                );
-                return;
-            }
-
-            if (produceResult.Status != ProduceNotificationStatus.Created)
+            var recipients = await ResolveRecipientsAsync(
+                location.RestaurantId,
+                locationId,
+                location.OwnerUserId,
+                cancellationToken
+            );
+            if (recipients.Count == 0)
             {
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(owner.OwnerEmail))
-            {
-                return;
-            }
+            var emailPayload = await TryBuildEmailPayloadAsync(
+                locationId,
+                closedWeek,
+                locationName,
+                ctaHref,
+                cancellationToken
+            );
 
-            try
+            var title = $"Weekly brief ready — {locationName}";
+            var body = $"Your weekly summary for {locationName} is ready.";
+            var dedupeKey = DedupeKeyFor(locationId, closedWeek.WeekKey);
+
+            foreach (var recipient in recipients)
             {
-                await SendWeeklyBriefEmailAsync(
-                    locationId,
-                    closedWeek,
-                    owner.OwnerEmail.Trim(),
-                    SignInMetadataResolver.ExtractFirstName(owner.OwnerFullName),
-                    locationName,
-                    ctaHref,
-                    cancellationToken
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Failed to send Weekly Brief email for location {LocationId} week {WeekKey}",
-                    locationId,
-                    closedWeek.WeekKey
-                );
+                ProduceNotificationResult produceResult;
+                try
+                {
+                    produceResult = await _notifications.ProduceAsync(
+                        new ProduceNotificationRequest
+                        {
+                            UserId = recipient.UserId,
+                            Type = NotificationType,
+                            Title = title,
+                            Body = body,
+                            CtaLabel = CtaLabel,
+                            CtaHref = ctaHref,
+                            DedupeKey = dedupeKey,
+                        }
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to produce weekly-brief-ready for user {UserId} location {LocationId} week {WeekKey}",
+                        recipient.UserId,
+                        locationId,
+                        closedWeek.WeekKey
+                    );
+                    continue;
+                }
+
+                if (produceResult.Status != ProduceNotificationStatus.Created)
+                {
+                    continue;
+                }
+
+                if (emailPayload is null
+                    || string.IsNullOrWhiteSpace(recipient.Email))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await _email.SendWeeklyBriefEmailAsync(
+                        recipient.Email.Trim(),
+                        recipient.FirstName,
+                        emailPayload.LocationName,
+                        emailPayload.PeriodLabel,
+                        emailPayload.QrScans,
+                        emailPayload.FeedbackReceived,
+                        emailPayload.GuestsCaptured,
+                        emailPayload.OfferClaimed,
+                        emailPayload.Redemptions,
+                        emailPayload.CampaignEngagement,
+                        emailPayload.WhatChanged,
+                        emailPayload.RecommendedNextStep,
+                        emailPayload.WeeklyBriefUrl
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to send Weekly Brief email for user {UserId} location {LocationId} week {WeekKey}",
+                        recipient.UserId,
+                        locationId,
+                        closedWeek.WeekKey
+                    );
+                }
             }
         }
 
-        private async Task SendWeeklyBriefEmailAsync(
+        private async Task<IReadOnlyList<WeeklyBriefEmailRecipient>> ResolveRecipientsAsync(
+            int restaurantId,
+            int locationId,
+            int ownerUserId,
+            CancellationToken cancellationToken
+        )
+        {
+            var memberships = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .Include(row => row.User)
+                .Where(row =>
+                    row.RestaurantId == restaurantId
+                    && row.Status == MembershipStatus.Active
+                )
+                .ToListAsync(cancellationToken);
+
+            var adminOverrides = await _context.RestaurantAdminPermissionCells
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .ToDictionaryAsync(
+                    row => row.AreaId,
+                    row => row.Level,
+                    cancellationToken
+                );
+
+            var byUserId = new Dictionary<int, WeeklyBriefEmailRecipient>();
+
+            void TryAdd(User? user, RestaurantMembership? membership, bool isOwner)
+            {
+                if (user is null || byUserId.ContainsKey(user.Id))
+                {
+                    return;
+                }
+
+                if (!isOwner)
+                {
+                    if (membership is null
+                        || !LocationDetailTeamAccessBuilder.HasAccessToLocation(
+                            membership,
+                            locationId
+                        ))
+                    {
+                        return;
+                    }
+                }
+
+                var permissionRole = membership?.PermissionRole
+                    ?? (isOwner ? PermissionRoles.Owner : PermissionRoles.Staff);
+                var reportsLevel = DefaultPermissionMatrix.LevelFor(
+                    permissionRole,
+                    OperatorAreaIds.Reports,
+                    adminOverrides
+                );
+                if (!DefaultPermissionMatrix.Meets(
+                        reportsLevel,
+                        PermissionLevel.View
+                    ))
+                {
+                    return;
+                }
+
+                byUserId[user.Id] = new WeeklyBriefEmailRecipient(
+                    user.Id,
+                    user.Email ?? string.Empty,
+                    SignInMetadataResolver.ExtractFirstName(user.FullName)
+                );
+            }
+
+            var ownerUser = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == ownerUserId, cancellationToken);
+            var ownerMembership = memberships.FirstOrDefault(
+                row => row.UserId == ownerUserId
+            );
+            TryAdd(ownerUser, ownerMembership, isOwner: true);
+
+            foreach (var membership in memberships)
+            {
+                if (membership.UserId == ownerUserId)
+                {
+                    continue;
+                }
+
+                TryAdd(membership.User, membership, isOwner: false);
+            }
+
+            return byUserId.Values.ToList();
+        }
+
+        private async Task<WeeklyBriefEmailPayload?> TryBuildEmailPayloadAsync(
             int locationId,
             WeeklyBriefClosedWeek closedWeek,
-            string toEmail,
-            string firstName,
             string locationName,
             string weeklyBriefUrl,
             CancellationToken cancellationToken
@@ -178,7 +296,7 @@ namespace TummlyBackend.Services
 
             if (brief is null)
             {
-                return;
+                return null;
             }
 
             WeeklyBriefBody? body;
@@ -201,12 +319,12 @@ namespace TummlyBackend.Services
                     locationId,
                     closedWeek.WeekKey
                 );
-                return;
+                return null;
             }
 
             if (body is null || metrics is null)
             {
-                return;
+                return null;
             }
 
             var enrichment = WeeklyBriefEnrichmentApply.TryDeserialize(
@@ -235,9 +353,7 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            await _email.SendWeeklyBriefEmailAsync(
-                toEmail,
-                firstName,
+            return new WeeklyBriefEmailPayload(
                 locationName,
                 phase1.Meta.Period,
                 metrics.QrScanEvents,
@@ -291,5 +407,25 @@ namespace TummlyBackend.Services
 
             return FallbackRecommendedNextStep;
         }
+
+        private sealed record WeeklyBriefEmailRecipient(
+            int UserId,
+            string Email,
+            string FirstName
+        );
+
+        private sealed record WeeklyBriefEmailPayload(
+            string LocationName,
+            string PeriodLabel,
+            int QrScans,
+            int FeedbackReceived,
+            int GuestsCaptured,
+            int OfferClaimed,
+            int Redemptions,
+            int CampaignEngagement,
+            string WhatChanged,
+            string RecommendedNextStep,
+            string WeeklyBriefUrl
+        );
     }
 }

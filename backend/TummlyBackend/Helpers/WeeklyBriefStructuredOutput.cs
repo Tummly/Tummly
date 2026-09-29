@@ -157,8 +157,9 @@ namespace TummlyBackend.Helpers
                 enrichment.feedbackSummary: narrative text + subtitle for private feedback;
                 when feedbackCount and needsAttentionCount are both 0, use empty strings.
                 enrichment.actionWording: optional title/subtitle for known action kinds only
-                (feedback-needs-attention, repeated-invalid, low-redemption). Omit kinds
-                that do not apply; never invent other kinds. Empty array is allowed.
+                (feedback-needs-attention, underperform-qr, repeated-invalid,
+                low-redemption). Omit kinds that do not apply; never invent other kinds.
+                Empty array is allowed.
                 """;
 
         public static string BuildRequestJson(
@@ -568,6 +569,8 @@ namespace TummlyBackend.Helpers
                                     {
                                         WeeklyBriefEnrichmentActionKinds
                                             .FeedbackNeedsAttention,
+                                        WeeklyBriefEnrichmentActionKinds
+                                            .UnderperformQr,
                                         WeeklyBriefEnrichmentActionKinds
                                             .RepeatedInvalid,
                                         WeeklyBriefEnrichmentActionKinds

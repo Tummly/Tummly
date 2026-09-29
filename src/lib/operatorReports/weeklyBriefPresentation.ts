@@ -4,6 +4,7 @@ import type {
 } from "@/lib/operatorAiAssistant/assistantActionNavigate"
 import { CAMPAIGN_AUDIENCE_OPTIONS } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import {
+  operatorDashboardCapturePlacementDetailPath,
   operatorDashboardNavPath,
   operatorDashboardOffersRedemptionLogPath,
   type OperatorDashboardMode,
@@ -57,6 +58,7 @@ export const WEEKLY_BRIEF_PAGE_COPY = {
 
   // Recommended actions
   openFollowUpQueue: "Open follow-up queue",
+  viewQrCodes: "View QR codes",
 
   // Suggested campaign
   draftBadge: "Draft",
@@ -153,7 +155,8 @@ export type WeeklyBriefRecommendedActionCard = {
   title: string
   subtitle: string
   cta: string
-  target: "feedback-needs-attention" | "redemption-log" | "offers"
+  target: "feedback-needs-attention" | "redemption-log" | "offers" | "capture"
+  qrCodeId?: number
 }
 
 /** Map a ready-envelope recommended-action fact to card copy (Offers control-signal pattern). */
@@ -170,6 +173,26 @@ export function mapWeeklyBriefRecommendedActionFact(
         "These guests shared contact details and may need a response.",
       cta: WEEKLY_BRIEF_PAGE_COPY.openFollowUpQueue,
       target: "feedback-needs-attention",
+    }
+  }
+
+  if (fact.kind === "underperform-qr") {
+    const isCounter = fact.placementLabel
+      .trim()
+      .toLowerCase() === "counter card"
+    return {
+      id: fact.kind,
+      title:
+        fact.title?.trim()
+        || (isCounter
+          ? "Move counter QR closer to payment"
+          : `Review your ${fact.placementLabel} placement`),
+      subtitle:
+        fact.subtitle?.trim()
+        || `${fact.placementLabel} had ${fact.scans} scans this period — well below your strongest placement.`,
+      cta: WEEKLY_BRIEF_PAGE_COPY.viewQrCodes,
+      target: "capture",
+      qrCodeId: fact.qrCodeId,
     }
   }
 
@@ -206,6 +229,7 @@ export function planWeeklyBriefRecommendedActionCta(input: {
   mode: OperatorDashboardMode
   locationId: number
   target: WeeklyBriefRecommendedActionCard["target"]
+  qrCodeId?: number
 }): WeeklyBriefRecommendedActionNavigatePlan {
   if (input.target === "feedback-needs-attention") {
     return planWeeklyBriefFeedbackFollowUpCta({
@@ -220,6 +244,21 @@ export function planWeeklyBriefRecommendedActionCta(input: {
         input.mode,
         input.locationId
       ),
+    }
+  }
+
+  if (input.target === "capture") {
+    if (input.qrCodeId != null) {
+      return {
+        path: operatorDashboardCapturePlacementDetailPath(
+          input.mode,
+          input.locationId,
+          input.qrCodeId
+        ),
+      }
+    }
+    return {
+      path: operatorDashboardNavPath(input.mode, "capture", input.locationId),
     }
   }
 

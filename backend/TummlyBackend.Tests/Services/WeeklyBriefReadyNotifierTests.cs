@@ -161,6 +161,123 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task NotifyGeneratedAsync_FansOut_ToReportsAuthorisedTeamMember()
+        {
+            var seed = await SeedOwnedLocationAsync(accountType: "Multi");
+            await SeedSucceededBriefAsync(seed.LocationId);
+            var manager = await SeedTeamMemberAsync(
+                seed.RestaurantId,
+                seed.LocationId,
+                PermissionRoles.LocationManager,
+                fullName: "Sam Manager",
+                emailPrefix: "mgr"
+            );
+
+            await _notifier.NotifyGeneratedAsync(seed.LocationId, ClosedWeek);
+
+            var ownerNotice = Assert.Single(
+                await _notifications.ListAsync(seed.UserId)
+            );
+            Assert.Equal("weekly-brief-ready", ownerNotice.Type);
+            Assert.Equal(
+                $"/multi-dashboard/reports/weekly-brief?location={seed.LocationId}",
+                ownerNotice.CtaHref
+            );
+
+            var managerNotice = Assert.Single(
+                await _notifications.ListAsync(manager.UserId)
+            );
+            Assert.Equal("weekly-brief-ready", managerNotice.Type);
+            Assert.Equal(ownerNotice.CtaHref, managerNotice.CtaHref);
+
+            Assert.Equal(2, _email.WeeklyBriefSends.Count);
+            Assert.Contains(
+                _email.WeeklyBriefSends,
+                send => send.ToEmail == seed.Email && send.FirstName == "Alex"
+            );
+            Assert.Contains(
+                _email.WeeklyBriefSends,
+                send => send.ToEmail == manager.Email && send.FirstName == "Sam"
+            );
+        }
+
+        [Fact]
+        public async Task NotifyGeneratedAsync_SkipsStaffWithoutReportsAccess()
+        {
+            var seed = await SeedOwnedLocationAsync(accountType: "Single");
+            await SeedSucceededBriefAsync(seed.LocationId);
+            var staff = await SeedTeamMemberAsync(
+                seed.RestaurantId,
+                seed.LocationId,
+                PermissionRoles.Staff,
+                fullName: "Pat Staff",
+                emailPrefix: "staff"
+            );
+
+            await _notifier.NotifyGeneratedAsync(seed.LocationId, ClosedWeek);
+
+            Assert.Single(await _notifications.ListAsync(seed.UserId));
+            Assert.Empty(await _notifications.ListAsync(staff.UserId));
+            Assert.Single(_email.WeeklyBriefSends);
+            Assert.Equal(seed.Email, _email.WeeklyBriefSends[0].ToEmail);
+        }
+
+        [Fact]
+        public async Task NotifyGeneratedAsync_SkipsTeamMemberOutsideLocationScope()
+        {
+            var seed = await SeedOwnedLocationAsync(accountType: "Multi");
+            await SeedSucceededBriefAsync(seed.LocationId);
+            var otherLocation = new RestaurantLocation
+            {
+                RestaurantId = seed.RestaurantId,
+                LocationName = "Other Kitchen",
+                Address = "2 Other Way",
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.RestaurantLocations.Add(otherLocation);
+            await _context.SaveChangesAsync();
+
+            var otherManager = await SeedTeamMemberAsync(
+                seed.RestaurantId,
+                otherLocation.Id,
+                PermissionRoles.LocationManager,
+                fullName: "Other Manager",
+                emailPrefix: "other"
+            );
+
+            await _notifier.NotifyGeneratedAsync(seed.LocationId, ClosedWeek);
+
+            Assert.Single(await _notifications.ListAsync(seed.UserId));
+            Assert.Empty(await _notifications.ListAsync(otherManager.UserId));
+            Assert.Single(_email.WeeklyBriefSends);
+        }
+
+        [Fact]
+        public async Task NotifyGeneratedAsync_StillEmailsTeam_WhenOwnerPreferenceOff()
+        {
+            var seed = await SeedOwnedLocationAsync(accountType: "Single");
+            await SeedSucceededBriefAsync(seed.LocationId);
+            var manager = await SeedTeamMemberAsync(
+                seed.RestaurantId,
+                seed.LocationId,
+                PermissionRoles.ReportingOnly,
+                fullName: "Riley Report",
+                emailPrefix: "report"
+            );
+            await _notifications.SetPreferencesAsync(
+                seed.UserId,
+                new NotificationPreferencesDto { WeeklyBriefReminders = false }
+            );
+
+            await _notifier.NotifyGeneratedAsync(seed.LocationId, ClosedWeek);
+
+            Assert.Empty(await _notifications.ListAsync(seed.UserId));
+            Assert.Single(await _notifications.ListAsync(manager.UserId));
+            var send = Assert.Single(_email.WeeklyBriefSends);
+            Assert.Equal(manager.Email, send.ToEmail);
+        }
+
         public void Dispose()
         {
             _context.Dispose();
@@ -169,6 +286,7 @@ namespace TummlyBackend.Tests.Services
         private async Task<(
             int UserId,
             int LocationId,
+            int RestaurantId,
             string Email
         )> SeedOwnedLocationAsync(string accountType)
         {
@@ -205,7 +323,46 @@ namespace TummlyBackend.Tests.Services
             _context.RestaurantLocations.Add(location);
             await _context.SaveChangesAsync();
 
-            return (user.Id, location.Id, email);
+            return (user.Id, location.Id, restaurant.Id, email);
+        }
+
+        private async Task<(int UserId, string Email)> SeedTeamMemberAsync(
+            int restaurantId,
+            int locationId,
+            string permissionRole,
+            string fullName,
+            string emailPrefix
+        )
+        {
+            var email = $"{emailPrefix}-{Guid.NewGuid():N}@example.com";
+            var user = new User
+            {
+                Email = email,
+                PasswordHash = "x",
+                FullName = fullName,
+                Role = "Operator",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            _context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = user.Id,
+                    RestaurantId = restaurantId,
+                    PermissionRole = permissionRole,
+                    LocationScope = LocationScopeKind.NamedList,
+                    NamedLocationIdsJson = MembershipLocationScope.SerializeNamedIds(
+                        [locationId]
+                    ),
+                    Status = MembershipStatus.Active,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            return (user.Id, email);
         }
 
         private async Task SeedSucceededBriefAsync(int locationId)

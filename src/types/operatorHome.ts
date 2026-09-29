@@ -331,10 +331,22 @@ export type WeeklyBriefLowRedemptionFact = {
   subtitle?: string | null;
 };
 
+export type WeeklyBriefUnderperformQrFact = {
+  kind: "underperform-qr";
+  qrCodeId: number;
+  placementLabel: string;
+  scans: number;
+  contactable: number;
+  target: "capture";
+  title?: string | null;
+  subtitle?: string | null;
+};
+
 export type WeeklyBriefRecommendedActionFact =
   | WeeklyBriefFeedbackNeedsAttentionFact
   | WeeklyBriefRepeatedInvalidFact
-  | WeeklyBriefLowRedemptionFact;
+  | WeeklyBriefLowRedemptionFact
+  | WeeklyBriefUnderperformQrFact;
 
 /** Suggested Draft campaign on the ready envelope when one qualifies. */
 export type WeeklyBriefSuggestedCampaignWire = {
