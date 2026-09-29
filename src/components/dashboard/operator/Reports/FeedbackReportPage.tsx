@@ -53,7 +53,7 @@ export function FeedbackReportPage({
     dateRange,
     exportAllowed,
     generateBusy,
-    openExportDialog,
+    onExport,
     commitRange,
     onGenerateBrief,
   } = reportsChrome
@@ -98,7 +98,7 @@ export function FeedbackReportPage({
         <ReportsStandardHeaderActions
           onGenerateBrief={onGenerateBrief}
           generateBusy={generateBusy}
-          onExport={openExportDialog}
+          onExport={onExport}
           exportDisabled={!exportAllowed}
           selectedRange={dateRange}
           onCommitRange={commitRange}

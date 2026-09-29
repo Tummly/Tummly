@@ -74,7 +74,7 @@ export function CaptureReportPage({ mode = "single" }: CaptureReportPageProps) {
     dateRange,
     exportAllowed,
     generateBusy,
-    openExportDialog,
+    onExport,
     commitRange,
     onGenerateBrief,
   } = reportsChrome
@@ -126,7 +126,7 @@ export function CaptureReportPage({ mode = "single" }: CaptureReportPageProps) {
         <ReportsStandardHeaderActions
           onGenerateBrief={onGenerateBrief}
           generateBusy={generateBusy}
-          onExport={openExportDialog}
+          onExport={onExport}
           exportDisabled={!exportAllowed}
           selectedRange={dateRange}
           onCommitRange={commitRange}
@@ -166,6 +166,16 @@ export function CaptureReportPage({ mode = "single" }: CaptureReportPageProps) {
         <ReportsEmptyState
           title={CAPTURE_REPORT_PAGE_COPY.emptyTitle}
           subtitle={CAPTURE_REPORT_PAGE_COPY.emptySubtitle}
+          action={
+            <Button
+              type="button"
+              variant="op-primary"
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+              onClick={handleCreatePlacement}
+            >
+              {CAPTURE_REPORT_PAGE_COPY.createQr}
+            </Button>
+          }
         />
       ) : null}
 
@@ -212,9 +222,11 @@ export function CaptureReportPage({ mode = "single" }: CaptureReportPageProps) {
               </Table>
             </div>
 
-            <ReportsInsightBanner>
-              {CAPTURE_REPORT_PAGE_COPY.funnelInsight}
-            </ReportsInsightBanner>
+            {captureReport.funnelInsight != null ? (
+              <ReportsInsightBanner>
+                {captureReport.funnelInsight}
+              </ReportsInsightBanner>
+            ) : null}
 
             <div className="flex flex-wrap items-center gap-3">
               <Button
@@ -376,12 +388,16 @@ export function CaptureReportPage({ mode = "single" }: CaptureReportPageProps) {
             </div>
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <ReportsInsightBanner
-                title={CAPTURE_REPORT_PAGE_COPY.placementInsightTitle}
-                className="flex-1"
-              >
-                {CAPTURE_REPORT_PAGE_COPY.placementInsightSubtitle}
-              </ReportsInsightBanner>
+              {captureReport.placementInsight != null ? (
+                <ReportsInsightBanner
+                  title={CAPTURE_REPORT_PAGE_COPY.placementInsightTitle}
+                  className="flex-1"
+                >
+                  {captureReport.placementInsight}
+                </ReportsInsightBanner>
+              ) : (
+                <div className="flex-1" />
+              )}
               <Button
                 type="button"
                 variant="op-tertiary"

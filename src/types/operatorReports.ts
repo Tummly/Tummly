@@ -1,3 +1,5 @@
+import type { WeeklyBriefRecommendedActionFact } from "@/types/operatorHome"
+
 export type ReportsMetricWire = {
   value: number
   valuePrevious: number
@@ -40,6 +42,7 @@ export type ReportsOverviewResponse =
         unsubscribes: ReportsMetricWire
       }
       topCaptureSources: ReportsOverviewCaptureSourceWire[]
+      recommendedActions?: WeeklyBriefRecommendedActionFact[]
     }
   | {
       success: false
@@ -197,6 +200,9 @@ export type ReportsCampaignsPerformanceWire = {
   goal: string | null
   channel: string | null
   sent: number
+  claims: number
+  redemptions: number
+  unsubscribes: number
   status: string
 }
 
@@ -217,6 +223,9 @@ export type ReportsCampaignsResponse =
       campaignsSent: ReportsMetricWire
       guestsMessaged: ReportsMetricWire
       failedSends: ReportsMetricWire
+      offerClaims: ReportsMetricWire
+      offerRedemptions: ReportsMetricWire
+      unsubscribes: ReportsMetricWire
       performance: ReportsCampaignsPerformanceWire[]
       needsAttention: ReportsCampaignsAttentionWire[]
     }

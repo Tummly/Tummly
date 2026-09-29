@@ -305,6 +305,9 @@ function readyCampaigns(): Extract<
     campaignsSent: metric(2, 1),
     guestsMessaged: metric(4, 2),
     failedSends: metric(1, 0),
+    offerClaims: metric(5, 3),
+    offerRedemptions: metric(2, 1),
+    unsubscribes: metric(1, 0),
     performance: [
       {
         campaignId: 9,
@@ -312,6 +315,9 @@ function readyCampaigns(): Extract<
         goal: "boost-quieter-time",
         channel: "sms",
         sent: 3,
+        claims: 2,
+        redemptions: 1,
+        unsubscribes: 0,
         status: "sent",
       },
     ],
@@ -587,7 +593,7 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().exportDialogOpen).toBe(true)
   })
 
-  it("gates CSV export behind client consent before download", async () => {
+  it("downloads Capture CSV without guest-data consent", async () => {
     const downloadReportsExport = vi.fn(async () => ({
       blob: new Blob(["Source,Scans\n"], { type: "text/csv" }),
       filename: "tummly-reports-capture-1-20260717-120000Z.csv",
@@ -601,8 +607,57 @@ describe("createOperatorReportsPageModule", () => {
     await module.syncWorkspace(workspace())
     module.openExportDialog()
 
-    await module.requestExport("capture")
-    expect(module.getSnapshot().pendingCsvExportKind).toBe("capture")
+    const ok = await module.requestExport("capture")
+    expect(ok).toBe(true)
+    expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "capture",
+        locationId: 1,
+      })
+    )
+    expect(triggerBrowserDownload).toHaveBeenCalled()
+    expect(module.getSnapshot().exportDialogOpen).toBe(false)
+  })
+
+  it("downloads Campaigns CSV without guest-data consent", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["Campaign,Sent\n"], { type: "text/csv" }),
+      filename: "tummly-reports-campaigns-1-20260717-120000Z.csv",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const adapters = createAdapters({
+      downloadReportsExport,
+      triggerBrowserDownload,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+
+    const ok = await module.requestExport("campaigns")
+    expect(ok).toBe(true)
+    expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "campaigns", locationId: 1 })
+    )
+    expect(triggerBrowserDownload).toHaveBeenCalled()
+  })
+
+  it("gates feedback CSV behind client consent before download", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["Source,Count\n"], { type: "text/csv" }),
+      filename: "tummly-reports-feedback-1-20260717-120000Z.csv",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const adapters = createAdapters({
+      downloadReportsExport,
+      triggerBrowserDownload,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.openExportDialog()
+
+    await module.requestExport("feedback")
+    expect(module.getSnapshot().pendingCsvExportKind).toBe("feedback")
     expect(module.getSnapshot().csvConsentChecked).toBe(false)
 
     const blocked = await module.confirmCsvExport()
@@ -614,12 +669,72 @@ describe("createOperatorReportsPageModule", () => {
     expect(ok).toBe(true)
     expect(downloadReportsExport).toHaveBeenCalledWith(
       expect.objectContaining({
-        kind: "capture",
+        kind: "feedback",
         locationId: 1,
       })
     )
     expect(triggerBrowserDownload).toHaveBeenCalled()
     expect(module.getSnapshot().exportDialogOpen).toBe(false)
+    expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
+  })
+
+  it("exportActiveReport downloads Capture without opening the picker", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["Source,Scans\n"], { type: "text/csv" }),
+      filename: "tummly-reports-capture-1-20260717-120000Z.csv",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const adapters = createAdapters({
+      downloadReportsExport,
+      triggerBrowserDownload,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.setActiveSurface("capture")
+
+    const ok = await module.exportActiveReport()
+    expect(ok).toBe(true)
+    expect(module.getSnapshot().exportDialogOpen).toBe(false)
+    expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "capture", locationId: 1 })
+    )
+    expect(triggerBrowserDownload).toHaveBeenCalled()
+  })
+
+  it("exportActiveReport gates Feedback behind consent without opening the picker", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["Source,Count\n"], { type: "text/csv" }),
+      filename: "tummly-reports-feedback-1-20260717-120000Z.csv",
+    }))
+    const adapters = createAdapters({ downloadReportsExport })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.setActiveSurface("feedback")
+
+    const ok = await module.exportActiveReport()
+    expect(ok).toBe(false)
+    expect(module.getSnapshot().exportDialogOpen).toBe(false)
+    expect(module.getSnapshot().pendingCsvExportKind).toBe("feedback")
+    expect(downloadReportsExport).not.toHaveBeenCalled()
+
+    module.setCsvConsentChecked(true)
+    const confirmed = await module.confirmCsvExport()
+    expect(confirmed).toBe(true)
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "feedback", locationId: 1 })
+    )
+  })
+
+  it("exportActiveReport opens the picker on hub surface", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.setActiveSurface("hub")
+
+    const ok = await module.exportActiveReport()
+    expect(ok).toBe(false)
+    expect(module.getSnapshot().exportDialogOpen).toBe(true)
     expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
   })
 

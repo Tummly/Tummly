@@ -90,6 +90,11 @@ namespace TummlyBackend.Controllers
                     dto.GuestsMessaged!
                 ),
                 failedSends = ReportsQueryGate.WireMetric(dto.FailedSends!),
+                offerClaims = ReportsQueryGate.WireMetric(dto.OfferClaims!),
+                offerRedemptions = ReportsQueryGate.WireMetric(
+                    dto.OfferRedemptions!
+                ),
+                unsubscribes = ReportsQueryGate.WireMetric(dto.Unsubscribes!),
                 performance = (dto.Performance ?? []).Select(row => new
                 {
                     campaignId = row.CampaignId,
@@ -97,6 +102,9 @@ namespace TummlyBackend.Controllers
                     goal = row.Goal,
                     channel = row.Channel,
                     sent = row.Sent,
+                    claims = row.Claims,
+                    redemptions = row.Redemptions,
+                    unsubscribes = row.Unsubscribes,
                     status = row.Status,
                 }),
                 needsAttention = (dto.NeedsAttention ?? []).Select(row => new
