@@ -62,10 +62,10 @@ namespace TummlyBackend.Helpers
             bool suppressMixedRefusal = false
         )
         {
-            if (!AssistantAskIntent.HasRetrieveAsk(userMessage))
-            {
-                return Clarify(VagueAskClarifyBody);
-            }
+            // Vague / greeting asks are refused in CompleteTurnAsync before live
+            // answer (NotCompare only). MentionCaveat / SingleCaveat /
+            // TwoPeriodCaveat still call this with a server caveat and must
+            // stay grounded.
 
             var focus = AssistantAskFocus.Detect(userMessage);
             var scoped = AssistantAskFocus.FilterEvidence(focus, evidence);

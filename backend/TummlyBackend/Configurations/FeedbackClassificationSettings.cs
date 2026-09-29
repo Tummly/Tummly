@@ -43,6 +43,15 @@ namespace TummlyBackend.Configurations
         public int AssistantHistoryMessageCap { get; set; } = 20;
 
         /// <summary>
+        /// When true, Assistant live answers use Azure native tool calls instead
+        /// of eager multi-domain retrieve + stuffed evidence. Production and
+        /// Development appsettings set this true after the full Assistant
+        /// tool-call migration; Testing keeps it false so legacy suites assert
+        /// eager evidence packs. Set false in appsettings to fall back.
+        /// </summary>
+        public bool AssistantRetrieveToolsEnabled { get; set; } = false;
+
+        /// <summary>
         /// Per-row soft-claim budget for durable Pending work (ADR-0010).
         /// Exhaustion marks the same generic Failed as other terminal failures.
         /// </summary>

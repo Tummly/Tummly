@@ -1099,6 +1099,7 @@ builder.Services.AddScoped<IAssistantCaptureRetrieve, AssistantCaptureRetrieve>(
 builder.Services.AddScoped<IAssistantHomeKpiRetrieve, AssistantHomeKpiRetrieve>();
 builder.Services.AddScoped<IAssistantGuestsRetrieve, AssistantGuestsRetrieve>();
 builder.Services.AddScoped<IAssistantAttentionRetrieve, AssistantAttentionRetrieve>();
+builder.Services.AddScoped<IAssistantRetrieveToolHost, AssistantRetrieveToolHost>();
 builder.Services.AddScoped<
     IRestaurantContextSnapshotService,
     RestaurantContextSnapshotService

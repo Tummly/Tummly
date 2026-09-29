@@ -1,3 +1,4 @@
+using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -20,6 +21,11 @@ namespace TummlyBackend.Services
         public int CompleteCount { get; private set; }
 
         public TimeSpan Delay { get; set; } = TimeSpan.Zero;
+
+        /// <summary>
+        /// Extra delay after retrieve tools (simulates Azure final answer round).
+        /// </summary>
+        public TimeSpan SecondRoundDelay { get; set; } = TimeSpan.Zero;
 
         public void SucceedWith(
             AssistantMessageClass answerClass,
@@ -97,6 +103,7 @@ namespace TummlyBackend.Services
         {
             _throwOnComplete = null;
             Delay = TimeSpan.Zero;
+            SecondRoundDelay = TimeSpan.Zero;
             _forcedResult = null;
             _resultQueue.Clear();
             CompleteCount = 0;
@@ -133,41 +140,45 @@ namespace TummlyBackend.Services
             }
 
             var task = AssistantTaskClassification.Classify(input.UserMessage);
-            if (task == AssistantTask.CreateCampaignDraft)
+            if (task == AssistantTask.CreateCampaignDraft
+                || task == AssistantTask.CreateCampaignWithOffer
+                || task == AssistantTask.OfferPath
+                || task == AssistantTask.RecoveryPath)
             {
-                return new AssistantLiveAnswerResult.Succeeded(
-                    AssistantMessageClass.Grounded,
-                    "Campaign Draft",
-                    "Create Campaign Draft.",
-                    [],
-                    AssistantTask.CreateCampaignDraft
-                );
-            }
+                await RunRetrieveToolsIfEnabledAsync(input, cancellationToken);
+                if (task == AssistantTask.CreateCampaignDraft)
+                {
+                    return new AssistantLiveAnswerResult.Succeeded(
+                        AssistantMessageClass.Grounded,
+                        "Campaign Draft",
+                        "Create Campaign Draft.",
+                        [],
+                        AssistantTask.CreateCampaignDraft
+                    );
+                }
 
-            if (task == AssistantTask.CreateCampaignWithOffer)
-            {
-                return new AssistantLiveAnswerResult.Succeeded(
-                    AssistantMessageClass.Grounded,
-                    "Campaign Draft with Offer",
-                    "Create Campaign with Offer.",
-                    [],
-                    AssistantTask.CreateCampaignWithOffer
-                );
-            }
+                if (task == AssistantTask.CreateCampaignWithOffer)
+                {
+                    return new AssistantLiveAnswerResult.Succeeded(
+                        AssistantMessageClass.Grounded,
+                        "Campaign Draft with Offer",
+                        "Create Campaign with Offer.",
+                        [],
+                        AssistantTask.CreateCampaignWithOffer
+                    );
+                }
 
-            if (task == AssistantTask.OfferPath)
-            {
-                return new AssistantLiveAnswerResult.Succeeded(
-                    AssistantMessageClass.Grounded,
-                    "Offers catalog Draft",
-                    "Offer path.",
-                    [],
-                    AssistantTask.OfferPath
-                );
-            }
+                if (task == AssistantTask.OfferPath)
+                {
+                    return new AssistantLiveAnswerResult.Succeeded(
+                        AssistantMessageClass.Grounded,
+                        "Offers catalog Draft",
+                        "Offer path.",
+                        [],
+                        AssistantTask.OfferPath
+                    );
+                }
 
-            if (task == AssistantTask.RecoveryPath)
-            {
                 return new AssistantLiveAnswerResult.Succeeded(
                     AssistantMessageClass.Grounded,
                     "Feedback recovery",
@@ -215,6 +226,53 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (input.UseRetrieveTools && input.ExecuteRetrieveTools is not null)
+            {
+                await RunRetrieveToolsIfEnabledAsync(input, cancellationToken);
+
+                var toolEvidence = input.ReadToolEvidence?.Invoke() ?? input.Evidence;
+                var toolCompare = input.ReadToolCompareLocations?.Invoke()
+                    ?? input.CompareLocations;
+                var (toolFailed, toolNotStarted) = input.ReadToolCompareAllMeta?.Invoke()
+                    ?? (input.FailedLocationNames ?? [], input.NotStartedLocationNames ?? []);
+
+                if (input.CompareAll)
+                {
+                    var compareAll = AssistantLiveAnswerCopy.CompareAllFromEvidence(
+                        input.PeriodPhrase,
+                        toolCompare ?? [],
+                        toolFailed,
+                        toolNotStarted
+                    );
+                    return compareAll with { AssistantTask = AssistantTask.Retrieve };
+                }
+
+                if (toolCompare is { Count: >= 2 } || input.NamedCompare)
+                {
+                    var compare = AssistantLiveAnswerCopy.CompareFromEvidence(
+                        input.UserMessage,
+                        input.PeriodPhrase,
+                        toolCompare ?? [],
+                        toolEvidence,
+                        input.DroppedUnknownSentence
+                    );
+                    return compare with { AssistantTask = AssistantTask.Retrieve };
+                }
+
+                var groundedFromTools = AssistantLiveAnswerCopy.GroundedFromEvidence(
+                    input.UserMessage,
+                    input.OwnedLocationName,
+                    input.PeriodPhrase,
+                    toolEvidence,
+                    input.SuppressMixedRefusal
+                );
+                return AssistantLiveAnswerCopy.WithSentences(
+                    groundedFromTools,
+                    input.Caveat,
+                    input.DroppedUnknownSentence
+                ) with { AssistantTask = AssistantTask.Retrieve };
+            }
+
             if (input.CompareAll)
             {
                 var compareAll = AssistantLiveAnswerCopy.CompareAllFromEvidence(
@@ -251,5 +309,97 @@ namespace TummlyBackend.Services
                 input.DroppedUnknownSentence
             ) with { AssistantTask = AssistantTask.Retrieve };
         }
+
+        private async Task RunRetrieveToolsIfEnabledAsync(
+            AssistantLiveAnswerInput input,
+            CancellationToken cancellationToken
+        )
+        {
+            if (!input.UseRetrieveTools || input.ExecuteRetrieveTools is null)
+            {
+                return;
+            }
+
+            if (input.OnRetrieveProgress is not null)
+            {
+                await input.OnRetrieveProgress(
+                    AssistantTurnProgressSteps.Retrieving,
+                    cancellationToken
+                );
+            }
+
+            var toolCalls = ToolsForInput(input)
+                .Select(
+                    (name, index) => new AssistantToolCallRequest(
+                        $"fake_{index}_{name}",
+                        name,
+                        name == AssistantRetrieveToolCatalog.ReadCampaigns
+                        && AssistantAskIntent.NeedsCampaignCopy(input.UserMessage)
+                            ? """{"includeCampaignCopy":true}"""
+                            : "{}"
+                    )
+                )
+                .ToList();
+            if (toolCalls.Count > 0)
+            {
+                await input.ExecuteRetrieveTools(toolCalls, cancellationToken);
+            }
+
+            if (SecondRoundDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(SecondRoundDelay, cancellationToken);
+            }
+
+            if (input.OnRetrieveProgress is not null)
+            {
+                await input.OnRetrieveProgress(
+                    AssistantTurnProgressSteps.Preparing,
+                    cancellationToken
+                );
+            }
+        }
+
+        private static IEnumerable<string> ToolsForInput(AssistantLiveAnswerInput input)
+        {
+            if (input.CompareAll)
+            {
+                return [AssistantRetrieveToolCatalog.CompareAllLocations];
+            }
+
+            if (input.NamedCompare)
+            {
+                return [AssistantRetrieveToolCatalog.CompareLocations];
+            }
+
+            return ToolsForFocus(AssistantAskFocus.Detect(input.UserMessage));
+        }
+
+        private static IEnumerable<string> ToolsForFocus(AssistantAskFocusKind focus)
+            => focus switch
+            {
+                AssistantAskFocusKind.Feedback
+                    => [AssistantRetrieveToolCatalog.ReadFeedbackSummary],
+                AssistantAskFocusKind.OffersClaims
+                    or AssistantAskFocusKind.OffersRedemptions
+                    => [AssistantRetrieveToolCatalog.ReadOffers],
+                AssistantAskFocusKind.CampaignsActive
+                    or AssistantAskFocusKind.CampaignsAny
+                    => [AssistantRetrieveToolCatalog.ReadCampaigns],
+                AssistantAskFocusKind.CaptureQr
+                    => [AssistantRetrieveToolCatalog.ReadCapturePerformance],
+                AssistantAskFocusKind.Performance
+                    => [AssistantRetrieveToolCatalog.ReadHomeKpis],
+                AssistantAskFocusKind.Guests
+                    => [AssistantRetrieveToolCatalog.ReadGuests],
+                AssistantAskFocusKind.CreateCampaign
+                    =>
+                    [
+                        AssistantRetrieveToolCatalog.ReadCampaigns,
+                        AssistantRetrieveToolCatalog.ReadOffers,
+                    ],
+                AssistantAskFocusKind.CreateOffer
+                    => [AssistantRetrieveToolCatalog.ReadOffers],
+                _ => AssistantRetrieveToolCatalog.DomainReads,
+            };
     }
 }

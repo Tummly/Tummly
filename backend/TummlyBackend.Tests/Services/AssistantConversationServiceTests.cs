@@ -148,7 +148,15 @@ namespace TummlyBackend.Tests.Services
                 new RestaurantPermissionHelper(_context),
                 aiBilling ?? _aiBilling,
                 timeProvider ?? _clock,
-                liveAnswerOptions,
+                liveAnswerOptions
+                    ?? Options.Create(
+                        new FeedbackClassificationSettings
+                        {
+                            // Legacy suite asserts eager evidence packs; tools
+                            // path is covered in AssistantConversationRetrieveToolsTests.
+                            AssistantRetrieveToolsEnabled = false,
+                        }
+                    ),
                 restaurantContextSnapshot,
                 snapshotSettings,
                 advisoryReason
@@ -10708,6 +10716,8 @@ namespace TummlyBackend.Tests.Services
 
             public Action<int>? AfterRetrieve { get; set; }
 
+            public TimeSpan ArtificialDelay { get; set; } = TimeSpan.Zero;
+
             public List<(int OwnedLocationId, DateTime FromUtc, DateTime ToUtc)> Calls { get; }
                 = [];
 
@@ -10727,7 +10737,8 @@ namespace TummlyBackend.Tests.Services
                         fromUtc,
                         toUtc,
                         cancellationToken
-                    )
+                    ),
+                    cancellationToken
                 );
             }
 
@@ -10749,30 +10760,34 @@ namespace TummlyBackend.Tests.Services
                         fromUtc,
                         toUtc,
                         cancellationToken
-                    )
+                    ),
+                    cancellationToken
                 );
             }
 
-            private Task<AssistantFeedbackRetrieveResult> RetrieveCoreAsync(
+            private async Task<AssistantFeedbackRetrieveResult> RetrieveCoreAsync(
                 int ownedLocationId,
                 DateTime fromUtc,
                 DateTime toUtc,
-                Func<Task<AssistantFeedbackRetrieveResult>> inner
+                Func<Task<AssistantFeedbackRetrieveResult>> inner,
+                CancellationToken cancellationToken
             )
             {
                 Calls.Add((ownedLocationId, fromUtc, toUtc));
                 AfterRetrieve?.Invoke(ownedLocationId);
+                if (ArtificialDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(ArtificialDelay, cancellationToken);
+                }
                 if (FailAll
                     || FailLocationIds.Contains(ownedLocationId)
                     || FailNext)
                 {
                     FailNext = false;
-                    return Task.FromResult<AssistantFeedbackRetrieveResult>(
-                        new AssistantFeedbackRetrieveResult.Failed()
-                    );
+                    return new AssistantFeedbackRetrieveResult.Failed();
                 }
 
-                return inner();
+                return await inner();
             }
         }
 
@@ -10787,10 +10802,12 @@ namespace TummlyBackend.Tests.Services
 
             public bool FailNext { get; set; }
 
+            public TimeSpan ArtificialDelay { get; set; } = TimeSpan.Zero;
+
             public List<(int OwnedLocationId, DateTime FromUtc, DateTime ToUtc)> Calls { get; }
                 = [];
 
-            public Task<AssistantOffersRetrieveResult> RetrieveAsync(
+            public async Task<AssistantOffersRetrieveResult> RetrieveAsync(
                 int ownedLocationId,
                 DateTime fromUtc,
                 DateTime toUtc,
@@ -10798,15 +10815,17 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 Calls.Add((ownedLocationId, fromUtc, toUtc));
+                if (ArtificialDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(ArtificialDelay, cancellationToken);
+                }
                 if (FailNext)
                 {
                     FailNext = false;
-                    return Task.FromResult<AssistantOffersRetrieveResult>(
-                        new AssistantOffersRetrieveResult.Failed()
-                    );
+                    return new AssistantOffersRetrieveResult.Failed();
                 }
 
-                return _inner.RetrieveAsync(
+                return await _inner.RetrieveAsync(
                     ownedLocationId,
                     fromUtc,
                     toUtc,
@@ -10826,12 +10845,14 @@ namespace TummlyBackend.Tests.Services
 
             public bool FailNext { get; set; }
 
+            public TimeSpan ArtificialDelay { get; set; } = TimeSpan.Zero;
+
             public List<(int OwnedLocationId, DateTime FromUtc, DateTime ToUtc)> Calls { get; }
                 = [];
 
             public List<bool> IncludeMessageCopyCalls { get; } = [];
 
-            public Task<AssistantCampaignsRetrieveResult> RetrieveAsync(
+            public async Task<AssistantCampaignsRetrieveResult> RetrieveAsync(
                 int ownedLocationId,
                 DateTime fromUtc,
                 DateTime toUtc,
@@ -10841,15 +10862,17 @@ namespace TummlyBackend.Tests.Services
             {
                 Calls.Add((ownedLocationId, fromUtc, toUtc));
                 IncludeMessageCopyCalls.Add(includeMessageCopy);
+                if (ArtificialDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(ArtificialDelay, cancellationToken);
+                }
                 if (FailNext)
                 {
                     FailNext = false;
-                    return Task.FromResult<AssistantCampaignsRetrieveResult>(
-                        new AssistantCampaignsRetrieveResult.Failed()
-                    );
+                    return new AssistantCampaignsRetrieveResult.Failed();
                 }
 
-                return _inner.RetrieveAsync(
+                return await _inner.RetrieveAsync(
                     ownedLocationId,
                     fromUtc,
                     toUtc,
@@ -10870,10 +10893,12 @@ namespace TummlyBackend.Tests.Services
 
             public bool FailNext { get; set; }
 
+            public TimeSpan ArtificialDelay { get; set; } = TimeSpan.Zero;
+
             public List<(int OwnedLocationId, DateTime FromUtc, DateTime ToUtc)> Calls { get; }
                 = [];
 
-            public Task<AssistantCaptureRetrieveResult> RetrieveAsync(
+            public async Task<AssistantCaptureRetrieveResult> RetrieveAsync(
                 int ownedLocationId,
                 DateTime fromUtc,
                 DateTime toUtc,
@@ -10881,15 +10906,17 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 Calls.Add((ownedLocationId, fromUtc, toUtc));
+                if (ArtificialDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(ArtificialDelay, cancellationToken);
+                }
                 if (FailNext)
                 {
                     FailNext = false;
-                    return Task.FromResult<AssistantCaptureRetrieveResult>(
-                        new AssistantCaptureRetrieveResult.Failed()
-                    );
+                    return new AssistantCaptureRetrieveResult.Failed();
                 }
 
-                return _inner.RetrieveAsync(
+                return await _inner.RetrieveAsync(
                     ownedLocationId,
                     fromUtc,
                     toUtc,
@@ -10909,10 +10936,12 @@ namespace TummlyBackend.Tests.Services
 
             public bool FailNext { get; set; }
 
+            public TimeSpan ArtificialDelay { get; set; } = TimeSpan.Zero;
+
             public List<(int OwnedLocationId, DateTime FromUtc, DateTime ToUtc)> Calls { get; }
                 = [];
 
-            public Task<AssistantHomeKpiRetrieveResult> RetrieveAsync(
+            public async Task<AssistantHomeKpiRetrieveResult> RetrieveAsync(
                 int ownedLocationId,
                 DateTime fromUtc,
                 DateTime toUtc,
@@ -10920,15 +10949,17 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 Calls.Add((ownedLocationId, fromUtc, toUtc));
+                if (ArtificialDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(ArtificialDelay, cancellationToken);
+                }
                 if (FailNext)
                 {
                     FailNext = false;
-                    return Task.FromResult<AssistantHomeKpiRetrieveResult>(
-                        new AssistantHomeKpiRetrieveResult.Failed()
-                    );
+                    return new AssistantHomeKpiRetrieveResult.Failed();
                 }
 
-                return _inner.RetrieveAsync(
+                return await _inner.RetrieveAsync(
                     ownedLocationId,
                     fromUtc,
                     toUtc,
@@ -10948,23 +10979,27 @@ namespace TummlyBackend.Tests.Services
 
             public bool FailNext { get; set; }
 
+            public TimeSpan ArtificialDelay { get; set; } = TimeSpan.Zero;
+
             public List<int> Calls { get; } = [];
 
-            public Task<AssistantGuestsRetrieveResult> RetrieveAsync(
+            public async Task<AssistantGuestsRetrieveResult> RetrieveAsync(
                 int ownedLocationId,
                 CancellationToken cancellationToken = default
             )
             {
                 Calls.Add(ownedLocationId);
+                if (ArtificialDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(ArtificialDelay, cancellationToken);
+                }
                 if (FailNext)
                 {
                     FailNext = false;
-                    return Task.FromResult<AssistantGuestsRetrieveResult>(
-                        new AssistantGuestsRetrieveResult.Failed()
-                    );
+                    return new AssistantGuestsRetrieveResult.Failed();
                 }
 
-                return _inner.RetrieveAsync(ownedLocationId, cancellationToken);
+                return await _inner.RetrieveAsync(ownedLocationId, cancellationToken);
             }
         }
 
