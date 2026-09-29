@@ -18,6 +18,7 @@ import {
   inMemoryOpenableCatalogOffer,
   OPERATOR_ASSISTANT_MIC_ERROR_COPY,
   periodPhraseForReportingPeriod,
+  formatScopeChangeNotice,
   type OperatorAiAssistantConversationRow,
 } from "./createOperatorAiAssistantModule"
 import { planAssistantActionNavigate, planAssistantSendScheduleRoute } from "./assistantActionNavigate"
@@ -994,6 +995,30 @@ describe("empty-state chips and composer placeholders", () => {
         endDate: "2026-03-09",
       })
     ).toBe("2–9 Mar 2026")
+
+    expect(
+      formatScopeChangeNotice({
+        kinds: ["period"],
+        previousPeriodLabel: "Last 7 days",
+        nextPeriodLabel: "Last 30 days",
+      })
+    ).toBe("Reporting period updated to Last 30 days")
+    expect(
+      formatScopeChangeNotice({
+        kinds: ["locations"],
+        previousLocationLabel: "Camden",
+        nextLocationLabel: "All Locations",
+      })
+    ).toBe("Scope updated to All Locations")
+    expect(
+      formatScopeChangeNotice({
+        kinds: ["period", "locations"],
+        nextPeriodLabel: "Last 30 days",
+        nextLocationLabel: "All Locations",
+      })
+    ).toBe(
+      "Reporting period updated to Last 30 days. Scope updated to All Locations"
+    )
 
     const placeholders = buildEmptyComposerPlaceholders({
       ownedLocationId: 22,

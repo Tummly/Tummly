@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Text;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Helpers;
@@ -11,6 +8,7 @@ namespace TummlyBackend.Services
 {
     /// <summary>
     /// Production recovery draft provider: Azure OpenAI Structured Outputs.
+    /// Feedback recovery draft via one-wave surface read tools.
     /// Reuses FeedbackClassification Endpoint/ApiKey/Deployment settings.
     /// </summary>
     public sealed class AzureOpenAIFeedbackRecoveryDraftProvider
@@ -44,25 +42,18 @@ namespace TummlyBackend.Services
 
                 try
                 {
-                    var attemptResult = await AttemptDraftAsync(
-                        input,
-                        cancellationToken
-                    );
+                    var attemptResult = await AttemptDraftWithToolsAsync(input, cancellationToken);
 
                     if (attemptResult.Kind == AttemptKind.Succeeded)
                     {
                         return attemptResult.Result
-                            ?? new FeedbackRecoveryDraftResult.Failed(
-                                Retryable: true
-                            );
+                            ?? new FeedbackRecoveryDraftResult.Failed(Retryable: true);
                     }
 
                     if (attemptResult.Kind == AttemptKind.Failed)
                     {
                         return attemptResult.Result
-                            ?? new FeedbackRecoveryDraftResult.Failed(
-                                Retryable: true
-                            );
+                            ?? new FeedbackRecoveryDraftResult.Failed(Retryable: true);
                     }
 
                     if (attempt >= maxAttempts)
@@ -78,7 +69,7 @@ namespace TummlyBackend.Services
                 {
                     throw;
                 }
-                catch (Exception ex) when (IsTransientException(ex))
+                catch (Exception ex) when (AzureOpenAIChatCompletions.IsTransientException(ex))
                 {
                     _logger.LogWarning(
                         ex,
@@ -99,7 +90,7 @@ namespace TummlyBackend.Services
             return new FeedbackRecoveryDraftResult.Failed(Retryable: true);
         }
 
-        private async Task<AttemptResult> AttemptDraftAsync(
+        private async Task<AttemptResult> AttemptDraftWithToolsAsync(
             FeedbackRecoveryDraftInput input,
             CancellationToken cancellationToken
         )
@@ -119,88 +110,85 @@ namespace TummlyBackend.Services
             var client = _httpClientFactory.CreateClient(
                 FeedbackRecoveryDraftStructuredOutput.HttpClientName
             );
+            var includeOffer = input.ConfirmedOffer is not null;
+            var forced = new List<AssistantToolCallRequest>
+            {
+                new(
+                    "forced_location",
+                    SurfaceReadToolCatalog.ReadLocationDisplayName,
+                    "{}"
+                ),
+                new(
+                    "forced_feedback",
+                    SurfaceReadToolCatalog.ReadRecoveryFeedbackFacts,
+                    "{}"
+                ),
+            };
+            if (includeOffer)
+            {
+                forced.Add(
+                    new(
+                        "forced_offer",
+                        SurfaceReadToolCatalog.ReadConfirmedOfferFacts,
+                        "{}"
+                    )
+                );
+            }
 
-            var requestUri = BuildChatCompletionsUri();
-            var body = FeedbackRecoveryDraftStructuredOutput.BuildRequestJson(
-                _settings.DeploymentName,
-                input,
-                _settings.PromptSchemaVersion
-            );
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-            request.Headers.TryAddWithoutValidation("api-key", _settings.ApiKey);
-            request.Headers.Accept.Add(
-                new MediaTypeWithQualityHeaderValue("application/json")
-            );
-            request.Content = new StringContent(
-                body,
-                Encoding.UTF8,
-                "application/json"
-            );
-
-            using var response = await client.SendAsync(
-                request,
+            var loop = await AzureOpenAIOneWaveToolLoop.RunAsync(
+                new AzureOpenAIOneWaveRequest
+                {
+                    SurfaceName = "recovery draft",
+                    HttpClient = client,
+                    Endpoint = _settings.Endpoint,
+                    ApiKey = _settings.ApiKey,
+                    DeploymentName = _settings.DeploymentName,
+                    ApiVersion = _settings.ApiVersion,
+                    SeedMessages = FeedbackRecoveryDraftStructuredOutput
+                        .BuildToolSeedMessages(
+                            input,
+                            _settings.PromptSchemaVersion
+                        ),
+                    ToolsArray = SurfaceReadToolCatalog.RecoveryDraftTools(includeOffer),
+                    SchemaName = FeedbackRecoveryDraftStructuredOutput.SchemaName,
+                    FinalSchema = FeedbackRecoveryDraftStructuredOutput.BuildSchema(),
+                    ExecuteTools = (calls, _) => Task.FromResult(
+                        SurfaceReadToolHost.ExecuteRecoveryDraft(calls, input)
+                    ),
+                    ForcedToolCalls = forced,
+                    Logger = _logger,
+                },
                 cancellationToken
             );
 
-            if (IsTransientStatusCode(response.StatusCode))
-            {
-                _logger.LogWarning(
-                    "Azure OpenAI returned {StatusCode} for recovery draft",
-                    (int)response.StatusCode
-                );
-                return AttemptResult.Transient();
-            }
+            return MapLoopResult(loop, input.Channel);
+        }
 
-            if (!response.IsSuccessStatusCode)
+        private AttemptResult MapLoopResult(
+            AzureOpenAIOneWaveResult loop,
+            string channel
+        )
+            => loop switch
             {
-                _logger.LogError(
-                    "Azure OpenAI recovery draft failed with {StatusCode}",
-                    (int)response.StatusCode
-                );
-                return AttemptResult.Failed(
+                AzureOpenAIOneWaveResult.Succeeded succeeded =>
+                    FeedbackRecoveryDraftStructuredOutput.TryParseModelContent(
+                        succeeded.Content,
+                        channel,
+                        out var result,
+                        out var invalidOutput
+                    )
+                        ? AttemptResult.Succeeded(result!)
+                        : invalidOutput
+                            ? AttemptResult.InvalidOutput()
+                            : AttemptResult.Failed(
+                                new FeedbackRecoveryDraftResult.Failed(Retryable: true)
+                            ),
+                AzureOpenAIOneWaveResult.Transient => AttemptResult.Transient(),
+                AzureOpenAIOneWaveResult.InvalidOutput => AttemptResult.InvalidOutput(),
+                _ => AttemptResult.Failed(
                     new FeedbackRecoveryDraftResult.Failed(Retryable: true)
-                );
-            }
-
-            var responseJson = await response.Content.ReadAsStringAsync(
-                cancellationToken
-            );
-
-            if (!FeedbackRecoveryDraftStructuredOutput.TryExtractMessageContent(
-                    responseJson,
-                    out var content
-                ))
-            {
-                return AttemptResult.InvalidOutput();
-            }
-
-            if (!FeedbackRecoveryDraftStructuredOutput.TryParseModelContent(
-                    content,
-                    input.Channel,
-                    out var result,
-                    out var invalidOutput
-                ))
-            {
-                return invalidOutput
-                    ? AttemptResult.InvalidOutput()
-                    : AttemptResult.Failed(
-                        new FeedbackRecoveryDraftResult.Failed(Retryable: true)
-                    );
-            }
-
-            return AttemptResult.Succeeded(result!);
-        }
-
-        private Uri BuildChatCompletionsUri()
-        {
-            var endpoint = _settings.Endpoint.TrimEnd('/') + "/";
-            var relative =
-                $"openai/deployments/{Uri.EscapeDataString(_settings.DeploymentName)}"
-                + $"/chat/completions?api-version={Uri.EscapeDataString(_settings.ApiVersion)}";
-
-            return new Uri(new Uri(endpoint), relative);
-        }
+                ),
+            };
 
         private async Task DelayBackoffAsync(
             int attempt,
@@ -218,14 +206,6 @@ namespace TummlyBackend.Services
             await Task.Delay(delayMs, cancellationToken);
         }
 
-        private static bool IsTransientStatusCode(HttpStatusCode statusCode)
-            => statusCode == HttpStatusCode.RequestTimeout
-                || statusCode == HttpStatusCode.TooManyRequests
-                || (int)statusCode >= 500;
-
-        private static bool IsTransientException(Exception ex)
-            => ex is HttpRequestException or TaskCanceledException;
-
         private enum AttemptKind
         {
             Succeeded,
@@ -239,9 +219,7 @@ namespace TummlyBackend.Services
             FeedbackRecoveryDraftResult? Result
         )
         {
-            public static AttemptResult Succeeded(
-                FeedbackRecoveryDraftResult result
-            )
+            public static AttemptResult Succeeded(FeedbackRecoveryDraftResult result)
                 => new(AttemptKind.Succeeded, result);
 
             public static AttemptResult Transient()
@@ -250,9 +228,7 @@ namespace TummlyBackend.Services
             public static AttemptResult InvalidOutput()
                 => new(AttemptKind.InvalidOutput, null);
 
-            public static AttemptResult Failed(
-                FeedbackRecoveryDraftResult result
-            )
+            public static AttemptResult Failed(FeedbackRecoveryDraftResult result)
                 => new(AttemptKind.Failed, result);
         }
     }

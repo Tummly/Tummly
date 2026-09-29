@@ -179,11 +179,19 @@ namespace TummlyBackend.Services
                     );
                 }
 
+                var recoveryEvidence = input.ReadToolEvidence?.Invoke() ?? input.Evidence;
+                var recoveryGrounded = AssistantLiveAnswerCopy.GroundedFromEvidence(
+                    input.UserMessage,
+                    input.OwnedLocationName,
+                    input.PeriodPhrase,
+                    recoveryEvidence,
+                    input.SuppressMixedRefusal
+                );
                 return new AssistantLiveAnswerResult.Succeeded(
                     AssistantMessageClass.Grounded,
-                    "Feedback recovery",
-                    "Prepare Feedback recovery.",
-                    [],
+                    recoveryGrounded.Title,
+                    recoveryGrounded.Body,
+                    recoveryGrounded.Actions,
                     AssistantTask.RecoveryPath
                 );
             }
@@ -199,17 +207,8 @@ namespace TummlyBackend.Services
                 }
             }
 
-            if (AssistantAttentionAsk.IsAttentionRetrieve(input.UserMessage))
-            {
-                return new AssistantLiveAnswerResult.Succeeded(
-                    AssistantMessageClass.Grounded,
-                    "Attention Retrieve",
-                    "Attention Retrieve.",
-                    [],
-                    AssistantTask.Retrieve
-                );
-            }
-
+            // Product-expert needles: Fake stands in for model knowledge (no domain
+            // tools). Mixed retrieve+product asks fall through to tools.
             var productTopics = AssistantProductExpertTopics.Detect(input.UserMessage);
             if (productTopics.Count > 0
                 && !AssistantAskIntent.IsHelpCentreAsk(input.UserMessage)
@@ -226,7 +225,8 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (input.UseRetrieveTools && input.ExecuteRetrieveTools is not null)
+            // Tools path: run retrieve tools then ground from tool evidence.
+            if (input.ExecuteRetrieveTools is not null)
             {
                 await RunRetrieveToolsIfEnabledAsync(input, cancellationToken);
 
@@ -259,6 +259,26 @@ namespace TummlyBackend.Services
                     return compare with { AssistantTask = AssistantTask.Retrieve };
                 }
 
+                // Capability / greeting / other non-retrieve: no domain tools.
+                if (!AssistantAskIntent.HasRetrieveAsk(input.UserMessage)
+                    && !AssistantAttentionAsk.IsAttentionRetrieve(input.UserMessage)
+                    && !AssistantTaskClassification.LooksLikeCreateTurn(input.UserMessage)
+                    && !AssistantTaskClassification.LooksLikeRecoveryPath(input.UserMessage)
+                    && !input.NamedCompare
+                    && !input.CompareAll
+                    && string.IsNullOrWhiteSpace(input.Caveat)
+                    && string.IsNullOrWhiteSpace(input.DroppedUnknownSentence))
+                {
+                    return new AssistantLiveAnswerResult.Succeeded(
+                        AssistantMessageClass.Grounded,
+                        AssistantProductExpertCopy.CapabilitiesTitle,
+                        AssistantProductExpertCopy.CapabilitiesBody,
+                        [],
+                        AssistantTask.Retrieve,
+                        AssistantProductExpertCopy.CapabilitiesConversationTitle
+                    );
+                }
+
                 var groundedFromTools = AssistantLiveAnswerCopy.GroundedFromEvidence(
                     input.UserMessage,
                     input.OwnedLocationName,
@@ -273,29 +293,7 @@ namespace TummlyBackend.Services
                 ) with { AssistantTask = AssistantTask.Retrieve };
             }
 
-            if (input.CompareAll)
-            {
-                var compareAll = AssistantLiveAnswerCopy.CompareAllFromEvidence(
-                    input.PeriodPhrase,
-                    input.CompareLocations ?? [],
-                    input.FailedLocationNames ?? [],
-                    input.NotStartedLocationNames ?? []
-                );
-                return compareAll with { AssistantTask = AssistantTask.Retrieve };
-            }
-
-            if (input.CompareLocations is { Count: >= 2 })
-            {
-                var compare = AssistantLiveAnswerCopy.CompareFromEvidence(
-                    input.UserMessage,
-                    input.PeriodPhrase,
-                    input.CompareLocations,
-                    input.Evidence,
-                    input.DroppedUnknownSentence
-                );
-                return compare with { AssistantTask = AssistantTask.Retrieve };
-            }
-
+            // Help-centre / early finishes may omit the tool executor.
             var grounded = AssistantLiveAnswerCopy.GroundedFromEvidence(
                 input.UserMessage,
                 input.OwnedLocationName,
@@ -315,17 +313,9 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (!input.UseRetrieveTools || input.ExecuteRetrieveTools is null)
+            if (input.ExecuteRetrieveTools is null)
             {
                 return;
-            }
-
-            if (input.OnRetrieveProgress is not null)
-            {
-                await input.OnRetrieveProgress(
-                    AssistantTurnProgressSteps.Retrieving,
-                    cancellationToken
-                );
             }
 
             var toolCalls = ToolsForInput(input)
@@ -340,6 +330,21 @@ namespace TummlyBackend.Services
                     )
                 )
                 .ToList();
+            if (toolCalls.Count == 0
+                && !input.NamedCompare
+                && !input.CompareAll)
+            {
+                return;
+            }
+
+            if (input.OnRetrieveProgress is not null)
+            {
+                await input.OnRetrieveProgress(
+                    AssistantTurnProgressSteps.Retrieving,
+                    cancellationToken
+                );
+            }
+
             if (toolCalls.Count > 0)
             {
                 await input.ExecuteRetrieveTools(toolCalls, cancellationToken);
@@ -371,7 +376,24 @@ namespace TummlyBackend.Services
                 return [AssistantRetrieveToolCatalog.CompareLocations];
             }
 
-            return ToolsForFocus(AssistantAskFocus.Detect(input.UserMessage));
+            var focus = AssistantAskFocus.Detect(input.UserMessage);
+            if (AssistantAttentionAsk.IsAttentionRetrieve(input.UserMessage))
+            {
+                return AssistantRetrieveToolCatalog.DomainReads;
+            }
+
+            if (focus == AssistantAskFocusKind.Unknown
+                && !AssistantAskIntent.HasRetrieveAsk(input.UserMessage)
+                && !AssistantTaskClassification.LooksLikeCreateTurn(input.UserMessage)
+                && !AssistantTaskClassification.LooksLikeRecoveryPath(input.UserMessage)
+                && string.IsNullOrWhiteSpace(input.Caveat)
+                && string.IsNullOrWhiteSpace(input.DroppedUnknownSentence))
+            {
+                // Capability / greeting / other non-domain asks: no forced reads.
+                return [];
+            }
+
+            return ToolsForFocus(focus);
         }
 
         private static IEnumerable<string> ToolsForFocus(AssistantAskFocusKind focus)

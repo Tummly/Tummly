@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-using TummlyBackend.Configurations;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -9,21 +7,13 @@ namespace TummlyBackend.Tests.Services
     public partial class AssistantConversationServiceTests
     {
         [Fact]
-        public async Task SendTurn_RetrieveToolsEnabled_FeedbackAsk_UsesToolsAndSkipsEagerOffers()
+        public async Task SendTurn_RetrieveTools_FeedbackAsk_UsesToolsAndSkipsEagerOffers()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 711, "Camden");
             _offersRetrieve.Calls.Clear();
             _retrieve.Calls.Clear();
             _progress.Events.Clear();
-
-            var service = CreateConversationService(
-                liveAnswerOptions: Options.Create(
-                    new FeedbackClassificationSettings
-                    {
-                        AssistantRetrieveToolsEnabled = true,
-                    }
-                )
-            );
+            var service = CreateConversationService();
 
             var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await service.SendTurnAsync(
@@ -32,8 +22,7 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            Assert.True(_fake.LastInput!.UseRetrieveTools);
-            Assert.NotNull(_fake.LastInput.ExecuteRetrieveTools);
+            Assert.NotNull(_fake.LastInput!.ExecuteRetrieveTools);
             // Fake tool path calls feedback only for Feedback focus — not offers.
             Assert.Single(_retrieve.Calls);
             Assert.Empty(_offersRetrieve.Calls);
@@ -45,18 +34,11 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_RetrieveToolsEnabled_CreatePath_UsesToolsAndSkipsEagerFullPack()
+        public async Task SendTurn_RetrieveTools_CreatePath_UsesToolsAndSkipsEagerFullPack()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 712, "Camden");
             ClearRetrieveCalls();
-            var service = CreateConversationService(
-                liveAnswerOptions: Options.Create(
-                    new FeedbackClassificationSettings
-                    {
-                        AssistantRetrieveToolsEnabled = true,
-                    }
-                )
-            );
+            var service = CreateConversationService();
 
             var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await service.SendTurnAsync(
@@ -65,7 +47,7 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            Assert.True(_fake.LastInput!.UseRetrieveTools);
+            Assert.NotNull(_fake.LastInput!.ExecuteRetrieveTools);
             Assert.NotNull(_fake.LastInput.ExecuteRetrieveTools);
             // Create tools call campaigns + offers only — not full eager pack.
             Assert.NotEmpty(_campaignsRetrieve.Calls);
@@ -82,20 +64,12 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_RetrieveToolsEnabled_NamedCompare_UsesCompareLocationsTool()
+        public async Task SendTurn_RetrieveTools_NamedCompare_UsesCompareLocationsTool()
         {
             var camden = await SeedLocationAsync(ownerUserId: 714, "Camden");
             await SeedSecondLocationAsync(ownerUserId: 714, "Soho");
             ClearRetrieveCalls();
-
-            var service = CreateConversationService(
-                liveAnswerOptions: Options.Create(
-                    new FeedbackClassificationSettings
-                    {
-                        AssistantRetrieveToolsEnabled = true,
-                    }
-                )
-            );
+            var service = CreateConversationService();
 
             var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await service.SendTurnAsync(
@@ -104,7 +78,7 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            Assert.True(_fake.LastInput!.UseRetrieveTools);
+            Assert.NotNull(_fake.LastInput!.ExecuteRetrieveTools);
             Assert.True(_fake.LastInput.NamedCompare);
             Assert.False(_fake.LastInput.CompareAll);
             Assert.Equal("grounded", outcome.Conversation.Messages[^1].Class);
@@ -113,18 +87,11 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_RetrieveToolsEnabled_CompareAll_UsesCompareAllTool()
+        public async Task SendTurn_RetrieveTools_CompareAll_UsesCompareAllTool()
         {
             var camden = await SeedLocationAsync(ownerUserId: 715, "Camden");
             await SeedSecondLocationAsync(ownerUserId: 715, "Soho");
-            var service = CreateConversationService(
-                liveAnswerOptions: Options.Create(
-                    new FeedbackClassificationSettings
-                    {
-                        AssistantRetrieveToolsEnabled = true,
-                    }
-                )
-            );
+            var service = CreateConversationService();
 
             var created = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await service.SendTurnAsync(
@@ -146,25 +113,18 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            Assert.True(_fake.LastInput!.UseRetrieveTools);
+            Assert.NotNull(_fake.LastInput!.ExecuteRetrieveTools);
             Assert.True(_fake.LastInput.CompareAll);
             Assert.Equal("grounded", outcome.Conversation.Messages[^1].Class);
             Assert.Equal(2, _retrieve.Calls.Count);
         }
 
         [Fact]
-        public async Task SendTurn_RetrieveToolsEnabled_RecoveryPath_UsesTools()
+        public async Task SendTurn_RetrieveTools_RecoveryPath_UsesTools()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 716, "Camden");
             ClearRetrieveCalls();
-            var service = CreateConversationService(
-                liveAnswerOptions: Options.Create(
-                    new FeedbackClassificationSettings
-                    {
-                        AssistantRetrieveToolsEnabled = true,
-                    }
-                )
-            );
+            var service = CreateConversationService();
 
             var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await service.SendTurnAsync(
@@ -173,31 +133,135 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            Assert.True(_fake.LastInput!.UseRetrieveTools);
+            Assert.NotNull(_fake.LastInput!.ExecuteRetrieveTools);
             Assert.NotNull(_fake.LastInput.ExecuteRetrieveTools);
             Assert.Equal("grounded", outcome.Conversation.Messages[^1].Class);
         }
 
+
         [Fact]
-        public async Task SendTurn_RetrieveToolsDisabled_DoesNotSetToolExecutor()
+        public async Task SendTurn_RetrieveTools_Last30Ask_OverridesPeriodAndPersists()
         {
-            var locationId = await SeedLocationAsync(ownerUserId: 713, "Camden");
-            var service = CreateConversationService(
-                liveAnswerOptions: Options.Create(
-                    new FeedbackClassificationSettings
-                    {
-                        AssistantRetrieveToolsEnabled = false,
-                    }
+            var locationId = await SeedLocationAsync(ownerUserId: 719, "Camden");
+            ClearRetrieveCalls();
+            var service = CreateConversationService();
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await service.SendTurnAsync(
+                    ownerUserId: 719,
+                    FirstSendRequest(
+                        locationId,
+                        "Summarise feedback from the last 30 days"
+                    )
                 )
             );
 
-            await service.SendTurnAsync(
-                ownerUserId: 713,
-                FirstSendRequest(locationId, "Summarise recent feedback")
+            Assert.Equal("last30", outcome.Conversation.AnalysisScope.ReportingPeriod.PresetId);
+            Assert.Equal(
+                "the last 30 days",
+                _fake.LastInput!.PeriodPhrase
+            );
+            var answer = outcome.Conversation.Messages[^1];
+            Assert.NotNull(answer.ScopeChange);
+            Assert.Contains("period", answer.ScopeChange!.Kinds);
+            Assert.Equal("Last 7 days", answer.ScopeChange.PreviousPeriodLabel);
+            Assert.Equal("Last 30 days", answer.ScopeChange.NextPeriodLabel);
+            Assert.Single(_retrieve.Calls);
+        }
+
+        [Fact]
+        public async Task SendTurn_RetrieveTools_AcrossAllGuests_AutoPromotesAndCompareAll()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 720, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 720, "Soho");
+            ClearRetrieveCalls();
+            var service = CreateConversationService();
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await service.SendTurnAsync(
+                    ownerUserId: 720,
+                    FirstSendRequest(
+                        camden,
+                        "How many guests have we got across all our locations?"
+                    )
+                )
             );
 
-            Assert.False(_fake.LastInput!.UseRetrieveTools);
-            Assert.Null(_fake.LastInput.ExecuteRetrieveTools);
+            Assert.Equal("all", outcome.Conversation.AnalysisScope.ScopeKind);
+            Assert.True(_fake.LastInput!.CompareAll);
+            Assert.Equal("grounded", outcome.Conversation.Messages[^1].Class);
+            var answer = outcome.Conversation.Messages[^1];
+            Assert.NotNull(answer.ScopeChange);
+            Assert.Contains("locations", answer.ScopeChange!.Kinds);
+            Assert.Equal(2, _retrieve.Calls.Count);
+        }
+
+        [Fact]
+        public async Task SendTurn_RetrieveTools_NoNlCue_LeavesScopeUnchanged()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 721, "Camden");
+            var service = CreateConversationService();
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await service.SendTurnAsync(
+                    ownerUserId: 721,
+                    FirstSendRequest(locationId, "Summarise recent feedback")
+                )
+            );
+
+            Assert.Equal("last7", outcome.Conversation.AnalysisScope.ReportingPeriod.PresetId);
+            Assert.Equal("single", outcome.Conversation.AnalysisScope.ScopeKind);
+            Assert.Null(outcome.Conversation.Messages[^1].ScopeChange);
+        }
+
+        [Fact]
+        public async Task SendTurn_RetrieveTools_AttentionAsk_UsesTools()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 722, "Camden");
+            ClearRetrieveCalls();
+            var service = CreateConversationService();
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await service.SendTurnAsync(
+                    ownerUserId: 722,
+                    FirstSendRequest(locationId, "What needs attention?")
+                )
+            );
+
+            Assert.NotNull(_fake.LastInput!.ExecuteRetrieveTools);
+            Assert.NotNull(_fake.LastInput.ExecuteRetrieveTools);
+            Assert.Equal(0, _homeRecommendation.CallCount);
+            Assert.Equal("grounded", outcome.Conversation.Messages[^1].Class);
+            Assert.Contains(
+                AssistantTurnProgressSteps.Retrieving,
+                _progress.Events.Select(step => step.Step)
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_RetrieveTools_AllLocations_AttentionAsk_StillPicksOne()
+        {
+            await SeedLocationAsync(ownerUserId: 723, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 723, "Soho");
+            ClearRetrieveCalls();
+            var service = CreateConversationService();
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await service.SendTurnAsync(
+                    ownerUserId: 723,
+                    AllSendRequest("What needs attention?")
+                )
+            );
+
+            Assert.Equal("Pick one location", outcome.Conversation.Messages[^1].Title);
+            Assert.Contains(
+                "Change Scope",
+                outcome.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.Empty(_retrieve.Calls);
+            Assert.Null(_fake.LastInput);
+            Assert.Equal(0, _homeRecommendation.CallCount);
         }
     }
 }

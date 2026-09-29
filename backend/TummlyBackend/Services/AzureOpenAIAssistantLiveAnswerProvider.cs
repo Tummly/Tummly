@@ -37,70 +37,7 @@ namespace TummlyBackend.Services
             AssistantLiveAnswerInput input,
             CancellationToken cancellationToken = default
         )
-        {
-            if (input.UseRetrieveTools)
-            {
-                return await CompleteWithRetrieveToolsAsync(input, cancellationToken);
-            }
-
-            var maxAttempts = Math.Max(1, _settings.MaxAttempts);
-
-            for (var attempt = 1; attempt <= maxAttempts; attempt++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                try
-                {
-                    var attemptResult = await AttemptCompleteAsync(
-                        input,
-                        cancellationToken
-                    );
-
-                    if (attemptResult.Kind == AttemptKind.Succeeded)
-                    {
-                        return attemptResult.Result
-                            ?? new AssistantLiveAnswerResult.Failed(Retryable: true);
-                    }
-
-                    if (attemptResult.Kind == AttemptKind.Failed)
-                    {
-                        return attemptResult.Result
-                            ?? new AssistantLiveAnswerResult.Failed(Retryable: true);
-                    }
-
-                    if (attempt >= maxAttempts)
-                    {
-                        break;
-                    }
-
-                    await DelayBackoffAsync(attempt, cancellationToken);
-                }
-                catch (OperationCanceledException) when (
-                    cancellationToken.IsCancellationRequested
-                )
-                {
-                    throw;
-                }
-                catch (Exception ex) when (IsTransientException(ex))
-                {
-                    _logger.LogWarning(
-                        ex,
-                        "Transient Assistant live-answer failure (attempt {Attempt}/{MaxAttempts})",
-                        attempt,
-                        maxAttempts
-                    );
-
-                    if (attempt >= maxAttempts)
-                    {
-                        break;
-                    }
-
-                    await DelayBackoffAsync(attempt, cancellationToken);
-                }
-            }
-
-            return new AssistantLiveAnswerResult.Failed(Retryable: true);
-        }
+            => await CompleteWithRetrieveToolsAsync(input, cancellationToken);
 
         private async Task<AssistantLiveAnswerResult> CompleteWithRetrieveToolsAsync(
             AssistantLiveAnswerInput input,
@@ -163,6 +100,28 @@ namespace TummlyBackend.Services
                     out var toolCalls
                 ))
             {
+                var forcedCompareAll = false;
+                if (input.CompareAll
+                    && !toolCalls.Any(call =>
+                        string.Equals(
+                            call.Name,
+                            AssistantRetrieveToolCatalog.CompareAllLocations,
+                            StringComparison.Ordinal
+                        )))
+                {
+                    // Model picked domain reads under All scope (e.g. read_guests),
+                    // which block without OwnedLocationId. Force compare-all.
+                    toolCalls =
+                    [
+                        new AssistantToolCallRequest(
+                            "forced_compare_all",
+                            AssistantRetrieveToolCatalog.CompareAllLocations,
+                            "{}"
+                        ),
+                    ];
+                    forcedCompareAll = true;
+                }
+
                 if (input.OnRetrieveProgress is not null)
                 {
                     await input.OnRetrieveProgress(
@@ -176,10 +135,38 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
                 evidenceForParse = input.ReadToolEvidence?.Invoke() ?? evidenceForParse;
-                AssistantLiveAnswerStructuredOutput.AppendAssistantToolCallsMessage(
-                    messages,
-                    round1Response.ResponseJson
-                );
+                if (forcedCompareAll)
+                {
+                    messages.Add(
+                        new JsonObject
+                        {
+                            ["role"] = "assistant",
+                            ["content"] = null,
+                            ["tool_calls"] = new JsonArray(
+                                toolCalls
+                                    .Select(call => (JsonNode?)new JsonObject
+                                    {
+                                        ["id"] = call.Id,
+                                        ["type"] = "function",
+                                        ["function"] = new JsonObject
+                                        {
+                                            ["name"] = call.Name,
+                                            ["arguments"] = call.ArgumentsJson,
+                                        },
+                                    })
+                                    .ToArray()
+                            ),
+                        }
+                    );
+                }
+                else
+                {
+                    AssistantLiveAnswerStructuredOutput.AppendAssistantToolCallsMessage(
+                        messages,
+                        round1Response.ResponseJson
+                    );
+                }
+
                 AssistantLiveAnswerStructuredOutput.AppendToolResultMessages(
                     messages,
                     toolResults
@@ -197,11 +184,24 @@ namespace TummlyBackend.Services
                     out _
                 )
                 && earlyResult is AssistantLiveAnswerResult.Succeeded earlySucceeded
-                && earlySucceeded.Class is AssistantMessageClass.Clarify
-                    or AssistantMessageClass.Refusal
-                    or AssistantMessageClass.Failure)
+                && (earlySucceeded.Class is AssistantMessageClass.Clarify
+                        or AssistantMessageClass.Refusal
+                        or AssistantMessageClass.Failure
+                    || (earlySucceeded.Class == AssistantMessageClass.Grounded
+                        && !AssistantAskIntent.HasRetrieveAsk(input.UserMessage)
+                        && !AssistantAttentionAsk.IsAttentionRetrieve(input.UserMessage)
+                        && !input.NamedCompare
+                        && !input.CompareAll
+                        && !AssistantTaskClassification.LooksLikeCreateTurn(
+                            input.UserMessage
+                        )
+                        && !AssistantTaskClassification.LooksLikeRecoveryPath(
+                            input.UserMessage
+                        ))))
             {
-                // Clarify/refuse without tools is allowed; skip second round.
+                // Clarify/refuse, or grounded capability/greeting without tools.
+                // Do not force domain reads when the ask is not a retrieve.
+                // Attention asks always take the tool wave.
                 return earlyResult;
             }
             else
@@ -225,6 +225,58 @@ namespace TummlyBackend.Services
                         )
                     )
                     .ToList();
+                if (forcedCalls.Count == 0)
+                {
+                    // Non-retrieve ask skipped tools and had no parseable early
+                    // answer — final structured round without tool stuffing.
+                    if (input.OnRetrieveProgress is not null)
+                    {
+                        await input.OnRetrieveProgress(
+                            AssistantTurnProgressSteps.Preparing,
+                            cancellationToken
+                        );
+                    }
+
+                    var finalOnlyJson = AssistantLiveAnswerStructuredOutput
+                        .BuildRetrieveToolsRoundJson(
+                            _settings.DeploymentName,
+                            input,
+                            _settings.PromptSchemaVersion,
+                            messages,
+                            allowTools: false
+                        );
+                    var finalOnly = await SendChatAsync(
+                        client,
+                        requestUri,
+                        finalOnlyJson,
+                        cancellationToken
+                    );
+                    if (finalOnly.Kind != AttemptKind.Succeeded
+                        || finalOnly.ResponseJson is null)
+                    {
+                        return finalOnly.Result
+                            ?? new AssistantLiveAnswerResult.Failed(Retryable: true);
+                    }
+
+                    if (!AssistantLiveAnswerStructuredOutput.TryExtractMessageContent(
+                            finalOnly.ResponseJson,
+                            out var finalOnlyContent
+                        )
+                        || !AssistantLiveAnswerStructuredOutput.TryParseModelContent(
+                            finalOnlyContent,
+                            evidenceForParse,
+                            input.UserMessage,
+                            out var finalOnlyResult,
+                            out _
+                        ))
+                    {
+                        return new AssistantLiveAnswerResult.Failed(Retryable: true);
+                    }
+
+                    return finalOnlyResult
+                        ?? new AssistantLiveAnswerResult.Failed(Retryable: true);
+                }
+
                 var toolResults = await input.ExecuteRetrieveTools(
                     forcedCalls,
                     cancellationToken
@@ -335,72 +387,15 @@ namespace TummlyBackend.Services
                 return [AssistantRetrieveToolCatalog.CompareLocations];
             }
 
+            if (!AssistantAskIntent.HasRetrieveAsk(input.UserMessage)
+                && !AssistantAttentionAsk.IsAttentionRetrieve(input.UserMessage)
+                && !AssistantTaskClassification.LooksLikeCreateTurn(input.UserMessage)
+                && !AssistantTaskClassification.LooksLikeRecoveryPath(input.UserMessage))
+            {
+                return [];
+            }
+
             return AssistantRetrieveToolCatalog.DomainReads;
-        }
-
-        private async Task<AttemptResult> AttemptCompleteAsync(
-            AssistantLiveAnswerInput input,
-            CancellationToken cancellationToken
-        )
-        {
-            if (string.IsNullOrWhiteSpace(_settings.Endpoint)
-                || string.IsNullOrWhiteSpace(_settings.ApiKey)
-                || string.IsNullOrWhiteSpace(_settings.DeploymentName))
-            {
-                _logger.LogError(
-                    "Azure OpenAI Assistant live answer is misconfigured (endpoint, api key, or deployment)."
-                );
-                return AttemptResult.Failed(
-                    new AssistantLiveAnswerResult.Failed(Retryable: true)
-                );
-            }
-
-            var client = _httpClientFactory.CreateClient(
-                AssistantLiveAnswerStructuredOutput.HttpClientName
-            );
-
-            var requestUri = BuildChatCompletionsUri();
-            var body = AssistantLiveAnswerStructuredOutput.BuildRequestJson(
-                _settings.DeploymentName,
-                input,
-                _settings.PromptSchemaVersion
-            );
-
-            var sent = await SendChatAsync(
-                client,
-                requestUri,
-                body,
-                cancellationToken
-            );
-            if (sent.Kind != AttemptKind.Succeeded || sent.ResponseJson is null)
-            {
-                return sent;
-            }
-
-            if (!AssistantLiveAnswerStructuredOutput.TryExtractMessageContent(
-                    sent.ResponseJson,
-                    out var content
-                ))
-            {
-                return AttemptResult.InvalidOutput();
-            }
-
-            if (!AssistantLiveAnswerStructuredOutput.TryParseModelContent(
-                    content,
-                    input.Evidence,
-                    input.UserMessage,
-                    out var result,
-                    out var invalidOutput
-                ))
-            {
-                return invalidOutput
-                    ? AttemptResult.InvalidOutput()
-                    : AttemptResult.Failed(
-                        new AssistantLiveAnswerResult.Failed(Retryable: true)
-                    );
-            }
-
-            return AttemptResult.Succeeded(result!);
         }
 
         private async Task<AttemptResult> SendChatAsync(
@@ -462,29 +457,12 @@ namespace TummlyBackend.Services
             return new Uri(new Uri(endpoint), relative);
         }
 
-        private async Task DelayBackoffAsync(
-            int attempt,
-            CancellationToken cancellationToken
-        )
-        {
-            var delayMs = Math.Max(0, _settings.InitialBackoffMilliseconds)
-                * attempt;
-
-            if (delayMs <= 0)
-            {
-                return;
-            }
-
-            await Task.Delay(delayMs, cancellationToken);
-        }
 
         private static bool IsTransientStatusCode(HttpStatusCode statusCode)
             => statusCode == HttpStatusCode.RequestTimeout
                 || statusCode == HttpStatusCode.TooManyRequests
                 || (int)statusCode >= 500;
 
-        private static bool IsTransientException(Exception ex)
-            => ex is HttpRequestException or TaskCanceledException;
 
         private enum AttemptKind
         {

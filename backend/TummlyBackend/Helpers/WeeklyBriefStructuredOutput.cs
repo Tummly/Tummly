@@ -234,6 +234,49 @@ namespace TummlyBackend.Helpers
             return request.ToJsonString(RequestJsonOptions);
         }
 
+        /// <summary>
+        /// Seed messages for the tool-wave path. Metrics come from
+        /// read_weekly_brief_metrics — not the user payload.
+        /// </summary>
+        public static JsonArray BuildToolSeedMessages(
+            WeeklyBriefProviderInput input,
+            string promptSchemaVersion
+        )
+        {
+            var userPayload = new JsonObject
+            {
+                ["schemaVersion"] = SchemaVersion,
+                ["bodySchemaVersion"] = BodySchemaVersion,
+                ["weekKey"] = input.WeekKey,
+                ["coverageStartUtc"] = input.CoverageStartUtc.ToString("O"),
+                ["coverageEndUtcExclusive"] =
+                    input.CoverageEndUtcExclusive.ToString("O"),
+            };
+
+            return new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "system",
+                    ["content"] = BuildToolSystemPrompt(promptSchemaVersion),
+                },
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = userPayload.ToJsonString(RequestJsonOptions),
+                },
+            };
+        }
+
+        public static string BuildToolSystemPrompt(string promptSchemaVersion)
+            => $"""
+                {BuildSystemPrompt(promptSchemaVersion)}
+
+                Tool path: call read_weekly_brief_metrics before writing the brief.
+                Ground every count and tag rollup only on that tool result.
+                Never invent guest PII or feedback comment bodies.
+                """;
+
         public static bool TryExtractMessageContent(
             string responseJson,
             out string? content

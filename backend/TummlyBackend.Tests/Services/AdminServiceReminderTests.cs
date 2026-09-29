@@ -73,7 +73,6 @@ namespace TummlyBackend.Tests.Services
                         _context,
                         new FakeFeedbackRecoveryDraftProvider()
                     ),
-                    new UnusedAssistantAttentionRetrieve(),
                     new CaptureThankYouOfferService(
                         _context,
                         new OffersCatalogService(_context)

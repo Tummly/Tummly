@@ -144,5 +144,7 @@ namespace TummlyBackend.DTOs.Assistant
 
         public IReadOnlyList<AssistantActionDto> Actions { get; set; }
             = Array.Empty<AssistantActionDto>();
+
+        public AssistantScopeChangeNoticeDto? ScopeChange { get; set; }
     }
 }

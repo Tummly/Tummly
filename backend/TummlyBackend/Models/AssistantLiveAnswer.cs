@@ -28,7 +28,6 @@ namespace TummlyBackend.Models
         IReadOnlyList<string>? FailedLocationNames = null,
         IReadOnlyList<string>? NotStartedLocationNames = null,
         IReadOnlyList<AssistantLiveAnswerHistoryTurn>? History = null,
-        bool UseRetrieveTools = false,
         AssistantRetrieveToolExecutor? ExecuteRetrieveTools = null,
         AssistantRetrieveProgressCallback? OnRetrieveProgress = null,
         Func<AssistantRetrievedEvidence>? ReadToolEvidence = null,

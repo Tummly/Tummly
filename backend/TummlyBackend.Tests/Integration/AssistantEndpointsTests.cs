@@ -462,7 +462,7 @@ var reply = LastMessage(conversation);
         }
 
         [Fact]
-        public async Task SendTurn_AttentionAsk_BehavesAsBefore()
+        public async Task SendTurn_GuestsAsk_GroundsFromRetrieveTools()
         {
             var owner = await SeedOwnerAsync("assistant-e2e-attention-token");
             ResetFake();
@@ -472,14 +472,9 @@ var reply = LastMessage(conversation);
                 owner.LocationId,
                 "How many guests came last week?"
             );
-var reply = LastMessage(conversation);
+            var reply = LastMessage(conversation);
 
             Assert.Equal("grounded", reply.GetProperty("class").GetString());
-            Assert.Contains(
-                "Weekly brief covers the closed prior week",
-                reply.GetProperty("body").GetString(),
-                StringComparison.Ordinal
-            );
             Assert.Contains(
                 "Camden",
                 reply.GetProperty("body").GetString(),

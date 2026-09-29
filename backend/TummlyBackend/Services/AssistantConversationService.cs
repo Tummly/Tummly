@@ -36,7 +36,6 @@ namespace TummlyBackend.Services
         private readonly ICampaignMessageDraftService _campaignMessageDrafts;
         private readonly IOffersCatalogService _offersCatalog;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
-        private readonly IAssistantAttentionRetrieve _attentionRetrieve;
         private readonly ICaptureThankYouOfferService _thankYouOffers;
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IAssistantAiBilling _aiBilling;
@@ -48,6 +47,10 @@ namespace TummlyBackend.Services
         private readonly IAssistantAdvisoryReasonProvider? _advisoryReason;
         private readonly ILogger<AssistantConversationService> _logger;
         private string? _pendingAssistantBodyPrefix;
+        private AssistantScopeChangeNoticeDto? _pendingScopeChange;
+        private bool _skipLiveAnswerBilling;
+        private int? _pendingToolOwnedLocationId;
+        private string? _pendingToolOwnedLocationName;
 
         public AssistantConversationService(
             ApplicationDbContext context,
@@ -65,7 +68,6 @@ namespace TummlyBackend.Services
             ICampaignMessageDraftService campaignMessageDrafts,
             IOffersCatalogService offersCatalog,
             IFeedbackRecoveryDraftsService recoveryDrafts,
-            IAssistantAttentionRetrieve attentionRetrieve,
             ICaptureThankYouOfferService thankYouOffers,
             IRestaurantPermissionHelper permissions,
             IAssistantAiBilling aiBilling,
@@ -93,7 +95,6 @@ namespace TummlyBackend.Services
             _campaignMessageDrafts = campaignMessageDrafts;
             _offersCatalog = offersCatalog;
             _recoveryDrafts = recoveryDrafts;
-            _attentionRetrieve = attentionRetrieve;
             _thankYouOffers = thankYouOffers;
             _permissions = permissions;
             _aiBilling = aiBilling;
@@ -582,6 +583,10 @@ namespace TummlyBackend.Services
         )
         {
             _pendingAssistantBodyPrefix = null;
+            _pendingScopeChange = null;
+            _skipLiveAnswerBilling = false;
+            _pendingToolOwnedLocationId = null;
+            _pendingToolOwnedLocationName = null;
             var ownedLocations = await LoadOwnedLocationsAsync(
                 conversation.OwnedLocationId,
                 conversation.OwnerUserId,
@@ -701,6 +706,30 @@ namespace TummlyBackend.Services
             var mixedProductRetrieve = productExpertTurn
                 && AssistantProductExpertTopics.IsMixedRetrieve(userMessage);
             var pureProductExpert = productExpertTurn && !mixedProductRetrieve;
+
+            // NL Analysis scope overrides (period + all locations) before compare
+            // resolve so auto-promote to All avoids ClarifyUnnamed and tools use
+            // the effective window.
+            var scopeChange = AssistantScopeOverride.Apply(
+                userMessage,
+                scope,
+                out _,
+                out var locationsChanged
+            );
+            if (scopeChange is not null)
+            {
+                var copyName = AssistantAnalysisScope.IsAll(scope)
+                    ? AssistantAnalysisScope.AllLocationsChromeName
+                    : locationName;
+                AssistantAnalysisScope.CopyToConversation(conversation, scope, copyName);
+                if (locationsChanged)
+                {
+                    locationName = AssistantAnalysisScope.AllLocationsChromeName;
+                }
+
+                _pendingScopeChange = scopeChange;
+            }
+
             var compareOutcome = AssistantCompareTurn.Resolve(
                 productExpertTurn
                     ? AssistantProductExpertTopics.StripMatchedNeedles(userMessage)
@@ -714,9 +743,16 @@ namespace TummlyBackend.Services
                 AssistantAnalysisScope.IsAll(conversation)
             );
             if (gapState is not null
-                && compareOutcome is AssistantCompareOutcome.Clarify
+                && (
+                    compareOutcome is AssistantCompareOutcome.Clarify
+                    || compareOutcome is AssistantCompareOutcome.Compare
+                    {
+                        IsCompareAll: true
+                    }
+                )
                 && !AssistantTaskClassification.LooksLikeCreateTurn(userMessage))
             {
+                // Compare clarify or NL compare-all override replaces an open Gap.
                 conversation.DraftInterviewJson = null;
                 gapState = null;
             }
@@ -731,8 +767,7 @@ namespace TummlyBackend.Services
                 || AssistantTaskClassification.LooksLikeCreateTurn(userMessage);
             if (compareOutcome is AssistantCompareOutcome.Clarify clarify
                 && !isCreateTurn
-                && !helpCentreAsk
-                && !pureProductExpert)
+                && !helpCentreAsk)
             {
                 conversation.LastCompareLocationIdsJson = null;
                 return await PersistAssistantAsync(
@@ -945,50 +980,8 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (attentionAsk
-                && compareOutcome is AssistantCompareOutcome.NotCompare
-                && conversation.OwnedLocationId is int attentionLocationId)
-            {
-                return await FinishAttentionRetrieveAsync(
-                    conversation,
-                    attentionSurface,
-                    attentionLocationId,
-                    locationName,
-                    scope.ReportingPeriod,
-                    replaceFailure,
-                    cancellationToken
-                );
-            }
-
-            // Greetings and other off-allow-list asks must not fall through to
-            // Retrieve → default Summarise grounded dump (Fake or Azure).
-            // Advisory health/growth asks are not Vague — they continue to the
-            // snapshot pre-check / live answer below.
-            if (gapState is null
-                && !helpCentreAsk
-                && !productExpertTurn
-                && !attentionAsk
-                && !isCreateTurn
-                && !AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
-                && !AssistantAdvisoryIntent.LooksLikeAdvisoryRetrieve(userMessage)
-                && AssistantTaskClassification.Classify(userMessage)
-                    == AssistantTask.Retrieve
-                && !AssistantAskIntent.HasRetrieveAsk(userMessage)
-                && compareOutcome is AssistantCompareOutcome.NotCompare)
-            {
-                conversation.LastCompareLocationIdsJson = null;
-                return await PersistAssistantAsync(
-                    conversation,
-                    ClarifyMessage(
-                        DateTime.UtcNow,
-                        AssistantLiveAnswerCopy.VagueAskClarifyBody
-                    ),
-                    replaceFailure,
-                    cancellationToken,
-                    liveAnswerAlreadyCompleted: true
-                );
-            }
-
+            // Attention asks fall through to live answer + retrieve tools
+            // (free billing below). All-locations pick-one already returned.
             var periodPhrase = AssistantAnalysisScope.PeriodPhrase(scope.ReportingPeriod);
             var window = AssistantReportingPeriodWindow.Resolve(
                 scope.ReportingPeriod,
@@ -1064,14 +1057,9 @@ namespace TummlyBackend.Services
             IReadOnlyList<string> notStartedLocationNames = [];
             AssistantRetrievedEvidence savedEvidence;
             AssistantRetrieveToolContext? retrieveToolContext = null;
-            // Every live-answer turn uses tools when the flag is on. Pure server
-            // finishes (cancel Gap, bind-only Gap, early refuse, attention
-            // retrieve, help-centre, pure product expert) never reach here or
-            // intentionally skip retrieve.
-            var useRetrieveTools = _liveAnswerSettings.AssistantRetrieveToolsEnabled
-                && !helpCentreAsk
-                && !pureProductExpert
-                && !attentionAsk;
+            // Live-answer turns always use retrieve tools (KOL read contract).
+            // Help-centre finishes earlier; recovery identity is for Gap resume only.
+            var useRetrieveTools = !helpCentreAsk;
 
             // Advisory Gap pre-check before expensive retrieve / live LLM.
             // Clear with an injected Reason provider finishes on that path;
@@ -1080,7 +1068,6 @@ namespace TummlyBackend.Services
                 && gapState is null
                 && !isCreateTurn
                 && !helpCentreAsk
-                && !pureProductExpert
                 && !attentionAsk
                 && AssistantAdvisoryIntent.LooksLikeAdvisoryRetrieve(userMessage))
             {
@@ -1102,22 +1089,18 @@ namespace TummlyBackend.Services
 
             try
             {
-                if (pureProductExpert)
+                savedEvidence = EmptyEvidence;
+                if (useRetrieveTools)
                 {
-                    savedEvidence = EmptyEvidence;
-                }
-                else if (useRetrieveTools)
-                {
-                    // Tool path: skip eager multi-domain / compare-all retrieve;
-                    // model calls tools. Recovery identity union stays for Gap
-                    // Feedback resume only (server-owned), not stuffed into live
-                    // evidence.
-                    savedEvidence = EmptyEvidence;
+                    var toolLocationId = _pendingToolOwnedLocationId
+                        ?? conversation.OwnedLocationId;
+                    var toolLocationName = _pendingToolOwnedLocationName
+                        ?? locationName;
                     retrieveToolContext = new AssistantRetrieveToolContext
                     {
                         OwnerUserId = conversation.OwnerUserId,
-                        OwnedLocationId = conversation.OwnedLocationId,
-                        OwnedLocationName = locationName,
+                        OwnedLocationId = toolLocationId,
+                        OwnedLocationName = toolLocationName,
                         FromUtc = window.FromUtc,
                         ToUtc = window.ToUtc,
                         PeriodPhrase = periodPhrase,
@@ -1129,93 +1112,6 @@ namespace TummlyBackend.Services
                         CompareAllMode = isCompareAll,
                         AccumulatedEvidence = EmptyEvidence,
                     };
-                }
-                else if (recoveryIdentity is not null)
-                {
-                    savedEvidence = AssistantRetrievedEvidence.FromFeedback(recoveryIdentity);
-                }
-                else if (isCompareAll)
-                {
-                    if (hasRetrieveAsk)
-                    {
-                        await TryPublishProgressAsync(
-                            conversation.OwnerUserId,
-                            conversation.Id,
-                            AssistantTurnProgressSteps.Retrieving,
-                            cancellationToken
-                        );
-                    }
-
-                    var compareAll = await RetrieveCompareAllAsync(
-                        conversation.OwnerUserId,
-                        compareIds,
-                        locationRefs,
-                        window.FromUtc,
-                        window.ToUtc,
-                        AssistantAskIntent.NeedsCampaignCopy(userMessage),
-                        // Compare-all always loads full packs (ticket 06).
-                        AssistantAskFocusKind.MixedSummary,
-                        cancellationToken
-                    );
-                    if (compareAll.Landed.Count == 0)
-                    {
-                        conversation.LastCompareLocationIdsJson = null;
-                        return await PersistAssistantAsync(
-                            conversation,
-                            FailureMessage(DateTime.UtcNow),
-                            replaceFailure,
-                            cancellationToken
-                        );
-                    }
-
-                    compareEvidence = compareAll.Landed;
-                    failedLocationNames = compareAll.FailedNames;
-                    notStartedLocationNames = compareAll.NotStartedNames;
-                    savedEvidence = EmptyEvidence;
-                }
-                else
-                {
-                    if (hasRetrieveAsk)
-                    {
-                        await TryPublishProgressAsync(
-                            conversation.OwnerUserId,
-                            conversation.Id,
-                            AssistantTurnProgressSteps.Retrieving,
-                            cancellationToken
-                        );
-                    }
-                    // Named compare and Recovery path need full packs (compare
-                    // fairness; Recovery binds Feedback + Offer from evidence).
-                    var askFocus = namedCompare is not null
-                        || AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
-                            ? AssistantAskFocusKind.MixedSummary
-                            : AssistantAskFocus.Detect(userMessage);
-                    var retrieved = await RetrieveForTurnAsync(
-                        conversation.OwnerUserId,
-                        compareIds,
-                        conversation.OwnedLocationId,
-                        locationRefs,
-                        window.FromUtc,
-                        window.ToUtc,
-                        AssistantAskIntent.NeedsCampaignCopy(userMessage),
-                        askFocus,
-                        cancellationToken
-                    );
-                    if (retrieved is null)
-                    {
-                        conversation.LastCompareLocationIdsJson = null;
-                        return await PersistAssistantAsync(
-                            conversation,
-                            FailureMessage(DateTime.UtcNow),
-                            replaceFailure,
-                            cancellationToken
-                        );
-                    }
-
-                    compareEvidence = namedCompare is not null
-                        ? retrieved.CompareRows
-                        : null;
-                    savedEvidence = retrieved.SavedEvidence;
                 }
             }
             catch (OperationCanceledException)
@@ -1249,19 +1145,24 @@ namespace TummlyBackend.Services
                 );
             }
 
-            AssistantTurnBilling? turnBilling;
-            var billingGate = await TryBeginBilledLiveAnswerAsync(
-                conversation,
-                boundCreateLocationId,
-                idempotencyKey,
-                cancellationToken
-            );
-            if (billingGate.Error is not null)
+            // Attention Retrieve stays free even on the tools live path.
+            // Explain-why Attention fallthrough sets _skipLiveAnswerBilling.
+            AssistantTurnBilling? turnBilling = null;
+            if (!attentionAsk && !_skipLiveAnswerBilling)
             {
-                return billingGate.Error;
-            }
+                var billingGate = await TryBeginBilledLiveAnswerAsync(
+                    conversation,
+                    boundCreateLocationId,
+                    idempotencyKey,
+                    cancellationToken
+                );
+                if (billingGate.Error is not null)
+                {
+                    return billingGate.Error;
+                }
 
-            turnBilling = billingGate.Billing;
+                turnBilling = billingGate.Billing;
+            }
 
             AssistantLiveAnswerResult answer;
             try
@@ -1291,7 +1192,6 @@ namespace TummlyBackend.Services
                         FailedLocationNames: failedLocationNames,
                         NotStartedLocationNames: notStartedLocationNames,
                         History: BuildLiveAnswerHistory(conversation),
-                        UseRetrieveTools: useRetrieveTools,
                         ExecuteRetrieveTools: useRetrieveTools && retrieveToolContext is not null
                             ? (calls, toolCt) => _retrieveToolHost.ExecuteBatchAsync(
                                 retrieveToolContext,
@@ -1366,7 +1266,11 @@ namespace TummlyBackend.Services
                 locationName,
                 periodPhrase,
                 savedEvidence,
-                allowLocalRetrieveFallback: !isCompareAll && namedCompare is null
+                // Tools-only: local grounded fallback needs tool evidence.
+                // Empty pack + provider Failed stays Failure (no invent).
+                allowLocalRetrieveFallback: !savedEvidence.IsEmpty
+                    && !isCompareAll
+                    && namedCompare is null
             );
 
             var assistantNow = DateTime.UtcNow;
@@ -1625,9 +1529,17 @@ namespace TummlyBackend.Services
                         && savedEvidence.IsEmpty
                         && groundedAsk != AssistantGroundedAsk.ListGuests
                         && compareEvidence is not { Count: >= 2 }
-                        && !pureProductExpert
                         && !isCompareAll
-                        && attentionSurface == AssistantAttentionSurface.None)
+                        && attentionSurface == AssistantAttentionSurface.None
+                        // Empty pack is normal for capability/greeting asks that
+                        // call no domain tools — keep the live answer.
+                        && (AssistantAskIntent.HasRetrieveAsk(userMessage)
+                            || AssistantTaskClassification.LooksLikeCreateTurn(
+                                userMessage
+                            )
+                            || AssistantTaskClassification.LooksLikeRecoveryPath(
+                                userMessage
+                            )))
                     {
                         var empty = AssistantLiveAnswerCopy.EmptyGrounded(
                             locationName,
@@ -1651,7 +1563,6 @@ namespace TummlyBackend.Services
                             StringComparison.Ordinal
                         )
                         && compareEvidence is not { Count: >= 2 }
-                        && !pureProductExpert
                         && !isCompareAll
                         && PreferLocalQuestionFirstBody(
                             AssistantAskFocus.Detect(userMessage)
@@ -1687,31 +1598,28 @@ namespace TummlyBackend.Services
                     {
                         actions = [];
                     }
-                    if (productExpertTurn)
+                    // Pure product-expert: lock canned copy (also overrides a
+                    // model/Fake create task on capability asks).
+                    if (pureProductExpert)
                     {
                         var canned = AssistantProductExpertTopics.Assemble(productTopics);
-                        if (pureProductExpert)
+                        title = canned.Title;
+                        body = canned.Body;
+                        actions = [];
+                        proposedConversationTitle = canned.ConversationTitle;
+                        if (conversation.Messages.Count(
+                                message => message.Role == AssistantMessageRole.User
+                            ) == 1)
                         {
-                            title = canned.Title;
-                            body = canned.Body;
-                            actions = [];
-                            proposedConversationTitle = canned.ConversationTitle;
-                            if (conversation.Messages.Count(
-                                    message => message.Role == AssistantMessageRole.User
-                                ) == 1)
-                            {
-                                conversation.Title = canned.ConversationTitle;
-                            }
-                        }
-                        else
-                        {
-                            body = $"{body}\n\n{canned.Body}";
+                            conversation.Title = canned.ConversationTitle;
                         }
                     }
+                    // Mixed retrieve+product: tools answer stands; do not append
+                    // canned product copy (KOL tools-only contract).
                     assistantMessage = new AssistantMessage
                     {
                         Role = AssistantMessageRole.Assistant,
-                        Class = productExpertTurn
+                        Class = pureProductExpert
                             ? AssistantMessageClass.Grounded
                             : succeeded.Class,
                         Title = title,
@@ -6525,6 +6433,14 @@ namespace TummlyBackend.Services
                 _pendingAssistantBodyPrefix = null;
             }
 
+            if (_pendingScopeChange is not null)
+            {
+                assistantMessage.ScopeChangeJson = AssistantAnalysisScope.SerializeScopeChange(
+                    _pendingScopeChange
+                );
+                _pendingScopeChange = null;
+            }
+
             if (!liveAnswerAlreadyCompleted)
             {
                 proposedConversationTitle = await TryReadModelConversationTitleAsync(
@@ -6891,29 +6807,13 @@ namespace TummlyBackend.Services
                     or AssistantExplainWhyPriorPath.WeeklyBrief
                 && fetchLocationId is int attentionLocationId)
             {
-                var surface = AssistantAttentionAsk.Detect(priorUser.Body);
-                if (surface == AssistantAttentionSurface.None)
-                {
-                    surface = AssistantAttentionSurface.NeedsAttention;
-                }
-
-                await TryPublishProgressAsync(
-                    conversation.OwnerUserId,
-                    conversation.Id,
-                    AssistantTurnProgressSteps.Retrieving,
-                    cancellationToken
-                );
-                var presented = await _attentionRetrieve.PresentAsync(
-                    surface,
-                    conversation.OwnerUserId,
-                    attentionLocationId,
-                    fetchLocationName,
-                    fetchPeriod,
-                    cancellationToken
-                );
-                title = presented.Title;
-                body = presented.Body;
-                actions = presented.Actions;
+                // Re-run live answer + retrieve tools (free Attention billing).
+                // Bind fetch location so All-scope + named location still has
+                // an Owned location id for the tool host.
+                _pendingToolOwnedLocationId = attentionLocationId;
+                _pendingToolOwnedLocationName = fetchLocationName;
+                _skipLiveAnswerBilling = true;
+                return null;
             }
             else if (refetch && path == AssistantExplainWhyPriorPath.ProductExpert)
             {
@@ -6988,45 +6888,6 @@ namespace TummlyBackend.Services
                     expanded.Title,
                     expanded.Body,
                     expanded.Actions
-                ),
-                replaceFailure,
-                cancellationToken,
-                liveAnswerAlreadyCompleted: true
-            );
-        }
-
-        private async Task<AssistantTurnOutcome> FinishAttentionRetrieveAsync(
-            AssistantConversation conversation,
-            AssistantAttentionSurface surface,
-            int locationId,
-            string locationName,
-            AssistantReportingPeriodDto reportingPeriod,
-            AssistantMessage? replaceFailure,
-            CancellationToken cancellationToken
-        )
-        {
-            conversation.LastCompareLocationIdsJson = null;
-            await TryPublishProgressAsync(
-                conversation.OwnerUserId,
-                conversation.Id,
-                AssistantTurnProgressSteps.Retrieving,
-                cancellationToken
-            );
-            var presented = await _attentionRetrieve.PresentAsync(
-                surface,
-                conversation.OwnerUserId,
-                locationId,
-                locationName,
-                reportingPeriod,
-                cancellationToken
-            );
-            return await PersistAssistantAsync(
-                conversation,
-                GroundedMessage(
-                    DateTime.UtcNow,
-                    presented.Title,
-                    presented.Body,
-                    presented.Actions
                 ),
                 replaceFailure,
                 cancellationToken,

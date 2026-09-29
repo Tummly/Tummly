@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Text;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Helpers;
@@ -11,6 +8,7 @@ namespace TummlyBackend.Services
 {
     /// <summary>
     /// Production Campaign recommendation provider: Azure OpenAI Structured Outputs.
+    /// Campaign recommendation via one-wave surface read tools.
     /// Reuses FeedbackClassification Endpoint/ApiKey/Deployment settings.
     /// </summary>
     public sealed class AzureOpenAICampaignRecommendationProvider
@@ -44,10 +42,7 @@ namespace TummlyBackend.Services
 
                 try
                 {
-                    var attemptResult = await AttemptRecommendAsync(
-                        input,
-                        cancellationToken
-                    );
+                    var attemptResult = await AttemptRecommendWithToolsAsync(input, cancellationToken);
 
                     if (attemptResult.Kind == AttemptKind.Succeeded)
                     {
@@ -78,7 +73,7 @@ namespace TummlyBackend.Services
                 {
                     throw;
                 }
-                catch (Exception ex) when (IsTransientException(ex))
+                catch (Exception ex) when (AzureOpenAIChatCompletions.IsTransientException(ex))
                 {
                     _logger.LogWarning(
                         ex,
@@ -99,7 +94,7 @@ namespace TummlyBackend.Services
             return new CampaignRecommendationProviderResult.Failed(Retryable: true);
         }
 
-        private async Task<AttemptResult> AttemptRecommendAsync(
+        private async Task<AttemptResult> AttemptRecommendWithToolsAsync(
             CampaignRecommendationProviderInput input,
             CancellationToken cancellationToken
         )
@@ -119,100 +114,76 @@ namespace TummlyBackend.Services
             var client = _httpClientFactory.CreateClient(
                 CampaignRecommendationStructuredOutput.HttpClientName
             );
+            var forced = new List<AssistantToolCallRequest>
+            {
+                new(
+                    "forced_metrics",
+                    SurfaceReadToolCatalog.ReadCampaignRecommendationMetrics,
+                    "{}"
+                ),
+            };
 
-            var requestUri = BuildChatCompletionsUri();
-            var body = CampaignRecommendationStructuredOutput.BuildRequestJson(
-                _settings.DeploymentName,
-                input,
-                _settings.PromptSchemaVersion
-            );
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-            request.Headers.TryAddWithoutValidation("api-key", _settings.ApiKey);
-            request.Headers.Accept.Add(
-                new MediaTypeWithQualityHeaderValue("application/json")
-            );
-            request.Content = new StringContent(
-                body,
-                Encoding.UTF8,
-                "application/json"
-            );
-
-            using var response = await client.SendAsync(
-                request,
+            var loop = await AzureOpenAIOneWaveToolLoop.RunAsync(
+                new AzureOpenAIOneWaveRequest
+                {
+                    SurfaceName = "campaign recommendation",
+                    HttpClient = client,
+                    Endpoint = _settings.Endpoint,
+                    ApiKey = _settings.ApiKey,
+                    DeploymentName = _settings.DeploymentName,
+                    ApiVersion = _settings.ApiVersion,
+                    SeedMessages = CampaignRecommendationStructuredOutput
+                        .BuildToolSeedMessages(
+                            input,
+                            _settings.PromptSchemaVersion
+                        ),
+                    ToolsArray = SurfaceReadToolCatalog.CampaignRecommendationTools(),
+                    SchemaName = CampaignRecommendationStructuredOutput.SchemaName,
+                    FinalSchema = CampaignRecommendationStructuredOutput.BuildSchema(),
+                    ExecuteTools = (calls, _) => Task.FromResult(
+                        SurfaceReadToolHost.ExecuteCampaignRecommendation(calls, input)
+                    ),
+                    ForcedToolCalls = forced,
+                    Logger = _logger,
+                },
                 cancellationToken
             );
 
-            if (IsTransientStatusCode(response.StatusCode))
-            {
-                _logger.LogWarning(
-                    "Azure OpenAI returned {StatusCode} for campaign recommendation",
-                    (int)response.StatusCode
-                );
-                return AttemptResult.Transient();
-            }
+            return MapLoopResult(loop);
+        }
 
-            if (!response.IsSuccessStatusCode)
+        private AttemptResult MapLoopResult(AzureOpenAIOneWaveResult loop)
+            => loop switch
             {
-                _logger.LogError(
-                    "Azure OpenAI campaign recommendation failed with {StatusCode}",
-                    (int)response.StatusCode
-                );
-                return AttemptResult.Failed(
-                    new CampaignRecommendationProviderResult.Failed(Retryable: true)
-                );
-            }
-
-            var responseJson = await response.Content.ReadAsStringAsync(
-                cancellationToken
-            );
-
-            if (!CampaignRecommendationStructuredOutput.TryExtractMessageContent(
-                    responseJson,
-                    out var content
-                ))
-            {
-                return AttemptResult.InvalidOutput();
-            }
-
-            if (!CampaignRecommendationStructuredOutput.TryParseModelContent(
-                    content,
-                    out var output,
-                    out var invalidOutput
-                ))
-            {
-                return invalidOutput
-                    ? AttemptResult.InvalidOutput()
-                    : AttemptResult.Failed(
-                        new CampaignRecommendationProviderResult.Failed(
-                            Retryable: true
+                AzureOpenAIOneWaveResult.Succeeded succeeded =>
+                    CampaignRecommendationStructuredOutput.TryParseModelContent(
+                        succeeded.Content,
+                        out var output,
+                        out var invalidOutput
+                    )
+                        ? AttemptResult.Succeeded(
+                            new CampaignRecommendationProviderResult.Succeeded(output!)
                         )
-                    );
-            }
-
-            return AttemptResult.Succeeded(
-                new CampaignRecommendationProviderResult.Succeeded(output!)
-            );
-        }
-
-        private Uri BuildChatCompletionsUri()
-        {
-            var endpoint = _settings.Endpoint.TrimEnd('/') + "/";
-            var relative =
-                $"openai/deployments/{Uri.EscapeDataString(_settings.DeploymentName)}"
-                + $"/chat/completions?api-version={Uri.EscapeDataString(_settings.ApiVersion)}";
-
-            return new Uri(new Uri(endpoint), relative);
-        }
+                        : invalidOutput
+                            ? AttemptResult.InvalidOutput()
+                            : AttemptResult.Failed(
+                                new CampaignRecommendationProviderResult.Failed(
+                                    Retryable: true
+                                )
+                            ),
+                AzureOpenAIOneWaveResult.Transient => AttemptResult.Transient(),
+                AzureOpenAIOneWaveResult.InvalidOutput => AttemptResult.InvalidOutput(),
+                _ => AttemptResult.Failed(
+                    new CampaignRecommendationProviderResult.Failed(Retryable: true)
+                ),
+            };
 
         private async Task DelayBackoffAsync(
             int attempt,
             CancellationToken cancellationToken
         )
         {
-            var delayMs = Math.Max(0, _settings.InitialBackoffMilliseconds)
-                * attempt;
-
+            var delayMs = Math.Max(0, _settings.InitialBackoffMilliseconds) * attempt;
             if (delayMs <= 0)
             {
                 return;
@@ -220,14 +191,6 @@ namespace TummlyBackend.Services
 
             await Task.Delay(delayMs, cancellationToken);
         }
-
-        private static bool IsTransientStatusCode(HttpStatusCode statusCode)
-            => statusCode == HttpStatusCode.RequestTimeout
-                || statusCode == HttpStatusCode.TooManyRequests
-                || (int)statusCode >= 500;
-
-        private static bool IsTransientException(Exception ex)
-            => ex is HttpRequestException or TaskCanceledException;
 
         private enum AttemptKind
         {

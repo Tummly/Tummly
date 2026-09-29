@@ -1,13 +1,11 @@
 using System.Diagnostics;
 using System.Text;
-using Microsoft.Extensions.Options;
-using TummlyBackend.Configurations;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Tests.Services
 {
     /// <summary>
-    /// Local latency harness for retrieve-tools vs eager path.
+    /// Local latency harness for the tools-only retrieve path.
     /// Uses Fake live-answer + simulated per-domain retrieve delay (InMemory is
     /// otherwise too fast). Azure credentials are not present locally, so LLM
     /// rounds are simulated with Fake.Delay / SecondRoundDelay.
@@ -45,7 +43,7 @@ namespace TummlyBackend.Tests.Services
                     + $"LLM round={llmRoundMs}ms (Fake). Azure endpoint not configured."
             );
             report.AppendLine(
-                "Eager path: 1 LLM round. Tools path: 2 LLM rounds (tool choose + final)."
+                "Tools path: 2 LLM rounds (tool choose + final)."
             );
             report.AppendLine(
                 $"Iterations per cell: {iterations - 1} (after 1 warm-up)."
@@ -60,43 +58,25 @@ namespace TummlyBackend.Tests.Services
 
             foreach (var (name, ask) in cases)
             {
-                var eager = await MeasurePathAsync(
-                    locationId,
-                    ask,
-                    toolsEnabled: false,
-                    llmRoundMs,
-                    iterations
-                );
                 var tools = await MeasurePathAsync(
                     locationId,
                     ask,
-                    toolsEnabled: true,
                     llmRoundMs,
                     iterations
                 );
 
                 report.AppendLine(
-                    $"| {name} | eager | {eager.P50:F0} | {eager.P95:F0} | {eager.MedianFeedbackCalls} | {eager.MedianOffersCalls} |"
-                );
-                report.AppendLine(
                     $"| {name} | tools | {tools.P50:F0} | {tools.P95:F0} | {tools.MedianFeedbackCalls} | {tools.MedianOffersCalls} |"
-                );
-                report.AppendLine(
-                    $"| {name} | delta (tools-eager) | {tools.P50 - eager.P50:F0} | {tools.P95 - eager.P95:F0} |  |  |"
                 );
             }
 
             report.AppendLine();
             report.AppendLine("## Verdict (this harness)");
             report.AppendLine(
-                "With AskFocus already limiting eager domains, single-domain asks "
-                    + "do not save retrieve wall time vs tools. Tools add a second "
-                    + "LLM round, so projected turn time is higher unless real Azure "
-                    + "prompt stuffing cost exceeds one extra round."
-            );
-            report.AppendLine(
-                "Re-run against Azure OpenAI (set FeedbackClassification Endpoint/ApiKey) "
-                    + "before flipping AssistantRetrieveToolsEnabled."
+                "Tools path always runs domain retrieves via the tool host plus "
+                    + "a second Fake LLM round. Re-run against Azure OpenAI "
+                    + "(set FeedbackClassification Endpoint/ApiKey) against the "
+                    + "tools-only retrieve path."
             );
 
             var outDir = Path.GetFullPath(
@@ -118,7 +98,6 @@ namespace TummlyBackend.Tests.Services
             );
             await File.WriteAllTextAsync(outPath, report.ToString());
 
-            // Also emit to test output for the agent/user.
             Console.WriteLine(report.ToString());
             Console.WriteLine($"Wrote {outPath}");
 
@@ -142,24 +121,14 @@ namespace TummlyBackend.Tests.Services
         private async Task<LatencyStats> MeasurePathAsync(
             int locationId,
             string ask,
-            bool toolsEnabled,
             int llmRoundMs,
             int iterations
         )
         {
-            var service = CreateConversationService(
-                liveAnswerOptions: Options.Create(
-                    new FeedbackClassificationSettings
-                    {
-                        AssistantRetrieveToolsEnabled = toolsEnabled,
-                    }
-                )
-            );
+            var service = CreateConversationService();
 
             _fake.Delay = TimeSpan.FromMilliseconds(llmRoundMs);
-            _fake.SecondRoundDelay = toolsEnabled
-                ? TimeSpan.FromMilliseconds(llmRoundMs)
-                : TimeSpan.Zero;
+            _fake.SecondRoundDelay = TimeSpan.FromMilliseconds(llmRoundMs);
 
             var samples = new List<double>(iterations);
             var feedbackCalls = new List<int>(iterations);
@@ -181,7 +150,6 @@ namespace TummlyBackend.Tests.Services
                 offersCalls.Add(_offersRetrieve.Calls.Count);
             }
 
-            // Drop warm-up.
             samples = samples.Skip(1).ToList();
             feedbackCalls = feedbackCalls.Skip(1).ToList();
             offersCalls = offersCalls.Skip(1).ToList();
