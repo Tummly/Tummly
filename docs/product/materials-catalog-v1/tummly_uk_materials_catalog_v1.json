@@ -31,8 +31,8 @@
       "minOrderQty": 1,
       "currency": "GBP",
       "imageUrl": "/assets/images/shop/tummly-sticker.png",
-      "isPlanIncluded": false,
-      "popularBadge": null,
+      "isPlanIncluded": true,
+      "popularBadge": "Essential",
       "mintOnShopFulfilment": false
     },
     {
@@ -47,8 +47,8 @@
       "minOrderQty": 1,
       "currency": "GBP",
       "imageUrl": "/assets/images/shop/tummly-sticker.png",
-      "isPlanIncluded": false,
-      "popularBadge": null,
+      "isPlanIncluded": true,
+      "popularBadge": "Essential",
       "mintOnShopFulfilment": false
     }
   ]

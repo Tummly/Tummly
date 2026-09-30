@@ -94,13 +94,14 @@ static class Program
         var email = GetArg(args, "--email");
         var dryRun = HasFlag(args, "--dry-run");
         var replace = HasFlag(args, "--replace");
+        var force = HasFlag(args, "--force");
         var guestCount = ParseIntArg(args, "--guests", 20);
         var feedbackCount = ParseIntArg(args, "--feedback", 36);
 
         if (string.IsNullOrWhiteSpace(email))
         {
             Console.Error.WriteLine(
-                "Usage: QaPilotDemoSeed --email owner@example.com [--dry-run] [--replace] [--guests 20] [--feedback 36]"
+                "Usage: QaPilotDemoSeed --email owner@example.com [--dry-run] [--replace] [--force] [--guests 20] [--feedback 36]"
             );
             Console.Error.WriteLine(
                 "Connection: set ConnectionStrings__DefaultConnection (or CONNECTION_STRING)."
@@ -171,10 +172,11 @@ static class Program
                 billing.SubscriptionPlan,
                 BillingSubscriptionPlans.Pilot,
                 StringComparison.Ordinal
-            ))
+            )
+            && !force)
         {
             Console.Error.WriteLine(
-                $"Restaurant Id={restaurant.Id} plan is '{billing.SubscriptionPlan}', expected '{BillingSubscriptionPlans.Pilot}'."
+                $"Restaurant Id={restaurant.Id} plan is '{billing.SubscriptionPlan}', expected '{BillingSubscriptionPlans.Pilot}'. Pass --force to seed anyway."
             );
             return 1;
         }
@@ -224,7 +226,7 @@ static class Program
 
         Console.WriteLine($"Owner: {user.Email} (User Id={user.Id})");
         Console.WriteLine(
-            $"Restaurant: {restaurant.Name} (Id={restaurant.Id}, plan=Pilot)"
+            $"Restaurant: {restaurant.Name} (Id={restaurant.Id}, plan={billing.SubscriptionPlan})"
         );
         Console.WriteLine(
             $"Locations: {string.Join(", ", locations.Select(l => $"{l.LocationName}#{l.Id}"))}"

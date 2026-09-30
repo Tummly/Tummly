@@ -1,9 +1,8 @@
 import type { CSSProperties, ReactNode } from "react"
 
-import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
 import authHeroLogo from "@/assets/images/auth-hero-logo.png"
 import { topDecorationPicture } from "@/assets/guest-feedback-images"
-import { resolveBrandLogoSrc } from "@/lib/brandLogo/resolveBrandLogoSrc"
+import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import {
   GUEST_PREVIEW_EMPTY_VALUE,
   GUEST_PREVIEW_FOOTER_COOKIE,
@@ -44,23 +43,6 @@ export type BaseNonTransactionalEmailProps = {
   offer?: ReactNode
   className?: string
   maxWidthClass?: string
-}
-
-function BrandLogo({ brandLogoUrl }: { brandLogoUrl?: string | null }) {
-  return (
-    <span
-      className="relative size-12 shrink-0 overflow-hidden rounded-[2px]"
-      aria-hidden
-    >
-      <img
-        src={
-          resolveBrandLogoSrc(brandLogoUrl) ?? brandLogoPlaceholder
-        }
-        alt=""
-        className="size-full object-cover"
-      />
-    </span>
-  )
 }
 
 /**
@@ -121,7 +103,10 @@ export function BaseNonTransactionalEmail({
         className="relative z-10 flex flex-col items-start pl-8 pr-[52px] pt-[62px]"
       >
         <div className="flex items-center gap-3">
-          <BrandLogo brandLogoUrl={brandLogoUrl} />
+          <BrandLogoMark
+            className="size-12"
+            brandLogoPublicUrl={brandLogoUrl}
+          />
           <div className="flex min-w-0 flex-col gap-1">
             <p className="m-0 text-[22px] font-semibold leading-normal text-[var(--op-color-white)]">
               {title}

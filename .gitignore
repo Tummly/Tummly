@@ -30,7 +30,7 @@ obj/
 backend/TummlyBackend/.env.revolut.sandbox.local
 infra/qa/secrets.qa.env
 infra/qa/sql-admin-password.local.txt
-
+infra/qa/secrets.qa.env.bak.*
 
 # Editor
 .vscode/

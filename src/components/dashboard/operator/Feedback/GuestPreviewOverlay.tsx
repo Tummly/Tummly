@@ -50,8 +50,8 @@ export type GuestPreviewOverlayProps = {
   /** Restaurant brand when available; falls back to location name. */
   brandName?: string | null
   /**
-   * Settings brand logo public URL. Null/empty uses the email placeholder
-   * (same fall-back idea as Location picker / BrandLogoMark).
+   * Settings brand logo public URL. Null/empty uses BrandLogoMark
+   * (same fallback as the Location switcher).
    */
   brandLogoUrl?: string | null
   /** Offer coupon block — only for Respond with a recovery offer. */
@@ -69,7 +69,7 @@ export type GuestPreviewEmailChromeProps = {
   locationAddress: string | null
   subject: string
   message: string
-  /** Settings brand logo; null/empty → email placeholder asset. */
+  /** Settings brand logo; null/empty → BrandLogoMark (Location switcher). */
   brandLogoUrl?: string | null
   offerCoupon?: ReactNode
   device?: GuestPreviewDevice

@@ -12,6 +12,7 @@
 #   ./scripts/seed-qa-pilot-demo.sh --email owner@example.com
 #   ./scripts/seed-qa-pilot-demo.sh --email owner@example.com --dry-run
 #   ./scripts/seed-qa-pilot-demo.sh --email owner@example.com --replace
+#   ./scripts/seed-qa-pilot-demo.sh --email owner@example.com --force
 #   ./scripts/seed-qa-pilot-demo.sh --email owner@example.com --guests 20 --feedback 36
 set -euo pipefail
 
@@ -27,6 +28,7 @@ Options:
   --email EMAIL     Owner account email (required)
   --dry-run         Resolve account and print plan; no writes
   --replace         Delete prior @qa-seed.tummly.invalid rows, then reseed
+  --force           Seed even when Subscription plan is not Pilot
   --guests N        Guests per location (default 20)
   --feedback N      Feedback rows per location (default 36)
   -h, --help        Show this help
@@ -50,7 +52,7 @@ while [[ $# -gt 0 ]]; do
       FORWARD+=("$1" "$2")
       shift 2
       ;;
-    --dry-run | --replace)
+    --dry-run | --replace | --force)
       FORWARD+=("$1")
       shift
       ;;
