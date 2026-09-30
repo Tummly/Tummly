@@ -805,6 +805,13 @@ namespace TummlyBackend.Helpers
             }
 
             var raw = match.Value.Trim();
+            // Month abbreviations often end with a period ("7th oct. 2027").
+            raw = raw.Replace(".", " ", StringComparison.Ordinal);
+            raw = OrdinalDaySuffixRegex().Replace(raw, "$1");
+            raw = string.Join(
+                ' ',
+                raw.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            );
             var cultures = new[]
             {
                 CultureInfo.GetCultureInfo("en-GB"),
@@ -938,9 +945,15 @@ namespace TummlyBackend.Helpers
         private static partial Regex FillerWordRegex();
 
         [GeneratedRegex(
-            @"\b(?:\d{1,2}(?:st|nd|rd|th)?\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+\d{4})?|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:\s+\d{4})?|\d{4}-\d{2}-\d{2})\b",
+            @"\b(?:\d{1,2}(?:st|nd|rd|th)?\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?(?:\s+\d{4})?|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:\s+\d{4})?|\d{4}-\d{2}-\d{2})\b",
             RegexOptions.IgnoreCase
         )]
         private static partial Regex NamedDateRegex();
+
+        [GeneratedRegex(
+            @"\b(\d{1,2})(?:st|nd|rd|th)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
+        private static partial Regex OrdinalDaySuffixRegex();
     }
 }

@@ -4850,7 +4850,9 @@ namespace TummlyBackend.Services
                                 AssistantGapTurn.CreateCombinedOfferTerms(
                                     gapState.SourceUserMessage,
                                     merged,
-                                    gapState.AssistantTask
+                                    gapState.AssistantTask,
+                                    gapState.ChannelLabel,
+                                    gapState.AllowEmptyChannelAudience
                                 ),
                                 AssistantGapAsk.ForOfferTerms(merged),
                                 replaceFailure,
@@ -4873,7 +4875,9 @@ namespace TummlyBackend.Services
                                 AssistantGapTurn.CreateCombinedOfferTerms(
                                     gapState.SourceUserMessage,
                                     merged,
-                                    gapState.AssistantTask
+                                    gapState.AssistantTask,
+                                    gapState.ChannelLabel,
+                                    gapState.AllowEmptyChannelAudience
                                 ),
                                 AssistantGapAsk.ExplainOfferTerms(merged),
                                 replaceFailure,
@@ -4892,17 +4896,23 @@ namespace TummlyBackend.Services
                         StringComparison.Ordinal
                     ))
                 {
+                    var channelChoice = string.IsNullOrWhiteSpace(gapState.ChannelLabel)
+                        ? AssistantCampaignDraftBindChoice.Empty
+                        : new AssistantCampaignDraftBindChoice(
+                            ChannelLabel: gapState.ChannelLabel
+                        );
                     return await ResumeCombinedCreateAsync(
                         conversation,
                         gapState.SourceUserMessage,
                         userMessage,
                         analysisScopeLocationName,
                         ownedLocations,
-                        AssistantCampaignDraftBindChoice.Empty,
+                        channelChoice,
                         updateScope: false,
                         replaceFailure,
                         cancellationToken,
-                        priorTerms: merged
+                        priorTerms: merged,
+                        allowEmptyAudience: gapState.AllowEmptyChannelAudience
                     );
                 }
 
@@ -5523,6 +5533,30 @@ namespace TummlyBackend.Services
                     sourceUserMessage
                 ))
             {
+                // Empty-channel-audience choice already locked the channel. Do
+                // not fall through to live answer with a bare ordinal ("4") —
+                // that rebinds Email and drops the Offer. Ask Offer terms while
+                // keeping ChannelLabel + AllowEmptyChannelAudience on the Gap.
+                if (choice.ChannelLabel is not null || allowEmptyAudience)
+                {
+                    return new GapResume(
+                        await FinishGapTurnAsync(
+                            conversation,
+                            AssistantGapTurn.CreateCombinedOfferTerms(
+                                sourceUserMessage,
+                                mergedTerms,
+                                AssistantTask.CreateCampaignWithOffer,
+                                choice.ChannelLabel,
+                                allowEmptyAudience
+                            ),
+                            AssistantGapAsk.ForOfferTerms(mergedTerms),
+                            replaceFailure,
+                            cancellationToken
+                        ),
+                        null
+                    );
+                }
+
                 // Incomplete terms on a resume turn fall through to the live
                 // answer: the model re-extracts from the whole thread and the
                 // post-model gate asks with model text.

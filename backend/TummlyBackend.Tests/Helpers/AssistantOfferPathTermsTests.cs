@@ -30,6 +30,21 @@ namespace TummlyBackend.Tests.Helpers
             );
         }
 
+        [Fact]
+        public void Parse_ValidTillAbbreviatedMonthWithPeriod_IsComplete()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a campaign with SMS eligible guests and offer them 10% off on next order. valid till 7th oct. 2027",
+                Utc2026
+            );
+
+            Assert.True(AssistantOfferPathTerms.IsComplete(state));
+            Assert.Equal("percentage_discount", state.OfferType);
+            Assert.Equal(10m, state.DiscountPercentage);
+            Assert.Equal("choose_expiry_date", state.Validity);
+            Assert.Equal("2027-10-07", state.ExpiryDate);
+        }
+
         [Theory]
         [InlineData("Draft a 10 percent off offer valid 30 days after issue", 10)]
         [InlineData("Draft a 10 percent offer valid 30 days after issue", 10)]

@@ -4311,7 +4311,7 @@ namespace TummlyBackend.Tests.Services
                     ownerUserId: 7,
                     FirstSendRequest(
                         locationId,
-                        "Create a campaign with SMS eligible guests and offer them 10% off valid until 7 October 2027"
+                        "Create a campaign with SMS eligible guests and offer them 10% off on next order. valid till 7th oct. 2027"
                     )
                 )
             );
@@ -4333,13 +4333,65 @@ namespace TummlyBackend.Tests.Services
             );
             var campaign = Assert.Single(_context.Campaigns);
             Assert.Equal("sms", campaign.Channel);
+            Assert.NotNull(campaign.OfferId);
             Assert.Contains("SMS", completed.Conversation.Messages[^1].Body, StringComparison.Ordinal);
             Assert.DoesNotContain(
-                "Email",
-                completed.Conversation.Messages[^1].Body.Split('\n')
-                    .First(line => line.Contains("Channel", StringComparison.Ordinal)),
-                StringComparison.OrdinalIgnoreCase
+                "**Channel:** Email",
+                completed.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
             );
+        }
+
+        [Fact]
+        public async Task SendTurn_EmptySmsAudience_Option4_IncompleteTerms_KeepsSmsOnResume()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Email Guest",
+                email: "eligible@example.com"
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Create a campaign with SMS eligible guests and offer them 10% off"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            Assert.Contains(
+                AssistantEmptyChannelAudience.OptionCreateSmsAnyway,
+                started.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+
+            var afterChoice = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "4", started.Conversation.Id)
+                )
+            );
+            Assert.Equal("gap", afterChoice.Conversation.Messages[^1].Class);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "valid for 30 days after issue",
+                        started.Conversation.Id
+                    )
+                )
+            );
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("sms", campaign.Channel);
+            Assert.NotNull(campaign.OfferId);
+            Assert.Contains("SMS", completed.Conversation.Messages[^1].Body, StringComparison.Ordinal);
         }
 
         [Fact]

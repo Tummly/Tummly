@@ -14,6 +14,19 @@ namespace TummlyBackend.Helpers
         public List<string> OpenRules { get; set; } = [];
 
         /// <summary>
+        /// Channel label locked by an empty-channel-audience Gap choice so a
+        /// later Offer-terms Gap resume keeps SMS/Email instead of rebinding
+        /// from a short ordinal reply.
+        /// </summary>
+        public string? ChannelLabel { get; set; }
+
+        /// <summary>
+        /// When true, persist may keep a channel with zero eligible guests
+        /// (Create SMS/Email draft anyway).
+        /// </summary>
+        public bool AllowEmptyChannelAudience { get; set; }
+
+        /// <summary>
         /// <see cref="AssistantGapTurn.GapKindCreation"/> (default) or
         /// <see cref="AssistantGapTurn.GapKindAdvisory"/>. Missing JSON
         /// values stay creation for back-compat.
@@ -142,7 +155,9 @@ namespace TummlyBackend.Helpers
         public static AssistantGapState CreateCombinedOfferTerms(
             string sourceUserMessage,
             AssistantOfferPathTermsState terms,
-            string assistantTask
+            string assistantTask,
+            string? channelLabel = null,
+            bool allowEmptyChannelAudience = false
         )
             => new()
             {
@@ -151,6 +166,8 @@ namespace TummlyBackend.Helpers
                 SourceUserMessage = sourceUserMessage,
                 OpenRules = AssistantOfferPathTerms.OpenRuleNames(terms).ToList(),
                 OfferTermsJson = AssistantOfferPathTerms.Serialize(terms),
+                ChannelLabel = channelLabel,
+                AllowEmptyChannelAudience = allowEmptyChannelAudience,
             };
 
         public static AssistantGapState CreateCampaignTitle(
