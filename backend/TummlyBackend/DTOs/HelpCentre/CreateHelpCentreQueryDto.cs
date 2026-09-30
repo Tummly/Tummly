@@ -2,7 +2,11 @@ namespace TummlyBackend.DTOs.HelpCentre
 {
     public class CreateHelpCentreQueryDto
     {
-        public string Topic { get; set; } = string.Empty;
+        /// <summary>
+        /// Required for contact queries. Account requests derive topic server-side.
+        /// Nullable so empty form values do not trip ASP.NET implicit [Required].
+        /// </summary>
+        public string? Topic { get; set; }
 
         public string BusinessName { get; set; } = string.Empty;
 
@@ -18,6 +22,9 @@ namespace TummlyBackend.DTOs.HelpCentre
 
         public int? RestaurantId { get; set; }
 
-        public string Message { get; set; } = string.Empty;
+        /// <summary>
+        /// Required for contact queries. Account requests derive message server-side.
+        /// </summary>
+        public string? Message { get; set; }
     }
 }

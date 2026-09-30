@@ -10,11 +10,6 @@ import type {
   PermissionRecordsListResponse,
 } from "@/lib/operatorPrivacyConsent/permissionRecordsListQueryParams"
 
-export type SavePrivacyConsentInput = {
-  smsConsentWording?: string
-  emailConsentWording?: string
-}
-
 export type PatchPrivacyConsentTogglesInput = {
   emailMarketingPermissionEnabled?: boolean
   smsMarketingPermissionEnabled?: boolean
@@ -36,7 +31,7 @@ function rethrow(error: unknown, fallback: string): never {
   throw new Error(readApiError(error, fallback))
 }
 
-/** Privacy consent page GET — setup rows, toggles, wording, access flags. */
+/** Privacy consent page GET — setup rows, toggles, access flags. */
 export async function getPrivacyConsent(): Promise<PrivacyConsentPageApiData> {
   try {
     const { data } = await axiosInstance.get<PrivacyConsentPageApiData>(
@@ -45,8 +40,6 @@ export async function getPrivacyConsent(): Promise<PrivacyConsentPageApiData> {
     return {
       ...data,
       privacySetupRows: data.privacySetupRows ?? [],
-      smsConsentWording: data.smsConsentWording ?? "",
-      emailConsentWording: data.emailConsentWording ?? "",
       actorCanManage: data.actorCanManage === true,
       canViewGuests: data.canViewGuests === true,
     }
@@ -55,23 +48,23 @@ export async function getPrivacyConsent(): Promise<PrivacyConsentPageApiData> {
   }
 }
 
-/** Minimal Privacy consent ready + wording save (Locations Setup / ticket 07). */
-export async function savePrivacyConsent(
-  input: SavePrivacyConsentInput = {}
-): Promise<{ privacyReady: boolean }> {
+/**
+ * Marks Privacy & consent as reviewed for Locations setup readiness.
+ * Visiting the page (Manage) completes the review — no consent wording.
+ */
+export async function markPrivacyConsentReviewed(): Promise<{
+  privacyReady: boolean
+}> {
   try {
     const response = await axiosInstance.put<{
       success?: boolean
       privacyReady?: boolean
-    }>("/privacy-consent", {
-      smsConsentWording: input.smsConsentWording ?? "",
-      emailConsentWording: input.emailConsentWording ?? "",
-    })
+    }>("/privacy-consent")
     return {
       privacyReady: response.data.privacyReady === true,
     }
   } catch (error) {
-    rethrow(error, "Could not save Privacy consent.")
+    rethrow(error, "Could not complete privacy review.")
   }
 }
 

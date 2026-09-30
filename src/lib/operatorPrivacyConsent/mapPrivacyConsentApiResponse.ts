@@ -19,8 +19,6 @@ export type PrivacyConsentPageApiData = {
   emailMarketingPermissionEnabled: boolean
   smsMarketingPermissionEnabled: boolean
   feedbackFollowUpPermissionEnabled: boolean
-  smsConsentWording: string
-  emailConsentWording: string
   privacyReady: boolean
   actorCanManage: boolean
   canViewGuests: boolean

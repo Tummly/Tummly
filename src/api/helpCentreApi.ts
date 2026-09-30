@@ -114,11 +114,18 @@ export async function createHelpCentreQuery(
   payload: CreateHelpCentreQueryPayload
 ): Promise<{ id: number } & EmailDispatchMeta> {
   const formData = new FormData()
-  formData.append("topic", payload.topic)
+  const isAccountRequest = Boolean(payload.accountRequestKind?.trim())
+
+  // Account requests derive topic/message on the server. Do not send empty
+  // strings — ASP.NET treats them as failed [Required] before FluentValidation.
+  if (!isAccountRequest) {
+    formData.append("topic", payload.topic)
+    formData.append("message", payload.message)
+  }
+
   formData.append("businessName", payload.businessName)
   formData.append("submitterName", payload.submitterName)
   formData.append("submitterEmail", payload.submitterEmail)
-  formData.append("message", payload.message)
 
   if (payload.phone?.trim()) {
     formData.append("phone", payload.phone.trim())

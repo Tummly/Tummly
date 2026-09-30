@@ -8,44 +8,16 @@ namespace TummlyBackend.Helpers
         public const string StatusEnabled = "Enabled";
         public const string StatusNotUsed = "Not used";
 
-        public static bool IsGuestPermissionWordingConfigured(Restaurant restaurant)
-        {
-            if (
-                restaurant.EmailMarketingPermissionEnabled
-                && string.IsNullOrWhiteSpace(restaurant.EmailConsentWording)
-            )
-            {
-                return false;
-            }
-
-            if (
-                restaurant.SmsMarketingPermissionEnabled
-                && string.IsNullOrWhiteSpace(restaurant.SmsConsentWording)
-            )
-            {
-                return false;
-            }
-
-            return true;
-        }
-
         public static IReadOnlyList<PrivacySetupStatusRow> BuildSetupRows(
             Restaurant restaurant
         )
         {
-            var wordingStatus = GuestPermissionWordingStatus(restaurant);
-
             return
             [
                 new PrivacySetupStatusRow(
                     "privacy-notice",
                     "Privacy notice",
                     StatusConfigured
-                ),
-                new PrivacySetupStatusRow(
-                    "guest-permission-wording",
-                    "Guest permission wording",
-                    wordingStatus
                 ),
                 new PrivacySetupStatusRow(
                     "email-marketing",
@@ -69,24 +41,6 @@ namespace TummlyBackend.Helpers
                         : StatusNotUsed
                 ),
             ];
-        }
-
-        private static string GuestPermissionWordingStatus(Restaurant restaurant)
-        {
-            if (IsGuestPermissionWordingConfigured(restaurant))
-            {
-                return StatusConfigured;
-            }
-
-            if (
-                restaurant.EmailMarketingPermissionEnabled
-                || restaurant.SmsMarketingPermissionEnabled
-            )
-            {
-                return StatusEnabled;
-            }
-
-            return StatusConfigured;
         }
     }
 

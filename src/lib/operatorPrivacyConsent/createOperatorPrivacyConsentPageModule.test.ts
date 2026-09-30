@@ -24,8 +24,6 @@ function pageData(
     emailMarketingPermissionEnabled: true,
     smsMarketingPermissionEnabled: false,
     feedbackFollowUpPermissionEnabled: true,
-    smsConsentWording: "",
-    emailConsentWording: "We may email you.",
     privacyReady: false,
     actorCanManage: true,
     canViewGuests: true,
@@ -63,15 +61,15 @@ function adapters(overrides: Partial<Parameters<typeof createOperatorPrivacyCons
   return {
     getPage: vi.fn(async () => pageData()),
     patchToggles: vi.fn(async () => {}),
-    saveWording: vi.fn(async () => ({ privacyReady: true })),
+    markPrivacyReviewed: vi.fn(async () => ({ privacyReady: true })),
     getPermissionRecords: vi.fn(async () => recordsResponse()),
     getActivity: vi.fn(async () => ({
       items: [
         {
           id: 1,
           locationId: null,
-          kind: "consent-copy-changed",
-          description: "James updated SMS consent wording.",
+          kind: "privacy-review-completed",
+          description: "James completed the privacy review.",
           occurredAt: "2026-08-31T10:42:00.000Z",
         },
       ],
@@ -106,7 +104,7 @@ describe("createOperatorPrivacyConsentPageModule", () => {
       "Permission records",
       "Activity",
     ])
-    expect(snap.privacySetupRows).toHaveLength(5)
+    expect(snap.privacySetupRows).toHaveLength(4)
     expect(snap.privacySetupRows[0]).toMatchObject({
       requirement: "Privacy notice",
       status: "Configured",
@@ -141,9 +139,7 @@ describe("createOperatorPrivacyConsentPageModule", () => {
       },
     ])
     expect(snap.guestPermissions.find((card) => card.id === "sms-marketing")?.enabled).toBe(false)
-    expect(snap.emailConsentWording).toBe("We may email you.")
-    expect(snap.smsConsentWording).toBe("")
-    expect(snap.privacyReady).toBe(false)
+    expect(snap.privacyReady).toBe(true)
     expect(snap.permissionRecordsRows).toEqual([
       expect.objectContaining({
         guestName: "Amira Khan",
@@ -152,11 +148,48 @@ describe("createOperatorPrivacyConsentPageModule", () => {
       }),
     ])
     expect(snap.activityItems[0]).toMatchObject({
-      description: "James updated SMS consent wording.",
+      description: "James completed the privacy review.",
     })
     expect(api.getPage).toHaveBeenCalledTimes(1)
+    expect(api.markPrivacyReviewed).toHaveBeenCalledTimes(1)
     expect(api.getPermissionRecords).toHaveBeenCalledTimes(1)
-    expect(api.getActivity).toHaveBeenCalledTimes(1)
+    expect(api.getActivity).toHaveBeenCalledTimes(2)
+  })
+
+  it("marks privacy reviewed on load when Manage and not ready", async () => {
+    const markPrivacyReviewed = vi.fn(async () => ({ privacyReady: true }))
+    const api = adapters({ markPrivacyReviewed })
+    const pageModule = createOperatorPrivacyConsentPageModule(api)
+    await pageModule.load()
+
+    expect(markPrivacyReviewed).toHaveBeenCalledTimes(1)
+    expect(pageModule.getSnapshot().privacyReady).toBe(true)
+  })
+
+  it("does not mark privacy reviewed when already ready", async () => {
+    const markPrivacyReviewed = vi.fn(async () => ({ privacyReady: true }))
+    const api = adapters({
+      getPage: vi.fn(async () => pageData({ privacyReady: true })),
+      markPrivacyReviewed,
+    })
+    const pageModule = createOperatorPrivacyConsentPageModule(api)
+    await pageModule.load()
+
+    expect(markPrivacyReviewed).not.toHaveBeenCalled()
+    expect(pageModule.getSnapshot().privacyReady).toBe(true)
+  })
+
+  it("does not mark privacy reviewed without Manage", async () => {
+    const markPrivacyReviewed = vi.fn(async () => ({ privacyReady: true }))
+    const api = adapters({
+      getPage: vi.fn(async () => pageData({ actorCanManage: false })),
+      markPrivacyReviewed,
+    })
+    const pageModule = createOperatorPrivacyConsentPageModule(api)
+    await pageModule.load()
+
+    expect(markPrivacyReviewed).not.toHaveBeenCalled()
+    expect(pageModule.getSnapshot().privacyReady).toBe(false)
   })
 
   it("honours initial tab from the URL", () => {
@@ -267,45 +300,20 @@ describe("createOperatorPrivacyConsentPageModule", () => {
     )
   })
 
-  it("persists consent wording via PUT when actor can manage", async () => {
-    const getPage = vi
-      .fn()
-      .mockResolvedValueOnce(pageData())
-      .mockResolvedValueOnce(
-        pageData({
-          emailConsentWording: "Updated email copy.",
-          privacyReady: true,
-          privacySetupRows: [
-            {
-              id: "guest-permission-wording",
-              requirement: "Guest permission wording",
-              status: "Configured",
-            },
-          ],
-        })
-      )
-    const api = adapters({ getPage })
+  it("surfaces privacy review errors in toast state without blocking load", async () => {
+    const markPrivacyReviewed = vi.fn(async () => {
+      throw new Error("Review rejected")
+    })
+    const api = adapters({ markPrivacyReviewed })
     const pageModule = createOperatorPrivacyConsentPageModule(api)
     await pageModule.load()
 
-    await pageModule.saveConsentWording({
-      emailConsentWording: "Updated email copy.",
+    expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
+    expect(pageModule.getSnapshot().privacyReady).toBe(false)
+    expect(pageModule.getSnapshot().toast).toEqual({
+      kind: "error",
+      message: "Review rejected",
     })
-
-    expect(api.saveWording).toHaveBeenCalledWith({
-      emailConsentWording: "Updated email copy.",
-    })
-    expect(pageModule.getSnapshot().emailConsentWording).toBe(
-      "Updated email copy."
-    )
-    expect(pageModule.getSnapshot().privacyReady).toBe(true)
-    expect(pageModule.getSnapshot().privacySetupRows).toEqual([
-      {
-        id: "guest-permission-wording",
-        requirement: "Guest permission wording",
-        status: "Configured",
-      },
-    ])
   })
 
   it("disables guest profile navigation without Guests View", async () => {
@@ -431,7 +439,10 @@ describe("createOperatorPrivacyConsentPageModule", () => {
     const patchToggles = vi.fn(async () => {
       throw new Error("Network failed")
     })
-    const api = adapters({ patchToggles })
+    const api = adapters({
+      getPage: vi.fn(async () => pageData({ privacyReady: true })),
+      patchToggles,
+    })
     const pageModule = createOperatorPrivacyConsentPageModule(api)
     await pageModule.load()
 
@@ -446,22 +457,6 @@ describe("createOperatorPrivacyConsentPageModule", () => {
         (card) => card.id === "email-marketing"
       )?.enabled
     ).toBe(true)
-  })
-
-  it("surfaces consent wording save errors in toast state", async () => {
-    const saveWording = vi.fn(async () => {
-      throw new Error("Save rejected")
-    })
-    const api = adapters({ saveWording })
-    const pageModule = createOperatorPrivacyConsentPageModule(api)
-    await pageModule.load()
-
-    await pageModule.saveConsentWording({ emailConsentWording: "New copy." })
-
-    expect(pageModule.getSnapshot().toast).toEqual({
-      kind: "error",
-      message: "Save rejected",
-    })
   })
 
   it("keeps page loaded when a follow-up permission-records fetch fails", async () => {

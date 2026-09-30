@@ -1,13 +1,10 @@
-using TummlyBackend.DTOs.PrivacyConsent;
-
 namespace TummlyBackend.Interfaces
 {
     public interface IPrivacyConsentSaveService
     {
         Task<PrivacyConsentSaveResult> SaveAsync(
             int restaurantId,
-            int actorUserId,
-            SavePrivacyConsentRequest request
+            int actorUserId
         );
     }
 

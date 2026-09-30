@@ -28,13 +28,9 @@ namespace TummlyBackend.Tests.Integration
         [Fact]
         public async Task Save_Returns401_WhenUnauthenticated()
         {
-            var response = await _client.PutAsJsonAsync(
+            var response = await _client.PutAsync(
                 "/api/privacy-consent",
-                new
-                {
-                    smsConsentWording = "SMS copy",
-                    emailConsentWording = "Email copy",
-                }
+                null
             );
 
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -47,12 +43,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = AuthorizedPut(
                 "/api/privacy-consent",
-                seeded.AdminJwt,
-                new
-                {
-                    smsConsentWording = "SMS copy",
-                    emailConsentWording = "Email copy",
-                }
+                seeded.AdminJwt
             );
             var response = await _client.SendAsync(request);
 
@@ -60,7 +51,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Save_SetsReady_PersistsWording_EmitsActivities_AndClearsPrivacyAttention()
+        public async Task Save_SetsReady_EmitsPrivacyReview_AndClearsPrivacyAttention()
         {
             var seeded = await SeedOwnerWithIncompletePrivacyAsync();
 
@@ -94,12 +85,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var saveRequest = AuthorizedPut(
                 "/api/privacy-consent",
-                seeded.OwnerJwt,
-                new
-                {
-                    smsConsentWording = "We may text you offers.",
-                    emailConsentWording = "We may email you offers.",
-                }
+                seeded.OwnerJwt
             );
             var saveResponse = await _client.SendAsync(saveRequest);
             Assert.Equal(HttpStatusCode.OK, saveResponse.StatusCode);
@@ -114,25 +100,14 @@ namespace TummlyBackend.Tests.Integration
                 .AsNoTracking()
                 .SingleAsync(row => row.Id == seeded.RestaurantId);
             Assert.NotNull(restaurant.PrivacyConsentReadyAt);
-            Assert.Equal(
-                "We may text you offers.",
-                restaurant.SmsConsentWording
-            );
-            Assert.Equal(
-                "We may email you offers.",
-                restaurant.EmailConsentWording
-            );
 
             var activities = await context.LocationActivities
                 .AsNoTracking()
                 .Where(row => row.RestaurantId == seeded.RestaurantId)
-                .OrderBy(row => row.Kind)
                 .ToListAsync();
-            Assert.Contains(
+            Assert.DoesNotContain(
                 activities,
-                row =>
-                    row.Kind == LocationActivityKinds.ConsentCopyChanged
-                    && row.LocationId == null
+                row => row.Kind == LocationActivityKinds.ConsentCopyChanged
             );
             Assert.Contains(
                 activities,
@@ -375,14 +350,10 @@ namespace TummlyBackend.Tests.Integration
 
         private static HttpRequestMessage AuthorizedPut(
             string path,
-            string jwt,
-            object payload
+            string jwt
         )
         {
-            var request = new HttpRequestMessage(HttpMethod.Put, path)
-            {
-                Content = JsonContent.Create(payload),
-            };
+            var request = new HttpRequestMessage(HttpMethod.Put, path);
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", jwt);
             return request;

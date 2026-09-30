@@ -49,7 +49,6 @@ describe("PRIVACY_SETUP_STATUS_DEMO_ROWS", () => {
       PRIVACY_SETUP_STATUS_DEMO_ROWS.map((row) => [row.requirement, row.status])
     ).toEqual([
       ["Privacy notice", "Configured"],
-      ["Guest permission wording", "Configured"],
       ["Email marketing", "Enabled"],
       ["SMS marketing", "Not used"],
       ["Feedback follow-up", "Enabled"],

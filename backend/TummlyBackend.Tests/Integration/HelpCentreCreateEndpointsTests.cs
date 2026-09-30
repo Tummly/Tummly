@@ -154,6 +154,41 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostQuery_AccountRequest_AcceptsEmptyTopicAndMessageFromClient()
+        {
+            var tracking = new TrackingHelpCentreEmailService();
+            var client = CreateClientWithEmail(tracking);
+            var seeded = await SeedOwnerAsync();
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent(""), "topic");
+            content.Add(new StringContent(""), "message");
+            content.Add(new StringContent("AccountExport"), "accountRequestKind");
+            content.Add(
+                new StringContent(seeded.RestaurantId.ToString()),
+                "restaurantId"
+            );
+            content.Add(new StringContent("Account Workspace Venue"), "businessName");
+            content.Add(new StringContent("Account Workspace Owner"), "submitterName");
+            content.Add(new StringContent(seeded.Email), "submitterEmail");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/help-centre/queries"
+            )
+            {
+                Content = content,
+            };
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(1, tracking.NewQueryEmailCalls);
+        }
+
+        [Fact]
         public async Task PostQuery_AccountRequest_ReturnsEmailWarning_WhenEmailFails()
         {
             var tracking = new TrackingHelpCentreEmailService

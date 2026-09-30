@@ -47,6 +47,27 @@ export const LEGAL_STRUCTURE_OPTIONS = [
 export type LegalStructureValue =
   (typeof LEGAL_STRUCTURE_OPTIONS)[number]["value"]
 
+export const BUSINESS_ADDRESS_TYPE_OPTIONS = [
+  { value: "registered", label: "Registered" },
+  {
+    value: "principal-business-address",
+    label: "Principal business address",
+  },
+] as const
+
+export type BusinessAddressTypeValue =
+  (typeof BUSINESS_ADDRESS_TYPE_OPTIONS)[number]["value"]
+
+export function normalizeBusinessAddressType(
+  value: string | null | undefined
+): BusinessAddressTypeValue | "" {
+  const trimmed = (value ?? "").trim()
+  const match = BUSINESS_ADDRESS_TYPE_OPTIONS.find(
+    (option) => option.value === trimmed
+  )
+  return match?.value ?? ""
+}
+
 export const WEEK_STARTS_ON_OPTIONS = [
   { value: "monday", label: "Monday" },
   { value: "tuesday", label: "Tuesday" },
@@ -298,6 +319,8 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
   countryOfRegistration: "Country of registration",
   countryOfRegistrationHelper:
     "The country where the legal business is registered.",
+  addressType: "Address type",
+  addressTypePlaceholder: "Select",
   addressLine1: "Address line 1",
   addressLine2: "Address line 2",
   addressLine2Placeholder: "Add address line 2 - optional",

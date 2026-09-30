@@ -183,9 +183,7 @@ namespace TummlyBackend.Controllers
         }
 
         [HttpPut]
-        public async Task<IActionResult> Save(
-            [FromBody] SavePrivacyConsentRequest request
-        )
+        public async Task<IActionResult> Save()
         {
             var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
             if (unauthorized != null)
@@ -206,8 +204,7 @@ namespace TummlyBackend.Controllers
 
             var result = await _save.SaveAsync(
                 decision.RestaurantId,
-                userId,
-                request
+                userId
             );
 
             return result switch

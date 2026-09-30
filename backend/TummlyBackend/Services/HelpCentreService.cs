@@ -96,7 +96,9 @@ namespace TummlyBackend.Services
                 }
             }
 
-            var topic = HelpCentreQueryTopicExtensions.FromSlug(dto.Topic);
+            var topic = HelpCentreQueryTopicExtensions.FromSlug(
+                dto.Topic ?? string.Empty
+            );
             var email = dto.SubmitterEmail.Trim().ToLower();
 
             int? locationId = null;
@@ -147,7 +149,7 @@ namespace TummlyBackend.Services
                     {
                         AuthorKind = HelpCentreQueryAuthorKind.Submitter,
                         AuthorUserId = userId,
-                        Body = dto.Message.Trim(),
+                        Body = (dto.Message ?? string.Empty).Trim(),
                         CreatedAt = DateTime.UtcNow,
                     },
                 ],
@@ -264,7 +266,7 @@ namespace TummlyBackend.Services
                     query.SubmitterEmail,
                     query.BusinessName,
                     locationLabel,
-                    dto.Message.Trim(),
+                    (dto.Message ?? string.Empty).Trim(),
                     attachmentFiles?.Count ?? 0,
                     BuildSupportDashboardUrl()
                 ),

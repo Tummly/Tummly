@@ -41,6 +41,7 @@ function createDetails(
       companyNumber: "",
       vatNumber: "",
       countryOfRegistration: "United Kingdom",
+      addressType: "",
       addressLine1: "",
       addressLine2: "",
       townCity: "",
@@ -117,6 +118,7 @@ function createAdapters(
           companyNumber: payload.companyNumber,
           vatNumber: payload.vatNumber,
           countryOfRegistration: payload.countryOfRegistration,
+          addressType: payload.addressType,
           addressLine1: payload.addressLine1,
           addressLine2: payload.addressLine2,
           townCity: payload.townCity,
@@ -513,6 +515,37 @@ describe("createOperatorAccountWorkspacePageModule", () => {
     expect(page.getSnapshot().businessDetails.legalBusinessName).toBe(
       "Mehmet's Grill Ltd"
     )
+  })
+
+  it("applyCompaniesHouseCompany sets legal name, company number, and UK country", async () => {
+    const adapters = createAdapters({
+      getDetails: vi.fn(async () =>
+        createDetails({
+          businessDetails: {
+            ...createDetails().businessDetails,
+            countryOfRegistration: "France",
+            companyNumber: "",
+            vatNumber: "GB123",
+          },
+        })
+      ),
+    })
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "business-details",
+    })
+    await page.load()
+
+    page.applyCompaniesHouseCompany({
+      legalBusinessName: "ACME HOSPITALITY LTD",
+      companyNumber: "12345678",
+    })
+
+    const business = page.getSnapshot().businessDetails
+    expect(business.legalBusinessName).toBe("ACME HOSPITALITY LTD")
+    expect(business.companyNumber).toBe("12345678")
+    expect(business.countryOfRegistration).toBe("United Kingdom")
+    expect(business.vatNumber).toBe("GB123")
+    expect(page.getSnapshot().isDirty).toBe(true)
   })
 
   it("empty Business details save calls updateBusinessDetails", async () => {

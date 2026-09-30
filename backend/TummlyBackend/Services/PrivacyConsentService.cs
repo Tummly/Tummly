@@ -52,9 +52,6 @@ namespace TummlyBackend.Services
                         restaurant.SmsMarketingPermissionEnabled,
                     feedbackFollowUpPermissionEnabled =
                         restaurant.FeedbackFollowUpPermissionEnabled,
-                    smsConsentWording = restaurant.SmsConsentWording ?? string.Empty,
-                    emailConsentWording =
-                        restaurant.EmailConsentWording ?? string.Empty,
                     privacyReady = restaurant.PrivacyConsentReadyAt != null,
                     privacyConsentReadyAt =
                         restaurant.PrivacyConsentReadyAt?.ToUniversalTime()

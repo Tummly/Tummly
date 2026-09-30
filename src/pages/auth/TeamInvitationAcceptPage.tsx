@@ -42,15 +42,10 @@ type Step =
   | "error"
   | "form"
   | "otp"
-  | "wait"
-  | "expired"
   | "workspace"
   | "wrong-email"
 
 const INVALID_INVITE = "This invitation is not valid."
-const OWNER_EXPIRED = "Your 30 day free trial is over"
-const OWNER_WAIT =
-  "This workspace is waiting for the Account owner to activate."
 
 function applySession(session: TeamInvitationSession) {
   persistAuthSession(
@@ -72,10 +67,8 @@ function dashboardHref(session: TeamInvitationSession): string {
 }
 
 function finishSession(session: TeamInvitationSession): Step | "go" {
-  // Pending owner activation no longer blocks — Activation gate retired.
-  if (session.ownerActivation === "expired") {
-    return "expired"
-  }
+  // Owner activation / trial expiry does not block login. Pilot and Free
+  // workspaces show ActivateTummlyPilotDialog on the dashboard instead.
   if (session.workspaceCount > 1) {
     return "workspace"
   }
@@ -356,12 +349,6 @@ function TeamInvitationAcceptPage() {
     <AuthShell>
       {step === "error" ? (
         <StatusCard title="Invitation not valid" body={error} />
-      ) : null}
-      {step === "wait" ? (
-        <StatusCard title="Waiting for activation" body={OWNER_WAIT} />
-      ) : null}
-      {step === "expired" ? (
-        <StatusCard title="Trial ended" body={OWNER_EXPIRED} />
       ) : null}
       {step === "wrong-email" && preview != null ? (
         <StatusCard

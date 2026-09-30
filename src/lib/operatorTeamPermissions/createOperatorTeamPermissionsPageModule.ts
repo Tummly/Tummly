@@ -175,6 +175,7 @@ export type TeamPermissionsSnapshot = {
   invitations: TeamInvitationRow[]
   inviteDraft: TeamInviteDraft
   inviteEmailError: string | null
+  inviteFullNameError: string | null
   searchQuery: string
   filtersSession: FilterSheetSession | null
   filterChips: FilterChip[]
@@ -304,6 +305,19 @@ function applyInviteDraft(draft: TeamInviteDraft): TeamInviteDraft {
   return { ...draft, locationScope: "named" }
 }
 
+function inviteEmailLooksValid(email: string): boolean {
+  const trimmed = email.trim()
+  return trimmed.length > 0 && trimmed.includes("@")
+}
+
+function classifyInviteError(message: string): "email" | "fullName" {
+  const normalized = message.trim().toLowerCase()
+  if (normalized.includes("full name")) {
+    return "fullName"
+  }
+  return "email"
+}
+
 function memberMatches(
   row: TeamMemberRow,
   searchQuery: string,
@@ -374,6 +388,7 @@ export function createOperatorTeamPermissionsPageModule(
   let pendingNavigationHref: string | null = null
   let inviteDraft = emptyInviteDraft("")
   let inviteEmailError: string | null = null
+  let inviteFullNameError: string | null = null
   let accessActivityPreview: AccessActivityViewRow[] = []
   let accessActivityEmpty = true
   let auditLogOpen = false
@@ -513,6 +528,7 @@ export function createOperatorTeamPermissionsPageModule(
       invitations: data?.invitations ?? [],
       inviteDraft,
       inviteEmailError,
+      inviteFullNameError,
       searchQuery,
       filtersSession,
       filterChips:
@@ -631,6 +647,7 @@ function formatTeamMembersUsageLabel(
       await reload()
       dialog = { kind: "none" }
       inviteEmailError = null
+      inviteFullNameError = null
     } catch {
       // Keep the current dialog. The adapter may surface the error.
     } finally {
@@ -741,6 +758,7 @@ function formatTeamMembersUsageLabel(
       }
       inviteDraft = emptyInviteDraft(data?.actorPermissionRole ?? "")
       inviteEmailError = null
+      inviteFullNameError = null
       dialog = { kind: "invite" }
       emit()
     },
@@ -805,6 +823,7 @@ function formatTeamMembersUsageLabel(
       }
       dialog = { kind: "none" }
       inviteEmailError = null
+      inviteFullNameError = null
       emit()
     },
     setInviteDraft: (draft) => {
@@ -813,6 +832,7 @@ function formatTeamMembersUsageLabel(
       }
       inviteDraft = applyInviteDraft(draft)
       inviteEmailError = null
+      inviteFullNameError = null
       emit()
     },
     setEditMemberDraft: (draft) => {
@@ -846,8 +866,20 @@ function formatTeamMembersUsageLabel(
         return
       }
       if (dialog.kind === "invite") {
+        const email = inviteDraft.email.trim()
+        const fullName = inviteDraft.fullName.trim()
+        inviteEmailError = inviteEmailLooksValid(email)
+          ? null
+          : "Enter a valid email address."
+        inviteFullNameError =
+          fullName.length > 0 ? null : "Full name is required."
+        if (inviteEmailError != null || inviteFullNameError != null) {
+          emit()
+          return
+        }
         busy = true
         inviteEmailError = null
+        inviteFullNameError = null
         emit()
         try {
           await adapters.sendInvite(inviteDraft)
@@ -855,15 +887,23 @@ function formatTeamMembersUsageLabel(
           dialog = { kind: "none" }
           inviteDraft = emptyInviteDraft(data?.actorPermissionRole ?? "")
           inviteEmailError = null
+          inviteFullNameError = null
           activeTabId = resolveTeamPermissionsTabId(
             "invitations",
             privacyConsentHasAccess
           )
         } catch (error) {
-          inviteEmailError =
+          const message =
             error instanceof Error
               ? error.message
               : "Could not send invite."
+          if (classifyInviteError(message) === "fullName") {
+            inviteFullNameError = message
+            inviteEmailError = null
+          } else {
+            inviteEmailError = message
+            inviteFullNameError = null
+          }
         } finally {
           busy = false
           emit()

@@ -2,6 +2,7 @@ import axiosInstance from "@/api/axiosInstance"
 import { isAxiosError } from "axios"
 import {
   defaultAccountWorkspaceCountry,
+  normalizeBusinessAddressType,
   normalizeReportingPeriod,
   normalizeWeekStartsOn,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
@@ -36,6 +37,7 @@ type AccountWorkspaceApiBusinessDetails = {
   companyNumber: string | null
   vatNumber: string | null
   countryOfRegistration: string | null
+  addressType: string | null
   addressLine1: string | null
   addressLine2: string | null
   townCity: string | null
@@ -99,6 +101,7 @@ function mapBusinessDetails(
     countryOfRegistration: defaultAccountWorkspaceCountry(
       data?.countryOfRegistration
     ),
+    addressType: normalizeBusinessAddressType(data?.addressType),
     addressLine1: data?.addressLine1 ?? "",
     addressLine2: data?.addressLine2 ?? "",
     townCity: data?.townCity ?? "",
