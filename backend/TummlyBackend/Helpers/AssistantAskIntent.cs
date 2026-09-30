@@ -252,6 +252,27 @@ namespace TummlyBackend.Helpers
         public static bool LooksLikeMutateAsk(string text)
             => LooksLikeMutate(text);
 
+        /// <summary>
+        /// Short confirmation with no new ask ("okay", "thanks"). Used so a
+        /// prior draft thread does not re-run live answer invent/create.
+        /// </summary>
+        public static bool LooksLikeBareAcknowledge(string text)
+        {
+            var normalized = text.Trim().TrimEnd('.', '!', '?').ToLowerInvariant();
+            return normalized is "ok"
+                or "okay"
+                or "thanks"
+                or "thank you"
+                or "thx"
+                or "got it"
+                or "cool"
+                or "perfect"
+                or "great"
+                or "noted"
+                or "sounds good"
+                or "all good";
+        }
+
         private static bool LooksLikeMutate(string text)
         {
             // Legal Create Campaign Draft / Offer path must not count as mutate.

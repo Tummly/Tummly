@@ -57,6 +57,30 @@ namespace TummlyBackend.Helpers
                     return CreateTaskStub(localTask);
                 }
 
+                // Azure often mislabels offer-mutate follow-ups as Campaign+Offer
+                // create ("change offer to 85%"). Persist follows assistantTask and
+                // would mint a second Campaign Draft with Email defaults.
+                if (providerResult is AssistantLiveAnswerResult.Succeeded offerMutateLabeled
+                    && localTask == AssistantTask.OfferPath
+                    && (
+                        string.Equals(
+                            offerMutateLabeled.AssistantTask,
+                            AssistantTask.CreateCampaignWithOffer,
+                            StringComparison.Ordinal
+                        )
+                        || string.Equals(
+                            offerMutateLabeled.AssistantTask,
+                            AssistantTask.CreateCampaignDraft,
+                            StringComparison.Ordinal
+                        )
+                    ))
+                {
+                    return offerMutateLabeled with
+                    {
+                        AssistantTask = AssistantTask.OfferPath,
+                    };
+                }
+
                 // Azure sometimes labels a Campaign+Offer ask as plain
                 // create-campaign-draft (QA: thanking guests + 10% off). Persist
                 // follows assistantTask, so upgrade to the local combined task
@@ -72,6 +96,49 @@ namespace TummlyBackend.Helpers
                     return draftLabeled with
                     {
                         AssistantTask = AssistantTask.CreateCampaignWithOffer,
+                    };
+                }
+
+                // Campaign audience/channel mutate must not become combined create.
+                if (providerResult is AssistantLiveAnswerResult.Succeeded campaignMutateLabeled
+                    && localTask == AssistantTask.CreateCampaignDraft
+                    && AssistantPriorDraftAuthority.LooksLikeMutateCampaignFamily(userMessage)
+                    && string.Equals(
+                        campaignMutateLabeled.AssistantTask,
+                        AssistantTask.CreateCampaignWithOffer,
+                        StringComparison.Ordinal
+                    ))
+                {
+                    return campaignMutateLabeled with
+                    {
+                        AssistantTask = AssistantTask.CreateCampaignDraft,
+                    };
+                }
+
+                // Recovery follow-ups must not mint Campaign/Offer drafts.
+                if (providerResult is AssistantLiveAnswerResult.Succeeded recoveryLabeled
+                    && localTask == AssistantTask.RecoveryPath
+                    && (
+                        string.Equals(
+                            recoveryLabeled.AssistantTask,
+                            AssistantTask.CreateCampaignWithOffer,
+                            StringComparison.Ordinal
+                        )
+                        || string.Equals(
+                            recoveryLabeled.AssistantTask,
+                            AssistantTask.CreateCampaignDraft,
+                            StringComparison.Ordinal
+                        )
+                        || string.Equals(
+                            recoveryLabeled.AssistantTask,
+                            AssistantTask.OfferPath,
+                            StringComparison.Ordinal
+                        )
+                    ))
+                {
+                    return recoveryLabeled with
+                    {
+                        AssistantTask = AssistantTask.RecoveryPath,
                     };
                 }
             }

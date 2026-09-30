@@ -1147,6 +1147,33 @@ namespace TummlyBackend.Services
 
             var askKind = AssistantAskIntent.Classify(userMessage);
 
+            if (gapState is null
+                && AssistantAskIntent.LooksLikeBareAcknowledge(userMessage)
+                && (
+                    conversation.CreatedCampaignId is int
+                    || conversation.CreatedOfferId is int
+                    || !string.IsNullOrWhiteSpace(conversation.RecoveryWorkJson)
+                )
+                && !AssistantTaskClassification.LooksLikeCreateTurn(userMessage)
+                && !AssistantAskIntent.HasRetrieveAsk(userMessage)
+                && !AssistantSendScheduleAsk.LooksLikeSendOrSchedule(userMessage))
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    GroundedMessage(
+                        DateTime.UtcNow,
+                        "Ready when you are",
+                        "Nothing else was changed. Tell me what to change next, "
+                            + "or use Review when you want to open the draft.",
+                        []
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
             if (gapState is not null
                 && gapState.Kind == AssistantGapTurn.KindFeedback
                 && !AssistantGapAsk.LooksLikeKeepGapAnswer(userMessage)
@@ -1311,8 +1338,13 @@ namespace TummlyBackend.Services
                     },
                     proposedConversationTitle
                 );
+                var persistTask = NormalizePersistAssistantTask(
+                    succeeded.AssistantTask,
+                    userMessage,
+                    conversation
+                );
                 if (string.Equals(
-                        succeeded.AssistantTask,
+                        persistTask,
                         AssistantTask.CreateCampaignWithOffer,
                         StringComparison.Ordinal
                     )
@@ -1411,7 +1443,7 @@ namespace TummlyBackend.Services
                         );
                 }
                 else if (string.Equals(
-                        succeeded.AssistantTask,
+                        persistTask,
                         AssistantTask.CreateCampaignDraft,
                         StringComparison.Ordinal
                     )
@@ -1440,7 +1472,7 @@ namespace TummlyBackend.Services
                     assistantMessage = PersistTurnMessage(assistantNow, persist);
                 }
                 else if (string.Equals(
-                        succeeded.AssistantTask,
+                        persistTask,
                         AssistantTask.OfferPath,
                         StringComparison.Ordinal
                     )
@@ -1534,7 +1566,7 @@ namespace TummlyBackend.Services
                     );
                 }
                 else if (string.Equals(
-                        succeeded.AssistantTask,
+                        persistTask,
                         AssistantTask.RecoveryPath,
                         StringComparison.Ordinal
                     )
@@ -2245,7 +2277,8 @@ namespace TummlyBackend.Services
                     cancellationToken,
                     choice,
                     priorTerms,
-                    questionBody
+                    questionBody,
+                    allowEmptyAudience: false
                 );
             }
 
@@ -2314,7 +2347,8 @@ namespace TummlyBackend.Services
                         cancellationToken,
                         choice,
                         priorTerms,
-                        questionBody
+                        questionBody,
+                        allowEmptyAudience
                     );
                 default:
                     throw new InvalidOperationException(
@@ -2353,7 +2387,8 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken,
             AssistantCampaignDraftBindChoice? choice = null,
             AssistantOfferPathTermsState? priorTerms = null,
-            string questionBody = ""
+            string questionBody = "",
+            bool allowEmptyAudience = false
         )
         {
             var attachable = await LoadAttachableOffersAsync(
@@ -2373,7 +2408,17 @@ namespace TummlyBackend.Services
                 : AssistantCampaignDraftBind.MatchAttachable(
                     userMessage,
                     attachable
-                );
+                ).ToList();
+            if (matches.Count >= 2
+                && choice?.OfferTitle is null
+                && PreferCreateNewOfferWhenAttachAmbiguous(userMessage, priorTerms))
+            {
+                // Named complete create terms + several commercial matches
+                // (e.g. two "10% off") — create a new Offer instead of a
+                // clash Gap that drops empty-channel audience locks.
+                matches = [];
+            }
+
             if (matches.Count >= 2 && choice?.OfferTitle is null)
             {
                 var titles = matches.Select(offer => offer.Title).ToList();
@@ -2387,7 +2432,9 @@ namespace TummlyBackend.Services
                     AssistantGapTurn.CreateOffer(
                         titles,
                         userMessage,
-                        AssistantTask.CreateCampaignWithOffer
+                        AssistantTask.CreateCampaignWithOffer,
+                        choice?.ChannelLabel,
+                        allowEmptyAudience
                     )
                 );
             }
@@ -3224,6 +3271,92 @@ namespace TummlyBackend.Services
             );
         }
 
+        /// <summary>
+        /// Prefer prior-draft mutate / local Classify over a mislabeled Azure
+        /// create task so follow-ups cannot mint a second Campaign or Offer.
+        /// </summary>
+        private static string NormalizePersistAssistantTask(
+            string providerTask,
+            string userMessage,
+            AssistantConversation conversation
+        )
+        {
+            if (AssistantPriorDraftAuthority.ResolveOffer(
+                    conversation.CreatedOfferId,
+                    userMessage
+                ) == AssistantPriorDraftMode.MutatePrior
+                && (
+                    string.Equals(
+                        providerTask,
+                        AssistantTask.CreateCampaignWithOffer,
+                        StringComparison.Ordinal
+                    )
+                    || string.Equals(
+                        providerTask,
+                        AssistantTask.CreateCampaignDraft,
+                        StringComparison.Ordinal
+                    )
+                ))
+            {
+                return AssistantTask.OfferPath;
+            }
+
+            if (AssistantPriorDraftAuthority.ResolveCampaign(
+                    conversation.CreatedCampaignId,
+                    userMessage
+                ) == AssistantPriorDraftMode.MutatePrior
+                && string.Equals(
+                    providerTask,
+                    AssistantTask.CreateCampaignWithOffer,
+                    StringComparison.Ordinal
+                ))
+            {
+                return AssistantTask.CreateCampaignDraft;
+            }
+
+            var localTask = AssistantTaskClassification.Classify(userMessage);
+            if (localTask == AssistantTask.OfferPath
+                && (
+                    string.Equals(
+                        providerTask,
+                        AssistantTask.CreateCampaignWithOffer,
+                        StringComparison.Ordinal
+                    )
+                    || string.Equals(
+                        providerTask,
+                        AssistantTask.CreateCampaignDraft,
+                        StringComparison.Ordinal
+                    )
+                ))
+            {
+                return AssistantTask.OfferPath;
+            }
+
+            if (localTask == AssistantTask.RecoveryPath
+                && (
+                    string.Equals(
+                        providerTask,
+                        AssistantTask.CreateCampaignWithOffer,
+                        StringComparison.Ordinal
+                    )
+                    || string.Equals(
+                        providerTask,
+                        AssistantTask.CreateCampaignDraft,
+                        StringComparison.Ordinal
+                    )
+                    || string.Equals(
+                        providerTask,
+                        AssistantTask.OfferPath,
+                        StringComparison.Ordinal
+                    )
+                ))
+            {
+                return AssistantTask.RecoveryPath;
+            }
+
+            return providerTask;
+        }
+
         private static CombinedCreateTurn CombinedFullFailure(string body)
             => new(
                 AssistantMessageClass.Grounded,
@@ -3234,6 +3367,30 @@ namespace TummlyBackend.Services
                 null,
                 null
             );
+
+        /// <summary>
+        /// When the Operator named complete Offer terms on a create ask, an
+        /// ambiguous commercial attach (two "10% off" rows) must not open an
+        /// Offer-title Gap. Create a new Offer from those terms instead.
+        /// Attach-only / remove asks keep the clash.
+        /// </summary>
+        private static bool PreferCreateNewOfferWhenAttachAmbiguous(
+            string userMessage,
+            AssistantOfferPathTermsState? priorTerms
+        )
+        {
+            if (AssistantTaskClassification.LooksLikeAttachExistingOfferOnly(userMessage)
+                || AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(userMessage)
+                || AssistantTaskClassification.LooksLikeRemoveOfferFromCampaign(
+                    userMessage
+                ))
+            {
+                return false;
+            }
+
+            var terms = priorTerms ?? AssistantOfferPathTerms.Parse(userMessage);
+            return AssistantOfferPathTerms.IsComplete(terms);
+        }
 
         private sealed record CreateOfferDraftPersistTurn(
             string Title,
@@ -3931,7 +4088,8 @@ namespace TummlyBackend.Services
             AssistantMessage? replaceFailure,
             CancellationToken cancellationToken,
             AssistantCampaignDraftBindChoice? choice = null,
-            AssistantOfferPathTermsState? priorTerms = null
+            AssistantOfferPathTermsState? priorTerms = null,
+            bool allowEmptyAudience = false
         )
         {
             var isRemove = AssistantTaskClassification.LooksLikeRemoveOfferFromCampaign(
@@ -3948,7 +4106,12 @@ namespace TummlyBackend.Services
                     sourceUserMessage,
                     attachable
                 );
-                if (offerMatches.Count >= 2 && choice?.OfferTitle is null)
+                if (offerMatches.Count >= 2
+                    && choice?.OfferTitle is null
+                    && !PreferCreateNewOfferWhenAttachAmbiguous(
+                        sourceUserMessage,
+                        priorTerms
+                    ))
                 {
                     var titles = offerMatches.Select(offer => offer.Title).ToList();
                     return await FinishGapTurnAsync(
@@ -3956,7 +4119,9 @@ namespace TummlyBackend.Services
                         AssistantGapTurn.CreateOffer(
                             titles,
                             sourceUserMessage,
-                            AssistantTask.CreateCampaignWithOffer
+                            AssistantTask.CreateCampaignWithOffer,
+                            choice?.ChannelLabel,
+                            allowEmptyAudience
                         ),
                         AssistantCampaignDraftBind.OfferClashBody(titles),
                         replaceFailure,
@@ -4776,19 +4941,29 @@ namespace TummlyBackend.Services
                         StringComparison.Ordinal
                     ))
                 {
+                    var bindChoice = AssistantCampaignDraftBindChoice.FromGapKind(
+                        gapState.Kind,
+                        choice
+                    );
+                    if (!string.IsNullOrWhiteSpace(gapState.ChannelLabel))
+                    {
+                        bindChoice = bindChoice with
+                        {
+                            ChannelLabel = gapState.ChannelLabel,
+                        };
+                    }
+
                     return await ResumeCombinedCreateAsync(
                         conversation,
                         gapState.SourceUserMessage,
                         userMessage,
                         analysisScopeLocationName,
                         ownedLocations,
-                        AssistantCampaignDraftBindChoice.FromGapKind(
-                            gapState.Kind,
-                            choice
-                        ),
+                        bindChoice,
                         updateScope: false,
                         replaceFailure,
-                        cancellationToken
+                        cancellationToken,
+                        allowEmptyAudience: gapState.AllowEmptyChannelAudience
                     );
                 }
 
@@ -5699,7 +5874,8 @@ namespace TummlyBackend.Services
                 replaceFailure,
                 cancellationToken,
                 choice,
-                priorTerms
+                priorTerms,
+                allowEmptyAudience
             );
             if (prePersistGap is not null)
             {

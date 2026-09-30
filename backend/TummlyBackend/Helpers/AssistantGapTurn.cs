@@ -242,9 +242,16 @@ namespace TummlyBackend.Helpers
         public static AssistantGapState CreateOffer(
             IReadOnlyList<string> options,
             string sourceUserMessage,
-            string assistantTask
+            string assistantTask,
+            string? channelLabel = null,
+            bool allowEmptyChannelAudience = false
         )
-            => CreateNamed(KindOffer, options, sourceUserMessage, assistantTask);
+        {
+            var state = CreateNamed(KindOffer, options, sourceUserMessage, assistantTask);
+            state.ChannelLabel = channelLabel;
+            state.AllowEmptyChannelAudience = allowEmptyChannelAudience;
+            return state;
+        }
 
         public static AssistantGapState CreateAudience(
             IReadOnlyList<string> options,

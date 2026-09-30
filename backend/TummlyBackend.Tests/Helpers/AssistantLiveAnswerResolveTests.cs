@@ -107,6 +107,50 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void Resolve_ProviderCombinedCreate_OfferMutateAsk_OverridesToOfferPath()
+        {
+            var resolved = AssistantLiveAnswerResolve.Resolve(
+                new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Campaign Draft with Offer",
+                    "Saving campaign.",
+                    [],
+                    AssistantTask.CreateCampaignWithOffer
+                ),
+                "change offer to 85%",
+                "The Golden Fork - Resturant 1",
+                "the last 7 days",
+                AssistantRetrievedEvidence.Empty,
+                allowLocalRetrieveFallback: true
+            );
+
+            var succeeded = Assert.IsType<AssistantLiveAnswerResult.Succeeded>(resolved);
+            Assert.Equal(AssistantTask.OfferPath, succeeded.AssistantTask);
+        }
+
+        [Fact]
+        public void Resolve_ProviderCombinedCreate_CampaignMutateAsk_OverridesToCampaignDraft()
+        {
+            var resolved = AssistantLiveAnswerResolve.Resolve(
+                new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Campaign Draft with Offer",
+                    "Saving campaign.",
+                    [],
+                    AssistantTask.CreateCampaignWithOffer
+                ),
+                "change audience to email eligible only",
+                "Camden",
+                "the last 7 days",
+                AssistantRetrievedEvidence.Empty,
+                allowLocalRetrieveFallback: true
+            );
+
+            var succeeded = Assert.IsType<AssistantLiveAnswerResult.Succeeded>(resolved);
+            Assert.Equal(AssistantTask.CreateCampaignDraft, succeeded.AssistantTask);
+        }
+
+        [Fact]
         public void Resolve_ProviderDraft_CreateWithOfferAsk_OverridesToCreateCampaignWithOffer()
         {
             var resolved = AssistantLiveAnswerResolve.Resolve(

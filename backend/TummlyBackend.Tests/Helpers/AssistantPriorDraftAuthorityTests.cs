@@ -59,6 +59,7 @@ namespace TummlyBackend.Tests.Helpers
 
         [Theory]
         [InlineData("change the offer to 15%")]
+        [InlineData("change offer to 85%")]
         [InlineData("update offer validity to 30 days after issue")]
         [InlineData("set the discount to 20%")]
         public void ResolveOffer_PriorId_MutateFamily_IsMutatePrior(string ask)

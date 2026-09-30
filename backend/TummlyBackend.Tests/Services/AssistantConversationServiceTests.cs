@@ -4343,6 +4343,185 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_EmptySmsAudience_Option4_WithTwoMatchingTenPercentOffers_CreatesSmsDraft()
+        {
+            // QA shape: prior turns left multiple attachable 10% Offers. Option 4
+            // must not open an Offer-clash Gap that drops allow-empty and loops.
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Email Guest",
+                email: "eligible@example.com"
+            );
+            await SeedCatalogOfferAsync(locationId, "10% off", discountPercentage: 10m);
+            await SeedCatalogOfferAsync(locationId, "10% off", discountPercentage: 10m);
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Create a campaign with SMS eligible guests and offer them 10% off on next order. valid till 7th oct. 2027"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            Assert.Contains(
+                AssistantEmptyChannelAudience.OptionCreateSmsAnyway,
+                started.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "4", started.Conversation.Id)
+                )
+            );
+            var answer = completed.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.DoesNotContain(
+                "Which existing Offer",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("sms", campaign.Channel);
+            Assert.NotNull(campaign.OfferId);
+            Assert.Contains("SMS", answer.Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_EmptySmsThenChangeOffer_MislabeledCombinedCreate_PatchesOfferKeepsSms()
+        {
+            // QA: Azure labeled "change offer to 85%" as create-campaign-with-offer
+            // and minted a second Email Campaign. Local Classify is OfferPath.
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Email Guest",
+                email: "eligible@example.com"
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Create a campaign with SMS eligible guests and offer them 90% off on next order. valid till 7th oct. 2027"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+
+            var created = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "4", started.Conversation.Id)
+                )
+            );
+            Assert.Equal("grounded", created.Conversation.Messages[^1].Class);
+            var campaign = Assert.Single(_context.Campaigns);
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal("sms", campaign.Channel);
+            Assert.Equal(90m, offer.DiscountPercentage);
+            Assert.Equal(offer.Id, campaign.OfferId);
+
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft saved with Offer",
+                "Saving.",
+                AssistantTask.CreateCampaignWithOffer,
+                offerTerms: new AssistantOfferPathTermsState
+                {
+                    OfferType = "percentage_discount",
+                    DiscountPercentage = 85m,
+                    Validity = "choose_expiry_date",
+                    ExpiryDate = "2027-10-07",
+                }
+            );
+
+            var mutated = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "change offer to 85%",
+                        started.Conversation.Id
+                    )
+                )
+            );
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            Assert.Equal(1, await _context.CatalogOffers.CountAsync());
+            var updatedCampaign = Assert.Single(_context.Campaigns);
+            var updatedOffer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(campaign.Id, updatedCampaign.Id);
+            Assert.Equal("sms", updatedCampaign.Channel);
+            Assert.Equal(offer.Id, updatedOffer.Id);
+            Assert.Equal(85m, updatedOffer.DiscountPercentage);
+            Assert.Equal(offer.Id, updatedCampaign.OfferId);
+            Assert.Equal(
+                AssistantOfferPathPersistCopy.UpdatedTitle,
+                mutated.Conversation.Messages[^1].Title
+            );
+            Assert.DoesNotContain(
+                "**Channel:** Email",
+                mutated.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_BareAcknowledgeAfterDraft_DoesNotMintOrInventSave()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Email Guest",
+                email: "eligible@example.com"
+            );
+
+            var created = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Create a campaign with SMS eligible guests and offer them 90% off on next order. valid till 7th oct. 2027"
+                    )
+                )
+            );
+            var afterChoice = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "4", created.Conversation.Id)
+                )
+            );
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign draft saved",
+                "Campaign draft saved again.",
+                AssistantTask.CreateCampaignWithOffer
+            );
+
+            var ack = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "okay", created.Conversation.Id)
+                )
+            );
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            Assert.Equal(1, await _context.CatalogOffers.CountAsync());
+            Assert.Equal("Ready when you are", ack.Conversation.Messages[^1].Title);
+            Assert.Contains(
+                "Nothing else was changed",
+                ack.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
         public async Task SendTurn_EmptySmsAudience_Option4_IncompleteTerms_KeepsSmsOnResume()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
