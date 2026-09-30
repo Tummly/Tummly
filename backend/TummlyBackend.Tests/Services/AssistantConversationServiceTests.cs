@@ -4297,6 +4297,52 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_EmptySmsAudience_Option4_CreatesSmsDraftAnyway()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Email Guest",
+                email: "eligible@example.com"
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Create a campaign with SMS eligible guests and offer them 10% off valid until 7 October 2027"
+                    )
+                )
+            );
+            var gap = started.Conversation.Messages[^1];
+            Assert.Equal("gap", gap.Class);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Contains("SMS", gap.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(
+                AssistantEmptyChannelAudience.OptionCreateSmsAnyway,
+                gap.Body,
+                StringComparison.Ordinal
+            );
+
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "4", started.Conversation.Id)
+                )
+            );
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("sms", campaign.Channel);
+            Assert.Contains("SMS", completed.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "Email",
+                completed.Conversation.Messages[^1].Body.Split('\n')
+                    .First(line => line.Contains("Channel", StringComparison.Ordinal)),
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
         public async Task SendTurn_NewGuestsAsk_PersistsNewGuestsAudience()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");

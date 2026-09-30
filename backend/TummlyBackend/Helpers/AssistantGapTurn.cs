@@ -79,6 +79,7 @@ namespace TummlyBackend.Helpers
         public const string KindOffer = "offer-title";
         public const string KindAudience = "audience";
         public const string KindChannel = "channel";
+        public const string KindEmptyChannelAudience = "empty-channel-audience";
         public const string KindOfferTerms = "offer-terms";
         public const string KindCampaignTitle = "campaign-title";
         public const string KindOfferReplaceConfirm = "offer-replace-confirm";
@@ -242,6 +243,22 @@ namespace TummlyBackend.Helpers
         )
             => CreateNamed(KindChannel, options, sourceUserMessage, assistantTask);
 
+        public static AssistantGapState CreateEmptyChannelAudience(
+            IReadOnlyList<string> options,
+            string sourceUserMessage,
+            string assistantTask,
+            string emptyChannelId
+        )
+            => new()
+            {
+                Kind = KindEmptyChannelAudience,
+                GapKind = GapKindCreation,
+                AssistantTask = assistantTask,
+                Options = options.ToList(),
+                SourceUserMessage = sourceUserMessage,
+                LocationKind = emptyChannelId,
+            };
+
         public static AssistantGapState CreateBindKind(
             string kind,
             IReadOnlyList<string> options,
@@ -355,6 +372,7 @@ namespace TummlyBackend.Helpers
         private static bool IsKnownKind(string kind)
             => kind is KindCreateTarget or KindLocation
                 or KindOffer or KindAudience or KindChannel
+                or KindEmptyChannelAudience
                 or KindOfferTerms or KindCampaignTitle or KindOfferReplaceConfirm
                 or KindOfferRemoveConfirm
                 or KindFeedback

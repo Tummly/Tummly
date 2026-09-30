@@ -910,6 +910,25 @@ namespace TummlyBackend.Services
                         {
                             return bindAbort;
                         }
+
+                        var emptyAudienceAbort =
+                            await TryFinishEmptyChannelAudienceGapAsync(
+                                conversation,
+                                userMessage,
+                                CreatePersistLocationId(
+                                    boundCreateLocationId,
+                                    conversation
+                                ),
+                                boundCreateLocationName ?? locationName,
+                                preparedCampaignBind,
+                                createTask,
+                                replaceFailure,
+                                cancellationToken
+                            );
+                        if (emptyAudienceAbort is not null)
+                        {
+                            return emptyAudienceAbort;
+                        }
                     }
 
                     if (createTask == AssistantTask.CreateCampaignWithOffer)
@@ -1705,7 +1724,8 @@ namespace TummlyBackend.Services
             IReadOnlyList<int> ownedLocationIds,
             CancellationToken cancellationToken,
             AssistantCampaignDraftBindChoice? choice = null,
-            AssistantCampaignDraftBindOutcome? preparedBind = null
+            AssistantCampaignDraftBindOutcome? preparedBind = null,
+            bool allowEmptyAudience = false
         )
         {
             var campaignMode = AssistantPriorDraftAuthority.ResolveCampaign(
@@ -1773,6 +1793,29 @@ namespace TummlyBackend.Services
                         null
                     );
                 case AssistantCampaignDraftBindOutcome.Bound bound:
+                    if (!allowEmptyAudience)
+                    {
+                        var emptyGap = await TryBuildEmptyChannelAudienceGapAsync(
+                            locationId,
+                            locationName,
+                            bound.Fields,
+                            userMessage,
+                            AssistantTask.CreateCampaignDraft,
+                            cancellationToken
+                        );
+                        if (emptyGap is not null)
+                        {
+                            return new CreateCampaignDraftTurn(
+                                AssistantMessageClass.Gap,
+                                string.Empty,
+                                emptyGap.Value.Body,
+                                [],
+                                null,
+                                emptyGap.Value.State
+                            );
+                        }
+                    }
+
                     return await PersistBoundCampaignDraftAsync(
                         conversation,
                         locationId,
@@ -2159,7 +2202,8 @@ namespace TummlyBackend.Services
             AssistantCampaignDraftBindOutcome? preparedBind = null,
             AssistantCampaignDraftBindChoice? choice = null,
             AssistantOfferPathTermsState? priorTerms = null,
-            string questionBody = ""
+            string questionBody = "",
+            bool allowEmptyAudience = false
         )
         {
             // Remove Offer from Campaign Draft: clear OfferId (confirm first).
@@ -2222,6 +2266,30 @@ namespace TummlyBackend.Services
                 case AssistantCampaignDraftBindOutcome.UnevaluableAudience unevaluable:
                     return CombinedFullFailure(unevaluable.Body);
                 case AssistantCampaignDraftBindOutcome.Bound bound:
+                    if (!allowEmptyAudience)
+                    {
+                        var emptyGap = await TryBuildEmptyChannelAudienceGapAsync(
+                            locationId,
+                            locationName,
+                            bound.Fields,
+                            userMessage,
+                            AssistantTask.CreateCampaignWithOffer,
+                            cancellationToken
+                        );
+                        if (emptyGap is not null)
+                        {
+                            return new CombinedCreateTurn(
+                                AssistantMessageClass.Gap,
+                                string.Empty,
+                                emptyGap.Value.Body,
+                                [],
+                                null,
+                                null,
+                                emptyGap.Value.State
+                            );
+                        }
+                    }
+
                     return await PersistBoundCampaignWithOfferAsync(
                         conversation,
                         userMessage,
@@ -4265,6 +4333,127 @@ namespace TummlyBackend.Services
             }
         }
 
+        private async Task<AssistantTurnOutcome?> TryFinishEmptyChannelAudienceGapAsync(
+            AssistantConversation conversation,
+            string sourceUserMessage,
+            int locationId,
+            string locationName,
+            AssistantCampaignDraftBindOutcome? bind,
+            string assistantTask,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken,
+            bool allowEmptyAudience = false
+        )
+        {
+            if (allowEmptyAudience
+                || bind is not AssistantCampaignDraftBindOutcome.Bound bound)
+            {
+                return null;
+            }
+
+            var gap = await TryBuildEmptyChannelAudienceGapAsync(
+                locationId,
+                locationName,
+                bound.Fields,
+                sourceUserMessage,
+                assistantTask,
+                cancellationToken
+            );
+            if (gap is null)
+            {
+                return null;
+            }
+
+            return await FinishGapTurnAsync(
+                conversation,
+                gap.Value.State,
+                gap.Value.Body,
+                replaceFailure,
+                cancellationToken
+            );
+        }
+
+        private async Task<(AssistantGapState State, string Body)?> TryBuildEmptyChannelAudienceGapAsync(
+            int locationId,
+            string locationName,
+            AssistantCampaignDraftBindFields fields,
+            string sourceUserMessage,
+            string assistantTask,
+            CancellationToken cancellationToken
+        )
+        {
+            int? channelEligible;
+            int? alternateEligible;
+            try
+            {
+                var eligibility = await _campaignEligibility.EvaluateAsync(
+                    locationId,
+                    fields.AudienceKey,
+                    cancellationToken
+                );
+                var isSms = string.Equals(
+                    fields.Channel,
+                    "sms",
+                    StringComparison.OrdinalIgnoreCase
+                );
+                channelEligible = isSms
+                    ? eligibility.SmsEligible
+                    : eligibility.EmailEligible;
+                alternateEligible = isSms
+                    ? eligibility.EmailEligible
+                    : eligibility.SmsEligible;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
+            }
+
+            if (channelEligible is not 0)
+            {
+                return null;
+            }
+
+            // Only ask when the other channel still has guests — otherwise keep
+            // the prior create-empty-draft behaviour for empty venues.
+            if (alternateEligible is not int alternateCount || alternateCount <= 0)
+            {
+                return null;
+            }
+
+            var emptyChannelId = string.Equals(
+                fields.Channel,
+                "sms",
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? "sms"
+                : "email";
+            var options = emptyChannelId == "sms"
+                ? AssistantEmptyChannelAudience.EmptySmsOptions
+                : AssistantEmptyChannelAudience.EmptyEmailOptions;
+            var body = emptyChannelId == "sms"
+                ? AssistantEmptyChannelAudience.BodyForEmptySms(
+                    locationName,
+                    alternateCount
+                )
+                : AssistantEmptyChannelAudience.BodyForEmptyEmail(
+                    locationName,
+                    alternateCount
+                );
+            return (
+                AssistantGapTurn.CreateEmptyChannelAudience(
+                    options,
+                    sourceUserMessage,
+                    assistantTask,
+                    emptyChannelId
+                ),
+                body
+            );
+        }
+
         private static AssistantMessage PersistTurnMessage(
             DateTime createdAt,
             CreateCampaignDraftTurn persist
@@ -4574,6 +4763,19 @@ namespace TummlyBackend.Services
                     )
                 );
                 return new GapResume(resumed, null);
+            }
+
+            if (gapState.Kind == AssistantGapTurn.KindEmptyChannelAudience)
+            {
+                return await ResumeEmptyChannelAudienceGapAsync(
+                    conversation,
+                    gapState,
+                    userMessage,
+                    analysisScopeLocationName,
+                    ownedLocations,
+                    replaceFailure,
+                    cancellationToken
+                );
             }
 
             if (gapState.Kind == AssistantGapTurn.KindCampaignTitle)
@@ -5153,6 +5355,146 @@ namespace TummlyBackend.Services
             );
         }
 
+        private async Task<GapResume> ResumeEmptyChannelAudienceGapAsync(
+            AssistantConversation conversation,
+            AssistantGapState gapState,
+            string userMessage,
+            string analysisScopeLocationName,
+            IReadOnlyList<OwnedLocationRow> ownedLocations,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            var chosen = AssistantCampaignDraftBind.ResolveNamedChoice(
+                gapState.Options,
+                userMessage
+            );
+            if (chosen is null)
+            {
+                return new GapResume(
+                    await FinishGapTurnAsync(
+                        conversation,
+                        gapState,
+                        AssistantGapTurn.RepeatBindBody(gapState),
+                        replaceFailure,
+                        cancellationToken
+                    ),
+                    null
+                );
+            }
+
+            var emptyChannelId = string.IsNullOrWhiteSpace(gapState.LocationKind)
+                ? "sms"
+                : gapState.LocationKind!;
+            var resolved = AssistantEmptyChannelAudience.ResolveChoice(
+                emptyChannelId,
+                chosen
+            );
+            if (resolved is null)
+            {
+                return new GapResume(
+                    await FinishGapTurnAsync(
+                        conversation,
+                        gapState,
+                        AssistantGapTurn.RepeatBindBody(gapState),
+                        replaceFailure,
+                        cancellationToken
+                    ),
+                    null
+                );
+            }
+
+            if (resolved == AssistantEmptyChannelAudienceChoice.Wait)
+            {
+                conversation.DraftInterviewJson = null;
+                conversation.LastCompareLocationIdsJson = null;
+                return new GapResume(
+                    await PersistAssistantAsync(
+                        conversation,
+                        GroundedMessage(
+                            DateTime.UtcNow,
+                            AssistantCampaignDraftPersistCopy.FailureTitle,
+                            AssistantEmptyChannelAudience.WaitBody(
+                                AssistantEmptyChannelAudience.EmptyChannelLabel(
+                                    emptyChannelId
+                                )
+                            ),
+                            []
+                        ),
+                        replaceFailure,
+                        cancellationToken
+                    ),
+                    null
+                );
+            }
+
+            var allowEmpty = resolved == AssistantEmptyChannelAudienceChoice.CreateAnyway;
+            var channelLabel = allowEmpty
+                ? AssistantEmptyChannelAudience.EmptyChannelLabel(emptyChannelId)
+                : AssistantEmptyChannelAudience.AlternateChannelLabel(emptyChannelId);
+            var choice = new AssistantCampaignDraftBindChoice(ChannelLabel: channelLabel);
+
+            if (string.Equals(
+                    gapState.AssistantTask,
+                    AssistantTask.CreateCampaignWithOffer,
+                    StringComparison.Ordinal
+                ))
+            {
+                return await ResumeCombinedCreateAsync(
+                    conversation,
+                    gapState.SourceUserMessage,
+                    userMessage,
+                    analysisScopeLocationName,
+                    ownedLocations,
+                    choice,
+                    updateScope: false,
+                    replaceFailure,
+                    cancellationToken,
+                    allowEmptyAudience: allowEmpty
+                );
+            }
+
+            var locationOutcome = ResolveCreateLocation(
+                gapState.SourceUserMessage,
+                conversation,
+                analysisScopeLocationName,
+                ownedLocations,
+                uniqueNameIsChoice: false,
+                gapState.AssistantTask
+            );
+            var locationFinish = await TryFinishLocationOutcomeAsync(
+                conversation,
+                gapState.SourceUserMessage,
+                analysisScopeLocationName,
+                locationOutcome,
+                replaceFailure,
+                cancellationToken,
+                gapState.AssistantTask
+            );
+            if (locationFinish.Outcome is not null)
+            {
+                return new GapResume(locationFinish.Outcome, null);
+            }
+
+            conversation.DraftInterviewJson = null;
+            var persist = await PersistCreateAndStoreAsync(
+                conversation,
+                gapState.SourceUserMessage,
+                CreatePersistLocationId(locationFinish.LocationId, conversation),
+                locationFinish.LocationName ?? analysisScopeLocationName,
+                updateScope: false,
+                replaceFailure,
+                cancellationToken,
+                ownedLocations.Select(location => location.Id).ToList(),
+                assistantTask: string.IsNullOrWhiteSpace(gapState.AssistantTask)
+                    ? AssistantTask.CreateCampaignDraft
+                    : gapState.AssistantTask,
+                choice: choice,
+                allowEmptyAudience: allowEmpty
+            );
+            return new GapResume(persist, null);
+        }
+
         private async Task<GapResume> ResumeCombinedCreateAsync(
             AssistantConversation conversation,
             string sourceUserMessage,
@@ -5163,7 +5505,8 @@ namespace TummlyBackend.Services
             bool updateScope,
             AssistantMessage? replaceFailure,
             CancellationToken cancellationToken,
-            AssistantOfferPathTermsState? priorTerms = null
+            AssistantOfferPathTermsState? priorTerms = null,
+            bool allowEmptyAudience = false
         )
         {
             var ownedLocationIds = ownedLocations
@@ -5302,6 +5645,23 @@ namespace TummlyBackend.Services
                     );
                 }
 
+                var emptyAudienceAbort =
+                    await TryFinishEmptyChannelAudienceGapAsync(
+                        conversation,
+                        sourceUserMessage,
+                        locationId,
+                        locationName,
+                        bound,
+                        AssistantTask.CreateCampaignWithOffer,
+                        replaceFailure,
+                        cancellationToken,
+                        allowEmptyAudience
+                    );
+                if (emptyAudienceAbort is not null)
+                {
+                    return new GapResume(emptyAudienceAbort, null);
+                }
+
                 preparedBind = bound;
             }
 
@@ -5314,7 +5674,8 @@ namespace TummlyBackend.Services
                 cancellationToken,
                 preparedBind: preparedBind,
                 choice: choice,
-                priorTerms: priorTerms
+                priorTerms: priorTerms,
+                allowEmptyAudience: allowEmptyAudience
             );
             conversation.DraftInterviewJson = persist.GapState is null
                 ? null
@@ -5417,7 +5778,8 @@ namespace TummlyBackend.Services
             IReadOnlyList<int> ownedLocationIds,
             string assistantTask = AssistantTask.CreateCampaignDraft,
             AssistantOfferPathTermsState? offerTerms = null,
-            AssistantCampaignDraftBindChoice? choice = null
+            AssistantCampaignDraftBindChoice? choice = null,
+            bool allowEmptyAudience = false
         )
         {
             if (updateScope && locationId != conversation.OwnedLocationId)
@@ -5472,7 +5834,8 @@ namespace TummlyBackend.Services
                 locationName,
                 ownedLocationIds,
                 cancellationToken,
-                choice
+                choice,
+                allowEmptyAudience: allowEmptyAudience
             );
             conversation.DraftInterviewJson = persist.GapState is null
                 ? null

@@ -229,6 +229,10 @@ namespace TummlyBackend.Helpers
             {
                 AssistantGapTurn.KindChannel => ChannelAsk,
                 AssistantGapTurn.KindAudience => AudienceAskWith(options),
+                AssistantGapTurn.KindEmptyChannelAudience =>
+                    options.Count > 0
+                        ? $"Choose one: {AssistantCreateLocationGap.Join(options)}?"
+                        : ChannelAsk,
                 AssistantGapTurn.KindOffer =>
                     $"{OfferTitleAskPrefix} {AssistantCreateLocationGap.Join(options)}?",
                 AssistantGapTurn.KindCampaignTitle =>
