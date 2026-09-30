@@ -139,7 +139,7 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                return (ExternalAuthProviders.Google, _options.Google);
+                return (ExternalAuthProviders.Google, Trimmed(_options.Google));
             }
 
             if (
@@ -150,11 +150,25 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                return (ExternalAuthProviders.Microsoft, _options.Microsoft);
+                return (ExternalAuthProviders.Microsoft, Trimmed(_options.Microsoft));
             }
 
             throw new InvalidOperationException($"Unsupported external auth provider '{provider}'.");
         }
+
+        /// <summary>
+        /// Container App / portal pastes often leave trailing spaces on client id
+        /// or secret; Google then returns <c>invalid_client</c> / client not found.
+        /// </summary>
+        private static ExternalAuthProviderOptions Trimmed(
+            ExternalAuthProviderOptions options
+        )
+            => new()
+            {
+                ClientId = options.ClientId?.Trim() ?? string.Empty,
+                ClientSecret = options.ClientSecret?.Trim() ?? string.Empty,
+                RedirectUri = options.RedirectUri?.Trim() ?? string.Empty,
+            };
 
         private static void EnsureExchangeConfigured(
             string canonical,

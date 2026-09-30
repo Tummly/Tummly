@@ -36,6 +36,37 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public void BuildAuthorizationUrl_Google_TrimsTrailingWhitespaceOnClientId()
+        {
+            var options = Options.Create(new ExternalAuthOptions
+            {
+                Google = new ExternalAuthProviderOptions
+                {
+                    ClientId = "g-client ",
+                    ClientSecret = "g-secret ",
+                    RedirectUri =
+                        "https://api.example/api/auth/external/google/callback ",
+                },
+            });
+            var client = new ExternalOAuthProviderClient(
+                options,
+                new UnusedHttpClientFactory()
+            );
+            var url = client.BuildAuthorizationUrl(
+                ExternalAuthProviders.Google,
+                "state-trim"
+            );
+
+            Assert.Contains("client_id=g-client&", url);
+            Assert.DoesNotContain("client_id=g-client%20", url);
+            Assert.DoesNotContain("client_id=g-client+", url);
+            Assert.Contains(
+                "redirect_uri=https%3A%2F%2Fapi.example%2Fapi%2Fauth%2Fexternal%2Fgoogle%2Fcallback&",
+                url
+            );
+        }
+
+        [Fact]
         public async Task ExchangeCode_Microsoft_IdTokenWithoutEmailVerified_TreatsEmailVerified()
         {
             var idToken = BuildUnsignedJwt(
