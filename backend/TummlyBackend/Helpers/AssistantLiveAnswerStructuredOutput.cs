@@ -664,10 +664,12 @@ namespace TummlyBackend.Helpers
             bool allowTools
         )
         {
+            // DeepClone: the same messages array is reused across tool + final
+            // rounds. Assigning without clone throws "The node already has a parent".
             var request = new JsonObject
             {
                 ["model"] = deploymentName,
-                ["messages"] = messages,
+                ["messages"] = messages.DeepClone(),
             };
 
             if (allowTools)

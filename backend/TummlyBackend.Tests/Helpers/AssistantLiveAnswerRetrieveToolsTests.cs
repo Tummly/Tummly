@@ -107,6 +107,40 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void BuildRetrieveToolsRoundJson_ReusesMessagesAcrossRounds()
+        {
+            var messages = new JsonArray
+            {
+                new JsonObject { ["role"] = "system", ["content"] = "x" },
+            };
+            var input = new AssistantLiveAnswerInput(
+                "Draft a campaign",
+                "Camden",
+                "this week",
+                AssistantRetrievedEvidence.Empty
+            );
+
+            var toolRound = AssistantLiveAnswerStructuredOutput.BuildRetrieveToolsRoundJson(
+                "gpt-4o-mini",
+                input,
+                "2026-09-28",
+                messages,
+                allowTools: true
+            );
+            var finalRound = AssistantLiveAnswerStructuredOutput.BuildRetrieveToolsRoundJson(
+                "gpt-4o-mini",
+                input,
+                "2026-09-28",
+                messages,
+                allowTools: false
+            );
+
+            Assert.Contains("\"tools\"", toolRound);
+            Assert.Contains("\"response_format\"", finalRound);
+            Assert.Single(messages);
+        }
+
+        [Fact]
         public void BuildRetrieveToolsRoundJson_ToolRound_EnablesParallelTools()
         {
             var messages = AssistantLiveAnswerStructuredOutput
