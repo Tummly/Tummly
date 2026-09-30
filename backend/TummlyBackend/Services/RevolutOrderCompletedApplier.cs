@@ -923,11 +923,6 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (!_sellerVat.IsActive)
-            {
-                return null;
-            }
-
             var preexisting = await _vatInvoices.FindByRevolutOrderIdAsync(
                 request.RevolutOrderId,
                 cancellationToken

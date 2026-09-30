@@ -13,16 +13,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
         private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
+        private readonly IRestaurantAccountTypePromotion _accountTypePromotion;
 
         public LocationsLifecycleWriteService(
             ApplicationDbContext context,
             IComplimentaryStarterShopOrderService complimentaryStarterShopOrders,
-            IPrintReadyQrMaterialsWork printReadyQrMaterialsWork
+            IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
+            IRestaurantAccountTypePromotion accountTypePromotion
         )
         {
             _context = context;
             _complimentaryStarterShopOrders = complimentaryStarterShopOrders;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
+            _accountTypePromotion = accountTypePromotion;
         }
 
         public async Task<LocationLifecycleWriteResult> ActivateDraftAsync(
@@ -62,6 +65,11 @@ namespace TummlyBackend.Services
             );
             await _context.SaveChangesAsync();
 
+            var accountType =
+                await _accountTypePromotion.EnsureRoutingAccountTypeAsync(
+                    restaurantId
+                );
+
             var actorDisplayName = await _context.Users
                 .AsNoTracking()
                 .Where(u => u.Id == actorUserId)
@@ -83,7 +91,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            return new LocationLifecycleWriteResult.Ok();
+            return new LocationLifecycleWriteResult.Ok(accountType);
         }
 
         public async Task<LocationLifecycleWriteResult> DeleteDraftAsync(
@@ -131,7 +139,9 @@ namespace TummlyBackend.Services
                 $"Deleted draft location “{name}”."
             );
             await _context.SaveChangesAsync();
-            return new LocationLifecycleWriteResult.Ok();
+            return new LocationLifecycleWriteResult.Ok(
+                await CurrentAccountTypeAsync(restaurantId)
+            );
         }
 
         public async Task<LocationLifecycleWriteResult> EditDetailsAsync(
@@ -178,7 +188,21 @@ namespace TummlyBackend.Services
                 location.LocationName
             );
             await _context.SaveChangesAsync();
-            return new LocationLifecycleWriteResult.Ok();
+            return new LocationLifecycleWriteResult.Ok(
+                await CurrentAccountTypeAsync(restaurantId)
+            );
+        }
+
+        private async Task<string> CurrentAccountTypeAsync(int restaurantId)
+        {
+            var accountType = await _context.Restaurants
+                .AsNoTracking()
+                .Where(row => row.Id == restaurantId)
+                .Select(row => row.AccountType)
+                .FirstOrDefaultAsync();
+            return string.IsNullOrWhiteSpace(accountType)
+                ? "Single"
+                : accountType.Trim();
         }
 
         private async Task<RestaurantLocation?> LoadOwnedAsync(

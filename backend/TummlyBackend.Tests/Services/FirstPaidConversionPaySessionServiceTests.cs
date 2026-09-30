@@ -50,12 +50,51 @@ namespace TummlyBackend.Tests.Services
                 "https://checkout.revolut.com/payment-link/abc",
                 result.RedirectUrl
             );
+            Assert.Equal(
+                "https://app.tummly.test/single-dashboard/settings/billing-credits?location=42&tab=plan-subscription",
+                merchant.LastCreateSubscriptionRequest?.SetupOrderRedirectUrl
+            );
             Assert.Equal(1, merchant.ListCallCount);
             Assert.Equal(1, merchant.CreateCustomerCallCount);
             Assert.Equal(1, merchant.CreateSubscriptionCallCount);
             Assert.Equal("cust_new", account.RevolutCustomerId);
             Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
             Assert.Equal(BillingStatuses.Pilot, account.BillingStatus);
+        }
+
+        [Fact]
+        public async Task StartAsync_UsesSuccessRedirectUrl_WhenProvided()
+        {
+            await using var context = CreateContext();
+            var (account, owner) = await SeedPilotAsync(context);
+            account.RevolutCustomerId = "cust_existing";
+            await context.SaveChangesAsync();
+            var merchant = new RecordingMerchant
+            {
+                CreateSubscriptionResult = new RevolutMerchantCreateResult(
+                    Succeeded: true,
+                    Id: "sub_1",
+                    SetupOrderId: "ord_setup_1",
+                    CheckoutUrl: "https://checkout.revolut.com/payment-link/abc"
+                ),
+            };
+            var service = CreateService(context, merchant);
+
+            await service.StartAsync(
+                account,
+                owner,
+                restaurantAccountType: "Single",
+                locationId: 42,
+                targetPlan: "Starter",
+                targetCadenceApi: "monthly",
+                idempotencyKey: "signup-key-1",
+                successRedirectUrl: "https://app.tummly.test/login?setup=complete"
+            );
+
+            Assert.Equal(
+                "https://app.tummly.test/login?setup=complete",
+                merchant.LastCreateSubscriptionRequest?.SetupOrderRedirectUrl
+            );
         }
 
         [Fact]
@@ -484,6 +523,12 @@ namespace TummlyBackend.Tests.Services
 
             public string? LastCancelledSubscriptionId { get; private set; }
 
+            public RevolutCreateSubscriptionRequest? LastCreateSubscriptionRequest
+            {
+                get;
+                private set;
+            }
+
             public void EnsureReadyForCreate(string? planVariationLookupKey = null)
             {
             }
@@ -513,6 +558,7 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 CreateSubscriptionCallCount++;
+                LastCreateSubscriptionRequest = request;
                 return Task.FromResult(CreateSubscriptionResult);
             }
 

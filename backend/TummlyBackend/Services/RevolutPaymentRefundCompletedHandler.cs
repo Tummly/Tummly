@@ -110,34 +110,31 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (_sellerVat.IsActive)
-            {
-                int? netPence = request.AmountMinor is int gross && gross > 0
-                    ? EstimateNetFromGrossPence(gross)
-                    : null;
+            int? netPence = request.AmountMinor is int gross && gross > 0
+                ? EstimateNetFromGrossPence(gross)
+                : null;
 
-                var creditNote = await _vatInvoices.MintCreditNoteForRefundAsync(
-                    new TummlyVatCreditNoteMintRequest(
-                        RefundOrderId: refundOrderId,
-                        OriginalPaymentOrderId: sourcePaymentRef,
-                        RestaurantId: restaurantId.Value,
-                        RefundCompletedUtc: _clock.GetUtcNow().UtcDateTime,
-                        NetPenceOverride: netPence
-                    ),
-                    cancellationToken
-                );
+            var creditNote = await _vatInvoices.MintCreditNoteForRefundAsync(
+                new TummlyVatCreditNoteMintRequest(
+                    RefundOrderId: refundOrderId,
+                    OriginalPaymentOrderId: sourcePaymentRef,
+                    RestaurantId: restaurantId.Value,
+                    RefundCompletedUtc: _clock.GetUtcNow().UtcDateTime,
+                    NetPenceOverride: netPence
+                ),
+                cancellationToken
+            );
 
-                BillingActivityWriter.TryAppend(
-                    _context,
-                    new BillingActivityAppendRequest
-                    {
-                        RestaurantId = restaurantId.Value,
-                        Kind = BillingActivityKinds.CreditNoteIssued,
-                        OccurredAtUtc = _clock.GetUtcNow().UtcDateTime,
-                        CreditNoteNo = creditNote.DocumentNumber,
-                    }
-                );
-            }
+            BillingActivityWriter.TryAppend(
+                _context,
+                new BillingActivityAppendRequest
+                {
+                    RestaurantId = restaurantId.Value,
+                    Kind = BillingActivityKinds.CreditNoteIssued,
+                    OccurredAtUtc = _clock.GetUtcNow().UtcDateTime,
+                    CreditNoteNo = creditNote.DocumentNumber,
+                }
+            );
 
             // ADR 0046: admin reconcile after manual Revolut refund → paymentStatus=refunded.
             var shopOrder = await _context.ShopOrders
@@ -206,10 +203,17 @@ namespace TummlyBackend.Services
         /// <summary>
         /// Gross → net at 20% exclusive (gross = net + 0.2*net ⇒ net = gross/1.2).
         /// </summary>
-        private static int EstimateNetFromGrossPence(int grossPence)
+        private int EstimateNetFromGrossPence(int grossPence)
         {
+            var rateBps = _sellerVat.EffectiveVatRateBps;
+            if (rateBps <= 0)
+            {
+                return grossPence;
+            }
+
+            var divisor = 1m + (rateBps / 10_000m);
             return (int)Math.Round(
-                grossPence / 1.2m,
+                grossPence / divisor,
                 MidpointRounding.AwayFromZero
             );
         }

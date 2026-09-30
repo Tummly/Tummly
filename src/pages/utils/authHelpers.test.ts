@@ -18,7 +18,31 @@ import {
   persistAuthSession,
   persistDeviceToken,
   SELECTED_LOCATION_KEY,
+  updateAuthAccountType,
 } from "./authHelpers"
+
+describe("updateAuthAccountType", () => {
+  beforeEach(() => {
+    resetAuthStore()
+  })
+
+  afterEach(() => {
+    resetAuthStore()
+  })
+
+  it("updates Single to Multi on the live session", () => {
+    persistAuthSession("jwt", "USER", "Single", "refresh")
+    updateAuthAccountType("Multi")
+    expect(useAuthStore.getState().accountType).toBe("Multi")
+    expect(useAuthStore.getState().token).toBe("jwt")
+  })
+
+  it("ignores unknown account types", () => {
+    persistAuthSession("jwt", "USER", "Single")
+    updateAuthAccountType("Group")
+    expect(useAuthStore.getState().accountType).toBe("Single")
+  })
+})
 
 describe("parseVerifyOtpResponse", () => {
   it("keeps activationRequired from the API envelope when present", () => {

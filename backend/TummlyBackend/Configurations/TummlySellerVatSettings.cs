@@ -18,8 +18,9 @@ namespace TummlyBackend.Configurations
         public const string RegisteredAddressKey = "TUMMLY_REGISTERED_ADDRESS";
 
         /// <summary>
-        /// Bound from <see cref="ModeActiveKey"/>. Unset / false → VAT off
-        /// (launch default).
+        /// Bound from <see cref="ModeActiveKey"/>. Unset / false → do not collect
+        /// added VAT on payments (launch default). Invoice mint and email still run
+        /// at 0% VAT.
         /// </summary>
         public bool IsActive { get; set; }
 

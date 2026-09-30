@@ -17,7 +17,8 @@ namespace TummlyBackend.Tests.Helpers
             string targetPlan,
             string targetCadenceApi,
             string idempotencyKey,
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken = default,
+            string? successRedirectUrl = null
         ) =>
             Task.FromResult(
                 new PlanChangeResultDto
@@ -49,6 +50,8 @@ namespace TummlyBackend.Tests.Helpers
 
         public string? LastTargetCadence { get; private set; }
 
+        public string? LastSuccessRedirectUrl { get; private set; }
+
         public int AbandonCallCount { get; private set; }
 
         public const string CheckoutUrl = "https://checkout.test/paid-signup";
@@ -61,11 +64,13 @@ namespace TummlyBackend.Tests.Helpers
             string targetPlan,
             string targetCadenceApi,
             string idempotencyKey,
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken = default,
+            string? successRedirectUrl = null
         )
         {
             LastTargetPlan = targetPlan;
             LastTargetCadence = targetCadenceApi;
+            LastSuccessRedirectUrl = successRedirectUrl;
 
             _context.RevolutPendingPaySessions.Add(
                 new RevolutPendingPaySession

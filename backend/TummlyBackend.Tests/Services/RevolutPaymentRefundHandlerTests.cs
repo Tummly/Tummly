@@ -88,7 +88,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task RefundCompleted_WhenModeOff_SkipsCreditNoteMint()
+        public async Task RefundCompleted_WhenModeOff_MintsCreditNote()
         {
             await using var context = CreateContext();
             var seeded = await SeedRestaurantWithTopupAsync(context);
@@ -114,9 +114,8 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.Equal(1, ledger.DrainCallCount);
-            Assert.Equal(0, vat.MintCreditNoteCallCount);
-            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
-            Assert.DoesNotContain(
+            Assert.Equal(1, vat.MintCreditNoteCallCount);
+            Assert.Contains(
                 context.RestaurantBillingActivities,
                 row => row.Kind == BillingActivityKinds.CreditNoteIssued
             );

@@ -80,7 +80,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task Apply_WhenModeOff_LeavesInvoiceTableEmpty()
+        public async Task Apply_WhenModeOff_MintsZeroVatInvoiceAndEmails()
         {
             await using var context = CreateContext();
             var pending = await SeedPilotPendingAsync(context, "ord_off", "sub_off");
@@ -94,7 +94,14 @@ namespace TummlyBackend.Tests.Services
                 LegalName = "Tummly Ltd",
                 RegisteredAddress = "1 High Street",
             };
-            var applier = CreateApplier(context, mint, clock, sellerVat: offVat);
+            var emailDelivery = new RecordingInvoiceEmailDelivery();
+            var applier = CreateApplier(
+                context,
+                mint,
+                clock,
+                invoiceEmail: emailDelivery,
+                sellerVat: offVat
+            );
 
             await applier.ApplyAsync(
                 new RevolutOrderCompletedApplyRequest(
@@ -107,11 +114,85 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+            var invoice = Assert.Single(await context.TummlyVatInvoices.ToListAsync());
+            Assert.Equal(0, invoice.VatRateBps);
+            Assert.Equal(0, invoice.VatPence);
+            Assert.Equal(invoice.NetPence, invoice.GrossPence);
+            Assert.Single(emailDelivery.Calls);
+            Assert.True(emailDelivery.Calls[0].WasNewlyMinted);
             var account = await context.BillingAccounts
                 .AsNoTracking()
                 .SingleAsync(row => row.RestaurantId == pending.RestaurantId);
             Assert.Equal(BillingStatuses.Active, account.BillingStatus);
+        }
+
+        [Fact]
+        public async Task Apply_PlanUpgradeProration_WhenModeOff_EmailsInvoice()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+            var merchant = new RecordingChangePlanMerchant();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var offVat = new TummlySellerVatSettings
+            {
+                IsActive = false,
+                RegistrationNumber = "GB123456789",
+                EffectiveDate = "2024-01-01",
+                LegalName = "Tummly Ltd",
+                RegisteredAddress = "1 High Street",
+            };
+            var emailDelivery = new RecordingInvoiceEmailDelivery();
+            var applier = CreateApplier(
+                context,
+                mint,
+                clock,
+                merchant,
+                invoiceEmail: emailDelivery,
+                sellerVat: offVat
+            );
+
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_upgrade_off",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.PlanUpgradeProration,
+                    TargetPlan = BillingSubscriptionPlans.Growth,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub_upgrade_off",
+                    CheckoutUrl = "https://checkout.revolut.test/up",
+                    IdempotencyKey = "k_upgrade_off",
+                    IsOpen = true,
+                    NetAmountMinor = 3000,
+                    VatAmountMinor = 0,
+                    GrossAmountMinor = 3000,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_upgrade_off",
+                    OrderState: "completed",
+                    BillingReason: null,
+                    SubscriptionId: "sub_upgrade_off",
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var invoice = Assert.Single(
+                await context.TummlyVatInvoices
+                    .Where(row => row.RevolutOrderId == "ord_upgrade_off")
+                    .ToListAsync()
+            );
+            Assert.Equal(0, invoice.VatRateBps);
+            Assert.Equal(3000, invoice.GrossPence);
+            Assert.Single(emailDelivery.Calls);
+            Assert.True(emailDelivery.Calls[0].WasNewlyMinted);
         }
 
         [Fact]

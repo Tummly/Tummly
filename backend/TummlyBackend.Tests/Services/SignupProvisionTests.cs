@@ -21,6 +21,7 @@ namespace TummlyBackend.Tests.Services
         private readonly IPricebookCatalog _pricebook;
         private readonly IConfiguration _configuration;
         private readonly CountingCreditLedger _mintLedger = new();
+        private readonly RecordingFirstPaidConversionPaySession _firstPaid;
         private readonly string _email = "pilot-owner@example.com";
         private Guid _sessionToken;
         private PendingSignup _pending = null!;
@@ -60,6 +61,7 @@ namespace TummlyBackend.Tests.Services
 
             var packDir = ResolvePricebookPackDir();
             _pricebook = PricebookCatalog.LoadFromDirectory(packDir);
+            _firstPaid = new RecordingFirstPaidConversionPaySession(_db);
             _provisioning = new GuestLoopProvisioningService(
                 _db,
                 qrCodeProvisioning,
@@ -73,7 +75,7 @@ namespace TummlyBackend.Tests.Services
                 _pricebook,
                 _mintLedger,
                 new NoOpBillingAccountLifecycle(),
-                new RecordingFirstPaidConversionPaySession(_db),
+                _firstPaid,
                 new EmailServiceStubBase()
             );
 
@@ -242,6 +244,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(
                 RecordingFirstPaidConversionPaySession.CheckoutUrl,
                 status.PaymentRedirectUrl
+            );
+            Assert.Equal(
+                "https://tummly.example/login?setup=complete",
+                _firstPaid.LastSuccessRedirectUrl
             );
         }
 

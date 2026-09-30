@@ -15,14 +15,17 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ICaptureQrLifecycleService _captureLifecycle;
+        private readonly IRestaurantAccountTypePromotion _accountTypePromotion;
 
         public LocationLifecycleService(
             ApplicationDbContext context,
-            ICaptureQrLifecycleService captureLifecycle
+            ICaptureQrLifecycleService captureLifecycle,
+            IRestaurantAccountTypePromotion accountTypePromotion
         )
         {
             _context = context;
             _captureLifecycle = captureLifecycle;
+            _accountTypePromotion = accountTypePromotion;
         }
 
         public async Task<LocationLifecycleResult> PauseAsync(
@@ -210,7 +213,12 @@ namespace TummlyBackend.Services
             );
             await _context.SaveChangesAsync();
 
-            return LocationLifecycleResult.Ok("paused");
+            var accountType =
+                await _accountTypePromotion.EnsureRoutingAccountTypeAsync(
+                    command.RestaurantId
+                );
+
+            return LocationLifecycleResult.Ok("paused", accountType);
         }
 
         /// <summary>

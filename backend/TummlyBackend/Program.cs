@@ -575,6 +575,7 @@ builder.Services.AddScoped<LocationDetailQrRowsComposer>();
 builder.Services.AddScoped<LocationDetailOfferCardsComposer>();
 builder.Services.AddScoped<ILocationsDetailService, LocationsDetailService>();
 builder.Services.AddScoped<ILocationsActivityService, LocationsActivityService>();
+builder.Services.AddScoped<IRestaurantAccountTypePromotion, RestaurantAccountTypePromotion>();
 builder.Services.AddScoped<ILocationsLifecycleWriteService, LocationsLifecycleWriteService>();
 builder.Services.AddScoped<ILocationLifecycleService, LocationLifecycleService>();
 builder.Services.AddScoped<IPrivacyConsentSaveService, PrivacyConsentSaveService>();

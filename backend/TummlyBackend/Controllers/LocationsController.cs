@@ -399,7 +399,11 @@ namespace TummlyBackend.Controllers
             var result = await action(decision.RestaurantId, userId);
             return result switch
             {
-                LocationLifecycleWriteResult.Ok => Ok(new { success = true }),
+                LocationLifecycleWriteResult.Ok ok => Ok(new
+                {
+                    success = true,
+                    accountType = ok.AccountType,
+                }),
                 LocationLifecycleWriteResult.NotFound => NotFound(new
                 {
                     success = false,
@@ -469,6 +473,7 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     lifecycleStatus = result.LifecycleStatus,
+                    accountType = result.AccountType,
                 }),
                 LocationLifecycleResultKind.NotFound => NotFound(new
                 {

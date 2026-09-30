@@ -21,6 +21,7 @@ import { locationsPageModuleContext } from "@/components/dashboard/operator/Loca
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { createOperatorLocationsPageModule } from "@/lib/operatorLocations/createOperatorLocationsPageModule"
+import { updateAuthAccountType } from "@/pages/utils/authHelpers"
 
 export function LocationsPageModuleProvider({
   children,
@@ -51,12 +52,22 @@ export function LocationsPageModuleProvider({
           }
         },
         activateDraft: async (locationId) => {
-          await activateOwnedLocation(Number.parseInt(locationId, 10))
+          const result = await activateOwnedLocation(
+            Number.parseInt(locationId, 10)
+          )
+          if (result.accountType != null) {
+            updateAuthAccountType(result.accountType)
+          }
         },
         deleteDraft: async (locationId) => {
           await deleteOwnedLocationDraft(Number.parseInt(locationId, 10))
         },
-        mutateLifecycle: mutateLocationLifecycle,
+        mutateLifecycle: async (locationId, action) => {
+          const result = await mutateLocationLifecycle(locationId, action)
+          if (result.accountType != null) {
+            updateAuthAccountType(result.accountType)
+          }
+        },
         navigateToPrivacyConsent: () => {
           navigate(
             operatorDashboardNavPath(mode, "privacy-consent", selectedLocationId)

@@ -18,7 +18,8 @@ namespace TummlyBackend.Interfaces
             string targetPlan,
             string targetCadenceApi,
             string idempotencyKey,
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken = default,
+            string? successRedirectUrl = null
         );
 
         /// <summary>

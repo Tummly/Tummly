@@ -64,9 +64,19 @@ export async function createOwnedLocation(
   }
 }
 
-export async function activateOwnedLocation(locationId: number): Promise<void> {
+export async function activateOwnedLocation(
+  locationId: number
+): Promise<{ accountType?: string }> {
   try {
-    await axiosInstance.post(`/locations/${locationId}/activate`, {})
+    const response = await axiosInstance.post<{
+      success?: boolean
+      accountType?: string
+    }>(`/locations/${locationId}/activate`, {})
+    const accountType =
+      typeof response.data.accountType === "string"
+        ? response.data.accountType
+        : undefined
+    return { accountType }
   } catch (error) {
     throw new Error(readApiError(error, "Could not activate location."))
   }

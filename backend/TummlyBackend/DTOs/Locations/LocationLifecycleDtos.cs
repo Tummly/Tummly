@@ -24,11 +24,17 @@ namespace TummlyBackend.DTOs.Locations
 
         public string? LifecycleStatus { get; init; }
 
-        public static LocationLifecycleResult Ok(string lifecycleStatus) =>
+        public string? AccountType { get; init; }
+
+        public static LocationLifecycleResult Ok(
+            string lifecycleStatus,
+            string? accountType = null
+        ) =>
             new()
             {
                 Kind = LocationLifecycleResultKind.Ok,
                 LifecycleStatus = lifecycleStatus,
+                AccountType = accountType,
             };
 
         public static LocationLifecycleResult NotFound(

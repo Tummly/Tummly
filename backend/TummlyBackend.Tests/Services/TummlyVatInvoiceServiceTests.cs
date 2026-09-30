@@ -249,7 +249,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task Mint_WhenModeOff_ThrowsAndLeavesTableEmpty()
+        public async Task Mint_WhenModeOff_MintsWithZeroVat()
         {
             await using var context = CreateContext();
             var restaurantId = await SeedRestaurantAsync(context);
@@ -268,15 +268,19 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.MintForCompletedOrderAsync(Request(restaurantId, "ord_mode_off"))
+            var invoice = await service.MintForCompletedOrderAsync(
+                Request(restaurantId, "ord_mode_off")
             );
-            Assert.Equal("vat_mode_off", ex.Message);
-            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+
+            Assert.Equal(0, invoice.VatRateBps);
+            Assert.Equal(0, invoice.VatPence);
+            Assert.Equal(invoice.NetPence, invoice.GrossPence);
+            Assert.Equal(string.Empty, invoice.SellerVatRegistrationNumber);
+            Assert.Equal(1, await context.TummlyVatInvoices.CountAsync());
         }
 
         [Fact]
-        public async Task MintCreditNote_WhenModeOff_ThrowsAndLeavesTableEmpty()
+        public async Task Mint_WhenModeOff_ForcesZeroVatOnCallerLineItems()
         {
             await using var context = CreateContext();
             var restaurantId = await SeedRestaurantAsync(context);
@@ -295,19 +299,66 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.MintCreditNoteForRefundAsync(
-                    new TummlyVatCreditNoteMintRequest(
-                        RefundOrderId: "ord_refund_off",
-                        OriginalPaymentOrderId: "ord_pay",
-                        RestaurantId: restaurantId,
-                        RefundCompletedUtc: _now,
-                        NetPenceOverride: 3900
-                    )
+            var invoice = await service.MintForCompletedOrderAsync(
+                Request(restaurantId, "ord_mode_off_lines") with
+                {
+                    NetPenceOverride = 2500,
+                    LineItems =
+                    [
+                        new TummlyVatInvoiceLineItemDto(
+                            Title: "Paid Starter",
+                            Subtitle: null,
+                            Quantity: 1,
+                            UnitNetPence: 2500,
+                            VatRateBps: 2000,
+                            AmountNetPence: 2500
+                        ),
+                    ],
+                }
+            );
+
+            Assert.Equal(0, invoice.VatRateBps);
+            Assert.Equal(0, invoice.VatPence);
+            Assert.Equal(2500, invoice.GrossPence);
+            var lines = TummlyVatInvoiceLineItems.ParseOrEmpty(invoice.LineItemsJson);
+            Assert.All(lines, line => Assert.Equal(0, line.VatRateBps));
+        }
+
+        [Fact]
+        public async Task MintCreditNote_WhenModeOff_MintsWithZeroVat()
+        {
+            await using var context = CreateContext();
+            var restaurantId = await SeedRestaurantAsync(context);
+            var service = new TummlyVatInvoiceService(
+                context,
+                _pricebook,
+                Options.Create(
+                    new TummlySellerVatSettings
+                    {
+                        IsActive = false,
+                        RegistrationNumber = "GB999",
+                        EffectiveDate = "2024-01-01",
+                        LegalName = "Tummly Ltd",
+                        RegisteredAddress = "1 Example Road",
+                    }
                 )
             );
-            Assert.Equal("vat_mode_off", ex.Message);
-            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+
+            var creditNote = await service.MintCreditNoteForRefundAsync(
+                new TummlyVatCreditNoteMintRequest(
+                    RefundOrderId: "ord_refund_off",
+                    OriginalPaymentOrderId: "ord_pay",
+                    RestaurantId: restaurantId,
+                    RefundCompletedUtc: _now,
+                    NetPenceOverride: 3900
+                )
+            );
+
+            Assert.Equal(0, creditNote.VatRateBps);
+            Assert.Equal(0, creditNote.VatPence);
+            Assert.Equal(3900, creditNote.GrossPence);
+            Assert.Equal(string.Empty, creditNote.SellerVatRegistrationNumber);
+            Assert.Equal(1, await context.TummlyVatInvoices.CountAsync());
         }
 
         [Fact]

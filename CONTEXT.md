@@ -568,7 +568,7 @@ The **Account & workspace** row for the live **Subscription plan** name (**Pilot
 _Avoid_: Current plan (when meaning this Account & workspace row); plan name (as the row label)
 
 **Account structure**:
-The read-only Account details label derived from `Restaurant.AccountType`: **Single location** or **Multi-location**. Not a stored enum and not **Legal structure**.
+The read-only Account details label derived from `Restaurant.AccountType`: **Single location** or **Multi-location**. Not a stored enum and not **Legal structure**. When a Single restaurant reaches two **Active** or **Paused** Owned locations, the backend promotes `AccountType` to Multi so the operator moves to `/multi-dashboard` and the Owned-location switcher.
 _Avoid_: Independent group (as a stored value); account type (as the operator-facing label)
 
 **Main operating country**:

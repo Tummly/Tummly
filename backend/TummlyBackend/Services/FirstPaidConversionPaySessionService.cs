@@ -46,7 +46,8 @@ namespace TummlyBackend.Services
             string targetPlan,
             string targetCadenceApi,
             string idempotencyKey,
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken = default,
+            string? successRedirectUrl = null
         )
         {
             var lookupKey = RevolutPlanVariationKeys.ForPlanCadence(
@@ -154,10 +155,12 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            var redirectUrl = BuildPlanSubscriptionRedirectUrl(
-                restaurantAccountType,
-                locationId
-            );
+            var redirectUrl = string.IsNullOrWhiteSpace(successRedirectUrl)
+                ? BuildPlanSubscriptionRedirectUrl(
+                    restaurantAccountType,
+                    locationId
+                )
+                : successRedirectUrl.Trim();
             var created = await _merchant.CreateSubscriptionAsync(
                 new RevolutCreateSubscriptionRequest(
                     customerId,

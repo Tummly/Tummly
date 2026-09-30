@@ -445,13 +445,27 @@ namespace TummlyBackend.Services
                     locationId,
                     chosenPlan,
                     chosenCadence,
-                    pendingSignupId.ToString("D")
+                    pendingSignupId.ToString("D"),
+                    successRedirectUrl: BuildLoginSetupCompleteRedirectUrl()
                 );
             }
             catch (InvalidOperationException)
             {
                 // Leave Free; operator can convert from Manage Plan later.
             }
+        }
+
+        private string BuildLoginSetupCompleteRedirectUrl()
+        {
+            var baseUrl = _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                throw new InvalidOperationException(
+                    "Frontend:BaseUrl is not configured."
+                );
+            }
+
+            return $"{baseUrl}/login?setup=complete";
         }
 
         public async Task GenerateActivationCodeAsync(string inviteToken)

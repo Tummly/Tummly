@@ -59,7 +59,6 @@ namespace TummlyBackend.Services
         private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly TimeProvider _clock;
         private readonly RevolutSettings _settings;
-        private readonly TummlySellerVatSettings _sellerVat;
         private readonly ILogger<RevolutWebhookService> _logger;
         private readonly IPrintReadyQrMaterialsWork? _printReadyQrMaterialsWork;
 
@@ -90,7 +89,9 @@ namespace TummlyBackend.Services
             _vatInvoices = vatInvoices ?? NoOpWebhookVatInvoiceService.Instance;
             _clock = clock;
             _settings = settings.Value;
-            _sellerVat = sellerVat?.Value ?? new TummlySellerVatSettings();
+            // sellerVat retained for DI call-site compatibility; invoice mint
+            // reads mode via ITummlyVatInvoiceService / applier.
+            _ = sellerVat;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
             _logger =
                 logger
@@ -566,19 +567,16 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (_sellerVat.IsActive)
-            {
-                await _vatInvoices.MintCreditNoteForRefundAsync(
-                    new TummlyVatCreditNoteMintRequest(
-                        RefundOrderId: disputeId,
-                        OriginalPaymentOrderId: paymentOrderId,
-                        RestaurantId: restaurantId,
-                        RefundCompletedUtc: _clock.GetUtcNow().UtcDateTime,
-                        LineDescriptionOverride: "Credit note — dispute"
-                    ),
-                    cancellationToken
-                );
-            }
+            await _vatInvoices.MintCreditNoteForRefundAsync(
+                new TummlyVatCreditNoteMintRequest(
+                    RefundOrderId: disputeId,
+                    OriginalPaymentOrderId: paymentOrderId,
+                    RestaurantId: restaurantId,
+                    RefundCompletedUtc: _clock.GetUtcNow().UtcDateTime,
+                    LineDescriptionOverride: "Credit note — dispute"
+                ),
+                cancellationToken
+            );
 
             var hadDisputeDrain = await HasDisputeDrainAsync(
                 restaurantId,

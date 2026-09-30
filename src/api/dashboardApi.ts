@@ -204,10 +204,15 @@ export const updateLocationDetail = async (
 export const mutateLocationLifecycle = async (
   locationId: number,
   action: "pause" | "resume" | "archive" | "restore"
-): Promise<{ success: boolean; lifecycleStatus?: string }> => {
+): Promise<{
+  success: boolean
+  lifecycleStatus?: string
+  accountType?: string
+}> => {
   const response = await axiosInstance.post<{
     success: boolean
     lifecycleStatus?: string
+    accountType?: string
   }>(`/locations/${locationId}/${action}`)
   return response.data
 }

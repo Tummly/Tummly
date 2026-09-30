@@ -62,6 +62,33 @@ export function persistAuthSession(
   useAuthStore.getState().setSession(token, role, accountType, refreshToken)
 }
 
+/**
+ * Update AccountType on the live session (e.g. Single → Multi after a second
+ * Owned location becomes Active/Paused). Keeps token and role.
+ */
+export function updateAuthAccountType(accountType: string) {
+  const trimmed = accountType.trim()
+  if (trimmed !== "Single" && trimmed !== "Multi") {
+    return
+  }
+
+  const state = useAuthStore.getState()
+  if (!state.token || !state.role) {
+    return
+  }
+
+  if (state.accountType === trimmed) {
+    return
+  }
+
+  state.setSession(
+    state.token,
+    state.role,
+    trimmed,
+    state.refreshToken
+  )
+}
+
 /** Persist the opaque trusted-device token (30-day browser trust). */
 export function persistDeviceToken(deviceToken: string) {
   localStorage.setItem(DEVICE_TOKEN_KEY, deviceToken)

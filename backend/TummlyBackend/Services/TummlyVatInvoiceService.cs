@@ -50,17 +50,9 @@ namespace TummlyBackend.Services
                 return existing;
             }
 
-            if (!_sellerVat.IsActive)
-            {
-                throw new InvalidOperationException("vat_mode_off");
-            }
-
-            if (!_sellerVat.IsComplete)
-            {
-                throw new InvalidOperationException(
-                    RevolutMerchantCreateGate.VatNotReady
-                );
-            }
+            // Mode off = zero VAT on the document; mint + email still run.
+            // Mode on requires complete seller VAT keys before mint.
+            EnsureSellerReadyForMint();
 
             var billingAccount = await _context.BillingAccounts
                 .AsNoTracking()
@@ -152,8 +144,10 @@ namespace TummlyBackend.Services
                 SellerLegalName = _sellerVat.LegalName?.Trim() ?? string.Empty,
                 SellerRegisteredAddress =
                     _sellerVat.RegisteredAddress?.Trim() ?? string.Empty,
-                SellerVatRegistrationNumber =
-                    _sellerVat.RegistrationNumber?.Trim() ?? string.Empty,
+                // Mode off: do not stamp a VAT registration on the document.
+                SellerVatRegistrationNumber = _sellerVat.IsActive
+                    ? (_sellerVat.RegistrationNumber?.Trim() ?? string.Empty)
+                    : string.Empty,
                 CustomerBillingEmail = ResolveOptionalEmail(
                     request.CustomerBillingEmail,
                     billingAccount.BillingEmail
@@ -212,17 +206,7 @@ namespace TummlyBackend.Services
                 return existing;
             }
 
-            if (!_sellerVat.IsActive)
-            {
-                throw new InvalidOperationException("vat_mode_off");
-            }
-
-            if (!_sellerVat.IsComplete)
-            {
-                throw new InvalidOperationException(
-                    RevolutMerchantCreateGate.VatNotReady
-                );
-            }
+            EnsureSellerReadyForMint();
 
             var billingAccount = await _context.BillingAccounts
                 .AsNoTracking()
@@ -317,8 +301,9 @@ namespace TummlyBackend.Services
                 SellerLegalName = _sellerVat.LegalName?.Trim() ?? string.Empty,
                 SellerRegisteredAddress =
                     _sellerVat.RegisteredAddress?.Trim() ?? string.Empty,
-                SellerVatRegistrationNumber =
-                    _sellerVat.RegistrationNumber?.Trim() ?? string.Empty,
+                SellerVatRegistrationNumber = _sellerVat.IsActive
+                    ? (_sellerVat.RegistrationNumber?.Trim() ?? string.Empty)
+                    : string.Empty,
                 CustomerBillingEmail = ResolveOptionalEmail(
                     request.CustomerBillingEmail,
                     billingAccount.BillingEmail
@@ -455,6 +440,21 @@ namespace TummlyBackend.Services
             return $"{plan.Trim()} plan ({cadence})";
         }
 
+        /// <summary>
+        /// <c>TUMMLY_VAT_MODE_ACTIVE</c> only controls whether VAT is charged on
+        /// the document (<see cref="TummlySellerVatSettings.EffectiveVatRateBps"/>).
+        /// Incomplete seller keys fail closed only while mode is active.
+        /// </summary>
+        private void EnsureSellerReadyForMint()
+        {
+            if (_sellerVat.IsActive && !_sellerVat.IsComplete)
+            {
+                throw new InvalidOperationException(
+                    RevolutMerchantCreateGate.VatNotReady
+                );
+            }
+        }
+
         private int ResolveNetPence(
             string contractedPricebookId,
             string plan,
@@ -569,6 +569,15 @@ namespace TummlyBackend.Services
         {
             if (requested is { Count: > 0 })
             {
+                // Mode off (vatRateBps == 0): force line tax rate to match header —
+                // callers must not stamp 20% onto a zero-VAT mint.
+                if (vatRateBps == 0)
+                {
+                    return requested
+                        .Select(line => line with { VatRateBps = 0 })
+                        .ToList();
+                }
+
                 return requested;
             }
 

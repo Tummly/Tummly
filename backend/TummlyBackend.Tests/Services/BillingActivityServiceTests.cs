@@ -199,7 +199,8 @@ namespace TummlyBackend.Tests.Services
                 string targetPlan,
                 string targetCadenceApi,
                 string idempotencyKey,
-                CancellationToken cancellationToken = default
+                CancellationToken cancellationToken = default,
+                string? successRedirectUrl = null
             )
             {
                 throw new NotImplementedException(

@@ -37,10 +37,59 @@ namespace TummlyBackend.Tests.Services
             _write = new LocationsLifecycleWriteService(
                 _context,
                 _complimentary,
-                _printWork
+                _printWork,
+                new RestaurantAccountTypePromotion(_context)
             );
 
             SeedDraftLocation();
+        }
+
+        [Fact]
+        public async Task ActivateDraftAsync_PromotesSingleToMulti_WhenSecondActiveLocation()
+        {
+            _context.RestaurantLocations.Add(
+                new RestaurantLocation
+                {
+                    RestaurantId = _restaurantId,
+                    LocationName = "Second draft",
+                    Address = "2 High Street",
+                    City = "Leeds",
+                    Postcode = "LS1 2AA",
+                    LifecycleStatus = LocationLifecycleStatus.Draft,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            // First activation keeps Single (only one Active).
+            var first = await _write.ActivateDraftAsync(
+                _restaurantId,
+                _locationId,
+                _userId
+            );
+            Assert.IsType<LocationLifecycleWriteResult.Ok>(first);
+            Assert.Equal(
+                "Single",
+                ((LocationLifecycleWriteResult.Ok)first).AccountType
+            );
+
+            var secondDraftId = await _context.RestaurantLocations
+                .Where(row => row.LifecycleStatus == LocationLifecycleStatus.Draft)
+                .Select(row => row.Id)
+                .SingleAsync();
+
+            var second = await _write.ActivateDraftAsync(
+                _restaurantId,
+                secondDraftId,
+                _userId
+            );
+
+            var ok = Assert.IsType<LocationLifecycleWriteResult.Ok>(second);
+            Assert.Equal("Multi", ok.AccountType);
+            Assert.Equal(
+                "Multi",
+                (await _context.Restaurants.SingleAsync()).AccountType
+            );
         }
 
         [Fact]
