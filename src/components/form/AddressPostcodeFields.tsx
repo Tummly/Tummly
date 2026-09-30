@@ -219,6 +219,10 @@ type AddressPostcodeFieldsProps = {
   addressClassName?: string
   appearance?: "default" | "operator"
   onPostcodeBlur?: () => void
+  /** When false, never show the map-pin affordance in the address field. */
+  showPin?: boolean
+  /** Operator address field label. Defaults to "Address". */
+  addressLabel?: string
 }
 
 export function AddressPostcodeFields({
@@ -240,6 +244,8 @@ export function AddressPostcodeFields({
   addressClassName,
   appearance = "default",
   onPostcodeBlur,
+  showPin = true,
+  addressLabel = "Address",
 }: AddressPostcodeFieldsProps) {
   const generatedId = useId()
   const addressInputId = `${generatedId}-address`
@@ -701,7 +707,7 @@ export function AddressPostcodeFields({
     void handlePostcodeBlur()
   }, [handlePostcodeBlur, isResolvingPostcode, isResolvingSuggestion])
 
-  const showAddressPin = !searchQuery.trim()
+  const showAddressPin = showPin && !searchQuery.trim()
   const isAddressActive = focused || searchQuery.length > 0 || isLocked
   const manualAddressText = isLocked ? lockedOperatorText : searchQuery
   const showMenu =
@@ -724,7 +730,7 @@ export function AddressPostcodeFields({
       <div className={cn("flex flex-col", isOperator ? "gap-2" : "gap-1.5")}>
         {isOperator ? (
           <Label htmlFor={addressInputId} className={operatorLabelClass}>
-            Address
+            {addressLabel}
           </Label>
         ) : null}
 

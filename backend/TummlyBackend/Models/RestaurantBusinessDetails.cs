@@ -35,6 +35,12 @@ namespace TummlyBackend.Models
         [MaxLength(100)]
         public string? CountryOfRegistration { get; set; }
 
+        /// <summary>
+        /// Closed set: registered, principal-business-address.
+        /// </summary>
+        [MaxLength(64)]
+        public string? AddressType { get; set; }
+
         [MaxLength(500)]
         public string? AddressLine1 { get; set; }
 

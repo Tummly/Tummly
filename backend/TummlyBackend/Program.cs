@@ -142,6 +142,10 @@ builder.Services.Configure<IdealPostcodesSettings>(
     builder.Configuration.GetSection("IdealPostcodes")
 );
 
+builder.Services.Configure<CompaniesHouseSettings>(
+    builder.Configuration.GetSection("CompaniesHouse")
+);
+
 builder.Services.Configure<RecaptchaSettings>(
     builder.Configuration.GetSection(RecaptchaSettings.SectionName)
 );
@@ -732,6 +736,20 @@ builder.Services.AddHttpClient(
 );
 
 builder.Services.AddScoped<IAddressLookupService, AddressLookupService>();
+
+builder.Services.AddHttpClient(
+    "CompaniesHouse",
+    client =>
+    {
+        var baseUrl = builder.Configuration["CompaniesHouse:BaseUrl"]
+            ?? "https://api.company-information.service.gov.uk/";
+
+        client.BaseAddress = new Uri(baseUrl);
+        client.Timeout = TimeSpan.FromSeconds(30);
+    }
+);
+
+builder.Services.AddScoped<ICompaniesHouseSearchService, CompaniesHouseSearchService>();
 
 builder.Services.AddHttpClient(
     RecaptchaVerifier.HttpClientName,

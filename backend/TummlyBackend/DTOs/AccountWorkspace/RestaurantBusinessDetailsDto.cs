@@ -14,6 +14,8 @@ namespace TummlyBackend.DTOs.AccountWorkspace
 
         public string? CountryOfRegistration { get; set; }
 
+        public string? AddressType { get; set; }
+
         public string? AddressLine1 { get; set; }
 
         public string? AddressLine2 { get; set; }
@@ -45,6 +47,8 @@ namespace TummlyBackend.DTOs.AccountWorkspace
         public string? VatNumber { get; set; }
 
         public string? CountryOfRegistration { get; set; }
+
+        public string? AddressType { get; set; }
 
         public string? AddressLine1 { get; set; }
 

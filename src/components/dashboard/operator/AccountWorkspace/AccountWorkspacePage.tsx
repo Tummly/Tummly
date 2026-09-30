@@ -1,6 +1,7 @@
 import {
   useEffect,
   useRef,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react"
@@ -11,8 +12,10 @@ import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSear
 import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import { GuestDataExportDialog } from "@/components/dashboard/operator/AccountWorkspace/GuestDataExportDialog"
+import { LegalBusinessNameField } from "@/components/dashboard/operator/AccountWorkspace/LegalBusinessNameField"
 import { useAccountWorkspacePageModuleApi } from "@/components/dashboard/operator/AccountWorkspace/utils/accountWorkspacePageModuleContext"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import { AddressPostcodeFields } from "@/components/form/AddressPostcodeFields"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
@@ -32,6 +35,7 @@ import {
 } from "@/components/ui/tabs"
 import {
   ACCOUNT_STRUCTURE_OPTIONS,
+  ACCOUNT_WORKSPACE_DEFAULT_COUNTRY,
   ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS,
   ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS,
   ACCOUNT_WORKSPACE_FULL_BLEED_BOTTOM,
@@ -53,6 +57,7 @@ import {
   ACCOUNT_WORKSPACE_TAB_TRIGGER_CLASS,
   ACCOUNT_WORKSPACE_TABS_RULE_CLASS,
   ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS,
+  BUSINESS_ADDRESS_TYPE_OPTIONS,
   DEFAULT_REPORTING_PERIOD_OPTIONS,
   LEGAL_STRUCTURE_OPTIONS,
   MAIN_OPERATING_COUNTRY_OPTIONS,
@@ -245,6 +250,7 @@ export function AccountWorkspacePage() {
       : null
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [addressOverridden, setAddressOverridden] = useState(false)
 
   useWriteActiveTabToSearchParams(snap.activeTabId)
 
@@ -809,13 +815,16 @@ export function AccountWorkspacePage() {
                       >
                         {ACCOUNT_WORKSPACE_PAGE_COPY.legalBusinessName}
                       </label>
-                      <Input
+                      <LegalBusinessNameField
                         id="legal-business-name"
                         value={business.legalBusinessName}
                         maxLength={200}
                         aria-describedby="legal-business-name-helper"
-                        onChange={(event) => {
-                          pageModule.setLegalBusinessName(event.target.value)
+                        onChange={(nextValue) => {
+                          pageModule.setLegalBusinessName(nextValue)
+                        }}
+                        onSelectCompany={(company) => {
+                          pageModule.applyCompaniesHouseCompany(company)
                         }}
                         className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
                       />
@@ -964,24 +973,85 @@ export function AccountWorkspacePage() {
               </div>
 
               <div className="flex flex-col gap-[30px]">
-                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                <div className={FIELD_GRID_CLASS}>
                   <div className={FIELD_STACK_CLASS}>
                     <label
-                      htmlFor="address-line-1"
+                      htmlFor="address-type"
                       className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
                     >
-                      {ACCOUNT_WORKSPACE_PAGE_COPY.addressLine1}
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.addressType}
                     </label>
-                    <Input
-                      id="address-line-1"
-                      value={business.addressLine1}
-                      maxLength={500}
-                      onChange={(event) => {
-                        pageModule.setAddressLine1(event.target.value)
+                    <Select
+                      value={
+                        business.addressType === ""
+                          ? undefined
+                          : business.addressType
+                      }
+                      onValueChange={(value) => {
+                        pageModule.setAddressType(value)
                       }}
-                      className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
-                    />
+                    >
+                      <SelectTrigger
+                        id="address-type"
+                        className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+                      >
+                        <SelectValue
+                          placeholder={
+                            ACCOUNT_WORKSPACE_PAGE_COPY.addressTypePlaceholder
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        align="start"
+                        className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                      >
+                        {BUSINESS_ADDRESS_TYPE_OPTIONS.map((option) => (
+                          <SelectItem
+                            className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+                  <AddressPostcodeFields
+                    appearance="operator"
+                    addressLabel={ACCOUNT_WORKSPACE_PAGE_COPY.addressLine1}
+                    address={business.addressLine1}
+                    postcode={business.postcode}
+                    city={business.townCity}
+                    addressOverridden={addressOverridden}
+                    showCityAndPostcode={false}
+                    showPin={false}
+                    onAddressChange={(value) => {
+                      pageModule.setAddressLine1(value)
+                    }}
+                    onPostcodeChange={(value) => {
+                      pageModule.setPostcode(value)
+                    }}
+                    onCityChange={(value) => {
+                      pageModule.setTownCity(value)
+                    }}
+                    onAddressOverriddenChange={setAddressOverridden}
+                    onCityResolved={(city) => {
+                      pageModule.setTownCity(city)
+                    }}
+                    onDetailsRevealed={(source) => {
+                      if (source === "manual") {
+                        pageModule.setTownCity("")
+                        pageModule.setPostcode("")
+                      } else {
+                        pageModule.setCountry(ACCOUNT_WORKSPACE_DEFAULT_COUNTRY)
+                      }
+                    }}
+                  />
+                </div>
+
+                <div className={FIELD_GRID_CLASS}>
                   <div className={FIELD_STACK_CLASS}>
                     <label
                       htmlFor="address-line-2"
@@ -1002,9 +1072,6 @@ export function AccountWorkspacePage() {
                       className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
                   <div className={FIELD_STACK_CLASS}>
                     <label
                       htmlFor="town-city"
@@ -1025,26 +1092,9 @@ export function AccountWorkspacePage() {
                       className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
                     />
                   </div>
-                  <div className={FIELD_STACK_CLASS}>
-                    <label
-                      htmlFor="county"
-                      className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
-                    >
-                      {ACCOUNT_WORKSPACE_PAGE_COPY.county}
-                    </label>
-                    <Input
-                      id="county"
-                      value={business.county}
-                      maxLength={150}
-                      onChange={(event) => {
-                        pageModule.setCounty(event.target.value)
-                      }}
-                      className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
-                    />
-                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                <div className={FIELD_GRID_CLASS}>
                   <div className={FIELD_STACK_CLASS}>
                     <label
                       htmlFor="postcode"

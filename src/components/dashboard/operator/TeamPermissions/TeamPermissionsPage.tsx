@@ -500,6 +500,7 @@ export function TeamPermissionsPage() {
                 })
               }
               emailError={snap.inviteEmailError}
+              fullNameError={snap.inviteFullNameError}
             />
           </div>
 

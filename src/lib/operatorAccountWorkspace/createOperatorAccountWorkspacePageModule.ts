@@ -7,10 +7,12 @@ import {
   defaultAccountWorkspaceCountry,
   isAccountWorkspaceFormTab,
   isUnitedKingdomCountry,
+  normalizeBusinessAddressType,
   normalizeReportingPeriod,
   normalizeWeekStartsOn,
   resolveAccountWorkspaceTabId,
   type AccountWorkspaceTabId,
+  type BusinessAddressTypeValue,
   type DefaultReportingPeriodValue,
   type LegalStructureValue,
   type WeekStartsOnValue,
@@ -43,6 +45,7 @@ export type AccountWorkspaceBusinessDetails = {
   companyNumber: string
   vatNumber: string
   countryOfRegistration: string
+  addressType: BusinessAddressTypeValue | ""
   addressLine1: string
   addressLine2: string
   townCity: string
@@ -101,6 +104,7 @@ export type UpdateBusinessDetailsPayload = {
   companyNumber: string
   vatNumber: string
   countryOfRegistration: string
+  addressType: BusinessAddressTypeValue | ""
   addressLine1: string
   addressLine2: string
   townCity: string
@@ -256,11 +260,16 @@ export type OperatorAccountWorkspacePageModule = {
   stageBrandLogo: (file: File | null) => void
   setLegalStructure: (value: string) => void
   setLegalBusinessName: (value: string) => void
+  applyCompaniesHouseCompany: (company: {
+    legalBusinessName: string
+    companyNumber: string
+  }) => void
   setTradingName: (value: string) => void
   setSameAsLegalBusinessName: (checked: boolean) => void
   setCompanyNumber: (value: string) => void
   setVatNumber: (value: string) => void
   setCountryOfRegistration: (value: string) => void
+  setAddressType: (value: string) => void
   setAddressLine1: (value: string) => void
   setAddressLine2: (value: string) => void
   setTownCity: (value: string) => void
@@ -313,6 +322,7 @@ function emptyBusinessDetails(): AccountWorkspaceBusinessDetails {
     companyNumber: "",
     vatNumber: "",
     countryOfRegistration: ACCOUNT_WORKSPACE_DEFAULT_COUNTRY,
+    addressType: "",
     addressLine1: "",
     addressLine2: "",
     townCity: "",
@@ -372,6 +382,7 @@ function normalizeBusinessDetails(
     countryOfRegistration: defaultAccountWorkspaceCountry(
       base.countryOfRegistration
     ),
+    addressType: normalizeBusinessAddressType(base.addressType),
     addressLine1: base.addressLine1 ?? "",
     addressLine2: base.addressLine2 ?? "",
     townCity: base.townCity ?? "",
@@ -569,6 +580,7 @@ export function createOperatorAccountWorkspacePageModule(
       || businessDraft.companyNumber !== saved.companyNumber
       || businessDraft.vatNumber !== saved.vatNumber
       || businessDraft.countryOfRegistration !== saved.countryOfRegistration
+      || businessDraft.addressType !== saved.addressType
       || businessDraft.addressLine1 !== saved.addressLine1
       || businessDraft.addressLine2 !== saved.addressLine2
       || businessDraft.townCity !== saved.townCity
@@ -794,6 +806,7 @@ export function createOperatorAccountWorkspacePageModule(
       companyNumber: businessDraft.companyNumber,
       vatNumber: businessDraft.vatNumber,
       countryOfRegistration: businessDraft.countryOfRegistration,
+      addressType: businessDraft.addressType,
       addressLine1: businessDraft.addressLine1,
       addressLine2: businessDraft.addressLine2,
       townCity: businessDraft.townCity,
@@ -1054,6 +1067,14 @@ export function createOperatorAccountWorkspacePageModule(
       patchBusinessDraft({ legalBusinessName: value })
     },
 
+    applyCompaniesHouseCompany(company) {
+      patchBusinessDraft({
+        legalBusinessName: company.legalBusinessName,
+        companyNumber: company.companyNumber,
+        countryOfRegistration: ACCOUNT_WORKSPACE_DEFAULT_COUNTRY,
+      })
+    },
+
     setTradingName(value) {
       patchBusinessDraft({
         tradingName: value,
@@ -1076,6 +1097,12 @@ export function createOperatorAccountWorkspacePageModule(
 
     setCountryOfRegistration(value) {
       patchBusinessDraft({ countryOfRegistration: value })
+    },
+
+    setAddressType(value) {
+      patchBusinessDraft({
+        addressType: normalizeBusinessAddressType(value),
+      })
     },
 
     setAddressLine1(value) {

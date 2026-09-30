@@ -39,16 +39,9 @@ export const PRIVACY_CONSENT_PAGE_COPY = {
   privacyActivityEmptyTitle: "No activity yet",
   privacyActivityEmptyBody:
     "Privacy and consent activity will appear here.",
-  consentWordingTitle: "Consent wording",
-  consentWordingSubtitle:
-    "Edit the consent copy guests see for enabled marketing channels on your guest form.",
-  emailConsentWordingLabel: "Email marketing consent",
-  smsConsentWordingLabel: "SMS marketing consent",
-  consentWordingSave: "Save consent wording",
-  consentWordingSaveSuccess: "Consent wording saved.",
-  consentWordingSaveError: "Could not save consent wording.",
   guestPermissionToggleError: "Could not save guest permission.",
   permissionRecordsLoadError: "Could not load permission records.",
+  privacyReviewCompleteError: "Could not complete privacy review.",
 } as const
 
 /** Pagination label for permission records table. */
@@ -117,7 +110,6 @@ export function resolvePrivacyConsentTabId(
 
 export type PrivacySetupRequirementId =
   | "privacy-notice"
-  | "guest-permission-wording"
   | "email-marketing"
   | "sms-marketing"
   | "feedback-follow-up"
@@ -138,11 +130,6 @@ export const PRIVACY_SETUP_STATUS_DEMO_ROWS: readonly PrivacySetupStatusRow[] = 
   {
     id: "privacy-notice",
     requirement: "Privacy notice",
-    status: "Configured",
-  },
-  {
-    id: "guest-permission-wording",
-    requirement: "Guest permission wording",
     status: "Configured",
   },
   {

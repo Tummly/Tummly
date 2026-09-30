@@ -3,7 +3,6 @@ import { useSyncExternalStore } from "react"
 import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
 
 import { GuestPermissionsSection } from "@/components/dashboard/operator/PrivacyConsent/GuestPermissionsSection"
-import { ConsentWordingSection } from "@/components/dashboard/operator/PrivacyConsent/ConsentWordingSection"
 import { PermissionRecordsSection } from "@/components/dashboard/operator/PrivacyConsent/PermissionRecordsSection"
 import { PrivacyActivitySection } from "@/components/dashboard/operator/PrivacyConsent/PrivacyActivitySection"
 import { PrivacySetupStatusSection } from "@/components/dashboard/operator/PrivacyConsent/PrivacySetupStatusSection"
@@ -137,14 +136,6 @@ export function PrivacyConsentPage() {
         >
           <TabsContent value="privacy-setup" className="mt-0 flex flex-col gap-5">
             <PrivacySetupStatusSection rows={snap.privacySetupRows} />
-            <ConsentWordingSection
-              emailWording={snap.emailConsentWording}
-              smsWording={snap.smsConsentWording}
-              emailEnabled={snap.emailMarketingEnabled}
-              smsEnabled={snap.smsMarketingEnabled}
-              readOnly={!snap.actorCanManage}
-              onSave={pageModule.saveConsentWording}
-            />
           </TabsContent>
 
           <TabsContent value="guest-permissions" className="mt-0">

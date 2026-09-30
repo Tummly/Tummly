@@ -12,8 +12,8 @@ import {
   getPermissionRecords,
   getPrivacyConsent,
   getPrivacyConsentActivity,
+  markPrivacyConsentReviewed,
   patchPrivacyConsentToggles,
-  savePrivacyConsent,
 } from "@/api/privacyConsentApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { privacyConsentPageModuleContext } from "@/components/dashboard/operator/PrivacyConsent/utils/privacyConsentPageModuleContext"
@@ -35,7 +35,7 @@ export function PrivacyConsentPageModuleProvider({
     createOperatorPrivacyConsentPageModule({
       getPage: getPrivacyConsent,
       patchToggles: patchPrivacyConsentToggles,
-      saveWording: savePrivacyConsent,
+      markPrivacyReviewed: markPrivacyConsentReviewed,
       getPermissionRecords,
       getActivity: getPrivacyConsentActivity,
       getLocationFilterOptions: () =>

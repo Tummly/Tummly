@@ -446,7 +446,55 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     expect(snap.inviteEmailError).toBe(
       "An invitation is already pending for this email."
     )
+    expect(snap.inviteFullNameError).toBeNull()
     expect(snap.busy).toBe(false)
+  })
+
+  it("shows full name error on the full name field when full name is empty", async () => {
+    const sendInvite = vi.fn(async () => undefined)
+    const api = adapters({ sendInvite })
+    const module = createOperatorTeamPermissionsPageModule(api)
+    await module.load()
+    module.openInvite()
+    module.setInviteDraft({
+      email: "mark@example.com",
+      fullName: "   ",
+      permissionRole: "Reporting Only",
+      locationScope: "all",
+      namedLocationIds: [],
+      message: "",
+    })
+    await module.confirmDialogPrimary()
+    const snap = module.getSnapshot()
+    expect(sendInvite).not.toHaveBeenCalled()
+    expect(snap.dialog.kind).toBe("invite")
+    expect(snap.inviteEmailError).toBeNull()
+    expect(snap.inviteFullNameError).toBe("Full name is required.")
+    expect(snap.busy).toBe(false)
+  })
+
+  it("routes a full-name API error to the full name field", async () => {
+    const sendInvite = vi.fn(async () => {
+      throw new Error("Full name is required.")
+    })
+    const api = adapters({ sendInvite })
+    const module = createOperatorTeamPermissionsPageModule(api)
+    await module.load()
+    module.openInvite()
+    module.setInviteDraft({
+      email: "mark@example.com",
+      fullName: "Mark Invitee",
+      permissionRole: "Reporting Only",
+      locationScope: "all",
+      namedLocationIds: [],
+      message: "",
+    })
+    await module.confirmDialogPrimary()
+    const snap = module.getSnapshot()
+    expect(sendInvite).toHaveBeenCalledTimes(1)
+    expect(snap.dialog.kind).toBe("invite")
+    expect(snap.inviteEmailError).toBeNull()
+    expect(snap.inviteFullNameError).toBe("Full name is required.")
   })
 
   it("moves to the invitations tab after a successful invite", async () => {

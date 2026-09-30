@@ -596,6 +596,10 @@ namespace TummlyBackend.Data
                 .HasMaxLength(100);
 
             modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.AddressType)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
                 .Property(d => d.AddressLine1)
                 .HasMaxLength(500);
 

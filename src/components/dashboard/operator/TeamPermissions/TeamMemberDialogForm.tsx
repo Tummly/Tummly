@@ -49,6 +49,7 @@ type TeamMemberDialogFormProps = {
   message?: string
   onMessageChange?: (message: string) => void
   emailError?: string | null
+  fullNameError?: string | null
 }
 
 export function TeamMemberDialogForm({
@@ -65,6 +66,7 @@ export function TeamMemberDialogForm({
   message = "",
   onMessageChange,
   emailError = null,
+  fullNameError = null,
 }: TeamMemberDialogFormProps) {
   const disabled = busy || readOnly
   const identityLocked = disabled || readOnlyIdentity
@@ -115,6 +117,11 @@ export function TeamMemberDialogForm({
               onChange({ ...values, fullName: event.target.value })
             }
           />
+          {fullNameError != null ? (
+            <p className="text-sm text-destructive" role="alert">
+              {fullNameError}
+            </p>
+          ) : null}
         </div>
       </div>
 

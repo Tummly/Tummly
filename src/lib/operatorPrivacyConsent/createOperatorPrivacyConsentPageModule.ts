@@ -8,7 +8,6 @@ import {
   type FilterChip,
   type FilterSheetSession,
 } from "@/lib/operatorFilterSheet"
-import type { SavePrivacyConsentInput } from "@/api/privacyConsentApi"
 import {
   mapGuestPermissionCardsFromApi,
   mapPermissionRecordRowFromApi,
@@ -54,8 +53,6 @@ export type PrivacyConsentSnapshot = {
   canViewGuests: boolean
   privacySetupRows: PrivacySetupStatusRow[]
   guestPermissions: GuestPermissionCard[]
-  smsConsentWording: string
-  emailConsentWording: string
   privacyReady: boolean
   emailMarketingEnabled: boolean
   smsMarketingEnabled: boolean
@@ -82,9 +79,8 @@ export type OperatorPrivacyConsentPageAdapters = {
   patchToggles: (
     payload: ReturnType<typeof patchPayloadForGuestPermission>
   ) => Promise<void>
-  saveWording?: (
-    input: SavePrivacyConsentInput
-  ) => Promise<{ privacyReady: boolean }>
+  /** Marks Locations privacy review complete when Manage visits the page. */
+  markPrivacyReviewed?: () => Promise<{ privacyReady: boolean }>
   getPermissionRecords: (
     params: PermissionRecordsListQueryParams
   ) => Promise<PermissionRecordsListResponse>
@@ -109,7 +105,6 @@ export type OperatorPrivacyConsentPageModule = {
     id: GuestPermissionId,
     enabled: boolean
   ) => Promise<void>
-  saveConsentWording: (input: SavePrivacyConsentInput) => Promise<void>
   setPermissionRecordsSearchQuery: (query: string) => void
   setPermissionRecordsFiltersSession: (
     session: FilterSheetSession | null
@@ -221,8 +216,6 @@ export function createOperatorPrivacyConsentPageModule(
   ]
   let actorCanManage = false
   let canViewGuests = false
-  let smsConsentWording = ""
-  let emailConsentWording = ""
   let privacyReady = false
   let loadStatus: PrivacyConsentSnapshot["loadStatus"] = isDemo
     ? "loaded"
@@ -299,8 +292,6 @@ export function createOperatorPrivacyConsentPageModule(
       canViewGuests,
       privacySetupRows,
       guestPermissions: guestPermissions.map((card) => ({ ...card })),
-      smsConsentWording,
-      emailConsentWording,
       privacyReady,
       emailMarketingEnabled:
         guestPermissions.find((card) => card.id === "email-marketing")
@@ -340,8 +331,6 @@ export function createOperatorPrivacyConsentPageModule(
     guestPermissions = mapGuestPermissionCardsFromApi(data)
     actorCanManage = data.actorCanManage
     canViewGuests = data.canViewGuests
-    smsConsentWording = data.smsConsentWording
-    emailConsentWording = data.emailConsentWording
     privacyReady = data.privacyReady
   }
 
@@ -455,6 +444,37 @@ export function createOperatorPrivacyConsentPageModule(
       applyPageData(pageData)
       applyRecordsResponse(recordsResponse)
       applyActivityResponse(activityResponse)
+
+      if (
+        actorCanManage
+        && !privacyReady
+        && adapters.markPrivacyReviewed != null
+      ) {
+        try {
+          const result = await adapters.markPrivacyReviewed()
+          if (generation !== loadGeneration) {
+            return
+          }
+          privacyReady = result.privacyReady
+          const refreshedActivity = await adapters.getActivity()
+          if (generation !== loadGeneration) {
+            return
+          }
+          applyActivityResponse(refreshedActivity)
+        } catch (error) {
+          if (generation !== loadGeneration) {
+            return
+          }
+          toast = {
+            kind: "error",
+            message:
+              error instanceof Error
+                ? error.message
+                : PRIVACY_CONSENT_PAGE_COPY.privacyReviewCompleteError,
+          }
+        }
+      }
+
       loadStatus = "loaded"
       emit()
     } catch {
@@ -544,40 +564,6 @@ export function createOperatorPrivacyConsentPageModule(
             error instanceof Error
               ? error.message
               : PRIVACY_CONSENT_PAGE_COPY.guestPermissionToggleError,
-        }
-        emit()
-      }
-    },
-    saveConsentWording: async (input) => {
-      if (isDemo || !actorCanManage || adapters.saveWording == null) {
-        return
-      }
-
-      try {
-        const result = await adapters.saveWording(input)
-        privacyReady = result.privacyReady
-        smsConsentWording = input.smsConsentWording ?? smsConsentWording
-        emailConsentWording = input.emailConsentWording ?? emailConsentWording
-        emit()
-
-        const [pageData, activityResponse] = await Promise.all([
-          adapters.getPage(),
-          adapters.getActivity(),
-        ])
-        applyPageData(pageData)
-        applyActivityResponse(activityResponse)
-        toast = {
-          kind: "success",
-          message: PRIVACY_CONSENT_PAGE_COPY.consentWordingSaveSuccess,
-        }
-        emit()
-      } catch (error) {
-        toast = {
-          kind: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : PRIVACY_CONSENT_PAGE_COPY.consentWordingSaveError,
         }
         emit()
       }

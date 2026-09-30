@@ -62,7 +62,7 @@ namespace TummlyBackend.Validators
         ) =>
             !string.IsNullOrWhiteSpace(dto.AccountRequestKind);
 
-        private static bool BeValidTopic(string topic)
+        private static bool BeValidTopic(string? topic)
         {
             if (string.IsNullOrWhiteSpace(topic))
             {

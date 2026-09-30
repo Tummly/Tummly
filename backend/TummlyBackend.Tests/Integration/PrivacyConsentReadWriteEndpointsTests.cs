@@ -48,7 +48,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Get_ReturnsSetupRows_Toggles_Wording_AndReady()
+        public async Task Get_ReturnsSetupRows_Toggles_AndReady()
         {
             var seeded = await SeedOwnerWithPrivacyStateAsync(
                 emailEnabled: true,
@@ -74,14 +74,8 @@ namespace TummlyBackend.Tests.Integration
                 body.TryGetProperty("privacyConsentReadyAt", out var readyAt)
                 && readyAt.ValueKind == JsonValueKind.Null
             );
-            Assert.Equal(
-                "We may email you.",
-                body.GetProperty("emailConsentWording").GetString()
-            );
-            Assert.Equal(
-                string.Empty,
-                body.GetProperty("smsConsentWording").GetString()
-            );
+            Assert.False(body.TryGetProperty("emailConsentWording", out _));
+            Assert.False(body.TryGetProperty("smsConsentWording", out _));
             Assert.True(
                 body.GetProperty("emailMarketingPermissionEnabled").GetBoolean()
             );
@@ -104,10 +98,7 @@ namespace TummlyBackend.Tests.Integration
                 PrivacyConsentSetupDerivation.StatusConfigured,
                 rows["privacy-notice"]
             );
-            Assert.Equal(
-                PrivacyConsentSetupDerivation.StatusConfigured,
-                rows["guest-permission-wording"]
-            );
+            Assert.False(rows.ContainsKey("guest-permission-wording"));
             Assert.Equal(
                 PrivacyConsentSetupDerivation.StatusEnabled,
                 rows["email-marketing"]
@@ -123,50 +114,14 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Get_DerivesGuestPermissionWordingNotConfigured_WhenEnabledChannelMissingCopy()
-        {
-            var seeded = await SeedOwnerWithPrivacyStateAsync(
-                emailEnabled: true,
-                smsEnabled: true,
-                feedbackEnabled: true,
-                smsWording: null,
-                emailWording: null,
-                readyAt: null
-            );
-
-            using var request = Authorized(
-                HttpMethod.Get,
-                "/api/privacy-consent",
-                seeded.OwnerJwt
-            );
-            var response = await _client.SendAsync(request);
-            var body = await ReadJsonAsync(response);
-
-            var rows = body.GetProperty("privacySetupRows").EnumerateArray()
-                .ToDictionary(
-                    row => row.GetProperty("id").GetString()!,
-                    row => row.GetProperty("status").GetString()
-                );
-            Assert.Equal(
-                PrivacyConsentSetupDerivation.StatusEnabled,
-                rows["guest-permission-wording"]
-            );
-        }
-
-        [Fact]
-        public async Task Save_SetsReady_WhenQualifyingWordingProvided()
+        public async Task Save_SetsReady_WithoutConsentWording()
         {
             var seeded = await SeedOwnerWithIncompletePrivacyAsync();
 
-            using var saveRequest = AuthorizedJson(
+            using var saveRequest = Authorized(
                 HttpMethod.Put,
                 "/api/privacy-consent",
-                seeded.OwnerJwt,
-                new
-                {
-                    smsConsentWording = "We may text you offers.",
-                    emailConsentWording = "We may email you offers.",
-                }
+                seeded.OwnerJwt
             );
             var saveResponse = await _client.SendAsync(saveRequest);
             Assert.Equal(HttpStatusCode.OK, saveResponse.StatusCode);
@@ -183,32 +138,26 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Save_DoesNotSetReady_WhenEnabledChannelsLackWording()
+        public async Task Save_IsIdempotent_WhenAlreadyReady()
         {
-            var seeded = await SeedOwnerWithIncompletePrivacyAsync();
+            var seeded = await SeedOwnerWithPrivacyStateAsync(
+                emailEnabled: true,
+                smsEnabled: false,
+                feedbackEnabled: true,
+                smsWording: null,
+                emailWording: null,
+                readyAt: DateTime.UtcNow.AddDays(-1)
+            );
 
-            using var saveRequest = AuthorizedJson(
+            using var saveRequest = Authorized(
                 HttpMethod.Put,
                 "/api/privacy-consent",
-                seeded.OwnerJwt,
-                new
-                {
-                    smsConsentWording = "",
-                    emailConsentWording = "",
-                }
+                seeded.OwnerJwt
             );
             var saveResponse = await _client.SendAsync(saveRequest);
             Assert.Equal(HttpStatusCode.OK, saveResponse.StatusCode);
             var saveBody = await ReadJsonAsync(saveResponse);
-            Assert.False(saveBody.GetProperty("privacyReady").GetBoolean());
-
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
-            var restaurant = await context.Restaurants
-                .AsNoTracking()
-                .SingleAsync(row => row.Id == seeded.RestaurantId);
-            Assert.Null(restaurant.PrivacyConsentReadyAt);
+            Assert.True(saveBody.GetProperty("privacyReady").GetBoolean());
         }
 
         [Fact]

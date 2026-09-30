@@ -222,6 +222,9 @@ namespace TummlyBackend.Services
                 request.CountryOfRegistration,
                 100
             );
+            row.AddressType = BusinessAddressTypeOptions.Normalize(
+                request.AddressType
+            );
             row.AddressLine1 = TrimToNull(request.AddressLine1, 500);
             row.AddressLine2 = TrimToNull(request.AddressLine2, 500);
             row.TownCity = TrimToNull(request.TownCity, 150);
@@ -780,6 +783,7 @@ namespace TummlyBackend.Services
                     string.IsNullOrWhiteSpace(row.CountryOfRegistration)
                         ? DefaultCountry
                         : row.CountryOfRegistration,
+                AddressType = row.AddressType,
                 AddressLine1 = row.AddressLine1,
                 AddressLine2 = row.AddressLine2,
                 TownCity = row.TownCity,
@@ -824,6 +828,11 @@ namespace TummlyBackend.Services
             if (Exceeds(request.CountryOfRegistration, 100))
             {
                 return "Country of registration must be 100 characters or fewer.";
+            }
+
+            if (!BusinessAddressTypeOptions.IsValid(request.AddressType))
+            {
+                return "Address type is not a recognised option.";
             }
 
             if (Exceeds(request.AddressLine1, 500))

@@ -1,6 +1,8 @@
 import { CoinsIcon, MailIcon, MessageSquareIcon, PackageIcon } from "lucide-react"
+import { Link, useOutletContext } from "react-router-dom"
 
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -22,6 +24,7 @@ import {
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
   GUESTS_SECTION_SUBTITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
+import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { cn } from "@/lib/utils"
 
 function channelIcon(channel: CreditChannelId) {
@@ -132,7 +135,7 @@ function CreditTopUpCard({
   )
 }
 
-function QrPrintPacksTopUpCard() {
+function QrPrintPacksTopUpCard({ shopPath }: { shopPath: string }) {
   return (
     <article
       id="credit-top-up-qr"
@@ -156,9 +159,9 @@ function QrPrintPacksTopUpCard() {
           GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
           BILLING_CREDITS_CTA_BUTTON_CLASS
         )}
-        disabled
+        asChild
       >
-        {copy.qrPrintPacksShop}
+        <Link to={shopPath}>{copy.qrPrintPacksShop}</Link>
       </Button>
     </article>
   )
@@ -173,6 +176,13 @@ export function CreditTopUpsSection({
   >
   pageModule: ReturnType<typeof useBillingCreditsPageModuleApi>
 }) {
+  const { mode, selectedLocationId } =
+    useOutletContext<DashboardOutletContext>()
+  const shopPath = operatorDashboardNavPath(
+    mode,
+    "tummly-shop",
+    selectedLocationId
+  )
   const isPilot =
     snap.creditsUsage?.isPilot === true
     || snap.planSubscription?.isPilot === true
@@ -220,7 +230,7 @@ export function CreditTopUpsSection({
             }}
           />
         ))}
-        <QrPrintPacksTopUpCard />
+        <QrPrintPacksTopUpCard shopPath={shopPath} />
       </div>
 
       <AccountWorkspaceConfirmDialog

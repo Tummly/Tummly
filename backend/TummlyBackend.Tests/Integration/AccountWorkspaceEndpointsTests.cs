@@ -780,6 +780,7 @@ namespace TummlyBackend.Tests.Integration
                 companyNumber = "12345678",
                 vatNumber = "GB123",
                 countryOfRegistration = "United Kingdom",
+                addressType = "principal-business-address",
                 addressLine1 = "1 High Street",
                 addressLine2 = (string?)null,
                 townCity = "London",
@@ -800,6 +801,10 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(
                 "Mehmet's Grill Ltd",
                 details.GetProperty("tradingName").GetString()
+            );
+            Assert.Equal(
+                "principal-business-address",
+                details.GetProperty("addressType").GetString()
             );
             Assert.False(details.TryGetProperty("sameAsLegalBusinessName", out _));
 
