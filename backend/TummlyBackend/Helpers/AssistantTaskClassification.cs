@@ -24,7 +24,7 @@ namespace TummlyBackend.Helpers
             }
 
             if (LooksLikeCreateCampaignDraft(userMessage)
-                || LooksLikeChangeCampaignAudienceOrChannel(userMessage))
+                || AssistantPriorDraftAuthority.LooksLikeMutateCampaignFamily(userMessage))
             {
                 return AssistantTask.CreateCampaignDraft;
             }
@@ -34,7 +34,8 @@ namespace TummlyBackend.Helpers
                 return AssistantTask.RecoveryPath;
             }
 
-            if (LooksLikeOfferPath(userMessage))
+            if (LooksLikeOfferPath(userMessage)
+                || AssistantPriorDraftAuthority.LooksLikeMutateOfferFamily(userMessage))
             {
                 return AssistantTask.OfferPath;
             }
@@ -244,7 +245,9 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// Edit audience or channel on the conversation's prior Campaign Draft
-        /// ("Change the campaign audience to email eligible only").
+        /// ("Change the campaign audience to email eligible only",
+        /// "change audience to sms eligible only").
+        /// Campaign noun is optional — Change audience chip follow-ups omit it.
         /// Not a create ask — persist must patch, not insert.
         /// </summary>
         public static bool LooksLikeChangeCampaignAudienceOrChannel(string message)
@@ -257,11 +260,6 @@ namespace TummlyBackend.Helpers
             }
 
             var lower = message.Trim().ToLowerInvariant();
-            if (!NamesCampaignNoun(lower))
-            {
-                return false;
-            }
-
             if (!ContainsAny(
                     lower,
                     "change",

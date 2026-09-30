@@ -7,8 +7,29 @@ namespace TummlyBackend.Helpers
     public static class AssistantOfferPathPersistCopy
     {
         public const string SuccessTitle = "Offers catalog Draft saved";
+        public const string UpdatedTitle = "Offers catalog Draft updated";
         public const string AttachedSuccessTitle = "Offers catalog Offer saved";
         public const string FailureTitle = "Offers catalog Draft not saved";
+
+        public static string UpdatedBody(
+            string locationName,
+            string typeLabel,
+            string valueLabel,
+            string validityLabel,
+            string title
+        )
+            => $"I updated the Offers catalog Draft for {locationName}.\n\n"
+                + "- **Status:** Draft (not Active)\n"
+                + $"- **Location:** {locationName}\n"
+                + $"- **Type:** {typeLabel}\n"
+                + $"- **Value:** {valueLabel}\n"
+                + $"- **Validity:** {validityLabel}\n"
+                + $"- **Title:** {title}\n\n"
+                + "Nothing was issued. Nothing was sent.";
+
+        public static string NoPriorDraftToUpdateBody()
+            => "There is no Offers catalog Draft in this conversation to update. "
+                + "Create an Offer Draft first, or edit the Offer in Offers.";
 
         public static string TitleFor(string thankYouAttach)
             => string.Equals(thankYouAttach, "attached", StringComparison.Ordinal)

@@ -294,6 +294,30 @@ namespace TummlyBackend.Helpers
             };
         }
 
+        /// <summary>
+        /// Seed Offer-path terms from an existing catalog row so a mutate
+        /// follow-up can Merge only the fields the operator named.
+        /// </summary>
+        public static AssistantOfferPathTermsState FromCatalogOffer(CatalogOfferDto offer)
+            => new()
+            {
+                OfferType = string.IsNullOrWhiteSpace(offer.OfferType)
+                    ? null
+                    : offer.OfferType,
+                DiscountPercentage = offer.DiscountPercentage,
+                DiscountAmount = offer.DiscountAmount,
+                FreeItemText = offer.FreeItemText,
+                PurchaseRequirement = offer.PurchaseRequirement,
+                MinimumSpend = offer.MinimumSpend,
+                ReplacementItemText = offer.ReplacementItemText,
+                Validity = string.IsNullOrWhiteSpace(offer.Validity)
+                    ? null
+                    : offer.Validity,
+                ExpiryDate = offer.ExpiryDate,
+                Title = offer.Title,
+                Description = offer.Description,
+            };
+
         public static string TypeLabel(string? offerType)
             => offerType switch
             {

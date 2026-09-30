@@ -1431,6 +1431,42 @@ namespace TummlyBackend.Services
                             AssistantOfferPathTerms.Parse(userMessage)
                         )
                     );
+                    if (AssistantPriorDraftAuthority.ResolveOffer(
+                            conversation.CreatedOfferId,
+                            userMessage
+                        ) == AssistantPriorDraftMode.MutatePrior
+                        && conversation.CreatedOfferId is int priorOfferId)
+                    {
+                        CatalogOfferDto? existingOffer = null;
+                        try
+                        {
+                            existingOffer = await _offersCatalog.GetByIdAsync(
+                                priorOfferId,
+                                utcOffsetMinutes: 0,
+                                cancellationToken
+                            );
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch
+                        {
+                            existingOffer = null;
+                        }
+
+                        if (existingOffer is not null)
+                        {
+                            // Follow-up often names only the changed field
+                            // ("change to 15%"). Seed the rest from the prior
+                            // Draft so terms Gap does not block the update.
+                            terms = AssistantOfferPathTerms.Overlay(
+                                terms,
+                                AssistantOfferPathTerms.FromCatalogOffer(existingOffer)
+                            );
+                        }
+                    }
+
                     var termsGap = await TryFinishOfferTermsGapAsync(
                         conversation,
                         offerResume?.SourceUserMessage ?? userMessage,
@@ -1672,9 +1708,11 @@ namespace TummlyBackend.Services
             AssistantCampaignDraftBindOutcome? preparedBind = null
         )
         {
-            if (AssistantTaskClassification.LooksLikeChangeCampaignAudienceOrChannel(
-                    userMessage
-                ))
+            var campaignMode = AssistantPriorDraftAuthority.ResolveCampaign(
+                conversation.CreatedCampaignId,
+                userMessage
+            );
+            if (campaignMode == AssistantPriorDraftMode.MutatePrior)
             {
                 return await PersistPatchCampaignAudienceChannelAsync(
                     conversation,
@@ -1684,6 +1722,18 @@ namespace TummlyBackend.Services
                     ownedLocationIds,
                     cancellationToken,
                     choice
+                );
+            }
+
+            if (campaignMode == AssistantPriorDraftMode.NoPrior)
+            {
+                return new CreateCampaignDraftTurn(
+                    AssistantMessageClass.Grounded,
+                    AssistantCampaignDraftPersistCopy.FailureTitle,
+                    AssistantCampaignDraftPersistCopy.NoPriorDraftToUpdateBody(),
+                    [],
+                    null,
+                    null
                 );
             }
 
@@ -2398,7 +2448,8 @@ namespace TummlyBackend.Services
                 userMessage,
                 campaigns,
                 choice?.CampaignTitle,
-                attachOnly
+                attachOnly,
+                conversation.CreatedCampaignId
             );
             switch (campaignOutcome)
             {
@@ -2487,7 +2538,14 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            if (!AssistantTaskClassification.LooksLikeReferToPriorCreatedOffer(userMessage))
+            // Named catalog title miss must Gap — do not fall back to prior id.
+            if (AssistantTaskClassification.LooksLikeNamedOfferAttachAsk(userMessage))
+            {
+                return null;
+            }
+
+            if (!AssistantTaskClassification.LooksLikeReferToPriorCreatedOffer(userMessage)
+                && !AssistantTaskClassification.LooksLikeAttachToCampaignIntent(userMessage))
             {
                 return null;
             }
@@ -2677,7 +2735,8 @@ namespace TummlyBackend.Services
                 userMessage,
                 campaigns,
                 choice?.CampaignTitle,
-                attachOnly: true
+                attachOnly: true,
+                conversation.CreatedCampaignId
             );
             switch (campaignOutcome)
             {
@@ -3113,19 +3172,82 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var terms = priorTerms ?? AssistantOfferPathTerms.Parse(userMessage);
-            AssistantOfferPathTerms.ProposeCopy(terms);
-            if (!AssistantOfferPathTerms.IsComplete(terms))
+            var offerMode = AssistantPriorDraftAuthority.ResolveOffer(
+                conversation.CreatedOfferId,
+                userMessage
+            );
+            if (offerMode == AssistantPriorDraftMode.NoPrior)
             {
                 return new CreateOfferDraftPersistTurn(
                     AssistantOfferPathPersistCopy.FailureTitle,
-                    AssistantOfferPathPersistCopy.FailureBody("Offer create"),
+                    AssistantOfferPathPersistCopy.NoPriorDraftToUpdateBody(),
                     [],
                     null
                 );
             }
 
-            CatalogOfferDto created;
+            AssistantOfferPathTermsState terms;
+            if (offerMode == AssistantPriorDraftMode.MutatePrior
+                && conversation.CreatedOfferId is int priorOfferId)
+            {
+                CatalogOfferDto? existing;
+                try
+                {
+                    existing = await _offersCatalog.GetByIdAsync(
+                        priorOfferId,
+                        utcOffsetMinutes: 0,
+                        cancellationToken
+                    );
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch
+                {
+                    existing = null;
+                }
+
+                if (existing is null)
+                {
+                    return new CreateOfferDraftPersistTurn(
+                        AssistantOfferPathPersistCopy.FailureTitle,
+                        AssistantOfferPathPersistCopy.NoPriorDraftToUpdateBody(),
+                        [],
+                        null
+                    );
+                }
+
+                terms = AssistantOfferPathTerms.Overlay(
+                    priorTerms
+                        ?? AssistantOfferPathTerms.Parse(userMessage),
+                    AssistantOfferPathTerms.FromCatalogOffer(existing)
+                );
+                // Rebuild catalog copy from the new terms (do not keep "25% off"
+                // when the operator changed the percentage).
+                terms.Title = null;
+                terms.Description = null;
+            }
+            else
+            {
+                terms = priorTerms ?? AssistantOfferPathTerms.Parse(userMessage);
+            }
+
+            AssistantOfferPathTerms.ProposeCopy(terms);
+            if (!AssistantOfferPathTerms.IsComplete(terms))
+            {
+                return new CreateOfferDraftPersistTurn(
+                    AssistantOfferPathPersistCopy.FailureTitle,
+                    AssistantOfferPathPersistCopy.FailureBody(
+                        offerMode == AssistantPriorDraftMode.MutatePrior
+                            ? "Offer update"
+                            : "Offer create"
+                    ),
+                    [],
+                    null
+                );
+            }
+
             if (!await CanPersistDraftAsync(
                 conversation.OwnerUserId,
                 OperatorAreaIds.Offers,
@@ -3134,12 +3256,29 @@ namespace TummlyBackend.Services
             {
                 return new CreateOfferDraftPersistTurn(
                     AssistantOfferPathPersistCopy.FailureTitle,
-                    AssistantOfferPathPersistCopy.FailureBody("Offer create"),
+                    AssistantOfferPathPersistCopy.FailureBody(
+                        offerMode == AssistantPriorDraftMode.MutatePrior
+                            ? "Offer update"
+                            : "Offer create"
+                    ),
                     [],
                     null
                 );
             }
 
+            if (offerMode == AssistantPriorDraftMode.MutatePrior
+                && conversation.CreatedOfferId is int mutateOfferId)
+            {
+                return await PersistUpdateOfferDraftAsync(
+                    mutateOfferId,
+                    locationId,
+                    locationName,
+                    terms,
+                    cancellationToken
+                );
+            }
+
+            CatalogOfferDto created;
             try
             {
                 created = await _offersCatalog.CreateDraftAsync(
@@ -3231,6 +3370,77 @@ namespace TummlyBackend.Services
                 thankYouAttach,
                 thankYouOfferTitle,
                 thankYouOfferLive
+            );
+        }
+
+        private async Task<CreateOfferDraftPersistTurn> PersistUpdateOfferDraftAsync(
+            int offerId,
+            int locationId,
+            string locationName,
+            AssistantOfferPathTermsState terms,
+            CancellationToken cancellationToken
+        )
+        {
+            CatalogOfferLifecycleResult updateResult;
+            try
+            {
+                updateResult = await _offersCatalog.UpdateAsync(
+                    offerId,
+                    AssistantOfferPathTerms.ToCreateRequest(terms, locationId),
+                    utcOffsetMinutes: 0,
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (ArgumentException argumentError)
+            {
+                return new CreateOfferDraftPersistTurn(
+                    AssistantOfferPathPersistCopy.FailureTitle,
+                    AssistantOfferPathPersistCopy.InvalidValueBody(
+                        argumentError.Message
+                    ),
+                    [],
+                    null
+                );
+            }
+            catch
+            {
+                return new CreateOfferDraftPersistTurn(
+                    AssistantOfferPathPersistCopy.FailureTitle,
+                    AssistantOfferPathPersistCopy.FailureBody("Offer update"),
+                    [],
+                    null
+                );
+            }
+
+            if (updateResult is not CatalogOfferLifecycleResult.Ok okUpdate)
+            {
+                return new CreateOfferDraftPersistTurn(
+                    AssistantOfferPathPersistCopy.FailureTitle,
+                    AssistantOfferPathPersistCopy.FailureBody("Offer update"),
+                    [],
+                    null
+                );
+            }
+
+            var updated = okUpdate.Offer;
+            return new CreateOfferDraftPersistTurn(
+                AssistantOfferPathPersistCopy.UpdatedTitle,
+                AssistantOfferPathPersistCopy.UpdatedBody(
+                    locationName,
+                    AssistantOfferPathTerms.TypeLabel(terms.OfferType),
+                    AssistantOfferPathTerms.ValueLabel(terms),
+                    AssistantOfferPathTerms.ValidityLabel(terms),
+                    updated.Title
+                ),
+                AssistantActionCatalog.ValidateReviewOffer(
+                    updated.Id,
+                    AssistantMessageClass.Grounded
+                ),
+                updated.Id
             );
         }
 
@@ -3688,7 +3898,8 @@ namespace TummlyBackend.Services
                 sourceUserMessage,
                 campaigns,
                 choice?.CampaignTitle,
-                attachOnly
+                attachOnly,
+                conversation.CreatedCampaignId
             );
             return campaignOutcome switch
             {

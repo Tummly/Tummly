@@ -44,6 +44,19 @@ namespace TummlyBackend.Helpers
                     return CreateTaskStub(localTask);
                 }
 
+                // Same for Offer path mutate follow-ups ("change the offer to 15%"):
+                // local Classify is OfferPath; Azure may still emit Retrieve.
+                if (providerResult is AssistantLiveAnswerResult.Succeeded offerSucceeded
+                    && string.Equals(
+                        offerSucceeded.AssistantTask,
+                        AssistantTask.Retrieve,
+                        StringComparison.Ordinal
+                    )
+                    && localTask == AssistantTask.OfferPath)
+                {
+                    return CreateTaskStub(localTask);
+                }
+
                 // Azure sometimes labels a Campaign+Offer ask as plain
                 // create-campaign-draft (QA: thanking guests + 10% off). Persist
                 // follows assistantTask, so upgrade to the local combined task

@@ -215,6 +215,18 @@ namespace TummlyBackend.Tests.Helpers
                     "Change the campaign channel to SMS"
                 )
             );
+            // Chip / short follow-up omit the Campaign noun (QA conversation 4).
+            Assert.True(
+                AssistantTaskClassification.LooksLikeChangeCampaignAudienceOrChannel(
+                    "change audience to sms eligible only"
+                )
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify(
+                    "change audience to sms eligible only"
+                )
+            );
             Assert.False(
                 AssistantTaskClassification.LooksLikeChangeCampaignAudienceOrChannel(
                     "Create a campaign for email eligible guests"

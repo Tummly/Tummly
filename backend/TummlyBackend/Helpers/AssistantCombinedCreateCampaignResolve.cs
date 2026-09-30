@@ -47,7 +47,8 @@ namespace TummlyBackend.Helpers
             string userMessage,
             IReadOnlyList<AssistantCombinedCreateCampaignRef> locationCampaigns,
             string? chosenCampaignTitle = null,
-            bool attachOnly = false
+            bool attachOnly = false,
+            int? preferredCampaignId = null
         )
         {
             var namedTitle = ExtractNamedCampaignTitle(userMessage);
@@ -58,6 +59,23 @@ namespace TummlyBackend.Helpers
 
             if (namedTitle is null)
             {
+                if (attachOnly
+                    && preferredCampaignId is int preferredId
+                    && preferredId > 0)
+                {
+                    var preferred = locationCampaigns.FirstOrDefault(
+                        campaign =>
+                            campaign.Id == preferredId && IsDraft(campaign.Status)
+                    );
+                    if (preferred is not null)
+                    {
+                        return new AssistantCombinedCreateCampaignOutcome.UpdateExisting(
+                            preferred.Id,
+                            preferred.Name
+                        );
+                    }
+                }
+
                 return AttachOnlyOrCreateNew(attachOnly, null, locationCampaigns);
             }
 

@@ -2028,6 +2028,114 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_ChangeAudienceShortFollowUp_PatchesExistingDraft_KeepsOffer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft",
+                "Create Campaign Draft.",
+                AssistantTask.CreateCampaignDraft,
+                conversationTitle: "Thank-you campaign — 20% off"
+            );
+
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, QaThankRecentGuestsWithOfferAsk)
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created).Conversation.Id;
+            var original = Assert.Single(_context.Campaigns);
+            var offerId = Assert.Single(_context.CatalogOffers).Id;
+
+            // Azure often labels this create-campaign-draft; omit "campaign" like the
+            // Change audience chip follow-up in QA.
+            const string changeAsk = "change audience to sms eligible only";
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft",
+                "Create Campaign Draft.",
+                AssistantTask.CreateCampaignDraft
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, changeAsk, conversationId)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal(original.Id, campaign.Id);
+            Assert.Equal(offerId, campaign.OfferId);
+            Assert.Equal("sms", campaign.Channel);
+            Assert.Equal(
+                original.Id,
+                _context.AssistantConversations.Single().CreatedCampaignId
+            );
+            Assert.Contains(
+                answer.Actions,
+                action => action.Type == "review-campaign" && action.CampaignId == original.Id
+            );
+            Assert.DoesNotContain("No Offer", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("updated", answer.Body, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task SendTurn_SmsEligibleOnlyFollowUp_PatchesExistingDraft_NoSecondCampaign()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft",
+                "Create Campaign Draft.",
+                AssistantTask.CreateCampaignDraft
+            );
+
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, QaThankRecentGuestsWithOfferAsk)
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created).Conversation.Id;
+            var original = Assert.Single(_context.Campaigns);
+            var offerId = Assert.Single(_context.CatalogOffers).Id;
+
+            // Field-only follow-up (no change/update verb) — prior draft authority.
+            const string changeAsk = "sms eligible only";
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft",
+                "Create Campaign Draft.",
+                AssistantTask.CreateCampaignDraft
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, changeAsk, conversationId)
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal(original.Id, campaign.Id);
+            Assert.Equal(offerId, campaign.OfferId);
+            Assert.Equal("sms", campaign.Channel);
+        }
+
+        [Fact]
         public async Task SendTurn_CanonicalCampaignWithOffer_UniqueAttachableDraft_AttachesExisting()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -2953,6 +3061,49 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("review-offer", resumeAction.Type);
             Assert.Equal("Review offer draft", resumeAction.Label);
             Assert.Equal(offer.Id, resumeAction.OfferId);
+        }
+
+        [Fact]
+        public async Task SendTurn_ChangeOfferFollowUp_UpdatesExistingDraft_NoSecondOffer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var created = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenOfferPathAsk)
+                )
+            );
+            var conversationId = created.Conversation.Id;
+            var original = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(25m, original.DiscountPercentage);
+
+            const string changeAsk = "change the offer to 15%";
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Offers catalog Draft",
+                "Offer path.",
+                AssistantTask.OfferPath
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, changeAsk, conversationId)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal(1, await _context.CatalogOffers.CountAsync());
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(original.Id, offer.Id);
+            Assert.Equal(15m, offer.DiscountPercentage);
+            Assert.Equal(
+                original.Id,
+                _context.AssistantConversations.Single().CreatedOfferId
+            );
+            Assert.Equal(AssistantOfferPathPersistCopy.UpdatedTitle, answer.Title);
+            Assert.Contains("updated", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("15%", answer.Body, StringComparison.Ordinal);
         }
 
         private const string CanonicalCamdenOfferPathThankYouAsk =
