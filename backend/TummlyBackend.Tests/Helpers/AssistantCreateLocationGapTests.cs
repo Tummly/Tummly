@@ -37,7 +37,31 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData(
             "Draft a campaign available for the current week"
         )]
-        public void TimeWindowForPhrase_IsNotUnknownLocationRefusal(string message)
+        [InlineData(
+            "Create a campaign to thank guests for the feedbacks with 10% off on next order, validity should be 7 days."
+        )]
+        [InlineData(
+            "Create a campaign thanking guests for the feedback with 10% off"
+        )]
+        [InlineData(
+            "Create a campaign for Paris with 10% off"
+        )]
+        [InlineData(
+            "Draft an Email Campaign at Paris"
+        )]
+        [InlineData(
+            "Create a campaign at lunch with 10% off"
+        )]
+        [InlineData(
+            "Create a campaign at the table"
+        )]
+        [InlineData(
+            "Please look at Feedback and create a campaign"
+        )]
+        [InlineData(
+            "Create a campaign at checkout"
+        )]
+        public void PurposeOrUnknownAtPhrase_UsesAnalysisScopeNotRefusal(string message)
         {
             var outcome = AssistantCreateLocationGap.Resolve(
                 message,
@@ -100,8 +124,9 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void CollidingName_ListsCollidingOwnedLocationNamesOnly()
+        public void ShorterOwnedNameAlone_DoesNotPullLongerSibling()
         {
+            // "at Camden" must not also bind "Camden East" via substring cue expand.
             var outcome = AssistantCreateLocationGap.Resolve(
                 "Draft an Email Campaign at Camden",
                 Soho.Id,
@@ -110,9 +135,9 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             var gap = Assert.IsType<AssistantLocationGapOutcome.Gap>(outcome);
-            Assert.Equal(AssistantCreateLocationGap.KindAmbiguous, gap.Kind);
-            Assert.Equal(["Camden", "Camden East"], gap.Options);
-            Assert.DoesNotContain("Soho", string.Join(' ', gap.Options), StringComparison.Ordinal);
+            Assert.Equal(AssistantCreateLocationGap.KindConflict, gap.Kind);
+            Assert.Equal(["Soho", "Camden"], gap.Options);
+            Assert.DoesNotContain("Camden East", string.Join(' ', gap.Options), StringComparison.Ordinal);
         }
 
         [Fact]
@@ -134,7 +159,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void UnknownName_IsRefusalNotCandidateList()
+        public void UnknownAtName_UsesAnalysisScopeNotRefusal()
         {
             var outcome = AssistantCreateLocationGap.Resolve(
                 "Draft an Email Campaign at Paris",
@@ -143,10 +168,7 @@ namespace TummlyBackend.Tests.Helpers
                 Two()
             );
 
-            var refusal = Assert.IsType<AssistantLocationGapOutcome.Refusal>(outcome);
-            Assert.Contains("Paris", refusal.Body, StringComparison.Ordinal);
-            Assert.DoesNotContain("Camden", refusal.Body, StringComparison.Ordinal);
-            Assert.DoesNotContain("Soho", refusal.Body, StringComparison.Ordinal);
+            Assert.IsType<AssistantLocationGapOutcome.Unnamed>(outcome);
         }
 
         [Fact]

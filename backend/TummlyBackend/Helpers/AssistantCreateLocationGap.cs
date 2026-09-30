@@ -25,8 +25,9 @@ namespace TummlyBackend.Helpers
 
     /// <summary>
     /// Server-owned Location uniqueness for Create Campaign Draft (and later
-    /// Offer path). Unnamed create uses Analysis scope. Bind by unique
-    /// Owned location name.
+    /// Offer path). Bind only when the ask names a full Owned location name.
+    /// Unnamed create uses Analysis scope. Do not invent venue refusals from
+    /// purpose language after <c>for</c> / <c>at</c>.
     /// </summary>
     public static partial class AssistantCreateLocationGap
     {
@@ -110,13 +111,6 @@ namespace TummlyBackend.Helpers
                 );
             }
 
-            if (TryUnknownLocationName(text, ownedLocations, out var unknownName))
-            {
-                return new AssistantLocationGapOutcome.Refusal(
-                    $"{unknownName} is not an Owned location."
-                );
-            }
-
             if (analysisScopeLocationId is null)
             {
                 return new AssistantLocationGapOutcome.Gap(
@@ -192,50 +186,23 @@ namespace TummlyBackend.Helpers
             return $"More than one venue matches {token}. Which venue: {Join(options)}?";
         }
 
+        /// <summary>
+        /// Match only full Owned location names in the ask. No free-text
+        /// <c>at</c>/<c>for</c> cue parse and no substring token expand.
+        /// </summary>
         private static List<AssistantGapLocation> FindNamedMatches(
             string text,
             IReadOnlyList<AssistantGapLocation> ownedLocations
         )
         {
             var matches = new List<AssistantGapLocation>();
-            void Add(AssistantGapLocation location)
-            {
-                if (matches.TrueForAll(existing => existing.Id != location.Id))
-                {
-                    matches.Add(location);
-                }
-            }
-
             foreach (var location in ownedLocations)
             {
                 if (location.Name.Length > 0 && ContainsName(text, location.Name))
                 {
-                    Add(location);
-                }
-            }
-
-            foreach (Match match in LocationCueRegex().Matches(text))
-            {
-                var token = match.Groups[1].Value.Trim().TrimEnd('.', ',', ';', ':', '?', '!');
-                if (token.Length == 0 || IsLocationStopPhrase(token))
-                {
-                    continue;
-                }
-
-                var exact = ownedLocations
-                    .Where(location =>
-                        location.Name.Equals(token, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-                foreach (var location in exact)
-                {
-                    Add(location);
-                }
-
-                foreach (var location in ownedLocations)
-                {
-                    if (location.Name.Contains(token, StringComparison.OrdinalIgnoreCase))
+                    if (matches.TrueForAll(existing => existing.Id != location.Id))
                     {
-                        Add(location);
+                        matches.Add(location);
                     }
                 }
             }
@@ -319,91 +286,10 @@ namespace TummlyBackend.Helpers
         private static bool LooksLikeAllLocations(string lower)
             => AllLocationRegex().IsMatch(lower);
 
-        private static bool TryUnknownLocationName(
-            string text,
-            IReadOnlyList<AssistantGapLocation> ownedLocations,
-            out string unknownName
-        )
-        {
-            unknownName = string.Empty;
-            foreach (Match match in LocationCueRegex().Matches(text))
-            {
-                var phrase = match.Groups[1].Value.Trim().TrimEnd('.', ',', ';', ':', '?', '!');
-                if (phrase.Length == 0 || IsLocationStopPhrase(phrase))
-                {
-                    continue;
-                }
-
-                if (ownedLocations.Any(location => ContainsName(phrase, location.Name)
-                    || ContainsName(location.Name, phrase)))
-                {
-                    continue;
-                }
-
-                unknownName = phrase;
-                return true;
-            }
-
-            return false;
-        }
-
-        private static bool IsLocationStopPhrase(string phrase)
-        {
-            var lower = phrase.Trim().ToLowerInvariant();
-            return StopPhrases.Contains(lower)
-                || lower.StartsWith("all ", StringComparison.Ordinal)
-                || lower.StartsWith("every ", StringComparison.Ordinal)
-                || lower.Contains("guest", StringComparison.Ordinal)
-                || lower.Contains("email", StringComparison.Ordinal)
-                || lower.Contains("eligible", StringComparison.Ordinal)
-                || lower.Contains("campaign", StringComparison.Ordinal)
-                || lower.Contains("camapgin", StringComparison.Ordinal)
-                || lower.Contains("offer", StringComparison.Ordinal)
-                // Time windows after "for/at" are not venue names.
-                || lower.Contains("rest of", StringComparison.Ordinal)
-                || lower.Contains("week", StringComparison.Ordinal)
-                || lower.Contains("month", StringComparison.Ordinal)
-                || lower.Contains("today", StringComparison.Ordinal)
-                || lower.Contains("tomorrow", StringComparison.Ordinal)
-                || lower.Contains("weekend", StringComparison.Ordinal)
-                || lower.EndsWith(" day", StringComparison.Ordinal)
-                || lower.EndsWith(" days", StringComparison.Ordinal)
-                || lower.Contains(" days ", StringComparison.Ordinal)
-                || lower.Contains("current week", StringComparison.Ordinal)
-                || lower.Contains("this week", StringComparison.Ordinal);
-        }
-
-        private static readonly HashSet<string> StopPhrases = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "the",
-            "this",
-            "that",
-            "these",
-            "those",
-            "my",
-            "our",
-            "a",
-            "an",
-            "least",
-            "this location",
-            "that location",
-            "this venue",
-            "rest of the days",
-            "rest of the week",
-            "rest of this week",
-            "current week",
-        };
-
         [GeneratedRegex(
             @"\b(?<!compare\s)(?:all locations|every location|all my locations|all of my locations|all owned locations|all venues|every venue|everywhere)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
         )]
         private static partial Regex AllLocationRegex();
-
-        [GeneratedRegex(
-            @"\b(?:at|for)\s+(?:the\s+)?([A-Za-z][A-Za-z'’\-]*(?:\s+[A-Za-z][A-Za-z'’\-]*){0,3})",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
-        )]
-        private static partial Regex LocationCueRegex();
     }
 }
