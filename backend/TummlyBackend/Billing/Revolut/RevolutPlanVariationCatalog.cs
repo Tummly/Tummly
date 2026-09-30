@@ -5,6 +5,16 @@ using TummlyBackend.Services;
 namespace TummlyBackend.Billing.Revolut
 {
     /// <summary>
+    /// Which minor amount to stamp on Revolut plan create: pack net (VAT-off
+    /// map) or pack net + VAT (VAT-on / gross map).
+    /// </summary>
+    public enum RevolutPlanAmountMode
+    {
+        Net,
+        Gross,
+    }
+
+    /// <summary>
     /// Builds Revolut subscription-plan create payloads from the pack pricebook
     /// (ticket 13 / lock 06). One plan per cadence with a friendly Hosted
     /// Checkout name. Create only — never PATCH a live variation amount.
@@ -103,7 +113,8 @@ namespace TummlyBackend.Billing.Revolut
         }
 
         public static IReadOnlyList<RevolutCreatePlanBody> ToCreatePlanBodies(
-            IReadOnlyList<RevolutPlanVariationRow> rows
+            IReadOnlyList<RevolutPlanVariationRow> rows,
+            RevolutPlanAmountMode amountMode = RevolutPlanAmountMode.Gross
         )
         {
             // One Revolut subscription plan per cadence so Hosted Checkout shows
@@ -114,14 +125,16 @@ namespace TummlyBackend.Billing.Revolut
                 .ThenBy(r => r.Cadence == "monthly" ? 0 : 1)
                 .Select(r => new RevolutCreatePlanBody(
                     PlanKey: r.PlanKey,
-                    Name: DisplayNameFor(r.PlanKey, r.Cadence),
+                    Name: DisplayNameFor(r.PlanKey, r.Cadence, amountMode),
                     Variations:
                     [
                         new RevolutCreatePlanVariation(
                             Label: r.LookupKey,
                             LookupKey: r.LookupKey,
                             CycleDuration: r.CycleDuration,
-                            AmountGrossMinor: r.GrossMinor,
+                            AmountGrossMinor: amountMode == RevolutPlanAmountMode.Net
+                                ? r.NetPence
+                                : r.GrossMinor,
                             Currency: r.Currency
                         ),
                     ]
@@ -132,7 +145,11 @@ namespace TummlyBackend.Billing.Revolut
         /// <summary>
         /// Revolut Hosted Checkout title for a subscription plan (plan <c>name</c>).
         /// </summary>
-        public static string DisplayNameFor(string planKey, string cadence)
+        public static string DisplayNameFor(
+            string planKey,
+            string cadence,
+            RevolutPlanAmountMode amountMode = RevolutPlanAmountMode.Gross
+        )
         {
             var period = string.Equals(
                 cadence,
@@ -142,7 +159,7 @@ namespace TummlyBackend.Billing.Revolut
                 ? "Annual"
                 : "Monthly";
 
-            return planKey.Trim().ToLowerInvariant() switch
+            var baseName = planKey.Trim().ToLowerInvariant() switch
             {
                 "starter" => $"Paid Starter Plan {period}",
                 "growth" => $"Paid Growth Plan {period}",
@@ -151,6 +168,10 @@ namespace TummlyBackend.Billing.Revolut
                     $"Additional Group Location {period}",
                 _ => $"{planKey.Trim()} {period}",
             };
+
+            return amountMode == RevolutPlanAmountMode.Net
+                ? $"{baseName} (excl. VAT)"
+                : $"{baseName} (incl. VAT)";
         }
 
         /// <summary>
@@ -204,9 +225,14 @@ namespace TummlyBackend.Billing.Revolut
         }
 
         public static IReadOnlyList<string> FormatEnvMapLines(
-            IReadOnlyDictionary<string, string> lookupToVariationId
+            IReadOnlyDictionary<string, string> lookupToVariationId,
+            RevolutPlanAmountMode amountMode = RevolutPlanAmountMode.Gross
         )
         {
+            var envPrefix =
+                amountMode == RevolutPlanAmountMode.Net
+                    ? "Revolut__PlanVariations__"
+                    : "Revolut__PlanVariationsGross__";
             var lines = new List<string>(RevolutPlanVariationKeys.All.Count);
             foreach (var key in RevolutPlanVariationKeys.All)
             {
@@ -220,7 +246,7 @@ namespace TummlyBackend.Billing.Revolut
                     );
                 }
 
-                lines.Add($"Revolut__PlanVariations__{key}={id.Trim()}");
+                lines.Add($"{envPrefix}{key}={id.Trim()}");
             }
 
             return lines;
@@ -229,7 +255,8 @@ namespace TummlyBackend.Billing.Revolut
         /// <summary>
         /// JSON body for <c>POST /api/subscription-plans</c>. Variation
         /// <c>name</c> (label) is the pack lookup key (lock 06); phase
-        /// <c>amount</c> is Tummly gross minor units. Create only — never PATCH.
+        /// <c>amount</c> is the Revolut charge minor units for this map
+        /// (net or gross). Create only — never PATCH.
         /// </summary>
         public static string ToCreatePlanRequestJson(RevolutCreatePlanBody body)
         {

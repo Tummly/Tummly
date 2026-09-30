@@ -48,14 +48,22 @@ Public / publishable key: **not used** for this HPP flow.
 export REVOLUT_SECRET_KEY=sk_…   # Sandbox only
 export REVOLUT_API_BASE_URL=https://sandbox-merchant.revolut.com
 export REVOLUT_API_VERSION=2026-04-20
+
+# Net map (VAT off / launch) — Growth monthly charge = £99.00
 ./scripts/revolut-create-plan-variations/create-plan-variations.sh --apply \
-  --out /tmp/revolut-sandbox-plan-variations.env
+  --amount net \
+  --out /tmp/revolut-sandbox-plan-variations-net.env
+
+# Optional: gross map for VAT-on rehearsal — Growth monthly = £118.80
+./scripts/revolut-create-plan-variations/create-plan-variations.sh --apply \
+  --amount gross \
+  --out /tmp/revolut-sandbox-plan-variations-gross.env
 ```
 
 Keep the printed `Revolut__PlanVariations__*` lines for step 3 (net map for
 `TUMMLY_VAT_MODE_ACTIVE=false`). Do not commit them. For VAT-on rehearsal
-(`TUMMLY_VAT_MODE_ACTIVE=true`), also create matching **gross** variations and
-mount `Revolut__PlanVariationsGross__*` (same eight keys).
+(`TUMMLY_VAT_MODE_ACTIVE=true`), also mount `Revolut__PlanVariationsGross__*`
+from the gross apply output (same eight keys).
 
 ---
 

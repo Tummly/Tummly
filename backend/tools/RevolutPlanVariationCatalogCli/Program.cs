@@ -7,6 +7,8 @@ using TummlyBackend.Configurations;
 /// <summary>
 /// Ops CLI: dry-run or create the eight recurring Revolut plan variations from
 /// the pack pricebook (ticket 13). Create only — never PATCH amounts.
+/// Use <c>--amount net</c> for VAT-off map (<c>Revolut__PlanVariations__*</c>)
+/// or <c>--amount gross</c> for VAT-on map (<c>Revolut__PlanVariationsGross__*</c>).
 /// </summary>
 static class Program
 {
@@ -15,6 +17,17 @@ static class Program
         var apply = args.Contains("--apply", StringComparer.OrdinalIgnoreCase);
         var packPath = GetArg(args, "--pack") ?? DefaultPackPath();
         var outPath = GetArg(args, "--out");
+        var amountArg = GetArg(args, "--amount") ?? "net";
+        if (
+            !TryParseAmountMode(amountArg, out var amountMode)
+        )
+        {
+            Console.Error.WriteLine(
+                "Invalid --amount. Use 'net' (VAT-off map) or 'gross' (VAT-on map)."
+            );
+            return 1;
+        }
+
         var apiBase =
             GetArg(args, "--api-base")
             ?? Environment.GetEnvironmentVariable("REVOLUT_API_BASE_URL")
@@ -35,17 +48,33 @@ static class Program
 
         var json = await File.ReadAllTextAsync(packPath);
         var rows = RevolutPlanVariationCatalog.BuildFromPackJson(json);
-        var bodies = RevolutPlanVariationCatalog.ToCreatePlanBodies(rows);
+        var bodies = RevolutPlanVariationCatalog.ToCreatePlanBodies(
+            rows,
+            amountMode
+        );
 
         Console.WriteLine(
             $"# Revolut plan variations from {Path.GetFileName(packPath)}"
+        );
+        Console.WriteLine(
+            $"# Amount mode: {amountMode.ToString().ToLowerInvariant()} "
+                + (
+                    amountMode == RevolutPlanAmountMode.Net
+                        ? "(excl. VAT → Revolut__PlanVariations__*)"
+                        : "(incl. VAT → Revolut__PlanVariationsGross__*)"
+                )
         );
         Console.WriteLine("# Create only. Never PATCH a live variation amount.");
         Console.WriteLine();
         foreach (var row in rows)
         {
+            var charge =
+                amountMode == RevolutPlanAmountMode.Net
+                    ? row.NetPence
+                    : row.GrossMinor;
             Console.WriteLine(
-                $"# {row.LookupKey}  net={row.NetPence}  gross={row.GrossMinor}  {row.CycleDuration}"
+                $"# {row.LookupKey}  net={row.NetPence}  gross={row.GrossMinor}  "
+                    + $"charge={charge}  {row.CycleDuration}"
             );
         }
 
@@ -137,7 +166,10 @@ static class Program
             Console.WriteLine($"# Created plan '{body.Name}'");
         }
 
-        var lines = RevolutPlanVariationCatalog.FormatEnvMapLines(map);
+        var lines = RevolutPlanVariationCatalog.FormatEnvMapLines(
+            map,
+            amountMode
+        );
         Console.WriteLine();
         Console.WriteLine("# Mount these in the target environment (.env / ACA):");
         foreach (var line in lines)
@@ -152,6 +184,24 @@ static class Program
         }
 
         return 0;
+    }
+
+    static bool TryParseAmountMode(string value, out RevolutPlanAmountMode mode)
+    {
+        mode = RevolutPlanAmountMode.Net;
+        if (string.Equals(value, "net", StringComparison.OrdinalIgnoreCase))
+        {
+            mode = RevolutPlanAmountMode.Net;
+            return true;
+        }
+
+        if (string.Equals(value, "gross", StringComparison.OrdinalIgnoreCase))
+        {
+            mode = RevolutPlanAmountMode.Gross;
+            return true;
+        }
+
+        return false;
     }
 
     static string? GetArg(string[] args, string name)

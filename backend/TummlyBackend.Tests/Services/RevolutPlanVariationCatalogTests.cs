@@ -62,6 +62,63 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public void ToCreatePlanBodies_AmountModeNet_UsesNetPenceAsRevolutAmount()
+        {
+            var json = File.ReadAllText(PackJsonPath());
+            var rows = RevolutPlanVariationCatalog.BuildFromPackJson(json);
+            var bodies = RevolutPlanVariationCatalog.ToCreatePlanBodies(
+                rows,
+                RevolutPlanAmountMode.Net
+            );
+
+            var growthMonthly = bodies.Single(b =>
+                b.Variations[0].LookupKey == RevolutPlanVariationKeys.GrowthMonthly
+            );
+            Assert.Equal(9900, growthMonthly.Variations[0].AmountGrossMinor);
+
+            var createJson = RevolutPlanVariationCatalog.ToCreatePlanRequestJson(
+                growthMonthly
+            );
+            using var doc = JsonDocument.Parse(createJson);
+            var amount = doc
+                .RootElement.GetProperty("variations")[0]
+                .GetProperty("phases")[0]
+                .GetProperty("amount")
+                .GetInt32();
+            Assert.Equal(9900, amount);
+        }
+
+        [Fact]
+        public void FormatEnvMapLines_AmountModeGross_WritesGrossEnvPrefix()
+        {
+            var map = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [RevolutPlanVariationKeys.StarterMonthly] = "a",
+                [RevolutPlanVariationKeys.StarterAnnual] = "b",
+                [RevolutPlanVariationKeys.GrowthMonthly] = "c",
+                [RevolutPlanVariationKeys.GrowthAnnual] = "d",
+                [RevolutPlanVariationKeys.GroupMonthly] = "e",
+                [RevolutPlanVariationKeys.GroupAnnual] = "f",
+                [RevolutPlanVariationKeys.GroupLocationMonthly] = "g",
+                [RevolutPlanVariationKeys.GroupLocationAnnual] = "h",
+            };
+
+            var lines = RevolutPlanVariationCatalog.FormatEnvMapLines(
+                map,
+                RevolutPlanAmountMode.Gross
+            );
+
+            Assert.Contains(
+                "Revolut__PlanVariationsGross__tummly_starter_monthly_gbp_v3=a",
+                lines
+            );
+            Assert.DoesNotContain(
+                lines,
+                line => line.StartsWith("Revolut__PlanVariations__", StringComparison.Ordinal)
+            );
+        }
+
+        [Fact]
         public void ToCreatePlanBodies_EightPlans_OneVariation_FriendlyDisplayName()
         {
             var json = File.ReadAllText(PackJsonPath());
@@ -82,7 +139,7 @@ namespace TummlyBackend.Tests.Services
             );
 
             var starterMonthly = bodies.Single(b =>
-                b.Name == "Paid Starter Plan Monthly"
+                b.Name == "Paid Starter Plan Monthly (incl. VAT)"
             );
             Assert.Equal("starter", starterMonthly.PlanKey);
             Assert.Equal(
@@ -93,7 +150,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("GBP", starterMonthly.Variations[0].Currency);
 
             var starterAnnual = bodies.Single(b =>
-                b.Name == "Paid Starter Plan Annual"
+                b.Name == "Paid Starter Plan Annual (incl. VAT)"
             );
             Assert.Equal(
                 RevolutPlanVariationKeys.StarterAnnual,
@@ -105,7 +162,7 @@ namespace TummlyBackend.Tests.Services
             );
             using var doc = JsonDocument.Parse(createJson);
             Assert.Equal(
-                "Paid Starter Plan Monthly",
+                "Paid Starter Plan Monthly (incl. VAT)",
                 doc.RootElement.GetProperty("name").GetString()
             );
             var named = doc
@@ -124,12 +181,16 @@ namespace TummlyBackend.Tests.Services
         public void DisplayNameFor_StarterMonthly_IsPaidStarterPlanMonthly()
         {
             Assert.Equal(
-                "Paid Starter Plan Monthly",
+                "Paid Starter Plan Monthly (incl. VAT)",
                 RevolutPlanVariationCatalog.DisplayNameFor("starter", "monthly")
             );
             Assert.Equal(
-                "Paid Growth Plan Annual",
-                RevolutPlanVariationCatalog.DisplayNameFor("growth", "annual")
+                "Paid Growth Plan Annual (excl. VAT)",
+                RevolutPlanVariationCatalog.DisplayNameFor(
+                    "growth",
+                    "annual",
+                    RevolutPlanAmountMode.Net
+                )
             );
         }
 
@@ -190,7 +251,10 @@ namespace TummlyBackend.Tests.Services
                 [RevolutPlanVariationKeys.GroupLocationAnnual] = "h",
             };
 
-            var lines = RevolutPlanVariationCatalog.FormatEnvMapLines(map);
+            var lines = RevolutPlanVariationCatalog.FormatEnvMapLines(
+                map,
+                RevolutPlanAmountMode.Net
+            );
 
             Assert.Equal(8, lines.Count);
             Assert.Contains(
