@@ -1346,7 +1346,9 @@ namespace TummlyBackend.Services
                             combinedTerms,
                             replaceFailure,
                             cancellationToken,
-                            AssistantTask.CreateCampaignWithOffer
+                            AssistantTask.CreateCampaignWithOffer,
+                            combinedResume?.ChannelLabel,
+                            combinedResume?.AllowEmptyAudience ?? false
                         );
                         if (combinedTermsGap is not null)
                         {
@@ -1363,18 +1365,29 @@ namespace TummlyBackend.Services
                             persistLocationName,
                             ownedLocationIds,
                             cancellationToken,
+                            choice: string.IsNullOrWhiteSpace(combinedResume.ChannelLabel)
+                                ? null
+                                : new AssistantCampaignDraftBindChoice(
+                                    ChannelLabel: combinedResume.ChannelLabel
+                                ),
                             ignoreOffers: true
                         );
                     var persist = await PersistCreateCampaignWithOfferAsync(
                         conversation,
-                        userMessage,
+                        combinedResume?.SourceUserMessage ?? userMessage,
                         persistLocationId,
                         persistLocationName,
                         ownedLocationIds,
                         cancellationToken,
                         preparedBind: preparedCombinedBind,
+                        choice: string.IsNullOrWhiteSpace(combinedResume?.ChannelLabel)
+                            ? null
+                            : new AssistantCampaignDraftBindChoice(
+                                ChannelLabel: combinedResume!.ChannelLabel
+                            ),
                         priorTerms: combinedTerms,
-                        questionBody: string.Empty
+                        questionBody: string.Empty,
+                        allowEmptyAudience: combinedResume?.AllowEmptyAudience ?? false
                     );
                     conversation.DraftInterviewJson = persist.GapState is null
                         ? null
@@ -2244,6 +2257,7 @@ namespace TummlyBackend.Services
                     locationName,
                     ownedLocationIds,
                     cancellationToken,
+                    choice,
                     ignoreOffers: true
                 );
             switch (bind)
@@ -4093,7 +4107,9 @@ namespace TummlyBackend.Services
             AssistantOfferPathTermsState terms,
             AssistantMessage? replaceFailure,
             CancellationToken cancellationToken,
-            string assistantTask
+            string assistantTask,
+            string? channelLabel = null,
+            bool allowEmptyChannelAudience = false
         )
         {
             if (AssistantOfferPathTerms.IsComplete(terms))
@@ -4106,7 +4122,9 @@ namespace TummlyBackend.Services
                 AssistantGapTurn.CreateCombinedOfferTerms(
                     sourceUserMessage,
                     terms,
-                    assistantTask
+                    assistantTask,
+                    channelLabel,
+                    allowEmptyChannelAudience
                 ),
                 AssistantGapAsk.ForOfferTerms(terms),
                 replaceFailure,
@@ -4124,14 +4142,16 @@ namespace TummlyBackend.Services
 
         private sealed record CombinedCreateResumeContext(
             string SourceUserMessage,
-            AssistantOfferPathTermsState PriorTerms
+            AssistantOfferPathTermsState PriorTerms,
+            string? ChannelLabel = null,
+            bool AllowEmptyAudience = false
         );
 
         /// <summary>
         /// Stored create-flow terms state for a resume turn: the source ask
         /// plus stored terms merged with the answer message. Covers offer-path
-        /// terms/location gaps and combined-create terms gaps. Null on fresh
-        /// turns.
+        /// terms/location gaps, combined-create terms gaps, and empty-channel
+        /// audience Gaps so a bare ordinal cannot rebind Email.
         /// </summary>
         private static CombinedCreateResumeContext? TryGetStoredCreateResumeContext(
             AssistantConversation conversation,
@@ -4140,9 +4160,6 @@ namespace TummlyBackend.Services
         {
             var gapState = AssistantGapTurn.Parse(conversation.DraftInterviewJson);
             if (gapState is null
-                || gapState.Kind
-                    is not (AssistantGapTurn.KindOfferTerms
-                        or AssistantGapTurn.KindLocation)
                 || !string.Equals(
                     gapState.AssistantTask,
                     AssistantTask.OfferPath,
@@ -4157,11 +4174,58 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            var prior = AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson)
+            if (gapState.Kind == AssistantGapTurn.KindEmptyChannelAudience)
+            {
+                var chosen = AssistantCampaignDraftBind.ResolveNamedChoice(
+                    gapState.Options,
+                    userMessage
+                );
+                if (chosen is null)
+                {
+                    return null;
+                }
+
+                var emptyChannelId = string.IsNullOrWhiteSpace(gapState.LocationKind)
+                    ? "sms"
+                    : gapState.LocationKind!;
+                var resolved = AssistantEmptyChannelAudience.ResolveChoice(
+                    emptyChannelId,
+                    chosen
+                );
+                if (resolved is null
+                    || resolved == AssistantEmptyChannelAudienceChoice.Wait)
+                {
+                    return null;
+                }
+
+                var allowEmpty =
+                    resolved == AssistantEmptyChannelAudienceChoice.CreateAnyway;
+                var channelLabel = allowEmpty
+                    ? AssistantEmptyChannelAudience.EmptyChannelLabel(emptyChannelId)
+                    : AssistantEmptyChannelAudience.AlternateChannelLabel(emptyChannelId);
+                var prior = AssistantOfferPathTerms.Parse(gapState.SourceUserMessage);
+                return new CombinedCreateResumeContext(
+                    gapState.SourceUserMessage,
+                    AssistantOfferPathTerms.Merge(prior, userMessage),
+                    channelLabel,
+                    allowEmpty
+                );
+            }
+
+            if (gapState.Kind
+                is not (AssistantGapTurn.KindOfferTerms
+                    or AssistantGapTurn.KindLocation))
+            {
+                return null;
+            }
+
+            var termsPrior = AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson)
                 ?? AssistantOfferPathTerms.Parse(gapState.SourceUserMessage);
             return new CombinedCreateResumeContext(
                 gapState.SourceUserMessage,
-                AssistantOfferPathTerms.Merge(prior, userMessage)
+                AssistantOfferPathTerms.Merge(termsPrior, userMessage),
+                gapState.ChannelLabel,
+                gapState.AllowEmptyChannelAudience
             );
         }
 
