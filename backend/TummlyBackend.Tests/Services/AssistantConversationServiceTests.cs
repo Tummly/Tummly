@@ -1964,6 +1964,70 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_ChangeAudienceFollowUp_PatchesExistingDraft_KeepsOffer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft",
+                "Create Campaign Draft.",
+                AssistantTask.CreateCampaignDraft,
+                conversationTitle: "Thank recent guests — 10% off"
+            );
+
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, QaThankRecentGuestsWithOfferAsk)
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created).Conversation.Id;
+            var original = Assert.Single(_context.Campaigns);
+            var offerId = Assert.Single(_context.CatalogOffers).Id;
+            Assert.Equal(offerId, original.OfferId);
+
+            const string changeAsk =
+                "Change the campaign audience to email eligible only";
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft",
+                "Create Campaign Draft.",
+                AssistantTask.CreateCampaignDraft
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, changeAsk, conversationId)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal(original.Id, campaign.Id);
+            Assert.Equal(offerId, campaign.OfferId);
+            Assert.Equal("email", campaign.Channel);
+            Assert.Equal(
+                AssistantCampaignDraftBind.AudienceAllEligible,
+                campaign.AudienceKey
+            );
+            Assert.Equal(
+                original.Id,
+                _context.AssistantConversations.Single().CreatedCampaignId
+            );
+            Assert.Contains(
+                answer.Actions,
+                action => action.Type == "review-campaign" && action.CampaignId == original.Id
+            );
+            Assert.DoesNotContain("No Offer", answer.Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
         public async Task SendTurn_CanonicalCampaignWithOffer_UniqueAttachableDraft_AttachesExisting()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");

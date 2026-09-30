@@ -7,6 +7,7 @@ namespace TummlyBackend.Helpers
     public static class AssistantCampaignDraftPersistCopy
     {
         public const string SuccessTitle = "Campaign Draft saved";
+        public const string UpdatedTitle = "Campaign Draft updated";
         public const string FailureTitle = "Campaign Draft not saved";
 
         public static string SuccessBody(
@@ -17,6 +18,51 @@ namespace TummlyBackend.Helpers
             string campaignName,
             string offerLabel = "No Offer",
             string? offerNote = null
+        )
+            => DraftBody(
+                $"I saved a Campaign Draft for {locationName}.\n\n",
+                locationName,
+                channelLabel,
+                audienceLabel,
+                eligibleCount,
+                campaignName,
+                offerLabel,
+                offerNote
+            );
+
+        public static string UpdatedBody(
+            string locationName,
+            string channelLabel,
+            string audienceLabel,
+            int? eligibleCount,
+            string campaignName,
+            string offerLabel = "No Offer",
+            string? offerNote = null
+        )
+            => DraftBody(
+                $"I updated the Campaign Draft for {locationName}.\n\n",
+                locationName,
+                channelLabel,
+                audienceLabel,
+                eligibleCount,
+                campaignName,
+                offerLabel,
+                offerNote
+            );
+
+        public static string NoPriorDraftToUpdateBody()
+            => "There is no Campaign Draft in this conversation to update. "
+                + "Create a Campaign Draft first, or change audience in Campaigns.";
+
+        private static string DraftBody(
+            string lead,
+            string locationName,
+            string channelLabel,
+            string audienceLabel,
+            int? eligibleCount,
+            string campaignName,
+            string offerLabel,
+            string? offerNote
         )
         {
             var countQualifier = string.Equals(
@@ -31,7 +77,7 @@ namespace TummlyBackend.Helpers
                 : $"{audienceLabel} (eligible count unavailable)";
 
             var body =
-                $"I saved a Campaign Draft for {locationName}.\n\n"
+                lead
                 + $"- **Location:** {locationName}\n"
                 + $"- **Channel:** {channelLabel}\n"
                 + $"- **Audience:** {countLine}\n"

@@ -23,7 +23,8 @@ namespace TummlyBackend.Helpers
                 return AssistantTask.CreateCampaignWithOffer;
             }
 
-            if (LooksLikeCreateCampaignDraft(userMessage))
+            if (LooksLikeCreateCampaignDraft(userMessage)
+                || LooksLikeChangeCampaignAudienceOrChannel(userMessage))
             {
                 return AssistantTask.CreateCampaignDraft;
             }
@@ -238,6 +239,54 @@ namespace TummlyBackend.Helpers
                 "clear offer",
                 "take off the offer",
                 "take the offer off"
+            );
+        }
+
+        /// <summary>
+        /// Edit audience or channel on the conversation's prior Campaign Draft
+        /// ("Change the campaign audience to email eligible only").
+        /// Not a create ask — persist must patch, not insert.
+        /// </summary>
+        public static bool LooksLikeChangeCampaignAudienceOrChannel(string message)
+        {
+            if (LooksLikeCreateCampaignDraft(message)
+                || LooksLikeAttachToCampaignIntent(message)
+                || LooksLikeRemoveOfferFromCampaign(message))
+            {
+                return false;
+            }
+
+            var lower = message.Trim().ToLowerInvariant();
+            if (!NamesCampaignNoun(lower))
+            {
+                return false;
+            }
+
+            if (!ContainsAny(
+                    lower,
+                    "change",
+                    "update",
+                    "switch",
+                    "set the",
+                    "set audience",
+                    "set channel",
+                    "make it",
+                    "make the"
+                ))
+            {
+                return false;
+            }
+
+            return ContainsAny(
+                lower,
+                "audience",
+                "channel",
+                "email eligible",
+                "email-eligible",
+                "sms eligible",
+                "sms-eligible",
+                "email only",
+                "sms only"
             );
         }
 

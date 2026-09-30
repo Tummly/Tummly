@@ -193,6 +193,36 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void ChangeCampaignAudienceOrChannel_IsEditNotCreate()
+        {
+            const string qaAsk =
+                "Change the campaign audience to email eligible only";
+
+            Assert.True(
+                AssistantTaskClassification.LooksLikeChangeCampaignAudienceOrChannel(
+                    qaAsk
+                )
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify(qaAsk)
+            );
+            Assert.False(
+                AssistantTaskClassification.LooksLikeCreateCampaignDraft(qaAsk)
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeChangeCampaignAudienceOrChannel(
+                    "Change the campaign channel to SMS"
+                )
+            );
+            Assert.False(
+                AssistantTaskClassification.LooksLikeChangeCampaignAudienceOrChannel(
+                    "Create a campaign for email eligible guests"
+                )
+            );
+        }
+
+        [Fact]
         public void UnnamedCreate_ListsCampaignOfferAndRecovery()
         {
             Assert.Equal(

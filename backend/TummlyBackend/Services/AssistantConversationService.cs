@@ -1672,6 +1672,21 @@ namespace TummlyBackend.Services
             AssistantCampaignDraftBindOutcome? preparedBind = null
         )
         {
+            if (AssistantTaskClassification.LooksLikeChangeCampaignAudienceOrChannel(
+                    userMessage
+                ))
+            {
+                return await PersistPatchCampaignAudienceChannelAsync(
+                    conversation,
+                    userMessage,
+                    locationId,
+                    locationName,
+                    ownedLocationIds,
+                    cancellationToken,
+                    choice
+                );
+            }
+
             var bind = choice is { HasValue: true } || preparedBind is null
                 ? await BindCampaignAsync(
                     userMessage,
@@ -1718,6 +1733,208 @@ namespace TummlyBackend.Services
                 default:
                     throw new InvalidOperationException("Unknown Campaign Draft bind.");
             }
+        }
+
+        private async Task<CreateCampaignDraftTurn> PersistPatchCampaignAudienceChannelAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            int locationId,
+            string locationName,
+            IReadOnlyList<int> ownedLocationIds,
+            CancellationToken cancellationToken,
+            AssistantCampaignDraftBindChoice? choice = null
+        )
+        {
+            if (conversation.CreatedCampaignId is not int campaignId || campaignId < 1)
+            {
+                return new CreateCampaignDraftTurn(
+                    AssistantMessageClass.Grounded,
+                    AssistantCampaignDraftPersistCopy.FailureTitle,
+                    AssistantCampaignDraftPersistCopy.NoPriorDraftToUpdateBody(),
+                    [],
+                    null,
+                    null
+                );
+            }
+
+            var existing = await _campaignDrafts.GetByIdAsync(campaignId, cancellationToken);
+            if (existing is null)
+            {
+                return new CreateCampaignDraftTurn(
+                    AssistantMessageClass.Grounded,
+                    AssistantCampaignDraftPersistCopy.FailureTitle,
+                    AssistantCampaignDraftPersistCopy.NoPriorDraftToUpdateBody(),
+                    [],
+                    null,
+                    null
+                );
+            }
+
+            var bind = await BindCampaignAsync(
+                userMessage,
+                locationId,
+                locationName,
+                ownedLocationIds,
+                cancellationToken,
+                choice,
+                ignoreOffers: true
+            );
+            if (bind is AssistantCampaignDraftBindOutcome.Gap gap)
+            {
+                return new CreateCampaignDraftTurn(
+                    AssistantMessageClass.Gap,
+                    string.Empty,
+                    gap.Body,
+                    [],
+                    null,
+                    AssistantGapTurn.CreateBindKind(
+                        gap.Kind,
+                        gap.Options,
+                        userMessage,
+                        AssistantTask.CreateCampaignDraft
+                    )
+                );
+            }
+
+            if (bind is AssistantCampaignDraftBindOutcome.UnevaluableAudience unevaluable)
+            {
+                return new CreateCampaignDraftTurn(
+                    AssistantMessageClass.Grounded,
+                    AssistantCampaignDraftPersistCopy.FailureTitle,
+                    unevaluable.Body,
+                    [],
+                    null,
+                    null
+                );
+            }
+
+            if (bind is not AssistantCampaignDraftBindOutcome.Bound bound)
+            {
+                throw new InvalidOperationException("Unknown Campaign Draft bind.");
+            }
+
+            if (!await CanPersistDraftAsync(
+                conversation.OwnerUserId,
+                OperatorAreaIds.Campaigns,
+                locationId
+            ))
+            {
+                return new CreateCampaignDraftTurn(
+                    AssistantMessageClass.Grounded,
+                    AssistantCampaignDraftPersistCopy.FailureTitle,
+                    AssistantCampaignDraftPersistCopy.FailureBody("Campaign update"),
+                    [],
+                    null,
+                    null
+                );
+            }
+
+            CampaignDraftWriteResult patchResult;
+            try
+            {
+                patchResult = await _campaignDrafts.PatchAsync(
+                    campaignId,
+                    new PatchCampaignDraftRequest
+                    {
+                        RowVersion = existing.RowVersion,
+                        AudienceKey = bound.Fields.AudienceKey,
+                        Channel = bound.Fields.Channel,
+                    },
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                patchResult = new CampaignDraftWriteResult.NotFound();
+            }
+
+            if (patchResult is not CampaignDraftWriteResult.Ok okPatch)
+            {
+                return new CreateCampaignDraftTurn(
+                    AssistantMessageClass.Grounded,
+                    AssistantCampaignDraftPersistCopy.FailureTitle,
+                    AssistantCampaignDraftPersistCopy.FailureBody("Campaign update"),
+                    [],
+                    null,
+                    null
+                );
+            }
+
+            var patched = okPatch.Campaign;
+            var offerLabel = "No Offer";
+            if (patched.OfferId is int attachedOfferId && attachedOfferId > 0)
+            {
+                try
+                {
+                    var offer = await _offersCatalog.GetByIdAsync(
+                        attachedOfferId,
+                        utcOffsetMinutes: 0,
+                        cancellationToken
+                    );
+                    if (offer is not null && !string.IsNullOrWhiteSpace(offer.Title))
+                    {
+                        offerLabel = offer.Title;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch
+                {
+                    offerLabel = $"Offer {attachedOfferId}";
+                }
+            }
+
+            int? eligibleCount = null;
+            try
+            {
+                var eligibility = await _campaignEligibility.EvaluateAsync(
+                    locationId,
+                    bound.Fields.AudienceKey,
+                    cancellationToken
+                );
+                eligibleCount = string.Equals(
+                    bound.Fields.Channel,
+                    "sms",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                    ? eligibility.SmsEligible
+                    : eligibility.EmailEligible;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                eligibleCount = null;
+            }
+
+            return new CreateCampaignDraftTurn(
+                AssistantMessageClass.Grounded,
+                AssistantCampaignDraftPersistCopy.UpdatedTitle,
+                AssistantCampaignDraftPersistCopy.UpdatedBody(
+                    locationName,
+                    bound.Fields.ChannelLabel,
+                    bound.Fields.AudienceLabel,
+                    eligibleCount,
+                    patched.Name,
+                    offerLabel
+                ),
+                AssistantActionCatalog.ValidateReviewCampaign(
+                    patched.Id,
+                    AssistantMessageClass.Grounded,
+                    patched.OfferStance,
+                    patched.OfferId
+                ),
+                patched.Id,
+                null
+            );
         }
 
         private async Task<CreateCampaignDraftTurn> PersistBoundCampaignDraftAsync(
