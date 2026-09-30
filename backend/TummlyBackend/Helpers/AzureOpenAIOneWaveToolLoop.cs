@@ -172,35 +172,59 @@ namespace TummlyBackend.Helpers
             JsonArray messages,
             bool allowTools
         )
+            => BuildRoundRequestJson(
+                request.DeploymentName,
+                messages,
+                allowTools,
+                request.ToolsArray,
+                request.SchemaName,
+                request.FinalSchema,
+                request.MaxCompletionTokens
+            );
+
+        /// <summary>
+        /// Builds the chat-completions body for one round. Public for contract tests
+        /// (final round must not send <c>tool_choice</c> without <c>tools</c>).
+        /// </summary>
+        public static string BuildRoundRequestJson(
+            string deploymentName,
+            JsonArray messages,
+            bool allowTools,
+            JsonArray toolsArray,
+            string schemaName,
+            JsonObject finalSchema,
+            int? maxCompletionTokens = null
+        )
         {
             var body = new JsonObject
             {
-                ["model"] = request.DeploymentName,
+                ["model"] = deploymentName,
                 ["messages"] = messages.DeepClone(),
             };
 
-            if (request.MaxCompletionTokens is int maxTokens)
+            if (maxCompletionTokens is int maxTokens)
             {
                 body["max_completion_tokens"] = maxTokens;
             }
 
             if (allowTools)
             {
-                body["tools"] = request.ToolsArray.DeepClone();
+                body["tools"] = toolsArray.DeepClone();
                 body["tool_choice"] = "auto";
                 body["parallel_tool_calls"] = true;
             }
             else
             {
-                body["tool_choice"] = "none";
+                // Do not send tool_choice without tools — Azure/OpenAI returns 400
+                // ("tool_choice is only allowed when tools are specified").
                 body["response_format"] = new JsonObject
                 {
                     ["type"] = "json_schema",
                     ["json_schema"] = new JsonObject
                     {
-                        ["name"] = request.SchemaName,
+                        ["name"] = schemaName,
                         ["strict"] = true,
-                        ["schema"] = request.FinalSchema.DeepClone(),
+                        ["schema"] = finalSchema.DeepClone(),
                     },
                 };
             }
