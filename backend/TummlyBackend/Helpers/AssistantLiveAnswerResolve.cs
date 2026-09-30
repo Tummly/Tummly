@@ -43,6 +43,24 @@ namespace TummlyBackend.Helpers
                 {
                     return CreateTaskStub(localTask);
                 }
+
+                // Azure sometimes labels a Campaign+Offer ask as plain
+                // create-campaign-draft (QA: thanking guests + 10% off). Persist
+                // follows assistantTask, so upgrade to the local combined task
+                // while keeping the model title/body until persist overwrites.
+                if (providerResult is AssistantLiveAnswerResult.Succeeded draftLabeled
+                    && string.Equals(
+                        draftLabeled.AssistantTask,
+                        AssistantTask.CreateCampaignDraft,
+                        StringComparison.Ordinal
+                    )
+                    && localTask == AssistantTask.CreateCampaignWithOffer)
+                {
+                    return draftLabeled with
+                    {
+                        AssistantTask = AssistantTask.CreateCampaignWithOffer,
+                    };
+                }
             }
 
             if (providerResult is AssistantLiveAnswerResult.Failed

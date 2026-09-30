@@ -1915,6 +1915,54 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        // QA repro (salmanshahid8896): Azure labeled create-campaign-draft while the
+        // ask clearly needed a new Offer. Persist must still create+attach the Offer.
+        private const string QaThankRecentGuestsWithOfferAsk =
+            "Create a campaign thanking recent guests for their feedback and offer 10% off on any order. validty should be 7 days";
+
+        [Fact]
+        public async Task SendTurn_QaThankRecentGuestsWithOffer_WhenModelMislabelsDraft_StillCreatesAndAttachesOffer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft",
+                "Create Campaign Draft.",
+                AssistantTask.CreateCampaignDraft,
+                conversationTitle: "Thank recent guests — 10% off"
+            );
+
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify(QaThankRecentGuestsWithOfferAsk)
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, QaThankRecentGuestsWithOfferAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal("Campaign Draft saved with Offer", answer.Title);
+            Assert.DoesNotContain("No Offer", answer.Body, StringComparison.Ordinal);
+
+            var campaign = Assert.Single(_context.Campaigns);
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(offer.Id, campaign.OfferId);
+            Assert.Equal(10m, offer.DiscountPercentage);
+            Assert.Equal(CatalogOfferValidity.Days7AfterIssue, offer.Validity);
+            Assert.Equal(campaign.Id, _context.AssistantConversations.Single().CreatedCampaignId);
+            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+        }
+
         [Fact]
         public async Task SendTurn_CanonicalCampaignWithOffer_UniqueAttachableDraft_AttachesExisting()
         {

@@ -107,6 +107,30 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void Resolve_ProviderDraft_CreateWithOfferAsk_OverridesToCreateCampaignWithOffer()
+        {
+            var resolved = AssistantLiveAnswerResolve.Resolve(
+                new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Campaign Draft",
+                    "Create Campaign Draft.",
+                    [],
+                    AssistantTask.CreateCampaignDraft,
+                    ConversationTitle: "Thank recent guests — 10% off"
+                ),
+                "Create a campaign thanking recent guests for their feedback and offer 10% off on any order. validty should be 7 days",
+                "The Golden Fork - Resturant 1",
+                "the last 7 days",
+                AssistantRetrievedEvidence.Empty,
+                allowLocalRetrieveFallback: true
+            );
+
+            var succeeded = Assert.IsType<AssistantLiveAnswerResult.Succeeded>(resolved);
+            Assert.Equal(AssistantTask.CreateCampaignWithOffer, succeeded.AssistantTask);
+            Assert.Equal("Thank recent guests — 10% off", succeeded.ConversationTitle);
+        }
+
+        [Fact]
         public void Resolve_ProviderFailed_CompareAll_KeepsFailure()
         {
             var resolved = AssistantLiveAnswerResolve.Resolve(
