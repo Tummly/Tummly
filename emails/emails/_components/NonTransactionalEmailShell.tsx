@@ -12,6 +12,7 @@ import {
 } from "react-email"
 
 import { EmailFonts } from "./EmailFonts"
+import { emailBodyStyle, guestEmailContainerStyle } from "./styles"
 import { colors } from "./tokens"
 
 /** Figma 6852:49961 display size (asset is 2×). */
@@ -71,20 +72,11 @@ export function NonTransactionalEmailShell({
       <Preview>{preview}</Preview>
       <Body
         style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: colors.black,
+          ...emailBodyStyle,
           fontFamily: font,
         }}
       >
-        <Container
-          style={{
-            margin: "0 auto",
-            maxWidth: "600px",
-            width: "100%",
-            backgroundColor: colors.black,
-          }}
-        >
+        <Container style={guestEmailContainerStyle}>
           {/* Top-right food line-art — Figma 6852:49961 */}
           <Section
             data-guest-response-top-decoration="1"
@@ -313,7 +305,7 @@ export function NonTransactionalEmailShell({
                 style={{
                   display: "block",
                   width: "100%",
-                  maxWidth: "600px",
+                  maxWidth: "100%",
                   height: `${BOTTOM_STRIP_HEIGHT_PX}px`,
                   border: 0,
                 }}

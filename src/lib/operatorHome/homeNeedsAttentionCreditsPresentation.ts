@@ -20,7 +20,28 @@ export const CREDIT_CHANNEL_ORDER: readonly CreditChannelId[] = [
   "ai",
 ]
 
+/** Plans that may surface credit Needs attention rows (Free never). */
+const HOME_NEEDS_ATTENTION_CREDIT_PLANS = new Set([
+  "Pilot",
+  "Starter",
+  "Growth",
+  "Group",
+])
+
 export type HomeNeedsAttentionCreditThresholdBand = 80 | 90 | 100
+
+/**
+ * Free accounts have no credit pool to warn on. Pilot and paid plans may.
+ */
+export function homeNeedsAttentionCreditsEligibleForPlan(
+  subscriptionPlan: string | null | undefined
+): boolean {
+  const plan = subscriptionPlan?.trim()
+  if (plan == null || plan === "") {
+    return false
+  }
+  return HOME_NEEDS_ATTENTION_CREDIT_PLANS.has(plan)
+}
 
 export function creditChannelUsedShare(
   combinedRemaining: number,
@@ -161,7 +182,12 @@ export function mapHomeNeedsAttentionCreditFacts(input: {
   accessLevel: BillingCreditsAccessLevel
   permissionRole: string
   workspaceName: string
+  subscriptionPlan: string | null | undefined
 }): HomeNeedsAttentionCreditFact[] {
+  if (!homeNeedsAttentionCreditsEligibleForPlan(input.subscriptionPlan)) {
+    return []
+  }
+
   const byChannel = new Map(
     input.usage.channels.map((record) => [record.channel, record] as const)
   )

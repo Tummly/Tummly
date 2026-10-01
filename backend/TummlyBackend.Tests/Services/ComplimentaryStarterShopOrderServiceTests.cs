@@ -67,6 +67,26 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task EnsureForLocationAsync_DoesNotCreate_WhenBillingPlanIsFree()
+        {
+            var billing = await _context.BillingAccounts.SingleAsync();
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Free;
+            billing.BillingStatus = BillingStatuses.Free;
+            await _context.SaveChangesAsync();
+
+            var result = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+
+            Assert.False(result.Created);
+            Assert.Equal(Guid.Empty, result.ShopOrderId);
+            Assert.Equal(0, await _context.ShopOrders.CountAsync());
+        }
+
+        [Fact]
         public async Task EnsureForLocationAsync_DoesNotCreate_WhenLocationIsDraft()
         {
             var location = await _context.RestaurantLocations.SingleAsync();
@@ -168,6 +188,9 @@ namespace TummlyBackend.Tests.Services
                     "TUMMLY-UK-GBP-2026-08-V3"
                 ),
             };
+            restaurant.BillingAccount.SubscriptionPlan =
+                BillingSubscriptionPlans.Pilot;
+            restaurant.BillingAccount.BillingStatus = BillingStatuses.Pilot;
             _context.Restaurants.Add(restaurant);
             _context.SaveChanges();
             _restaurantId = restaurant.Id;

@@ -229,6 +229,7 @@ export function HomePageModuleProvider({
         return {
           usage,
           permissionRole: page.actorPermissionRole,
+          subscriptionPlan: page.planSubscription.subscriptionPlan,
         }
       },
       pauseCampaign,

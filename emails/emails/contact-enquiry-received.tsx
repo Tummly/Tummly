@@ -17,10 +17,11 @@ import {
   bodyTextGap20,
   bodyTextLast,
   dividerStyle,
+  emailBodyStyle,
+  emailContainerStyle,
   headingStyle,
   mainSectionStyle,
 } from "./_components/styles"
-import { colors, fontFunctional } from "./_components/tokens"
 
 export type ContactEnquiryReceivedEmailProps = {
   topic: string
@@ -56,22 +57,8 @@ export default function ContactEnquiryReceivedEmail({
         <EmailFonts />
       </Head>
       <Preview>{`We've received your Tummly enquiry — ${reference}`}</Preview>
-      <Body
-        style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: colors.bodyBg,
-          fontFamily: fontFunctional,
-        }}
-      >
-        <Container
-          style={{
-            margin: "0 auto",
-            maxWidth: "600px",
-            width: "100%",
-            backgroundColor: colors.white,
-          }}
-        >
+      <Body style={emailBodyStyle}>
+        <Container style={emailContainerStyle}>
           <Section style={mainSectionStyle}>
             <EmailLogo logoUrl={logoUrl} />
 

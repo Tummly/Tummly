@@ -33,6 +33,8 @@ namespace TummlyBackend.Services
             private readonly TimeProvider _clock;
             private readonly TummlySellerVatSettings _sellerVat;
             private readonly IShopOrderEmailNotifier _shopOrderEmail;
+            private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
+            private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
 
             public RevolutOrderCompletedApplier(
                 ApplicationDbContext context,
@@ -45,7 +47,10 @@ namespace TummlyBackend.Services
                 TimeProvider clock,
                 IOptions<TummlySellerVatSettings> sellerVat,
                 ITummlyVatInvoiceEmailDelivery? invoiceEmail = null,
-                IShopOrderEmailNotifier? shopOrderEmail = null
+                IShopOrderEmailNotifier? shopOrderEmail = null,
+                IComplimentaryStarterShopOrderService? complimentaryStarterShopOrders =
+                    null,
+                IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null
             )
             {
                 _context = context;
@@ -59,6 +64,12 @@ namespace TummlyBackend.Services
                 _clock = clock;
                 _sellerVat = sellerVat.Value;
                 _shopOrderEmail = shopOrderEmail ?? NoOpShopOrderEmailNotifier.Instance;
+                _complimentaryStarterShopOrders =
+                    complimentaryStarterShopOrders
+                    ?? NoOpComplimentaryStarterShopOrderService.Instance;
+                _printReadyQrMaterialsWork =
+                    printReadyQrMaterialsWork
+                    ?? NoOpPrintReadyQrMaterialsWork.Instance;
             }
 
         public static bool IsMintableBillingReason(string? billingReason)
@@ -214,6 +225,36 @@ namespace TummlyBackend.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            if (isSetup)
+            {
+                var owner = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.Id == billingAccount.RestaurantId)
+                    .Select(row => new
+                    {
+                        row.OwnerUserId,
+                        FullName = row.OwnerUser.FullName,
+                    })
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (owner != null)
+                {
+                    var shopOrderIds =
+                        await _complimentaryStarterShopOrders.EnsureAllActiveLocationsAsync(
+                            billingAccount.RestaurantId,
+                            owner.OwnerUserId,
+                            owner.FullName ?? string.Empty,
+                            cancellationToken
+                        );
+                    foreach (var shopOrderId in shopOrderIds)
+                    {
+                        await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
+                            shopOrderId,
+                            cancellationToken
+                        );
+                    }
+                }
+            }
 
             var mintResult = await _mint.MintOnOrderCompletedAsync(
                 new IncludedPeriodOrderCompletedRequest

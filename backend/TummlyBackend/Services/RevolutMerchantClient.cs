@@ -90,34 +90,14 @@ namespace TummlyBackend.Services
                 var root = doc.RootElement;
                 if (root.ValueKind == JsonValueKind.Array)
                 {
-                    foreach (var item in root.EnumerateArray())
-                    {
-                        if (
-                            item.TryGetProperty("id", out var idElement)
-                            && idElement.ValueKind == JsonValueKind.String
-                        )
-                        {
-                            firstId = idElement.GetString();
-                            break;
-                        }
-                    }
+                    firstId = FindCustomerIdMatchingEmail(root, email);
                 }
                 else if (
                     root.TryGetProperty("customers", out var customers)
                     && customers.ValueKind == JsonValueKind.Array
                 )
                 {
-                    foreach (var item in customers.EnumerateArray())
-                    {
-                        if (
-                            item.TryGetProperty("id", out var idElement)
-                            && idElement.ValueKind == JsonValueKind.String
-                        )
-                        {
-                            firstId = idElement.GetString();
-                            break;
-                        }
-                    }
+                    firstId = FindCustomerIdMatchingEmail(customers, email);
                 }
             }
 
@@ -126,6 +106,56 @@ namespace TummlyBackend.Services
                 FirstCustomerId: firstId,
                 RawBody: raw
             );
+        }
+
+        /// <summary>
+        /// Sandbox (and some Merchant responses) may ignore the email query and
+        /// return the full customer list. Only reuse a customer whose email matches.
+        /// </summary>
+        private static string? FindCustomerIdMatchingEmail(
+            JsonElement customers,
+            string wantedEmail
+        )
+        {
+            var wanted = wantedEmail.Trim();
+            foreach (var item in customers.EnumerateArray())
+            {
+                if (
+                    !item.TryGetProperty("id", out var idElement)
+                    || idElement.ValueKind != JsonValueKind.String
+                )
+                {
+                    continue;
+                }
+
+                var id = idElement.GetString();
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    continue;
+                }
+
+                if (
+                    !item.TryGetProperty("email", out var emailElement)
+                    || emailElement.ValueKind != JsonValueKind.String
+                )
+                {
+                    continue;
+                }
+
+                var listedEmail = emailElement.GetString();
+                if (
+                    string.Equals(
+                        listedEmail?.Trim(),
+                        wanted,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                {
+                    return id;
+                }
+            }
+
+            return null;
         }
 
         public async Task<RevolutMerchantCreateResult> CreateCustomerAsync(

@@ -31,6 +31,8 @@ namespace TummlyBackend.Services
         private readonly ICreditLedger _creditLedger;
         private readonly TummlySellerVatSettings _sellerVat;
         private readonly IEmailService _emailService;
+        private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
+        private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
 
         public BillingCreditsService(
             ApplicationDbContext context,
@@ -48,7 +50,10 @@ namespace TummlyBackend.Services
             ICycleEndPlanCancel cycleEndPlanCancel,
             ICreditLedger creditLedger,
             IOptions<TummlySellerVatSettings> sellerVat,
-            IEmailService emailService
+            IEmailService emailService,
+            IComplimentaryStarterShopOrderService? complimentaryStarterShopOrders =
+                null,
+            IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null
         )
         {
             _context = context;
@@ -67,6 +72,12 @@ namespace TummlyBackend.Services
             _creditLedger = creditLedger;
             _sellerVat = sellerVat.Value;
             _emailService = emailService;
+            _complimentaryStarterShopOrders =
+                complimentaryStarterShopOrders
+                ?? NoOpComplimentaryStarterShopOrderService.Instance;
+            _printReadyQrMaterialsWork =
+                printReadyQrMaterialsWork
+                ?? NoOpPrintReadyQrMaterialsWork.Instance;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -524,6 +535,19 @@ namespace TummlyBackend.Services
                 {
                     throw new InvalidOperationException(
                         mint.Code ?? "pilot_mint_failed"
+                    );
+                }
+
+                var shopOrderIds =
+                    await _complimentaryStarterShopOrders.EnsureAllActiveLocationsAsync(
+                        restaurantId,
+                        userId,
+                        ownerRow?.FullName ?? string.Empty
+                    );
+                foreach (var shopOrderId in shopOrderIds)
+                {
+                    await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
+                        shopOrderId
                     );
                 }
 

@@ -263,6 +263,93 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task ListCustomersByEmailAsync_PicksMatchingEmail_WhenListIsUnfiltered()
+        {
+            var handler = new CountingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            """
+                            [
+                              {"id":"cust_probe","email":"qa-plan-change-probe@example.com","full_name":"QA Probe"},
+                              {"id":"cust_match","email":"owner@venue.test","full_name":"Owner"}
+                            ]
+                            """
+                        ),
+                    },
+            };
+            var client = CreateClient(handler, FullVat(), FullRevolut());
+
+            var result = await client.ListCustomersByEmailAsync(
+                "Owner@Venue.Test"
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Equal("cust_match", result.FirstCustomerId);
+            Assert.Equal(1, handler.SendCount);
+        }
+
+        [Fact]
+        public async Task ListCustomersByEmailAsync_ReturnsNull_WhenNoEmailMatches()
+        {
+            var handler = new CountingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            """
+                            [
+                              {"id":"cust_probe","email":"qa-plan-change-probe@example.com"},
+                              {"id":"cust_other","email":"other@venue.test"}
+                            ]
+                            """
+                        ),
+                    },
+            };
+            var client = CreateClient(handler, FullVat(), FullRevolut());
+
+            var result = await client.ListCustomersByEmailAsync(
+                "engineering@tummly.com"
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Null(result.FirstCustomerId);
+        }
+
+        [Fact]
+        public async Task ListCustomersByEmailAsync_PicksMatch_FromCustomersWrapper()
+        {
+            var handler = new CountingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            """
+                            {
+                              "customers": [
+                                {"id":"cust_probe","email":"qa-plan-change-probe@example.com"},
+                                {"id":"cust_match","email":"billing@venue.test"}
+                              ]
+                            }
+                            """
+                        ),
+                    },
+            };
+            var client = CreateClient(handler, FullVat(), FullRevolut());
+
+            var result = await client.ListCustomersByEmailAsync(
+                "billing@venue.test"
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Equal("cust_match", result.FirstCustomerId);
+        }
+
         private static IRevolutMerchantClient CreateClient(
             CountingHandler handler,
             TummlySellerVatSettings vat,

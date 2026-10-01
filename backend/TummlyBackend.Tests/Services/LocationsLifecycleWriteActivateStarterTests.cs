@@ -112,6 +112,25 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ActivateDraftAsync_DoesNotCreateComplimentary_WhenPlanIsFree()
+        {
+            var billing = await _context.BillingAccounts.SingleAsync();
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Free;
+            billing.BillingStatus = BillingStatuses.Free;
+            await _context.SaveChangesAsync();
+
+            var result = await _write.ActivateDraftAsync(
+                _restaurantId,
+                _locationId,
+                _userId
+            );
+
+            Assert.IsType<LocationLifecycleWriteResult.Ok>(result);
+            Assert.Equal(0, await _context.ShopOrders.CountAsync());
+            Assert.Empty(_printWork.RequestedShopOrderIds);
+        }
+
+        [Fact]
         public async Task ActivateDraftAsync_IsIdempotent_ForComplimentaryOrder()
         {
             var result = await _write.ActivateDraftAsync(
@@ -163,6 +182,9 @@ namespace TummlyBackend.Tests.Services
                     "TUMMLY-UK-GBP-2026-08-V3"
                 ),
             };
+            restaurant.BillingAccount.SubscriptionPlan =
+                BillingSubscriptionPlans.Pilot;
+            restaurant.BillingAccount.BillingStatus = BillingStatuses.Pilot;
             _context.Restaurants.Add(restaurant);
             _context.SaveChanges();
             _restaurantId = restaurant.Id;

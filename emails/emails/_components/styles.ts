@@ -45,6 +45,31 @@ export const footerDividerStyle: CSSProperties = {
   width: "100%",
 }
 
+/** Outer Body — gray frame with 20px pad on all sides. */
+export const emailBodyStyle: CSSProperties = {
+  margin: 0,
+  padding: "20px",
+  width: "100%",
+  backgroundColor: colors.bodyBg,
+  fontFamily: fontFunctional,
+}
+
+/** Full-width content card inside the gray frame. */
+export const emailContainerStyle: CSSProperties = {
+  margin: "0 auto",
+  width: "100%",
+  maxWidth: "100%",
+  backgroundColor: colors.white,
+}
+
+/** Guest (non-transactional) card — full width, black fill. */
+export const guestEmailContainerStyle: CSSProperties = {
+  margin: "0 auto",
+  width: "100%",
+  maxWidth: "100%",
+  backgroundColor: colors.black,
+}
+
 export const mainSectionStyle: CSSProperties = {
   padding: "38px 32px 48px",
   backgroundColor: colors.white,

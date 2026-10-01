@@ -410,6 +410,93 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("cust_listed", account.RevolutCustomerId);
         }
 
+        [Fact]
+        public async Task StartAsync_CreatesNewCustomer_WhenListedIdClaimedByOtherRestaurant()
+        {
+            await using var context = CreateContext();
+            var (account, owner) = await SeedPilotAsync(context);
+            await SeedOtherRestaurantWithCustomerAsync(context, "cust_claimed");
+            var merchant = new RecordingMerchant
+            {
+                ListResult = new RevolutListCustomersResult(
+                    Succeeded: true,
+                    FirstCustomerId: "cust_claimed"
+                ),
+                CreateCustomerResult = new RevolutMerchantCreateResult(
+                    Succeeded: true,
+                    Id: "cust_new_for_this_restaurant"
+                ),
+                CreateSubscriptionResult = new RevolutMerchantCreateResult(
+                    Succeeded: true,
+                    Id: "sub_1",
+                    SetupOrderId: "ord_1"
+                ),
+                GetOrderResult = new RevolutOrderRetrieveResult(
+                    Succeeded: true,
+                    Id: "ord_1",
+                    State: "pending",
+                    CheckoutUrl: "https://checkout.revolut.com/x"
+                ),
+            };
+            var service = CreateService(context, merchant);
+
+            var result = await service.StartAsync(
+                account,
+                owner,
+                "Single",
+                1,
+                "Starter",
+                "monthly",
+                "key-1"
+            );
+
+            Assert.Equal("pay", result.Outcome);
+            Assert.Equal(1, merchant.CreateCustomerCallCount);
+            Assert.Equal("cust_new_for_this_restaurant", account.RevolutCustomerId);
+            Assert.NotEqual("cust_claimed", account.RevolutCustomerId);
+        }
+
+        [Fact]
+        public async Task StartAsync_Rejects_WhenCreatedCustomerIdAlsoClaimed()
+        {
+            await using var context = CreateContext();
+            var (account, owner) = await SeedPilotAsync(context);
+            await SeedOtherRestaurantWithCustomerAsync(context, "cust_claimed");
+            var merchant = new RecordingMerchant
+            {
+                ListResult = new RevolutListCustomersResult(
+                    Succeeded: true,
+                    FirstCustomerId: "cust_claimed"
+                ),
+                CreateCustomerResult = new RevolutMerchantCreateResult(
+                    Succeeded: true,
+                    Id: "cust_claimed"
+                ),
+                CreateSubscriptionResult = new RevolutMerchantCreateResult(
+                    Succeeded: true,
+                    Id: "sub_1",
+                    SetupOrderId: "ord_1"
+                ),
+            };
+            var service = CreateService(context, merchant);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.StartAsync(
+                    account,
+                    owner,
+                    "Single",
+                    1,
+                    "Starter",
+                    "monthly",
+                    "key-1"
+                )
+            );
+
+            Assert.Equal("revolut_customer_in_use", ex.Message);
+            Assert.Null(account.RevolutCustomerId);
+            Assert.Equal(0, merchant.CreateSubscriptionCallCount);
+        }
+
         private static FirstPaidConversionPaySessionService CreateService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant
@@ -475,6 +562,54 @@ namespace TummlyBackend.Tests.Services
             context.BillingAccounts.Add(account);
             await context.SaveChangesAsync();
             return (account, owner);
+        }
+
+        private static async Task SeedOtherRestaurantWithCustomerAsync(
+            ApplicationDbContext context,
+            string revolutCustomerId
+        )
+        {
+            var owner = new User
+            {
+                FullName = "Other Owner",
+                Email = "other@venue.test",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900999",
+                Role = "Owner",
+                AccountType = "Single",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Other Cafe",
+                OwnerUserId = owner.Id,
+                AccountType = "Single",
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var account = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            BillingCreditsService.ApplyPilotSignupBilling(
+                account,
+                DateTime.UtcNow
+            );
+            account.RevolutCustomerId = revolutCustomerId;
+            context.BillingAccounts.Add(account);
+            await context.SaveChangesAsync();
         }
 
         private static ApplicationDbContext CreateContext()

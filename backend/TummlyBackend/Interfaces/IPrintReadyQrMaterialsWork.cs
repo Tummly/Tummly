@@ -21,4 +21,27 @@ namespace TummlyBackend.Interfaces
 
         Task DrainAsync(CancellationToken cancellationToken = default);
     }
+
+    public sealed class NoOpPrintReadyQrMaterialsWork : IPrintReadyQrMaterialsWork
+    {
+        public static readonly NoOpPrintReadyQrMaterialsWork Instance = new();
+
+        private NoOpPrintReadyQrMaterialsWork() { }
+
+        public ValueTask RequestEnsureAsync(
+            int locationId,
+            CancellationToken cancellationToken = default
+        ) => ValueTask.CompletedTask;
+
+        public ValueTask RequestShopOrderEnsureAsync(
+            Guid shopOrderId,
+            CancellationToken cancellationToken = default
+        ) => ValueTask.CompletedTask;
+
+        public Task RunAsync(CancellationToken stoppingToken) =>
+            Task.CompletedTask;
+
+        public Task DrainAsync(CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
 }

@@ -18,11 +18,13 @@ import {
   bodyText,
   bodyTextLast,
   dividerStyle,
+  emailBodyStyle,
+  emailContainerStyle,
   headingStyle,
   linkStyle,
   mainSectionStyle,
 } from "./_components/styles"
-import { colors, fontFunctional, supportEmail } from "./_components/tokens"
+import { supportEmail } from "./_components/tokens"
 
 export type NewDeviceSignInEmailProps = {
   firstName: string
@@ -64,22 +66,8 @@ export default function NewDeviceSignInEmail({
         <EmailFonts />
       </Head>
       <Preview>We noticed a sign-in from a new device.</Preview>
-      <Body
-        style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: colors.bodyBg,
-          fontFamily: fontFunctional,
-        }}
-      >
-        <Container
-          style={{
-            margin: "0 auto",
-            maxWidth: "600px",
-            width: "100%",
-            backgroundColor: colors.white,
-          }}
-        >
+      <Body style={emailBodyStyle}>
+        <Container style={emailContainerStyle}>
           <Section style={mainSectionStyle}>
             <EmailLogo logoUrl={logoUrl} />
 

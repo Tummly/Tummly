@@ -17,10 +17,12 @@ import {
   bodyText,
   bodyTextLast,
   dividerStyle,
+  emailBodyStyle,
+  emailContainerStyle,
   headingStyle,
   mainSectionStyle,
 } from "./_components/styles"
-import { colors, fontFunctional, fontHeadline } from "./_components/tokens"
+import { colors, fontHeadline } from "./_components/tokens"
 
 export type OtpEmailProps = {
   /** Full H1 + subject line from C#. */
@@ -54,22 +56,8 @@ export default function OtpEmail({
         <EmailFonts />
       </Head>
       <Preview>Your Tummly verification code</Preview>
-      <Body
-        style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: colors.bodyBg,
-          fontFamily: fontFunctional,
-        }}
-      >
-        <Container
-          style={{
-            margin: "0 auto",
-            maxWidth: "600px",
-            width: "100%",
-            backgroundColor: colors.white,
-          }}
-        >
+      <Body style={emailBodyStyle}>
+        <Container style={emailContainerStyle}>
           <Section style={mainSectionStyle}>
             <EmailLogo logoUrl={logoUrl} />
 

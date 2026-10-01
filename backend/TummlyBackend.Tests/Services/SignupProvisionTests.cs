@@ -116,6 +116,10 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Equal(BillingStatuses.Free, billing.BillingStatus);
             Assert.Equal(0, _mintLedger.MintPilotCallCount);
+            Assert.Equal(
+                0,
+                await _db.ShopOrders.CountAsync(o => o.IsComplimentary)
+            );
         }
 
         [Fact]
@@ -206,6 +210,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(BillingStatuses.Pilot, billing.BillingStatus);
             Assert.NotNull(billing.PilotPeriodEnd);
             Assert.Equal(1, _mintLedger.MintPilotCallCount);
+            Assert.Equal(
+                1,
+                await _db.ShopOrders.CountAsync(o => o.IsComplimentary)
+            );
         }
 
         [Fact]
@@ -229,6 +237,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(
                 BillingSubscriptionPlans.Starter,
                 session.TargetPlan
+            );
+            Assert.Equal(
+                0,
+                await _db.ShopOrders.CountAsync(o => o.IsComplimentary)
             );
             Assert.Equal(
                 RecordingFirstPaidConversionPaySession.CheckoutUrl,

@@ -20,12 +20,14 @@ import {
   bodyTextGap20,
   ctaButtonStyle,
   dividerStyle,
+  emailBodyStyle,
+  emailContainerStyle,
   headingStyle,
   linkStyle,
   mainSectionStyle,
   mutedNoteStyle,
 } from "./_components/styles"
-import { colors, fontFunctional, supportEmail } from "./_components/tokens"
+import { supportEmail } from "./_components/tokens"
 
 export type ResetPasswordEmailProps = {
   resetUrl: string
@@ -64,22 +66,8 @@ export default function ResetPasswordEmail({
         <EmailFonts />
       </Head>
       <Preview>Use this secure link to create a new password.</Preview>
-      <Body
-        style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: colors.bodyBg,
-          fontFamily: fontFunctional,
-        }}
-      >
-        <Container
-          style={{
-            margin: "0 auto",
-            maxWidth: "600px",
-            width: "100%",
-            backgroundColor: colors.white,
-          }}
-        >
+      <Body style={emailBodyStyle}>
+        <Container style={emailContainerStyle}>
           <Section style={mainSectionStyle}>
             <EmailLogo logoUrl={logoUrl} />
 

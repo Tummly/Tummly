@@ -1322,6 +1322,7 @@ namespace TummlyBackend.Tests.Services
                 _pricebook.CurrentPricebookId
             );
             account.BillingEmail = owner.Email;
+            BillingCreditsService.ApplyPilotSignupBilling(account, _now);
             context.BillingAccounts.Add(account);
             await context.SaveChangesAsync();
             return (account, owner);

@@ -361,6 +361,19 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var shopOrderIds =
+                await _complimentaryStarterShopOrders.EnsureAllActiveLocationsAsync(
+                    restaurant.Id,
+                    user.Id,
+                    user.FullName
+                );
+            foreach (var shopOrderId in shopOrderIds)
+            {
+                await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
+                    shopOrderId
+                );
+            }
+
             await TrySendPilotStartedEmailAsync(
                 user,
                 restaurant.Name,
@@ -646,18 +659,6 @@ namespace TummlyBackend.Services
 
                 await _context.SaveChangesAsync();
 
-                foreach (var location in provisionedLocations)
-                {
-                    var complimentary =
-                        await _complimentaryStarterShopOrders.EnsureForLocationAsync(
-                            restaurant.Id,
-                            location.Id,
-                            user.Id,
-                            user.FullName
-                        );
-                    complimentaryOrderIds.Add(complimentary.ShopOrderId);
-                }
-
                 var guestLoop = new GuestLoopSetup
                 {
                     RestaurantId = restaurant.Id,
@@ -677,6 +678,8 @@ namespace TummlyBackend.Services
                     user.ActivationExpiresAt =
                         ActivationCodeHelper.ComputeActivationExpiresAt(now);
 
+                    await _context.SaveChangesAsync();
+
                     var mintResult = await _creditLedger.MintPilotAtActivationAsync(
                         restaurant.Id
                     );
@@ -690,6 +693,22 @@ namespace TummlyBackend.Services
                     provisionedUser = user;
                     provisionedRestaurantName = restaurant.Name;
                     provisionedPilotEnd = restaurant.BillingAccount!.PilotPeriodEnd;
+                }
+
+                // Free accounts skip mint (Ensure gates on plan). Pilot/paid only.
+                foreach (var location in provisionedLocations)
+                {
+                    var complimentary =
+                        await _complimentaryStarterShopOrders.EnsureForLocationAsync(
+                            restaurant.Id,
+                            location.Id,
+                            user.Id,
+                            user.FullName
+                        );
+                    if (complimentary.ShopOrderId != Guid.Empty)
+                    {
+                        complimentaryOrderIds.Add(complimentary.ShopOrderId);
+                    }
                 }
 
                 await _context.SaveChangesAsync();

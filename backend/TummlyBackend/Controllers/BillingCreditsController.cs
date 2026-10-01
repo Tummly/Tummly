@@ -341,6 +341,18 @@ namespace TummlyBackend.Controllers
                 });
             }
             catch (InvalidOperationException ex) when (
+                ex.Message == "revolut_customer_in_use"
+            )
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = "revolut_customer_in_use",
+                    message =
+                        "This billing email is already linked to another Tummly account. Use a different billing email.",
+                });
+            }
+            catch (InvalidOperationException ex) when (
                 IsOperatorBillingLockCode(ex.Message) || ex.Message == "forbidden"
             )
             {

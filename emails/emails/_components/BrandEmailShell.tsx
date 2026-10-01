@@ -15,10 +15,11 @@ import { EmailFonts } from "./EmailFonts"
 import { EmailLogo } from "./EmailLogo"
 import {
   dividerStyle,
+  emailBodyStyle,
+  emailContainerStyle,
   headingStyle,
   mainSectionStyle,
 } from "./styles"
-import { colors, fontFunctional } from "./tokens"
 
 type BrandEmailShellProps = {
   preview: string
@@ -43,22 +44,8 @@ export function BrandEmailShell({
         <EmailFonts />
       </Head>
       <Preview>{preview}</Preview>
-      <Body
-        style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: colors.bodyBg,
-          fontFamily: fontFunctional,
-        }}
-      >
-        <Container
-          style={{
-            margin: "0 auto",
-            maxWidth: "600px",
-            width: "100%",
-            backgroundColor: colors.white,
-          }}
-        >
+      <Body style={emailBodyStyle}>
+        <Container style={emailContainerStyle}>
           <Section style={mainSectionStyle}>
             <EmailLogo logoUrl={logoUrl} />
             <Heading as="h1" style={headingStyle}>

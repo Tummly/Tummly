@@ -322,7 +322,14 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (!string.IsNullOrWhiteSpace(listed.FirstCustomerId))
+            if (
+                !string.IsNullOrWhiteSpace(listed.FirstCustomerId)
+                && !await IsRevolutCustomerClaimedByOtherRestaurantAsync(
+                    listed.FirstCustomerId,
+                    billingAccount.RestaurantId,
+                    cancellationToken
+                )
+            )
             {
                 billingAccount.RevolutCustomerId = listed.FirstCustomerId;
                 await _context.SaveChangesAsync(cancellationToken);
@@ -340,9 +347,34 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (
+                await IsRevolutCustomerClaimedByOtherRestaurantAsync(
+                    created.Id,
+                    billingAccount.RestaurantId,
+                    cancellationToken
+                )
+            )
+            {
+                throw new InvalidOperationException("revolut_customer_in_use");
+            }
+
             billingAccount.RevolutCustomerId = created.Id;
             await _context.SaveChangesAsync(cancellationToken);
             return created.Id;
+        }
+
+        private async Task<bool> IsRevolutCustomerClaimedByOtherRestaurantAsync(
+            string revolutCustomerId,
+            int restaurantId,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.BillingAccounts.AnyAsync(
+                row =>
+                    row.RestaurantId != restaurantId
+                    && row.RevolutCustomerId == revolutCustomerId,
+                cancellationToken
+            );
         }
 
         private string BuildPlanSubscriptionRedirectUrl(

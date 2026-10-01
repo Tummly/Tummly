@@ -2796,6 +2796,7 @@ describe("createOperatorHomePageModule", () => {
     }))
     const getNeedsAttentionCredits = vi.fn(async () => ({
       permissionRole: "Owner",
+      subscriptionPlan: "Growth",
       usage: {
         periodLabel: "Aug 2026",
         starterKitState: "unused",
@@ -2862,6 +2863,7 @@ describe("createOperatorHomePageModule", () => {
   it("omits credit rows below 80% used share", async () => {
     const getNeedsAttentionCredits = vi.fn(async () => ({
       permissionRole: "Owner",
+      subscriptionPlan: "Growth",
       usage: {
         periodLabel: "Aug 2026",
         starterKitState: "unused",
@@ -2896,6 +2898,7 @@ describe("createOperatorHomePageModule", () => {
   it("omits credit rows for No access even when used share is 80%", async () => {
     const getNeedsAttentionCredits = vi.fn(async () => ({
       permissionRole: "Owner",
+      subscriptionPlan: "Growth",
       usage: {
         periodLabel: "Aug 2026",
         starterKitState: "unused",
@@ -2930,6 +2933,7 @@ describe("createOperatorHomePageModule", () => {
   it("loads credit rows when billingCreditsAccess is omitted", async () => {
     const getNeedsAttentionCredits = vi.fn(async () => ({
       permissionRole: "Owner",
+      subscriptionPlan: "Growth",
       usage: {
         periodLabel: "Aug 2026",
         starterKitState: "unused",
@@ -2965,6 +2969,7 @@ describe("createOperatorHomePageModule", () => {
   it("resolves credit row CTA by View versus write permission", async () => {
     const getNeedsAttentionCredits = vi.fn(async () => ({
       permissionRole: "Marketing",
+      subscriptionPlan: "Growth",
       usage: {
         periodLabel: "Aug 2026",
         starterKitState: "unused",
@@ -2998,6 +3003,7 @@ describe("createOperatorHomePageModule", () => {
 
     getNeedsAttentionCredits.mockResolvedValueOnce({
       permissionRole: "Owner",
+      subscriptionPlan: "Growth",
       usage: {
         periodLabel: "Aug 2026",
         starterKitState: "unused",
@@ -3030,6 +3036,59 @@ describe("createOperatorHomePageModule", () => {
     ).toMatchObject({
       ctas: [{ kind: "buy-channel-credits", label: "Buy SMS credits" }],
     })
+  })
+
+  it("omits credit Needs attention rows on Free plans", async () => {
+    const getNeedsAttentionCredits = vi.fn(async () => ({
+      permissionRole: "Owner",
+      subscriptionPlan: "Free",
+      usage: {
+        periodLabel: "Aug 2026",
+        starterKitState: "unused",
+        isPilot: false,
+        channels: [
+          {
+            channel: "sms" as const,
+            combinedRemaining: 0,
+            usedThisCycle: 0,
+            includedThisPeriod: 0,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
+          {
+            channel: "email" as const,
+            combinedRemaining: 0,
+            usedThisCycle: 0,
+            includedThisPeriod: 0,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
+          {
+            channel: "ai" as const,
+            combinedRemaining: 0,
+            usedThisCycle: 0,
+            includedThisPeriod: 0,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
+        ],
+      },
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getNeedsAttentionCredits })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+
+    expect(getNeedsAttentionCredits).toHaveBeenCalledTimes(1)
+    expect(
+      home.getSnapshot().needsAttention?.allRows.some(
+        (row) => row.sourceKind === "credit"
+      )
+    ).toBe(false)
   })
 
   it("weekly brief starts empty before workspace sync", () => {

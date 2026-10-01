@@ -82,6 +82,26 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var subscriptionPlan = await _context.BillingAccounts
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .Select(row => row.SubscriptionPlan)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (
+                string.IsNullOrWhiteSpace(subscriptionPlan)
+                || string.Equals(
+                    subscriptionPlan,
+                    BillingSubscriptionPlans.Free,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return new ComplimentaryStarterShopOrderResult(
+                    Guid.Empty,
+                    Created: false
+                );
+            }
+
             var now = DateTime.UtcNow;
             var orderNumber = await _orderNumbers.AllocateNextOrderNumberAsync(
                 restaurantId,
@@ -181,6 +201,42 @@ namespace TummlyBackend.Services
                 order.Id,
                 Created: true
             );
+        }
+
+        public async Task<IReadOnlyList<Guid>> EnsureAllActiveLocationsAsync(
+            int restaurantId,
+            int placedByUserId,
+            string placedByName,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var locationIds = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantId == restaurantId
+                    && row.LifecycleStatus == LocationLifecycleStatus.Active
+                )
+                .OrderBy(row => row.Id)
+                .Select(row => row.Id)
+                .ToListAsync(cancellationToken);
+
+            var shopOrderIds = new List<Guid>();
+            foreach (var locationId in locationIds)
+            {
+                var result = await EnsureForLocationAsync(
+                    restaurantId,
+                    locationId,
+                    placedByUserId,
+                    placedByName,
+                    cancellationToken
+                );
+                if (result.ShopOrderId != Guid.Empty)
+                {
+                    shopOrderIds.Add(result.ShopOrderId);
+                }
+            }
+
+            return shopOrderIds;
         }
     }
 }

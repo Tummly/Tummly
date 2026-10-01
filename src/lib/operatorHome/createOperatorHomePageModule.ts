@@ -76,6 +76,8 @@ export type OperatorHomeWorkspaceInput = {
 export type HomeNeedsAttentionCreditsSource = {
   usage: CreditsUsageSnapshot
   permissionRole: string
+  /** Billing subscription plan — Free must not emit credit Needs attention. */
+  subscriptionPlan: string
 }
 
 export type CopySmartGuestLinkResult = "copied" | "failed" | "noop"
@@ -1209,6 +1211,7 @@ export function createOperatorHomePageModule(
                 billingAccess === "manage" ? "manage" : "view",
               permissionRole: creditsSource.permissionRole,
               workspaceName: state.workspace?.workspaceName ?? "",
+              subscriptionPlan: creditsSource.subscriptionPlan,
             })
       const projection = buildHomeNeedsAttention({
         locationName,

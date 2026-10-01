@@ -15,6 +15,10 @@ import {
 } from "react-email"
 
 import {
+  emailBodyStyle,
+  emailContainerStyle,
+} from "./_components/styles"
+import {
   colors,
   fontFunctional,
   fontHeadline,
@@ -94,22 +98,8 @@ export default function TeamInvitationEmail({
         />
       </Head>
       <Preview>{preview}</Preview>
-      <Body
-        style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: colors.bodyBg,
-          fontFamily: fontFunctional,
-        }}
-      >
-        <Container
-          style={{
-            margin: "0 auto",
-            maxWidth: "600px",
-            width: "100%",
-            backgroundColor: colors.white,
-          }}
-        >
+      <Body style={emailBodyStyle}>
+        <Container style={emailContainerStyle}>
           <Section
             style={{
               padding: "38px 32px 48px",

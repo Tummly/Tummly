@@ -5,6 +5,7 @@ import {
   creditChannelQualifiesForHomeNeedsAttention,
   creditChannelUsedShare,
   homeNeedsAttentionCreditCtas,
+  homeNeedsAttentionCreditsEligibleForPlan,
   mapHomeNeedsAttentionCreditFacts,
 } from "./homeNeedsAttentionCreditsPresentation"
 
@@ -32,6 +33,16 @@ describe("homeNeedsAttentionCreditsPresentation", () => {
     expect(creditChannelQualifiesForHomeNeedsAttention(21, 79)).toBe(false)
   })
 
+  it("allows Pilot and paid plans and blocks Free", () => {
+    expect(homeNeedsAttentionCreditsEligibleForPlan("Free")).toBe(false)
+    expect(homeNeedsAttentionCreditsEligibleForPlan("Pilot")).toBe(true)
+    expect(homeNeedsAttentionCreditsEligibleForPlan("Starter")).toBe(true)
+    expect(homeNeedsAttentionCreditsEligibleForPlan("Growth")).toBe(true)
+    expect(homeNeedsAttentionCreditsEligibleForPlan("Group")).toBe(true)
+    expect(homeNeedsAttentionCreditsEligibleForPlan(null)).toBe(false)
+    expect(homeNeedsAttentionCreditsEligibleForPlan("")).toBe(false)
+  })
+
   it("maps one row per qualifying channel in SMS, Email, AI order", () => {
     const facts = mapHomeNeedsAttentionCreditFacts({
       usage: usage([
@@ -55,6 +66,7 @@ describe("homeNeedsAttentionCreditsPresentation", () => {
       accessLevel: "view",
       permissionRole: "Marketing",
       workspaceName: "Tummly Demo",
+      subscriptionPlan: "Growth",
     })
 
     expect(facts.map((fact) => fact.channel)).toEqual(["email", "ai"])
@@ -65,6 +77,43 @@ describe("homeNeedsAttentionCreditsPresentation", () => {
       body: "Tummly Demo has used at least 90% of its Email credits this period.",
       ctas: [{ kind: "view-usage", label: "View usage" }],
     })
+  })
+
+  it("emits no credit rows on Free even when usage qualifies", () => {
+    const facts = mapHomeNeedsAttentionCreditFacts({
+      usage: usage([
+        {
+          channel: "sms",
+          combinedRemaining: 0,
+          usedThisCycle: 0,
+          includedThisPeriod: 0,
+          purchasedRemaining: 0,
+          purchasedExpiryLabel: null,
+        },
+        {
+          channel: "email",
+          combinedRemaining: 0,
+          usedThisCycle: 0,
+          includedThisPeriod: 0,
+          purchasedRemaining: 0,
+          purchasedExpiryLabel: null,
+        },
+        {
+          channel: "ai",
+          combinedRemaining: 0,
+          usedThisCycle: 0,
+          includedThisPeriod: 0,
+          purchasedRemaining: 0,
+          purchasedExpiryLabel: null,
+        },
+      ]),
+      accessLevel: "manage",
+      permissionRole: "Owner",
+      workspaceName: "Free Venue",
+      subscriptionPlan: "Free",
+    })
+
+    expect(facts).toEqual([])
   })
 
   it("resolves 100% paid write CTA as Buy and View-only as View usage", () => {
