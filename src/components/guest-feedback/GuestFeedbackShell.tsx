@@ -2,23 +2,34 @@ import type { ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
-import { GuestFeedbackAccent } from "./GuestFeedbackAccent"
-import { GuestFeedbackBottomEdge } from "./GuestFeedbackBottomEdge"
+import { GuestFeedbackGlow } from "./GuestFeedbackGlow"
 import { GuestFeedbackPoweredBy } from "./GuestFeedbackPoweredBy"
+
+type GuestFeedbackShellGlow = "none" | "accent" | "neutral"
 
 type GuestFeedbackShellProps = {
   children: ReactNode
   className?: string
   contentClassName?: string
-  /** Forwarded to the back pattern — phone preview only. */
-  accentPatternFade?: "none" | "phone"
+  /** When false, screens own their own Powered by placement. */
+  showPoweredBy?: boolean
+  /**
+   * Bottom bloom — Figma Rectangle 6 (accent thank-you / neutral unlock).
+   * Painted on the shell root so it spans the full viewport width.
+   */
+  glow?: GuestFeedbackShellGlow
 }
 
+/**
+ * Guest feedback page chrome — Figma Guest-Loop-MVP 6889:349.
+ * Solid dark canvas only (no food pattern, no green bottom strip).
+ */
 export function GuestFeedbackShell({
   children,
   className,
   contentClassName,
-  accentPatternFade = "none",
+  showPoweredBy = true,
+  glow = "none",
 }: GuestFeedbackShellProps) {
   return (
     <div
@@ -27,23 +38,21 @@ export function GuestFeedbackShell({
         className
       )}
     >
-      <GuestFeedbackAccent patternFade={accentPatternFade} />
-      <GuestFeedbackBottomEdge />
+      {glow !== "none" ? <GuestFeedbackGlow tone={glow} /> : null}
 
       <main
         className={cn(
-          "relative z-1 mx-auto flex w-full flex-1 flex-col px-[clamp(1.25rem,5vw,1.875rem)] pt-[clamp(4.5rem,14vw,5.125rem)]",
-          "max-w-[min(100%,393px)] pb-6",
-          "sm:max-w-[min(100%,480px)] sm:pb-10 sm:pt-[clamp(5rem,8vw,6rem)]",
-          "md:max-w-[min(100%,560px)] md:pb-12",
-          "lg:max-w-[min(100%,640px)]",
+          "relative z-1 mx-auto flex w-full min-h-0 flex-1 flex-col",
+          "max-w-[min(100%,393px)] px-2.5 pt-2.5 pb-8",
+          "sm:max-w-[min(100%,440px)] sm:px-3 sm:pt-3 sm:pb-10",
+          "md:max-w-[min(100%,480px)] md:px-4 md:pt-5 md:pb-12",
           contentClassName
         )}
       >
         {children}
       </main>
 
-      <GuestFeedbackPoweredBy />
+      {showPoweredBy ? <GuestFeedbackPoweredBy /> : null}
     </div>
   )
 }

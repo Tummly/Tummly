@@ -1,4 +1,4 @@
-/** Post-submit unlock-offer copy (Figma Guest-Loop-MVP 6723:1094). */
+/** Post-submit unlock-offer copy — Figma Guest-Loop-MVP 6818:699. */
 
 export type GuestFeedbackUnlockChannel = "email" | "sms"
 
@@ -31,7 +31,7 @@ function displayOfferTitle(title: string): string {
   return title.trim() || "this offer"
 }
 
-/** Shared thank-you body — Figma Guest-Loop-MVP 6778:28257 / unlock 6723:1094. */
+/** Shared thank-you body — Figma Guest-Loop-MVP 6807:1186 / unlock 6818:699. */
 export function buildGuestFeedbackSharedPrivatelyBody(
   restaurantName: string,
   locationName: string
@@ -55,11 +55,11 @@ export function buildGuestFeedbackUnlockCopy(
       input.locationName
     ),
     wantHeading: `Want ${offer}?`,
-    joinBody: `Join ${restaurant} for occasional offers and updates to unlock your welcome offer.`,
+    joinBody: `Join ${restaurant} for occasional offers and updates to get your thank-you offer.`,
     unlockCta:
       input.channel === "email"
-        ? `Yes — email me & unlock ${offer}`
-        : `Yes — text me & unlock ${offer}`,
+        ? `Yes — join by email & get ${offer}`
+        : `Yes — join by SMS & get ${offer}`,
     declineCta: "No thanks",
     optOutNote:
       input.channel === "email"

@@ -11,17 +11,17 @@ describe("buildGuestFeedbackUnlockCopy", () => {
       buildGuestFeedbackUnlockCopy({
         restaurantName: "KFC",
         locationName: "Camden High Street",
-        offerTitle: "Free dessert",
+        offerTitle: "14% OFF YOUR NEXT ORDER",
         channel: "sms",
       })
     ).toEqual({
       thankYouHeading: "Thank you.",
       sharedBody:
         "Your feedback has been shared privately with the team at KFC — Camden High Street.",
-      wantHeading: "Want Free dessert?",
+      wantHeading: "Want 14% OFF YOUR NEXT ORDER?",
       joinBody:
-        "Join KFC for occasional offers and updates to unlock your welcome offer.",
-      unlockCta: "Yes — text me & unlock Free dessert",
+        "Join KFC for occasional offers and updates to get your thank-you offer.",
+      unlockCta: "Yes — join by SMS & get 14% OFF YOUR NEXT ORDER",
       declineCta: "No thanks",
       optOutNote: "You can opt out at any time.",
     })
@@ -42,7 +42,7 @@ describe("buildGuestFeedbackUnlockCopy", () => {
       offerTitle: "10% off",
       channel: "email",
     })
-    expect(copy.unlockCta).toBe("Yes — email me & unlock 10% off")
+    expect(copy.unlockCta).toBe("Yes — join by email & get 10% off")
     expect(copy.optOutNote).toBe("You can unsubscribe at any time.")
   })
 })

@@ -50,9 +50,11 @@ type PreviewDevice =
 
 function PreviewGuestCanvas({
   device,
+  glow = "none",
   children,
 }: {
   device: PreviewDevice
+  glow?: "none" | "accent" | "neutral"
   children: ReactNode
 }) {
   const isMobile = device === CAPTURE_GUEST_PREVIEW_DEVICE.mobile
@@ -66,6 +68,8 @@ function PreviewGuestCanvas({
       >
         <GuestFeedbackShell
           className={CAPTURE_GUEST_PREVIEW_SHELL_CLASS}
+          showPoweredBy={false}
+          glow={glow}
           contentClassName={
             isMobile
               ? CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS
@@ -249,8 +253,8 @@ export function CaptureGuestExperiencePreviewOverlay({
           value={CAPTURE_GUEST_PREVIEW_PAGE_TAB.thankYou}
           className="mt-0"
         >
-          <PreviewGuestCanvas device={device}>
-            <div inert className="flex w-full justify-center pt-10">
+          <PreviewGuestCanvas device={device} glow="accent">
+            <div inert className="flex min-h-full w-full flex-1 flex-col justify-center">
               <GuestFeedbackSuccess
                 restaurantName={guestExperience.locationName}
                 locationName={guestExperience.locationName}

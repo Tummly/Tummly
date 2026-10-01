@@ -12,19 +12,14 @@ import { Link } from "react-router-dom"
 import { transcribeGuestAudio } from "@/api/scanApi"
 import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
+import { GuestFeedbackDictationGlow } from "@/components/guest-feedback/GuestFeedbackDictationGlow"
 import { GuestFeedbackMicChrome } from "@/components/guest-feedback/GuestFeedbackMicChrome"
+import { GuestFeedbackPoweredBy } from "@/components/guest-feedback/GuestFeedbackPoweredBy"
 import {
   useGuestLoopStepCanSubmit,
   useGuestLoopStepValidationFeedback,
 } from "@/components/guest-loop/useGuestLoopStepCanSubmit"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { FieldGroup } from "@/components/ui/field"
 import {
   Form,
@@ -83,17 +78,16 @@ const itemVariants: Variants = {
 }
 
 const legalLinkClassName =
-  "rounded-sm underline underline-offset-2 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-guest-feedback-accent/40"
+  "rounded-sm transition-colors hover:text-guest-feedback-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-guest-feedback-accent/40"
 
-// Card drop shadow from Figma (Guest-Loop-MVP node 3216:25970).
-const cardShadowClassName =
-  "shadow-[-133px_98px_46px_0_rgba(0,0,0,0.01),-85px_63px_42px_0_rgba(0,0,0,0.05),-48px_35px_36px_0_rgba(0,0,0,0.15),-21px_16px_26px_0_rgba(0,0,0,0.26),-5px_4px_15px_0_rgba(0,0,0,0.30)]"
+const fieldInputClassName =
+  "h-auto min-h-[50px] rounded-[18px] border-guest-feedback-border bg-transparent px-[15px] py-[15px] text-xs font-normal leading-normal text-guest-feedback-text placeholder:text-guest-feedback-placeholder focus-visible:border-guest-feedback-accent/60 focus-visible:ring-guest-feedback-accent/20 disabled:bg-transparent"
 
 type GuestFeedbackFormProps = {
   token: string
-  /** Venue display name in the header chrome. */
+  /** Venue display name — used in intro copy as [Location]. */
   locationName: string
-  /** Restaurant name for intro + marketing checkbox copy ([Restaurant]). */
+  /** Restaurant name for header + intro + marketing checkbox ([Restaurant]). */
   restaurantName?: string
   address: string
   brandLogoPublicUrl?: string | null
@@ -201,6 +195,7 @@ export function GuestFeedbackForm({
     displayRestaurant,
     displayLocation
   )
+  const isDictating = mic.chrome === "tick_cancel" || mic.chrome === "loader"
 
   const handleSubmit = form.handleSubmit(async (values) => {
     await onSubmit(values)
@@ -213,301 +208,294 @@ export function GuestFeedbackForm({
         initial={shouldReduceMotion ? false : "hidden"}
         animate="visible"
         onSubmit={(event) => void handleSubmit(event)}
-        className="flex w-full flex-col gap-8"
+        className="flex w-full flex-col gap-[29px]"
       >
-        <motion.header
-          variants={shouldReduceMotion ? undefined : itemVariants}
-          className="flex items-center gap-3"
-        >
-          <BrandLogoMark
-            brandLogoPublicUrl={brandLogoPublicUrl}
-            className="size-12"
-            roundedClassName="rounded-md"
-          />
-          <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-base font-semibold leading-snug text-guest-feedback-text">
-              {displayLocation}
-            </span>
-            {displayAddress ? (
-              <span className="truncate text-xs leading-snug text-guest-feedback-muted">
-                {displayAddress}
+        <div className="flex flex-col gap-3.5">
+          <motion.header
+            variants={shouldReduceMotion ? undefined : itemVariants}
+            className="flex flex-col gap-6 rounded-[28px] p-5"
+          >
+            <div className="flex items-center gap-3">
+              <BrandLogoMark
+                brandLogoPublicUrl={brandLogoPublicUrl}
+                className="size-[42px]"
+                roundedClassName="rounded"
+              />
+              <span className="flex min-w-0 flex-col gap-1 font-heading">
+                <span className="truncate text-[22px] font-semibold leading-normal text-white">
+                  {displayRestaurant}
+                </span>
+                {displayAddress ? (
+                  <span className="truncate text-xs font-semibold leading-normal text-[#9e9e9e]">
+                    {displayAddress}
+                  </span>
+                ) : null}
               </span>
-            ) : null}
-          </span>
-        </motion.header>
+            </div>
 
-        <motion.div
-          variants={shouldReduceMotion ? undefined : itemVariants}
-          className="flex flex-col gap-2"
-        >
-          <h1 className="text-[clamp(1.5rem,6vw,1.875rem)] font-medium leading-tight text-guest-feedback-text">
-            Tell us about your experience
-          </h1>
-          <p className="text-sm leading-relaxed text-guest-feedback-muted">
-            {introCopy}
-          </p>
-        </motion.div>
+            <div className="flex flex-col gap-3">
+              <h1 className="m-0 max-w-[14.5rem] font-heading text-2xl font-bold leading-7 text-white">
+                Tell us about your experience
+              </h1>
+              <p className="m-0 text-sm leading-5 text-[#9e9e9e]">
+                {introCopy}
+              </p>
+            </div>
+          </motion.header>
 
-        <FieldGroup className="gap-4">
-          <motion.div variants={shouldReduceMotion ? undefined : itemVariants}>
-            <Card
-              className={cn(
-                "gap-0 rounded-[8px] bg-guest-feedback-bg py-0 text-guest-feedback-text ring-guest-feedback-border",
-                cardShadowClassName
-              )}
+          <div className="flex flex-col gap-3.5">
+            <motion.div
+              variants={shouldReduceMotion ? undefined : itemVariants}
+              className="min-h-0"
             >
-              <CardHeader className="sr-only">
-                <CardTitle>Feedback</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <FormField
-                  control={form.control}
-                  name="comment"
-                  render={({ field, fieldState }) => {
-                    const commentUi = guestFeedbackCommentPresentation(
-                      mic.phase
-                    )
+              <FormField
+                control={form.control}
+                name="comment"
+                render={({ field, fieldState }) => {
+                  const commentUi = guestFeedbackCommentPresentation(mic.phase)
 
-                    return (
-                      <FormItem className="gap-0">
-                        <div className="relative">
-                          <FormControl>
-                            <Textarea
-                              {...field}
-                              placeholder={
-                                commentUi.isRecording
-                                  ? undefined
-                                  : commentUi.placeholder
-                              }
-                              disabled={isSubmitting}
-                              readOnly={mic.messageLocked}
-                              aria-invalid={Boolean(
-                                fieldState.error || commentError
-                              )}
-                              className={cn(
-                                "min-h-40 resize-none rounded-[8px] border-0 bg-transparent px-5 pb-16 pt-5 text-base text-guest-feedback-text shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-guest-feedback-accent/50 disabled:bg-transparent aria-invalid:ring-0 dark:aria-invalid:ring-0",
-                                commentUi.isRecording &&
-                                  "text-transparent caret-transparent selection:bg-transparent"
-                              )}
-                            />
-                          </FormControl>
-                          {commentUi.isRecording ? (
-                            <p
-                              aria-hidden
-                              className="pointer-events-none absolute left-5 top-5 right-14 text-sm leading-normal text-guest-feedback-placeholder"
-                            >
-                              {commentUi.recordingHint}
-                            </p>
-                          ) : null}
-                          <div className="sr-only" aria-live="polite">
-                            {commentUi.isRecording
-                              ? commentUi.recordingHint
-                              : ""}
-                          </div>
-                          <div
-                            className={cn(
-                              "absolute bottom-3 right-3",
-                              mic.chrome === "tick_cancel" && "left-3"
-                            )}
-                          >
-                            <GuestFeedbackMicChrome
-                              chrome={mic.chrome}
-                              micAvailable={mic.micAvailable}
-                              levelSource={micLevelSource}
-                              disabled={isSubmitting}
-                              onStart={() => {
-                                void micModule.start()
-                              }}
-                              onConfirm={() => {
-                                void micModule.confirm()
-                              }}
-                              onCancel={() => {
-                                void micModule.cancel()
-                              }}
-                            />
-                          </div>
-                        </div>
-                        {commentError ? (
-                          <p
-                            role="alert"
-                            className="px-5 pb-3 text-sm text-destructive"
-                          >
-                            {commentError}
-                          </p>
-                        ) : (
-                          <FormMessage className="px-5 pb-3" />
+                  return (
+                    <FormItem className="gap-0">
+                      <div
+                        className={cn(
+                          "relative flex min-h-[207px] flex-col overflow-hidden rounded-[28px] border border-guest-feedback-border-soft bg-[rgba(40,40,40,0.15)] sm:min-h-[230px]",
+                          isDictating &&
+                            "border-2 border-guest-feedback-border-soft bg-[rgba(20,20,20,0.5)]"
                         )}
-                        {commentNotice ? (
-                          <p className="px-5 pb-3 text-sm text-guest-feedback-muted">
-                            {commentNotice}
+                      >
+                        {isDictating ? <GuestFeedbackDictationGlow /> : null}
+
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            placeholder={
+                              commentUi.isRecording
+                                ? undefined
+                                : commentUi.placeholder
+                            }
+                            disabled={isSubmitting}
+                            readOnly={mic.messageLocked}
+                            aria-invalid={Boolean(
+                              fieldState.error || commentError
+                            )}
+                            className={cn(
+                              "relative z-1 min-h-[120px] flex-1 resize-none rounded-none border-0 bg-transparent px-5 pt-5 pb-3 text-sm font-normal leading-normal text-guest-feedback-text shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-transparent focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:aria-invalid:ring-0",
+                              commentUi.isRecording &&
+                                "text-transparent caret-transparent selection:bg-transparent"
+                            )}
+                          />
+                        </FormControl>
+                        {commentUi.isRecording ? (
+                          <p
+                            aria-hidden
+                            className="pointer-events-none absolute top-5 right-5 left-5 z-1 text-sm leading-normal text-guest-feedback-placeholder"
+                          >
+                            {commentUi.recordingHint}
                           </p>
                         ) : null}
-                      </FormItem>
-                    )
-                  }}
-                />
-              </CardContent>
-            </Card>
-          </motion.div>
+                        <div className="sr-only" aria-live="polite">
+                          {commentUi.isRecording
+                            ? commentUi.recordingHint
+                            : ""}
+                        </div>
 
-          <motion.div variants={shouldReduceMotion ? undefined : itemVariants}>
-            <Card
-              className={cn(
-                "rounded-[8px] bg-guest-feedback-bg text-guest-feedback-text ring-guest-feedback-border [--card-spacing:--spacing(5)]",
-                cardShadowClassName
-              )}
-            >
-              <CardHeader>
-                <CardTitle className="text-lg text-guest-feedback-text">
-                  Your details
-                </CardTitle>
-                <CardDescription className="text-xs leading-relaxed text-guest-feedback-muted">
-                  Add your name and one contact method so the team can respond
-                  to your feedback.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FieldGroup className="gap-3">
-                  <FormField
-                    control={form.control}
-                    name="guestName"
-                    render={({ field, fieldState }) => (
-                      <FormItem className="gap-1.5">
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Your name"
+                        <div className="relative z-1 px-5 pb-5">
+                          <GuestFeedbackMicChrome
+                            chrome={mic.chrome}
+                            micAvailable={mic.micAvailable}
+                            levelSource={micLevelSource}
                             disabled={isSubmitting}
-                            autoComplete="name"
-                            aria-invalid={Boolean(fieldState.error)}
-                            className="h-12 border-guest-feedback-border bg-transparent px-4 text-base text-guest-feedback-text placeholder:text-guest-feedback-placeholder focus-visible:border-guest-feedback-accent/60 focus-visible:ring-guest-feedback-accent/20 disabled:bg-transparent"
+                            onStart={() => {
+                              void micModule.start()
+                            }}
+                            onConfirm={() => {
+                              void micModule.confirm()
+                            }}
+                            onCancel={() => {
+                              void micModule.cancel()
+                            }}
                           />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="guestContact"
-                    render={({ field, fieldState }) => (
-                      <FormItem className="gap-1.5">
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Email or phone number"
-                            disabled={isSubmitting}
-                            autoComplete="email"
-                            inputMode="email"
-                            aria-invalid={Boolean(fieldState.error)}
-                            className="h-12 border-guest-feedback-border bg-transparent px-4 text-base text-guest-feedback-text placeholder:text-guest-feedback-placeholder focus-visible:border-guest-feedback-accent/60 focus-visible:ring-guest-feedback-accent/20 disabled:bg-transparent"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {showConsentCheckbox && consentCheckboxLabel ? (
-                    <FormCheckboxLabel
+                        </div>
+                      </div>
+                      {commentError ? (
+                        <p
+                          role="alert"
+                          className="px-2 pt-2 text-sm text-destructive"
+                        >
+                          {commentError}
+                        </p>
+                      ) : (
+                        <FormMessage className="px-2 pt-2" />
+                      )}
+                      {commentNotice ? (
+                        <p className="px-2 pt-2 text-sm text-guest-feedback-muted">
+                          {commentNotice}
+                        </p>
+                      ) : null}
+                    </FormItem>
+                  )
+                }}
+              />
+            </motion.div>
+
+            <motion.div variants={shouldReduceMotion ? undefined : itemVariants}>
+              <section className="flex flex-col gap-6 overflow-hidden rounded-[28px] bg-guest-feedback-surface p-5">
+                <div className="flex flex-col gap-3.5">
+                  <div className="flex flex-col gap-2 text-sm">
+                    <h2 className="m-0 font-heading text-sm font-bold leading-normal text-guest-feedback-text">
+                      Your details
+                    </h2>
+                    <p className="m-0 max-w-[16rem] text-sm leading-[19px] text-guest-feedback-muted-soft">
+                      Add your details so the team can respond to your feedback.
+                    </p>
+                  </div>
+
+                  <FieldGroup className="gap-3">
+                    <FormField
                       control={form.control}
-                      name="acceptsOffers"
-                      id="accepts-offers"
-                      variant="ghost"
-                      disabled={isSubmitting}
-                      className="pt-1"
-                      labelClassName="cursor-pointer text-[12px] font-normal leading-relaxed text-guest-feedback-muted"
-                    >
-                      {consentCheckboxLabel}
-                    </FormCheckboxLabel>
-                  ) : null}
-                </FieldGroup>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </FieldGroup>
+                      name="guestName"
+                      render={({ field, fieldState }) => (
+                        <FormItem className="gap-1.5">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder="Your name"
+                              disabled={isSubmitting}
+                              autoComplete="name"
+                              aria-invalid={Boolean(fieldState.error)}
+                              className={fieldInputClassName}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="guestContact"
+                      render={({ field, fieldState }) => (
+                        <FormItem className="gap-1.5">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder="Email or UK mobile number"
+                              disabled={isSubmitting}
+                              autoComplete="email"
+                              inputMode="email"
+                              aria-invalid={Boolean(fieldState.error)}
+                              className={fieldInputClassName}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </FieldGroup>
+                </div>
 
-        <motion.nav
-          variants={shouldReduceMotion ? undefined : itemVariants}
-          aria-label="Legal"
-          className="flex flex-col items-center gap-2 text-xs text-guest-feedback-muted"
-        >
-          <div className="flex items-center justify-center gap-2">
-            <Link to={LEGAL_ROUTES.terms} className={legalLinkClassName}>
-              Terms &amp; Conditions
-            </Link>
-            <span aria-hidden>·</span>
-            <Link to={LEGAL_ROUTES.privacy} className={legalLinkClassName}>
-              Privacy Notice
-            </Link>
+                {showConsentCheckbox && consentCheckboxLabel ? (
+                  <FormCheckboxLabel
+                    control={form.control}
+                    name="acceptsOffers"
+                    id="accepts-offers"
+                    variant="ghost"
+                    disabled={isSubmitting}
+                    labelClassName="cursor-pointer text-xs font-normal leading-4 text-guest-feedback-muted-soft"
+                  >
+                    {consentCheckboxLabel}
+                  </FormCheckboxLabel>
+                ) : null}
+              </section>
+            </motion.div>
           </div>
-          {showRecaptchaAttribution ? (
-            <p className="max-w-sm text-center text-[11px] leading-relaxed text-guest-feedback-muted/80">
-              This site is protected by reCAPTCHA and the Google{" "}
-              <a
-                href="https://policies.google.com/privacy"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={legalLinkClassName}
-              >
-                Privacy Policy
-              </a>{" "}
-              and{" "}
-              <a
-                href="https://policies.google.com/terms"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={legalLinkClassName}
-              >
-                Terms of Service
-              </a>{" "}
-              apply.
-            </p>
-          ) : null}
-        </motion.nav>
+        </div>
 
         <motion.div
           variants={shouldReduceMotion ? undefined : itemVariants}
-          className="flex flex-col gap-3"
+          className="flex flex-col items-center gap-[29px]"
         >
-          {submitError ? (
-            <div
-              role="alert"
-              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              <p>{submitError}</p>
-              <Button
-                type="button"
-                variant="link-destructive"
-                size="link-sm"
-                onClick={onRetry}
-                className="mt-1"
-              >
-                Try again
-              </Button>
-            </div>
-          ) : null}
+          <GuestFeedbackPoweredBy placement="inline" />
 
-          <motion.div
-            whileTap={
-              shouldReduceMotion || !canSubmit || submitBusy
-                ? undefined
-                : { scale: 0.985 }
-            }
-            transition={formSpring}
-          >
-            <Button
-              type="submit"
-              disabled={!canSubmit || submitBusy}
-              className={cn(
-                "h-auto min-h-12.5 w-full rounded-[54px] px-4.25 py-3.25 text-sm leading-normal shadow-none",
-                canSubmit && !submitBusy
-                  ? "bg-guest-feedback-accent text-white hover:bg-[#129641]"
-                  : "bg-[#2a2a2a] text-guest-feedback-muted hover:bg-[#2a2a2a]"
-              )}
+          <div className="flex w-full flex-col gap-3">
+            {submitError ? (
+              <div
+                role="alert"
+                className="rounded-[18px] border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                <p>{submitError}</p>
+                <Button
+                  type="button"
+                  variant="link-destructive"
+                  size="link-sm"
+                  onClick={onRetry}
+                  className="mt-1"
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : null}
+
+            <motion.div
+              whileTap={
+                shouldReduceMotion || !canSubmit || submitBusy
+                  ? undefined
+                  : { scale: 0.985 }
+              }
+              transition={formSpring}
+              className="w-full"
             >
-              {isSubmitting ? "Submitting..." : "Submit feedback"}
-            </Button>
-          </motion.div>
+              <Button
+                type="submit"
+                disabled={!canSubmit || submitBusy}
+                className={cn(
+                  "h-auto min-h-12.5 w-full rounded-[54px] px-4 py-4 text-sm font-medium leading-normal shadow-none",
+                  canSubmit && !submitBusy
+                    ? "bg-guest-feedback-submit text-guest-feedback-submit-fg hover:bg-white"
+                    : "bg-guest-feedback-secondary text-guest-feedback-secondary-fg hover:bg-guest-feedback-secondary"
+                )}
+              >
+                {isSubmitting ? "Submitting..." : "Submit feedback"}
+              </Button>
+            </motion.div>
+          </div>
+
+          <nav
+            aria-label="Legal"
+            className="flex flex-col items-center gap-2 text-xs text-guest-feedback-muted-soft"
+          >
+            <div className="flex items-center justify-center gap-1.5">
+              <Link to={LEGAL_ROUTES.terms} className={legalLinkClassName}>
+                Terms &amp; Conditions
+              </Link>
+              <span aria-hidden>·</span>
+              <Link to={LEGAL_ROUTES.privacy} className={legalLinkClassName}>
+                Privacy Notice
+              </Link>
+            </div>
+            {showRecaptchaAttribution ? (
+              <p className="max-w-sm text-center text-[11px] leading-relaxed text-guest-feedback-muted/80">
+                This site is protected by reCAPTCHA and the Google{" "}
+                <a
+                  href="https://policies.google.com/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={legalLinkClassName}
+                >
+                  Privacy Policy
+                </a>{" "}
+                and{" "}
+                <a
+                  href="https://policies.google.com/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={legalLinkClassName}
+                >
+                  Terms of Service
+                </a>{" "}
+                apply.
+              </p>
+            ) : null}
+          </nav>
         </motion.div>
       </motion.form>
     </Form>

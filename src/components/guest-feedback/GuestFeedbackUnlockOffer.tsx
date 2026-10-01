@@ -5,7 +5,8 @@ import {
   type Variants,
 } from "framer-motion"
 
-import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
+import { GuestFeedbackPoweredBy } from "@/components/guest-feedback/GuestFeedbackPoweredBy"
+import { GuestFeedbackTicketCard } from "@/components/guest-feedback/GuestFeedbackTicketCard"
 import { Button } from "@/components/ui/button"
 import {
   buildGuestFeedbackUnlockCopy,
@@ -58,11 +59,10 @@ export type GuestFeedbackUnlockOfferProps = {
   className?: string
 }
 
-/** Post-submit unlock screen — Figma Guest-Loop-MVP 6723:1094. */
+/** Need-consent unlock screen — Figma Guest-Loop-MVP 6818:699. */
 export function GuestFeedbackUnlockOffer({
   restaurantName,
   locationName,
-  brandLogoPublicUrl = null,
   offerTitle,
   channel,
   isUnlocking,
@@ -82,62 +82,30 @@ export function GuestFeedbackUnlockOffer({
   })
 
   return (
-    <div className={cn("mx-auto flex w-full max-w-[min(100%,400px)] flex-col gap-6", className)}>
+    <div
+      className={cn(
+        "relative mx-auto flex min-h-full w-full flex-1 flex-col",
+        className
+      )}
+    >
       <motion.div
-        initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.96, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={shouldReduceMotion ? { duration: 0 } : cardSpring}
-        className="relative flex w-full flex-col items-center rounded-[10px] border border-guest-feedback-border bg-guest-feedback-surface px-5 pb-7.5 pt-0 text-center sm:px-8 sm:pb-10"
+        variants={shouldReduceMotion ? undefined : containerVariants}
+        initial={shouldReduceMotion ? false : "hidden"}
+        animate="visible"
+        className="relative z-1 flex min-h-full w-full flex-1 flex-col"
       >
-        <span
-          aria-hidden
-          className="absolute -left-3 top-1/2 size-4.5 -translate-y-1/2 rounded-[20px] bg-guest-feedback-bg"
-        />
-        <span
-          aria-hidden
-          className="absolute -right-3 top-1/2 size-4.5 -translate-y-1/2 rounded-[20px] bg-guest-feedback-bg"
-        />
-
-        <motion.div
-          initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.7, y: 8 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={
-            shouldReduceMotion ? { duration: 0 } : { ...cardSpring, delay: 0.08 }
-          }
-          className="-mt-7 flex flex-col items-center gap-3"
-        >
-          <BrandLogoMark
-            brandLogoPublicUrl={brandLogoPublicUrl}
-            className="size-13"
-            roundedClassName="rounded-md"
-          />
-          <span className="flex flex-col items-center gap-1">
-            <span className="text-[22px] font-semibold leading-normal text-guest-feedback-text">
-              {displayRestaurant}
-            </span>
-            <span className="text-xs leading-normal text-guest-feedback-muted">
-              {displayLocation}
-            </span>
-          </span>
-        </motion.div>
-
-        <motion.div
-          variants={shouldReduceMotion ? undefined : containerVariants}
-          initial={shouldReduceMotion ? false : "hidden"}
-          animate="visible"
-          className="mt-15 flex w-full flex-col items-center gap-5"
-        >
-          <div className="flex flex-col items-center gap-3">
+        <div className="flex w-full flex-1 flex-col items-center justify-center gap-8 px-0 pt-6 pb-4">
+          <div className="flex w-full max-w-[min(100%,400px)] flex-col items-center gap-3 text-center md:max-w-[min(100%,440px)]">
             <motion.h1
               variants={shouldReduceMotion ? undefined : itemVariants}
-              className="text-[22px] font-medium leading-normal text-guest-feedback-text"
+              className="m-0 font-heading text-[28px] font-bold leading-normal text-guest-feedback-text"
             >
               {copy.thankYouHeading}
             </motion.h1>
             <motion.p
               variants={shouldReduceMotion ? undefined : itemVariants}
               transition={shouldReduceMotion ? undefined : fadeTransition}
-              className="max-w-70 text-xs leading-4.5 text-guest-feedback-muted"
+              className="m-0 max-w-[291px] text-sm font-medium leading-5 text-[#888]"
             >
               {copy.sharedBody}
             </motion.p>
@@ -145,49 +113,63 @@ export function GuestFeedbackUnlockOffer({
 
           <motion.div
             variants={shouldReduceMotion ? undefined : itemVariants}
-            className="w-full rounded-[8px] bg-guest-feedback-bg px-5 py-5 text-left"
+            className="w-full max-w-[min(100%,400px)] md:max-w-[min(100%,440px)]"
           >
-            <p className="m-0 text-base font-medium leading-normal text-guest-feedback-text">
-              {copy.wantHeading}
-            </p>
-            <p className="m-0 mt-2 text-xs leading-4.5 text-guest-feedback-muted">
-              {copy.joinBody}
-            </p>
+            <GuestFeedbackTicketCard className="gap-[33px] py-[30px]">
+              <div className="flex w-full flex-col items-center gap-3 text-center">
+                <div className="flex flex-col items-center gap-2 text-guest-feedback-text">
+                  <p className="m-0 text-xs font-medium leading-normal">
+                    Your thank-you offer
+                  </p>
+                  <p className="m-0 max-w-[255px] font-heading text-2xl font-bold leading-normal">
+                    {copy.wantHeading}
+                  </p>
+                </div>
+                <p className="m-0 text-sm font-medium leading-[18px] text-guest-feedback-text/40">
+                  {copy.joinBody}
+                </p>
+              </div>
+            </GuestFeedbackTicketCard>
           </motion.div>
+
+          <motion.div
+            variants={shouldReduceMotion ? undefined : itemVariants}
+            className="flex w-full max-w-[min(100%,400px)] flex-col items-center gap-3 md:max-w-[min(100%,440px)]"
+          >
+            {unlockError ? (
+              <p
+                role="alert"
+                className="w-full text-center text-sm text-destructive"
+              >
+                {unlockError}
+              </p>
+            ) : null}
+
+            <Button
+              type="button"
+              disabled={isUnlocking}
+              onClick={onUnlock}
+              className="h-auto min-h-12.5 w-full rounded-[54px] bg-guest-feedback-accent px-4 py-4 text-sm font-medium leading-normal text-guest-feedback-text shadow-none hover:bg-[#129641] disabled:opacity-70"
+            >
+              {isUnlocking ? "Unlocking…" : copy.unlockCta}
+            </Button>
+            <Button
+              type="button"
+              disabled={isUnlocking}
+              onClick={onDecline}
+              className="h-auto min-h-12.5 w-full rounded-[54px] bg-guest-feedback-secondary px-4 py-4 text-sm font-medium leading-normal text-guest-feedback-secondary-fg shadow-none hover:bg-guest-feedback-secondary"
+            >
+              {copy.declineCta}
+            </Button>
+          </motion.div>
+        </div>
+
+        <motion.div
+          variants={shouldReduceMotion ? undefined : itemVariants}
+          className="relative z-1 flex w-full justify-center pb-8 pt-2"
+        >
+          <GuestFeedbackPoweredBy placement="inline" />
         </motion.div>
-      </motion.div>
-
-      <motion.div
-        initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={shouldReduceMotion ? { duration: 0 } : { ...cardSpring, delay: 0.12 }}
-        className="flex flex-col items-center gap-3"
-      >
-        {unlockError ? (
-          <p role="alert" className="w-full text-center text-sm text-destructive">
-            {unlockError}
-          </p>
-        ) : null}
-
-        <Button
-          type="button"
-          disabled={isUnlocking}
-          onClick={onUnlock}
-          className="h-auto min-h-12.5 w-full rounded-[54px] bg-guest-feedback-accent px-4.25 py-3.25 text-sm leading-normal text-white shadow-none hover:bg-[#129641] disabled:opacity-70"
-        >
-          {isUnlocking ? "Unlocking…" : copy.unlockCta}
-        </Button>
-        <Button
-          type="button"
-          disabled={isUnlocking}
-          onClick={onDecline}
-          className="h-auto min-h-12.5 w-full rounded-[54px] bg-[#2a2a2a] px-4.25 py-3.25 text-sm leading-normal text-guest-feedback-muted shadow-none hover:bg-[#2a2a2a]"
-        >
-          {copy.declineCta}
-        </Button>
-        <p className="m-0 text-xs leading-normal text-guest-feedback-muted">
-          {copy.optOutNote}
-        </p>
       </motion.div>
     </div>
   )

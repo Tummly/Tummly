@@ -173,11 +173,21 @@ export default function GuestFeedbackPage() {
 
   const centeredSuccessChrome =
     phase === "success" || phase === "unlock"
-      ? "justify-center pb-6 pt-[clamp(3rem,10vw,4rem)]"
+      ? "min-h-0 flex-1 justify-stretch pb-6 pt-6 sm:pt-8"
       : undefined
 
+  const hideShellPoweredBy =
+    phase === "ready" || phase === "success" || phase === "unlock"
+
+  const shellGlow =
+    phase === "success" ? "accent" : phase === "unlock" ? "neutral" : "none"
+
   return (
-    <GuestFeedbackShell contentClassName={centeredSuccessChrome}>
+    <GuestFeedbackShell
+      contentClassName={centeredSuccessChrome}
+      showPoweredBy={!hideShellPoweredBy}
+      glow={shellGlow}
+    >
       <AnimatePresence mode="wait">
         {phase === "loading" ? (
           <motion.div
@@ -236,7 +246,7 @@ export default function GuestFeedbackPage() {
             animate={{ opacity: 1 }}
             exit={shouldReduceMotion ? undefined : { opacity: 0 }}
             transition={shouldReduceMotion ? { duration: 0 } : fadeTransition}
-            className="w-full"
+            className="flex min-h-full w-full flex-1 flex-col"
           >
             <GuestFeedbackUnlockOffer
               restaurantName={
@@ -263,7 +273,7 @@ export default function GuestFeedbackPage() {
             animate={{ opacity: 1 }}
             exit={shouldReduceMotion ? undefined : { opacity: 0 }}
             transition={shouldReduceMotion ? { duration: 0 } : fadeTransition}
-            className="w-full"
+            className="flex min-h-full w-full flex-1 flex-col"
           >
             <GuestFeedbackSuccess
               restaurantName={metadata.restaurantName}
