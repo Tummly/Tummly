@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/table"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
+import { formatPhoneForDisplay } from "@/lib/phoneNumber"
 import {
   GUESTS_MARKETING_STATUS_BADGE_CLASS,
   GUESTS_PAGINATION_BUTTON_CLASS,
@@ -413,12 +414,23 @@ export function GuestsSmartGroupsSection({
                         </Button>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <a
-                          href={`mailto:${row.email}`}
-                          className={OPERATOR_GUEST_CONTACT_LINK_CLASS}
-                        >
-                          {row.email}
-                        </a>
+                        {row.email.trim() ? (
+                          <a
+                            href={`mailto:${row.email}`}
+                            className={OPERATOR_GUEST_CONTACT_LINK_CLASS}
+                          >
+                            {row.email}
+                          </a>
+                        ) : row.mobile ? (
+                          <a
+                            href={`tel:${row.mobile}`}
+                            className={OPERATOR_GUEST_CONTACT_LINK_CLASS}
+                          >
+                            {formatPhoneForDisplay(row.mobile)}
+                          </a>
+                        ) : (
+                          <span className={GUESTS_TABLE_LOCATION_CLASS}>—</span>
+                        )}
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <Badge
