@@ -56,7 +56,7 @@ export function GuestFeedbackAccent({
         style={{
           backgroundImage: usePhoneFade
             ? "linear-gradient(260deg, var(--guest-feedback-bg) 2.32%, transparent 16.9%)"
-            : "linear-gradient(260deg, rgb(20, 20, 20) 2.32%, rgba(20, 20, 20, 0) 16.9%), linear-gradient(3deg, rgb(20, 20, 20) 13.4%, rgba(20, 20, 20, 0) 72.9%)",
+            : "linear-gradient(260deg, rgb(15, 15, 15) 2.32%, rgba(15, 15, 15, 0) 16.9%), linear-gradient(3deg, rgb(15, 15, 15) 13.4%, rgba(15, 15, 15, 0) 72.9%)",
         }}
       />
     </div>

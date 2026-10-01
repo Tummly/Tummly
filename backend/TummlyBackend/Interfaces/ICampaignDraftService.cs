@@ -19,6 +19,14 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Returns a Campaign by id for any status (details / preview), or null when missing.
+        /// </summary>
+        Task<CampaignDraftDto?> GetDetailByIdAsync(
+            int campaignId,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
         /// Location id for any Campaign status — ownership checks before PATCH.
         /// </summary>
         Task<int?> GetLocationIdAsync(

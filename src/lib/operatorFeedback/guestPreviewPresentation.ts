@@ -172,10 +172,20 @@ export function isGuestPreviewOfferClaimCodePlaceholder(
 
 export const GUEST_PREVIEW_OFFER_COPY_LABEL = "Copy"
 
-/** Thank-you coupon eyebrow — Figma Guest-Loop-MVP 6778:28268. */
+/** Thank-you coupon eyebrow — Figma Guest-Loop-MVP 6807:1186. */
 export const GUEST_THANK_YOU_OFFER_EYEBROW = "Your thank-you offer"
 
-/** Thank-you coupon footer — Figma Guest-Loop-MVP 6778:28280. */
+/** Full-width thank-you Copy CTA — Figma Guest-Loop-MVP 6807:1186. */
+export const GUEST_THANK_YOU_OFFER_COPY_LABEL = "Copy offer code"
+
+/** Shown under Copy after a successful clipboard write. */
+export const GUEST_THANK_YOU_OFFER_COPIED_LABEL = "Code copied"
+
+/** Default redeem hint under the QR when offer description is empty. */
+export const GUEST_THANK_YOU_OFFER_REDEEM_HINT =
+  "Show this QR code or offer code when you order to redeem your offer."
+
+/** Thank-you coupon footer — Figma Guest-Loop-MVP 6807:1186. */
 export const GUEST_THANK_YOU_OFFER_TERMS_LABEL = "Terms apply"
 
 /** Re-claim status under the offer title — Figma Guest-Loop-MVP 6778:28270. */

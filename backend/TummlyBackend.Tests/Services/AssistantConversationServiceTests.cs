@@ -9548,6 +9548,12 @@ namespace TummlyBackend.Tests.Services
             )
                 => Task.FromResult<CampaignDraftDto?>(null);
 
+            public Task<CampaignDraftDto?> GetDetailByIdAsync(
+                int campaignId,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult<CampaignDraftDto?>(null);
+
             public Task<int?> GetLocationIdAsync(
                 int campaignId,
                 CancellationToken cancellationToken = default
