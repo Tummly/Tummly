@@ -7,8 +7,8 @@ using TummlyBackend.Interfaces;
 namespace TummlyBackend.Controllers
 {
     /// <summary>
-    /// Sync Reports export pack (ticket 17 / lock 09). Soft lock / Dormant /
-    /// chargeback deny via paid-write gate; KPI reads stay open.
+    /// Sync Reports export pack. Soft lock / Dormant / chargeback deny via
+    /// paid-write gate; KPI reads stay open. PDF/CSV retained; XLSX additive.
     /// </summary>
     [ApiController]
     [Route("api/reports/export")]
@@ -32,76 +32,173 @@ namespace TummlyBackend.Controllers
 
         [HttpGet("overview")]
         public Task<IActionResult> ExportOverview(
-            [FromQuery] int locationId,
+            [FromQuery] int? locationId,
+            [FromQuery] int[]? locationIds,
             [FromQuery] DateTime? from,
             [FromQuery] DateTime? to,
+            [FromQuery] string? format,
             CancellationToken cancellationToken = default
         )
             => ExportAsync(
                 locationId,
+                locationIds,
                 from,
                 to,
-                (id, fromUtc, toUtc, ct) =>
-                    _export.ExportOverviewPdfAsync(id, fromUtc, toUtc, ct),
+                format,
+                allowedFormats: ["pdf", "xlsx"],
+                defaultFormat: "pdf",
+                build: async (ids, fromUtc, toUtc, fmt, ct) =>
+                {
+                    if (fmt == "xlsx")
+                    {
+                        return await _export.ExportOverviewXlsxAsync(
+                            ids,
+                            fromUtc,
+                            toUtc,
+                            ct
+                        );
+                    }
+
+                    return await _export.ExportOverviewPdfAsync(
+                        ids[0],
+                        fromUtc,
+                        toUtc,
+                        ct
+                    );
+                },
                 cancellationToken
             );
 
         [HttpGet("capture")]
         public Task<IActionResult> ExportCapture(
-            [FromQuery] int locationId,
+            [FromQuery] int? locationId,
+            [FromQuery] int[]? locationIds,
             [FromQuery] DateTime? from,
             [FromQuery] DateTime? to,
+            [FromQuery] string? format,
             CancellationToken cancellationToken = default
         )
             => ExportAsync(
                 locationId,
+                locationIds,
                 from,
                 to,
-                (id, fromUtc, toUtc, ct) =>
-                    _export.ExportCaptureCsvAsync(id, fromUtc, toUtc, ct),
+                format,
+                allowedFormats: ["csv", "xlsx"],
+                defaultFormat: "csv",
+                build: async (ids, fromUtc, toUtc, fmt, ct) =>
+                {
+                    if (fmt == "xlsx")
+                    {
+                        return await _export.ExportCaptureXlsxAsync(
+                            ids,
+                            fromUtc,
+                            toUtc,
+                            ct
+                        );
+                    }
+
+                    return await _export.ExportCaptureCsvAsync(
+                        ids[0],
+                        fromUtc,
+                        toUtc,
+                        ct
+                    );
+                },
                 cancellationToken
             );
 
         [HttpGet("feedback")]
         public Task<IActionResult> ExportFeedback(
-            [FromQuery] int locationId,
+            [FromQuery] int? locationId,
+            [FromQuery] int[]? locationIds,
             [FromQuery] DateTime? from,
             [FromQuery] DateTime? to,
+            [FromQuery] string? format,
             CancellationToken cancellationToken = default
         )
             => ExportAsync(
                 locationId,
+                locationIds,
                 from,
                 to,
-                (id, fromUtc, toUtc, ct) =>
-                    _export.ExportFeedbackCsvAsync(id, fromUtc, toUtc, ct),
+                format,
+                allowedFormats: ["csv", "xlsx"],
+                defaultFormat: "csv",
+                build: async (ids, fromUtc, toUtc, fmt, ct) =>
+                {
+                    if (fmt == "xlsx")
+                    {
+                        return await _export.ExportFeedbackXlsxAsync(
+                            ids,
+                            fromUtc,
+                            toUtc,
+                            ct
+                        );
+                    }
+
+                    return await _export.ExportFeedbackCsvAsync(
+                        ids[0],
+                        fromUtc,
+                        toUtc,
+                        ct
+                    );
+                },
                 cancellationToken
             );
 
         [HttpGet("campaigns")]
         public Task<IActionResult> ExportCampaigns(
-            [FromQuery] int locationId,
+            [FromQuery] int? locationId,
+            [FromQuery] int[]? locationIds,
             [FromQuery] DateTime? from,
             [FromQuery] DateTime? to,
+            [FromQuery] string? format,
             CancellationToken cancellationToken = default
         )
             => ExportAsync(
                 locationId,
+                locationIds,
                 from,
                 to,
-                (id, fromUtc, toUtc, ct) =>
-                    _export.ExportCampaignsCsvAsync(id, fromUtc, toUtc, ct),
+                format,
+                allowedFormats: ["csv", "xlsx"],
+                defaultFormat: "csv",
+                build: async (ids, fromUtc, toUtc, fmt, ct) =>
+                {
+                    if (fmt == "xlsx")
+                    {
+                        return await _export.ExportCampaignsXlsxAsync(
+                            ids,
+                            fromUtc,
+                            toUtc,
+                            ct
+                        );
+                    }
+
+                    return await _export.ExportCampaignsCsvAsync(
+                        ids[0],
+                        fromUtc,
+                        toUtc,
+                        ct
+                    );
+                },
                 cancellationToken
             );
 
         private async Task<IActionResult> ExportAsync(
-            int locationId,
+            int? locationId,
+            int[]? locationIds,
             DateTime? from,
             DateTime? to,
+            string? format,
+            string[] allowedFormats,
+            string defaultFormat,
             Func<
-                int,
+                IReadOnlyList<int>,
                 DateTime,
                 DateTime,
+                string,
                 CancellationToken,
                 Task<ReportsExportFileResult>
             > build,
@@ -114,9 +211,47 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var windowError = ReportsQueryGate.TryValidateLocationAndWindow(
+            var formatError = ReportsExportRequestGate.TryParseFormat(
+                this,
+                format,
+                allowedFormats,
+                defaultFormat,
+                out var normalizedFormat
+            );
+            if (formatError != null)
+            {
+                return formatError;
+            }
+
+            var idsError = ReportsExportRequestGate.TryResolveLocationIds(
                 this,
                 locationId,
+                locationIds,
+                locationIdsCsv: null,
+                out var resolvedIds
+            );
+            if (idsError != null)
+            {
+                return idsError;
+            }
+
+            // PDF/CSV stay single-location; XLSX may be multi.
+            if (
+                normalizedFormat != "xlsx"
+                && resolvedIds.Count > 1
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Multiple locationIds are only supported for format=xlsx.",
+                });
+            }
+
+            var windowError = ReportsQueryGate.TryValidateLocationAndWindow(
+                this,
+                resolvedIds[0],
                 from,
                 to,
                 out var fromUtc,
@@ -127,24 +262,41 @@ namespace TummlyBackend.Controllers
                 return windowError;
             }
 
-            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
-                _permissions,
-                User,
-                locationId
-            );
-            var denied = reports.ToHttpResult();
-            if (denied != null)
+            int? restaurantId = null;
+            foreach (var id in resolvedIds)
             {
-                return denied;
+                var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                    _permissions,
+                    User,
+                    id
+                );
+                var denied = reports.ToHttpResult();
+                if (denied != null)
+                {
+                    return denied;
+                }
+
+                restaurantId ??= reports.RestaurantId;
             }
 
             try
             {
-                await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
-                    _context,
-                    locationId,
-                    cancellationToken
-                );
+                if (restaurantId is int rid)
+                {
+                    await OperatorBillingLockGate.EnsurePaidWriteAllowedAsync(
+                        _context,
+                        rid,
+                        cancellationToken
+                    );
+                }
+                else
+                {
+                    await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                        _context,
+                        resolvedIds[0],
+                        cancellationToken
+                    );
+                }
             }
             catch (OperatorBillingLockedException ex)
             {
@@ -152,9 +304,10 @@ namespace TummlyBackend.Controllers
             }
 
             var result = await build(
-                locationId,
+                resolvedIds,
                 fromUtc,
                 toUtc,
+                normalizedFormat,
                 cancellationToken
             );
             return File(result.Content, result.ContentType, result.FileName);

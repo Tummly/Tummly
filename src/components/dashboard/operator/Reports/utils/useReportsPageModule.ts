@@ -24,6 +24,7 @@ export type OperatorReportsPageModuleApi = {
   openExportDialog: OperatorReportsPageModule["openExportDialog"]
   closeExportDialog: OperatorReportsPageModule["closeExportDialog"]
   requestExport: OperatorReportsPageModule["requestExport"]
+  setXlsxLocationScope: OperatorReportsPageModule["setXlsxLocationScope"]
   exportActiveReport: OperatorReportsPageModule["exportActiveReport"]
   setCsvConsentChecked: OperatorReportsPageModule["setCsvConsentChecked"]
   confirmCsvExport: OperatorReportsPageModule["confirmCsvExport"]
@@ -56,6 +57,7 @@ export function useReportsPageModule(): OperatorReportsPageModuleApi {
     openExportDialog: pageModule.openExportDialog,
     closeExportDialog: pageModule.closeExportDialog,
     requestExport: pageModule.requestExport,
+    setXlsxLocationScope: pageModule.setXlsxLocationScope,
     exportActiveReport: pageModule.exportActiveReport,
     setCsvConsentChecked: pageModule.setCsvConsentChecked,
     confirmCsvExport: pageModule.confirmCsvExport,

@@ -159,13 +159,19 @@ export type OperatorReportsPageSnapshot = {
   dateRange: HomePerformanceDateRange
   dateRangeLabel: string
   exportDialogOpen: boolean
-  /** CSV consent step — client-only; null when idle or after PDF path. */
+  /** CSV/XLSX consent step — client-only; null when idle or after PDF path. */
   pendingCsvExportKind: ReportsExportKind | null
+  /** Format queued with pending consent / last download request. */
+  pendingExportFormat: "pdf" | "csv" | "xlsx" | null
+  /** XLSX location scope — this location vs all workspace locations. */
+  xlsxLocationScope: "this" | "all"
   csvConsentChecked: boolean
   exportDownloadBusyKind: ReportsExportKind | null
   exportDownloadError: string | null
   selectedLocationId: number | null
   selectedLocationName: string | null
+  /** Workspace location count — drives XLSX multi-location scope control. */
+  exportWorkspaceLocationCount: number
 }
 
 export type OperatorReportsPageAdapters = {
@@ -190,8 +196,10 @@ export type OperatorReportsPageAdapters = {
   downloadReportsExport: (input: {
     kind: ReportsExportKind
     locationId: number
+    locationIds?: number[]
     from: string
     to: string
+    format?: "pdf" | "csv" | "xlsx"
   }) => Promise<{ blob: Blob; filename: string }>
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   getCapture: (input: {
@@ -253,8 +261,14 @@ export type OperatorReportsPageModule = {
    * (overview, capture, campaigns). Guest-data kinds open the client-only
    * consent step and return false until confirmCsvExport.
    * No-op when export is not allowed.
+   * Default format: overview → pdf; others → csv. Pass format "xlsx" for
+   * styled workbook (multi-location when xlsxLocationScope is "all").
    */
-  requestExport: (kind: ReportsExportKind) => Promise<boolean>
+  requestExport: (
+    kind: ReportsExportKind,
+    options?: { format?: "pdf" | "csv" | "xlsx" }
+  ) => Promise<boolean>
+  setXlsxLocationScope: (scope: "this" | "all") => void
   /**
    * Child-page Export (RPT-006): download the active surface report.
    * Hub / unknown surfaces open the full picker instead.
@@ -286,6 +300,8 @@ type ModuleState = {
   exportAllowed: boolean
   exportDialogOpen: boolean
   pendingCsvExportKind: ReportsExportKind | null
+  pendingExportFormat: "pdf" | "csv" | "xlsx" | null
+  xlsxLocationScope: "this" | "all"
   csvConsentChecked: boolean
   exportDownloadBusyKind: ReportsExportKind | null
   exportDownloadError: string | null
@@ -436,6 +452,8 @@ export function createOperatorReportsPageModule(
     exportAllowed: true,
     exportDialogOpen: false,
     pendingCsvExportKind: null,
+    pendingExportFormat: null,
+    xlsxLocationScope: "this",
     csvConsentChecked: false,
     exportDownloadBusyKind: null,
     exportDownloadError: null,
@@ -484,11 +502,14 @@ export function createOperatorReportsPageModule(
       dateRangeLabel: labelForHomePerformanceDateRange(dateRange),
       exportDialogOpen: state.exportDialogOpen,
       pendingCsvExportKind: state.pendingCsvExportKind,
+      pendingExportFormat: state.pendingExportFormat,
+      xlsxLocationScope: state.xlsxLocationScope,
       csvConsentChecked: state.csvConsentChecked,
       exportDownloadBusyKind: state.exportDownloadBusyKind,
       exportDownloadError: state.exportDownloadError,
       selectedLocationId: state.workspace?.selectedLocationId ?? null,
       selectedLocationName: selectedLocationName(state.workspace),
+      exportWorkspaceLocationCount: state.workspace?.locations.length ?? 0,
     }
   }
 
@@ -995,6 +1016,7 @@ export function createOperatorReportsPageModule(
           ? {
               exportDialogOpen: false,
               pendingCsvExportKind: null,
+              pendingExportFormat: null,
               csvConsentChecked: false,
               exportDownloadBusyKind: null,
               exportDownloadError: null,
@@ -1178,12 +1200,17 @@ export function createOperatorReportsPageModule(
         ...state,
         exportDialogOpen: false,
         pendingCsvExportKind: null,
+        pendingExportFormat: null,
         csvConsentChecked: false,
       }
       publish()
     },
-    async requestExport(kind) {
-      return requestExportForKind(kind)
+    async requestExport(kind, options) {
+      return requestExportForKind(kind, options?.format)
+    },
+    setXlsxLocationScope(scope) {
+      state = { ...state, xlsxLocationScope: scope }
+      publish()
     },
     async exportActiveReport() {
       if (!state.exportAllowed) {
@@ -1214,12 +1241,16 @@ export function createOperatorReportsPageModule(
       ) {
         return false
       }
-      return runExportDownload(kind)
+      return runExportDownload(
+        kind,
+        state.pendingExportFormat ?? (kind === "overview" ? "pdf" : "csv")
+      )
     },
     cancelCsvConsent() {
       state = {
         ...state,
         pendingCsvExportKind: null,
+        pendingExportFormat: null,
         csvConsentChecked: false,
       }
       publish()
@@ -1227,17 +1258,22 @@ export function createOperatorReportsPageModule(
   }
 
   async function requestExportForKind(
-    kind: ReportsExportKind
+    kind: ReportsExportKind,
+    format?: "pdf" | "csv" | "xlsx"
   ): Promise<boolean> {
     if (!state.exportAllowed) {
       return false
     }
+    const resolvedFormat =
+      format
+      ?? (kind === "overview" ? "pdf" : "csv")
     if (!reportsExportRequiresGuestDataAck(kind)) {
-      return runExportDownload(kind)
+      return runExportDownload(kind, resolvedFormat)
     }
     state = {
       ...state,
       pendingCsvExportKind: kind,
+      pendingExportFormat: resolvedFormat,
       csvConsentChecked: false,
       exportDownloadError: null,
     }
@@ -1245,7 +1281,10 @@ export function createOperatorReportsPageModule(
     return false
   }
 
-  async function runExportDownload(kind: ReportsExportKind): Promise<boolean> {
+  async function runExportDownload(
+    kind: ReportsExportKind,
+    format: "pdf" | "csv" | "xlsx"
+  ): Promise<boolean> {
     const workspace = state.workspace
     const locationId = workspace?.selectedLocationId
     if (workspace == null || locationId == null || !state.exportAllowed) {
@@ -1257,6 +1296,7 @@ export function createOperatorReportsPageModule(
       exportDownloadBusyKind: kind,
       exportDownloadError: null,
       pendingCsvExportKind: null,
+      pendingExportFormat: null,
       csvConsentChecked: false,
     }
     publish()
@@ -1265,11 +1305,20 @@ export function createOperatorReportsPageModule(
       const window = resolveHomePerformanceWindow(
         adapters.getReportsDateRange()
       )
+      const locationIds =
+        format === "xlsx" && state.xlsxLocationScope === "all"
+          ? workspace.locations.map((row) => row.id)
+          : undefined
       const result = await adapters.downloadReportsExport({
         kind,
         locationId,
+        locationIds:
+          locationIds != null && locationIds.length > 0
+            ? locationIds
+            : undefined,
         from: window.from.toISOString(),
         to: window.to.toISOString(),
+        format,
       })
       adapters.triggerBrowserDownload(result.blob, result.filename)
       state = {

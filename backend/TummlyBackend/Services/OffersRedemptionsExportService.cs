@@ -1,4 +1,6 @@
 using System.Globalization;
+using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Data;
 using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -6,8 +8,8 @@ using TummlyBackend.Interfaces;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Offers-owned redemption log CSV (reports-export-extras ticket 03). Soft-lock
-    /// gate lives on the controller (paid-write). Soft-max Take/truncate.
+    /// Offers-owned redemption log CSV/XLSX. Soft-lock gate lives on the
+    /// controller (paid-write). Soft-max Take/truncate.
     /// </summary>
     public sealed class OffersRedemptionsExportService
         : IOffersRedemptionsExportService
@@ -32,10 +34,15 @@ namespace TummlyBackend.Services
             "Offer",
         ];
 
+        private readonly ApplicationDbContext _context;
         private readonly IOfferLifecycleService _lifecycle;
 
-        public OffersRedemptionsExportService(IOfferLifecycleService lifecycle)
+        public OffersRedemptionsExportService(
+            ApplicationDbContext context,
+            IOfferLifecycleService lifecycle
+        )
         {
+            _context = context;
             _lifecycle = lifecycle;
         }
 
@@ -46,19 +53,12 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var list = await _lifecycle.ListLocationRedemptionsAsync(
+            var rows = await LoadRowsAsync(
                 locationId,
+                fromUtc,
+                toUtc,
                 cancellationToken
             );
-
-            var rows = list.Items
-                .Where(row =>
-                    row.DateTimeUtc >= fromUtc && row.DateTimeUtc < toUtc
-                )
-                .OrderByDescending(row => row.DateTimeUtc)
-                .Take(ExportSoftMaxRows)
-                .Select(ToCsvRow)
-                .ToList();
 
             var stamp = DateTime.UtcNow.ToString(
                 "yyyyMMdd-HHmmss",
@@ -73,6 +73,106 @@ namespace TummlyBackend.Services
                 ContentType = CsvContentType,
                 Content = Rfc4180Csv.WriteUtf8(Headers, rows),
             };
+        }
+
+        public async Task<ReportsExportFileResult> ExportXlsxAsync(
+            IReadOnlyList<int> locationIds,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var distinct = locationIds.Distinct().ToList();
+            if (distinct.Count == 0)
+            {
+                throw new ArgumentException(
+                    "At least one locationId is required.",
+                    nameof(locationIds)
+                );
+            }
+
+            var locations = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => distinct.Contains(row.Id))
+                .Select(row => new
+                {
+                    row.Id,
+                    row.LocationName,
+                    RestaurantName = row.Restaurant!.Name,
+                })
+                .ToListAsync(cancellationToken);
+
+            var byId = locations.ToDictionary(row => row.Id);
+            var sheets =
+                new List<(
+                    ReportsStyledXlsxPack.LocationContext Location,
+                    IReadOnlyList<string[]> Rows
+                )>();
+
+            foreach (var id in distinct)
+            {
+                if (!byId.TryGetValue(id, out var location))
+                {
+                    throw new KeyNotFoundException(
+                        $"Location {id} was not found."
+                    );
+                }
+
+                var rows = await LoadRowsAsync(
+                    id,
+                    fromUtc,
+                    toUtc,
+                    cancellationToken
+                );
+                sheets.Add(
+                    (
+                        new ReportsStyledXlsxPack.LocationContext(
+                            location.Id,
+                            location.LocationName,
+                            location.RestaurantName
+                        ),
+                        rows
+                    )
+                );
+            }
+
+            var (content, fileName) =
+                ReportsStyledXlsxPack.RenderOffersRedemptionsXlsx(
+                    sheets,
+                    Headers,
+                    fromUtc,
+                    toUtc,
+                    DateTime.UtcNow
+                );
+
+            return new ReportsExportFileResult
+            {
+                FileName = fileName,
+                ContentType = ReportsStyledXlsxWriter.ContentType,
+                Content = content,
+            };
+        }
+
+        private async Task<List<string[]>> LoadRowsAsync(
+            int locationId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var list = await _lifecycle.ListLocationRedemptionsAsync(
+                locationId,
+                cancellationToken
+            );
+
+            return list.Items
+                .Where(row =>
+                    row.DateTimeUtc >= fromUtc && row.DateTimeUtc < toUtc
+                )
+                .OrderByDescending(row => row.DateTimeUtc)
+                .Take(ExportSoftMaxRows)
+                .Select(ToCsvRow)
+                .ToList();
         }
 
         private static string[] ToCsvRow(OfferDetailsRedemptionListItemDto row)

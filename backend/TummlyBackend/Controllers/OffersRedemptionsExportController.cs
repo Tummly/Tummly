@@ -7,8 +7,8 @@ using TummlyBackend.Interfaces;
 namespace TummlyBackend.Controllers
 {
     /// <summary>
-    /// Offers-owned redemption log CSV export (reports-export-extras ticket 03).
-    /// Soft lock / Dormant / chargeback deny via paid-write gate; list reads stay open.
+    /// Offers-owned redemption log CSV/XLSX export. Soft lock / Dormant /
+    /// chargeback deny via paid-write gate; list reads stay open.
     /// </summary>
     [ApiController]
     [Route("api/offers/redemptions")]
@@ -32,9 +32,11 @@ namespace TummlyBackend.Controllers
 
         [HttpGet("export")]
         public async Task<IActionResult> Export(
-            [FromQuery] int locationId,
+            [FromQuery] int? locationId,
+            [FromQuery] int[]? locationIds,
             [FromQuery] DateTime? from,
             [FromQuery] DateTime? to,
+            [FromQuery] string? format,
             CancellationToken cancellationToken = default
         )
         {
@@ -44,9 +46,43 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var windowError = ReportsQueryGate.TryValidateLocationAndWindow(
+            var formatError = ReportsExportRequestGate.TryParseFormat(
+                this,
+                format,
+                ["csv", "xlsx"],
+                "csv",
+                out var normalizedFormat
+            );
+            if (formatError != null)
+            {
+                return formatError;
+            }
+
+            var idsError = ReportsExportRequestGate.TryResolveLocationIds(
                 this,
                 locationId,
+                locationIds,
+                locationIdsCsv: null,
+                out var resolvedIds
+            );
+            if (idsError != null)
+            {
+                return idsError;
+            }
+
+            if (normalizedFormat != "xlsx" && resolvedIds.Count > 1)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Multiple locationIds are only supported for format=xlsx.",
+                });
+            }
+
+            var windowError = ReportsQueryGate.TryValidateLocationAndWindow(
+                this,
+                resolvedIds[0],
                 from,
                 to,
                 out var fromUtc,
@@ -57,37 +93,62 @@ namespace TummlyBackend.Controllers
                 return windowError;
             }
 
-            var offers = await _permissions.AuthorizeLocationAsync(
-                User,
-                OperatorAreaIds.Offers,
-                PermissionLevel.View,
-                locationId
-            );
-            var denied = offers.ToHttpResult();
-            if (denied != null)
+            int? restaurantId = null;
+            foreach (var id in resolvedIds)
             {
-                return denied;
+                var offers = await _permissions.AuthorizeLocationAsync(
+                    User,
+                    OperatorAreaIds.Offers,
+                    PermissionLevel.View,
+                    id
+                );
+                var denied = offers.ToHttpResult();
+                if (denied != null)
+                {
+                    return denied;
+                }
+
+                restaurantId ??= offers.RestaurantId;
             }
 
             try
             {
-                await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
-                    _context,
-                    locationId,
-                    cancellationToken
-                );
+                if (restaurantId is int rid)
+                {
+                    await OperatorBillingLockGate.EnsurePaidWriteAllowedAsync(
+                        _context,
+                        rid,
+                        cancellationToken
+                    );
+                }
+                else
+                {
+                    await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                        _context,
+                        resolvedIds[0],
+                        cancellationToken
+                    );
+                }
             }
             catch (OperatorBillingLockedException ex)
             {
                 return OperatorBillingLockGate.Forbidden(ex.Code);
             }
 
-            var result = await _export.ExportCsvAsync(
-                locationId,
-                fromUtc,
-                toUtc,
-                cancellationToken
-            );
+            var result =
+                normalizedFormat == "xlsx"
+                    ? await _export.ExportXlsxAsync(
+                        resolvedIds,
+                        fromUtc,
+                        toUtc,
+                        cancellationToken
+                    )
+                    : await _export.ExportCsvAsync(
+                        resolvedIds[0],
+                        fromUtc,
+                        toUtc,
+                        cancellationToken
+                    );
             return File(result.Content, result.ContentType, result.FileName);
         }
     }

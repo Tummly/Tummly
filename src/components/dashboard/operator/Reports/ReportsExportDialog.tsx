@@ -26,58 +26,58 @@ type ExportItem = {
   kind: ReportsExportKind
   title: string
   description: string
-  buttonLabel: "Download PDF" | "Download CSV"
-  format: "pdf" | "csv"
+  primaryLabel: "Download PDF" | "Download CSV"
+  primaryFormat: "pdf" | "csv"
 }
 
-/** Export picker — Figma `3674:36723`. */
+/** Export picker — Figma `3674:36723` (+ XLSX additive). */
 const EXPORT_ITEMS: ExportItem[] = [
   {
     kind: "overview",
     title: "Overview summary",
     description:
       "Download a PDF summary of guest capture, feedback, offers and campaigns.",
-    buttonLabel: "Download PDF",
-    format: "pdf",
+    primaryLabel: "Download PDF",
+    primaryFormat: "pdf",
   },
   {
     kind: "capture",
     title: "Capture report",
     description:
       "Download QR performance by location, placement and source.",
-    buttonLabel: "Download CSV",
-    format: "csv",
+    primaryLabel: "Download CSV",
+    primaryFormat: "csv",
   },
   {
     kind: "feedback",
     title: "Feedback report",
     description:
       "Download private feedback records for the selected period.",
-    buttonLabel: "Download CSV",
-    format: "csv",
+    primaryLabel: "Download CSV",
+    primaryFormat: "csv",
   },
   {
     kind: "campaigns",
     title: "Campaign report",
     description:
       "Download campaign sends, claims, redemptions and opt-outs.",
-    buttonLabel: "Download CSV",
-    format: "csv",
+    primaryLabel: "Download CSV",
+    primaryFormat: "csv",
   },
   {
     kind: "offers-redemptions",
     title: "Offer redemption log",
     description:
       "Download offer claims, redemptions, expired offers and invalid attempts.",
-    buttonLabel: "Download CSV",
-    format: "csv",
+    primaryLabel: "Download CSV",
+    primaryFormat: "csv",
   },
   {
     kind: "guest-consent",
     title: "Guest consent export",
     description: "Download guest contact and consent records.",
-    buttonLabel: "Download CSV",
-    format: "csv",
+    primaryLabel: "Download CSV",
+    primaryFormat: "csv",
   },
 ]
 
@@ -104,11 +104,17 @@ type ReportsExportDialogProps = {
   showOfferRedemptionLog?: boolean
   /** When false, hide the Guest consent CSV card. Omit/true shows it. */
   showGuestConsent?: boolean
+  showAllLocationsScope?: boolean
+  xlsxLocationScope: "this" | "all"
+  onSetXlsxLocationScope: (scope: "this" | "all") => void
   pendingCsvExportKind: ReportsExportKind | null
   csvConsentChecked: boolean
   exportDownloadBusyKind: ReportsExportKind | null
   exportDownloadError: string | null
-  onRequestExport: (kind: ReportsExportKind) => Promise<boolean>
+  onRequestExport: (
+    kind: ReportsExportKind,
+    options?: { format?: "pdf" | "csv" | "xlsx" }
+  ) => Promise<boolean>
   onSetCsvConsentChecked: (checked: boolean) => void
   onConfirmCsvExport: () => Promise<boolean>
   onCancelCsvConsent: () => void
@@ -119,6 +125,9 @@ export function ReportsExportDialog({
   onOpenChange,
   showOfferRedemptionLog = true,
   showGuestConsent = true,
+  showAllLocationsScope = false,
+  xlsxLocationScope,
+  onSetXlsxLocationScope,
   pendingCsvExportKind,
   csvConsentChecked,
   exportDownloadBusyKind,
@@ -140,8 +149,11 @@ export function ReportsExportDialog({
 
   const downloadBusy = exportDownloadBusyKind != null
 
-  const handleItemClick = async (item: ExportItem) => {
-    const ok = await onRequestExport(item.kind)
+  const handleDownload = async (
+    kind: ReportsExportKind,
+    format: "pdf" | "csv" | "xlsx"
+  ) => {
+    const ok = await onRequestExport(kind, { format })
     if (ok) {
       toast.success("Your file has been downloaded")
     }
@@ -201,6 +213,40 @@ export function ReportsExportDialog({
               </p>
             ) : null}
 
+            {showAllLocationsScope ? (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
+                  XLSX location scope
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant={
+                      xlsxLocationScope === "this"
+                        ? "op-primary"
+                        : "op-tertiary"
+                    }
+                    disabled={downloadBusy}
+                    onClick={() => onSetXlsxLocationScope("this")}
+                  >
+                    This location
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={
+                      xlsxLocationScope === "all"
+                        ? "op-primary"
+                        : "op-tertiary"
+                    }
+                    disabled={downloadBusy}
+                    onClick={() => onSetXlsxLocationScope("all")}
+                  >
+                    All locations I can access
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               {visibleItems.map((item) => {
                 const busy = exportDownloadBusyKind === item.kind
@@ -213,12 +259,14 @@ export function ReportsExportDialog({
                       </p>
                     </div>
 
-                    <div>
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
                         variant="op-tertiary"
                         disabled={downloadBusy}
-                        onClick={() => void handleItemClick(item)}
+                        onClick={() =>
+                          void handleDownload(item.kind, item.primaryFormat)
+                        }
                       >
                         {busy ? (
                           <>
@@ -226,8 +274,16 @@ export function ReportsExportDialog({
                             Downloading…
                           </>
                         ) : (
-                          item.buttonLabel
+                          item.primaryLabel
                         )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="op-tertiary"
+                        disabled={downloadBusy}
+                        onClick={() => void handleDownload(item.kind, "xlsx")}
+                      >
+                        Download XLSX
                       </Button>
                     </div>
                   </div>

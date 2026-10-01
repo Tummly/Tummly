@@ -37,6 +37,11 @@ function ReportsExportDialogHost() {
         reports.snapshot.exportOffersRedemptionLogVisible
       }
       showGuestConsent={reports.snapshot.exportGuestConsentVisible}
+      showAllLocationsScope={
+        reports.snapshot.exportWorkspaceLocationCount > 1
+      }
+      xlsxLocationScope={reports.snapshot.xlsxLocationScope}
+      onSetXlsxLocationScope={reports.setXlsxLocationScope}
       pendingCsvExportKind={reports.snapshot.pendingCsvExportKind}
       csvConsentChecked={reports.snapshot.csvConsentChecked}
       exportDownloadBusyKind={reports.snapshot.exportDownloadBusyKind}

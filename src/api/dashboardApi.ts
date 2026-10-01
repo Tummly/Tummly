@@ -1454,36 +1454,54 @@ export const downloadWeeklyBriefPdf = async (
   return { blob: response.data, filename }
 }
 
+export type ReportsExportDownloadFormat = "pdf" | "csv" | "xlsx"
+
 export const downloadReportsExport = async (input: {
   kind: ReportsExportKind
   locationId: number
+  /** When set (and length > 1), XLSX multi-location export. */
+  locationIds?: number[]
   from: string
   to: string
+  format?: ReportsExportDownloadFormat
 }): Promise<{ blob: Blob; filename: string }> => {
-  const extension = input.kind === "overview" ? "pdf" : "csv"
+  const format: ReportsExportDownloadFormat =
+    input.format
+    ?? (input.kind === "overview" ? "pdf" : "csv")
+  const extension = format
   const path =
     input.kind === "offers-redemptions"
       ? "/offers/redemptions/export"
       : input.kind === "guest-consent"
         ? "/privacy-consent/permission-records/export"
         : `/reports/export/${input.kind}`
+  const multi =
+    format === "xlsx"
+    && input.locationIds != null
+    && input.locationIds.length > 1
+  const scopeToken = multi ? "multi" : String(input.locationId)
   const fallbackFilename =
     input.kind === "offers-redemptions"
-      ? `tummly-offers-redemptions-${input.locationId}.${extension}`
+      ? `tummly-offers-redemptions-${scopeToken}.${extension}`
       : input.kind === "guest-consent"
-        ? `tummly-consent-permission-records-${input.locationId}.${extension}`
-        : `tummly-reports-${input.kind}-${input.locationId}.${extension}`
+        ? `tummly-consent-permission-records-${scopeToken}.${extension}`
+        : `tummly-reports-${input.kind}-${scopeToken}.${extension}`
   try {
+    const locationParams = multi
+      ? { locationIds: input.locationIds }
+      : { locationId: input.locationId }
     const params =
       input.kind === "guest-consent"
-        ? { locationId: input.locationId }
+        ? { ...locationParams, format }
         : {
-            locationId: input.locationId,
+            ...locationParams,
             from: input.from,
             to: input.to,
+            format,
           }
     const response = await axiosInstance.get<Blob>(path, {
       params,
+      paramsSerializer: serializeRepeatedParams,
       responseType: "blob",
     })
     const filename =

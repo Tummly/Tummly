@@ -620,6 +620,61 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().exportDialogOpen).toBe(false)
   })
 
+  it("downloads Capture XLSX without guest-data consent", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob([new Uint8Array([0x50, 0x4b])], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      filename: "tummly-reports-capture-1-20260717-120000Z.xlsx",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const adapters = createAdapters({
+      downloadReportsExport,
+      triggerBrowserDownload,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+
+    const ok = await module.requestExport("capture", { format: "xlsx" })
+    expect(ok).toBe(true)
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "capture",
+        locationId: 1,
+        format: "xlsx",
+      })
+    )
+    expect(triggerBrowserDownload).toHaveBeenCalled()
+  })
+
+  it("passes all workspace locationIds for XLSX all-scope", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob([new Uint8Array([0x50, 0x4b])]),
+      filename: "tummly-reports-capture-multi-20260717-120000Z.xlsx",
+    }))
+    const adapters = createAdapters({ downloadReportsExport })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(
+      workspace({
+        locations: [
+          { id: 1, locationName: "Camden", address: "1" },
+          { id: 2, locationName: "Shoreditch", address: "2" },
+        ],
+      })
+    )
+    module.setXlsxLocationScope("all")
+
+    const ok = await module.requestExport("capture", { format: "xlsx" })
+    expect(ok).toBe(true)
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "capture",
+        format: "xlsx",
+        locationIds: [1, 2],
+      })
+    )
+  })
+
   it("downloads Campaigns CSV without guest-data consent", async () => {
     const downloadReportsExport = vi.fn(async () => ({
       blob: new Blob(["Campaign,Sent\n"], { type: "text/csv" }),

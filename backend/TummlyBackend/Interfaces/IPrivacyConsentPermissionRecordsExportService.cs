@@ -6,5 +6,10 @@ namespace TummlyBackend.Interfaces
             int locationId,
             CancellationToken cancellationToken = default
         );
+
+        Task<ReportsExportFileResult> ExportXlsxAsync(
+            IReadOnlyList<int> locationIds,
+            CancellationToken cancellationToken = default
+        );
     }
 }

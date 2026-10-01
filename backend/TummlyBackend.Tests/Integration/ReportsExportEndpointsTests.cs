@@ -216,6 +216,80 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Theory]
+        [InlineData("overview")]
+        [InlineData("capture")]
+        [InlineData("feedback")]
+        [InlineData("campaigns")]
+        public async Task Export_Xlsx_EmptyWindow_Returns200Workbook(
+            string kind
+        )
+        {
+            var seeded = await SeedOwnerAsync($"rex-xlsx-{kind}");
+
+            using var request = AuthorizedGet(
+                ExportUrl(kind, seeded.LocationId, WindowFrom, WindowTo)
+                    + "&format=xlsx",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                ReportsStyledXlsxWriter.ContentType,
+                response.Content.Headers.ContentType?.MediaType
+            );
+
+            var fileName =
+                response.Content.Headers.ContentDisposition?.FileName
+                    ?.Trim('"');
+            Assert.NotNull(fileName);
+            Assert.EndsWith("Z.xlsx", fileName);
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            Assert.True(bytes.Length > 0);
+            // ZIP local file header
+            Assert.Equal(0x50, bytes[0]);
+            Assert.Equal(0x4B, bytes[1]);
+        }
+
+        [Fact]
+        public async Task Export_Xlsx_MultiLocationIds_Returns200()
+        {
+            var seeded = await SeedOwnerWithTwoLocationsAsync("rex-xlsx-multi");
+
+            var url =
+                $"/api/reports/export/overview?locationIds={seeded.LocationIdA}&locationIds={seeded.LocationIdB}"
+                + $"&from={Uri.EscapeDataString(FormatUtc(WindowFrom))}"
+                + $"&to={Uri.EscapeDataString(FormatUtc(WindowTo))}"
+                + "&format=xlsx";
+            using var request = AuthorizedGet(url, seeded.Jwt);
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var fileName =
+                response.Content.Headers.ContentDisposition?.FileName
+                    ?.Trim('"');
+            Assert.NotNull(fileName);
+            Assert.Contains("-multi-", fileName, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task Export_Csv_RejectsMultipleLocationIds()
+        {
+            var seeded = await SeedOwnerWithTwoLocationsAsync("rex-csv-multi");
+
+            var url =
+                $"/api/reports/export/capture?locationIds={seeded.LocationIdA}&locationIds={seeded.LocationIdB}"
+                + $"&from={Uri.EscapeDataString(FormatUtc(WindowFrom))}"
+                + $"&to={Uri.EscapeDataString(FormatUtc(WindowTo))}"
+                + "&format=csv";
+            using var request = AuthorizedGet(url, seeded.Jwt);
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
         private static string ExportUrl(
             string kind,
             int locationId,
@@ -329,6 +403,79 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id);
+        }
+
+        private async Task<(
+            string Jwt,
+            int LocationIdA,
+            int LocationIdB
+        )> SeedOwnerWithTwoLocationsAsync(string emailLocalPart)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Reports Export Multi Owner",
+                Email = $"{emailLocalPart}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900999",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Reports Export Multi Venue",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
+
+            var locationA = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Camden",
+                Address = "1 Camden High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var locationB = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Shoreditch",
+                Address = "2 Shoreditch High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.RestaurantLocations.AddRange(locationA, locationB);
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, locationA.Id, locationB.Id);
         }
 
         private async Task SetBillingStatusAsync(

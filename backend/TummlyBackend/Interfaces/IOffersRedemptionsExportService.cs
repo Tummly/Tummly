@@ -8,5 +8,12 @@ namespace TummlyBackend.Interfaces
             DateTime toUtc,
             CancellationToken cancellationToken = default
         );
+
+        Task<ReportsExportFileResult> ExportXlsxAsync(
+            IReadOnlyList<int> locationIds,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken = default
+        );
     }
 }
