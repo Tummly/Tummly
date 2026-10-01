@@ -482,14 +482,22 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("draft", campaign.GetProperty("status").GetString());
         }
 
-        [Fact]
-        public async Task GetCampaignById_Returns404_WhenStatusIsNotDraft()
+        [Theory]
+        [InlineData("sent")]
+        [InlineData("failed")]
+        [InlineData("partially-sent")]
+        [InlineData("scheduled")]
+        public async Task GetCampaignById_ReturnsCampaign_WhenStatusIsNotDraft(
+            string status
+        )
         {
-            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-get-nondraft");
+            var seeded = await SeedOwnerWithLocationAsync(
+                $"campaign-get-{status}"
+            );
             var campaignId = await SeedCampaignWithStatusAsync(
                 seeded.LocationId,
-                status: "sent",
-                name: "Sent campaign"
+                status: status,
+                name: $"{status} campaign"
             );
 
             using var request = AuthorizedGet(
@@ -497,11 +505,17 @@ namespace TummlyBackend.Tests.Integration
                 seeded.Jwt
             );
             var response = await _client.SendAsync(request);
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
-            Assert.False(body.GetProperty("success").GetBoolean());
-            Assert.Equal("Campaign not found.", body.GetProperty("message").GetString());
+            Assert.True(body.GetProperty("success").GetBoolean());
+            var campaign = body.GetProperty("campaign");
+            Assert.Equal(campaignId, campaign.GetProperty("id").GetInt32());
+            Assert.Equal(status, campaign.GetProperty("status").GetString());
+            Assert.Equal(
+                $"{status} campaign",
+                campaign.GetProperty("name").GetString()
+            );
         }
 
         [Fact]

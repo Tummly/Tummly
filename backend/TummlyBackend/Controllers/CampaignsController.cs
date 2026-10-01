@@ -519,7 +519,7 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var campaign = await _campaignDrafts.GetByIdAsync(campaignId);
+            var campaign = await _campaignDrafts.GetDetailByIdAsync(campaignId);
             if (campaign == null)
             {
                 return NotFound(new

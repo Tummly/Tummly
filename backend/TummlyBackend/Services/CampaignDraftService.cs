@@ -9,7 +9,8 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Thin Campaign Draft create / get / PATCH — status always draft (ticket 29).
+    /// Thin Campaign Draft create / get / PATCH (ticket 29).
+    /// Get-by-id for details also returns non-draft statuses.
     /// </summary>
     public class CampaignDraftService : ICampaignDraftService
     {
@@ -137,6 +138,21 @@ namespace TummlyBackend.Services
                     campaign =>
                         campaign.Id == campaignId
                         && campaign.Status == DraftStatus,
+                    cancellationToken
+                );
+
+            return entity == null ? null : ToDto(entity);
+        }
+
+        public async Task<CampaignDraftDto?> GetDetailByIdAsync(
+            int campaignId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var entity = await _context.Campaigns
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    campaign => campaign.Id == campaignId,
                     cancellationToken
                 );
 
