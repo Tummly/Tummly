@@ -112,8 +112,10 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
-        /// Lazy generate for the current closed prior week (Home — no week picker).
-        /// Does not produce <c>weekly-brief-ready</c>; notify stays on the Monday job seam.
+        /// Manual / lazy generate for the current closed prior week (Home and
+        /// Reports — no week picker). Available any day; <see cref="WeeklyBriefWeekKey.IsGenerateDay"/>
+        /// gates only the scheduled job, not this path. Does not produce
+        /// <c>weekly-brief-ready</c>; notify stays on the Monday job seam.
         /// </summary>
         [HttpPost("generate")]
         public async Task<IActionResult> GenerateWeeklyBrief(
@@ -174,13 +176,10 @@ namespace TummlyBackend.Controllers
                 weekStartsOn
             );
 
+            // Soft not-ready: missing location, too new for closed week, or Pilot.
+            // Day-of-week is not a gate here (product: manual Generate brief any day).
             if (
                 locationMeta is null
-                || !WeeklyBriefWeekKey.IsGenerateDay(
-                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                    utcNow,
-                    weekStartsOn
-                )
                 || !WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
                     locationMeta.CreatedAt,
                     closedWeek

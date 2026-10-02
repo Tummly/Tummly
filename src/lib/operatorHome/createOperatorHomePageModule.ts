@@ -966,7 +966,7 @@ export function createOperatorHomePageModule(
         return
       }
 
-      // Soft not-ready (generate-day / location-age gate) — empty, not a load error.
+      // Soft not-ready (location-age / Pilot gate) — empty, not a load error.
       if (!generated.ready) {
         patchWeeklyBrief({
           ...emptyWeeklyBrief(),

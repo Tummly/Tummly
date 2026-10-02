@@ -963,8 +963,10 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GenerateWeeklyBrief_NonGenerateDay_ReturnsNotReadyWithoutRow()
+        public async Task GenerateWeeklyBrief_NonGenerateDay_CreatesReadyEnvelope()
         {
+            // Manual Generate brief is available any day; IsGenerateDay gates
+            // only the scheduled Monday job, not lazy POST generate.
             var utcNow = DateTime.UtcNow;
             var weekStartsOn = NonGenerateWeekStartsOn();
             var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
@@ -994,18 +996,22 @@ namespace TummlyBackend.Tests.Integration
 
             var json = await ReadJsonAsync(response);
             Assert.True(json.GetProperty("success").GetBoolean());
-            Assert.False(json.GetProperty("ready").GetBoolean());
+            Assert.True(json.GetProperty("ready").GetBoolean());
             Assert.Equal(seeded.LocationId, json.GetProperty("locationId").GetInt32());
             Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
-            Assert.False(json.TryGetProperty("body", out _));
-            Assert.Equal(0, fake.CallCount);
+            Assert.True(
+                json.GetProperty("body").TryGetProperty("headline", out _)
+            );
+            Assert.Equal(1, fake.CallCount);
 
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
             Assert.Equal(
-                0,
+                1,
                 await context.WeeklyBriefs.CountAsync(row =>
                     row.LocationId == seeded.LocationId
+                    && row.WeekKey == closed.WeekKey
+                    && row.Status == WeeklyBriefStatus.Succeeded
                 )
             );
         }
@@ -1873,8 +1879,9 @@ namespace TummlyBackend.Tests.Integration
         }
 
         /// <summary>
-        /// Seed a location eligible for lazy generate (generate day + older than
-        /// closed week + non-Pilot plan).
+        /// Seed a location eligible for lazy generate (older than closed week +
+        /// non-Pilot plan). Week-starts-on may be any day; manual generate is
+        /// not limited to IsGenerateDay.
         /// </summary>
         private async Task<(
             string Jwt,
@@ -1884,7 +1891,7 @@ namespace TummlyBackend.Tests.Integration
         )> SeedEligibleForGenerateAsync(string emailLocalPart)
         {
             var utcNow = DateTime.UtcNow;
-            var weekStartsOn = CurrentLondonGenerateWeekStartsOn();
+            var weekStartsOn = WorkspaceDefaultsOptions.DefaultWeekStartsOn;
             var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
                 WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
                 utcNow,
