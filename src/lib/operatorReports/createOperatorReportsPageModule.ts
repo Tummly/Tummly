@@ -181,9 +181,13 @@ export type OperatorReportsPageAdapters = {
     to: string
   }) => Promise<ReportsOverviewResponse>
   getReportsDateRange: () => HomePerformanceDateRange
-  getWeeklyBrief: (locationId: number) => Promise<WeeklyBriefGetResponse>
+  getWeeklyBrief: (
+    locationId: number,
+    window?: { from: string; to: string }
+  ) => Promise<WeeklyBriefGetResponse>
   generateWeeklyBrief: (
-    locationId: number
+    locationId: number,
+    window?: { from: string; to: string }
   ) => Promise<WeeklyBriefGenerateResponse>
   markWeeklyBriefReviewed: (
     locationId: number,
@@ -527,6 +531,17 @@ export function createOperatorReportsPageModule(
     publish()
   }
 
+  /** KPI window for Reports → Weekly brief snap (from/to ISO). */
+  const reportsBriefWindow = () => {
+    const window = resolveHomePerformanceWindow(
+      adapters.getReportsDateRange()
+    )
+    return {
+      from: window.from.toISOString(),
+      to: window.to.toISOString(),
+    }
+  }
+
   const loadHub = async () => {
     const workspace = state.workspace
     const locationId = workspace?.selectedLocationId
@@ -631,7 +646,10 @@ export function createOperatorReportsPageModule(
     }
 
     try {
-      const response = await adapters.getWeeklyBrief(locationId)
+      const response = await adapters.getWeeklyBrief(
+        locationId,
+        reportsBriefWindow()
+      )
       if (generation !== state.weeklyBriefGeneration) {
         return
       }
@@ -679,6 +697,7 @@ export function createOperatorReportsPageModule(
 
     const generation = state.weeklyBriefGeneration + 1
     state = { ...state, weeklyBriefGeneration: generation }
+    const briefWindow = reportsBriefWindow()
 
     if (options?.showLoadingImmediately === true) {
       patchWeeklyBrief(
@@ -695,7 +714,7 @@ export function createOperatorReportsPageModule(
     }
 
     try {
-      const first = await adapters.getWeeklyBrief(locationId)
+      const first = await adapters.getWeeklyBrief(locationId, briefWindow)
       if (generation !== state.weeklyBriefGeneration) {
         return false
       }
@@ -713,7 +732,10 @@ export function createOperatorReportsPageModule(
         )
       }
 
-      const generated = await adapters.generateWeeklyBrief(locationId)
+      const generated = await adapters.generateWeeklyBrief(
+        locationId,
+        briefWindow
+      )
       if (generation !== state.weeklyBriefGeneration) {
         return false
       }
@@ -1069,7 +1091,11 @@ export function createOperatorReportsPageModule(
     async reloadForReportsDateRange() {
       publish()
       if (state.activeSurface === "hub") {
-        await loadHub()
+        await Promise.all([loadHub(), loadWeeklyBriefGetOnly()])
+        return
+      }
+      if (state.activeSurface === "weekly-brief") {
+        await loadWeeklyBriefGetOnly()
         return
       }
       if (state.activeSurface === "capture") {

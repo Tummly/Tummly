@@ -901,6 +901,161 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetWeeklyBrief_FromTo_SnapsToMostRecentClosedOverlappingWeek()
+        {
+            var utcNow = DateTime.UtcNow;
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                utcNow,
+                "monday"
+            );
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-get-snap",
+                weekStartsOn: "monday",
+                locationCreatedAtUtc: closed.CoverageStartUtc.AddDays(-7),
+                subscriptionPlan: BillingSubscriptionPlans.Growth
+            );
+            var body = FakeWeeklyBriefProvider.FixtureFor(EmptyMetrics());
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                closed.WeekKey,
+                body,
+                EmptyMetrics(),
+                utcNow
+            );
+
+            // Range overlapping the closed prior week (and current week).
+            var from = closed.CoverageStartUtc.AddDays(2).ToString("o");
+            var to = utcNow.ToString("o");
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
+        }
+
+        [Fact]
+        public async Task GetWeeklyBrief_FromTo_NoClosedOverlap_ReturnsNotReady()
+        {
+            var utcNow = DateTime.UtcNow;
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                utcNow,
+                "monday"
+            );
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-get-no-overlap",
+                weekStartsOn: "monday",
+                locationCreatedAtUtc: closed.CoverageStartUtc.AddDays(-7),
+                subscriptionPlan: BillingSubscriptionPlans.Growth
+            );
+
+            // Range entirely inside the open current week (after closed end).
+            var from = closed.CoverageEndUtcExclusive.ToString("o");
+            var to = utcNow > closed.CoverageEndUtcExclusive
+                ? utcNow.ToString("o")
+                : closed.CoverageEndUtcExclusive.AddHours(1).ToString("o");
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("success").GetBoolean());
+            Assert.False(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(string.Empty, json.GetProperty("week").GetString());
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_FromTo_SnapsAndCreatesReadyEnvelope()
+        {
+            var utcNow = DateTime.UtcNow;
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                utcNow,
+                "monday"
+            );
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-gen-snap",
+                weekStartsOn: "monday",
+                locationCreatedAtUtc: closed.CoverageStartUtc.AddDays(-7),
+                subscriptionPlan: BillingSubscriptionPlans.Growth
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+            fake.ResetCallCount();
+
+            var from = closed.CoverageStartUtc.AddDays(1).ToString("o");
+            var to = utcNow.ToString("o");
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}&from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("success").GetBoolean());
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
+            Assert.Equal(1, fake.CallCount);
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_FromTo_NoClosedOverlap_ReturnsNotReadyWithoutProvider()
+        {
+            var utcNow = DateTime.UtcNow;
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                utcNow,
+                "monday"
+            );
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-gen-no-overlap",
+                weekStartsOn: "monday",
+                locationCreatedAtUtc: closed.CoverageStartUtc.AddDays(-7),
+                subscriptionPlan: BillingSubscriptionPlans.Growth
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+            fake.ResetCallCount();
+
+            var from = closed.CoverageEndUtcExclusive.ToString("o");
+            var to = utcNow > closed.CoverageEndUtcExclusive
+                ? utcNow.ToString("o")
+                : closed.CoverageEndUtcExclusive.AddHours(1).ToString("o");
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}&from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("success").GetBoolean());
+            Assert.False(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(string.Empty, json.GetProperty("week").GetString());
+            Assert.Equal(0, fake.CallCount);
+        }
+
+        [Fact]
         public async Task GetWeeklyBrief_Returns401_WhenUnauthenticated()
         {
             var response = await _client.GetAsync(

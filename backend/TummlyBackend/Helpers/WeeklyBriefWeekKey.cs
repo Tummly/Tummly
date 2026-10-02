@@ -169,15 +169,129 @@ namespace TummlyBackend.Helpers
             var daysFromStart = ((int)localDate.DayOfWeek - (int)startDay + 7) % 7;
             var currentWeekStart = localDate.AddDays(-daysFromStart);
             var closedWeekStart = currentWeekStart.AddDays(-7);
-            var closedWeekNextStart = closedWeekStart.AddDays(7);
 
+            return FromWorkspaceWeekStart(
+                startWeekday,
+                closedWeekStart,
+                timeZone
+            );
+        }
+
+        /// <summary>
+        /// Most recent <em>closed</em> workspace week whose coverage intersects
+        /// <c>[rangeStartUtc, rangeEndUtcExclusive)</c>. Used by Reports to snap
+        /// a KPI date range onto a Weekly brief week key. Returns false when no
+        /// closed week overlaps (for example a range entirely inside the open
+        /// current week).
+        /// </summary>
+        public static bool TryMostRecentClosedWeekOverlapping(
+            string ianaTimeZoneId,
+            DateTime utcNow,
+            string? weekStartsOn,
+            DateTime rangeStartUtc,
+            DateTime rangeEndUtcExclusive,
+            out WeeklyBriefClosedWeek closedWeek
+        )
+        {
+            closedWeek = default;
+            ArgumentException.ThrowIfNullOrWhiteSpace(ianaTimeZoneId);
+
+            var startUtc = EnsureUtc(rangeStartUtc);
+            var endUtc = EnsureUtc(rangeEndUtcExclusive);
+            if (startUtc >= endUtc)
+            {
+                return false;
+            }
+
+            var startWeekday = WorkspaceDefaultsOptions.NormalizeWeekStartsOn(
+                weekStartsOn
+            );
+            var startDay = WorkspaceDefaultsOptions.ToDayOfWeek(startWeekday);
+            var nowUtc = EnsureUtc(utcNow);
+            var timeZone = ResolveTimeZone(ianaTimeZoneId.Trim());
+
+            var localNow = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, timeZone);
+            var localDate = DateOnly.FromDateTime(localNow);
+            var daysFromStart = ((int)localDate.DayOfWeek - (int)startDay + 7) % 7;
+            var currentWeekStart = localDate.AddDays(-daysFromStart);
+
+            var rangeStartLocal = DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTimeFromUtc(startUtc, timeZone)
+            );
+            // Exclusive end: last local calendar day that can still overlap is
+            // the day before the exclusive end's local date when the end is
+            // exactly local midnight; otherwise include that local date.
+            var rangeEndLocal = DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTimeFromUtc(endUtc, timeZone)
+            );
+            var rangeEndLocalExclusive = endUtc
+                == LocalDateStartToUtc(rangeEndLocal, timeZone)
+                    ? rangeEndLocal
+                    : rangeEndLocal.AddDays(1);
+
+            if (rangeStartLocal >= rangeEndLocalExclusive)
+            {
+                return false;
+            }
+
+            var rangeWeekStartDaysFromStart =
+                ((int)rangeStartLocal.DayOfWeek - (int)startDay + 7) % 7;
+            var candidateWeekStart = rangeStartLocal.AddDays(
+                -rangeWeekStartDaysFromStart
+            );
+
+            DateOnly? bestClosedStart = null;
+            for (
+                var weekStart = candidateWeekStart;
+                weekStart < currentWeekStart
+                    && weekStart < rangeEndLocalExclusive;
+                weekStart = weekStart.AddDays(7)
+            )
+            {
+                var weekEnd = weekStart.AddDays(7);
+                var overlaps =
+                    weekStart < rangeEndLocalExclusive
+                    && weekEnd > rangeStartLocal;
+                if (!overlaps)
+                {
+                    continue;
+                }
+
+                if (
+                    bestClosedStart is null
+                    || weekStart > bestClosedStart.Value
+                )
+                {
+                    bestClosedStart = weekStart;
+                }
+            }
+
+            if (bestClosedStart is null)
+            {
+                return false;
+            }
+
+            closedWeek = FromWorkspaceWeekStart(
+                startWeekday,
+                bestClosedStart.Value,
+                timeZone
+            );
+            return true;
+        }
+
+        private static WeeklyBriefClosedWeek FromWorkspaceWeekStart(
+            string startWeekday,
+            DateOnly weekStart,
+            TimeZoneInfo timeZone
+        )
+        {
             var weekKey =
-                $"{startWeekday}:{closedWeekStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}";
+                $"{startWeekday}:{weekStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}";
 
             return new WeeklyBriefClosedWeek(
                 weekKey,
-                LocalDateStartToUtc(closedWeekStart, timeZone),
-                LocalDateStartToUtc(closedWeekNextStart, timeZone)
+                LocalDateStartToUtc(weekStart, timeZone),
+                LocalDateStartToUtc(weekStart.AddDays(7), timeZone)
             );
         }
 

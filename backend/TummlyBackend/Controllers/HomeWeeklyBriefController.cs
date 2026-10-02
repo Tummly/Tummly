@@ -37,6 +37,8 @@ namespace TummlyBackend.Controllers
         public async Task<IActionResult> GetWeeklyBrief(
             [FromQuery] int locationId,
             [FromQuery] string? week = null,
+            [FromQuery] DateTime? from = null,
+            [FromQuery] DateTime? to = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -69,17 +71,31 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            if (!TryResolveWeekKey(
+            if (!TryResolveTargetWeek(
                     week,
+                    from,
+                    to,
                     weekStartsOn: await ResolveWeekStartsOnAsync(
                         locationId,
                         cancellationToken
                     ),
                     out var weekKey,
+                    out var noClosedOverlap,
                     out var weekError
                 ))
             {
                 return weekError!;
+            }
+
+            if (noClosedOverlap)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    ready = false,
+                    locationId,
+                    week = weekKey,
+                });
             }
 
             var row = await _context.WeeklyBriefs
@@ -112,14 +128,18 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
-        /// Manual / lazy generate for the current closed prior week (Home and
-        /// Reports — no week picker). Available any day; <see cref="WeeklyBriefWeekKey.IsGenerateDay"/>
-        /// gates only the scheduled job, not this path. Does not produce
+        /// Manual / lazy generate for a closed workspace week. Home omits
+        /// <c>from</c>/<c>to</c> (closed prior). Reports may pass a KPI window;
+        /// the API snaps to the most recent closed week overlapping that range.
+        /// Available any day; <see cref="WeeklyBriefWeekKey.IsGenerateDay"/>
+        /// gates only the scheduled job. Does not produce
         /// <c>weekly-brief-ready</c>; notify stays on the Monday job seam.
         /// </summary>
         [HttpPost("generate")]
         public async Task<IActionResult> GenerateWeeklyBrief(
             [FromQuery] int locationId,
+            [FromQuery] DateTime? from = null,
+            [FromQuery] DateTime? to = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -170,11 +190,32 @@ namespace TummlyBackend.Controllers
 
             var weekStartsOn = locationMeta?.WeekStartsOn;
             var utcNow = DateTime.UtcNow;
-            var closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
-                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                utcNow,
-                weekStartsOn
-            );
+
+            if (!TryResolveClosedWeekForGenerate(
+                    from,
+                    to,
+                    weekStartsOn,
+                    utcNow,
+                    out var closedWeek,
+                    out var noClosedOverlap,
+                    out var rangeError
+                ))
+            {
+                return rangeError!;
+            }
+
+            if (noClosedOverlap)
+            {
+                return Ok(
+                    new
+                    {
+                        success = true,
+                        ready = false,
+                        locationId,
+                        week = string.Empty,
+                    }
+                );
+            }
 
             // Soft not-ready: missing location, too new for closed week, or Pilot.
             // Day-of-week is not a gate here (product: manual Generate brief any day).
@@ -575,7 +616,145 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
-        /// Resolve workspace-week key for GET — any valid key, or closed prior when omitted.
+        /// Resolve workspace-week key for GET: explicit <paramref name="week"/>,
+        /// else snap from <paramref name="from"/>/<paramref name="to"/>, else
+        /// closed prior. When the range has no closed overlap,
+        /// <paramref name="noClosedOverlap"/> is true and <paramref name="weekKey"/>
+        /// is empty.
+        /// </summary>
+        private static bool TryResolveTargetWeek(
+            string? week,
+            DateTime? from,
+            DateTime? to,
+            string? weekStartsOn,
+            out string weekKey,
+            out bool noClosedOverlap,
+            out IActionResult? error
+        )
+        {
+            weekKey = string.Empty;
+            noClosedOverlap = false;
+            error = null;
+
+            if (!string.IsNullOrWhiteSpace(week))
+            {
+                if (!WeeklyBriefWeekKey.TryNormalizeWeekKey(week, out weekKey))
+                {
+                    error = new BadRequestObjectResult(new
+                    {
+                        success = false,
+                        message =
+                            "week must be a workspace-week key (weekday:yyyy-MM-dd) or legacy ISO yyyy-Www.",
+                    });
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (from != null || to != null)
+            {
+                if (!TryResolveClosedWeekForGenerate(
+                        from,
+                        to,
+                        weekStartsOn,
+                        DateTime.UtcNow,
+                        out var snapped,
+                        out noClosedOverlap,
+                        out error
+                    ))
+                {
+                    return false;
+                }
+
+                weekKey = noClosedOverlap
+                    ? string.Empty
+                    : snapped.WeekKey;
+                return true;
+            }
+
+            weekKey = WeeklyBriefWeekKey
+                .ForClosedPriorWeek(
+                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                    DateTime.UtcNow,
+                    weekStartsOn
+                )
+                .WeekKey;
+            return true;
+        }
+
+        /// <summary>
+        /// Resolve closed week for POST generate: snap from from/to when both
+        /// present; otherwise closed prior. One-sided from/to is a bad request.
+        /// </summary>
+        private static bool TryResolveClosedWeekForGenerate(
+            DateTime? from,
+            DateTime? to,
+            string? weekStartsOn,
+            DateTime utcNow,
+            out WeeklyBriefClosedWeek closedWeek,
+            out bool noClosedOverlap,
+            out IActionResult? error
+        )
+        {
+            closedWeek = default;
+            noClosedOverlap = false;
+            error = null;
+
+            if (from == null && to == null)
+            {
+                closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                    utcNow,
+                    weekStartsOn
+                );
+                return true;
+            }
+
+            if (from == null || to == null)
+            {
+                error = new BadRequestObjectResult(new
+                {
+                    success = false,
+                    message = "from and to are required together.",
+                });
+                return false;
+            }
+
+            var fromUtc = GuestsDateWindows.EnsureUtc(from.Value);
+            var toUtc = GuestsDateWindows.EnsureUtc(to.Value);
+            if (fromUtc >= toUtc)
+            {
+                error = new BadRequestObjectResult(new
+                {
+                    success = false,
+                    message = "from must be before to.",
+                });
+                return false;
+            }
+
+            if (
+                !WeeklyBriefWeekKey.TryMostRecentClosedWeekOverlapping(
+                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                    utcNow,
+                    weekStartsOn,
+                    fromUtc,
+                    toUtc,
+                    out closedWeek
+                )
+            )
+            {
+                noClosedOverlap = true;
+                closedWeek = default;
+                return true;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Resolve workspace-week key for mark-reviewed / PDF — any valid key,
+        /// or closed prior when omitted.
         /// </summary>
         private static bool TryResolveWeekKey(
             string? week,
@@ -584,33 +763,15 @@ namespace TummlyBackend.Controllers
             out IActionResult? error
         )
         {
-            weekKey = string.Empty;
-            error = null;
-
-            if (string.IsNullOrWhiteSpace(week))
-            {
-                weekKey = WeeklyBriefWeekKey
-                    .ForClosedPriorWeek(
-                        WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                        DateTime.UtcNow,
-                        weekStartsOn
-                    )
-                    .WeekKey;
-                return true;
-            }
-
-            if (!WeeklyBriefWeekKey.TryNormalizeWeekKey(week, out weekKey))
-            {
-                error = new BadRequestObjectResult(new
-                {
-                    success = false,
-                    message =
-                        "week must be a workspace-week key (weekday:yyyy-MM-dd) or legacy ISO yyyy-Www.",
-                });
-                return false;
-            }
-
-            return true;
+            return TryResolveTargetWeek(
+                week,
+                from: null,
+                to: null,
+                weekStartsOn,
+                out weekKey,
+                out _,
+                out error
+            );
         }
 
         private async Task<string?> ResolveWeekStartsOnAsync(

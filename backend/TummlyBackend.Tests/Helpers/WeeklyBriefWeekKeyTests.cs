@@ -287,5 +287,87 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
         }
+
+        [Fact]
+        public void TryMostRecentClosedWeekOverlapping_Last7_PicksClosedPriorWeek()
+        {
+            // Friday 2026-10-02 13:00 BST → closed prior monday:2026-09-21
+            var utcNow = new DateTime(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc);
+            // Last 7: local Sep 26 00:00 → Oct 2 13:00
+            var fromUtc = new DateTime(2026, 9, 25, 23, 0, 0, DateTimeKind.Utc);
+            var toUtc = utcNow;
+
+            Assert.True(
+                WeeklyBriefWeekKey.TryMostRecentClosedWeekOverlapping(
+                    London,
+                    utcNow,
+                    "monday",
+                    fromUtc,
+                    toUtc,
+                    out var closed
+                )
+            );
+            Assert.Equal("monday:2026-09-21", closed.WeekKey);
+        }
+
+        [Fact]
+        public void TryMostRecentClosedWeekOverlapping_Last30_PicksMostRecentClosed()
+        {
+            var utcNow = new DateTime(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc);
+            // Last 30: local Sep 3 00:00 → Oct 2 13:00 (overlaps several closed weeks)
+            var fromUtc = new DateTime(2026, 9, 2, 23, 0, 0, DateTimeKind.Utc);
+            var toUtc = utcNow;
+
+            Assert.True(
+                WeeklyBriefWeekKey.TryMostRecentClosedWeekOverlapping(
+                    London,
+                    utcNow,
+                    "monday",
+                    fromUtc,
+                    toUtc,
+                    out var closed
+                )
+            );
+            Assert.Equal("monday:2026-09-21", closed.WeekKey);
+        }
+
+        [Fact]
+        public void TryMostRecentClosedWeekOverlapping_EarlyThisMonth_NoClosedOverlap()
+        {
+            // Friday 2026-10-02 — This month local Oct 1 00:00 → now only hits
+            // open current week monday:2026-09-28.
+            var utcNow = new DateTime(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc);
+            var fromUtc = new DateTime(2026, 9, 30, 23, 0, 0, DateTimeKind.Utc);
+            var toUtc = utcNow;
+
+            Assert.False(
+                WeeklyBriefWeekKey.TryMostRecentClosedWeekOverlapping(
+                    London,
+                    utcNow,
+                    "monday",
+                    fromUtc,
+                    toUtc,
+                    out _
+                )
+            );
+        }
+
+        [Fact]
+        public void TryMostRecentClosedWeekOverlapping_InvalidRange_ReturnsFalse()
+        {
+            var utcNow = new DateTime(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc);
+            var instant = new DateTime(2026, 9, 25, 23, 0, 0, DateTimeKind.Utc);
+
+            Assert.False(
+                WeeklyBriefWeekKey.TryMostRecentClosedWeekOverlapping(
+                    London,
+                    utcNow,
+                    "monday",
+                    instant,
+                    instant,
+                    out _
+                )
+            );
+        }
     }
 }

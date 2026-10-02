@@ -171,9 +171,13 @@ export type OperatorHomePageAdapters = {
   loadHomeRecommendation: (input: {
     request: HomeRecommendationRequest
   }) => Promise<HomeRecommendationResponse>
-  getWeeklyBrief: (locationId: number) => Promise<WeeklyBriefGetResponse>
+  getWeeklyBrief: (
+    locationId: number,
+    window?: { from: string; to: string }
+  ) => Promise<WeeklyBriefGetResponse>
   generateWeeklyBrief: (
-    locationId: number
+    locationId: number,
+    window?: { from: string; to: string }
   ) => Promise<WeeklyBriefGenerateResponse>
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   correctClassification: FeedbackDetailsAdapters["correctClassification"]

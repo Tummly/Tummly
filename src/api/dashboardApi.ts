@@ -1289,11 +1289,17 @@ export const getHomeRecommendation = async (
 }
 
 export const getWeeklyBrief = async (
-  locationId: number
+  locationId: number,
+  window?: { from: string; to: string }
 ): Promise<WeeklyBriefGetResponse> => {
   const response = await axiosInstance.get<WeeklyBriefGetResponse>(
     "/home/weekly-brief",
-    { params: { locationId } }
+    {
+      params: {
+        locationId,
+        ...(window != null ? { from: window.from, to: window.to } : {}),
+      },
+    }
   )
   return response.data
 }
@@ -1389,13 +1395,19 @@ export const getReportsCampaigns = async (input: {
 }
 
 export const generateWeeklyBrief = async (
-  locationId: number
+  locationId: number,
+  window?: { from: string; to: string }
 ): Promise<WeeklyBriefGenerateResponse> => {
   try {
     const response = await axiosInstance.post<WeeklyBriefGenerateResponse>(
       "/home/weekly-brief/generate",
       null,
-      { params: { locationId } }
+      {
+        params: {
+          locationId,
+          ...(window != null ? { from: window.from, to: window.to } : {}),
+        },
+      }
     )
     return response.data
   } catch (error) {

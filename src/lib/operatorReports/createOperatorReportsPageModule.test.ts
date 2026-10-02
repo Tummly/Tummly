@@ -442,7 +442,7 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot()).toBe(after)
   })
 
-  it("reloads hub overview when reports date range commits", async () => {
+  it("reloads hub overview and weekly brief when reports date range commits", async () => {
     const adapters = createAdapters()
     const module = createOperatorReportsPageModule(adapters)
     await module.syncWorkspace(workspace())
@@ -455,7 +455,9 @@ describe("createOperatorReportsPageModule", () => {
     })
     await module.reloadForReportsDateRange()
     expect(adapters.getOverview).toHaveBeenCalledTimes(2)
-    expect(adapters.getWeeklyBrief.mock.calls.length).toBe(briefCallsAfterSync)
+    expect(adapters.getWeeklyBrief.mock.calls.length).toBe(
+      briefCallsAfterSync + 1
+    )
     expect(adapters.getCapture).not.toHaveBeenCalled()
     expect(adapters.getFeedback).not.toHaveBeenCalled()
     expect(adapters.getOffers).not.toHaveBeenCalled()
@@ -463,6 +465,41 @@ describe("createOperatorReportsPageModule", () => {
       kind: "preset",
       presetId: "last30",
     })
+  })
+
+  it("passes reports date-range window into weekly brief get and generate", async () => {
+    const getWeeklyBrief = vi.fn(async () =>
+      notReadyWeeklyBriefResponse(1)
+    )
+    const generateWeeklyBrief = vi.fn(async () =>
+      readyWeeklyBriefResponse(1)
+    )
+    const adapters = createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    adapters.getReportsDateRange.mockReturnValue({
+      kind: "preset",
+      presetId: "last7",
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+
+    const getCall = getWeeklyBrief.mock.calls[0]
+    expect(getCall?.[0]).toBe(1)
+    expect(getCall?.[1]).toEqual(
+      expect.objectContaining({
+        from: expect.any(String),
+        to: expect.any(String),
+      })
+    )
+
+    await module.generateWeeklyBriefInPlace()
+    const genCall = generateWeeklyBrief.mock.calls[0]
+    expect(genCall?.[0]).toBe(1)
+    expect(genCall?.[1]).toEqual(
+      expect.objectContaining({
+        from: expect.any(String),
+        to: expect.any(String),
+      })
+    )
   })
 
   it("does not reload hub when syncWorkspace repeats the same location", async () => {
