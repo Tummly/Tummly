@@ -1,10 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import {
-  motion,
-  useReducedMotion,
-  type Transition,
-  type Variants,
-} from "framer-motion"
+import { motion, useReducedMotion, type Variants } from "framer-motion"
 import { useEffect, useMemo, useSyncExternalStore } from "react"
 import { useForm, useWatch } from "react-hook-form"
 import { Link } from "react-router-dom"
@@ -12,7 +7,7 @@ import { Link } from "react-router-dom"
 import { transcribeGuestAudio } from "@/api/scanApi"
 import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
-import { GuestFeedbackDictationGlow } from "@/components/guest-feedback/GuestFeedbackDictationGlow"
+import { GuestFeedbackDictationGlowMotion } from "@/components/guest-feedback/GuestFeedbackDictationGlowMotion"
 import { GuestFeedbackMicChrome } from "@/components/guest-feedback/GuestFeedbackMicChrome"
 import { GuestFeedbackPoweredBy } from "@/components/guest-feedback/GuestFeedbackPoweredBy"
 import {
@@ -41,6 +36,9 @@ import {
   type GuestFormConsentConfig,
 } from "@/lib/guestFeedback/guestFormConsentPresentation"
 import { getRecaptchaSiteKey } from "@/lib/guestFeedback/executeGuestFeedbackRecaptcha"
+import {
+  guestFeedbackEnterTransition,
+} from "@/lib/guestFeedback/guestFeedbackMotionTokens"
 import { cn } from "@/lib/utils"
 import { defaultFormValidationOptions } from "@/lib/form"
 import {
@@ -50,30 +48,23 @@ import {
   type GuestFeedbackFormValues,
 } from "@/schemas/guestFeedback"
 
-const formSpring: Transition = {
-  type: "spring",
-  stiffness: 420,
-  damping: 34,
-  mass: 0.85,
-}
-
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.07,
+      staggerChildren: 0.06,
       delayChildren: 0.04,
     },
   },
 }
 
 const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 12 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: formSpring,
+    transition: guestFeedbackEnterTransition,
   },
 }
 
@@ -195,7 +186,9 @@ export function GuestFeedbackForm({
     displayRestaurant,
     displayLocation
   )
-  const isDictating = mic.chrome === "tick_cancel" || mic.chrome === "loader"
+  const isComposerBusy =
+    mic.phase === "recording" || mic.phase === "transcribing"
+  const showListeningGlow = mic.phase === "recording"
 
   const handleSubmit = form.handleSubmit(async (values) => {
     await onSubmit(values)
@@ -259,11 +252,13 @@ export function GuestFeedbackForm({
                       <div
                         className={cn(
                           "relative flex min-h-[207px] flex-col overflow-hidden rounded-[28px] border border-guest-feedback-border-soft bg-[rgba(40,40,40,0.15)] sm:min-h-[230px]",
-                          isDictating &&
+                          isComposerBusy &&
                             "border-2 border-guest-feedback-border-soft bg-[rgba(20,20,20,0.5)]"
                         )}
                       >
-                        {isDictating ? <GuestFeedbackDictationGlow /> : null}
+                        {showListeningGlow ? (
+                          <GuestFeedbackDictationGlowMotion />
+                        ) : null}
 
                         <FormControl>
                           <Textarea
@@ -435,28 +430,18 @@ export function GuestFeedbackForm({
               </div>
             ) : null}
 
-            <motion.div
-              whileTap={
-                shouldReduceMotion || !canSubmit || submitBusy
-                  ? undefined
-                  : { scale: 0.985 }
-              }
-              transition={formSpring}
-              className="w-full"
+            <Button
+              type="submit"
+              disabled={!canSubmit || submitBusy}
+              className={cn(
+                "h-auto min-h-12.5 w-full rounded-[54px] px-4 py-4 text-sm font-medium leading-normal shadow-none",
+                canSubmit && !submitBusy
+                  ? "bg-guest-feedback-submit text-guest-feedback-submit-fg hover:bg-white"
+                  : "bg-guest-feedback-secondary text-guest-feedback-secondary-fg hover:bg-guest-feedback-secondary"
+              )}
             >
-              <Button
-                type="submit"
-                disabled={!canSubmit || submitBusy}
-                className={cn(
-                  "h-auto min-h-12.5 w-full rounded-[54px] px-4 py-4 text-sm font-medium leading-normal shadow-none",
-                  canSubmit && !submitBusy
-                    ? "bg-guest-feedback-submit text-guest-feedback-submit-fg hover:bg-white"
-                    : "bg-guest-feedback-secondary text-guest-feedback-secondary-fg hover:bg-guest-feedback-secondary"
-                )}
-              >
-                {isSubmitting ? "Submitting..." : "Submit feedback"}
-              </Button>
-            </motion.div>
+              {isSubmitting ? "Submitting..." : "Submit feedback"}
+            </Button>
           </div>
 
           <nav

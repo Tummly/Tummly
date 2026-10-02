@@ -20,6 +20,7 @@ import {
   isGuestPreviewOfferClaimCodePlaceholder,
   type GuestPreviewOfferCouponView,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
+import { guestFeedbackMotionDurations } from "@/lib/guestFeedback/guestFeedbackMotionTokens"
 import {
   OPERATOR_SHELL_TOOLTIP_ARROW_CLASS,
   OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS,
@@ -139,11 +140,11 @@ export function GuestPreviewOfferCoupon({
     }
     const timer = window.setTimeout(() => {
       setCopied(false)
-    }, 2000)
+    }, isThankYou ? guestFeedbackMotionDurations.copiedHoldMs : 2000)
     return () => {
       window.clearTimeout(timer)
     }
-  }, [copied])
+  }, [copied, isThankYou])
 
   const handleCopy = () => {
     void navigator.clipboard.writeText(coupon.redemptionCode).then(() => {
