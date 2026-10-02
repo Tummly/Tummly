@@ -51,8 +51,11 @@ namespace TummlyBackend.Controllers
             }
 
             var location = ownedLocation.Location!;
+            var hasBrandLogo = await RestaurantHasBrandLogoAsync(
+                location.RestaurantId
+            );
 
-            return Ok(ToResponse(location));
+            return Ok(ToResponse(location, hasBrandLogo));
         }
 
         [HttpPost]
@@ -105,10 +108,28 @@ namespace TummlyBackend.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(ToResponse(location));
+            var hasBrandLogo = await RestaurantHasBrandLogoAsync(
+                location.RestaurantId
+            );
+
+            return Ok(ToResponse(location, hasBrandLogo));
         }
 
-        private static object ToResponse(RestaurantLocation location)
+        private async Task<bool> RestaurantHasBrandLogoAsync(int restaurantId)
+        {
+            var objectKey = await _context.Restaurants
+                .AsNoTracking()
+                .Where(r => r.Id == restaurantId)
+                .Select(r => r.BrandLogoObjectKey)
+                .FirstOrDefaultAsync();
+
+            return !string.IsNullOrWhiteSpace(objectKey);
+        }
+
+        private static object ToResponse(
+            RestaurantLocation location,
+            bool hasBrandLogo
+        )
         {
             return new
             {
@@ -118,7 +139,8 @@ namespace TummlyBackend.Controllers
                     location.GuestFormPreviewedAt != null,
                 qrPlacementGuideViewed =
                     location.QrPlacementGuideViewedAt != null,
-                logoUploaded = location.LogoUploadedAt != null,
+                logoUploaded =
+                    location.LogoUploadedAt != null || hasBrandLogo,
                 guestFormPreviewedAt =
                     location.GuestFormPreviewedAt,
                 qrPlacementGuideViewedAt =

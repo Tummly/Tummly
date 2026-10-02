@@ -120,6 +120,46 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetChecklistAcks_ReturnsLogoUploaded_WhenBrandLogoAlreadyPersisted()
+        {
+            var seeded = await SeedOwnerLocationAsync(
+                "checklist-logo-heal-token-12345"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = Assert.Single(
+                    context.RestaurantLocations.Where(
+                        l => l.Id == seeded.LocationId
+                    )
+                );
+                var restaurant = Assert.Single(
+                    context.Restaurants.Where(
+                        r => r.Id == location.RestaurantId
+                    )
+                );
+                restaurant.BrandLogoObjectKey = "brand-logos/existing.png";
+                restaurant.BrandLogoContentType = "image/png";
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/operator-home/checklist-acks?locationId={seeded.LocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("logoUploaded").GetBoolean());
+        }
+
+        [Fact]
         public async Task GetChecklistAcks_Returns403_ForNonOwnedLocation()
         {
             var owner = await SeedOwnerLocationAsync(

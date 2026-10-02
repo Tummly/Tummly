@@ -664,6 +664,27 @@ namespace TummlyBackend.Tests.Integration
             Assert.False(string.IsNullOrWhiteSpace(restaurant.BrandLogoObjectKey));
             Assert.Equal("image/png", restaurant.BrandLogoContentType);
             Assert.Contains(restaurant.BrandLogoObjectKey!, storage.UploadedKeys);
+
+            var location = Assert.Single(
+                context.RestaurantLocations.Where(
+                    l => l.Id == seeded.LocationId
+                )
+            );
+            Assert.NotNull(location.LogoUploadedAt);
+
+            using var checklistRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/operator-home/checklist-acks?locationId={seeded.LocationId}"
+            );
+            checklistRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var checklistResponse = await client.SendAsync(checklistRequest);
+            Assert.Equal(HttpStatusCode.OK, checklistResponse.StatusCode);
+            var checklistBody = await ReadJsonAsync(checklistResponse);
+            Assert.True(
+                checklistBody.GetProperty("logoUploaded").GetBoolean()
+            );
         }
 
         [Fact]

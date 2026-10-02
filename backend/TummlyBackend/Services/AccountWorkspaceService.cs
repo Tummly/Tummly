@@ -154,6 +154,21 @@ namespace TummlyBackend.Services
                         // Best-effort cleanup of the previous mark.
                     }
                 }
+
+                // Home setup checklist "Upload restaurant logo" is per Owned
+                // location; stamp every location so the checkbox completes.
+                var logoUploadedAt = DateTime.UtcNow;
+                var locationsNeedingAck = await _context.RestaurantLocations
+                    .Where(l =>
+                        l.RestaurantId == restaurant.Id
+                        && l.LogoUploadedAt == null
+                    )
+                    .ToListAsync();
+
+                foreach (var location in locationsNeedingAck)
+                {
+                    location.LogoUploadedAt = logoUploadedAt;
+                }
             }
 
             restaurant.AccountWorkspaceLastSavedAt = DateTime.UtcNow;
