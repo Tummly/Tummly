@@ -17,6 +17,7 @@ import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShe
 import { GuestFeedbackSuccess } from "@/components/guest-feedback/GuestFeedbackSuccess"
 import { GuestFeedbackUnlockOffer } from "@/components/guest-feedback/GuestFeedbackUnlockOffer"
 import { executeGuestFeedbackRecaptcha } from "@/lib/guestFeedback/executeGuestFeedbackRecaptcha"
+import { guestFeedbackMajorStateTransition } from "@/lib/guestFeedback/guestFeedbackMotionTokens"
 import {
   toIssuedGuestOfferCoupon,
   type GuestPreviewOfferCouponView,
@@ -25,10 +26,7 @@ import type { GuestFeedbackFormValues } from "@/schemas/guestFeedback"
 
 type PagePhase = "loading" | "ready" | "not-found" | "unlock" | "success"
 
-const fadeTransition = {
-  duration: 0.28,
-  ease: [0.25, 0.1, 0.25, 1] as const,
-}
+const fadeTransition = guestFeedbackMajorStateTransition
 
 export default function GuestFeedbackPage() {
   const { token = "" } = useParams()

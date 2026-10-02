@@ -1,7 +1,6 @@
 import {
   motion,
   useReducedMotion,
-  type Transition,
   type Variants,
 } from "framer-motion"
 
@@ -12,19 +11,11 @@ import {
   buildGuestFeedbackUnlockCopy,
   type GuestFeedbackUnlockChannel,
 } from "@/lib/guestFeedback/guestFeedbackUnlockPresentation"
+import {
+  guestFeedbackEnterTransition,
+  guestFeedbackHeadlineTransition,
+} from "@/lib/guestFeedback/guestFeedbackMotionTokens"
 import { cn } from "@/lib/utils"
-
-const cardSpring: Transition = {
-  type: "spring",
-  stiffness: 380,
-  damping: 32,
-  mass: 0.9,
-}
-
-const fadeTransition: Transition = {
-  duration: 0.24,
-  ease: [0.25, 0.1, 0.25, 1],
-}
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -32,17 +23,26 @@ const containerVariants: Variants = {
     opacity: 1,
     transition: {
       staggerChildren: 0.08,
-      delayChildren: 0.06,
+      delayChildren: 0.05,
     },
   },
 }
 
 const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 14 },
+  hidden: { opacity: 0, y: 12 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: cardSpring,
+    transition: guestFeedbackEnterTransition,
+  },
+}
+
+const headlineVariants: Variants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: guestFeedbackHeadlineTransition,
   },
 }
 
@@ -97,14 +97,13 @@ export function GuestFeedbackUnlockOffer({
         <div className="flex w-full flex-1 flex-col items-center justify-center gap-8 px-0 pt-6 pb-4">
           <div className="flex w-full max-w-[min(100%,400px)] flex-col items-center gap-3 text-center md:max-w-[min(100%,440px)]">
             <motion.h1
-              variants={shouldReduceMotion ? undefined : itemVariants}
+              variants={shouldReduceMotion ? undefined : headlineVariants}
               className="m-0 font-heading text-[28px] font-bold leading-normal text-guest-feedback-text"
             >
               {copy.thankYouHeading}
             </motion.h1>
             <motion.p
               variants={shouldReduceMotion ? undefined : itemVariants}
-              transition={shouldReduceMotion ? undefined : fadeTransition}
               className="m-0 max-w-[291px] text-sm font-medium leading-5 text-[#888]"
             >
               {copy.sharedBody}
