@@ -1,7 +1,7 @@
 import {
   STAFF_DASHBOARD_SUPPORT_URL,
   staffDashboardQueryUrl,
-} from "@/config/staffDashboard"
+} from "./staffDashboard"
 
 export const SUPPORT_EMAIL = "support@tummly.com"
 
