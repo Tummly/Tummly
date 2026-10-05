@@ -6,6 +6,8 @@ export const OPERATOR_DASHBOARD_PATHS = [
   "/multi-dashboard",
 ] as const
 
+export const STAFF_DASHBOARD_PATH = "/admin-dashboard"
+
 export type OperatorAppearancePreference = "light" | "dark" | "system"
 
 export type OperatorAppearanceDocumentTheme = "light" | "dark"
@@ -14,6 +16,18 @@ export function isOperatorDashboardPath(pathname: string): boolean {
   return OPERATOR_DASHBOARD_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`)
   )
+}
+
+export function isStaffDashboardPath(pathname: string): boolean {
+  return (
+    pathname === STAFF_DASHBOARD_PATH ||
+    pathname.startsWith(`${STAFF_DASHBOARD_PATH}/`)
+  )
+}
+
+/** Operator or staff shell — theme toggle allowed (not forced light). */
+export function isThemedAppShellPath(pathname: string): boolean {
+  return isOperatorDashboardPath(pathname) || isStaffDashboardPath(pathname)
 }
 
 export function parseOperatorAppearancePreference(
@@ -26,11 +40,11 @@ export function parseOperatorAppearancePreference(
 }
 
 export function resolveOperatorAppearanceDocumentTheme(input: {
-  isOperatorDashboard: boolean
+  themeEnabled: boolean
   preference: OperatorAppearancePreference
   systemPrefersDark: boolean
 }): OperatorAppearanceDocumentTheme {
-  if (!input.isOperatorDashboard) {
+  if (!input.themeEnabled) {
     return "light"
   }
   if (input.preference === "system") {
@@ -46,13 +60,14 @@ export function readSystemPrefersDark(): boolean {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
 }
 
-/** Apply Operator scope + document theme before paint (`op` / `dark` + color-scheme). */
+/** Apply Operator/`op` scope + document theme before paint (`op` / `dark` + color-scheme). */
 export function applyOperatorAppearanceDocumentTheme(input: {
-  isOperatorDashboard: boolean
+  /** Enables Operator design tokens (`html.op`) — Operator and staff shells. */
+  applyOpScope: boolean
   theme: OperatorAppearanceDocumentTheme
 }): void {
   const root = document.documentElement
-  root.classList.toggle("op", input.isOperatorDashboard)
+  root.classList.toggle("op", input.applyOpScope)
   root.classList.toggle("dark", input.theme === "dark")
   root.style.colorScheme = input.theme
 }

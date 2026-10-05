@@ -8,7 +8,7 @@ namespace TummlyBackend.Controllers
 {
     [ApiController]
     [Route("api/support")]
-    [Authorize(Roles = "Support")]
+    [Authorize(Roles = "Admin,Support")]
     public class SupportController : ControllerBase
     {
         private readonly ISupportService _supportService;

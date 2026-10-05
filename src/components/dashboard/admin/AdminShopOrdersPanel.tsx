@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { DownloadIcon, SearchIcon } from "lucide-react"
+import { DownloadIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -9,9 +9,9 @@ import {
   type AdminShopOrderListItem,
 } from "@/api/adminShopOrdersApi"
 import { AdminShopOrderDetailDrawer } from "@/components/dashboard/admin/AdminShopOrderDetailDrawer"
+import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
   Pagination,
@@ -45,6 +45,32 @@ import {
   formatAdminShopGbpFromPence,
   nextAdminShopFulfilmentAction,
 } from "@/lib/adminShopOrderFulfilment"
+import {
+  GUESTS_PAGE_STACK_CLASS,
+  GUESTS_PAGE_SUBTITLE_CLASS,
+  GUESTS_PAGE_TITLE_CLASS,
+  GUESTS_SEARCH_FIELD_CLASS,
+  GUESTS_SEARCH_WRAP_CLASS,
+  GUESTS_SECTION_CLASS,
+  GUESTS_SECTION_SUBTITLE_CLASS,
+  GUESTS_SECTION_TITLE_CLASS,
+  GUESTS_TABLE_BODY_CELL_CLASS,
+  GUESTS_TABLE_BODY_ROW_CLASS,
+  GUESTS_TABLE_CLASS,
+  GUESTS_TABLE_FRAME_CLASS,
+  GUESTS_TABLE_GUEST_NAME_CLASS,
+  GUESTS_TABLE_HEAD_CELL_CLASS,
+  GUESTS_TABLE_HEAD_ROW_CLASS,
+  GUESTS_TABLE_INTERACTION_TIME_CLASS,
+  GUESTS_TABLE_LOCATION_CLASS,
+  GUESTS_TOOLBAR_ACTIONS_CLASS,
+  GUESTS_TOOLBAR_ROW_CLASS,
+} from "@/lib/operatorGuests/guestsPresentation"
+import {
+  OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+  OPERATOR_SHELL_MENU_ITEM_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 25
@@ -154,103 +180,108 @@ export function AdminShopOrdersPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
-        <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground">
-          Shop orders
-        </h2>
-        <p className="max-w-2xl text-sm text-muted-foreground">
+    <div className={GUESTS_PAGE_STACK_CLASS}>
+      <header className="flex flex-col gap-3.5 leading-[0]">
+        <h1 className={GUESTS_PAGE_TITLE_CLASS}>Shop orders</h1>
+        <p className={GUESTS_PAGE_SUBTITLE_CLASS}>
           Review paid materials orders, advance fulfilment, set tracking URLs,
           and export the warehouse CSV.
         </p>
       </header>
 
-      <Card className="overflow-hidden rounded-2xl">
-        <CardHeader className="border-b">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>Fulfilment queue</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {loading
-                  ? "Loading orders…"
-                  : `${totalCount} result${totalCount === 1 ? "" : "s"}`}
-              </p>
-            </div>
+      <section className={GUESTS_SECTION_CLASS}>
+        <div className="flex flex-col gap-1">
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>Fulfilment queue</h2>
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            {loading
+              ? "Loading orders…"
+              : `${totalCount} result${totalCount === 1 ? "" : "s"}`}
+          </p>
+        </div>
 
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:max-w-3xl">
-              <div className="relative min-w-0 flex-1">
-                <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search order, location, or material"
-                  className="h-10 rounded-xl pl-9"
-                  aria-label="Search shop orders"
-                />
-              </div>
-
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => {
-                  setStatusFilter(value as AdminShopFulfilmentStatus | "all")
-                  setPage(1)
-                }}
-              >
-                <SelectTrigger className="h-10 w-full rounded-xl sm:w-44">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-xl"
-                disabled={exporting}
-                onClick={() => void handleExport()}
-              >
-                <DownloadIcon />
-                Export CSV
-              </Button>
-            </div>
+        <div className={GUESTS_TOOLBAR_ROW_CLASS}>
+          <div className={GUESTS_SEARCH_WRAP_CLASS}>
+            <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-icon-default" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search order, location, or material"
+              className={GUESTS_SEARCH_FIELD_CLASS}
+              aria-label="Search shop orders"
+            />
           </div>
-        </CardHeader>
 
-        <CardContent className="px-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-brand-dark hover:bg-brand-dark">
-                <TableHead className="text-brand-dark-foreground">
+          <div className={GUESTS_TOOLBAR_ACTIONS_CLASS}>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value as AdminShopFulfilmentStatus | "all")
+                setPage(1)
+              }}
+            >
+              <SelectTrigger
+                className={cn(
+                  OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+                  "w-full min-w-40 data-[size=default]:h-auto sm:w-44"
+                )}
+              >
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent className={OPERATOR_SHELL_MENU_PANEL_CLASS}>
+                {ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS.map((option) => (
+                  <SelectItem
+                    key={option.id}
+                    value={option.id}
+                    className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              type="button"
+              variant="op-secondary"
+              className="rounded-[2px]"
+              disabled={exporting}
+              onClick={() => void handleExport()}
+            >
+              <DownloadIcon />
+              Export CSV
+            </Button>
+          </div>
+        </div>
+
+        <div className={GUESTS_TABLE_FRAME_CLASS}>
+          <Table className={GUESTS_TABLE_CLASS}>
+            <TableHeader className="[&_tr]:border-0">
+              <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Order
                 </TableHead>
-                <TableHead className="text-brand-dark-foreground">
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Location
                 </TableHead>
-                <TableHead className="text-brand-dark-foreground">
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Restaurant
                 </TableHead>
-                <TableHead className="text-brand-dark-foreground">
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Materials
                 </TableHead>
-                <TableHead className="text-brand-dark-foreground">
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Total
                 </TableHead>
-                <TableHead className="text-brand-dark-foreground">
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Payment
                 </TableHead>
-                <TableHead className="text-brand-dark-foreground">
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Fulfilment
                 </TableHead>
-                <TableHead className="text-brand-dark-foreground">
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Paid
                 </TableHead>
-                <TableHead className="text-right text-brand-dark-foreground">
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Next step
                 </TableHead>
               </TableRow>
@@ -258,9 +289,15 @@ export function AdminShopOrdersPanel() {
             <TableBody>
               {loading &&
                 Array.from({ length: 5 }).map((_, index) => (
-                  <TableRow key={`skeleton-${index}`}>
+                  <TableRow
+                    key={`skeleton-${index}`}
+                    className={GUESTS_TABLE_BODY_ROW_CLASS}
+                  >
                     {Array.from({ length: 9 }).map((__, cellIndex) => (
-                      <TableCell key={cellIndex}>
+                      <TableCell
+                        key={cellIndex}
+                        className={GUESTS_TABLE_BODY_CELL_CLASS}
+                      >
                         <Skeleton className="h-5 w-full max-w-28" />
                       </TableCell>
                     ))}
@@ -280,57 +317,83 @@ export function AdminShopOrdersPanel() {
                     <TableRow
                       key={order.id}
                       className={cn(
-                        "cursor-pointer transition-colors hover:bg-muted/50",
-                        selectedOrderId === order.id && "bg-muted/50"
+                        GUESTS_TABLE_BODY_ROW_CLASS,
+                        "cursor-pointer",
+                        selectedOrderId === order.id && "bg-op-background-secondary"
                       )}
                       onClick={() => setSelectedOrderId(order.id)}
                     >
-                      <TableCell className="font-medium">
-                        {order.orderNumber}
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className={GUESTS_TABLE_GUEST_NAME_CLASS}>
+                          {order.orderNumber}
+                        </span>
                       </TableCell>
-                      <TableCell className="max-w-44 truncate">
-                        {order.locationNameSnapshot}
+                      <TableCell
+                        className={cn(
+                          GUESTS_TABLE_BODY_CELL_CLASS,
+                          "max-w-44 truncate"
+                        )}
+                      >
+                        <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                          {order.locationNameSnapshot}
+                        </span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        #{order.restaurantId}
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
+                          #{order.restaurantId}
+                        </span>
                       </TableCell>
-                      <TableCell className="max-w-56 truncate text-muted-foreground">
-                        {materials || "—"}
+                      <TableCell
+                        className={cn(
+                          GUESTS_TABLE_BODY_CELL_CLASS,
+                          "max-w-56 truncate"
+                        )}
+                      >
+                        <span className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
+                          {materials || "—"}
+                        </span>
                       </TableCell>
-                      <TableCell>
-                        {formatAdminShopGbpFromPence(order.grossPence)}
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className="text-sm text-foreground">
+                          {formatAdminShopGbpFromPence(order.grossPence)}
+                        </span>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">
-                            {order.isComplimentary
-                              ? "Free"
-                              : order.paymentStatus}
-                          </Badge>
-                        </div>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <Badge variant="soft">
+                          {order.isComplimentary
+                            ? "Free"
+                            : order.paymentStatus}
+                        </Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <Badge variant="soft">
                           {adminShopFulfilmentLabel(order.fulfilmentStatus)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {order.paidAtUtc
-                          ? new Date(order.paidAtUtc).toLocaleDateString()
-                          : "—"}
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
+                          {order.paidAtUtc
+                            ? new Date(order.paidAtUtc).toLocaleDateString()
+                            : "—"}
+                        </span>
                       </TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">
-                        {nextAction?.label ?? "—"}
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
+                          {nextAction?.label ?? "—"}
+                        </span>
                       </TableCell>
                     </TableRow>
                   )
                 })}
 
               {!loading && orders.length === 0 && (
-                <TableRow>
+                <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                   <TableCell
                     colSpan={9}
-                    className="h-32 text-center text-muted-foreground"
+                    className={cn(
+                      GUESTS_TABLE_BODY_CELL_CLASS,
+                      "h-32 text-center text-muted-foreground"
+                    )}
                   >
                     No shop orders match this filter.
                   </TableCell>
@@ -338,10 +401,10 @@ export function AdminShopOrdersPanel() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
+        </div>
 
         {!loading && totalCount > 0 && (
-          <div className="flex flex-col gap-3 rounded-b-2xl border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-t border-op-border-default pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               Showing {pageStart}–{pageEnd} of {totalCount}
             </p>
@@ -392,7 +455,7 @@ export function AdminShopOrdersPanel() {
             </Pagination>
           </div>
         )}
-      </Card>
+      </section>
 
       <AdminShopOrderDetailDrawer
         order={selectedOrder}

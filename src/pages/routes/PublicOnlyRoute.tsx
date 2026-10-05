@@ -16,12 +16,8 @@ const PublicOnlyRoute = () => {
     return <AuthSessionLoading />
   }
 
-  if (token && role === "ADMIN") {
+  if (token && (role === "ADMIN" || role === "SUPPORT")) {
     return <Navigate to="/admin-dashboard" replace />
-  }
-
-  if (token && role === "SUPPORT") {
-    return <Navigate to="/support-dashboard" replace />
   }
 
   if (token && role === "USER" && accountType) {

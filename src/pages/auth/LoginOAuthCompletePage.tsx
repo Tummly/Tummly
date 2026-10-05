@@ -88,7 +88,7 @@ function LoginOAuthCompletePage() {
             return
           }
           persistAuthSession(result.token, "SUPPORT")
-          window.location.href = "/support-dashboard"
+          window.location.href = "/admin-dashboard"
           return
         }
 

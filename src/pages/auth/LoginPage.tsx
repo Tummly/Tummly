@@ -172,16 +172,9 @@ function LoginPageContent() {
     const resolveAuthenticatedSession = async () => {
       const role = useAuthStore.getState().role
 
-      if (role === "ADMIN") {
+      if (role === "ADMIN" || role === "SUPPORT") {
         if (!cancelled) {
           setAuthRedirectTarget("/admin-dashboard")
-        }
-        return
-      }
-
-      if (role === "SUPPORT") {
-        if (!cancelled) {
-          setAuthRedirectTarget("/support-dashboard")
         }
         return
       }
@@ -411,7 +404,7 @@ function LoginPageContent() {
         }
 
         persistAuthSession(result.token, "SUPPORT")
-        window.location.href = "/support-dashboard"
+        window.location.href = "/admin-dashboard"
         return
       }
 

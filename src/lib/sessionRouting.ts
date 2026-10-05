@@ -88,12 +88,8 @@ export async function fetchCurrentUserRouting(): Promise<CurrentUserRouting | nu
 export function getAuthenticatedLoginDestination(
   routing: CurrentUserRouting
 ): string {
-  if (routing.role === "ADMIN") {
+  if (routing.role === "ADMIN" || routing.role === "SUPPORT") {
     return "/admin-dashboard"
-  }
-
-  if (routing.role === "SUPPORT") {
-    return "/support-dashboard"
   }
 
   if (routing.selectedLocationId != null) {
