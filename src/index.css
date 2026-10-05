@@ -47,6 +47,8 @@
   --color-guest-feedback-bg: var(--guest-feedback-bg);
   --color-guest-feedback-surface: var(--guest-feedback-surface);
   --color-guest-feedback-surface-solid: var(--guest-feedback-surface-solid);
+  --color-guest-feedback-glass: var(--guest-feedback-glass);
+  --color-guest-feedback-glass-strong: var(--guest-feedback-glass-strong);
   --color-guest-feedback-border: var(--guest-feedback-border);
   --color-guest-feedback-border-soft: var(--guest-feedback-border-soft);
   --color-guest-feedback-text: var(--guest-feedback-text);
@@ -305,6 +307,9 @@
   --guest-feedback-bg: #0f0f0f;
   --guest-feedback-surface: rgba(20, 20, 20, 0.7);
   --guest-feedback-surface-solid: #141414;
+  /* Glass fills — Figma Overlay+Border / offer code (6807:1608). */
+  --guest-feedback-glass: rgba(54, 54, 56, 0.15);
+  --guest-feedback-glass-strong: rgba(20, 20, 20, 0.5);
   --guest-feedback-border: rgba(74, 74, 76, 0.4);
   --guest-feedback-border-soft: rgba(74, 74, 76, 0.3);
   --guest-feedback-text: #f4f4f4;

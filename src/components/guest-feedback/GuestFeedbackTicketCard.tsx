@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { GUEST_FEEDBACK_TICKET_CARD_CLASS } from "@/lib/guestFeedback/guestFeedbackLayoutPresentation"
 import { cn } from "@/lib/utils"
 
 type GuestFeedbackTicketCardProps = {
@@ -15,19 +16,14 @@ export function GuestFeedbackTicketCard({
   className,
 }: GuestFeedbackTicketCardProps) {
   return (
-    <div
-      className={cn(
-        "relative flex w-full flex-col items-center gap-[22px] overflow-visible rounded-[28px] bg-guest-feedback-surface px-5 py-[30px]",
-        className
-      )}
-    >
+    <div className={cn(GUEST_FEEDBACK_TICKET_CARD_CLASS, className)}>
       <span
         aria-hidden
-        className="absolute top-1/2 left-[-11px] size-[18px] -translate-y-1/2 rounded-[20px] bg-guest-feedback-bg"
+        className="absolute top-1/2 left-[-11px] size-[18px] -translate-y-1/2 rounded-[20px] bg-guest-feedback-bg lg:left-[-13px] lg:size-5"
       />
       <span
         aria-hidden
-        className="absolute top-1/2 right-[-11px] size-[18px] -translate-y-1/2 rounded-[20px] bg-guest-feedback-bg"
+        className="absolute top-1/2 right-[-11px] size-[18px] -translate-y-1/2 rounded-[20px] bg-guest-feedback-bg lg:right-[-13px] lg:size-5"
       />
       {children}
     </div>

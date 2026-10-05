@@ -1,9 +1,13 @@
 import { cn } from "@/lib/utils"
 
 /**
- * Dictation glow — Figma Guest-Loop-MVP 6890:402.
- * Soft emerald bloom from below the card; visible wash reaches ~half the input.
+ * Dictation glow — Figma Guest-Loop-MVP 6890:402 (static / reduced-motion).
+ * Soft emerald bloom from the bottom edge; fades out before mid-card.
+ * Layer fills the composer so there is no hard horizontal band.
  */
+export const GUEST_FEEDBACK_DICTATION_GLOW_GRADIENT =
+  "radial-gradient(ellipse 130% 90% at 50% 100%, rgba(20, 162, 71, 0.42) 0%, rgba(20, 162, 71, 0.24) 22%, rgba(19, 125, 57, 0.12) 42%, rgba(18, 89, 43, 0.05) 58%, rgba(15, 15, 15, 0) 72%)"
+
 export function GuestFeedbackDictationGlow({
   className,
 }: {
@@ -14,12 +18,11 @@ export function GuestFeedbackDictationGlow({
       aria-hidden
       data-guest-feedback-dictation-glow=""
       className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[60%] w-full",
+        "pointer-events-none absolute inset-0 z-0",
         className
       )}
       style={{
-        backgroundImage:
-          "radial-gradient(ellipse 160% 115% at 50% 118%, rgba(20, 162, 71, 0.42) 0%, rgba(20, 162, 71, 0.28) 28%, rgba(19, 125, 57, 0.16) 52%, rgba(18, 89, 43, 0.08) 72%, rgba(15, 15, 15, 0) 100%)",
+        backgroundImage: GUEST_FEEDBACK_DICTATION_GLOW_GRADIENT,
       }}
     />
   )

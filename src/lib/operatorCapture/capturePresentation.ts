@@ -179,7 +179,7 @@ export const CAPTURE_GUEST_PREVIEW_SHELL_CLASS = "min-h-dvh"
  * (shell breakpoints are viewport-based).
  */
 export const CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS =
-  "max-w-[min(100%,393px)] pb-6 pt-[clamp(4.5rem,14vw,5.125rem)] sm:max-w-[min(100%,393px)] sm:pb-6 sm:pt-[clamp(4.5rem,14vw,5.125rem)] md:max-w-[min(100%,393px)] md:pb-6 lg:max-w-[min(100%,393px)]"
+  "max-w-[min(100%,393px)] pb-6 pt-[clamp(4.5rem,14vw,5.125rem)] sm:max-w-[min(100%,393px)] sm:pb-6 sm:pt-[clamp(4.5rem,14vw,5.125rem)] md:max-w-[min(100%,393px)] md:pb-6 lg:max-w-[min(100%,393px)] xl:max-w-[min(100%,393px)]"
 
 /** Empty body inside Capture performance (header + date remain). */
 export const CAPTURE_PERFORMANCE_EMPTY_BODY_CLASS =

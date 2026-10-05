@@ -167,10 +167,10 @@ export function GuestPreviewOfferCoupon({
         )}
       >
         {isThankYou ? (
-          <div className="flex w-full flex-col items-center gap-2 text-center">
+          <div className="flex w-full flex-col items-center gap-2 text-center lg:gap-2.5">
             <p
               className={cn(
-                "m-0 text-xs font-medium leading-normal",
+                "m-0 text-xs font-medium leading-normal lg:text-sm",
                 tokens.eyebrow
               )}
             >
@@ -178,7 +178,7 @@ export function GuestPreviewOfferCoupon({
             </p>
             <p
               className={cn(
-                "m-0 max-w-[241px] font-heading text-2xl font-bold leading-normal",
+                "m-0 max-w-[241px] font-heading text-[clamp(1.5rem,2.6vw,1.875rem)] font-bold leading-normal lg:max-w-sm",
                 tokens.title
               )}
             >
@@ -216,7 +216,7 @@ export function GuestPreviewOfferCoupon({
           {statusMessage != null ? (
             <p
               className={cn(
-                "m-0 max-w-[263px] text-sm font-medium leading-[18px]",
+                "m-0 max-w-[263px] text-sm font-medium leading-[18px] lg:max-w-md lg:text-base lg:leading-6",
                 tokens.description
               )}
             >
@@ -245,7 +245,7 @@ export function GuestPreviewOfferCoupon({
               disabled={!copyEnabled}
               onClick={copyEnabled ? handleCopy : undefined}
               className={cn(
-                "h-auto min-h-12.5 w-full rounded-[54px] px-4 py-4 text-sm font-medium leading-normal shadow-none",
+                "h-auto min-h-12.5 w-full rounded-[54px] px-4 py-4 text-sm font-medium leading-normal shadow-none lg:min-h-14 lg:py-[1.125rem] lg:text-base",
                 tokens.copyButton
               )}
             >

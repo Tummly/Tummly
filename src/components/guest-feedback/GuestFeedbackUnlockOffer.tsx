@@ -12,6 +12,11 @@ import {
   type GuestFeedbackUnlockChannel,
 } from "@/lib/guestFeedback/guestFeedbackUnlockPresentation"
 import {
+  GUEST_FEEDBACK_PRIMARY_BUTTON_CLASS,
+  GUEST_FEEDBACK_THANK_YOU_BODY_CLASS,
+  GUEST_FEEDBACK_THANK_YOU_TITLE_CLASS,
+} from "@/lib/guestFeedback/guestFeedbackLayoutPresentation"
+import {
   guestFeedbackEnterTransition,
   guestFeedbackHeadlineTransition,
 } from "@/lib/guestFeedback/guestFeedbackMotionTokens"
@@ -94,17 +99,17 @@ export function GuestFeedbackUnlockOffer({
         animate="visible"
         className="relative z-1 flex min-h-full w-full flex-1 flex-col"
       >
-        <div className="flex w-full flex-1 flex-col items-center justify-center gap-8 px-0 pt-6 pb-4">
-          <div className="flex w-full max-w-[min(100%,400px)] flex-col items-center gap-3 text-center md:max-w-[min(100%,440px)]">
+        <div className="flex w-full flex-1 flex-col items-center justify-center gap-8 px-0 pt-6 pb-4 lg:gap-10 lg:pt-8">
+          <div className="flex w-full flex-col items-center gap-3 text-center lg:gap-4">
             <motion.h1
               variants={shouldReduceMotion ? undefined : headlineVariants}
-              className="m-0 font-heading text-[28px] font-bold leading-normal text-guest-feedback-text"
+              className={GUEST_FEEDBACK_THANK_YOU_TITLE_CLASS}
             >
               {copy.thankYouHeading}
             </motion.h1>
             <motion.p
               variants={shouldReduceMotion ? undefined : itemVariants}
-              className="m-0 max-w-[291px] text-sm font-medium leading-5 text-[#888]"
+              className={GUEST_FEEDBACK_THANK_YOU_BODY_CLASS}
             >
               {copy.sharedBody}
             </motion.p>
@@ -112,19 +117,19 @@ export function GuestFeedbackUnlockOffer({
 
           <motion.div
             variants={shouldReduceMotion ? undefined : itemVariants}
-            className="w-full max-w-[min(100%,400px)] md:max-w-[min(100%,440px)]"
+            className="w-full"
           >
-            <GuestFeedbackTicketCard className="gap-[33px] py-[30px]">
+            <GuestFeedbackTicketCard className="gap-[33px] lg:gap-8">
               <div className="flex w-full flex-col items-center gap-3 text-center">
                 <div className="flex flex-col items-center gap-2 text-guest-feedback-text">
-                  <p className="m-0 text-xs font-medium leading-normal">
+                  <p className="m-0 text-xs font-medium leading-normal lg:text-sm">
                     Your thank-you offer
                   </p>
-                  <p className="m-0 max-w-[255px] font-heading text-2xl font-bold leading-normal">
+                  <p className="m-0 max-w-[255px] font-heading text-[clamp(1.5rem,2.6vw,1.875rem)] font-bold leading-normal lg:max-w-sm">
                     {copy.wantHeading}
                   </p>
                 </div>
-                <p className="m-0 text-sm font-medium leading-[18px] text-guest-feedback-text/40">
+                <p className="m-0 text-sm font-medium leading-[18px] text-guest-feedback-text/40 lg:max-w-md lg:text-base lg:leading-6">
                   {copy.joinBody}
                 </p>
               </div>
@@ -133,7 +138,7 @@ export function GuestFeedbackUnlockOffer({
 
           <motion.div
             variants={shouldReduceMotion ? undefined : itemVariants}
-            className="flex w-full max-w-[min(100%,400px)] flex-col items-center gap-3 md:max-w-[min(100%,440px)]"
+            className="flex w-full flex-col items-center gap-3"
           >
             {unlockError ? (
               <p
@@ -148,7 +153,10 @@ export function GuestFeedbackUnlockOffer({
               type="button"
               disabled={isUnlocking}
               onClick={onUnlock}
-              className="h-auto min-h-12.5 w-full rounded-[54px] bg-guest-feedback-accent px-4 py-4 text-sm font-medium leading-normal text-guest-feedback-text shadow-none hover:bg-[#129641] disabled:opacity-70"
+              className={cn(
+                GUEST_FEEDBACK_PRIMARY_BUTTON_CLASS,
+                "bg-guest-feedback-accent text-guest-feedback-text hover:bg-[#129641] disabled:opacity-70"
+              )}
             >
               {isUnlocking ? "Unlocking…" : copy.unlockCta}
             </Button>
@@ -156,7 +164,10 @@ export function GuestFeedbackUnlockOffer({
               type="button"
               disabled={isUnlocking}
               onClick={onDecline}
-              className="h-auto min-h-12.5 w-full rounded-[54px] bg-guest-feedback-secondary px-4 py-4 text-sm font-medium leading-normal text-guest-feedback-secondary-fg shadow-none hover:bg-guest-feedback-secondary"
+              className={cn(
+                GUEST_FEEDBACK_PRIMARY_BUTTON_CLASS,
+                "bg-guest-feedback-secondary text-guest-feedback-secondary-fg hover:bg-guest-feedback-secondary"
+              )}
             >
               {copy.declineCta}
             </Button>

@@ -42,6 +42,17 @@ import {
 import { cn } from "@/lib/utils"
 import { defaultFormValidationOptions } from "@/lib/form"
 import {
+  GUEST_FEEDBACK_BODY_CLASS,
+  GUEST_FEEDBACK_COMPOSER_CLASS,
+  GUEST_FEEDBACK_DETAILS_PANEL_CLASS,
+  GUEST_FEEDBACK_FIELD_INPUT_CLASS,
+  GUEST_FEEDBACK_FORM_HEADER_CLASS,
+  GUEST_FEEDBACK_FORM_STACK_CLASS,
+  GUEST_FEEDBACK_FORM_TITLE_CLASS,
+  GUEST_FEEDBACK_PRIMARY_BUTTON_CLASS,
+  GUEST_FEEDBACK_RESTAURANT_NAME_CLASS,
+} from "@/lib/guestFeedback/guestFeedbackLayoutPresentation"
+import {
   guestFeedbackDefaultValues,
   guestFeedbackFields,
   guestFeedbackSchema,
@@ -70,9 +81,6 @@ const itemVariants: Variants = {
 
 const legalLinkClassName =
   "rounded-sm transition-colors hover:text-guest-feedback-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-guest-feedback-accent/40"
-
-const fieldInputClassName =
-  "h-auto min-h-[50px] rounded-[18px] border-guest-feedback-border bg-transparent px-[15px] py-[15px] text-xs font-normal leading-normal text-guest-feedback-text placeholder:text-guest-feedback-placeholder focus-visible:border-guest-feedback-accent/60 focus-visible:ring-guest-feedback-accent/20 disabled:bg-transparent"
 
 type GuestFeedbackFormProps = {
   token: string
@@ -201,25 +209,25 @@ export function GuestFeedbackForm({
         initial={shouldReduceMotion ? false : "hidden"}
         animate="visible"
         onSubmit={(event) => void handleSubmit(event)}
-        className="flex w-full flex-col gap-[29px]"
+        className={GUEST_FEEDBACK_FORM_STACK_CLASS}
       >
-        <div className="flex flex-col gap-3.5">
+        <div className="flex flex-col gap-3.5 lg:gap-4">
           <motion.header
             variants={shouldReduceMotion ? undefined : itemVariants}
-            className="flex flex-col gap-6 rounded-[28px] p-5"
+            className={GUEST_FEEDBACK_FORM_HEADER_CLASS}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 lg:gap-3.5">
               <BrandLogoMark
                 brandLogoPublicUrl={brandLogoPublicUrl}
-                className="size-[42px]"
+                className="size-[42px] lg:size-12"
                 roundedClassName="rounded"
               />
               <span className="flex min-w-0 flex-col gap-1 font-heading">
-                <span className="truncate text-[22px] font-semibold leading-normal text-white">
+                <span className={GUEST_FEEDBACK_RESTAURANT_NAME_CLASS}>
                   {displayRestaurant}
                 </span>
                 {displayAddress ? (
-                  <span className="truncate text-xs font-semibold leading-normal text-[#9e9e9e]">
+                  <span className="truncate text-xs font-semibold leading-normal text-[#9e9e9e] lg:text-sm">
                     {displayAddress}
                   </span>
                 ) : null}
@@ -227,12 +235,10 @@ export function GuestFeedbackForm({
             </div>
 
             <div className="flex flex-col gap-3">
-              <h1 className="m-0 max-w-[14.5rem] font-heading text-2xl font-bold leading-7 text-white">
+              <h1 className={GUEST_FEEDBACK_FORM_TITLE_CLASS}>
                 Tell us about your experience
               </h1>
-              <p className="m-0 text-sm leading-5 text-[#9e9e9e]">
-                {introCopy}
-              </p>
+              <p className={GUEST_FEEDBACK_BODY_CLASS}>{introCopy}</p>
             </div>
           </motion.header>
 
@@ -251,9 +257,9 @@ export function GuestFeedbackForm({
                     <FormItem className="gap-0">
                       <div
                         className={cn(
-                          "relative flex min-h-[207px] flex-col overflow-hidden rounded-[28px] border border-guest-feedback-border-soft bg-[rgba(40,40,40,0.15)] sm:min-h-[230px]",
+                          GUEST_FEEDBACK_COMPOSER_CLASS,
                           isComposerBusy &&
-                            "border-2 border-guest-feedback-border-soft bg-[rgba(20,20,20,0.5)]"
+                            "border-2 border-guest-feedback-border-soft bg-guest-feedback-glass-strong"
                         )}
                       >
                         {showListeningGlow ? (
@@ -274,7 +280,7 @@ export function GuestFeedbackForm({
                               fieldState.error || commentError
                             )}
                             className={cn(
-                              "relative z-1 min-h-[120px] flex-1 resize-none rounded-none border-0 bg-transparent px-5 pt-5 pb-3 text-sm font-normal leading-normal text-guest-feedback-text shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-transparent focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:aria-invalid:ring-0",
+                              "relative z-1 min-h-[120px] flex-1 resize-none rounded-none border-0 bg-transparent px-5 pt-5 pb-3 text-sm font-normal leading-normal text-guest-feedback-text shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-transparent focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:aria-invalid:ring-0 lg:min-h-[140px] lg:px-6 lg:pt-6 lg:text-base",
                               commentUi.isRecording &&
                                 "text-transparent caret-transparent selection:bg-transparent"
                             )}
@@ -283,7 +289,7 @@ export function GuestFeedbackForm({
                         {commentUi.isRecording ? (
                           <p
                             aria-hidden
-                            className="pointer-events-none absolute top-5 right-5 left-5 z-1 text-sm leading-normal text-guest-feedback-placeholder"
+                            className="pointer-events-none absolute top-5 right-5 left-5 z-1 text-sm leading-normal text-guest-feedback-placeholder lg:top-6 lg:right-6 lg:left-6 lg:text-base"
                           >
                             {commentUi.recordingHint}
                           </p>
@@ -294,7 +300,7 @@ export function GuestFeedbackForm({
                             : ""}
                         </div>
 
-                        <div className="relative z-1 px-5 pb-5">
+                        <div className="relative z-1 px-5 pb-5 lg:px-6 lg:pb-6">
                           <GuestFeedbackMicChrome
                             chrome={mic.chrome}
                             micAvailable={mic.micAvailable}
@@ -334,13 +340,13 @@ export function GuestFeedbackForm({
             </motion.div>
 
             <motion.div variants={shouldReduceMotion ? undefined : itemVariants}>
-              <section className="flex flex-col gap-6 overflow-hidden rounded-[28px] bg-guest-feedback-surface p-5">
+              <section className={GUEST_FEEDBACK_DETAILS_PANEL_CLASS}>
                 <div className="flex flex-col gap-3.5">
-                  <div className="flex flex-col gap-2 text-sm">
-                    <h2 className="m-0 font-heading text-sm font-bold leading-normal text-guest-feedback-text">
+                  <div className="flex flex-col gap-2 text-sm lg:text-base">
+                    <h2 className="m-0 font-heading text-sm font-bold leading-normal text-guest-feedback-text lg:text-base">
                       Your details
                     </h2>
-                    <p className="m-0 max-w-[16rem] text-sm leading-[19px] text-guest-feedback-muted-soft">
+                    <p className="m-0 max-w-[16rem] text-sm leading-[19px] text-guest-feedback-muted-soft lg:max-w-md lg:text-base lg:leading-6">
                       Add your details so the team can respond to your feedback.
                     </p>
                   </div>
@@ -358,7 +364,7 @@ export function GuestFeedbackForm({
                               disabled={isSubmitting}
                               autoComplete="name"
                               aria-invalid={Boolean(fieldState.error)}
-                              className={fieldInputClassName}
+                              className={GUEST_FEEDBACK_FIELD_INPUT_CLASS}
                             />
                           </FormControl>
                           <FormMessage />
@@ -378,7 +384,7 @@ export function GuestFeedbackForm({
                               autoComplete="email"
                               inputMode="email"
                               aria-invalid={Boolean(fieldState.error)}
-                              className={fieldInputClassName}
+                              className={GUEST_FEEDBACK_FIELD_INPUT_CLASS}
                             />
                           </FormControl>
                           <FormMessage />
@@ -407,7 +413,7 @@ export function GuestFeedbackForm({
 
         <motion.div
           variants={shouldReduceMotion ? undefined : itemVariants}
-          className="flex flex-col items-center gap-[29px]"
+          className="flex flex-col items-center gap-[29px] lg:gap-9"
         >
           <GuestFeedbackPoweredBy placement="inline" />
 
@@ -434,7 +440,7 @@ export function GuestFeedbackForm({
               type="submit"
               disabled={!canSubmit || submitBusy}
               className={cn(
-                "h-auto min-h-12.5 w-full rounded-[54px] px-4 py-4 text-sm font-medium leading-normal shadow-none",
+                GUEST_FEEDBACK_PRIMARY_BUTTON_CLASS,
                 canSubmit && !submitBusy
                   ? "bg-guest-feedback-submit text-guest-feedback-submit-fg hover:bg-white"
                   : "bg-guest-feedback-secondary text-guest-feedback-secondary-fg hover:bg-guest-feedback-secondary"

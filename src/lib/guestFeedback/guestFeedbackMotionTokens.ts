@@ -17,9 +17,9 @@ export const guestFeedbackMotionDurations = {
   offerCard: 0.38,
   offerCode: 0.22,
   copiedHoldMs: 1500,
-  listeningGradientLoop: 3,
-  listeningBorderLoop: 3.5,
-  listeningGlowLoop: 2.1,
+  /** Dictation wash — soft in-place bloom pulse. */
+  listeningGradientLoop: 3.2,
+  /** Thank-you / unlock bottom bloom ambient pulse. */
   offerAmbientLoop: 6.5,
 } as const
 

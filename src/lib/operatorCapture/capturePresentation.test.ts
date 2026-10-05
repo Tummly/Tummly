@@ -181,6 +181,9 @@ describe("capturePresentation — operator token audit", () => {
     expect(CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS).toContain(
       "sm:max-w-[min(100%,393px)]"
     )
+    expect(CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS).toContain(
+      "xl:max-w-[min(100%,393px)]"
+    )
   })
 
   it("aligns guest experience preview spacing and frame with Figma 4855:103166", () => {

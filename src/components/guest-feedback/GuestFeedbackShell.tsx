@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { GUEST_FEEDBACK_SHELL_CONTENT_CLASS } from "@/lib/guestFeedback/guestFeedbackLayoutPresentation"
 import { cn } from "@/lib/utils"
 
 import { GuestFeedbackGlow } from "./GuestFeedbackGlow"
@@ -41,13 +42,7 @@ export function GuestFeedbackShell({
       {glow !== "none" ? <GuestFeedbackGlow tone={glow} /> : null}
 
       <main
-        className={cn(
-          "relative z-1 mx-auto flex w-full min-h-0 flex-1 flex-col",
-          "max-w-[min(100%,393px)] px-2.5 pt-2.5 pb-8",
-          "sm:max-w-[min(100%,440px)] sm:px-3 sm:pt-3 sm:pb-10",
-          "md:max-w-[min(100%,480px)] md:px-4 md:pt-5 md:pb-12",
-          contentClassName
-        )}
+        className={cn(GUEST_FEEDBACK_SHELL_CONTENT_CLASS, contentClassName)}
       >
         {children}
       </main>

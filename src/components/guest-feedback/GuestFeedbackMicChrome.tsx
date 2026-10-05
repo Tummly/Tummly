@@ -112,7 +112,7 @@ export function GuestFeedbackMicChrome({
         disabled={disabled || !micAvailable}
         onClick={onStart}
         className={cn(
-          "h-auto min-h-12 w-full gap-0.5 rounded-[70px] border-0 bg-[rgba(30,30,31,0.5)] px-2 py-3 text-sm font-normal leading-normal text-guest-feedback-text shadow-none hover:bg-[rgba(30,30,31,0.7)] hover:text-white",
+          "h-auto min-h-12 w-full gap-0.5 rounded-[70px] border-0 bg-[rgba(30,30,31,0.5)] px-2 py-3 text-sm font-normal leading-normal text-guest-feedback-text shadow-none backdrop-blur-[12px] hover:bg-[rgba(30,30,31,0.7)] hover:text-white",
           !micAvailable && "opacity-40"
         )}
       >
