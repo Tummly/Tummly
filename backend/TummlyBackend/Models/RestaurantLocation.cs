@@ -146,5 +146,20 @@ namespace TummlyBackend.Models
         public int? ThankYouCatalogOfferId { get; set; }
 
         public CatalogOffer? ThankYouCatalogOffer { get; set; }
+
+        /*
+         =========================================
+         OFFER CARD PRINT CATALOG ATTACH
+         =========================================
+        */
+
+        /// <summary>
+        /// Optional Offers catalog definition printed on physical Offer Card
+        /// QR materials for this Owned location. Null = Shop Offer Card orders
+        /// and Starter OfferCard PDF mint stay gated.
+        /// </summary>
+        public int? OfferCardCatalogOfferId { get; set; }
+
+        public CatalogOffer? OfferCardCatalogOffer { get; set; }
     }
 }

@@ -309,6 +309,10 @@ builder.Services.AddScoped<CaptureThankYouOfferService>();
 builder.Services.AddScoped<ICaptureThankYouOfferService>(sp =>
     sp.GetRequiredService<CaptureThankYouOfferService>()
 );
+builder.Services.AddScoped<ShopOfferCardOfferService>();
+builder.Services.AddScoped<IShopOfferCardOfferService>(sp =>
+    sp.GetRequiredService<ShopOfferCardOfferService>()
+);
 builder.Services.AddScoped<CapturePreviewOptionsService>();
 builder.Services.AddScoped<ICapturePreviewOptionsService>(sp =>
     sp.GetRequiredService<CapturePreviewOptionsService>()
@@ -1097,6 +1101,7 @@ builder.Services.AddScoped<IExternalOAuthProviderClient, ExternalOAuthProviderCl
 builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IMyAccountService, MyAccountService>();
 builder.Services.AddScoped<IRestaurantPermissionHelper, RestaurantPermissionHelper>();
 
 builder.Services.AddScoped<IJwtService, JwtService>();

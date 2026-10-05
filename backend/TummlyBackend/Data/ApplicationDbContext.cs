@@ -2170,6 +2170,23 @@ namespace TummlyBackend.Data
 
             /*
              =========================================
+             OFFER CARD PRINT ATTACH (location → catalog)
+             Restrict: deleting a CatalogOffer that is still attached as
+             Offer Card print must fail rather than silently nulling the FK.
+             =========================================
+            */
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasOne(l => l.OfferCardCatalogOffer)
+                .WithMany()
+                .HasForeignKey(l => l.OfferCardCatalogOfferId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.OfferCardCatalogOfferId);
+
+            /*
+             =========================================
              LOCATION MANAGER (nomination → User)
              Restrict: never SetNull/Cascade onto Users — SQL Server
              error 1785 (multiple cascade paths).

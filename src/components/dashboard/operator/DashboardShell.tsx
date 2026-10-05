@@ -9,6 +9,7 @@ import { DashboardNavbar } from "@/components/dashboard/operator/DashboardNavbar
 import { DashboardSidebar } from "@/components/dashboard/operator/DashboardSidebar"
 import { GlobalSearchOverlay } from "@/components/dashboard/operator/GlobalSearchOverlay"
 import { MobileNavSheetHeader } from "@/components/dashboard/operator/MobileNavSheetHeader"
+import { MyAccountDialog } from "@/components/dashboard/operator/MyAccountDialog"
 import { NotificationsDrawer } from "@/components/dashboard/operator/NotificationsDrawer"
 import { Button } from "@/components/ui/button"
 import {
@@ -63,6 +64,8 @@ type DashboardShellProps = {
   presentation: OperatorShellPresentation
   onSelectLocation: (locationId: number) => void
   onSignOut: () => void
+  /** Refresh navbar name after My Account profile save. */
+  onOperatorDisplayNameChange?: (fullName: string) => void
   hideNavbar?: boolean
   notifications?: {
     snapshot: OperatorNotificationsSnapshot
@@ -157,6 +160,7 @@ export function DashboardShell({
   presentation,
   onSelectLocation,
   onSignOut,
+  onOperatorDisplayNameChange,
   notifications,
   aiAssistant,
   globalSearch,
@@ -172,6 +176,7 @@ export function DashboardShell({
       (item) => item.id === "tummly-shop" && item.active
     )
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [myAccountOpen, setMyAccountOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
   const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false)
   const sidebarHoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -259,10 +264,6 @@ export function DashboardShell({
     globalSearch?.onOpen()
   }
 
-  const myAccountTo = presentation.sidebarNav.settings.children.find(
-    (child) => child.id === "account-workspace" && child.navigable
-  )?.to
-
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-op-header-background">
       {!isShopPage && (
@@ -282,7 +283,9 @@ export function DashboardShell({
               }
               : undefined
           }
-          myAccountTo={myAccountTo}
+          onOpenMyAccount={() => {
+            setMyAccountOpen(true)
+          }}
           shellAiCredits={
             aiAssistant ? aiAssistant.snapshot.shellAiCredits : undefined
           }
@@ -370,6 +373,12 @@ export function DashboardShell({
           </div>
         </div>
       )}
+
+      <MyAccountDialog
+        open={myAccountOpen}
+        onOpenChange={setMyAccountOpen}
+        onProfileSaved={onOperatorDisplayNameChange}
+      />
 
       {notifications ? (
         <NotificationsDrawer

@@ -45,9 +45,8 @@ type AccountMenuProps = {
   profileSelfRoleSubtitle: string | null
   onSignOut: () => void
   onOpenNotificationPreferences?: () => void
-  /** Settings → Account & workspace. Omit to keep My Account disabled. */
-  myAccountTo?: string
-  onNavigateMyAccount?: () => void
+  /** Opens My Account dialog. Omit to keep My Account disabled. */
+  onOpenMyAccount?: () => void
 }
 
 export function AccountMenu({
@@ -56,13 +55,12 @@ export function AccountMenu({
   profileSelfRoleSubtitle,
   onSignOut,
   onOpenNotificationPreferences,
-  myAccountTo,
-  onNavigateMyAccount,
+  onOpenMyAccount,
 }: AccountMenuProps) {
   const [open, setOpen] = useState(false)
   const [panel, setPanel] = useState<AccountMenuPanel>("root")
   const notificationPreferencesEnabled = onOpenNotificationPreferences != null
-  const myAccountEnabled = myAccountTo != null && myAccountTo.length > 0
+  const myAccountEnabled = onOpenMyAccount != null
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
@@ -126,8 +124,7 @@ export function AccountMenu({
         ) : (
           <RootAccountPanel
             myAccountEnabled={myAccountEnabled}
-            myAccountTo={myAccountTo}
-            onNavigateMyAccount={onNavigateMyAccount}
+            onOpenMyAccount={onOpenMyAccount}
             notificationPreferencesEnabled={notificationPreferencesEnabled}
             onOpenNotificationPreferences={onOpenNotificationPreferences}
             onOpenThemeSwitch={() => setPanel("theme")}
@@ -141,16 +138,14 @@ export function AccountMenu({
 
 function RootAccountPanel({
   myAccountEnabled,
-  myAccountTo,
-  onNavigateMyAccount,
+  onOpenMyAccount,
   notificationPreferencesEnabled,
   onOpenNotificationPreferences,
   onOpenThemeSwitch,
   onSignOut,
 }: {
   myAccountEnabled: boolean
-  myAccountTo?: string
-  onNavigateMyAccount?: () => void
+  onOpenMyAccount?: () => void
   notificationPreferencesEnabled: boolean
   onOpenNotificationPreferences?: () => void
   onOpenThemeSwitch: () => void
@@ -159,17 +154,15 @@ function RootAccountPanel({
   return (
     <>
       <DropdownMenuGroup>
-        {myAccountEnabled && myAccountTo != null ? (
-          <DropdownMenuItem asChild className={OPERATOR_SHELL_MENU_ITEM_CLASS}>
-            <Link to={myAccountTo} onClick={onNavigateMyAccount}>
-              My Account
-            </Link>
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem disabled className={OPERATOR_SHELL_MENU_ITEM_CLASS}>
-            My Account
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuItem
+          disabled={!myAccountEnabled}
+          className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+          onSelect={() => {
+            onOpenMyAccount?.()
+          }}
+        >
+          My Account
+        </DropdownMenuItem>
       </DropdownMenuGroup>
       <DropdownMenuSeparator className="mx-0" />
       <DropdownMenuGroup>

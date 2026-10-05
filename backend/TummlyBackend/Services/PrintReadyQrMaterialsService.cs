@@ -580,6 +580,24 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            if (qrType == QrType.OfferCard)
+            {
+                var hasOfferCardOffer = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .AnyAsync(
+                        row =>
+                            row.Id == location.Id
+                            && row.OfferCardCatalogOfferId != null,
+                        cancellationToken
+                    );
+                if (!hasOfferCardOffer)
+                {
+                    // Starter / shop Offer Card PDFs wait for the print offer.
+                    // Missing readiness row stays Preparing (no Ready default).
+                    return;
+                }
+            }
+
             var qrCode = await EligibleQrCodes(
                     location.Id,
                     qrType,
@@ -855,11 +873,16 @@ namespace TummlyBackend.Services
 
             var guestUrl = _guestLinks.BuildGuestUrl(qrCode.Token);
             var raster = _rasterizer.Render(guestUrl);
+            var offerHeadline = await ResolveOfferCardHeadlineAsync(
+                location.Id,
+                asset.QrType,
+                cancellationToken
+            );
             var pdf = PrintReadyQrPdfComposer.Compose(
                 _pack.Snapshot,
                 asset.QrType,
                 raster,
-                _pack.Snapshot.DefaultOfferHeadline
+                offerHeadline
             );
 
             var fingerprint = FingerprintToken(qrCode.Token);
@@ -888,6 +911,32 @@ namespace TummlyBackend.Services
             asset.LastError = null;
             asset.UpdatedAtUtc = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private async Task<string> ResolveOfferCardHeadlineAsync(
+            int locationId,
+            QrType qrType,
+            CancellationToken cancellationToken
+        )
+        {
+            if (qrType != QrType.OfferCard)
+            {
+                return _pack.Snapshot.DefaultOfferHeadline;
+            }
+
+            var title = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row =>
+                    row.OfferCardCatalogOffer != null
+                        ? row.OfferCardCatalogOffer.Title
+                        : null
+                )
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return string.IsNullOrWhiteSpace(title)
+                ? _pack.Snapshot.DefaultOfferHeadline
+                : title.Trim();
         }
 
         private IQueryable<QrCode> EligibleQrCodes(

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TummlyBackend.Data;
 
@@ -11,9 +12,11 @@ using TummlyBackend.Data;
 namespace TummlyBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005053935_AddUserJobTitle")]
+    partial class AddUserJobTitle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3353,9 +3356,6 @@ namespace TummlyBackend.Migrations
                     b.Property<int?>("ManagerUserId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("OfferCardCatalogOfferId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Postcode")
                         .HasColumnType("nvarchar(max)");
 
@@ -3371,8 +3371,6 @@ namespace TummlyBackend.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ManagerUserId");
-
-                    b.HasIndex("OfferCardCatalogOfferId");
 
                     b.HasIndex("RestaurantId");
 
@@ -5474,11 +5472,6 @@ namespace TummlyBackend.Migrations
                         .HasForeignKey("ManagerUserId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("TummlyBackend.Models.CatalogOffer", "OfferCardCatalogOffer")
-                        .WithMany()
-                        .HasForeignKey("OfferCardCatalogOfferId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
                         .WithMany("Locations")
                         .HasForeignKey("RestaurantId")
@@ -5491,8 +5484,6 @@ namespace TummlyBackend.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("ManagerUser");
-
-                    b.Navigation("OfferCardCatalogOffer");
 
                     b.Navigation("Restaurant");
 

@@ -615,7 +615,11 @@ export type CatalogOffersListQueryParams = {
   pageSize?: number
   status?: CatalogOfferStatus[]
   attachSource?: Array<
-    "campaign" | "recovery" | "guest-form-thank-you" | "manual"
+    | "campaign"
+    | "recovery"
+    | "guest-form-thank-you"
+    | "offer-card"
+    | "manual"
   >
   utcOffsetMinutes?: number
   /** Needs attention warning scope — expiry (7-day rule) or void (open Void). */

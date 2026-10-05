@@ -393,6 +393,7 @@ function DashboardContent({ mode }: DashboardProps) {
       presentation={presentation}
       onSelectLocation={handleSelectLocation}
       onSignOut={handleSignOut}
+      onOperatorDisplayNameChange={workspace.applyOperatorDisplayName}
       notifications={{
         snapshot: notifications.snapshot,
         onOpen: () => {

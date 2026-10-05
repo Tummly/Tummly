@@ -173,6 +173,19 @@ namespace TummlyBackend.Services
                     .ToList();
             }
 
+            if (
+                rawLines.Any(line =>
+                    string.Equals(line.SkuId, "offer-card", StringComparison.Ordinal)
+                )
+                && location.OfferCardCatalogOfferId == null
+            )
+            {
+                return ShopOrderPlaceResult.Fail(
+                    OfferCardOfferRequiredException.ErrorCode,
+                    "Set up your card offer before ordering Offer Cards."
+                );
+            }
+
             var priced = PriceLines(rawLines);
             if (priced.Error != null)
             {

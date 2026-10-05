@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
+import { createCatalogOffer } from "@/api/dashboardApi"
 import { fetchShopCatalog, fetchShopCatalogItem } from "@/api/shopCatalogApi"
 import {
   deleteShopCartLine,
@@ -9,6 +10,10 @@ import {
   mapShopCartToItems,
   upsertShopCartLine,
 } from "@/api/shopCartApi"
+import {
+  fetchShopOfferCardOffer,
+  putShopOfferCardOffer,
+} from "@/api/shopOfferCardOfferApi"
 import {
   fetchShopLocationRecommendations,
   saveShopLocationDetails,
@@ -33,6 +38,7 @@ import {
   ShopLocationDetailsDialog,
   type LocationDetails,
 } from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
+import { ShopOfferCardSetupDialog } from "@/components/dashboard/operator/Shop/ShopOfferCardSetupDialog"
 import { ShopOrdersScreen } from "@/components/dashboard/operator/Shop/ShopOrdersScreen"
 import {
   ShopProductScreen,
@@ -47,6 +53,11 @@ import {
 import {
   pollShopOrderUntilPaid,
 } from "@/api/shopOrdersApi"
+import { createShopOfferCardSetupModule } from "@/lib/operatorShop/createShopOfferCardSetupModule"
+import {
+  SHOP_OFFER_CARD_SETUP_COPY,
+  SHOP_OFFER_CARD_SKU_ID,
+} from "@/lib/operatorShop/shopOfferCardSetupPresentation"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import type { ShopLocationOption } from "@/components/dashboard/operator/Shop/ShopLocationPicker"
 
@@ -135,6 +146,41 @@ export function ShopPage({
   const [recommendations, setRecommendations] =
     useState<ShopLocationRecommendations | null>(null)
   const [recommendationsLoading, setRecommendationsLoading] = useState(true)
+
+  const offerCardSetupModule = useMemo(
+    () =>
+      createShopOfferCardSetupModule({
+        locationId: () => selectedLocationId,
+        getAttached: () => fetchShopOfferCardOffer(selectedLocationId),
+        createCatalogOffer: async (body) => {
+          const created = await createCatalogOffer(body)
+          return { id: created.offer.id, title: created.offer.title }
+        },
+        putOfferCardOffer: (locationId, offerId) =>
+          putShopOfferCardOffer(locationId, offerId),
+        onError: (message) => toast.error(message),
+        onSuccess: (message) => toast.success(message),
+      }),
+    [selectedLocationId]
+  )
+  const offerCardSetup = useSyncExternalStore(
+    offerCardSetupModule.subscribe,
+    offerCardSetupModule.getSnapshot,
+    offerCardSetupModule.getSnapshot
+  )
+
+  const requireOfferCardAttach = (): boolean => {
+    if (offerCardSetup.hasAttach) {
+      return true
+    }
+    toast.error(SHOP_OFFER_CARD_SETUP_COPY.guardToast)
+    offerCardSetupModule.open()
+    return false
+  }
+
+  useEffect(() => {
+    void offerCardSetupModule.loadForLocation()
+  }, [offerCardSetupModule, selectedLocationId])
 
   const mapBasedOnToLocationDetails = (
     basedOn: NonNullable<ShopLocationRecommendations["basedOn"]>
@@ -378,6 +424,13 @@ export function ShopPage({
       return
     }
 
+    if (
+      product.id === SHOP_OFFER_CARD_SKU_ID
+      && !requireOfferCardAttach()
+    ) {
+      return
+    }
+
     const existing = cartItems.find((item) => item.product.id === product.id)
     const nextQuantity = (existing?.quantity ?? 0) + quantity
     try {
@@ -431,6 +484,13 @@ export function ShopPage({
       return
     }
 
+    const includesOfferCard = SHOP_MATERIALS_PACK_LINES.some(
+      (line) => line.skuId === SHOP_OFFER_CARD_SKU_ID
+    )
+    if (includesOfferCard && !requireOfferCardAttach()) {
+      return
+    }
+
     try {
       for (const line of SHOP_MATERIALS_PACK_LINES) {
         if (findShopProductById(catalogProducts, line.skuId) == null) {
@@ -456,6 +516,13 @@ export function ShopPage({
       return
     }
 
+    if (
+      lines.some((line) => line.skuId === SHOP_OFFER_CARD_SKU_ID)
+      && !requireOfferCardAttach()
+    ) {
+      return
+    }
+
     try {
       for (const line of lines) {
         await putAbsoluteQuantity(line.skuId, line.quantity)
@@ -473,6 +540,10 @@ export function ShopPage({
     quantity: number
   ) => {
     if (paidWriteChrome.purchaseDisabled) {
+      return
+    }
+
+    if (skuId === SHOP_OFFER_CARD_SKU_ID && !requireOfferCardAttach()) {
       return
     }
 
@@ -504,6 +575,14 @@ export function ShopPage({
       toast.error("Your cart is empty.")
       return
     }
+
+    if (
+      cartItems.some((item) => item.product.id === SHOP_OFFER_CARD_SKU_ID)
+      && !requireOfferCardAttach()
+    ) {
+      return
+    }
+
     setIsCartOpen(false)
     setCheckoutFromCart(true)
     setExpressCheckout(null)
@@ -523,6 +602,13 @@ export function ShopPage({
 
   const handleOrderNow = (product: ShopProduct, quantity: number) => {
     if (paidWriteChrome.purchaseDisabled) {
+      return
+    }
+
+    if (
+      product.id === SHOP_OFFER_CARD_SKU_ID
+      && !requireOfferCardAttach()
+    ) {
       return
     }
 
@@ -602,6 +688,14 @@ export function ShopPage({
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
           onReorder={({ prefill }) => {
+            if (
+              prefill.lines.some(
+                (line) => line.skuId === SHOP_OFFER_CARD_SKU_ID
+              )
+              && !requireOfferCardAttach()
+            ) {
+              return
+            }
             setCheckoutFromCart(false)
             setExpressCheckout({
               lines: prefill.lines.map((line) => ({
@@ -734,6 +828,24 @@ export function ShopPage({
         onSaveDetails={handleSaveLocationDetails}
         initialDetails={locationDetails}
         locationName={locationName}
+      />
+
+      <ShopOfferCardSetupDialog
+        snapshot={offerCardSetup}
+        locationId={selectedLocationId}
+        onOpenChange={(open) => {
+          if (!open) {
+            offerCardSetupModule.close()
+          }
+        }}
+        onOfferTypeChange={(offerType) =>
+          offerCardSetupModule.setOfferType(offerType)
+        }
+        onPatchDraft={(patch) => offerCardSetupModule.patchDraft(patch)}
+        onContinue={() => {
+          void offerCardSetupModule.confirm()
+        }}
+        onCancel={() => offerCardSetupModule.close()}
       />
     </div>
   )

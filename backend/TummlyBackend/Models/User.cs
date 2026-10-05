@@ -49,6 +49,15 @@ namespace TummlyBackend.Models
 
         /*
          =========================================
+         JOB TITLE (MY ACCOUNT PROFILE)
+         =========================================
+        */
+
+        [MaxLength(150)]
+        public string? JobTitle { get; set; }
+
+        /*
+         =========================================
          ROLE
          =========================================
         */

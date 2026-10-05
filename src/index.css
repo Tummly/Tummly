@@ -89,6 +89,7 @@
   --color-op-color-green-500-muted: var(--op-color-green-500-muted);
   --color-op-color-green-600: var(--op-color-green-600);
   --color-op-color-green-600-muted: var(--op-color-green-600-muted);
+  --color-op-color-offer-card-face: var(--op-color-offer-card-face);
   --color-op-color-blue-400: var(--op-color-blue-400);
   --color-op-color-blue-600: var(--op-color-blue-600);
   --color-op-color-gray-55: var(--op-color-gray-55);
@@ -424,6 +425,8 @@ html.op {
   --op-color-gray-996: #181818;
   --op-color-gray-1000: #171717;
   --op-color-green-500: #14a74a;
+  /* Figma Offer Card print face (6987:67292) */
+  --op-color-offer-card-face: #56c271;
   /* Figma Recommended audience chip fill (4695:51830 / Tag) */
   --op-color-green-500-muted: rgba(20, 167, 74, 0.16);
   /* Figma AI Assistant headline gradient start rgb(20, 169, 70) (3454:56046) */
