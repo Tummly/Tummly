@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Shop;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -51,6 +52,23 @@ namespace TummlyBackend.Services
             if (detail == null || quantity < detail.MinOrderQty)
             {
                 return null;
+            }
+
+            if (string.Equals(skuId, "offer-card", StringComparison.Ordinal))
+            {
+                var hasOfferCardOffer = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .AnyAsync(
+                        row =>
+                            row.Id == locationId
+                            && row.RestaurantId == restaurantId
+                            && row.OfferCardCatalogOfferId != null,
+                        cancellationToken
+                    );
+                if (!hasOfferCardOffer)
+                {
+                    throw new OfferCardOfferRequiredException();
+                }
             }
 
             var now = DateTime.UtcNow;

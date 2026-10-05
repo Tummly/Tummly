@@ -47,6 +47,7 @@ export type OperatorWorkspaceSession = {
     restaurantName: string
     brandLogoPublicUrl: string | null
   }) => void
+  applyOperatorDisplayName: (fullName: string) => void
 }
 
 type WorkspaceState = OperatorWorkspaceSnapshot & {
@@ -84,6 +85,7 @@ type WorkspaceAction =
       restaurantName: string
       brandLogoPublicUrl: string | null
     }
+  | { type: "apply_operator_display_name"; operatorDisplayName: string }
 
 function isOwnedLocationId(
   locations: LocationItem[],
@@ -136,6 +138,11 @@ function reduce(
         ...state,
         restaurantName: action.restaurantName,
         brandLogoPublicUrl: action.brandLogoPublicUrl,
+      }
+    case "apply_operator_display_name":
+      return {
+        ...state,
+        operatorDisplayName: action.operatorDisplayName,
       }
     default:
       return state
@@ -349,6 +356,19 @@ export function createOperatorWorkspaceSession(
         type: "apply_restaurant_identity",
         restaurantName: restaurantName.trim(),
         brandLogoPublicUrl,
+      })
+    },
+    applyOperatorDisplayName: (fullName) => {
+      if (state.status !== "loaded") {
+        return
+      }
+      const trimmed = fullName.trim()
+      if (trimmed.length === 0) {
+        return
+      }
+      dispatch({
+        type: "apply_operator_display_name",
+        operatorDisplayName: trimmed,
       })
     },
   }

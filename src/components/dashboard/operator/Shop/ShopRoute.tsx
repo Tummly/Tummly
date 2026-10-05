@@ -48,6 +48,7 @@ export function ShopRoute() {
       mode={mode}
       onSelectLocation={selectLocation}
       paidWriteChrome={paidWriteChrome}
+      subscriptionPlan={subscriptionPlan}
     />
   )
 }

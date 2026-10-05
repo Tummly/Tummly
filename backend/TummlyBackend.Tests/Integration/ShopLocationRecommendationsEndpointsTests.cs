@@ -55,6 +55,28 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetOfferCardPreview_ReturnsPng_WithHeadline()
+        {
+            var seeded = await SeedWorkspaceAsync();
+
+            using var request = AuthorizedGet(
+                $"/api/shop/locations/{seeded.LocationId}/offer-card-preview"
+                    + "?headline=Get%2020%25%20off%20your%20next%20visit",
+                seeded.MemberJwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            Assert.True(bytes.Length > 5_000);
+            Assert.Equal(0x89, bytes[0]);
+            Assert.Equal((byte)'P', bytes[1]);
+            Assert.Equal((byte)'N', bytes[2]);
+            Assert.Equal((byte)'G', bytes[3]);
+        }
+
+        [Fact]
         public async Task PutDetailsThenGetRecommendations_ReturnsBaselineKit_WithEmptyMetrics()
         {
             var seeded = await SeedWorkspaceAsync();

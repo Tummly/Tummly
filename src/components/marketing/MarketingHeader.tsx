@@ -59,12 +59,8 @@ export default function MarketingHeader() {
       return "/"
     }
 
-    if (role === "ADMIN") {
+    if (role === "ADMIN" || role === "SUPPORT") {
       return "/admin-dashboard"
-    }
-
-    if (role === "SUPPORT") {
-      return "/support-dashboard"
     }
 
     if (accountType === "Single") {

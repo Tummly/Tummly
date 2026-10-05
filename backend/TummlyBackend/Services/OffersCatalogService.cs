@@ -64,6 +64,7 @@ namespace TummlyBackend.Services
             CatalogOfferStatus.AttachSourceCampaign,
             CatalogOfferStatus.AttachSourceRecovery,
             CatalogOfferStatus.AttachSourceGuestFormThankYou,
+            CatalogOfferStatus.AttachSourceOfferCard,
             CatalogOfferStatus.AttachSourceManual,
         };
 
@@ -480,6 +481,19 @@ namespace TummlyBackend.Services
                     .ToListAsync(cancellationToken))
                     .ToHashSet();
 
+            var offerCardOfferIds = offerIds.Count == 0
+                ? new HashSet<int>()
+                : (await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row =>
+                        row.OfferCardCatalogOfferId != null
+                        && offerIds.Contains(row.OfferCardCatalogOfferId.Value)
+                    )
+                    .Select(row => row.OfferCardCatalogOfferId!.Value)
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                    .ToHashSet();
+
             var campaignsByOffer = campaignAttaches
                 .GroupBy(row => row.OfferId)
                 .ToDictionary(
@@ -521,14 +535,18 @@ namespace TummlyBackend.Services
                         catalogOpen && recoveryCount > 0;
                     var hasThankYouAttach =
                         catalogOpen && thankYouOfferIds.Contains(offer.Id);
+                    var hasOfferCardAttach =
+                        catalogOpen && offerCardOfferIds.Contains(offer.Id);
                     var liveAttachCount =
                         (hasCampaignAttach ? campaignNames.Count : 0)
                         + (hasRecoveryAttach ? recoveryCount : 0)
-                        + (hasThankYouAttach ? 1 : 0);
+                        + (hasThankYouAttach ? 1 : 0)
+                        + (hasOfferCardAttach ? 1 : 0);
                     var attachKinds = BuildListAttachKinds(
                         hasCampaignAttach: hasCampaignAttach,
                         hasRecoveryAttach: hasRecoveryAttach,
-                        hasThankYouAttach: hasThankYouAttach
+                        hasThankYouAttach: hasThankYouAttach,
+                        hasOfferCardAttach: hasOfferCardAttach
                     );
                     var hasOpenVoidRequest = openVoidOfferIds.Contains(offer.Id);
                     var needsAttention =
@@ -981,7 +999,13 @@ namespace TummlyBackend.Services
                     location => location.ThankYouCatalogOfferId == offerId,
                     cancellationToken
                 );
-            return campaignCount + recoveryCount + thankYouCount;
+            var offerCardCount = await _context.RestaurantLocations
+                .AsNoTracking()
+                .CountAsync(
+                    location => location.OfferCardCatalogOfferId == offerId,
+                    cancellationToken
+                );
+            return campaignCount + recoveryCount + thankYouCount + offerCardCount;
         }
 
         private async Task<CatalogOfferInFlightSyncResult> PersistStoredStatusAsync(
@@ -1209,15 +1233,21 @@ namespace TummlyBackend.Services
         private static IReadOnlyList<string> BuildListAttachKinds(
             bool hasCampaignAttach,
             bool hasRecoveryAttach,
-            bool hasThankYouAttach
+            bool hasThankYouAttach,
+            bool hasOfferCardAttach
         )
         {
-            if (!hasCampaignAttach && !hasRecoveryAttach && !hasThankYouAttach)
+            if (
+                !hasCampaignAttach
+                && !hasRecoveryAttach
+                && !hasThankYouAttach
+                && !hasOfferCardAttach
+            )
             {
                 return Array.Empty<string>();
             }
 
-            var kinds = new List<string>(3);
+            var kinds = new List<string>(4);
             if (hasCampaignAttach)
             {
                 kinds.Add(CatalogOfferStatus.AttachKindCampaign);
@@ -1231,6 +1261,11 @@ namespace TummlyBackend.Services
             if (hasThankYouAttach)
             {
                 kinds.Add(CatalogOfferStatus.AttachSourceGuestFormThankYou);
+            }
+
+            if (hasOfferCardAttach)
+            {
+                kinds.Add(CatalogOfferStatus.AttachSourceOfferCard);
             }
 
             return kinds;
@@ -1647,6 +1682,17 @@ namespace TummlyBackend.Services
                 if (hasThankYouAttach)
                 {
                     kinds.Add(CatalogOfferStatus.AttachSourceGuestFormThankYou);
+                }
+
+                var hasOfferCardAttach = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .AnyAsync(
+                        location => location.OfferCardCatalogOfferId == offerId,
+                        cancellationToken
+                    );
+                if (hasOfferCardAttach)
+                {
+                    kinds.Add(CatalogOfferStatus.AttachSourceOfferCard);
                 }
             }
 

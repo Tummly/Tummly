@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { SearchIcon } from "lucide-react"
 
 import { getSupportQueries } from "@/api/supportApi"
+import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { HelpCentreStatusBadge } from "@/components/help-centre/HelpCentreStatusBadge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
   Pagination,
@@ -34,7 +33,33 @@ import {
 import { supportDashboardQueryUrl } from "@/config/support"
 import { HELP_CENTRE_QUERY_TOPICS } from "@/content/helpCentre/queryTopics"
 import { useSupportInboxParams } from "@/hooks/useSupportInboxParams"
+import {
+  GUESTS_PAGE_STACK_CLASS,
+  GUESTS_PAGE_SUBTITLE_CLASS,
+  GUESTS_PAGE_TITLE_CLASS,
+  GUESTS_SEARCH_FIELD_CLASS,
+  GUESTS_SEARCH_WRAP_CLASS,
+  GUESTS_SECTION_CLASS,
+  GUESTS_SECTION_TITLE_CLASS,
+  GUESTS_TABLE_BODY_CELL_CLASS,
+  GUESTS_TABLE_BODY_ROW_CLASS,
+  GUESTS_TABLE_CLASS,
+  GUESTS_TABLE_FRAME_CLASS,
+  GUESTS_TABLE_GUEST_NAME_CLASS,
+  GUESTS_TABLE_HEAD_CELL_CLASS,
+  GUESTS_TABLE_HEAD_ROW_CLASS,
+  GUESTS_TABLE_INTERACTION_TIME_CLASS,
+  GUESTS_TABLE_LOCATION_CLASS,
+  GUESTS_TOOLBAR_ACTIONS_CLASS,
+  GUESTS_TOOLBAR_ROW_CLASS,
+} from "@/lib/operatorGuests/guestsPresentation"
+import {
+  OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+  OPERATOR_SHELL_MENU_ITEM_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import { querySubmitterTypeLabel } from "@/lib/querySubmitterType"
+import { cn } from "@/lib/utils"
 import type { SupportQueryListItem } from "@/types/support"
 
 const STATUS_FILTER_OPTIONS = [
@@ -163,144 +188,219 @@ export default function SupportDashboard() {
     totalCount === 0 ? 0 : (currentPage - 1) * state.pageSize + 1
   const showingTo = Math.min(currentPage * state.pageSize, totalCount)
 
-  return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 lg:px-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">Support dashboard</h1>
-        <p className="text-muted-foreground">
-          Manage Help Centre queries from operators and contacts.
-        </p>
-      </div>
+  const selectTriggerClass = cn(
+    OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+    "w-full min-w-36 data-[size=default]:h-auto sm:w-auto"
+  )
 
-      <Card>
-        <CardHeader className="gap-4">
-          <CardTitle>Help Centre inbox</CardTitle>
-          <div className="grid gap-3 lg:grid-cols-[1fr_160px_200px_140px]">
-            <div className="relative">
-              <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+  return (
+    <div className="flex w-full flex-col px-4 py-8 lg:px-8">
+      <div className={GUESTS_PAGE_STACK_CLASS}>
+        <header className="flex flex-col gap-3.5 leading-[0]">
+          <h1 className={GUESTS_PAGE_TITLE_CLASS}>Support</h1>
+          <p className={GUESTS_PAGE_SUBTITLE_CLASS}>
+            Manage Help Centre queries from operators and contacts.
+          </p>
+        </header>
+
+        <section className={GUESTS_SECTION_CLASS}>
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>Help Centre inbox</h2>
+
+          <div className={GUESTS_TOOLBAR_ROW_CLASS}>
+            <div className={GUESTS_SEARCH_WRAP_CLASS}>
+              <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-icon-default" />
               <Input
                 value={searchDraft}
                 onChange={(event) => setSearchDraft(event.target.value)}
                 placeholder="Search queries"
-                className="pl-9"
+                className={GUESTS_SEARCH_FIELD_CLASS}
+                aria-label="Search queries"
               />
             </div>
-            <Select value={state.status} onValueChange={setStatus}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_FILTER_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+
+            <div className={GUESTS_TOOLBAR_ACTIONS_CLASS}>
+              <Select value={state.status} onValueChange={setStatus}>
+                <SelectTrigger className={selectTriggerClass}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className={OPERATOR_SHELL_MENU_PANEL_CLASS}
+                >
+                  {STATUS_FILTER_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={state.topic} onValueChange={setTopic}>
+                <SelectTrigger className={selectTriggerClass}>
+                  <SelectValue placeholder="All topics" />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className={OPERATOR_SHELL_MENU_PANEL_CLASS}
+                >
+                  <SelectItem
+                    value="ALL"
+                    className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                  >
+                    All topics
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={state.topic} onValueChange={setTopic}>
-              <SelectTrigger>
-                <SelectValue placeholder="All topics" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All topics</SelectItem>
-                {HELP_CENTRE_QUERY_TOPICS.map((topic) => (
-                  <SelectItem key={topic.slug} value={topic.slug}>
-                    {topic.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={state.type}
-              onValueChange={(value) =>
-                setType(value as typeof state.type)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TYPE_FILTER_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  {HELP_CENTRE_QUERY_TOPICS.map((topic) => (
+                    <SelectItem
+                      key={topic.slug}
+                      value={topic.slug}
+                      className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                    >
+                      {topic.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={state.type}
+                onValueChange={(value) =>
+                  setType(value as typeof state.type)
+                }
+              >
+                <SelectTrigger className={selectTriggerClass}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className={OPERATOR_SHELL_MENU_PANEL_CLASS}
+                >
+                  {TYPE_FILTER_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+
           {loadState === "error" && (
             <p className="text-sm text-destructive">Unable to load queries.</p>
           )}
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Issue</TableHead>
-                <TableHead>From</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Business</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Updated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loadState === "loading" &&
-                Array.from({ length: 5 }).map((_, index) => (
-                  <TableRow key={`skeleton-${index}`}>
-                    {Array.from({ length: 6 }).map((__, cellIndex) => (
-                      <TableCell key={cellIndex}>
-                        <Skeleton className="h-5 w-full max-w-28" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-
-              {loadState === "loaded" && queries.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-muted-foreground">
-                    No queries match your filters.
-                  </TableCell>
+          <div className={GUESTS_TABLE_FRAME_CLASS}>
+            <Table className={GUESTS_TABLE_CLASS}>
+              <TableHeader className="[&_tr]:border-0">
+                <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    Issue
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    From
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    Type
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    Business
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    Status
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    Updated
+                  </TableHead>
                 </TableRow>
-              )}
+              </TableHeader>
+              <TableBody>
+                {loadState === "loading" &&
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <TableRow
+                      key={`skeleton-${index}`}
+                      className={GUESTS_TABLE_BODY_ROW_CLASS}
+                    >
+                      {Array.from({ length: 6 }).map((__, cellIndex) => (
+                        <TableCell
+                          key={cellIndex}
+                          className={GUESTS_TABLE_BODY_CELL_CLASS}
+                        >
+                          <Skeleton className="h-5 w-full max-w-28" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
 
-              {loadState === "loaded" &&
-                queries.map((query) => (
-                  <TableRow
-                    key={query.id}
-                    className="cursor-pointer"
-                    onClick={() => openQuery(query.id)}
-                  >
-                    <TableCell className="font-medium">
-                      {query.topicLabel}
+                {loadState === "loaded" && queries.length === 0 && (
+                  <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
+                    <TableCell
+                      colSpan={6}
+                      className={cn(
+                        GUESTS_TABLE_BODY_CELL_CLASS,
+                        "text-muted-foreground"
+                      )}
+                    >
+                      No queries match your filters.
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span>{query.submitterName}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {query.submitterEmail}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {querySubmitterTypeLabel(query.linkedOperator)}
-                    </TableCell>
-                    <TableCell>{query.businessName}</TableCell>
-                    <TableCell>
-                      <HelpCentreStatusBadge
-                        status={query.status}
-                        statusLabel={query.statusLabel}
-                      />
-                    </TableCell>
-                    <TableCell>{formatUpdatedAt(query.updatedAt)}</TableCell>
                   </TableRow>
-                ))}
-            </TableBody>
-          </Table>
+                )}
+
+                {loadState === "loaded" &&
+                  queries.map((query) => (
+                    <TableRow
+                      key={query.id}
+                      className={cn(GUESTS_TABLE_BODY_ROW_CLASS, "cursor-pointer")}
+                      onClick={() => openQuery(query.id)}
+                    >
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className={GUESTS_TABLE_GUEST_NAME_CLASS}>
+                          {query.topicLabel}
+                        </span>
+                      </TableCell>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <div className="flex flex-col gap-1">
+                          <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                            {query.submitterName}
+                          </span>
+                          <span className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
+                            {query.submitterEmail}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                          {querySubmitterTypeLabel(query.linkedOperator)}
+                        </span>
+                      </TableCell>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                          {query.businessName}
+                        </span>
+                      </TableCell>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <HelpCentreStatusBadge
+                          status={query.status}
+                          statusLabel={query.statusLabel}
+                        />
+                      </TableCell>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
+                          {formatUpdatedAt(query.updatedAt)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
 
           {loadState === "loaded" && totalCount > 0 && (
-            <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 border-t border-op-border-default pt-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-3">
                 <p className="text-sm text-muted-foreground">
                   Showing {showingFrom}–{showingTo} of {totalCount}
@@ -309,12 +409,22 @@ export default function SupportDashboard() {
                   value={String(state.pageSize)}
                   onValueChange={(value) => setPageSize(Number(value))}
                 >
-                  <SelectTrigger className="w-28" aria-label="Page size">
+                  <SelectTrigger
+                    className={cn(selectTriggerClass, "w-28")}
+                    aria-label="Page size"
+                  >
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent
+                    position="popper"
+                    className={OPERATOR_SHELL_MENU_PANEL_CLASS}
+                  >
                     {pageSizeOptions.map((size) => (
-                      <SelectItem key={size} value={String(size)}>
+                      <SelectItem
+                        key={size}
+                        value={String(size)}
+                        className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                      >
                         {size} / page
                       </SelectItem>
                     ))}
@@ -368,8 +478,8 @@ export default function SupportDashboard() {
               </Pagination>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </section>
+      </div>
     </div>
   )
 }

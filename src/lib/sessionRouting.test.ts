@@ -127,7 +127,7 @@ describe("getAuthenticatedLoginDestination", () => {
     ).toBe("/admin-dashboard")
   })
 
-  it("routes support staff to the support dashboard", () => {
+  it("routes support staff to the combined staff dashboard", () => {
     expect(
       getAuthenticatedLoginDestination({
         role: "SUPPORT",
@@ -137,7 +137,7 @@ describe("getAuthenticatedLoginDestination", () => {
         activationRequired: false,
         activationExpiresAt: null,
       })
-    ).toBe("/support-dashboard")
+    ).toBe("/admin-dashboard")
   })
 
   it("ignores pending activation and routes operators to the dashboard", () => {

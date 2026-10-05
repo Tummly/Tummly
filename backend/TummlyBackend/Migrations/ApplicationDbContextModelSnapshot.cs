@@ -3353,6 +3353,9 @@ namespace TummlyBackend.Migrations
                     b.Property<int?>("ManagerUserId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("OfferCardCatalogOfferId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Postcode")
                         .HasColumnType("nvarchar(max)");
 
@@ -3368,6 +3371,8 @@ namespace TummlyBackend.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ManagerUserId");
+
+                    b.HasIndex("OfferCardCatalogOfferId");
 
                     b.HasIndex("RestaurantId");
 
@@ -4392,6 +4397,10 @@ namespace TummlyBackend.Migrations
 
                     b.Property<bool>("IsLocked")
                         .HasColumnType("bit");
+
+                    b.Property<string>("JobTitle")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
@@ -5465,6 +5474,11 @@ namespace TummlyBackend.Migrations
                         .HasForeignKey("ManagerUserId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("TummlyBackend.Models.CatalogOffer", "OfferCardCatalogOffer")
+                        .WithMany()
+                        .HasForeignKey("OfferCardCatalogOfferId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
                         .WithMany("Locations")
                         .HasForeignKey("RestaurantId")
@@ -5477,6 +5491,8 @@ namespace TummlyBackend.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("ManagerUser");
+
+                    b.Navigation("OfferCardCatalogOffer");
 
                     b.Navigation("Restaurant");
 

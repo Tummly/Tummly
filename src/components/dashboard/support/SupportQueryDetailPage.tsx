@@ -27,7 +27,11 @@ import {
 } from "@/config/support"
 import { getFetchErrorMessage } from "@/lib/apiEnvelope"
 import { warnIfEmailDispatchFailed } from "@/lib/emailDispatch"
-import { marketingSectionInset } from "@/lib/marketing-layout"
+import {
+  OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+  OPERATOR_SHELL_MENU_ITEM_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import { querySubmitterTypeLabel } from "@/lib/querySubmitterType"
 import { cn } from "@/lib/utils"
 import type { HelpCentreQueryStatus } from "@/types/helpCentre"
@@ -78,7 +82,7 @@ function inboxParamsFromSearch(
   }
 }
 
-const pageInsetClass = cn(marketingSectionInset, "py-4 md:py-6")
+const pageInsetClass = "px-4 py-4 md:py-6 lg:px-8"
 
 function BackLink({ to }: { to: string }) {
   return (
@@ -103,7 +107,7 @@ function DetailSkeleton() {
           <Skeleton className="h-20 w-full shrink-0" />
           <Skeleton className="h-32 w-full shrink-0" />
         </div>
-        <div className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-lg border border-border p-4">
+        <div className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-lg border border-op-border-default bg-op-surface-primary p-4">
           <Skeleton className="h-16 w-3/4 shrink-0" />
           <Skeleton className="ml-auto h-16 w-2/3 shrink-0" />
           <Skeleton className="h-16 w-3/4 shrink-0" />
@@ -241,7 +245,7 @@ export default function SupportQueryDetailPage() {
   }
 
   return (
-    <div className="relative flex h-[calc(100dvh-77px)] min-h-0 flex-col lg:h-[calc(100dvh-78px)]">
+    <div className="relative flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-hidden">
         {state === "loading" && <DetailSkeleton />}
 
@@ -282,7 +286,7 @@ export default function SupportQueryDetailPage() {
             </div>
 
             <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-              <aside className="flex max-h-48 min-h-0 flex-col gap-6 overflow-y-auto rounded-lg border border-border p-4 lg:max-h-none">
+              <aside className="flex max-h-48 min-h-0 flex-col gap-6 overflow-y-auto rounded-lg border border-op-border-default bg-op-surface-primary p-4 lg:max-h-none">
                 <dl className="grid grid-cols-1 gap-4">
                   <MetaField label="From">{query.submitterName}</MetaField>
                   <MetaField label="Email">{query.submitterEmail}</MetaField>
@@ -315,12 +319,25 @@ export default function SupportQueryDetailPage() {
                         setPendingStatus(value as HelpCentreQueryStatus)
                       }
                     >
-                      <SelectTrigger id="query-status">
+                      <SelectTrigger
+                        id="query-status"
+                        className={cn(
+                          OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+                          "w-full data-[size=default]:h-auto"
+                        )}
+                      >
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent
+                        position="popper"
+                        className={OPERATOR_SHELL_MENU_PANEL_CLASS}
+                      >
                         {STATUS_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
+                          <SelectItem
+                            key={option.value}
+                            value={option.value}
+                            className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                          >
                             {option.label}
                           </SelectItem>
                         ))}
@@ -340,16 +357,17 @@ export default function SupportQueryDetailPage() {
                           setEscalationNote(event.target.value)
                         }
                         rows={3}
+                        className="rounded-[2px]"
                       />
                     </div>
                   )}
 
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="op-secondary"
                     onClick={() => void handleUpdateStatus()}
                     disabled={isUpdatingStatus}
-                    className="w-fit"
+                    className="w-fit rounded-[2px]"
                   >
                     {isUpdatingStatus ? "Saving..." : "Save status"}
                   </Button>
@@ -362,8 +380,8 @@ export default function SupportQueryDetailPage() {
                 )}
               </aside>
 
-              <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border">
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+              <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-op-border-default bg-op-surface-primary">
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-op-surface-primary p-4">
                   {query.messages.map((message) => {
                     const isSupport = message.authorKind === "SUPPORT"
                     return (
@@ -373,7 +391,7 @@ export default function SupportQueryDetailPage() {
                           "max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6",
                           isSupport
                             ? "ml-auto bg-primary text-primary-foreground"
-                            : "mr-auto border border-border bg-muted/40 text-foreground"
+                            : "mr-auto border border-op-border-default bg-op-background-secondary text-foreground"
                         )}
                       >
                         <div
@@ -401,16 +419,18 @@ export default function SupportQueryDetailPage() {
                   })}
                 </div>
 
-                <div className="flex shrink-0 flex-col gap-2 border-t border-border bg-background p-4">
+                <div className="flex shrink-0 flex-col gap-2 border-t border-op-border-default bg-op-surface-primary p-4">
                   <Textarea
                     value={replyBody}
                     onChange={(event) => setReplyBody(event.target.value)}
                     rows={3}
                     placeholder="Write a support reply"
+                    className="rounded-[2px] bg-op-surface-primary"
                   />
                   <Button
                     type="button"
-                    className="w-fit"
+                    variant="op-primary"
+                    className="w-fit rounded-[2px]"
                     disabled={isReplying || !replyBody.trim()}
                     onClick={() => void handleSendReply()}
                   >

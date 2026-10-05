@@ -305,4 +305,14 @@ describe("createOperatorWorkspaceSession", () => {
     session.selectLocation(1)
     expect(listener).not.toHaveBeenCalled()
   })
+
+  it("applies operator display name after profile save", async () => {
+    const adapters = createAdapters()
+    const session = createOperatorWorkspaceSession({ mode: "multi" }, adapters)
+    await session.load({ queryLocationId: null })
+
+    session.applyOperatorDisplayName("  New Operator Name  ")
+
+    expect(session.getSnapshot().operatorDisplayName).toBe("New Operator Name")
+  })
 })

@@ -534,6 +534,51 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public void OfferCardPreviewPng_SharesMintComposeSlotsAndHeadline()
+        {
+            var pack = PrintTemplatePack.LoadFromContentRoot(
+                AppContext.BaseDirectory
+            );
+            var rasterizer = new QrCoderRasterizer();
+            var qr = rasterizer.Render(
+                PrintReadyQrPdfComposer.PreviewQrPayload
+            );
+            const string headlineA = "Get 20% off your next visit";
+            const string headlineB = "Free dessert with any meal";
+
+            var pngA = PrintReadyQrPdfComposer.ComposePng(
+                pack.Snapshot,
+                QrType.OfferCard,
+                qr,
+                headlineA
+            );
+            var pngB = PrintReadyQrPdfComposer.ComposePng(
+                pack.Snapshot,
+                QrType.OfferCard,
+                qr,
+                headlineB
+            );
+            var pdf = PrintReadyQrPdfComposer.Compose(
+                pack.Snapshot,
+                QrType.OfferCard,
+                qr,
+                headlineA
+            );
+
+            Assert.True(pngA.Length > 5_000);
+            Assert.Equal(0x89, pngA[0]);
+            Assert.Equal((byte)'P', pngA[1]);
+            Assert.Equal((byte)'N', pngA[2]);
+            Assert.Equal((byte)'G', pngA[3]);
+            Assert.NotEqual(pngA, pngB);
+            Assert.True(pdf.Length > 10_000);
+            Assert.Contains(
+                headlineA,
+                System.Text.Encoding.ASCII.GetString(pdf)
+            );
+        }
+
         public void Dispose()
         {
             _context.Dispose();

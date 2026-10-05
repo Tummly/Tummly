@@ -5,16 +5,16 @@ import { useLocation } from "react-router-dom"
 import {
   OPERATOR_APPEARANCE_STORAGE_KEY,
   applyOperatorAppearanceDocumentTheme,
-  isOperatorDashboardPath,
+  isThemedAppShellPath,
   parseOperatorAppearancePreference,
   readSystemPrefersDark,
   resolveOperatorAppearanceDocumentTheme,
 } from "@/lib/operatorAppearance"
 
 function OperatorAppearanceDocumentSync({
-  isOperatorDashboard,
+  themeEnabled,
 }: {
-  isOperatorDashboard: boolean
+  themeEnabled: boolean
 }) {
   const { theme, systemTheme } = useTheme()
 
@@ -25,14 +25,14 @@ function OperatorAppearanceDocumentSync({
       (systemTheme === "light" ? false : readSystemPrefersDark())
 
     applyOperatorAppearanceDocumentTheme({
-      isOperatorDashboard,
+      applyOpScope: themeEnabled,
       theme: resolveOperatorAppearanceDocumentTheme({
-        isOperatorDashboard,
+        themeEnabled,
         preference,
         systemPrefersDark,
       }),
     })
-  }, [isOperatorDashboard, theme, systemTheme])
+  }, [theme, systemTheme, themeEnabled])
 
   return null
 }
@@ -43,7 +43,7 @@ export function OperatorAppearanceProvider({
   children: ReactNode
 }) {
   const { pathname } = useLocation()
-  const isOperatorDashboard = isOperatorDashboardPath(pathname)
+  const themeEnabled = isThemedAppShellPath(pathname)
 
   return (
     <ThemeProvider
@@ -51,12 +51,10 @@ export function OperatorAppearanceProvider({
       defaultTheme="system"
       enableSystem
       storageKey={OPERATOR_APPEARANCE_STORAGE_KEY}
-      forcedTheme={isOperatorDashboard ? undefined : "light"}
+      forcedTheme={themeEnabled ? undefined : "light"}
       disableTransitionOnChange
     >
-      <OperatorAppearanceDocumentSync
-        isOperatorDashboard={isOperatorDashboard}
-      />
+      <OperatorAppearanceDocumentSync themeEnabled={themeEnabled} />
       {children}
     </ThemeProvider>
   )

@@ -19,6 +19,7 @@ namespace TummlyBackend.Helpers
         public const string AttachSourceCampaign = "campaign";
         public const string AttachSourceRecovery = "recovery";
         public const string AttachSourceGuestFormThankYou = "guest-form-thank-you";
+        public const string AttachSourceOfferCard = "offer-card";
         public const string AttachSourceManual = "manual";
 
         public static DateOnly VenueLocalToday(

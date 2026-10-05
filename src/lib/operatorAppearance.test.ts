@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   isOperatorDashboardPath,
+  isStaffDashboardPath,
+  isThemedAppShellPath,
   resolveOperatorAppearanceDocumentTheme,
 } from "./operatorAppearance"
 
@@ -31,49 +33,78 @@ describe("isOperatorDashboardPath", () => {
   })
 })
 
+describe("isStaffDashboardPath", () => {
+  it("is true for the staff shell and nested sections", () => {
+    expect(isStaffDashboardPath("/admin-dashboard")).toBe(true)
+    expect(isStaffDashboardPath("/admin-dashboard/admin")).toBe(true)
+    expect(isStaffDashboardPath("/admin-dashboard/support")).toBe(true)
+    expect(isStaffDashboardPath("/admin-dashboard/support/queries/1")).toBe(
+      true
+    )
+  })
+
+  it("is false outside the staff shell", () => {
+    expect(isStaffDashboardPath("/admin-dashboardfoo")).toBe(false)
+    expect(isStaffDashboardPath("/support-dashboard")).toBe(false)
+    expect(isStaffDashboardPath("/single-dashboard")).toBe(false)
+  })
+})
+
+describe("isThemedAppShellPath", () => {
+  it("is true for Operator and staff shells", () => {
+    expect(isThemedAppShellPath("/single-dashboard")).toBe(true)
+    expect(isThemedAppShellPath("/admin-dashboard/support")).toBe(true)
+  })
+
+  it("is false on marketing surfaces", () => {
+    expect(isThemedAppShellPath("/")).toBe(false)
+    expect(isThemedAppShellPath("/help-center")).toBe(false)
+  })
+})
+
 describe("resolveOperatorAppearanceDocumentTheme", () => {
-  it("is always light outside the Operator dashboard", () => {
+  it("is always light when theme is disabled", () => {
     expect(
       resolveOperatorAppearanceDocumentTheme({
-        isOperatorDashboard: false,
+        themeEnabled: false,
         preference: "dark",
         systemPrefersDark: true,
       })
     ).toBe("light")
     expect(
       resolveOperatorAppearanceDocumentTheme({
-        isOperatorDashboard: false,
+        themeEnabled: false,
         preference: "system",
         systemPrefersDark: true,
       })
     ).toBe("light")
   })
 
-  it("honors Light, Dark, and System inside the Operator dashboard", () => {
+  it("honors Light, Dark, and System when theme is enabled", () => {
     expect(
       resolveOperatorAppearanceDocumentTheme({
-        isOperatorDashboard: true,
+        themeEnabled: true,
         preference: "light",
         systemPrefersDark: true,
       })
     ).toBe("light")
     expect(
       resolveOperatorAppearanceDocumentTheme({
-        isOperatorDashboard: true,
+        themeEnabled: true,
         preference: "dark",
         systemPrefersDark: false,
       })
     ).toBe("dark")
     expect(
       resolveOperatorAppearanceDocumentTheme({
-        isOperatorDashboard: true,
+        themeEnabled: true,
         preference: "system",
         systemPrefersDark: true,
       })
     ).toBe("dark")
     expect(
       resolveOperatorAppearanceDocumentTheme({
-        isOperatorDashboard: true,
+        themeEnabled: true,
         preference: "system",
         systemPrefersDark: false,
       })

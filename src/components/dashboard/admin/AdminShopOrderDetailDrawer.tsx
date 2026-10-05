@@ -1,6 +1,11 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import axios from "axios"
-import { DownloadIcon, FactoryIcon, RefreshCcwIcon } from "lucide-react"
+import {
+  DownloadIcon,
+  FactoryIcon,
+  RefreshCcwIcon,
+  XIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { postAdminPaymentRefund } from "@/api/adminApi"
@@ -25,9 +30,9 @@ import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import {
   Drawer,
+  DrawerClose,
   DrawerContent,
   DrawerDescription,
-  DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
@@ -45,6 +50,11 @@ import {
   createAdminShopOrderPrintAssetsPageModule,
   httpAdminShopOrderPrintAssetsAdapters,
 } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
+import {
+  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+  OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
+import { cn } from "@/lib/utils"
 
 type AdminShopOrderDetailDrawerProps = {
   order: AdminShopOrderListItem | null
@@ -362,33 +372,54 @@ export function AdminShopOrderDetailDrawer({
 
   return (
     <>
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="mx-auto flex max-h-[92vh] w-full max-w-xl flex-col rounded-t-2xl">
-          <DrawerHeader className="border-b text-left">
-            <DrawerTitle className="font-heading text-xl">
-              {order.orderNumber}
-            </DrawerTitle>
-            <DrawerDescription>
-              {order.locationNameSnapshot} · Restaurant #{order.restaurantId}
-            </DrawerDescription>
-          </DrawerHeader>
+      <Drawer open={open} onOpenChange={onOpenChange} direction="right">
+        <DrawerContent className={OPERATOR_RIGHT_DRAWER_CONTENT_CLASS}>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-start justify-between gap-[22px] px-[22px] pt-8 pb-[22px]">
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <DrawerTitle className="text-2xl font-bold text-foreground">
+                    {order.orderNumber}
+                  </DrawerTitle>
+                  <DrawerDescription className="text-sm font-medium text-foreground">
+                    {order.locationNameSnapshot} · Restaurant #
+                    {order.restaurantId}
+                  </DrawerDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="soft">
+                    {adminShopFulfilmentLabel(order.fulfilmentStatus)}
+                  </Badge>
+                  <Badge variant="soft">
+                    {order.isComplimentary ? "Free" : order.paymentStatus}
+                  </Badge>
+                  {productionStarted ? (
+                    <Badge variant="soft">Production started</Badge>
+                  ) : null}
+                  <span className="text-sm text-muted-foreground">
+                    {formatAdminShopGbpFromPence(order.grossPence)}
+                  </span>
+                </div>
+              </div>
+              <DrawerClose asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-[42px] shrink-0 rounded-[2px] bg-muted hover:bg-muted/80"
+                  aria-label="Close order details"
+                >
+                  <XIcon className="size-[18px]" aria-hidden />
+                </Button>
+              </DrawerClose>
+            </div>
 
-          <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-4 py-5">
-            <section className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">
-                {adminShopFulfilmentLabel(order.fulfilmentStatus)}
-              </Badge>
-              <Badge variant="outline">
-                {order.isComplimentary ? "Free" : order.paymentStatus}
-              </Badge>
-              {productionStarted ? (
-                <Badge variant="outline">Production started</Badge>
-              ) : null}
-              <span className="text-sm text-muted-foreground">
-                {formatAdminShopGbpFromPence(order.grossPence)}
-              </span>
-            </section>
-
+          <div
+            className={cn(
+              OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+              "flex flex-col gap-6 px-[22px] pb-[22px]"
+            )}
+          >
             <section className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
                 <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -598,7 +629,7 @@ export function AdminShopOrderDetailDrawer({
                   onChange={(event) => setTrackingUrl(event.target.value)}
                   placeholder="https://…"
                   disabled={!trackingEditable || saving}
-                  className="rounded-xl"
+                  className="rounded-[2px]"
                 />
                 {!trackingEditable && (
                   <p className="text-xs text-muted-foreground">
@@ -615,7 +646,7 @@ export function AdminShopOrderDetailDrawer({
                   onChange={(event) => setOpsNotes(event.target.value)}
                   placeholder="Internal notes for warehouse / support"
                   disabled={!notesEditable || saving}
-                  className="min-h-24 rounded-xl"
+                  className="min-h-24 rounded-[2px]"
                 />
               </div>
 
@@ -625,7 +656,8 @@ export function AdminShopOrderDetailDrawer({
                   notesEditable && (
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="op-tertiary"
+                      className="rounded-[2px]"
                       disabled={anyBusy}
                       onClick={() =>
                         void savePatch({
@@ -647,6 +679,8 @@ export function AdminShopOrderDetailDrawer({
                 {nextAction && (
                   <Button
                     type="button"
+                    variant="op-primary"
+                    className="rounded-[2px]"
                     disabled={anyBusy}
                     onClick={() =>
                       void savePatch({
@@ -662,7 +696,8 @@ export function AdminShopOrderDetailDrawer({
                 {canMarkProductionStarted && (
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="op-secondary"
+                    className="rounded-[2px]"
                     disabled={anyBusy}
                     onClick={() => setMarkStartedConfirmOpen(true)}
                   >
@@ -675,6 +710,7 @@ export function AdminShopOrderDetailDrawer({
                   <Button
                     type="button"
                     variant="destructive"
+                    className="rounded-[2px]"
                     disabled={anyBusy}
                     onClick={() => setForceCancelConfirmOpen(true)}
                   >
@@ -693,6 +729,7 @@ export function AdminShopOrderDetailDrawer({
                 )}
               </div>
             </section>
+          </div>
           </div>
         </DrawerContent>
       </Drawer>

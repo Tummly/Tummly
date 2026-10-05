@@ -61,8 +61,8 @@ type DashboardNavbarProps = {
   notificationsUnreadCount?: number
   onOpenNotifications?: () => void
   onOpenNotificationPreferences?: () => void
-  /** Profile → My Account → Settings Account & workspace. */
-  myAccountTo?: string
+  /** Profile → My Account dialog. */
+  onOpenMyAccount?: () => void
   shellAiCredits?: OperatorShellAiCreditsViewModel
   onShellAiCreditsOpenChange?: (open: boolean) => void
   onViewAiCreditsUsage?: () => void
@@ -90,7 +90,7 @@ export function DashboardNavbar({
   notificationsUnreadCount = 0,
   onOpenNotifications,
   onOpenNotificationPreferences,
-  myAccountTo,
+  onOpenMyAccount,
   shellAiCredits,
   onShellAiCreditsOpenChange,
   onViewAiCreditsUsage,
@@ -352,8 +352,7 @@ export function DashboardNavbar({
                 profileSelfRoleSubtitle={profileSelfRoleSubtitle}
                 onSignOut={onSignOut}
                 onOpenNotificationPreferences={onOpenNotificationPreferences}
-                myAccountTo={myAccountTo}
-                onNavigateMyAccount={onRouteDestination}
+                onOpenMyAccount={onOpenMyAccount}
               />
             </div>
           </div>

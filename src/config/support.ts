@@ -1,3 +1,8 @@
+import {
+  STAFF_DASHBOARD_SUPPORT_URL,
+  staffDashboardQueryUrl,
+} from "@/config/staffDashboard"
+
 export const SUPPORT_EMAIL = "support@tummly.com"
 
 const HELP_CENTRE_ROUTE = "help-center"
@@ -33,11 +38,17 @@ export function helpCentreMyQueryUrl(id: number | string) {
   return `${HELP_CENTRE_MY_QUERIES_URL}/${id}`
 }
 
-/** Support dashboard inbox. */
-export const SUPPORT_DASHBOARD_URL = "/support-dashboard"
+/** Support inbox under the combined staff shell. */
+export const SUPPORT_DASHBOARD_URL = STAFF_DASHBOARD_SUPPORT_URL
 
-/** React Router path segments for Support dashboard (no leading slash). */
+/** React Router path segments for Support under staff shell (relative to admin-dashboard). */
 export const SUPPORT_DASHBOARD_ROUTES = {
+  inbox: "support",
+  query: "support/queries/:id",
+} as const
+
+/** Legacy React Router path segments (redirect sources). */
+export const LEGACY_SUPPORT_DASHBOARD_ROUTES = {
   inbox: "support-dashboard",
   query: "support-dashboard/queries/:id",
 } as const
@@ -82,5 +93,5 @@ export function supportDashboardInboxUrl(params: SupportInboxParams = {}) {
 }
 
 export function supportDashboardQueryUrl(id: number | string) {
-  return `${SUPPORT_DASHBOARD_URL}/queries/${id}`
+  return staffDashboardQueryUrl(id)
 }

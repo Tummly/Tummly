@@ -9,6 +9,7 @@ export type OffersFilterAttachSourceId =
   | "campaign"
   | "recovery"
   | "guest-form-thank-you"
+  | "offer-card"
   | "manual"
 
 export const OFFERS_STATUS_LABELS: Record<OffersFilterStatusId, string> = {
@@ -37,6 +38,7 @@ export const OFFERS_ATTACH_SOURCE_LABELS: Record<
   campaign: "Campaign",
   recovery: "Recovery",
   "guest-form-thank-you": "Guest form thank-you",
+  "offer-card": "Offer card",
   manual: "Manual",
 }
 

@@ -1,4 +1,11 @@
-import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Routes,
+  Route,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { CookieConsentBanner } from "@/components/common/CookieConsentBanner";
@@ -90,7 +97,34 @@ import HelpCentreContactPage from "../public/HelpCentreContactPage";
 import HelpCentreContactSuccessPage from "../public/HelpCentreContactSuccessPage";
 import MyQueriesPage from "../public/MyQueriesPage";
 import MyQueryThreadPage from "../public/MyQueryThreadPage";
-import { HELP_CENTRE_ROUTES, SUPPORT_DASHBOARD_ROUTES } from "@/config/support";
+import StaffDashboardLayout from "../../layouts/StaffDashboardLayout";
+import StaffDashboardIndexRedirect from "./StaffDashboardIndexRedirect";
+import {
+  HELP_CENTRE_ROUTES,
+  LEGACY_SUPPORT_DASHBOARD_ROUTES,
+  SUPPORT_DASHBOARD_ROUTES,
+} from "@/config/support";
+import {
+  STAFF_DASHBOARD_ROUTES,
+  STAFF_DASHBOARD_SUPPORT_URL,
+  staffDashboardQueryUrl,
+} from "@/config/staffDashboard";
+
+function LegacySupportQueryRedirect() {
+  const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
+  const search = searchParams.toString()
+
+  return (
+    <Navigate
+      to={{
+        pathname: staffDashboardQueryUrl(id ?? ""),
+        search: search ? `?${search}` : "",
+      }}
+      replace
+    />
+  )
+}
 
 function AppRoutes() {
   return (
@@ -486,28 +520,41 @@ function AppRoutes() {
               </Route>
             </Route>
             <Route
-              path="admin-dashboard"
+              path={STAFF_DASHBOARD_ROUTES.root}
+              element={<RoleRoute roles={["ADMIN", "SUPPORT"]} />}
+            >
+              <Route element={<StaffDashboardLayout />}>
+                <Route index element={<StaffDashboardIndexRedirect />} />
+                <Route
+                  path={STAFF_DASHBOARD_ROUTES.admin}
+                  element={
+                    <RoleRoute
+                      role="ADMIN"
+                      unauthorizedTo={STAFF_DASHBOARD_SUPPORT_URL}
+                    >
+                      <AdminDashboard />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path={SUPPORT_DASHBOARD_ROUTES.inbox}
+                  element={<SupportDashboard />}
+                />
+                <Route
+                  path={SUPPORT_DASHBOARD_ROUTES.query}
+                  element={<SupportQueryDetailPage />}
+                />
+              </Route>
+            </Route>
+            <Route
+              path={LEGACY_SUPPORT_DASHBOARD_ROUTES.inbox}
               element={
-                <RoleRoute role="ADMIN">
-                  <AdminDashboard />
-                </RoleRoute>
+                <Navigate to={STAFF_DASHBOARD_SUPPORT_URL} replace />
               }
             />
             <Route
-              path={SUPPORT_DASHBOARD_ROUTES.inbox}
-              element={
-                <RoleRoute role="SUPPORT">
-                  <SupportDashboard />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path={SUPPORT_DASHBOARD_ROUTES.query}
-              element={
-                <RoleRoute role="SUPPORT">
-                  <SupportQueryDetailPage />
-                </RoleRoute>
-              }
+              path={LEGACY_SUPPORT_DASHBOARD_ROUTES.query}
+              element={<LegacySupportQueryRedirect />}
             />
             <Route
               path={HELP_CENTRE_ROUTES.myQueries}

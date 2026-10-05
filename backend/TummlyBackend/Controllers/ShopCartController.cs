@@ -86,24 +86,36 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var cart = await _carts.UpsertLineAsync(
-                gate.RestaurantId,
-                body.LocationId,
-                gate.UserId,
-                body.SkuId.Trim(),
-                body.Quantity,
-                cancellationToken
-            );
-            if (cart == null)
+            try
             {
-                return BadRequest(new
+                var cart = await _carts.UpsertLineAsync(
+                    gate.RestaurantId,
+                    body.LocationId,
+                    gate.UserId,
+                    body.SkuId.Trim(),
+                    body.Quantity,
+                    cancellationToken
+                );
+                if (cart == null)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Catalog skuId is invalid or quantity is below minOrderQty.",
+                    });
+                }
+
+                return Ok(cart);
+            }
+            catch (OfferCardOfferRequiredException ex)
+            {
+                return Conflict(new
                 {
                     success = false,
-                    message = "Catalog skuId is invalid or quantity is below minOrderQty.",
+                    code = OfferCardOfferRequiredException.ErrorCode,
+                    message = ex.Message,
                 });
             }
-
-            return Ok(cart);
         }
 
         [HttpDelete("lines/{skuId}")]
