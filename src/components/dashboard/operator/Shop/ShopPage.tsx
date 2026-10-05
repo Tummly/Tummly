@@ -53,6 +53,8 @@ import {
 import {
   pollShopOrderUntilPaid,
 } from "@/api/shopOrdersApi"
+import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
+import { shouldGateFreeProductWrite } from "@/lib/operatorHome/freeProductWriteGate"
 import { createShopOfferCardSetupModule } from "@/lib/operatorShop/createShopOfferCardSetupModule"
 import {
   SHOP_OFFER_CARD_SETUP_COPY,
@@ -68,6 +70,7 @@ type ShopPageProps = {
   mode: DashboardProps["mode"]
   onSelectLocation?: (locationId: number) => void
   paidWriteChrome: ShopPaidWriteChrome
+  subscriptionPlan: string
 }
 
 type ExpressCheckoutState = {
@@ -97,12 +100,15 @@ export function ShopPage({
   mode,
   onSelectLocation,
   paidWriteChrome,
+  subscriptionPlan,
 }: ShopPageProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const productParam = searchParams.get("product")
   const viewParam = searchParams.get("view")
   const shopPayOutcome = searchParams.get("shopPayOutcome")
   const shopOrderId = searchParams.get("shopOrderId")
+  const gateFreeProductWrite = useGateFreeProductWrite()
+  const offerCardSetupEnabled = !shouldGateFreeProductWrite(subscriptionPlan)
 
   const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([])
   const [catalogVatRateBps, setCatalogVatRateBps] = useState(0)
@@ -151,6 +157,7 @@ export function ShopPage({
     () =>
       createShopOfferCardSetupModule({
         locationId: () => selectedLocationId,
+        isEnabled: () => offerCardSetupEnabled,
         getAttached: () => fetchShopOfferCardOffer(selectedLocationId),
         createCatalogOffer: async (body) => {
           const created = await createCatalogOffer(body)
@@ -161,7 +168,7 @@ export function ShopPage({
         onError: (message) => toast.error(message),
         onSuccess: (message) => toast.success(message),
       }),
-    [selectedLocationId]
+    [offerCardSetupEnabled, selectedLocationId]
   )
   const offerCardSetup = useSyncExternalStore(
     offerCardSetupModule.subscribe,
@@ -170,6 +177,10 @@ export function ShopPage({
   )
 
   const requireOfferCardAttach = (): boolean => {
+    if (!offerCardSetupEnabled) {
+      gateFreeProductWrite(() => {})
+      return false
+    }
     if (offerCardSetup.hasAttach) {
       return true
     }

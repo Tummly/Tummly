@@ -7,12 +7,14 @@ function createModule(options?: {
   attached?: ShopOfferCardOfferFact
   failCreate?: boolean
   failAttach?: boolean
+  enabled?: boolean
 }) {
   let attached = options?.attached ?? {
     offerId: null,
     title: null,
     live: false,
   }
+  const getAttached = vi.fn(async () => attached)
   const createCatalogOffer = vi.fn(async () => {
     if (options?.failCreate) {
       throw new Error("create failed")
@@ -33,12 +35,13 @@ function createModule(options?: {
 
   const module = createShopOfferCardSetupModule({
     locationId: () => 9,
-    getAttached: async () => attached,
+    isEnabled: () => options?.enabled !== false,
+    getAttached,
     createCatalogOffer,
     putOfferCardOffer,
   })
 
-  return { module, createCatalogOffer, putOfferCardOffer }
+  return { module, createCatalogOffer, putOfferCardOffer, getAttached }
 }
 
 describe("createShopOfferCardSetupModule", () => {
@@ -63,6 +66,19 @@ describe("createShopOfferCardSetupModule", () => {
     const snap = module.getSnapshot()
     expect(snap.hasAttach).toBe(true)
     expect(snap.isOpen).toBe(false)
+  })
+
+  it("stays closed on Free without calling attach", async () => {
+    const { module, getAttached } = createModule({ enabled: false })
+
+    await module.loadForLocation()
+
+    const snap = module.getSnapshot()
+    expect(snap.loadStatus).toBe("ready")
+    expect(snap.isOpen).toBe(false)
+    expect(snap.hasAttach).toBe(false)
+    expect(getAttached).not.toHaveBeenCalled()
+    expect(module.open()).toBe("noop")
   })
 
   it("Cancel closes without creating", async () => {

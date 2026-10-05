@@ -24,6 +24,8 @@ export type ShopOfferCardSetupSnapshot = {
 
 export type ShopOfferCardSetupAdapters = {
   locationId: () => number | null
+  /** False on Free — no Starter materials / offer creation. */
+  isEnabled: () => boolean
   getAttached: () => Promise<ShopOfferCardOfferFact>
   createCatalogOffer: (
     body: CreateCatalogOfferRequestBody
@@ -156,6 +158,20 @@ export function createShopOfferCardSetupModule(
         return
       }
 
+      // Free accounts have no Starter Offer Card materials or offer creation.
+      if (!adapters.isEnabled()) {
+        state = {
+          ...state,
+          loadStatus: "ready",
+          attached: emptyAttached(),
+          isOpen: false,
+          saveStatus: "idle",
+          saveError: null,
+        }
+        publish()
+        return
+      }
+
       state = {
         ...state,
         loadStatus: "loading",
@@ -193,7 +209,11 @@ export function createShopOfferCardSetupModule(
       }
     },
     openIfNeeded() {
-      if (state.attached.offerId != null || adapters.locationId() == null) {
+      if (
+        !adapters.isEnabled()
+        || state.attached.offerId != null
+        || adapters.locationId() == null
+      ) {
         return "noop"
       }
       state = {
@@ -207,7 +227,7 @@ export function createShopOfferCardSetupModule(
       return "opened"
     },
     open() {
-      if (adapters.locationId() == null) {
+      if (!adapters.isEnabled() || adapters.locationId() == null) {
         return "noop"
       }
       state = {
@@ -273,7 +293,8 @@ export function createShopOfferCardSetupModule(
       const locationId = adapters.locationId()
       const draft = withSetupDefaults(state.draft)
       if (
-        !state.isOpen
+        !adapters.isEnabled()
+        || !state.isOpen
         || locationId == null
         || !canConfirmCampaignCatalogOfferDetails(draft)
       ) {
