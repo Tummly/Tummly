@@ -12,8 +12,6 @@ export const colors = {
   footerBg: "#f9f9fa",
   divider: "#e8e8e8",
   buttonGreen: "#14a74a",
-  /** Outer viewport behind the 20px pad — surrounds the content card. */
-  bodyBg: "#CBCBCB",
 } as const
 
 /** *headline* — Plus Jakarta Sans (Figma Season Mix → role table) */

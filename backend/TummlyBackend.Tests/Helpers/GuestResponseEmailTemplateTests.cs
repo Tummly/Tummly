@@ -137,15 +137,13 @@ namespace TummlyBackend.Tests.Helpers
                 html
             );
             Assert.Contains("BURGERCO-4829", html);
-            Assert.Contains("Copy offer code", html);
+            Assert.DoesNotContain("Copy offer code", html);
             Assert.Contains("Terms apply", html);
             Assert.Contains("Expires: 31 July 2026", html);
             Assert.Contains("border-radius:14px", html);
-            Assert.Contains("border-radius:54px", html);
             Assert.Contains("data-guest-response-offer-qr='1'", html);
             Assert.Contains("data-non-transactional-slot='offer'", html);
             Assert.Contains("#2f2f30", html);
-            Assert.Contains("#232323", html);
             Assert.Contains(
                 OfferClaimQr.ToPngDataUri("BURGERCO-4829"),
                 html
@@ -253,6 +251,30 @@ namespace TummlyBackend.Tests.Helpers
                 html
             );
             Assert.DoesNotContain("unsubscribe?t=", html);
+        }
+
+        [Fact]
+        public void Generate_UsesProvidedBrandLogoUrl_WhenSet()
+        {
+            const string logo =
+                "https://api.tummly.test/api/public/brand-logos/abc.png";
+
+            var html = GuestResponseEmailTemplate.Generate(
+                Env(),
+                brandTitle: "Burger House",
+                brandSubtitle: null,
+                locationAddress: "12 High Street",
+                subject: "Thanks",
+                message: "Body",
+                frontendBaseUrl: "https://app.tummly.test",
+                brandLogoUrl: logo
+            );
+
+            Assert.Contains($"src=\"{logo}\"", html);
+            Assert.DoesNotContain(
+                GuestResponseEmailTemplate.PublicBrandLogoPlaceholderPath,
+                html
+            );
         }
 
         [Fact]

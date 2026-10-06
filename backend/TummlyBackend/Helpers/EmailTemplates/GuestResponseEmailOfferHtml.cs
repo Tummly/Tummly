@@ -73,13 +73,6 @@ namespace TummlyBackend.Helpers.EmailTemplates
                           </td>
                         </tr>
                       </table>
-                      <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse;margin:0 auto 12px auto;{Font}'>
-                        <tr>
-                          <td align='center' bgcolor='#232323' style='padding:16px;border-radius:54px;background-color:#232323;font-size:14px;font-weight:500;line-height:normal;color:#777777;text-align:center;{Font}'>
-                            Copy offer code
-                          </td>
-                        </tr>
-                      </table>
                       <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse;{Font}'>
                         <tr>
                           <td align='left' style='font-size:12px;font-weight:500;line-height:17px;color:rgba(244,244,244,0.5);text-align:left;{Font}'>

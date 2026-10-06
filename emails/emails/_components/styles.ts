@@ -45,16 +45,16 @@ export const footerDividerStyle: CSSProperties = {
   width: "100%",
 }
 
-/** Outer Body — gray frame with 20px pad on all sides. */
+/** Outer Body — edge-to-edge, no gray frame. */
 export const emailBodyStyle: CSSProperties = {
   margin: 0,
-  padding: "20px",
+  padding: 0,
   width: "100%",
-  backgroundColor: colors.bodyBg,
+  backgroundColor: colors.white,
   fontFamily: fontFunctional,
 }
 
-/** Full-width content card inside the gray frame. */
+/** Full-width content card. */
 export const emailContainerStyle: CSSProperties = {
   margin: "0 auto",
   width: "100%",
