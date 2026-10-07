@@ -1052,6 +1052,10 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(json.GetProperty("success").GetBoolean());
             Assert.False(json.GetProperty("ready").GetBoolean());
             Assert.Equal(string.Empty, json.GetProperty("week").GetString());
+            Assert.Equal(
+                WeeklyBriefNotReadyReasons.NoClosedOverlap,
+                json.GetProperty("reason").GetString()
+            );
             Assert.Equal(0, fake.CallCount);
         }
 
@@ -1094,10 +1098,20 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(
                 json.GetProperty("body").TryGetProperty("headline", out _)
             );
+            Assert.True(
+                json.TryGetProperty("insightCandidates", out var candidates)
+            );
+            Assert.True(candidates.GetArrayLength() > 0);
+            Assert.True(
+                json.TryGetProperty("insightNarratives", out var narratives)
+            );
+            Assert.True(narratives.GetArrayLength() > 0);
             Assert.Equal(1, fake.CallCount);
 
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
+            // Lazy / manual POST generate must not notify; Monday job first-write
+            // owns weekly-brief-ready + system email (IWeeklyBriefReadyNotifier).
             Assert.Equal(
                 0,
                 await context.Notifications.CountAsync(n =>
@@ -1184,7 +1198,8 @@ namespace TummlyBackend.Tests.Integration
             var seeded = await SeedOwnerWithLocationAsync(
                 "wb-gen-too-new",
                 weekStartsOn: weekStartsOn,
-                locationCreatedAtUtc: closed.CoverageStartUtc,
+                // Created at coverage end — never lived in the closed week.
+                locationCreatedAtUtc: closed.CoverageEndUtcExclusive,
                 subscriptionPlan: BillingSubscriptionPlans.Growth
             );
 
@@ -1205,6 +1220,10 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(json.GetProperty("success").GetBoolean());
             Assert.False(json.GetProperty("ready").GetBoolean());
             Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
+            Assert.Equal(
+                WeeklyBriefNotReadyReasons.LocationTooNew,
+                json.GetProperty("reason").GetString()
+            );
             Assert.Equal(0, fake.CallCount);
 
             var context = scope.ServiceProvider
@@ -1213,6 +1232,63 @@ namespace TummlyBackend.Tests.Integration
                 0,
                 await context.WeeklyBriefs.CountAsync(row =>
                     row.LocationId == seeded.LocationId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_MidWeekCreate_CreatesReadyEnvelope()
+        {
+            var utcNow = DateTime.UtcNow;
+            var weekStartsOn = CurrentLondonGenerateWeekStartsOn();
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                utcNow,
+                weekStartsOn
+            );
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-gen-mid-week",
+                weekStartsOn: weekStartsOn,
+                // Partial week OK — created after coverage start, before end.
+                locationCreatedAtUtc: closed.CoverageStartUtc.AddDays(2),
+                subscriptionPlan: BillingSubscriptionPlans.Growth
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+            fake.ResetCallCount();
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("success").GetBoolean());
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
+            Assert.Equal(1, fake.CallCount);
+
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                1,
+                await context.WeeklyBriefs.CountAsync(row =>
+                    row.LocationId == seeded.LocationId
+                    && row.WeekKey == closed.WeekKey
+                    && row.Status == WeeklyBriefStatus.Succeeded
+                )
+            );
+            // Lazy generate still does not produce weekly-brief-ready.
+            Assert.Equal(
+                0,
+                await context.Notifications.CountAsync(n =>
+                    n.UserId == seeded.UserId
+                    && n.Type == WeeklyBriefReadyNotifier.NotificationType
                 )
             );
         }
@@ -1251,6 +1327,10 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(json.GetProperty("success").GetBoolean());
             Assert.False(json.GetProperty("ready").GetBoolean());
             Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
+            Assert.Equal(
+                WeeklyBriefNotReadyReasons.Pilot,
+                json.GetProperty("reason").GetString()
+            );
             Assert.Equal(0, fake.CallCount);
 
             var context = scope.ServiceProvider
@@ -1292,6 +1372,130 @@ namespace TummlyBackend.Tests.Integration
             var json = await ReadJsonAsync(secondResponse);
             Assert.True(json.GetProperty("ready").GetBoolean());
             Assert.Equal(1, fake.CallCount);
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_StableMetrics_EmptyWatchNextAndNoRecommendedActions()
+        {
+            var seeded = await SeedEligibleForGenerateAsync("wb-gen-rpta-stable");
+            await SeedStableWeekActivityAsync(
+                seeded.LocationId,
+                seeded.ClosedWeek,
+                needsAttention: false
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            var watchNext = json.GetProperty("body")
+                .GetProperty("watchNext")
+                .EnumerateArray()
+                .Select(el => el.GetString())
+                .ToArray();
+            Assert.Empty(watchNext);
+            Assert.DoesNotContain(
+                FakeWeeklyBriefProvider.LegacyFillerWatchNeedsAttention,
+                watchNext
+            );
+            Assert.DoesNotContain(
+                FakeWeeklyBriefProvider.LegacyFillerWatchOfferRate,
+                watchNext
+            );
+            Assert.Empty(json.GetProperty("recommendedActions").EnumerateArray());
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_NeedsAttention_DistinctWatchNextAndRecommendedAction()
+        {
+            var stable = await SeedEligibleForGenerateAsync("wb-gen-rpta-thin");
+            await SeedStableWeekActivityAsync(
+                stable.LocationId,
+                stable.ClosedWeek,
+                needsAttention: false
+            );
+
+            using (var thinScope = _factory.Services.CreateScope())
+            {
+                var thinFake = thinScope.ServiceProvider
+                    .GetRequiredService<FakeWeeklyBriefProvider>();
+                thinFake.UseDefaultFixtures();
+            }
+
+            using var thinRequest = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={stable.LocationId}",
+                stable.Jwt
+            );
+            var thinResponse = await _client.SendAsync(thinRequest);
+            Assert.Equal(HttpStatusCode.OK, thinResponse.StatusCode);
+            var thinJson = await ReadJsonAsync(thinResponse);
+            var thinWatchNext = thinJson.GetProperty("body")
+                .GetProperty("watchNext")
+                .EnumerateArray()
+                .Select(el => el.GetString())
+                .ToArray();
+            Assert.Empty(thinWatchNext);
+
+            var seeded = await SeedEligibleForGenerateAsync("wb-gen-rpta-needs");
+            await SeedStableWeekActivityAsync(
+                seeded.LocationId,
+                seeded.ClosedWeek,
+                needsAttention: true
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            var watchNext = json.GetProperty("body")
+                .GetProperty("watchNext")
+                .EnumerateArray()
+                .Select(el => el.GetString())
+                .ToArray();
+            Assert.NotEmpty(watchNext);
+            Assert.NotEqual(thinWatchNext, watchNext);
+            Assert.Contains(
+                watchNext,
+                line =>
+                    line is not null
+                    && line.Contains("Needs attention", StringComparison.Ordinal)
+            );
+            Assert.DoesNotContain(
+                FakeWeeklyBriefProvider.LegacyFillerWatchNeedsAttention,
+                watchNext
+            );
+            Assert.DoesNotContain(
+                FakeWeeklyBriefProvider.LegacyFillerWatchOfferRate,
+                watchNext
+            );
+
+            var actions = json.GetProperty("recommendedActions").EnumerateArray().ToList();
+            Assert.Single(actions);
+            Assert.Equal(
+                "feedback-needs-attention",
+                actions[0].GetProperty("kind").GetString()
+            );
+            Assert.True(actions[0].GetProperty("count").GetInt32() > 0);
         }
 
         [Fact]
@@ -2034,9 +2238,9 @@ namespace TummlyBackend.Tests.Integration
         }
 
         /// <summary>
-        /// Seed a location eligible for lazy generate (older than closed week +
-        /// non-Pilot plan). Week-starts-on may be any day; manual generate is
-        /// not limited to IsGenerateDay.
+        /// Seed a location eligible for lazy generate (created before closed-week
+        /// coverage end + non-Pilot plan). Week-starts-on may be any day; manual
+        /// generate is not limited to IsGenerateDay.
         /// </summary>
         private async Task<(
             string Jwt,
@@ -2059,6 +2263,155 @@ namespace TummlyBackend.Tests.Integration
                 subscriptionPlan: BillingSubscriptionPlans.Growth
             );
             return (seeded.Jwt, seeded.LocationId, seeded.UserId, closed);
+        }
+
+        /// <summary>
+        /// Mirror capture + feedback across prior and current closed weeks so
+        /// emit yields sole no-material-change (or needs-attention control only).
+        /// </summary>
+        private async Task SeedStableWeekActivityAsync(
+            int locationId,
+            WeeklyBriefClosedWeek closedWeek,
+            bool needsAttention
+        )
+        {
+            Assert.True(
+                WeeklyBriefWeekKey.TryPriorWeekKey(
+                    closedWeek.WeekKey,
+                    out var priorKey
+                )
+            );
+            Assert.True(
+                WeeklyBriefWeekKey.TryCoverageWindow(
+                    priorKey,
+                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                    out var priorFrom,
+                    out _
+                )
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var location = await context.RestaurantLocations.FindAsync(locationId);
+            Assert.NotNull(location);
+
+            var qr = new QrCode
+            {
+                RestaurantLocationId = locationId,
+                QrType = QrType.CounterCard,
+                Token = $"wbrpta{locationId}{Guid.NewGuid():N}"[..32],
+                Status = QrCodeStatus.Active,
+            };
+            context.QrCodes.Add(qr);
+            await context.SaveChangesAsync();
+
+            for (var i = 0; i < 5; i++)
+            {
+                await AddGuestWithMasterAsync(
+                    context,
+                    location!.RestaurantId,
+                    locationId,
+                    $"Prior Guest {i}",
+                    priorFrom.AddHours(i + 1)
+                );
+                await AddGuestWithMasterAsync(
+                    context,
+                    location.RestaurantId,
+                    locationId,
+                    $"Current Guest {i}",
+                    closedWeek.CoverageStartUtc.AddHours(i + 1)
+                );
+                context.QrScanEvents.Add(
+                    new QrScanEvent
+                    {
+                        RestaurantLocationId = locationId,
+                        QrCodeId = qr.Id,
+                        CreatedAt = priorFrom.AddHours(i + 1),
+                    }
+                );
+                context.QrScanEvents.Add(
+                    new QrScanEvent
+                    {
+                        RestaurantLocationId = locationId,
+                        QrCodeId = qr.Id,
+                        CreatedAt = closedWeek.CoverageStartUtc.AddHours(i + 1),
+                    }
+                );
+            }
+
+            for (var i = 0; i < 3; i++)
+            {
+                context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = locationId,
+                        QrCodeId = qr.Id,
+                        GuestName = $"Prior Feedback {i}",
+                        GuestContact =
+                            $"prior-rpta-{locationId}-{i}@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Steady prior week",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Positive,
+                        WorkflowStatus = FeedbackWorkflowStatus.Resolved,
+                        CreatedAt = priorFrom.AddHours(i + 2),
+                    }
+                );
+                context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = locationId,
+                        QrCodeId = qr.Id,
+                        GuestName = $"Current Feedback {i}",
+                        GuestContact =
+                            $"current-rpta-{locationId}-{i}@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = needsAttention
+                            ? "Needs follow-up"
+                            : "Steady current week",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = needsAttention
+                            ? FeedbackSentiment.Negative
+                            : FeedbackSentiment.Positive,
+                        WorkflowStatus = needsAttention
+                            ? FeedbackWorkflowStatus.New
+                            : FeedbackWorkflowStatus.Resolved,
+                        CreatedAt = closedWeek.CoverageStartUtc.AddHours(i + 2),
+                    }
+                );
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task AddGuestWithMasterAsync(
+            ApplicationDbContext context,
+            int restaurantId,
+            int locationId,
+            string name,
+            DateTime createdAt
+        )
+        {
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurantId,
+                Email = $"wb-rpta-{Guid.NewGuid():N}@example.com",
+                CreatedAt = createdAt,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            context.LocationGuests.Add(
+                new LocationGuest
+                {
+                    RestaurantLocationId = locationId,
+                    MasterGuestId = master.Id,
+                    Name = name,
+                    CreatedAt = createdAt,
+                }
+            );
+            await context.SaveChangesAsync();
         }
 
         private async Task SetBillingStatusAsync(

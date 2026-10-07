@@ -90,11 +90,120 @@ export const WEEKLY_BRIEF_HEADER_CLASS =
 export const WEEKLY_BRIEF_SUBTITLE =
   "A weekly summary of guest capture, feedback, offers and campaign performance."
 
-export const WEEKLY_BRIEF_EMPTY_TITLE =
+/** Default generate weekday label (matches backend DefaultWeekStartsOn). */
+export const WEEKLY_BRIEF_DEFAULT_GENERATE_WEEKDAY_LABEL = "Monday"
+
+/** MVP location timezone when a location has no stored timezone (backend default). */
+export const WEEKLY_BRIEF_DEFAULT_LOCATION_TIME_ZONE_ID = "Europe/London"
+
+export const WEEKLY_BRIEF_EMPTY_TITLE_PENDING =
   "Your first weekly brief will be ready on Monday"
+
+export const WEEKLY_BRIEF_EMPTY_TITLE_GENERATE_DAY =
+  "Your weekly brief is being generated"
+
+export const WEEKLY_BRIEF_EMPTY_TITLE_PILOT =
+  "Weekly brief is not included on Pilot"
 
 export const WEEKLY_BRIEF_EMPTY_HELPER =
   "It will summarise guest activity, feedback themes, offers and campaigns."
+
+export const WEEKLY_BRIEF_EMPTY_HELPER_GENERATE_DAY =
+  "Check back shortly — it usually appears within the hour. If it fails, use Retry."
+
+export const WEEKLY_BRIEF_EMPTY_HELPER_PILOT =
+  "Upgrade to a paid plan to receive your weekly summary of guest activity."
+
+/** Pending (non-generate-day) title — prefer resolveWeeklyBriefEmptyCopy. */
+export const WEEKLY_BRIEF_EMPTY_TITLE = WEEKLY_BRIEF_EMPTY_TITLE_PENDING
+
+export type WeeklyBriefEmptyCopy = {
+  title: string
+  helper: string
+}
+
+/**
+ * Day-aware / Pilot-aware Weekly brief empty copy.
+ * On generate day never promise “will be ready on Monday”.
+ */
+export function resolveWeeklyBriefEmptyCopy(input: {
+  isGenerateDay: boolean
+  isPilot?: boolean
+  generateWeekdayLabel?: string
+}): WeeklyBriefEmptyCopy {
+  if (input.isPilot === true) {
+    return {
+      title: WEEKLY_BRIEF_EMPTY_TITLE_PILOT,
+      helper: WEEKLY_BRIEF_EMPTY_HELPER_PILOT,
+    }
+  }
+
+  if (input.isGenerateDay) {
+    return {
+      title: WEEKLY_BRIEF_EMPTY_TITLE_GENERATE_DAY,
+      helper: WEEKLY_BRIEF_EMPTY_HELPER_GENERATE_DAY,
+    }
+  }
+
+  const weekday =
+    input.generateWeekdayLabel?.trim()
+    || WEEKLY_BRIEF_DEFAULT_GENERATE_WEEKDAY_LABEL
+  return {
+    title: `Your first weekly brief will be ready on ${weekday}`,
+    helper: WEEKLY_BRIEF_EMPTY_HELPER,
+  }
+}
+
+const WEEKDAY_INDEX: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+}
+
+/**
+ * Whether `now` is the configured generate weekday in the location timezone
+ * (same rule as backend WeeklyBriefWeekKey.IsGenerateDay).
+ */
+export function isWeeklyBriefGenerateDay(input?: {
+  now?: Date
+  weekStartsOn?: string | null
+  timeZoneId?: string
+}): boolean {
+  const weekStartsOn = (input?.weekStartsOn ?? "monday").trim().toLowerCase()
+  const startIndex = WEEKDAY_INDEX[weekStartsOn] ?? 1
+  const timeZoneId =
+    input?.timeZoneId?.trim()
+    || WEEKLY_BRIEF_DEFAULT_LOCATION_TIME_ZONE_ID
+  const now = input?.now ?? new Date()
+  const localWeekday = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timeZoneId,
+    weekday: "short",
+  }).format(now)
+  const localIndex = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  }[localWeekday]
+  return localIndex === startIndex
+}
+
+export function capitalizeWeekStartsOnLabel(
+  weekStartsOn?: string | null
+): string {
+  const raw = (weekStartsOn ?? "monday").trim().toLowerCase()
+  if (raw.length === 0) {
+    return WEEKLY_BRIEF_DEFAULT_GENERATE_WEEKDAY_LABEL
+  }
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
 
 export const WEEKLY_BRIEF_EMPTY_COPY_CLASS =
   "flex flex-col gap-2.5 px-4 sm:px-5 md:px-6 text-op-card-subtitle-color"
@@ -121,6 +230,13 @@ export const WEEKLY_BRIEF_DOMAIN_SUMMARY_CLASS =
 
 export const WEEKLY_BRIEF_WATCH_LIST_CLASS =
   "m-0 list-disc space-y-0.5 pl-[21px] text-op-sm font-normal leading-5 text-op-card-subtitle-color"
+
+/** Whether the Watch next block should render (omit when empty). */
+export function shouldShowWeeklyBriefWatchNext(
+  watchNext: readonly string[] | null | undefined
+): boolean {
+  return (watchNext?.length ?? 0) > 0
+}
 
 export const WEEKLY_BRIEF_STATUS_SHELL_CLASS =
   "flex min-h-[120px] flex-col items-center justify-center gap-3 px-4 sm:px-5 md:px-6"

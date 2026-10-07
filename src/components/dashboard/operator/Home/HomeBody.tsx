@@ -80,6 +80,8 @@ type HomeBodyProps = {
   onDismissRecommendation?: () => void
   weeklyBrief: OperatorHomeWeeklyBriefViewModel
   onRetryWeeklyBrief?: () => void
+  /** Pilot plan — empty Weekly brief copy explains exclusion. */
+  isPilot?: boolean
   liveOffersLoadStatus?: "idle" | "loading" | "loaded" | "error"
   liveCards?: readonly OperatorHomeLiveCard[]
   liveOffersError?: string | null
@@ -169,6 +171,7 @@ export function HomeBody({
   onDismissRecommendation,
   weeklyBrief,
   onRetryWeeklyBrief,
+  isPilot = false,
   liveOffersLoadStatus = "idle",
   liveCards = [],
   liveOffersError = null,
@@ -360,6 +363,7 @@ export function HomeBody({
 
       <HomeWeeklyBriefSection
         weeklyBrief={weeklyBrief}
+        isPilot={isPilot}
         onRetry={() => {
           onRetryWeeklyBrief?.()
         }}

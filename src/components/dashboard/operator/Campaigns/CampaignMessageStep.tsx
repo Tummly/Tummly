@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils"
 
 type CampaignMessageStepProps = {
   message: CampaignMessageViewModel
+  /** Workspace brand logo; empty uses the workspace placeholder. */
+  brandLogoUrl?: string | null
   onPrepareDraft: () => void
   onWriteManually: () => void
   onSubjectChange: (value: string) => void
@@ -107,6 +109,7 @@ function EstimatedUsageSummary({
  */
 export function CampaignMessageStep({
   message,
+  brandLogoUrl = null,
   onPrepareDraft,
   onWriteManually,
   onSubjectChange,
@@ -312,6 +315,7 @@ export function CampaignMessageStep({
         message={message.body}
         locationName={message.locationName}
         locationAddress={message.locationAddress}
+        brandLogoUrl={brandLogoUrl}
         offerCoupon={
           message.offerCoupon != null ? (
             <GuestPreviewOfferCoupon coupon={message.offerCoupon} />

@@ -43,6 +43,7 @@ export const CAMPAIGNS_LIST_TABLE_COPY = {
   partsEachSuffix: "parts each",
   processedSuffix: "processed",
   redeemedSuffix: "redeemed",
+  openedSuffix: "opened",
   deleteDraftDialogTitle: "Delete this draft?",
   deleteDraftDialogDescription:
     "This removes the campaign draft. No campaign messages have been sent.",
@@ -274,6 +275,20 @@ export function formatCampaignListRedemptionsLabel(
   return raw
 }
 
+/** Figma Engagement — unique opens as `12 opened` (email; SMS stays dash). */
+export function formatCampaignListEngagementLabel(
+  engagement: string | null | undefined
+): string {
+  const raw = engagement?.trim() ?? ""
+  if (raw.length === 0) {
+    return CAMPAIGNS_LIST_TABLE_COPY.metricDash
+  }
+  if (/^\d+$/.test(raw)) {
+    return `${raw} ${CAMPAIGNS_LIST_TABLE_COPY.openedSuffix}`
+  }
+  return raw
+}
+
 export function mapCampaignListItemToTableRow(
   item: CampaignsListItem,
   nowMs: number = Date.now()
@@ -305,8 +320,7 @@ export function mapCampaignListItemToTableRow(
     offerDetail: resolveOfferDetail(item),
     sendDateLabel: formatCampaignListSendDate(item.sendDate),
     deliveryLabel: formatCampaignListDeliveryLabel(item),
-    // Engagement stays dash until open/click ingestion exists.
-    engagementLabel: CAMPAIGNS_LIST_TABLE_COPY.metricDash,
+    engagementLabel: formatCampaignListEngagementLabel(item.engagement),
     redemptionsLabel: formatCampaignListRedemptionsLabel(item.redemptions),
   }
 }

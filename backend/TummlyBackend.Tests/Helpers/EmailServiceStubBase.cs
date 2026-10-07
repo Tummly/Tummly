@@ -112,6 +112,20 @@ namespace TummlyBackend.Tests.Helpers
             string? ticketSubject = null
         ) => Task.CompletedTask;
 
+        public virtual Task<string?> SendCampaignGuestEmailAsync(
+            string toEmail,
+            string subject,
+            string brandTitle,
+            string? brandSubtitle,
+            string? locationAddress,
+            string message,
+            string? brandLogoUrl = null,
+            GuestResponseEmailOfferBlock? offer = null,
+            string? unsubscribeHref = null,
+            string? ticketSubject = null,
+            IReadOnlyDictionary<string, string>? tags = null
+        ) => Task.FromResult<string?>(null);
+
         public virtual Task SendTeamInvitationEmailAsync(
             string toEmail,
             string subject,

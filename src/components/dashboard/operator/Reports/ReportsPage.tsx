@@ -90,7 +90,8 @@ function HubGuestLoopSection(props: {
       {weeklyBrief.status === "empty" ? (
         <div className="flex flex-col gap-3">
           <p className="m-0 text-sm text-op-text-muted">
-            {REPORTS_HUB_GUEST_LOOP_COPY.emptyHelper}
+            {weeklyBrief.emptyMessage
+              ?? REPORTS_HUB_GUEST_LOOP_COPY.emptyHelper}
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button

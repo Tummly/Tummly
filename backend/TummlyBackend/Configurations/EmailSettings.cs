@@ -26,6 +26,12 @@
         /// </summary>
         public string? QaRedirectTo { get; set; }
 
+        /// <summary>
+        /// Resend webhook signing secret (<c>whsec_…</c>) for open/delivery events.
+        /// When empty, webhook POSTs are rejected.
+        /// </summary>
+        public string? WebhookSigningSecret { get; set; }
+
         public string Username { get; set; } = string.Empty;
 
         public string Password { get; set; } = string.Empty;

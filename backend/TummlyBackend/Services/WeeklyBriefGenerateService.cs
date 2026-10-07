@@ -92,12 +92,24 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var metrics = await LoadMetricsAsync(
+            var metrics = await WeeklyBriefMetricsLoader.LoadAsync(
+                _context,
                 locationId,
                 closedWeek.CoverageStartUtc,
                 closedWeek.CoverageEndUtcExclusive,
                 cancellationToken
             );
+
+            var insightCandidates =
+                await WeeklyBriefInsightCandidateBuild.BuildAsync(
+                    _context,
+                    locationId,
+                    closedWeek.WeekKey,
+                    closedWeek.CoverageStartUtc,
+                    closedWeek.CoverageEndUtcExclusive,
+                    metrics,
+                    cancellationToken: cancellationToken
+                );
 
             WeeklyBriefProviderResult providerResult;
             try
@@ -108,7 +120,8 @@ namespace TummlyBackend.Services
                         WeekKey: closedWeek.WeekKey,
                         CoverageStartUtc: closedWeek.CoverageStartUtc,
                         CoverageEndUtcExclusive: closedWeek.CoverageEndUtcExclusive,
-                        Metrics: metrics
+                        Metrics: metrics,
+                        InsightCandidates: insightCandidates
                     ),
                     cancellationToken
                 );
@@ -147,6 +160,31 @@ namespace TummlyBackend.Services
             }
 
             var body = AttachEchoedCounts(succeeded.Body, metrics);
+            var enrichment = WeeklyBriefInsightNarrativeValidation.AttachCandidates(
+                succeeded.Enrichment,
+                insightCandidates
+            );
+            if (
+                !WeeklyBriefInsightNarrativeValidation.TryValidate(
+                    body,
+                    enrichment,
+                    insightCandidates,
+                    out var validationReason
+                )
+            )
+            {
+                _logger.LogWarning(
+                    "Weekly brief narrative validation failed for location {LocationId} week {WeekKey}: {Reason}",
+                    locationId,
+                    closedWeek.WeekKey,
+                    validationReason
+                );
+                return new WeeklyBriefGenerateResult.Failed(
+                    FailMessage,
+                    Retryable: true
+                );
+            }
+
             var generatedAtUtc = DateTime.UtcNow;
             var row = new WeeklyBrief
             {
@@ -156,12 +194,10 @@ namespace TummlyBackend.Services
                 GeneratedAtUtc = generatedAtUtc,
                 BodyJson = JsonSerializer.Serialize(body, WeeklyBriefStoreJson.Options),
                 MetricsJson = JsonSerializer.Serialize(metrics, WeeklyBriefStoreJson.Options),
-                EnrichmentJson = succeeded.Enrichment is null
-                    ? null
-                    : JsonSerializer.Serialize(
-                        succeeded.Enrichment,
-                        WeeklyBriefStoreJson.Options
-                    ),
+                EnrichmentJson = JsonSerializer.Serialize(
+                    enrichment,
+                    WeeklyBriefStoreJson.Options
+                ),
                 ErrorInfo = null,
             };
 
@@ -207,192 +243,6 @@ namespace TummlyBackend.Services
             }
 
             return new WeeklyBriefGenerateResult.Succeeded(row, Created: true);
-        }
-
-        private async Task<WeeklyBriefMetrics> LoadMetricsAsync(
-            int locationId,
-            DateTime fromUtc,
-            DateTime toUtc,
-            CancellationToken cancellationToken
-        )
-        {
-            var guestsJoined = await _context.LocationGuests
-                .AsNoTracking()
-                .CountAsync(
-                    guest =>
-                        guest.RestaurantLocationId == locationId
-                        && guest.CreatedAt >= fromUtc
-                        && guest.CreatedAt < toUtc,
-                    cancellationToken
-                );
-
-            var qrScanEvents = await _context.QrScanEvents
-                .AsNoTracking()
-                .CountAsync(
-                    scan =>
-                        scan.RestaurantLocationId == locationId
-                        && scan.CreatedAt >= fromUtc
-                        && scan.CreatedAt < toUtc,
-                    cancellationToken
-                );
-
-            var feedbackInWindow = _context.Feedbacks
-                .AsNoTracking()
-                .Where(feedback =>
-                    feedback.RestaurantLocationId == locationId
-                    && feedback.CreatedAt >= fromUtc
-                    && feedback.CreatedAt < toUtc
-                );
-
-            var feedbackCount = await feedbackInWindow.CountAsync(cancellationToken);
-
-            var positiveFeedbackCount = await feedbackInWindow.CountAsync(
-                feedback => feedback.Sentiment == FeedbackSentiment.Positive,
-                cancellationToken
-            );
-            var neutralFeedbackCount = await feedbackInWindow.CountAsync(
-                feedback => feedback.Sentiment == FeedbackSentiment.Neutral,
-                cancellationToken
-            );
-            var negativeFeedbackCount = await feedbackInWindow.CountAsync(
-                feedback => feedback.Sentiment == FeedbackSentiment.Negative,
-                cancellationToken
-            );
-
-            var needsAttentionCount = await feedbackInWindow.CountAsync(
-                feedback =>
-                    feedback.ClassificationStatus == ClassificationStatus.Succeeded
-                    && feedback.Sentiment == FeedbackSentiment.Negative
-                    && feedback.WorkflowStatus != FeedbackWorkflowStatus.Resolved,
-                cancellationToken
-            );
-
-            var tagJsonRows = await feedbackInWindow
-                .Where(feedback =>
-                    feedback.ClassificationStatus == ClassificationStatus.Succeeded
-                    && feedback.DetectedTagsJson != null
-                )
-                .Select(feedback => feedback.DetectedTagsJson)
-                .ToListAsync(cancellationToken);
-
-            var detectedTagCounts = RollUpDetectedTagCounts(tagJsonRows);
-
-            var activeOffers = await _context.CatalogOffers
-                .AsNoTracking()
-                .CountAsync(
-                    offer =>
-                        offer.RestaurantLocationId == locationId
-                        && offer.Status == CatalogOfferStatus.Active,
-                    cancellationToken
-                );
-
-            var offerIssuesInLocation = _context.OfferIssues
-                .AsNoTracking()
-                .Where(issue =>
-                    issue.CatalogOffer != null
-                    && issue.CatalogOffer.RestaurantLocationId == locationId
-                );
-
-            var claimsInWeek = await offerIssuesInLocation.CountAsync(
-                issue =>
-                    issue.ClaimedAtUtc != null
-                    && issue.ClaimedAtUtc >= fromUtc
-                    && issue.ClaimedAtUtc < toUtc,
-                cancellationToken
-            );
-
-            var redemptionsInWeek = await offerIssuesInLocation.CountAsync(
-                issue =>
-                    issue.RedeemedAtUtc != null
-                    && issue.RedemptionVoidedAtUtc == null
-                    && issue.RedeemedAtUtc >= fromUtc
-                    && issue.RedeemedAtUtc < toUtc,
-                cancellationToken
-            );
-
-            var campaignsSentInWeek = await _context.Campaigns
-                .AsNoTracking()
-                .CountAsync(
-                    campaign =>
-                        campaign.RestaurantLocationId == locationId
-                        && campaign.Status == CampaignLifecycleService.SentStatus
-                        && campaign.UpdatedAt >= fromUtc
-                        && campaign.UpdatedAt < toUtc,
-                    cancellationToken
-                );
-
-            var campaignRecipientsReached = await _context.CampaignFrozenRecipients
-                .AsNoTracking()
-                .CountAsync(
-                    recipient =>
-                        recipient.AcceptedAtUtc != null
-                        && recipient.AcceptedAtUtc >= fromUtc
-                        && recipient.AcceptedAtUtc < toUtc
-                        && recipient.Campaign != null
-                        && recipient.Campaign.RestaurantLocationId == locationId,
-                    cancellationToken
-                );
-
-            var unsubscribesInWeek = await _context.LocationActivities
-                .AsNoTracking()
-                .CountAsync(
-                    activity =>
-                        activity.LocationId == locationId
-                        && activity.Kind
-                            == LocationActivityKinds.GuestMarketingUnsubscribed
-                        && activity.OccurredAt >= fromUtc
-                        && activity.OccurredAt < toUtc,
-                    cancellationToken
-                );
-
-            return new WeeklyBriefMetrics(
-                GuestsJoined: guestsJoined,
-                QrScanEvents: qrScanEvents,
-                FeedbackCount: feedbackCount,
-                PositiveFeedbackCount: positiveFeedbackCount,
-                NeutralFeedbackCount: neutralFeedbackCount,
-                NegativeFeedbackCount: negativeFeedbackCount,
-                NeedsAttentionCount: needsAttentionCount,
-                DetectedTagCounts: detectedTagCounts,
-                ActiveOffers: activeOffers,
-                ClaimsInWeek: claimsInWeek,
-                RedemptionsInWeek: redemptionsInWeek,
-                CampaignsSentInWeek: campaignsSentInWeek,
-                CampaignRecipientsReached: campaignRecipientsReached,
-                UnsubscribesInWeek: unsubscribesInWeek
-            );
-        }
-
-        private static IReadOnlyDictionary<string, int> RollUpDetectedTagCounts(
-            IReadOnlyList<string?> tagJsonRows
-        )
-        {
-            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (var json in tagJsonRows)
-            {
-                var keys = FeedbackClassificationMapping.DeserializeDetectedTagKeys(
-                    json
-                );
-                if (keys is null)
-                {
-                    continue;
-                }
-
-                foreach (var key in keys)
-                {
-                    if (!DetectedTagLabels.TryParseKey(key, out var tag))
-                    {
-                        continue;
-                    }
-
-                    var label = DetectedTagLabels.For(tag);
-                    counts[label] = counts.TryGetValue(label, out var current)
-                        ? current + 1
-                        : 1;
-                }
-            }
-
-            return counts;
         }
 
         private static WeeklyBriefBody AttachEchoedCounts(

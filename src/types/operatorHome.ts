@@ -165,7 +165,10 @@ export interface OperatorShellPresentation {
   profileDisplayName: string;
   profileFirstName: string;
   profileInitials: string;
-  /** Normalized Self role under the account trigger; null omits subtitle. */
+  /**
+   * Account trigger subtitle: My Account Job title, else normalized Trial Self
+   * role; null omits subtitle.
+   */
   profileSelfRoleSubtitle: string | null;
   /** Deferred Figma chrome that must not be rendered. */
   omittedNavbarControls: ReadonlyArray<
@@ -273,11 +276,20 @@ export type WeeklyBriefMetrics = {
   unsubscribesInWeek: number;
 };
 
+/** Soft not-ready reason on POST generate (optional on GET). */
+export type WeeklyBriefNotReadyReason =
+  | "location-too-new"
+  | "pilot"
+  | "no-closed-overlap"
+  | "location-missing";
+
 export type WeeklyBriefNotReadyResponse = {
   success: true;
   ready: false;
   locationId: number;
   week: string;
+  /** Present on generate soft gates; omitted on plain GET not-ready. */
+  reason?: WeeklyBriefNotReadyReason | string;
 };
 
 /** Phase-1 Figma meta on the shared ready envelope (Home ignores unused fields). */

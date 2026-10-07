@@ -34,6 +34,13 @@ namespace TummlyBackend.Models
         /// <summary>Billable units on provider accept (Email = 1, SMS = segments).</summary>
         public int? AcceptedUnits { get; set; }
 
+        /// <summary>Resend (or other provider) message id for open/webhook correlation.</summary>
+        [MaxLength(128)]
+        public string? ProviderMessageId { get; set; }
+
+        /// <summary>First open time from provider webhook (email.opened).</summary>
+        public DateTime? OpenedAtUtc { get; set; }
+
         public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     }
 }

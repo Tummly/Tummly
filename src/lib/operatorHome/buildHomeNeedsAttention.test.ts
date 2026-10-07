@@ -43,7 +43,7 @@ describe("buildHomeNeedsAttention", () => {
       body: "Negative feedback is not Resolved.",
       metaKind: "warning",
       metaLine: "Warning · 12 minutes ago · Manchester",
-      ctas: [{ kind: "review-feedback", label: "Review feedback" }],
+      ctas: [{ kind: "review-feedback", label: "Start recovery" }],
     })
   })
 

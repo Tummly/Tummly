@@ -36,7 +36,7 @@ function DrawerOverlay({
       data-slot="drawer-overlay"
       className={cn(
         /* Below Operator toast (112) so toasts stay visible over the dim. */
-        "fixed inset-0 z-[110] bg-black/10 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 z-[110] bg-black/10 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}

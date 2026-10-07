@@ -288,6 +288,18 @@ describe("buildOperatorShellPresentation", () => {
     expect(presentation.profileSelfRoleSubtitle).toBe("Owner");
   });
 
+  it("prefers My Account Job title over Trial Self role for the account subtitle", () => {
+    const presentation = buildOperatorShellPresentation(
+      makeShellInput({
+        jobTitle: "Operations Manager",
+        selfRole: "owner-operator",
+      }),
+      now,
+    );
+
+    expect(presentation.profileSelfRoleSubtitle).toBe("Operations Manager");
+  });
+
   it("passes Paused switcher badge flag through to options", () => {
     const presentation = buildOperatorShellPresentation(
       makeShellInput({

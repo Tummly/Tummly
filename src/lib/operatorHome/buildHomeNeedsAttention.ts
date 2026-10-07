@@ -185,7 +185,8 @@ function mapFeedbackRow(input: {
       locationName: input.locationName,
       nowMs: input.nowMs,
     }),
-    ctas: [{ kind: "review-feedback", label: "Review feedback" }],
+    // Align with Home Recommended resolve CTA (ticket 02) — same Start recovery voice.
+    ctas: [{ kind: "review-feedback", label: "Start recovery" }],
   }
 }
 

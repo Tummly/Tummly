@@ -86,7 +86,7 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<CampaignScheduleCommitResult.Ok>(result);
             Assert.Equal(CampaignScheduleCommitService.SendingStatus, ok.Campaign.Status);
             Assert.Equal("send-now", ok.Campaign.ScheduleMode);
-            Assert.Null(ok.Campaign.ScheduledAtUtc);
+            Assert.Equal(_now, ok.Campaign.ScheduledAtUtc);
             Assert.Equal("Europe/London", ok.Campaign.ScheduleTimeZone);
             Assert.Equal("res-send-1", ok.Campaign.BillingReservationRef);
             Assert.Equal(2, ok.Campaign.ReservedEstimate);

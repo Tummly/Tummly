@@ -36,6 +36,17 @@ describe("assistantWaitPhrases", () => {
       "retrieve"
     )
     expect(classifyAssistantWaitGate("Tell me a joke")).toBe("refuse")
+    expect(classifyAssistantWaitGate("How do I create a campaign?")).toBe(
+      "refuse"
+    )
+    expect(classifyAssistantWaitGate("Buy AI credits with Revolut")).toBe(
+      "refuse"
+    )
+    expect(
+      classifyAssistantWaitGate(
+        "What's billing Does my account have at the moment?"
+      )
+    ).toBe("retrieve")
   })
 
   it("classifies retrieve focus from the ask", () => {
@@ -50,6 +61,51 @@ describe("assistantWaitPhrases", () => {
     ).toBe("offers")
     expect(classifyAssistantWaitRetrieveFocus("What needs attention?")).toBe(
       "attention"
+    )
+    expect(
+      classifyAssistantWaitRetrieveFocus(
+        "What's billing Does my account have at the moment?"
+      )
+    ).toBe("billing")
+  })
+
+  it("refuse and out-of-scope waits never rotate retrieve summary copy", () => {
+    const retrievePreparing = [
+      "Writing the summary…",
+      "Drafting the reply…",
+      "Checking named facts…",
+    ]
+    for (const ask of [
+      "Tell me a joke",
+      "How do I create a campaign?",
+      "Buy AI credits",
+      "who are you",
+    ]) {
+      const plan = planAssistantWaitPhrases(ask)
+      expect(plan.gate).toBe("refuse")
+      for (const step of ["checking", "retrieving", "preparing"] as const) {
+        for (let index = 0; index < 8; index += 1) {
+          const body = assistantWaitPhraseAt(plan, step, index)
+          expect(retrievePreparing).not.toContain(body)
+        }
+      }
+    }
+  })
+
+  it("billing retrieve waits use plan and credit phrases", () => {
+    const plan = planAssistantWaitPhrases(
+      "What's billing Does my account have at the moment?"
+    )
+    expect(plan.gate).toBe("retrieve")
+    expect(plan.retrieveFocus).toBe("billing")
+    expect(assistantWaitPhraseAt(plan, "retrieving", 0)).toBe(
+      "Loading plan and billing status…"
+    )
+    expect(assistantWaitPhraseAt(plan, "preparing", 0)).toBe(
+      "Writing the plan and credits answer…"
+    )
+    expect(assistantWaitPhraseAt(plan, "preparing", 0)).not.toBe(
+      "Writing the summary…"
     )
   })
 

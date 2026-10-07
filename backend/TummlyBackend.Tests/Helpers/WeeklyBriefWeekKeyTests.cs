@@ -119,7 +119,37 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void LocationExistedBeforeClosedWeek_FalseWhenCreatedAtOrAfterCoverageStart()
+        public void LocationExistedBeforeClosedWeek_TrueWhenCreatedMidWeekBeforeCoverageEnd()
+        {
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                London,
+                new DateTime(2026, 8, 16, 23, 0, 0, DateTimeKind.Utc)
+            );
+            // Partial week OK — created after start, strictly before exclusive end.
+            var midWeek = closed.CoverageStartUtc.AddDays(3);
+
+            Assert.True(
+                WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
+                    closed.CoverageStartUtc,
+                    closed
+                )
+            );
+            Assert.True(
+                WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
+                    midWeek,
+                    closed
+                )
+            );
+            Assert.True(
+                WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
+                    closed.CoverageEndUtcExclusive.AddSeconds(-1),
+                    closed
+                )
+            );
+        }
+
+        [Fact]
+        public void LocationExistedBeforeClosedWeek_FalseWhenCreatedAtOrAfterCoverageEnd()
         {
             var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
                 London,
@@ -128,13 +158,13 @@ namespace TummlyBackend.Tests.Helpers
 
             Assert.False(
                 WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
-                    closed.CoverageStartUtc,
+                    closed.CoverageEndUtcExclusive,
                     closed
                 )
             );
             Assert.False(
                 WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
-                    closed.CoverageStartUtc.AddHours(1),
+                    closed.CoverageEndUtcExclusive.AddHours(1),
                     closed
                 )
             );

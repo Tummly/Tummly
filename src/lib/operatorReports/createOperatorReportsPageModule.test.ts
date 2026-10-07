@@ -6,6 +6,7 @@ import {
   type OperatorReportsPageAdapters,
   type OperatorReportsWorkspaceInput,
 } from "@/lib/operatorReports/createOperatorReportsPageModule"
+import { shouldShowWeeklyBriefWatchNext } from "@/lib/operatorReports/weeklyBriefPresentation"
 import type {
   WeeklyBriefBody,
   WeeklyBriefGenerateResponse,
@@ -1353,6 +1354,28 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().weeklyBrief.status).toBe("empty")
     expect(module.getSnapshot().weeklyBrief.week).toBe("2026-W33")
     expect(module.getSnapshot().weeklyBrief.errorMessage).toBeNull()
+    expect(module.getSnapshot().weeklyBrief.emptyMessage).toBeNull()
+  })
+
+  it("sets soft empty message when generate returns location-too-new", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      notReadyWeeklyBriefResponse(locationId)
+    )
+    const generateWeeklyBrief = vi.fn(async (locationId: number) => ({
+      ...notReadyWeeklyBriefResponse(locationId),
+      reason: "location-too-new" as const,
+    }))
+    const adapters = createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+
+    const ok = await module.ensureWeeklyBriefReady()
+    expect(ok).toBe(false)
+    expect(module.getSnapshot().weeklyBrief.status).toBe("empty")
+    expect(module.getSnapshot().weeklyBrief.emptyMessage).toBe(
+      "We do not have enough data to generate a weekly brief yet because this location is newer than the closed week."
+    )
+    expect(module.getSnapshot().weeklyBrief.errorMessage).toBeNull()
   })
 
   it("generates in place from the weekly-brief page empty CTA", async () => {
@@ -1385,6 +1408,46 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().weeklyBrief.executiveSummary).toBe(
       "Loop health held steady this week. Counter cards drove most scans."
     )
+  })
+
+  it("omits Watch next presentation when ready watchNext is empty", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) => ({
+      ...readyWeeklyBriefResponse(locationId),
+      body: { ...weeklyBriefBodyFixture, watchNext: [] },
+    }))
+    const module = createOperatorReportsPageModule(
+      createAdapters({ getWeeklyBrief })
+    )
+    await module.syncWorkspace(workspace())
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+
+    expect(module.getSnapshot().weeklyBrief.body?.watchNext).toEqual([])
+    expect(
+      shouldShowWeeklyBriefWatchNext(
+        module.getSnapshot().weeklyBrief.body?.watchNext
+      )
+    ).toBe(false)
+  })
+
+  it("shows Watch next presentation when ready watchNext has lines", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const module = createOperatorReportsPageModule(
+      createAdapters({ getWeeklyBrief })
+    )
+    await module.syncWorkspace(workspace())
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+
+    expect(
+      shouldShowWeeklyBriefWatchNext(
+        module.getSnapshot().weeklyBrief.body?.watchNext
+      )
+    ).toBe(true)
   })
 
   it("retries weekly brief with GET then generate if still missing", async () => {

@@ -14,7 +14,7 @@ Wire the existing Continue with Google and Continue with Microsoft buttons on ma
 | Scope | Sign-up **and** Sign-in |
 | Password | Social Sign-up skips local password; social-only users have no `PasswordHash` |
 | Sign-in OTP | Same rules as password Sign-in (First Sign-in / no trusted device → OTP; trusted device may skip) |
-| Existing email (no link) | Block; clear message to use email/password (no auto-link) |
+| Existing email (no link) | **Auto-link** verified provider email to existing Operator `User`, then Sign-in (Owner + invited). Admin/Support stay password-only. Late Pending keeps refuse. See `.scratch/kol-demo-gap-fixes/issues/04-oauth-existing-email-lock.md`. |
 | Unknown email on Sign-in | Start Self-service Pilot Sign-up for that email |
 | Terms | After provider return, Terms / Privacy confirm step before Guest Loop |
 | OAuth pattern | Backend Authorization Code redirect (Approach 1) |
@@ -35,8 +35,8 @@ Wire the existing Continue with Google and Continue with Microsoft buttons on ma
 
 ### Out
 
-- Auto-link of Google/Microsoft to an existing password account.
-- Setting a password later in Settings (may follow later).
+- Confirm-then-link / password proof before link (auto-link on verified email is in).
+- Settings UI to manually link or unlink providers.
 - Apple, Auth0/B2C broker, frontend GIS/MSAL token post.
 - Admin / Support social Sign-in.
 - Changing password Sign-in, forgot/reset, or team invite accept beyond clear copy where social-only hits reset (nice-to-have if cheap).
@@ -64,9 +64,13 @@ Click Continue with Google|Microsoft
 ### Matching rules (callback, order)
 
 1. Find `UserExternalLogin` by `(Provider, ProviderSubject)` → Sign-in path.
-2. Else if email matches an existing `User` → block (`account_exists`). No auto-link.
+2. Else if email matches an existing Operator `User` → **auto-link** that
+   provider (when no row for this provider yet) → Sign-in path. If this
+   provider is already linked under a different subject → `failed` (do not
+   rebind).
 3. Else if email matches Admin or Support → reject social (password-only).
-4. Else if email matches a **Complete** PendingSignup → block (`account_exists`).
+4. Else if email matches a late / non-resumable PendingSignup → block
+   (`account_exists`) with Sign-up-in-progress copy.
 5. Else → Sign-up path (Terms → create or resume incomplete PendingSignup for that email; set social fields; after Terms → `Verified`).
 
 Trust only provider emails that are present and marked verified. Reject otherwise.

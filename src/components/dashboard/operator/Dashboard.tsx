@@ -360,6 +360,7 @@ function DashboardContent({ mode }: DashboardProps) {
     activationExpiresAt: workspace.snapshot.activationExpiresAt,
     subscriptionPlan: workspace.snapshot.subscriptionPlan,
     billingStatus: workspace.snapshot.billingStatus,
+    jobTitle: workspace.snapshot.jobTitle,
     selfRole: workspace.snapshot.selfRole,
     permissionRole: workspace.snapshot.permissionRole,
     billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
@@ -393,7 +394,7 @@ function DashboardContent({ mode }: DashboardProps) {
       presentation={presentation}
       onSelectLocation={handleSelectLocation}
       onSignOut={handleSignOut}
-      onOperatorDisplayNameChange={workspace.applyOperatorDisplayName}
+      onOperatorProfileChange={workspace.applyOperatorProfile}
       notifications={{
         snapshot: notifications.snapshot,
         onOpen: () => {

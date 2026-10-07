@@ -93,14 +93,16 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var bag = input.InsightCandidates;
             var body =
                 _mode == Mode.SucceedWith && _nextBody is not null
                     ? _nextBody
-                    : FixtureFor(input.Metrics);
+                    : FixtureFor(input.Metrics, bag);
             var enrichment =
                 _mode == Mode.SucceedWith
-                    ? _nextEnrichment ?? FixtureEnrichmentFor(input.Metrics, body)
-                    : FixtureEnrichmentFor(input.Metrics, body);
+                    ? _nextEnrichment
+                        ?? FixtureEnrichmentFor(input.Metrics, body, bag)
+                    : FixtureEnrichmentFor(input.Metrics, body, bag);
 
             return Task.FromResult<WeeklyBriefProviderResult>(
                 new WeeklyBriefProviderResult.Succeeded(body, enrichment)
@@ -110,7 +112,10 @@ namespace TummlyBackend.Services
         /// <summary>
         /// Deterministic CI fixture from the metrics bag (no guest PII).
         /// </summary>
-        public static WeeklyBriefBody FixtureFor(WeeklyBriefMetrics metrics)
+        public static WeeklyBriefBody FixtureFor(
+            WeeklyBriefMetrics metrics,
+            WeeklyBriefInsightCandidateBag? insightCandidates = null
+        )
         {
             var captureHasData =
                 metrics.GuestsJoined > 0 || metrics.QrScanEvents > 0;
@@ -155,11 +160,7 @@ namespace TummlyBackend.Services
                         : WeeklyBriefStructuredOutput.EmptyCampaignsSummary,
                     EchoedCounts: null
                 ),
-                WatchNext:
-                [
-                    "Watch feedback Needs attention volume next week.",
-                    "Keep an eye on offer claim-to-redemption rate.",
-                ]
+                WatchNext: FixtureWatchNext(metrics, insightCandidates)
             );
         }
 
@@ -168,7 +169,8 @@ namespace TummlyBackend.Services
         /// </summary>
         public static WeeklyBriefEnrichment FixtureEnrichmentFor(
             WeeklyBriefMetrics metrics,
-            WeeklyBriefBody body
+            WeeklyBriefBody body,
+            WeeklyBriefInsightCandidateBag? insightCandidates = null
         )
         {
             var executiveSummary =
@@ -193,6 +195,7 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // actionWording only when a control-signal kind fires (NeedsAttention gate).
             var actionWording = new List<WeeklyBriefEnrichmentActionWording>();
             if (metrics.NeedsAttentionCount > 0)
             {
@@ -208,8 +211,208 @@ namespace TummlyBackend.Services
             return new WeeklyBriefEnrichment(
                 ExecutiveSummary: executiveSummary,
                 FeedbackSummary: feedbackSummary,
-                ActionWording: actionWording
+                ActionWording: actionWording,
+                InsightNarratives: FixtureNarratives(insightCandidates),
+                InsightCandidates: insightCandidates?.Candidates
             );
+        }
+
+        /// <summary>
+        /// Legacy fixed filler strings — must never appear on metrics-shaped /
+        /// generate-path fixtures (lock 05 / KOL-RPTA-004).
+        /// </summary>
+        public const string LegacyFillerWatchNeedsAttention =
+            "Watch feedback Needs attention volume next week.";
+
+        public const string LegacyFillerWatchOfferRate =
+            "Keep an eye on offer claim-to-redemption rate.";
+
+        private static IReadOnlyList<string> FixtureWatchNext(
+            WeeklyBriefMetrics metrics,
+            WeeklyBriefInsightCandidateBag? bag
+        )
+        {
+            // Null bag: metrics-shaped only (no fixed unrelated filler).
+            if (bag is null)
+            {
+                if (metrics.NeedsAttentionCount > 0)
+                {
+                    return ["Watch Needs attention volume next week."];
+                }
+
+                return [];
+            }
+
+            if (WeeklyBriefInsightNarrativeValidation.IsSoleNoMaterialChange(bag))
+            {
+                return [];
+            }
+
+            var lines = new List<string>();
+            foreach (var candidate in bag.Candidates.Take(3))
+            {
+                lines.Add(
+                    candidate.Type switch
+                    {
+                        WeeklyBriefInsightCandidates.TypeControlSignal
+                            when candidate.ActionKind
+                                == WeeklyBriefInsightCandidates.ActionFeedbackNeedsAttention
+                            => "Watch Needs attention volume next week.",
+                        WeeklyBriefInsightCandidates.TypeControlSignal
+                            or WeeklyBriefInsightCandidates.TypeFunnelDrop
+                            => "Watch the flagged control signal next week.",
+                        WeeklyBriefInsightCandidates.TypeMeaningfulChange
+                            => "Watch the material metric change next week.",
+                        WeeklyBriefInsightCandidates.TypeEmergingTheme
+                            => "Watch the emerging feedback theme next week.",
+                        WeeklyBriefInsightCandidates.TypeDataQualityIssue
+                            => "Watch data coverage improve next week.",
+                        WeeklyBriefInsightCandidates.TypeSustainedTrend
+                            => "Watch the sustained metric trend next week.",
+                        _ => "Watch the week’s insight candidate next week.",
+                    }
+                );
+            }
+
+            return lines.Count > 0
+                ? lines
+                : ["Watch the week’s insight candidate next week."];
+        }
+
+        private static IReadOnlyList<WeeklyBriefInsightNarrative> FixtureNarratives(
+            WeeklyBriefInsightCandidateBag? bag
+        )
+        {
+            if (bag is null || bag.Candidates.Count == 0)
+            {
+                return [];
+            }
+
+            var narratives = new List<WeeklyBriefInsightNarrative>(bag.Candidates.Count);
+            foreach (var candidate in bag.Candidates)
+            {
+                var (observation, interpretation, recommendation) =
+                    FixtureNarrativeCopy(candidate);
+                narratives.Add(
+                    new WeeklyBriefInsightNarrative(
+                        candidate.Id,
+                        observation,
+                        interpretation,
+                        recommendation
+                    )
+                );
+            }
+
+            return narratives;
+        }
+
+        private static (
+            string Observation,
+            string Interpretation,
+            string? Recommendation
+        ) FixtureNarrativeCopy(WeeklyBriefInsightCandidate candidate)
+        {
+            if (
+                string.Equals(
+                    candidate.Type,
+                    WeeklyBriefInsightCandidates.TypeNoMaterialChange,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return (
+                    "No insight candidate cleared thresholds this week.",
+                    "Treat the week as stable for planning.",
+                    null
+                );
+            }
+
+            if (
+                string.Equals(
+                    candidate.Type,
+                    WeeklyBriefInsightCandidates.TypeControlSignal,
+                    StringComparison.Ordinal
+                )
+                || string.Equals(
+                    candidate.Type,
+                    WeeklyBriefInsightCandidates.TypeFunnelDrop,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                var count = SnapshotInt(candidate, "needsAttentionCount")
+                    ?? SnapshotInt(candidate, "count")
+                    ?? SnapshotInt(candidate, "scans");
+                var observation = count is int n
+                    ? $"Control signal cleared with value {n}."
+                    : "Control signal cleared for this week.";
+                return (
+                    observation,
+                    "This coincides with an actionable operational risk.",
+                    "Open the matching recommended action."
+                );
+            }
+
+            if (
+                string.Equals(
+                    candidate.Type,
+                    WeeklyBriefInsightCandidates.TypeMeaningfulChange,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                var current = SnapshotInt(candidate, "current");
+                var prior = SnapshotInt(candidate, "prior");
+                var observation =
+                    current is int c && prior is int p
+                        ? $"Metric moved from {p} to {c}."
+                        : "A material week-over-week change cleared.";
+                return (
+                    observation,
+                    "The change may be related to guest activity shifts.",
+                    null
+                );
+            }
+
+            if (
+                string.Equals(
+                    candidate.Type,
+                    WeeklyBriefInsightCandidates.TypeDataQualityIssue,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return (
+                    "Activity coverage is limited this week.",
+                    "Treat patterns as directional until more domains have data.",
+                    null
+                );
+            }
+
+            return (
+                "An insight candidate cleared for this week.",
+                "Review the candidate evidence before acting.",
+                null
+            );
+        }
+
+        private static int? SnapshotInt(
+            WeeklyBriefInsightCandidate candidate,
+            string key
+        )
+        {
+            if (!candidate.Evidence.Snapshot.TryGetValue(key, out var value))
+            {
+                return null;
+            }
+
+            return value switch
+            {
+                int i => i,
+                long l => (int)l,
+                double d => (int)Math.Round(d, MidpointRounding.AwayFromZero),
+                _ => null,
+            };
         }
     }
 }

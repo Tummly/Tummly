@@ -121,7 +121,7 @@ export const OPERATOR_OFFERS_VIEW_SCOPED_EMPTY_COPY: Record<
   },
   sent: {
     title: "No closed offers yet",
-    helper: "Paused, expired and archived offers will appear here.",
+    helper: "Paused or expired offers will appear here.",
   },
 }
 

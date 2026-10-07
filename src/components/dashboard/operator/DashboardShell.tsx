@@ -64,8 +64,11 @@ type DashboardShellProps = {
   presentation: OperatorShellPresentation
   onSelectLocation: (locationId: number) => void
   onSignOut: () => void
-  /** Refresh navbar name after My Account profile save. */
-  onOperatorDisplayNameChange?: (fullName: string) => void
+  /** Refresh navbar name + Job title subtitle after My Account profile save. */
+  onOperatorProfileChange?: (profile: {
+    fullName: string
+    jobTitle: string | null
+  }) => void
   hideNavbar?: boolean
   notifications?: {
     snapshot: OperatorNotificationsSnapshot
@@ -160,7 +163,7 @@ export function DashboardShell({
   presentation,
   onSelectLocation,
   onSignOut,
-  onOperatorDisplayNameChange,
+  onOperatorProfileChange,
   notifications,
   aiAssistant,
   globalSearch,
@@ -377,7 +380,7 @@ export function DashboardShell({
       <MyAccountDialog
         open={myAccountOpen}
         onOpenChange={setMyAccountOpen}
-        onProfileSaved={onOperatorDisplayNameChange}
+        onProfileSaved={onOperatorProfileChange}
       />
 
       {notifications ? (

@@ -15,7 +15,7 @@ namespace TummlyBackend.Helpers
 
         public const string HttpClientName = "AzureOpenAIHomeRecommendation";
 
-        public const string PromptSchemaRevision = "2026-08-21";
+        public const string PromptSchemaRevision = "2026-10-07";
 
         private static readonly HashSet<string> AllowedNativeTypes =
             new(StringComparer.Ordinal)
@@ -230,6 +230,12 @@ namespace TummlyBackend.Helpers
                 thank-or-follow-guest → open-guest,
                 promote-or-fix-offer → open-offer.
                 Entity ids may be null (domain list destination).
+                For review-open-feedback: opportunity and whyBullets must name
+                openFeedbackCount / needsAttentionCount and urgency to respond
+                or start recovery. Do not stop at “go look at Feedback” or
+                “view the inbox” — push resolve work (respond / follow up /
+                recovery). Set feedbackId only when metrics imply a single
+                actionable Needs attention (or single open) item; otherwise null.
                 No campaign draftPrefill, schedule, send, or credit language.
                 """;
 

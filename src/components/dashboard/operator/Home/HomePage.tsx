@@ -13,8 +13,6 @@ import {
 } from "@/lib/operatorHome/activatePilotFromFree"
 import { shouldGateFreeProductWrite } from "@/lib/operatorHome/freeProductWriteGate"
 import { resolveOperatorHomeHeroMode } from "@/lib/operatorHome/heroPresentation"
-import { homeCampaignRecommendationDraftPrefill } from "@/lib/operatorHome/homeCampaignRecommendationDraftPrefill"
-import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecommendationPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   operatorDashboardCampaignDetailsPath,
@@ -25,6 +23,7 @@ import {
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import { NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { planHomeNeedsAttentionCta } from "@/lib/operatorHome/planHomeNeedsAttentionCta"
+import { planHomeRecommendationPrimaryAction } from "@/lib/operatorHome/planHomeRecommendationPrimaryAction"
 import type { HomeRecommendation } from "@/types/operatorHome"
 import { HELP_CENTRE_URL } from "@/config/support"
 import { useState } from "react"
@@ -91,82 +90,36 @@ export function HomePage({
   const handleRecommendationPrimaryAction = (
     recommendation: HomeRecommendation
   ) => {
-    if (isHomeRecommendationCampaignType(recommendation.type)) {
+    if (selectedLocationId == null) {
+      return
+    }
+
+    const plan = planHomeRecommendationPrimaryAction({
+      recommendation,
+      mode,
+      locationId: selectedLocationId,
+    })
+
+    if (plan.kind === "noop") {
+      return
+    }
+
+    if (plan.kind === "open-campaign-draft") {
       if (shouldGateFreeProductWrite(subscriptionPlan)) {
         requestActivateDialog()
         return
       }
-      const draftPrefill =
-        homeCampaignRecommendationDraftPrefill(recommendation)
-      if (draftPrefill != null) {
-        setCampaignsIntent({
-          openFromRecommendation: { draftPrefill },
-        })
-      }
-      navigate(
-        operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
-      )
+      setCampaignsIntent({
+        openFromRecommendation: { draftPrefill: plan.draftPrefill },
+      })
+      navigate(plan.path)
       return
     }
 
-    const action = recommendation.action
-    if (action == null) {
-      switch (recommendation.type) {
-        case "review-open-feedback":
-          navigate(
-            operatorDashboardNavPath(mode, "feedback", selectedLocationId)
-          )
-          return
-        case "thank-or-follow-guest":
-          navigate(
-            operatorDashboardNavPath(mode, "guests", selectedLocationId)
-          )
-          return
-        case "promote-or-fix-offer":
-          navigate(
-            operatorDashboardNavPath(mode, "offers", selectedLocationId)
-          )
-          return
-        default:
-          return
-      }
+    if (plan.feedbackInbox != null) {
+      setFeedbackInboxIntent(plan.feedbackInbox)
     }
-
-    switch (action.kind) {
-      case "open-feedback":
-        if (action.feedbackId != null) {
-          void home.openFeedbackDetails(action.feedbackId)
-        } else {
-          navigate(
-            operatorDashboardNavPath(mode, "feedback", selectedLocationId)
-          )
-        }
-        return
-      case "open-guest":
-        if (action.locationGuestId != null) {
-          navigateToGuestProfile(action.locationGuestId)
-        } else {
-          navigate(
-            operatorDashboardNavPath(mode, "guests", selectedLocationId)
-          )
-        }
-        return
-      case "open-offer":
-        if (action.offerId != null) {
-          navigate(
-            operatorDashboardOfferDetailsPath(
-              mode,
-              action.offerId,
-              selectedLocationId
-            )
-          )
-        } else {
-          navigate(
-            operatorDashboardNavPath(mode, "offers", selectedLocationId)
-          )
-        }
-        return
-    }
+    navigate(plan.path)
   }
 
   const viewModel = home.snapshot.viewModel
@@ -364,6 +317,7 @@ export function HomePage({
         onRetryWeeklyBrief={() => {
           void home.retryWeeklyBrief()
         }}
+        isPilot={subscriptionPlan === "Pilot"}
         feedbackDetails={home.snapshot.feedbackDetails}
         onViewFeedback={(feedbackId) => {
           void home.openFeedbackDetails(feedbackId)

@@ -78,17 +78,27 @@ describe("mapCampaignListItemToTableRow", () => {
     expect(row.statusLabel).toBe("Partially sent")
   })
 
-  it("always dashes Engagement even when the API sends a value", () => {
+  it("formats Engagement open counts from the list API", () => {
     const row = mapCampaignListItemToTableRow(
       sampleItem({
         status: "sent",
-        engagement: "12%",
+        engagement: "12",
         delivery: "98",
         recipientCount: 100,
       })
     )
-    expect(row.engagementLabel).toBe("—")
+    expect(row.engagementLabel).toBe("12 opened")
     expect(row.deliveryLabel).toBe("98 of 100 processed")
+  })
+
+  it("dashes Engagement when the API sends null", () => {
+    const row = mapCampaignListItemToTableRow(
+      sampleItem({
+        status: "sent",
+        engagement: null,
+      })
+    )
+    expect(row.engagementLabel).toBe("—")
   })
 
   it("prefers catalog Offer title and expiry over stance label", () => {

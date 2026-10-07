@@ -77,7 +77,7 @@ namespace TummlyBackend.Services
             }
 
             var now = _utcNow();
-            DateTime? scheduledAtUtc = null;
+            DateTime? scheduledAtUtc;
             if (mode == ScheduleLaterMode)
             {
                 if (!request.ScheduledAtUtc.HasValue)
@@ -101,6 +101,11 @@ namespace TummlyBackend.Services
                             "scheduledAtUtc must be strictly after the commit instant.",
                     };
                 }
+            }
+            else
+            {
+                // Send-now — stamp send instant for list Send date (same field).
+                scheduledAtUtc = now;
             }
 
             var entity = await _context.Campaigns

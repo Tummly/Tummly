@@ -438,7 +438,9 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
       {weeklyBrief.status === "empty" ? (
         <ReportsEmptyState
           title={WEEKLY_BRIEF_PAGE_COPY.emptyTitle}
-          subtitle={WEEKLY_BRIEF_PAGE_COPY.emptySubtitle}
+          subtitle={
+            weeklyBrief.emptyMessage ?? WEEKLY_BRIEF_PAGE_COPY.emptySubtitle
+          }
           action={
             <Button
               type="button"

@@ -143,15 +143,19 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            return MapLoopResult(loop);
+            return MapLoopResult(loop, input);
         }
 
-        private AttemptResult MapLoopResult(AzureOpenAIOneWaveResult loop)
+        private AttemptResult MapLoopResult(
+            AzureOpenAIOneWaveResult loop,
+            WeeklyBriefProviderInput input
+        )
             => loop switch
             {
                 AzureOpenAIOneWaveResult.Succeeded succeeded =>
                     WeeklyBriefStructuredOutput.TryParseModelContent(
                         succeeded.Content,
+                        input.InsightCandidates,
                         out var output,
                         out var enrichment,
                         out var invalidOutput

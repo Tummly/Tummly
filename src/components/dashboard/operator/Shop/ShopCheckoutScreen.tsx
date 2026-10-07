@@ -1031,7 +1031,7 @@ export function ShopCheckoutScreen({
         <Dialog open={isEditQuantityOpen} onOpenChange={setIsEditQuantityOpen}>
           <DialogContent
             className="z-[200] w-full max-w-sm gap-6 rounded-sm border border-op-border-default bg-op-card-background p-6 text-op-text-primary shadow-2xl"
-            overlayClassName="z-[190] bg-black/60 backdrop-blur-xs"
+            overlayClassName="z-[190] bg-black/60"
           >
             <DialogHeader className="text-left">
               <DialogTitle className="text-lg font-bold text-op-text-primary">

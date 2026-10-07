@@ -23,6 +23,20 @@ import type {
 
 const OMITTED_NAVBAR_CONTROLS = ["search", "help"] as const
 
+/**
+ * Account-menu subtitle: My Account Job title wins; otherwise Trial Self role.
+ */
+export function resolveProfileSubtitle(
+  jobTitle: string | null | undefined,
+  selfRole: string | null | undefined
+): string | null {
+  const trimmedJob = jobTitle?.trim()
+  if (trimmedJob) {
+    return trimmedJob
+  }
+  return formatSelfRoleSubtitle(selfRole)
+}
+
 /** Shell-facing inputs from the Operator workspace session (+ active page chrome). */
 export type BuildOperatorShellPresentationInput = {
   operatorDisplayName: string
@@ -30,6 +44,8 @@ export type BuildOperatorShellPresentationInput = {
   subscriptionPlan: string
   /** Soft lock / Dormant drives Lock Alert; omit or Active hides it. */
   billingStatus?: string | null
+  /** My Account Job title; preferred over Trial Self role for the account subtitle. */
+  jobTitle?: string | null
   selfRole?: string | null
   /** Restaurant Permission role; gates Choose a plan with Billing & credits access. */
   permissionRole?: string | null
@@ -90,7 +106,10 @@ export function buildOperatorShellPresentation(
     profileDisplayName: input.operatorDisplayName,
     profileFirstName: getOperatorFirstName(input.operatorDisplayName),
     profileInitials: getOperatorInitials(input.operatorDisplayName),
-    profileSelfRoleSubtitle: formatSelfRoleSubtitle(input.selfRole ?? null),
+    profileSelfRoleSubtitle: resolveProfileSubtitle(
+      input.jobTitle ?? null,
+      input.selfRole ?? null
+    ),
     omittedNavbarControls: [...OMITTED_NAVBAR_CONTROLS],
     sidebarNav: getOperatorSidebarNav(activeNavId, input.navTargets, {
       hideTeamPermissions: input.hideTeamPermissions,

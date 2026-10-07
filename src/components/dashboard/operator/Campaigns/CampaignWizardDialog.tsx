@@ -41,7 +41,7 @@ import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboard
 type CampaignWizardDialogProps = {
   snapshot: CampaignWizardSnapshot
   dashboardMode: OperatorDashboardMode
-  /** Settings brand logo for Review guest-preview email chrome. */
+  /** Workspace brand logo for guest-preview email chrome. */
   brandLogoUrl?: string | null
   onRequestClose: () => void
   onSaveAndExit: () => void
@@ -364,6 +364,7 @@ export function CampaignWizardDialog({
         ) : isMessage ? (
           <CampaignMessageStep
             message={snapshot.message!}
+            brandLogoUrl={brandLogoUrl}
             onPrepareDraft={onPrepareDraft}
             onWriteManually={onWriteManually}
             onSubjectChange={onSubjectChange}

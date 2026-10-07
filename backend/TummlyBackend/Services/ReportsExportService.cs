@@ -119,9 +119,14 @@ namespace TummlyBackend.Services
                 toUtc,
                 cancellationToken
             );
+            var locationName = await ResolveLocationNameAsync(
+                locationId,
+                cancellationToken
+            );
             var (content, fileName) = ReportsExportPackWriter.RenderCaptureCsv(
                 dto,
                 locationId,
+                locationName,
                 DateTime.UtcNow
             );
             return new ReportsExportFileResult

@@ -26,11 +26,19 @@ import {
   RECOMMENDED_SECTION_CLASS,
   WEEKLY_BRIEF_EMPTY_HELPER,
   WEEKLY_BRIEF_EMPTY_HELPER_CLASS,
+  WEEKLY_BRIEF_EMPTY_HELPER_GENERATE_DAY,
+  WEEKLY_BRIEF_EMPTY_HELPER_PILOT,
   WEEKLY_BRIEF_EMPTY_TITLE,
   WEEKLY_BRIEF_EMPTY_TITLE_CLASS,
+  WEEKLY_BRIEF_EMPTY_TITLE_GENERATE_DAY,
+  WEEKLY_BRIEF_EMPTY_TITLE_PILOT,
   WEEKLY_BRIEF_HEADER_CLASS,
   WEEKLY_BRIEF_SECTION_CLASS,
   WEEKLY_BRIEF_SUBTITLE,
+  capitalizeWeekStartsOnLabel,
+  isWeeklyBriefGenerateDay,
+  resolveWeeklyBriefEmptyCopy,
+  shouldShowWeeklyBriefWatchNext,
 } from "./operatorHomeSectionPresentation"
 
 describe("operatorHomeSectionPresentation", () => {
@@ -82,6 +90,76 @@ describe("operatorHomeSectionPresentation", () => {
     expect(WEEKLY_BRIEF_EMPTY_HELPER).toContain("summarise guest activity")
   })
 
+  it("resolves day-aware weekly brief empty copy", () => {
+    expect(
+      resolveWeeklyBriefEmptyCopy({ isGenerateDay: false })
+    ).toEqual({
+      title: WEEKLY_BRIEF_EMPTY_TITLE,
+      helper: WEEKLY_BRIEF_EMPTY_HELPER,
+    })
+    expect(
+      resolveWeeklyBriefEmptyCopy({ isGenerateDay: true })
+    ).toEqual({
+      title: WEEKLY_BRIEF_EMPTY_TITLE_GENERATE_DAY,
+      helper: WEEKLY_BRIEF_EMPTY_HELPER_GENERATE_DAY,
+    })
+    expect(
+      resolveWeeklyBriefEmptyCopy({
+        isGenerateDay: true,
+      }).title
+    ).not.toMatch(/will be ready on Monday/i)
+    expect(
+      resolveWeeklyBriefEmptyCopy({
+        isGenerateDay: false,
+        generateWeekdayLabel: "Friday",
+      }).title
+    ).toBe("Your first weekly brief will be ready on Friday")
+  })
+
+  it("surfaces Pilot reason in weekly brief empty copy", () => {
+    expect(
+      resolveWeeklyBriefEmptyCopy({
+        isGenerateDay: true,
+        isPilot: true,
+      })
+    ).toEqual({
+      title: WEEKLY_BRIEF_EMPTY_TITLE_PILOT,
+      helper: WEEKLY_BRIEF_EMPTY_HELPER_PILOT,
+    })
+    expect(
+      resolveWeeklyBriefEmptyCopy({
+        isGenerateDay: false,
+        isPilot: true,
+      }).title
+    ).toBe(WEEKLY_BRIEF_EMPTY_TITLE_PILOT)
+  })
+
+  it("detects generate day in Europe/London for week-starts-on", () => {
+    // Monday 2026-08-17 00:00 BST = 2026-08-16 23:00 UTC
+    const monday = new Date("2026-08-16T23:00:00.000Z")
+    expect(
+      isWeeklyBriefGenerateDay({
+        now: monday,
+        weekStartsOn: "monday",
+      })
+    ).toBe(true)
+    expect(
+      isWeeklyBriefGenerateDay({
+        now: monday,
+        weekStartsOn: "friday",
+      })
+    ).toBe(false)
+    // Tuesday London
+    const tuesday = new Date("2026-08-17T23:00:00.000Z")
+    expect(
+      isWeeklyBriefGenerateDay({
+        now: tuesday,
+        weekStartsOn: "monday",
+      })
+    ).toBe(false)
+    expect(capitalizeWeekStartsOnLabel("friday")).toBe("Friday")
+  })
+
   it("uses Figma recommended empty shell", () => {
     expect(RECOMMENDED_SECTION_CLASS).toContain("px-4")
     expect(RECOMMENDED_SECTION_CLASS).toContain("md:py-[25px]")
@@ -116,6 +194,17 @@ describe("operatorHomeSectionPresentation", () => {
       "text-op-empty-title-color"
     )
     expect(WEEKLY_BRIEF_EMPTY_HELPER_CLASS).toContain("font-normal")
+  })
+
+  it("omits Watch next when empty and shows when lines exist", () => {
+    expect(shouldShowWeeklyBriefWatchNext([])).toBe(false)
+    expect(shouldShowWeeklyBriefWatchNext(null)).toBe(false)
+    expect(shouldShowWeeklyBriefWatchNext(undefined)).toBe(false)
+    expect(
+      shouldShowWeeklyBriefWatchNext([
+        "Watch feedback Needs attention volume next week.",
+      ])
+    ).toBe(true)
   })
 
   it("uses responsive latest activity chrome", () => {

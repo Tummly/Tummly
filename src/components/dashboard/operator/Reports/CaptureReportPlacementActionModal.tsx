@@ -160,7 +160,7 @@ export function CaptureReportPlacementActionModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="z-[200] max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-md border border-op-border-default bg-op-card-background p-6 text-op-text-primary shadow-2xl"
-        overlayClassName="z-[190] bg-black/60 backdrop-blur-xs"
+        overlayClassName="z-[190] bg-black/60"
       >
         {/* VIEW QR DIALOG */}
         {actionType === "view-qr" && (

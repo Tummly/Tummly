@@ -23,6 +23,7 @@ namespace TummlyBackend.Services
         private readonly IAssistantCaptureRetrieve _captureRetrieve;
         private readonly IAssistantHomeKpiRetrieve _homeRetrieve;
         private readonly IAssistantGuestsRetrieve _guestsRetrieve;
+        private readonly IBillingCreditsService? _billingCredits;
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly TimeProvider _clock;
 
@@ -34,6 +35,7 @@ namespace TummlyBackend.Services
             IAssistantHomeKpiRetrieve homeRetrieve,
             IAssistantGuestsRetrieve guestsRetrieve,
             IRestaurantPermissionHelper permissions,
+            IBillingCreditsService? billingCredits = null,
             TimeProvider? timeProvider = null
         )
         {
@@ -43,6 +45,7 @@ namespace TummlyBackend.Services
             _captureRetrieve = captureRetrieve;
             _homeRetrieve = homeRetrieve;
             _guestsRetrieve = guestsRetrieve;
+            _billingCredits = billingCredits;
             _permissions = permissions;
             _clock = timeProvider ?? TimeProvider.System;
         }
@@ -94,6 +97,8 @@ namespace TummlyBackend.Services
                         => await ReadHomeAsync(context, call, cancellationToken),
                     AssistantRetrieveToolCatalog.ReadGuests
                         => await ReadGuestsAsync(context, call, cancellationToken),
+                    AssistantRetrieveToolCatalog.ReadBillingPlan
+                        => await ReadBillingAsync(context, call, cancellationToken),
                     AssistantRetrieveToolCatalog.CompareLocations
                         => await CompareLocationsAsync(context, call, cancellationToken),
                     AssistantRetrieveToolCatalog.CompareAllLocations
@@ -415,6 +420,71 @@ namespace TummlyBackend.Services
                 SuccessPayload(
                     AssistantLiveAnswerStructuredOutput.BuildEvidencePayload(
                         AssistantRetrievedEvidence.Empty with { Guests = evidence }
+                    )
+                )
+            );
+        }
+
+        private async Task<AssistantToolCallResult> ReadBillingAsync(
+            AssistantRetrieveToolContext context,
+            AssistantToolCallRequest call,
+            CancellationToken cancellationToken
+        )
+        {
+            if (_billingCredits is null)
+            {
+                return Result(
+                    call,
+                    StatusPayload("unavailable", "Billing retrieve is not configured.")
+                );
+            }
+
+            var view = await _permissions.AuthorizeUserAsync(
+                context.OwnerUserId,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.View
+            );
+            if (view.Status != RestaurantPermissionStatus.Allowed)
+            {
+                return Result(call, StatusPayload("permission_blocked", null));
+            }
+
+            var manage = await _permissions.AuthorizeUserAsync(
+                context.OwnerUserId,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.Manage
+            );
+            var actorCanManage = manage.Status == RestaurantPermissionStatus.Allowed;
+
+            var page = await _billingCredits.GetPageAsync(
+                context.OwnerUserId,
+                view.RestaurantId,
+                actorCanManage
+            );
+            if (page is null)
+            {
+                return Result(call, StatusPayload("unavailable", null));
+            }
+
+            var plan = page.PlanSubscription;
+            var evidence = new AssistantBillingEvidence(
+                plan.SubscriptionPlan,
+                plan.BillingStatus,
+                plan.EmailCreditsRemaining,
+                plan.SmsCreditsRemaining,
+                plan.AiCreditsRemaining,
+                plan.BillingCycle,
+                plan.RenewalDateLabel,
+                plan.IsPilot,
+                plan.ScheduledChangeLine,
+                plan.PlanPriceNet
+            );
+            MergeEvidence(context, billing: evidence);
+            return Result(
+                call,
+                SuccessPayload(
+                    AssistantLiveAnswerStructuredOutput.BuildEvidencePayload(
+                        AssistantRetrievedEvidence.Empty with { Billing = evidence }
                     )
                 )
             );
@@ -848,7 +918,8 @@ namespace TummlyBackend.Services
             AssistantCampaignsEvidence? campaigns = null,
             AssistantCaptureEvidence? capture = null,
             AssistantHomeKpiEvidence? home = null,
-            AssistantGuestsEvidence? guests = null
+            AssistantGuestsEvidence? guests = null,
+            AssistantBillingEvidence? billing = null
         )
         {
             var current = context.AccumulatedEvidence;
@@ -859,7 +930,10 @@ namespace TummlyBackend.Services
                 capture ?? current.Capture,
                 home ?? current.Home,
                 guests ?? current.Guests
-            );
+            )
+            {
+                Billing = billing ?? current.Billing,
+            };
         }
 
         private static bool ReadIncludeCampaignCopy(string argumentsJson)

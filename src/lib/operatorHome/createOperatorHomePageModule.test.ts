@@ -6,6 +6,7 @@ import {
   type FeedbackHomeRealtimeHandlers,
   type OperatorHomePageAdapters,
 } from "./createOperatorHomePageModule"
+import { shouldShowWeeklyBriefWatchNext } from "./operatorHomeSectionPresentation"
 import type { FeedbackItem, LocationItem } from "@/types/dashboard"
 import type {
   HomeRecommendationResponse,
@@ -1970,6 +1971,50 @@ describe("createOperatorHomePageModule", () => {
     expect(home.getSnapshot().viewModel).not.toHaveProperty("recommendation")
   })
 
+  it("keeps review-open-feedback action for resolve primary (single target or inbox)", async () => {
+    const withTarget = vi.fn(async () => ({
+      success: true,
+      recommendation: {
+        type: "review-open-feedback" as const,
+        title: "Follow up on Needs attention feedback",
+        opportunity: "1 Needs attention item is waiting for recovery.",
+        whyBullets: [
+          "1 negative feedback item is not Resolved",
+          "Start recovery before the guest goes cold",
+        ],
+        action: { kind: "open-feedback" as const, feedbackId: 42 },
+      },
+    }))
+    const homeWithTarget = createOperatorHomePageModule(
+      createAdapters({ loadHomeRecommendation: withTarget })
+    )
+    await homeWithTarget.syncWorkspace(workspaceInput())
+    expect(
+      homeWithTarget.getSnapshot().recommendation.recommendation?.action
+    ).toEqual({ kind: "open-feedback", feedbackId: 42 })
+
+    const inboxOnly = vi.fn(async () => ({
+      success: true,
+      recommendation: {
+        type: "review-open-feedback" as const,
+        title: "Follow up on Needs attention feedback",
+        opportunity: "3 Needs attention items still need a response.",
+        whyBullets: [
+          "3 negative feedback items are not Resolved",
+          "Urgency rises while guests wait",
+        ],
+        action: { kind: "open-feedback" as const, feedbackId: null },
+      },
+    }))
+    const homeInbox = createOperatorHomePageModule(
+      createAdapters({ loadHomeRecommendation: inboxOnly })
+    )
+    await homeInbox.syncWorkspace(workspaceInput())
+    expect(homeInbox.getSnapshot().recommendation.recommendation?.action).toEqual(
+      { kind: "open-feedback", feedbackId: null }
+    )
+  })
+
   it("maps type none to the empty recommendation card state", async () => {
     const loadHomeRecommendation = vi.fn(async () => ({
       success: true,
@@ -3150,6 +3195,48 @@ describe("createOperatorHomePageModule", () => {
     expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
     expect(getWeeklyBrief.mock.calls.length).toBeGreaterThanOrEqual(1)
     expect(home.getSnapshot().weeklyBrief.body?.watchNext).toHaveLength(2)
+  })
+
+  it("omits Watch next presentation when ready watchNext is empty", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) => ({
+      ...readyWeeklyBriefResponse(locationId),
+      body: { ...weeklyBriefBodyFixture, watchNext: [] },
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getWeeklyBrief })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+
+    expect(home.getSnapshot().weeklyBrief.body?.watchNext).toEqual([])
+    expect(
+      shouldShowWeeklyBriefWatchNext(
+        home.getSnapshot().weeklyBrief.body?.watchNext
+      )
+    ).toBe(false)
+  })
+
+  it("shows Watch next presentation when ready watchNext has lines", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const home = createOperatorHomePageModule(
+      createAdapters({ getWeeklyBrief })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+
+    expect(
+      shouldShowWeeklyBriefWatchNext(
+        home.getSnapshot().weeklyBrief.body?.watchNext
+      )
+    ).toBe(true)
   })
 
   it("surfaces lazy generate failure then retry succeeds", async () => {

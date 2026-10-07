@@ -66,6 +66,14 @@ namespace TummlyBackend.Tests.Helpers
             "Feedback this week",
             AssistantAskFocusKind.Feedback
         )]
+        [InlineData(
+            "What's billing Does my account have at the moment?",
+            AssistantAskFocusKind.Billing
+        )]
+        [InlineData(
+            "How many AI credits do I have?",
+            AssistantAskFocusKind.Billing
+        )]
         public void Detect_MapsTesterPhrases_ToFocus(
             string message,
             AssistantAskFocusKind expected

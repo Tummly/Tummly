@@ -228,6 +228,8 @@ export type CampaignDraftDetail = {
   offerStance: string | null
   /** Attached Offers catalog id; null when No offer. */
   offerId: number | null
+  /** Catalog Offer title when attached. */
+  offerTitle?: string | null
   messageSubject: string | null
   messageBody: string | null
   rowVersion: string

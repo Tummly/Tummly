@@ -127,6 +127,10 @@ namespace TummlyBackend.Helpers
                             ["coverageStartUtc"] = input.CoverageStartUtc.ToString("O"),
                             ["coverageEndUtcExclusive"] =
                                 input.CoverageEndUtcExclusive.ToString("O"),
+                            ["insightCandidates"] =
+                                WeeklyBriefStructuredOutput.ToInsightCandidatesJson(
+                                    input.InsightCandidates
+                                ),
                             ["metrics"] = new JsonObject
                             {
                                 ["guestsJoined"] = metrics.GuestsJoined,

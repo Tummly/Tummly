@@ -133,7 +133,7 @@ export function CampaignsListTable({
                 <div className="flex flex-col gap-1.5">
                   <p className={GUESTS_TABLE_GUEST_NAME_CLASS}>{row.offerTitle}</p>
                   {row.offerDetail != null ? (
-                    <p className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
+                    <p className={CAMPAIGNS_TABLE_META_LINE_CLASS}>
                       {row.offerDetail}
                     </p>
                   ) : null}

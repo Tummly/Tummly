@@ -321,6 +321,7 @@ namespace TummlyBackend.Controllers
                     user.Email,
                     user.Role,
                     user.AccountType,
+                    jobTitle = user.JobTitle,
                     selfRole,
                     teamPermissionsAccess,
                     billingCreditsAccess,

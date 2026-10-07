@@ -19,6 +19,10 @@ namespace TummlyBackend.Helpers.EmailTemplates
 
         public const string PublicBottomStripPath = "/email/bottom-strip.png";
 
+        /// <summary>
+        /// Dark BrandLogoMark fallback (Building2 on black chrome) for guest
+        /// emails when the workspace has no uploaded brand logo.
+        /// </summary>
         public const string PublicBrandLogoPlaceholderPath =
             "/email/brand-logo-placeholder.png";
 

@@ -105,7 +105,7 @@ namespace TummlyBackend.Services
                 content.Body,
                 brandLogoUrl: BrandLogoRules.BuildAbsolutePublicUrl(
                     restaurant.BrandLogoObjectKey,
-                    _configuration["PublicApi:BaseUrl"]
+                    _configuration
                 ),
                 offer: offerBlock,
                 unsubscribeHref: unsubscribeHref,

@@ -2110,6 +2110,12 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<CampaignRecipientDelivery>()
                 .HasIndex(row => new { row.Outcome, row.AcceptedAtUtc });
 
+            modelBuilder.Entity<CampaignRecipientDelivery>()
+                .HasIndex(row => row.ProviderMessageId);
+
+            modelBuilder.Entity<CampaignRecipientDelivery>()
+                .HasIndex(row => new { row.CampaignId, row.OpenedAtUtc });
+
             /*
              =========================================
              OFFERS CATALOG

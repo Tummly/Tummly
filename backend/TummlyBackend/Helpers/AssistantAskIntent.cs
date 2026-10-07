@@ -224,6 +224,8 @@ namespace TummlyBackend.Helpers
         public static bool LooksLikeOutOfAllowList(string text)
         {
             var lower = text.ToLowerInvariant();
+            // Plan / billing status / credit balances are in-scope retrieve (KOL 01/12).
+            // Purchase, top-up, Revolut pay success, and Settings stay out.
             return ContainsAny(
                 lower,
                 "capture overview",
@@ -233,8 +235,6 @@ namespace TummlyBackend.Helpers
                 "csv",
                 "notes",
                 "settings",
-                "billing",
-                "ai credit",
                 "reports",
                 "help centre",
                 "help center",
@@ -306,7 +306,21 @@ namespace TummlyBackend.Helpers
                 "write a reply and send",
                 "send the recovery",
                 "send it now",
-                "send now"
+                "send now",
+                "buy credit",
+                "buy credits",
+                "buy ai credit",
+                "buy ai credits",
+                "top up",
+                "top-up",
+                "change plan",
+                "upgrade plan",
+                "cancel plan",
+                "cancel subscription",
+                "purchase credit",
+                "purchase credits",
+                "revolut",
+                "pay for"
             );
         }
 
@@ -393,7 +407,22 @@ namespace TummlyBackend.Helpers
                 "performance overview",
                 "performance",
                 "guests joined",
-                "feedback submitted"
+                "feedback submitted",
+                "billing",
+                "subscription plan",
+                "subscription status",
+                "ai credit",
+                "ai credits",
+                "email credit",
+                "email credits",
+                "sms credit",
+                "sms credits",
+                "credit balance",
+                "credits remaining",
+                "my plan",
+                "what plan",
+                "which plan",
+                "plan name"
             );
         }
 

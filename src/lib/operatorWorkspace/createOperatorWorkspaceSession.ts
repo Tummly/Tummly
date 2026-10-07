@@ -13,6 +13,7 @@ export type OperatorWorkspaceSnapshot = {
   brandLogoPublicUrl: string | null
   operatorDisplayName: string
   activationExpiresAt: string | null
+  jobTitle: string | null
   selfRole: string | null
   teamPermissionsAccess: TeamPermissionsAccess
   billingCreditsAccess: BillingCreditsAccess
@@ -47,7 +48,10 @@ export type OperatorWorkspaceSession = {
     restaurantName: string
     brandLogoPublicUrl: string | null
   }) => void
-  applyOperatorDisplayName: (fullName: string) => void
+  applyOperatorProfile: (input: {
+    fullName: string
+    jobTitle: string | null
+  }) => void
 }
 
 type WorkspaceState = OperatorWorkspaceSnapshot & {
@@ -64,6 +68,7 @@ type WorkspaceAction =
       brandLogoPublicUrl: string | null
       operatorDisplayName: string
       activationExpiresAt: string | null
+      jobTitle: string | null
       selfRole: string | null
       teamPermissionsAccess: TeamPermissionsAccess
       billingCreditsAccess: BillingCreditsAccess
@@ -85,7 +90,11 @@ type WorkspaceAction =
       restaurantName: string
       brandLogoPublicUrl: string | null
     }
-  | { type: "apply_operator_display_name"; operatorDisplayName: string }
+  | {
+      type: "apply_operator_profile"
+      operatorDisplayName: string
+      jobTitle: string | null
+    }
 
 function isOwnedLocationId(
   locations: LocationItem[],
@@ -114,6 +123,7 @@ function reduce(
         brandLogoPublicUrl: action.brandLogoPublicUrl,
         operatorDisplayName: action.operatorDisplayName,
         activationExpiresAt: action.activationExpiresAt,
+        jobTitle: action.jobTitle,
         selfRole: action.selfRole,
         teamPermissionsAccess: action.teamPermissionsAccess,
         billingCreditsAccess: action.billingCreditsAccess,
@@ -139,10 +149,11 @@ function reduce(
         restaurantName: action.restaurantName,
         brandLogoPublicUrl: action.brandLogoPublicUrl,
       }
-    case "apply_operator_display_name":
+    case "apply_operator_profile":
       return {
         ...state,
         operatorDisplayName: action.operatorDisplayName,
+        jobTitle: action.jobTitle,
       }
     default:
       return state
@@ -162,6 +173,7 @@ export function createOperatorWorkspaceSession(
     brandLogoPublicUrl: null,
     operatorDisplayName: "Operator",
     activationExpiresAt: null,
+    jobTitle: null,
     selfRole: null,
     teamPermissionsAccess: "none",
     billingCreditsAccess: "none",
@@ -186,6 +198,7 @@ export function createOperatorWorkspaceSession(
     brandLogoPublicUrl: state.brandLogoPublicUrl,
     operatorDisplayName: state.operatorDisplayName,
     activationExpiresAt: state.activationExpiresAt,
+    jobTitle: state.jobTitle,
     selfRole: state.selfRole,
     teamPermissionsAccess: state.teamPermissionsAccess,
     billingCreditsAccess: state.billingCreditsAccess,
@@ -218,6 +231,7 @@ export function createOperatorWorkspaceSession(
       brandLogoPublicUrl: state.brandLogoPublicUrl,
       operatorDisplayName: state.operatorDisplayName,
       activationExpiresAt: state.activationExpiresAt,
+      jobTitle: state.jobTitle,
       selfRole: state.selfRole,
       teamPermissionsAccess: state.teamPermissionsAccess,
       billingCreditsAccess: state.billingCreditsAccess,
@@ -279,6 +293,7 @@ export function createOperatorWorkspaceSession(
         brandLogoPublicUrl: locationsResult.brandLogoPublicUrl ?? null,
         operatorDisplayName: profile?.fullName ?? "Operator",
         activationExpiresAt: profile?.activationExpiresAt ?? null,
+        jobTitle: profile?.jobTitle ?? null,
         selfRole: profile?.selfRole ?? null,
         teamPermissionsAccess:
           parseTeamPermissionsAccess(locationsResult.teamPermissionsAccess)
@@ -358,7 +373,7 @@ export function createOperatorWorkspaceSession(
         brandLogoPublicUrl,
       })
     },
-    applyOperatorDisplayName: (fullName) => {
+    applyOperatorProfile: ({ fullName, jobTitle }) => {
       if (state.status !== "loaded") {
         return
       }
@@ -366,9 +381,12 @@ export function createOperatorWorkspaceSession(
       if (trimmed.length === 0) {
         return
       }
+      const trimmedJob = jobTitle?.trim()
       dispatch({
-        type: "apply_operator_display_name",
+        type: "apply_operator_profile",
         operatorDisplayName: trimmed,
+        jobTitle:
+          trimmedJob != null && trimmedJob.length > 0 ? trimmedJob : null,
       })
     },
   }

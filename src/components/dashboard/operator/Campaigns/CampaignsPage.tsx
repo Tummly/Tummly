@@ -203,6 +203,14 @@ export function CampaignsPage() {
         }
         return response.campaign
       },
+      loadOffer: async (offerId) => {
+        const response = await getCatalogOfferById(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Campaign preview offer load failed.")
+        }
+        return response.offer
+      },
+      loadAudienceEligibility,
     })
   )
   const campaignDetailPreviewSnapshot = useSyncExternalStore(
@@ -759,10 +767,14 @@ export function CampaignsPage() {
           if (anchorId == null) {
             return
           }
-          document.getElementById(anchorId)?.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          })
+          // Wait for the overflow menu to finish closing; same-tick
+          // scrollIntoView is cancelled when focus returns to the ⋮ trigger.
+          window.setTimeout(() => {
+            document.getElementById(anchorId)?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            })
+          }, 0)
         }}
         onMessagingChromeAction={navigateMessagingChromeAction}
       />

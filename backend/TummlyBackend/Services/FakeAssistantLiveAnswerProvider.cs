@@ -397,31 +397,6 @@ namespace TummlyBackend.Services
         }
 
         private static IEnumerable<string> ToolsForFocus(AssistantAskFocusKind focus)
-            => focus switch
-            {
-                AssistantAskFocusKind.Feedback
-                    => [AssistantRetrieveToolCatalog.ReadFeedbackSummary],
-                AssistantAskFocusKind.OffersClaims
-                    or AssistantAskFocusKind.OffersRedemptions
-                    => [AssistantRetrieveToolCatalog.ReadOffers],
-                AssistantAskFocusKind.CampaignsActive
-                    or AssistantAskFocusKind.CampaignsAny
-                    => [AssistantRetrieveToolCatalog.ReadCampaigns],
-                AssistantAskFocusKind.CaptureQr
-                    => [AssistantRetrieveToolCatalog.ReadCapturePerformance],
-                AssistantAskFocusKind.Performance
-                    => [AssistantRetrieveToolCatalog.ReadHomeKpis],
-                AssistantAskFocusKind.Guests
-                    => [AssistantRetrieveToolCatalog.ReadGuests],
-                AssistantAskFocusKind.CreateCampaign
-                    =>
-                    [
-                        AssistantRetrieveToolCatalog.ReadCampaigns,
-                        AssistantRetrieveToolCatalog.ReadOffers,
-                    ],
-                AssistantAskFocusKind.CreateOffer
-                    => [AssistantRetrieveToolCatalog.ReadOffers],
-                _ => AssistantRetrieveToolCatalog.DomainReads,
-            };
+            => AssistantRetrieveToolCatalog.DomainReadsForFocus(focus);
     }
 }

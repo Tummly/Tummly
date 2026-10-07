@@ -360,27 +360,35 @@ namespace TummlyBackend.Helpers
                 summary, eligibility, detail metadata, and message subject/body
                 only when the question needs campaign copy),
                 Capture location snapshot KPIs (QR scans, Feedback submitted,
-                marketing opt-ins, previous window, per-QR rows), and Home Performance
-                overview KPIs (Feedback submitted, Guests joined, QR scans).
+                marketing opt-ins, previous window, per-QR rows), Home Performance
+                overview KPIs (Feedback submitted, Guests joined, QR scans), and
+                Billing / plan / usage (plan name, subscription or billing status,
+                Email / SMS / AI credit balances from server tools).
                 Ground on Location Guest facts in the user payload
                 when the operator asks to list guests. Do not say Location Guests
                 are inside the Reporting period. If guestsDiscloseSample is true,
                 say how many names are shown out of the total guest count using
                 the payload numbers — write those counts in plain words, never
                 camelCase field names. Home Guests joined is a count only.
+                Plan and credit facts are current restaurant state — do not say
+                they are inside the Reporting period unless a tool field says so.
 
                 Never invent guest email, phone, GuestContact, notes, or ids.
                 Never quote email, mobile, Feedback GuestContact, Location Guest
                 notes, Feedback internal notes, or per-Feedback opt-out checkboxes.
                 Never invent counts. Put counts in the body. No citation footer.
+                Never invent Revolut payment success, purchase completion, or
+                plan change success. Purchase, top-up, change plan, and cancel
+                are refuse.
 
                 Do not ground on Home Offer redemptions or Capture offer-claim
                 zeros. Use Offers Performance for claim and redemption counts
                 instead.
                 Do not read: CSV export, notes, Campaign templates, Home Latest
                 activity, QR configuration, Digital guest links, Capture Archive,
-                thank-you attach, Preview-options, Capture overview, Settings,
-                Billing, AI credits, or Help Centre.
+                thank-you attach, Preview-options, Capture overview, Settings
+                (except authorised Billing / plan / credit retrieve), or Help
+                Centre.
 
                 Windowed facts (Offers Performance, logs, Capture KPIs, Home KPIs,
                 Feedback, accepted Campaign messages) use the Reporting period.
@@ -633,7 +641,10 @@ namespace TummlyBackend.Helpers
                 guest contact details, or Location data. Scope and Reporting period
                 are server-owned — tools already bind them. Use compare_locations
                 for named Location compare and compare_all_locations for All-scope
-                compare. Do not call write or mutate tools — campaign, offer, and
+                compare. Use read_billing_plan for plan name, subscription or billing
+                status, and Email / SMS / AI credit balances. Do not invent Revolut
+                payment success. Purchase, top-up, change plan, and cancel are refuse.
+                Do not call write or mutate tools — campaign, offer, and
                 recovery drafts persist on the server after your structured answer.
 
                 After tool results, return Structured Outputs only with answerClass
@@ -1087,6 +1098,17 @@ namespace TummlyBackend.Helpers
                 ["homeGuestsJoinedPrevious"] = home.GuestsJoinedPrevious,
                 ["homeQrScans"] = home.QrScans,
                 ["homeQrScansPrevious"] = home.QrScansPrevious,
+                ["billingSubscriptionPlan"] = evidence.Billing.SubscriptionPlan,
+                ["billingStatus"] = evidence.Billing.BillingStatus,
+                ["billingEmailCreditsRemaining"] =
+                    evidence.Billing.EmailCreditsRemaining,
+                ["billingSmsCreditsRemaining"] = evidence.Billing.SmsCreditsRemaining,
+                ["billingAiCreditsRemaining"] = evidence.Billing.AiCreditsRemaining,
+                ["billingCycle"] = evidence.Billing.BillingCycle,
+                ["billingRenewalDateLabel"] = evidence.Billing.RenewalDateLabel,
+                ["billingIsPilot"] = evidence.Billing.IsPilot,
+                ["billingScheduledChangeLine"] = evidence.Billing.ScheduledChangeLine,
+                ["billingPlanPriceNet"] = evidence.Billing.PlanPriceNet,
             };
         }
 

@@ -5,10 +5,10 @@ namespace TummlyBackend.Helpers
     public static class AssistantLiveAnswerCopy
     {
         public const string MutateRefusalBody =
-            "I cannot create, send, or change records. Ask about Feedback, offers, Campaigns, Capture, or Performance overview in this Analysis scope.";
+            "I cannot create, send, or change records. I cannot purchase credits, change plan, or claim payment success. Ask about Feedback, offers, Campaigns, Capture, Performance overview, or your plan and credits in this Analysis scope.";
 
         public const string HelpCentreRefusalBody =
-            "I cannot answer reports, Help Centre, Capture overview, Campaign templates, or Latest activity questions. Ask about Feedback, offers, Campaigns, Capture, or Performance overview in this Analysis scope.";
+            "I cannot answer reports, Help Centre, Capture overview, Campaign templates, or Latest activity questions. Ask about Feedback, offers, Campaigns, Capture, Performance overview, or your plan and credits in this Analysis scope.";
 
         public const string MixedRefuseSentence =
             "I cannot create, send, or change records.";
@@ -73,6 +73,7 @@ namespace TummlyBackend.Helpers
             var grounded = AssistantAskIntent.ClassifyGrounded(userMessage);
             if (scoped.IsEmpty
                 && scoped.Guests.IsEmpty
+                && scoped.Billing.IsEmpty
                 && grounded != AssistantGroundedAsk.ListGuests)
             {
                 return EmptyGrounded(ownedLocationName, periodPhrase);
@@ -535,6 +536,11 @@ namespace TummlyBackend.Helpers
                 return $"Location Guests at {ownedLocationName}";
             }
 
+            if (!evidence.Billing.IsEmpty)
+            {
+                return $"Plan and credits for your account";
+            }
+
             if (grounded == AssistantGroundedAsk.Placeholder4)
             {
                 return $"Marketing eligible guests with negative Feedback at {ownedLocationName}";
@@ -588,6 +594,11 @@ namespace TummlyBackend.Helpers
                 || focus == AssistantAskFocusKind.Guests)
             {
                 return ListGuestsBody(ownedLocationName, evidence.Guests);
+            }
+
+            if (focus == AssistantAskFocusKind.Billing)
+            {
+                return BillingBody(evidence.Billing);
             }
 
             if (focus == AssistantAskFocusKind.CampaignsActive)
@@ -690,6 +701,11 @@ namespace TummlyBackend.Helpers
                 }
             }
 
+            if (!evidence.Billing.IsEmpty)
+            {
+                parts.Add(BillingBody(evidence.Billing));
+            }
+
             if (parts.Count == 0)
             {
                 return $"There is nothing to summarise or list at {ownedLocationName} over {periodPhrase}. "
@@ -697,6 +713,36 @@ namespace TummlyBackend.Helpers
             }
 
             return string.Join(" ", parts);
+        }
+
+        private static string BillingBody(AssistantBillingEvidence billing)
+        {
+            if (billing.IsEmpty)
+            {
+                return "I could not load plan or credit facts for this account.";
+            }
+
+            var cycle = string.IsNullOrWhiteSpace(billing.BillingCycle)
+                ? null
+                : billing.BillingCycle;
+            var renewal = string.IsNullOrWhiteSpace(billing.RenewalDateLabel)
+                ? null
+                : billing.RenewalDateLabel;
+            var scopeNote = billing.IsPilot
+                ? "These are current Pilot account facts, not a Reporting-period total."
+                : "These are current account facts, not a Reporting-period total.";
+            var planLine = cycle is null
+                ? $"Your plan is **{billing.SubscriptionPlan}** with billing status **{billing.BillingStatus}**."
+                : $"Your plan is **{billing.SubscriptionPlan}** ({cycle}) with billing status **{billing.BillingStatus}**.";
+            var creditsLine =
+                $"You have **{billing.EmailCreditsRemaining}** Email, **{billing.SmsCreditsRemaining}** SMS, and **{billing.AiCreditsRemaining}** AI credits remaining.";
+            var extra = renewal is null ? scopeNote : $"{renewal}. {scopeNote}";
+            if (!string.IsNullOrWhiteSpace(billing.ScheduledChangeLine))
+            {
+                extra = $"{billing.ScheduledChangeLine}. {extra}";
+            }
+
+            return $"{planLine} {creditsLine} {extra}";
         }
 
         private static string CampaignsActiveBody(

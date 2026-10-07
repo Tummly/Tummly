@@ -13,7 +13,8 @@ export const HOME_RECOMMENDATION_COPY = {
   failCopy: "Could not load a recommendation. Please try again.",
   retry: "Retry",
   notNow: "Not now",
-  viewFeedback: "View feedback",
+  /** Resolve-oriented CTA for review-open-feedback (not navigate-only View). */
+  startRecovery: "Start recovery",
   viewGuests: "View guests",
   viewGuestProfile: "View guest profile",
   viewOffers: "View offers",
@@ -51,19 +52,19 @@ export function primaryCtaLabelForHomeRecommendation(
   if (action == null) {
     switch (recommendation.type) {
       case "review-open-feedback":
-        return HOME_RECOMMENDATION_COPY.viewFeedback
+        return HOME_RECOMMENDATION_COPY.startRecovery
       case "thank-or-follow-guest":
         return HOME_RECOMMENDATION_COPY.viewGuests
       case "promote-or-fix-offer":
         return HOME_RECOMMENDATION_COPY.viewOffers
       default:
-        return HOME_RECOMMENDATION_COPY.viewFeedback
+        return HOME_RECOMMENDATION_COPY.startRecovery
     }
   }
 
   switch (action.kind) {
     case "open-feedback":
-      return HOME_RECOMMENDATION_COPY.viewFeedback
+      return HOME_RECOMMENDATION_COPY.startRecovery
     case "open-guest":
       return action.locationGuestId != null
         ? HOME_RECOMMENDATION_COPY.viewGuestProfile

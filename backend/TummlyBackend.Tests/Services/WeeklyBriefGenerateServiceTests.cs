@@ -166,9 +166,243 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task GenerateAsync_PersistsInsightCandidatesAndNarratives()
+        {
+            var locationId = await SeedLocationAsync();
+            _provider.UseDefaultFixtures();
+
+            var result = await _service.GenerateAsync(locationId, ClosedWeek);
+
+            var ok = Assert.IsType<WeeklyBriefGenerateResult.Succeeded>(result);
+            Assert.NotNull(_provider.LastInput?.InsightCandidates);
+            Assert.NotEmpty(_provider.LastInput!.InsightCandidates!.Candidates);
+            var enrichment = JsonSerializer.Deserialize<WeeklyBriefEnrichment>(
+                ok.Brief.EnrichmentJson!,
+                WeeklyBriefStoreJson.Options
+            );
+            Assert.NotNull(enrichment);
+            Assert.NotNull(enrichment!.InsightCandidates);
+            Assert.NotEmpty(enrichment.InsightCandidates!);
+            Assert.NotNull(enrichment.InsightNarratives);
+            Assert.NotEmpty(enrichment.InsightNarratives!);
+            Assert.All(
+                enrichment.InsightNarratives,
+                narrative =>
+                    Assert.Contains(
+                        enrichment.InsightCandidates,
+                        candidate => candidate.Id == narrative.CandidateId
+                    )
+            );
+        }
+
+        [Fact]
+        public async Task GenerateAsync_StableMetrics_EmptyWatchNextAndNoActionWording()
+        {
+            var locationId = await SeedLocationAsync();
+            await SeedStableCaptureActivityAsync(locationId, needsAttention: false);
+            _provider.UseDefaultFixtures();
+
+            var result = await _service.GenerateAsync(locationId, ClosedWeek);
+
+            var ok = Assert.IsType<WeeklyBriefGenerateResult.Succeeded>(result);
+            var body = JsonSerializer.Deserialize<WeeklyBriefBody>(
+                ok.Brief.BodyJson,
+                WeeklyBriefStoreJson.Options
+            );
+            var enrichment = JsonSerializer.Deserialize<WeeklyBriefEnrichment>(
+                ok.Brief.EnrichmentJson!,
+                WeeklyBriefStoreJson.Options
+            );
+            Assert.NotNull(body);
+            Assert.NotNull(enrichment);
+            Assert.Empty(body!.WatchNext);
+            Assert.DoesNotContain(
+                FakeWeeklyBriefProvider.LegacyFillerWatchNeedsAttention,
+                body.WatchNext
+            );
+            Assert.DoesNotContain(
+                FakeWeeklyBriefProvider.LegacyFillerWatchOfferRate,
+                body.WatchNext
+            );
+            Assert.Empty(enrichment!.ActionWording);
+            Assert.True(
+                WeeklyBriefInsightNarrativeValidation.IsSoleNoMaterialChange(
+                    _provider.LastInput?.InsightCandidates
+                )
+            );
+        }
+
+        [Fact]
+        public async Task GenerateAsync_NeedsAttention_DistinctWatchNextAndActionWording()
+        {
+            var locationId = await SeedLocationAsync();
+            await SeedStableCaptureActivityAsync(locationId, needsAttention: false);
+            _provider.UseDefaultFixtures();
+            var thin = await _service.GenerateAsync(locationId, ClosedWeek);
+            var thinOk = Assert.IsType<WeeklyBriefGenerateResult.Succeeded>(thin);
+            var thinBody = JsonSerializer.Deserialize<WeeklyBriefBody>(
+                thinOk.Brief.BodyJson,
+                WeeklyBriefStoreJson.Options
+            );
+            Assert.NotNull(thinBody);
+            Assert.Empty(thinBody!.WatchNext);
+
+            // Second location / week: needs-attention signal on the same shape.
+            var locationId2 = await SeedLocationAsync();
+            await SeedStableCaptureActivityAsync(locationId2, needsAttention: true);
+            _provider.UseDefaultFixtures();
+            _provider.ResetCallCount();
+
+            var result = await _service.GenerateAsync(locationId2, ClosedWeek);
+
+            var ok = Assert.IsType<WeeklyBriefGenerateResult.Succeeded>(result);
+            var body = JsonSerializer.Deserialize<WeeklyBriefBody>(
+                ok.Brief.BodyJson,
+                WeeklyBriefStoreJson.Options
+            );
+            var enrichment = JsonSerializer.Deserialize<WeeklyBriefEnrichment>(
+                ok.Brief.EnrichmentJson!,
+                WeeklyBriefStoreJson.Options
+            );
+            Assert.NotNull(body);
+            Assert.NotNull(enrichment);
+            Assert.NotEmpty(body!.WatchNext);
+            Assert.NotEqual(thinBody.WatchNext, body.WatchNext);
+            Assert.Contains(
+                body.WatchNext,
+                line => line.Contains("Needs attention", StringComparison.Ordinal)
+            );
+            Assert.DoesNotContain(
+                FakeWeeklyBriefProvider.LegacyFillerWatchNeedsAttention,
+                body.WatchNext
+            );
+            Assert.DoesNotContain(
+                FakeWeeklyBriefProvider.LegacyFillerWatchOfferRate,
+                body.WatchNext
+            );
+            Assert.Single(enrichment!.ActionWording);
+            Assert.Equal(
+                WeeklyBriefEnrichmentActionKinds.FeedbackNeedsAttention,
+                enrichment.ActionWording[0].Kind
+            );
+        }
+
         public void Dispose()
         {
             _context.Dispose();
+        }
+
+        private async Task SeedStableCaptureActivityAsync(
+            int locationId,
+            bool needsAttention
+        )
+        {
+            Assert.True(
+                WeeklyBriefWeekKey.TryPriorWeekKey(
+                    ClosedWeek.WeekKey,
+                    out var priorKey
+                )
+            );
+            Assert.True(
+                WeeklyBriefWeekKey.TryCoverageWindow(
+                    priorKey,
+                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                    out var priorFrom,
+                    out var priorTo
+                )
+            );
+
+            var qr = new QrCode
+            {
+                RestaurantLocationId = locationId,
+                QrType = QrType.CounterCard,
+                Token = $"wb-stable-{locationId}-{Guid.NewGuid():N}"[..32],
+                Status = QrCodeStatus.Active,
+            };
+            _context.QrCodes.Add(qr);
+            await _context.SaveChangesAsync();
+
+            for (var i = 0; i < 5; i++)
+            {
+                _context.LocationGuests.Add(
+                    new LocationGuest
+                    {
+                        RestaurantLocationId = locationId,
+                        Name = $"Prior Guest {i}",
+                        CreatedAt = priorFrom.AddHours(i + 1),
+                    }
+                );
+                _context.LocationGuests.Add(
+                    new LocationGuest
+                    {
+                        RestaurantLocationId = locationId,
+                        Name = $"Current Guest {i}",
+                        CreatedAt = ClosedWeek.CoverageStartUtc.AddHours(i + 1),
+                    }
+                );
+                _context.QrScanEvents.Add(
+                    new QrScanEvent
+                    {
+                        RestaurantLocationId = locationId,
+                        QrCodeId = qr.Id,
+                        CreatedAt = priorFrom.AddHours(i + 1),
+                    }
+                );
+                _context.QrScanEvents.Add(
+                    new QrScanEvent
+                    {
+                        RestaurantLocationId = locationId,
+                        QrCodeId = qr.Id,
+                        CreatedAt = ClosedWeek.CoverageStartUtc.AddHours(i + 1),
+                    }
+                );
+            }
+
+            // Mirror feedback volume WoW so sole no-material-change stays valid
+            // when needsAttention is false; when true, keep count matched.
+            for (var i = 0; i < 3; i++)
+            {
+                _context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = locationId,
+                        QrCodeId = qr.Id,
+                        GuestName = $"Prior Feedback {i}",
+                        GuestContact = $"prior-{locationId}-{i}@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Steady prior week",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Positive,
+                        WorkflowStatus = FeedbackWorkflowStatus.Resolved,
+                        CreatedAt = priorFrom.AddHours(i + 2),
+                    }
+                );
+                _context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = locationId,
+                        QrCodeId = qr.Id,
+                        GuestName = $"Current Feedback {i}",
+                        GuestContact = $"current-{locationId}-{i}@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = needsAttention
+                            ? "Needs follow-up"
+                            : "Steady current week",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = needsAttention
+                            ? FeedbackSentiment.Negative
+                            : FeedbackSentiment.Positive,
+                        WorkflowStatus = needsAttention
+                            ? FeedbackWorkflowStatus.New
+                            : FeedbackWorkflowStatus.Resolved,
+                        CreatedAt = ClosedWeek.CoverageStartUtc.AddHours(i + 2),
+                    }
+                );
+            }
+
+            await _context.SaveChangesAsync();
+            _ = priorTo;
         }
 
         private async Task<int> SeedLocationAsync(string? subscriptionPlan = null)

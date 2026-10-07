@@ -175,13 +175,14 @@ describe("createOperatorWorkspaceSession", () => {
     expect(session.getSnapshot().privacyConsentAccess).toBe("none")
   })
 
-  it("carries Self role from /auth/me into the workspace snapshot", async () => {
+  it("carries Self role and Job title from /auth/me into the workspace snapshot", async () => {
     const adapters = createAdapters({
       fetchCurrentUser: async () => ({
         success: true,
         data: {
           fullName: "Mohamed Mahmoud",
           activationExpiresAt: "2026-07-26T12:00:00.000Z",
+          jobTitle: "Founder",
           selfRole: "founder-director",
           role: "Owner",
         },
@@ -192,6 +193,7 @@ describe("createOperatorWorkspaceSession", () => {
     await session.load({ queryLocationId: null })
 
     expect(session.getSnapshot().selfRole).toBe("founder-director")
+    expect(session.getSnapshot().jobTitle).toBe("Founder")
   })
 
   it("prefers a valid query location over persistence on load", async () => {
@@ -306,13 +308,17 @@ describe("createOperatorWorkspaceSession", () => {
     expect(listener).not.toHaveBeenCalled()
   })
 
-  it("applies operator display name after profile save", async () => {
+  it("applies operator profile after My Account save", async () => {
     const adapters = createAdapters()
     const session = createOperatorWorkspaceSession({ mode: "multi" }, adapters)
     await session.load({ queryLocationId: null })
 
-    session.applyOperatorDisplayName("  New Operator Name  ")
+    session.applyOperatorProfile({
+      fullName: "  New Operator Name  ",
+      jobTitle: "  Head Chef  ",
+    })
 
     expect(session.getSnapshot().operatorDisplayName).toBe("New Operator Name")
+    expect(session.getSnapshot().jobTitle).toBe("Head Chef")
   })
 })

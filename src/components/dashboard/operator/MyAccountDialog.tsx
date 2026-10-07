@@ -37,7 +37,10 @@ type MyAccountTab = "profile" | "security" | "access"
 type MyAccountDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onProfileSaved?: (fullName: string) => void
+  onProfileSaved?: (profile: {
+    fullName: string
+    jobTitle: string | null
+  }) => void
 }
 
 /** Figma 6583:34681 — Main Bg white / #171717 (`--op-surface-primary`). */
@@ -168,11 +171,21 @@ export function MyAccountDialog({
       }
     }
 
+    const nextJobTitle =
+      jobTitle.trim().length > 0 ? jobTitle.trim() : null
+
+    // Eager shell update so the account trigger shows the new Job title
+    // before the PATCH round-trip finishes.
+    onProfileSaved?.({
+      fullName: trimmedName,
+      jobTitle: nextJobTitle,
+    })
+
     setProfileSaving(true)
     try {
       const updated = await updateMyAccountProfile({
         fullName: trimmedName,
-        jobTitle: jobTitle.trim().length > 0 ? jobTitle.trim() : null,
+        jobTitle: nextJobTitle,
         phoneNumber: phoneE164,
       })
       setSnapshot(updated)
@@ -183,9 +196,17 @@ export function MyAccountDialog({
           ? formatPhoneForDisplay(updated.phoneNumber)
           : ""
       )
-      onProfileSaved?.(updated.fullName)
+      onProfileSaved?.({
+        fullName: updated.fullName,
+        jobTitle: updated.jobTitle,
+      })
       onOpenChange(false)
     } catch (error) {
+      // Revert shell chrome to the last loaded snapshot on failed save.
+      onProfileSaved?.({
+        fullName: snapshot.fullName,
+        jobTitle: snapshot.jobTitle,
+      })
       setProfileError(
         error instanceof Error ? error.message : "Unable to save profile changes."
       )

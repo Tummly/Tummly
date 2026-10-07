@@ -32,6 +32,8 @@ export interface OperatorProfile {
   /** Nominated account email from `/auth/me` — used to prefill Send test. */
   email: string | null
   activationExpiresAt: string | null
+  /** Free-text Job title from My Account; preferred for account-menu subtitle. */
+  jobTitle: string | null
   /** Self role from linked Trial Request; distinct from permission role. */
   selfRole: string | null
   teamPermissionsAccess: TeamPermissionsAccess
@@ -59,6 +61,12 @@ export function parseOperatorProfile(result: unknown): OperatorProfile | null {
   const activationExpiresAt =
     readOptionalNullableString(data, "activationExpiresAt") ?? null
 
+  const jobTitleRaw = readOptionalNullableString(data, "jobTitle")
+  const jobTitle =
+    jobTitleRaw != null && jobTitleRaw.trim().length > 0
+      ? jobTitleRaw.trim()
+      : null
+
   const selfRole = readOptionalNullableString(data, "selfRole") ?? null
   // Omit means the session predates this field. Existing Account owners must
   // still see Team & permissions. Explicit "none" still hides the SideNav row.
@@ -77,6 +85,7 @@ export function parseOperatorProfile(result: unknown): OperatorProfile | null {
     fullName,
     email,
     activationExpiresAt,
+    jobTitle,
     selfRole,
     teamPermissionsAccess,
     billingCreditsAccess,

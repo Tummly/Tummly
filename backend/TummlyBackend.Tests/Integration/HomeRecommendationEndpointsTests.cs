@@ -87,13 +87,17 @@ namespace TummlyBackend.Tests.Integration
                 recommendation.GetProperty("type").GetString()
             );
             Assert.Equal(
-                "Review open feedback",
+                "Follow up on open feedback",
                 recommendation.GetProperty("title").GetString()
             );
             Assert.Equal("Main", recommendation.GetProperty("locationName").GetString());
 
             var action = recommendation.GetProperty("action");
             Assert.Equal("open-feedback", action.GetProperty("kind").GetString());
+            // Single open feedback in window → server fills feedbackId for Start recovery.
+            Assert.True(action.TryGetProperty("feedbackId", out var feedbackId));
+            Assert.NotEqual(JsonValueKind.Null, feedbackId.ValueKind);
+            Assert.True(feedbackId.GetInt32() > 0);
 
             Assert.Equal(1, fake.CallCount);
             Assert.NotNull(fake.LastInput);

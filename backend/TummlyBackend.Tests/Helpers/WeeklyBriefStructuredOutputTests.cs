@@ -31,15 +31,30 @@ namespace TummlyBackend.Tests.Helpers
             );
         }
 
-        [Theory]
-        [InlineData(0)]
-        [InlineData(4)]
-        public void TryParseModelContent_RejectsWatchNextOutsideAllowListLength(
-            int lineCount
-        )
+        [Fact]
+        public void TryParseModelContent_AcceptsEmptyWatchNextWithoutCandidates()
+        {
+            var content = ValidWrapperJson(watchNext: []);
+
+            var ok = WeeklyBriefStructuredOutput.TryParseModelContent(
+                content,
+                out var body,
+                out var enrichment,
+                out var invalid
+            );
+
+            Assert.True(ok);
+            Assert.False(invalid);
+            Assert.NotNull(body);
+            Assert.Empty(body!.WatchNext);
+            Assert.NotNull(enrichment);
+        }
+
+        [Fact]
+        public void TryParseModelContent_RejectsWatchNextAboveMaxLength()
         {
             var lines = Enumerable
-                .Range(0, lineCount)
+                .Range(0, 4)
                 .Select(i => $"Advisory line {i + 1}.")
                 .ToArray();
             var content = ValidWrapperJson(watchNext: lines);
@@ -149,10 +164,12 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
             Assert.Contains(
-                $"body.watchNext must have {WeeklyBriefStructuredOutput.WatchNextMinLength} to {WeeklyBriefStructuredOutput.WatchNextMaxLength}",
+                $"body.watchNext: 0 to {WeeklyBriefStructuredOutput.WatchNextMaxLength}",
                 prompt,
                 StringComparison.Ordinal
             );
+            Assert.Contains("insightNarratives", prompt, StringComparison.Ordinal);
+            Assert.Contains("causalEvidence", prompt, StringComparison.Ordinal);
             Assert.Contains(
                 WeeklyBriefStructuredOutput.PromptSchemaRevision,
                 prompt,
@@ -301,6 +318,7 @@ namespace TummlyBackend.Tests.Helpers
                             subtitle = "",
                         },
                         actionWording = actionWording ?? Array.Empty<object>(),
+                        insightNarratives = Array.Empty<object>(),
                     },
                 }
             );

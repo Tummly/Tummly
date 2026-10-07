@@ -185,10 +185,30 @@ namespace TummlyBackend.Services
                 );
             }
 
+            int? singleFeedbackResolveId = null;
+            if (
+                string.Equals(
+                    selectedType,
+                    "review-open-feedback",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                singleFeedbackResolveId =
+                    await ResolveSingleReviewFeedbackIdAsync(
+                        request.LocationId,
+                        metrics,
+                        fromUtc,
+                        toUtc,
+                        cancellationToken
+                    );
+            }
+
             if (!TryMapSucceeded(
                     succeeded.Output,
                     selectedType,
                     locationName,
+                    singleFeedbackResolveId,
                     out var dto,
                     out var mapError
                 ))
@@ -205,6 +225,58 @@ namespace TummlyBackend.Services
 
             await CacheRecommendationAsync(cacheKey, dto, cancellationToken);
             return new HomeRecommendationServiceResult.Ok(dto);
+        }
+
+        /// <summary>
+        /// When exactly one Needs attention (or single open) item exists in the
+        /// metrics window, return its id so the primary CTA can Start recovery.
+        /// Otherwise null — client opens Needs attention filtered Feedback.
+        /// </summary>
+        private async Task<int?> ResolveSingleReviewFeedbackIdAsync(
+            int locationId,
+            HomeRecommendationMetrics metrics,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var feedbackInWindow = _context.Feedbacks
+                .AsNoTracking()
+                .Where(f =>
+                    f.RestaurantLocationId == locationId
+                    && f.CreatedAt >= fromUtc
+                    && f.CreatedAt < toUtc
+                );
+
+            if (metrics.NeedsAttentionCount == 1)
+            {
+                return await feedbackInWindow
+                    .Where(f =>
+                        f.ClassificationStatus == ClassificationStatus.Succeeded
+                        && f.Sentiment == FeedbackSentiment.Negative
+                        && f.WorkflowStatus != FeedbackWorkflowStatus.Resolved
+                    )
+                    .OrderByDescending(f => f.CreatedAt)
+                    .Select(f => (int?)f.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            if (
+                metrics.NeedsAttentionCount == 0
+                && metrics.OpenFeedbackCount == 1
+            )
+            {
+                return await feedbackInWindow
+                    .Where(f =>
+                        f.WorkflowStatus == FeedbackWorkflowStatus.New
+                        || f.WorkflowStatus == FeedbackWorkflowStatus.InProgress
+                    )
+                    .OrderByDescending(f => f.CreatedAt)
+                    .Select(f => (int?)f.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -443,6 +515,7 @@ namespace TummlyBackend.Services
             HomeRecommendationModelOutput output,
             string selectedType,
             string locationName,
+            int? singleFeedbackResolveId,
             out HomeRecommendationDto dto,
             out string? error
         )
@@ -490,6 +563,21 @@ namespace TummlyBackend.Services
                 return false;
             }
 
+            var feedbackId = output.Action.FeedbackId;
+            if (
+                string.Equals(output.Type, "review-open-feedback", StringComparison.Ordinal)
+                && string.Equals(
+                    output.Action.Kind,
+                    "open-feedback",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                // Server owns single-target resolve: one Needs attention / open
+                // item → Start recovery; otherwise null → Needs attention inbox.
+                feedbackId = singleFeedbackResolveId;
+            }
+
             dto = new HomeRecommendationDto
             {
                 Type = output.Type,
@@ -499,7 +587,7 @@ namespace TummlyBackend.Services
                 Action = new HomeRecommendationDomainActionDto
                 {
                     Kind = output.Action.Kind,
-                    FeedbackId = output.Action.FeedbackId,
+                    FeedbackId = feedbackId,
                     LocationGuestId = output.Action.LocationGuestId,
                     OfferId = output.Action.OfferId,
                 },

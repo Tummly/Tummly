@@ -36,6 +36,7 @@ import {
 import {
   buildReportsWeeklyBriefHubSecondary,
   REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
+  weeklyBriefEmptyMessageForReason,
 } from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
 import type {
   WeeklyBriefBody,
@@ -120,6 +121,11 @@ export type OperatorReportsWeeklyBriefViewModel = {
   errorMessage: string | null
   errorRetryable: boolean
   generateBusy: boolean
+  /**
+   * Soft empty helper after generate not-ready (e.g. location too new).
+   * Null → default empty copy in hub / weekly-brief page.
+   */
+  emptyMessage: string | null
 }
 
 export type OperatorReportsPageSnapshot = {
@@ -339,6 +345,7 @@ function emptyWeeklyBrief(
     errorMessage: null,
     errorRetryable: false,
     generateBusy: false,
+    emptyMessage: null,
     ...overrides,
   }
 }
@@ -372,6 +379,7 @@ function mapReadyWeeklyBrief(
     errorMessage: null,
     errorRetryable: false,
     generateBusy: false,
+    emptyMessage: null,
   }
 }
 
@@ -756,6 +764,7 @@ export function createOperatorReportsPageModule(
           emptyWeeklyBrief({
             status: "empty",
             week: generated.week,
+            emptyMessage: weeklyBriefEmptyMessageForReason(generated.reason),
           })
         )
         return false

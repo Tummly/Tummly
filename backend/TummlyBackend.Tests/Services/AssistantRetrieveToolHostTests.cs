@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -8,6 +9,60 @@ namespace TummlyBackend.Tests.Services
 {
     public class AssistantRetrieveToolHostTests
     {
+        [Fact]
+        public async Task ExecuteBatch_BillingPlan_ReturnsPlanAndCredits()
+        {
+            var billing = new StubBillingCredits();
+            var host = CreateHost(allow: true, billingCredits: billing);
+            var context = ToolContext(ownedLocationId: 1);
+
+            var results = await host.ExecuteBatchAsync(
+                context,
+                [
+                    new AssistantToolCallRequest(
+                        "b1",
+                        AssistantRetrieveToolCatalog.ReadBillingPlan,
+                        "{}"
+                    ),
+                ]
+            );
+
+            Assert.Equal(1, billing.Calls);
+            Assert.Equal("Growth", context.AccumulatedEvidence.Billing.SubscriptionPlan);
+            Assert.Equal(42, context.AccumulatedEvidence.Billing.AiCreditsRemaining);
+            using var doc = JsonDocument.Parse(results[0].ContentJson);
+            Assert.Equal("success", doc.RootElement.GetProperty("status").GetString());
+            Assert.Equal(
+                "Growth",
+                doc.RootElement
+                    .GetProperty("evidence")
+                    .GetProperty("billingSubscriptionPlan")
+                    .GetString()
+            );
+        }
+
+        [Fact]
+        public async Task ExecuteBatch_BillingPlan_PermissionDenied_ReturnsPermissionBlocked()
+        {
+            var host = CreateHost(allow: false, billingCredits: new StubBillingCredits());
+            var results = await host.ExecuteBatchAsync(
+                ToolContext(ownedLocationId: 1),
+                [
+                    new AssistantToolCallRequest(
+                        "b1",
+                        AssistantRetrieveToolCatalog.ReadBillingPlan,
+                        "{}"
+                    ),
+                ]
+            );
+
+            using var doc = JsonDocument.Parse(results[0].ContentJson);
+            Assert.Equal(
+                "permission_blocked",
+                doc.RootElement.GetProperty("status").GetString()
+            );
+        }
+
         [Fact]
         public async Task ExecuteBatch_UnknownTool_ReturnsUnavailable()
         {
@@ -155,7 +210,8 @@ namespace TummlyBackend.Tests.Services
         private static AssistantRetrieveToolHost CreateHost(
             bool allow,
             IAssistantFeedbackRetrieve? feedbackRetrieve = null,
-            IAssistantOffersRetrieve? offersRetrieve = null
+            IAssistantOffersRetrieve? offersRetrieve = null,
+            IBillingCreditsService? billingCredits = null
         )
             => new(
                 feedbackRetrieve ?? new RecordingFeedbackRetrieve(),
@@ -164,7 +220,8 @@ namespace TummlyBackend.Tests.Services
                 new StubCaptureRetrieve(),
                 new StubHomeRetrieve(),
                 new StubGuestsRetrieve(),
-                new StubPermissions(allow)
+                new StubPermissions(allow),
+                billingCredits
             );
 
         private static AssistantRetrieveToolContext ToolContext(
@@ -245,14 +302,119 @@ namespace TummlyBackend.Tests.Services
 
             private RestaurantPermissionDecision Decision()
                 => allow
-                    ? new RestaurantPermissionDecision
+                    ? RestaurantPermissionDecision.Allow(restaurantId: 99)
+                    : RestaurantPermissionDecision.Deny();
+        }
+
+        private sealed class StubBillingCredits : IBillingCreditsService
+        {
+            public int Calls { get; private set; }
+
+            public Task<BillingCreditsPageDto?> GetPageAsync(
+                int userId,
+                int restaurantId,
+                bool actorCanManage
+            )
+            {
+                Calls++;
+                Assert.Equal(99, restaurantId);
+                return Task.FromResult<BillingCreditsPageDto?>(
+                    new BillingCreditsPageDto
                     {
-                        Status = RestaurantPermissionStatus.Allowed,
+                        PlanSubscription = new PlanSubscriptionSnapshotDto
+                        {
+                            SubscriptionPlan = "Growth",
+                            BillingStatus = "Active",
+                            EmailCreditsRemaining = 10,
+                            SmsCreditsRemaining = 5,
+                            AiCreditsRemaining = 42,
+                            BillingCycle = "monthly",
+                            RenewalDateLabel = "Renews 1 Nov 2026",
+                            IsPilot = false,
+                            PlanPriceNet = "£99",
+                        },
                     }
-                    : new RestaurantPermissionDecision
-                    {
-                        Status = RestaurantPermissionStatus.Forbidden,
-                    };
+                );
+            }
+
+            public Task<CreditsUsageSnapshotDto?> GetUsageAsync(int restaurantId)
+                => Task.FromResult<CreditsUsageSnapshotDto?>(null);
+
+            public Task<(byte[] Content, string FileName)?> GetInvoicePdfAsync(
+                int restaurantId,
+                string invoiceNo
+            )
+                => Task.FromResult<(byte[] Content, string FileName)?>(null);
+
+            public Task<PaymentMethodUpdateSessionDto?> CreatePaymentMethodUpdateSessionAsync(
+                int restaurantId
+            )
+                => Task.FromResult<PaymentMethodUpdateSessionDto?>(null);
+
+            public Task<PlanChangeResultDto?> SubmitPlanChangeAsync(
+                int userId,
+                int restaurantId,
+                PlanChangeRequestDto request,
+                string? idempotencyKey = null
+            )
+                => Task.FromResult<PlanChangeResultDto?>(null);
+
+            public Task<bool> ContinuePendingPaymentOnFreeAsync(int restaurantId)
+                => Task.FromResult(false);
+
+            public Task<(bool Success, string? ErrorCode)?> ClearScheduledChangeAsync(
+                int userId,
+                int restaurantId
+            )
+                => Task.FromResult<(bool Success, string? ErrorCode)?>(null);
+
+            public Task<(
+                UpdateBillingContactsResponseDto? Response,
+                string? Error,
+                int StatusCode
+            )> UpdateBillingContactsAsync(
+                int actorUserId,
+                int restaurantId,
+                UpdateBillingContactsRequest request
+            )
+                => Task.FromResult<(
+                    UpdateBillingContactsResponseDto? Response,
+                    string? Error,
+                    int StatusCode
+                )>((null, null, 404));
+
+            public Task<(CreditTopUpConfirmDto? Response, int StatusCode, string? ErrorMessage)>
+                ConfirmCreditTopUpAsync(
+                    int userId,
+                    int restaurantId,
+                    bool actorCanManage,
+                    CreditTopUpRequestDto request
+                )
+                => Task.FromResult<(CreditTopUpConfirmDto?, int, string?)>((null, 404, null));
+
+            public Task<(CreditTopUpPayDto? Response, int StatusCode, string? ErrorMessage)>
+                PayCreditTopUpAsync(
+                    int userId,
+                    int restaurantId,
+                    bool actorCanManage,
+                    CreditTopUpRequestDto request,
+                    string? idempotencyKey = null
+                )
+                => Task.FromResult<(CreditTopUpPayDto?, int, string?)>((null, 404, null));
+
+            public Task<CancelPlanResultDto?> CancelPlanAsync(
+                int userId,
+                int restaurantId,
+                CancelPlanRequestDto request
+            )
+                => Task.FromResult<CancelPlanResultDto?>(null);
+
+            public Task<BillingActivityListDto?> GetActivityAsync(
+                int restaurantId,
+                int skip,
+                int take
+            )
+                => Task.FromResult<BillingActivityListDto?>(null);
         }
 
         private sealed class RecordingFeedbackRetrieve : IAssistantFeedbackRetrieve

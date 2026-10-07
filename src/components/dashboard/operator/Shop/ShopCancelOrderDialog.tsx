@@ -71,7 +71,7 @@ export function ShopCancelOrderDialog({
       <DialogContent
         showCloseButton={false}
         className="z-[200] w-full max-w-[642px] gap-6 rounded-sm border border-op-border-default bg-op-card-background p-8 text-op-text-primary shadow-2xl sm:max-w-[642px]"
-        overlayClassName="z-[190] bg-black/60 backdrop-blur-xs"
+        overlayClassName="z-[190] bg-black/60"
       >
         {/* Header Section */}
         <div className="flex items-start justify-between gap-5">
