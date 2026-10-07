@@ -39,6 +39,19 @@ export interface LocationsResponse {
    * Export still shows the Guest consent row (CODING_STANDARDS chrome omit).
    */
   privacyConsentAccess?: "none" | "view" | "manage";
+  /**
+   * Remaining SideNav Areas. Omit defaults to manage on the client so owner
+   * chrome stays visible until the API field is live (CODING_STANDARDS).
+   * Explicit "none" hides the row and redirects deep links to Home.
+   */
+  guestsAccess?: "none" | "view" | "manage";
+  captureAccess?: "none" | "view" | "manage";
+  feedbackAccess?: "none" | "view" | "manage";
+  campaignsAccess?: "none" | "view" | "manage";
+  reportsAccess?: "none" | "view" | "manage";
+  tummlyShopAccess?: "none" | "view" | "manage";
+  locationsAccess?: "none" | "view" | "manage";
+  accountWorkspaceAccess?: "none" | "view" | "manage";
   /** Live subscription plan name for shell chrome (Pilot, Free, Starter, Growth, Group). */
   subscriptionPlan?: string;
   /** Soft lock / Dormant / Active / Pilot / Past due for Lock Alert chrome. */

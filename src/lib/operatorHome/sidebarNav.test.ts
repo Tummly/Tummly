@@ -227,7 +227,7 @@ describe("getOperatorSidebarNav", () => {
       active: false,
       forceExpanded: false,
     })
-    expect(nav.settings.children).toHaveLength(6)
+    expect(nav.settings.children).toHaveLength(5)
     expect(
       nav.settings.children.find((c) => c.id === "account-workspace")
     ).toMatchObject({
@@ -328,6 +328,35 @@ describe("getOperatorSidebarNav", () => {
     expect(
       nav.settings.children.find((c) => c.id === "billing-credits")
     ).toBeUndefined()
+  })
+
+  it("hides primary, Settings, and Shop rows listed in hiddenNavIds", () => {
+    const nav = getOperatorSidebarNav("home", {
+      mode: "single",
+      locationId: 10,
+    }, {
+      hiddenNavIds: [
+        "guests",
+        "capture",
+        "feedback",
+        "campaigns",
+        "reports",
+        "team-permissions",
+        "billing-credits",
+        "privacy-consent",
+        "tummly-shop",
+      ],
+    })
+
+    expect(nav.primary.map((item) => item.id)).toEqual([
+      "home",
+      "offers",
+    ])
+    expect(nav.settings.children.map((item) => item.id)).toEqual([
+      "account-workspace",
+      "locations",
+    ])
+    expect(nav.footer).toEqual([])
   })
 
   it("makes Billing & credits navigable when nav targets are provided", () => {

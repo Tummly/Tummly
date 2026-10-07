@@ -63,8 +63,17 @@ namespace TummlyBackend.Controllers
                     restaurantName = "",
                     aiAssistantAccess = false,
                     teamPermissionsAccess = "none",
+                    billingCreditsAccess = "none",
                     offersAccess = "none",
                     privacyConsentAccess = "none",
+                    guestsAccess = "none",
+                    captureAccess = "none",
+                    feedbackAccess = "none",
+                    campaignsAccess = "none",
+                    reportsAccess = "none",
+                    tummlyShopAccess = "none",
+                    locationsAccess = "none",
+                    accountWorkspaceAccess = "none",
                     locations = Array.Empty<object>()
                 });
             }
@@ -136,28 +145,60 @@ namespace TummlyBackend.Controllers
                 PermissionLevel.View
             );
 
-            var teamPermissionsAccess =
-                await OperatorChromeAccess.TeamPermissionsAsync(
-                    _permissions,
-                    User
-                );
+            // SideNav + route chrome: omit must not hide on older clients;
+            // explicit "none" hides / redirects (CODING_STANDARDS).
+            var teamPermissionsAccessTask =
+                OperatorChromeAccess.TeamPermissionsAsync(_permissions, User);
+            var billingCreditsAccessTask =
+                OperatorChromeAccess.BillingCreditsAsync(_permissions, User);
+            var offersAccessTask =
+                OperatorChromeAccess.OffersAsync(_permissions, User);
+            var privacyConsentAccessTask =
+                OperatorChromeAccess.PrivacyConsentAsync(_permissions, User);
+            var guestsAccessTask =
+                OperatorChromeAccess.GuestsAsync(_permissions, User);
+            var captureAccessTask =
+                OperatorChromeAccess.CaptureAsync(_permissions, User);
+            var feedbackAccessTask =
+                OperatorChromeAccess.FeedbackAsync(_permissions, User);
+            var campaignsAccessTask =
+                OperatorChromeAccess.CampaignsAsync(_permissions, User);
+            var reportsAccessTask =
+                OperatorChromeAccess.ReportsAsync(_permissions, User);
+            var tummlyShopAccessTask =
+                OperatorChromeAccess.TummlyShopAsync(_permissions, User);
+            var locationsAccessTask =
+                OperatorChromeAccess.LocationsAsync(_permissions, User);
+            var accountWorkspaceAccessTask =
+                OperatorChromeAccess.AccountWorkspaceAsync(_permissions, User);
 
-            var billingCreditsAccess =
-                await OperatorChromeAccess.BillingCreditsAsync(
-                    _permissions,
-                    User
-                );
-
-            var offersAccess = await OperatorChromeAccess.OffersAsync(
-                _permissions,
-                User
+            await Task.WhenAll(
+                teamPermissionsAccessTask,
+                billingCreditsAccessTask,
+                offersAccessTask,
+                privacyConsentAccessTask,
+                guestsAccessTask,
+                captureAccessTask,
+                feedbackAccessTask,
+                campaignsAccessTask,
+                reportsAccessTask,
+                tummlyShopAccessTask,
+                locationsAccessTask,
+                accountWorkspaceAccessTask
             );
 
-            var privacyConsentAccess =
-                await OperatorChromeAccess.PrivacyConsentAsync(
-                    _permissions,
-                    User
-                );
+            var teamPermissionsAccess = await teamPermissionsAccessTask;
+            var billingCreditsAccess = await billingCreditsAccessTask;
+            var offersAccess = await offersAccessTask;
+            var privacyConsentAccess = await privacyConsentAccessTask;
+            var guestsAccess = await guestsAccessTask;
+            var captureAccess = await captureAccessTask;
+            var feedbackAccess = await feedbackAccessTask;
+            var campaignsAccess = await campaignsAccessTask;
+            var reportsAccess = await reportsAccessTask;
+            var tummlyShopAccess = await tummlyShopAccessTask;
+            var locationsAccess = await locationsAccessTask;
+            var accountWorkspaceAccess = await accountWorkspaceAccessTask;
 
             var actorMembership = await _context.RestaurantMemberships
                 .AsNoTracking()
@@ -248,6 +289,14 @@ namespace TummlyBackend.Controllers
                 billingCreditsAccess,
                 offersAccess,
                 privacyConsentAccess,
+                guestsAccess,
+                captureAccess,
+                feedbackAccess,
+                campaignsAccess,
+                reportsAccess,
+                tummlyShopAccess,
+                locationsAccess,
+                accountWorkspaceAccess,
                 locations = locations.Select(row => new
                 {
                     row.Id,

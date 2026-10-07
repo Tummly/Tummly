@@ -20,15 +20,26 @@ const locations: LocationItem[] = [
   },
 ]
 
+type AreaChrome = "none" | "view" | "manage"
+
 function createAdapters(overrides: {
   getLocations?: () => Promise<{
     success: boolean
     locations: LocationItem[]
     restaurantName?: string
     aiAssistantAccess?: boolean
-    teamPermissionsAccess?: "none" | "view" | "manage"
-    offersAccess?: "none" | "view" | "manage"
-    privacyConsentAccess?: "none" | "view" | "manage"
+    teamPermissionsAccess?: AreaChrome
+    billingCreditsAccess?: AreaChrome
+    offersAccess?: AreaChrome
+    privacyConsentAccess?: AreaChrome
+    guestsAccess?: AreaChrome
+    captureAccess?: AreaChrome
+    feedbackAccess?: AreaChrome
+    campaignsAccess?: AreaChrome
+    reportsAccess?: AreaChrome
+    tummlyShopAccess?: AreaChrome
+    locationsAccess?: AreaChrome
+    accountWorkspaceAccess?: AreaChrome
   }>
   fetchCurrentUser?: () => Promise<unknown>
   getPersistedLocationId?: () => number | null
@@ -145,6 +156,60 @@ describe("createOperatorWorkspaceSession", () => {
     await session.load({ queryLocationId: null })
 
     expect(session.getSnapshot().offersAccess).toBe("none")
+  })
+
+  it("defaults SideNav Area chrome to manage when locations payload omits them", async () => {
+    const session = createOperatorWorkspaceSession(
+      { mode: "multi" },
+      createAdapters()
+    )
+
+    await session.load({ queryLocationId: null })
+
+    expect(session.getSnapshot()).toMatchObject({
+      guestsAccess: "manage",
+      captureAccess: "manage",
+      feedbackAccess: "manage",
+      campaignsAccess: "manage",
+      reportsAccess: "manage",
+      tummlyShopAccess: "manage",
+      locationsAccess: "manage",
+      accountWorkspaceAccess: "manage",
+    })
+  })
+
+  it("stores Staff-shaped Area chrome when locations payload sets none and view", async () => {
+    const session = createOperatorWorkspaceSession(
+      { mode: "multi" },
+      createAdapters({
+        getLocations: async () => ({
+          success: true,
+          locations,
+          guestsAccess: "none",
+          captureAccess: "none",
+          feedbackAccess: "none",
+          campaignsAccess: "none",
+          offersAccess: "view",
+          reportsAccess: "none",
+          tummlyShopAccess: "none",
+          locationsAccess: "view",
+          accountWorkspaceAccess: "view",
+          teamPermissionsAccess: "none",
+          billingCreditsAccess: "none",
+          privacyConsentAccess: "none",
+        }),
+      })
+    )
+
+    await session.load({ queryLocationId: null })
+
+    expect(session.getSnapshot()).toMatchObject({
+      guestsAccess: "none",
+      offersAccess: "view",
+      accountWorkspaceAccess: "view",
+      locationsAccess: "view",
+      teamPermissionsAccess: "none",
+    })
   })
 
   it("defaults privacyConsentAccess to manage when locations payload omits it", async () => {

@@ -319,6 +319,17 @@ function createAdapters(overrides: {
   getNeedsAttentionCredits?: OperatorHomePageAdapters["getNeedsAttentionCredits"]
   pauseCampaign?: OperatorHomePageAdapters["pauseCampaign"]
   duplicateCampaign?: OperatorHomePageAdapters["duplicateCampaign"]
+  sendGuestResponse?: OperatorHomePageAdapters["sendGuestResponse"]
+  sendGuestPreviewTest?: OperatorHomePageAdapters["sendGuestPreviewTest"]
+  completeRecovery?: OperatorHomePageAdapters["completeRecovery"]
+  prepareRecoveryDraft?: OperatorHomePageAdapters["prepareRecoveryDraft"]
+  recordInternalAction?: OperatorHomePageAdapters["recordInternalAction"]
+  sendAndRecord?: OperatorHomePageAdapters["sendAndRecord"]
+  sendAndIssueRecoveryOffer?: OperatorHomePageAdapters["sendAndIssueRecoveryOffer"]
+  prepareRecoveryOfferDraft?: OperatorHomePageAdapters["prepareRecoveryOfferDraft"]
+  getRecoveryOfferAttach?: OperatorHomePageAdapters["getRecoveryOfferAttach"]
+  setRecoveryOfferAttach?: OperatorHomePageAdapters["setRecoveryOfferAttach"]
+  listCatalogOffers?: OperatorHomePageAdapters["listCatalogOffers"]
 } = {}): OperatorHomePageAdapters {
   let defaultWeeklyBriefGenerated = false
 
@@ -502,6 +513,66 @@ function createAdapters(overrides: {
       ?? (async () => {
         throw new Error("duplicateCampaign not stubbed")
       }),
+    sendGuestResponse:
+      overrides.sendGuestResponse
+      ?? (async () => {
+        throw new Error("sendGuestResponse not stubbed")
+      }),
+    sendGuestPreviewTest:
+      overrides.sendGuestPreviewTest
+      ?? (async () => {
+        throw new Error("sendGuestPreviewTest not stubbed")
+      }),
+    completeRecovery:
+      overrides.completeRecovery
+      ?? (async () => {
+        throw new Error("completeRecovery not stubbed")
+      }),
+    prepareRecoveryDraft:
+      overrides.prepareRecoveryDraft
+      ?? (async () => {
+        throw new Error("prepareRecoveryDraft not stubbed")
+      }),
+    recordInternalAction:
+      overrides.recordInternalAction
+      ?? (async () => {
+        throw new Error("recordInternalAction not stubbed")
+      }),
+    sendAndRecord:
+      overrides.sendAndRecord
+      ?? (async () => {
+        throw new Error("sendAndRecord not stubbed")
+      }),
+    sendAndIssueRecoveryOffer:
+      overrides.sendAndIssueRecoveryOffer
+      ?? (async () => {
+        throw new Error("sendAndIssueRecoveryOffer not stubbed")
+      }),
+    prepareRecoveryOfferDraft:
+      overrides.prepareRecoveryOfferDraft
+      ?? (async () => {
+        throw new Error("prepareRecoveryOfferDraft not stubbed")
+      }),
+    getRecoveryOfferAttach:
+      overrides.getRecoveryOfferAttach ?? (async () => null),
+    setRecoveryOfferAttach:
+      overrides.setRecoveryOfferAttach ?? (async () => {}),
+    listCatalogOffers:
+      overrides.listCatalogOffers
+      ?? (async () => ({
+        success: true,
+        items: [],
+        totalCount: 0,
+        page: 1,
+        pageSize: 100,
+        tabCounts: {
+          all: 0,
+          needsAttention: 0,
+          drafts: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })),
   }
 }
 
@@ -1267,6 +1338,69 @@ describe("createOperatorHomePageModule", () => {
       isOpen: false,
       loadStatus: "idle",
       details: null,
+    })
+  })
+
+  it("opens Respond to guest and Add Offer from Feedback detail", async () => {
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Great food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedTags: ["service"],
+      locationGuestId: 5,
+      workflowStatus: "new" as const,
+      permissionStates: {
+        "email-marketing": "granted",
+        "sms-marketing": "not_recorded",
+        "feedback-follow-up": "granted",
+      },
+      restaurantPermissions: {
+        "email-marketing": true,
+        "sms-marketing": false,
+        "feedback-follow-up": true,
+      },
+    }))
+    const setWorkflowStatus = vi.fn(
+      async (
+        _feedbackId: number,
+        workflowStatus: "new" | "in_progress" | "resolved"
+      ) => ({
+        workflowStatus,
+        needsAttention: true,
+        activityEvent: null as null,
+      })
+    )
+    const home = createOperatorHomePageModule(
+      createAdapters({ getFeedbackDetails, setWorkflowStatus })
+    )
+    await home.syncWorkspace(workspaceInput())
+    await home.openFeedbackDetails(10)
+    home.closeFeedbackDetails()
+
+    await home.recoveryWizards.openDetailRespondToGuest(10)
+
+    expect(setWorkflowStatus).toHaveBeenCalledWith(10, "in_progress")
+    expect(home.getSnapshot().respondToGuest).toMatchObject({
+      isOpen: true,
+      feedbackId: 10,
+      loadStatus: "loaded",
+    })
+
+    home.recoveryWizards.respondToGuest.saveAndExit()
+    await home.recoveryWizards.openDetailAddOffer(10)
+
+    expect(home.getSnapshot().respondWithRecoveryOffer).toMatchObject({
+      isOpen: true,
+      feedbackId: 10,
+      loadStatus: "loaded",
     })
   })
 

@@ -4,6 +4,12 @@ import {
   type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import {
+  createRecoveryWizardsModule,
+  type RecoveryWizardsAdapters,
+  type RecoveryWizardsModule,
+  type RecoveryWizardsSnapshot,
+} from "@/lib/operatorFeedback/createRecoveryWizardsModule"
 import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import {
   buildHomeNeedsAttention,
@@ -141,7 +147,7 @@ export type OperatorHomePageSnapshot = {
   recommendation: OperatorHomeRecommendationViewModel
   /** Weekly brief — not on OperatorHomeViewModel (ticket 06). */
   weeklyBrief: OperatorHomeWeeklyBriefViewModel
-}
+} & RecoveryWizardsSnapshot
 
 export type ClassificationTerminalSignal = {
   feedbackId: number
@@ -239,6 +245,21 @@ export type OperatorHomePageAdapters = {
     campaignId: number,
     body: CampaignLifecycleActionRequest
   ) => Promise<CampaignLifecycleActionResponse>
+  sendGuestResponse: RecoveryWizardsAdapters["sendGuestResponse"]
+  sendGuestPreviewTest: RecoveryWizardsAdapters["sendGuestPreviewTest"]
+  getOperatorAccountEmail?: RecoveryWizardsAdapters["getOperatorAccountEmail"]
+  completeRecovery: RecoveryWizardsAdapters["completeRecovery"]
+  prepareRecoveryDraft: RecoveryWizardsAdapters["prepareRecoveryDraft"]
+  recordInternalAction: RecoveryWizardsAdapters["recordInternalAction"]
+  sendAndRecord: RecoveryWizardsAdapters["sendAndRecord"]
+  sendAndIssueRecoveryOffer: RecoveryWizardsAdapters["sendAndIssueRecoveryOffer"]
+  prepareRecoveryOfferDraft: RecoveryWizardsAdapters["prepareRecoveryOfferDraft"]
+  getRecoveryOfferAttach: RecoveryWizardsAdapters["getRecoveryOfferAttach"]
+  setRecoveryOfferAttach: RecoveryWizardsAdapters["setRecoveryOfferAttach"]
+  createOffer?: RecoveryWizardsAdapters["createOffer"]
+  getOffer?: RecoveryWizardsAdapters["getOffer"]
+  updateOffer?: RecoveryWizardsAdapters["updateOffer"]
+  listCatalogOffers?: RecoveryWizardsAdapters["listCatalogOffers"]
 }
 
 export type DuplicateNeedsAttentionCampaignResult =
@@ -303,6 +324,8 @@ export type OperatorHomePageModule = {
   startFeedbackNoteDelete: (noteId: number) => void
   cancelFeedbackNoteDelete: () => void
   confirmFeedbackNoteDelete: () => Promise<boolean>
+  /** Wizard actions for Feedback detail Respond / Add Offer (see `RecoveryWizardsHost`). */
+  recoveryWizards: RecoveryWizardsModule
 }
 
 type HomeState = {
@@ -756,6 +779,29 @@ export function createOperatorHomePageModule(
     deleteInternalNote: adapters.deleteInternalNote,
     closeOutFeedback: adapters.closeOutFeedback,
   })
+  const locationIdHolder: { current: () => number | null } = {
+    current: () => null,
+  }
+  const recoveryWizards = createRecoveryWizardsModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    setWorkflowStatus: adapters.setWorkflowStatus,
+    getRecoveryOfferAttach: adapters.getRecoveryOfferAttach,
+    setRecoveryOfferAttach: adapters.setRecoveryOfferAttach,
+    getLocationId: () => locationIdHolder.current(),
+    createOffer: adapters.createOffer,
+    getOffer: adapters.getOffer,
+    listCatalogOffers: adapters.listCatalogOffers,
+    updateOffer: adapters.updateOffer,
+    sendGuestResponse: adapters.sendGuestResponse,
+    sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
+    completeRecovery: adapters.completeRecovery,
+    prepareRecoveryDraft: adapters.prepareRecoveryDraft,
+    recordInternalAction: adapters.recordInternalAction,
+    sendAndRecord: adapters.sendAndRecord,
+    sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
+    prepareRecoveryOfferDraft: adapters.prepareRecoveryOfferDraft,
+  })
 
   let state: HomeState = {
     loadStatus: "idle",
@@ -785,6 +831,7 @@ export function createOperatorHomePageModule(
     liveOffersLoadGeneration: 0,
     needsAttentionLoadGeneration: 0,
   }
+  locationIdHolder.current = () => state.workspace?.selectedLocationId ?? null
 
   let snapshot: OperatorHomePageSnapshot = {
     loadStatus: state.loadStatus,
@@ -802,6 +849,7 @@ export function createOperatorHomePageModule(
     feedbackDetails: feedbackDetails.getSnapshot(),
     recommendation: idleRecommendation(),
     weeklyBrief: emptyWeeklyBrief(),
+    ...recoveryWizards.getSnapshot(),
   }
 
   const listeners = new Set<() => void>()
@@ -855,6 +903,7 @@ export function createOperatorHomePageModule(
       feedbackDetails: feedbackDetails.getSnapshot(),
       recommendation,
       weeklyBrief,
+      ...recoveryWizards.getSnapshot(),
     }
     emit()
   }
@@ -1108,6 +1157,9 @@ export function createOperatorHomePageModule(
   })
 
   feedbackDetails.subscribe(() => {
+    publish()
+  })
+  recoveryWizards.subscribe(() => {
     publish()
   })
 
@@ -1570,6 +1622,7 @@ export function createOperatorHomePageModule(
         dispatch({ type: "workspace_cleared" })
         acks.reset()
         feedbackDetails.reset()
+        recoveryWizards.closeStartRecovery()
         return
       }
 
@@ -1584,6 +1637,7 @@ export function createOperatorHomePageModule(
         weeklyBriefGeneration += 1
         weeklyBrief = emptyWeeklyBrief()
         feedbackDetails.reset()
+        recoveryWizards.closeStartRecovery()
         const emptyAcks: OperatorHomeChecklistAcks = {
           guestFormPreviewed: false,
           qrPlacementGuideViewed: false,
@@ -1880,5 +1934,6 @@ export function createOperatorHomePageModule(
       feedbackDetails.cancelDeleteNote()
     },
     confirmFeedbackNoteDelete: () => feedbackDetails.confirmDeleteNote(),
+    recoveryWizards,
   }
 }

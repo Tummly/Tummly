@@ -9,7 +9,6 @@ import {
   getCampaignsList,
   getChecklistAcks,
   getFeedback,
-  getFeedbackDetails,
   getFeedbackInbox,
   getHomeLatestActivity,
   getHomePerformance,
@@ -20,7 +19,6 @@ import {
   listOpenVoidAttention,
   pauseCampaign,
   setChecklistAcks,
-  setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   updateFeedbackDetectedTags,
   updateFeedbackInternalNote,
@@ -34,6 +32,7 @@ import { useDashboardUiStoreApi } from "@/components/dashboard/operator/Dashboar
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/operatorCampaigns/campaignsPresentation"
 import { FEEDBACK_INBOX_PAGE_SIZE } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
 import { connectFeedbackHomeHub } from "@/lib/operatorHome/connectFeedbackHomeHub"
+import { createRecoveryWizardApiAdapters } from "@/lib/operatorFeedback/createRecoveryWizardApiAdapters"
 import {
   createOperatorHomePageModule,
 } from "@/lib/operatorHome/createOperatorHomePageModule"
@@ -73,7 +72,7 @@ export function HomePageModuleProvider({
         getHomeRecommendation(request),
       getWeeklyBrief,
       generateWeeklyBrief,
-      getFeedbackDetails,
+      ...createRecoveryWizardApiAdapters(),
       correctClassification: async (feedbackId, input) => {
         const trimmedNote = input.noteBody?.trim() ?? ""
         const result = await correctFeedbackClassification(feedbackId, {
@@ -101,17 +100,6 @@ export function HomePageModuleProvider({
           detectedTags: result.detectedTags,
           needsAttention: result.needsAttention,
           classifiedAt: result.classifiedAt ?? null,
-          activityEvent: result.activityEvent ?? null,
-        }
-      },
-      setWorkflowStatus: async (feedbackId, workflowStatus) => {
-        const result = await setFeedbackWorkflowStatus(
-          feedbackId,
-          workflowStatus
-        )
-        return {
-          workflowStatus: result.workflowStatus,
-          needsAttention: result.needsAttention,
           activityEvent: result.activityEvent ?? null,
         }
       },

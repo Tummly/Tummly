@@ -14,7 +14,10 @@ import {
   getOperatorInitials,
 } from "@/lib/operatorHome/operatorProfile"
 import { getOperatorSidebarNav } from "@/lib/operatorHome/sidebarNav"
-import type { OperatorSidebarNavTargets } from "@/lib/operatorHome/sidebarNav"
+import type {
+  OperatorSidebarNavId,
+  OperatorSidebarNavTargets,
+} from "@/lib/operatorHome/sidebarNav"
 import type {
   OperatorHomeLocationOption,
   OperatorShellPresentation,
@@ -59,6 +62,8 @@ export type BuildOperatorShellPresentationInput = {
   navTargets?: OperatorSidebarNavTargets
   hideTeamPermissions?: boolean
   hideBillingCredits?: boolean
+  /** Explicit No-access SideNav ids; omit / empty keeps all rows visible. */
+  hiddenNavIds?: ReadonlyArray<OperatorSidebarNavId>
 }
 
 /**
@@ -114,6 +119,7 @@ export function buildOperatorShellPresentation(
     sidebarNav: getOperatorSidebarNav(activeNavId, input.navTargets, {
       hideTeamPermissions: input.hideTeamPermissions,
       hideBillingCredits: input.hideBillingCredits,
+      hiddenNavIds: input.hiddenNavIds,
     }),
     locationSwitcher: {
       interactive: input.locationSwitcherInteractive,

@@ -12,6 +12,9 @@ export type OffersAccess = TeamPermissionsAccess
 
 export type PrivacyConsentAccess = TeamPermissionsAccess
 
+/** Shared chrome level for any Operator Area SideNav / route gate. */
+export type OperatorAreaChromeAccess = TeamPermissionsAccess
+
 export function parseTeamPermissionsAccess(
   raw: string | null | undefined
 ): TeamPermissionsAccess | null {
@@ -26,6 +29,8 @@ export const parseBillingCreditsAccess = parseTeamPermissionsAccess
 export const parseOffersAccess = parseTeamPermissionsAccess
 
 export const parsePrivacyConsentAccess = parseTeamPermissionsAccess
+
+export const parseOperatorAreaChromeAccess = parseTeamPermissionsAccess
 
 export interface OperatorProfile {
   fullName: string

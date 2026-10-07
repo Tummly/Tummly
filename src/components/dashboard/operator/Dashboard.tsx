@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef } from "react"
-import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
+import {
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom"
 
 import { ActivateTummlyPilotDialogHost } from "@/components/dashboard/operator/ActivateTummlyPilotDialogHost"
 import { PendingPaymentInterstitialHost } from "@/components/dashboard/operator/PendingPaymentInterstitialHost"
@@ -29,6 +35,11 @@ import {
   closeExclusivePeerRightDrawers,
 } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
+import {
+  buildOperatorSidebarAreaAccess,
+  isDeniedOperatorSidebarActiveId,
+  resolveHiddenOperatorSidebarNavIds,
+} from "@/lib/operatorHome/operatorAreaChromeAccess"
 import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import { getOperatorFirstName } from "@/lib/operatorHome/operatorProfile"
 import {
@@ -355,6 +366,17 @@ function DashboardContent({ mode }: DashboardProps) {
     )
   }
 
+  const areaAccess = buildOperatorSidebarAreaAccess(workspace.snapshot)
+  const activeNavId = resolveOperatorSidebarActiveId(pathname)
+  if (isDeniedOperatorSidebarActiveId(activeNavId, areaAccess)) {
+    return (
+      <Navigate
+        to={operatorDashboardNavPath(mode, "home", selectedLocationId)}
+        replace
+      />
+    )
+  }
+
   const presentation = buildOperatorShellPresentation({
     operatorDisplayName: workspace.snapshot.operatorDisplayName,
     activationExpiresAt: workspace.snapshot.activationExpiresAt,
@@ -378,15 +400,12 @@ function DashboardContent({ mode }: DashboardProps) {
     locationSwitcherInteractive:
       workspace.snapshot.locationSwitcherInteractive,
     brandLogoPublicUrl: workspace.snapshot.brandLogoPublicUrl,
-    activeNavId: resolveOperatorSidebarActiveId(pathname),
+    activeNavId,
     navTargets: {
       mode,
       locationId: selectedLocationId,
     },
-    hideTeamPermissions:
-      workspace.snapshot.teamPermissionsAccess === "none",
-    hideBillingCredits:
-      workspace.snapshot.billingCreditsAccess === "none",
+    hiddenNavIds: resolveHiddenOperatorSidebarNavIds(areaAccess),
   })
 
   return (

@@ -1,4 +1,5 @@
 import { HomeBody } from "@/components/dashboard/operator/Home/HomeBody"
+import { RecoveryWizardsHost } from "@/components/dashboard/operator/Feedback/RecoveryWizardsHost"
 import {
   useDashboardUiStore,
 } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -396,6 +397,22 @@ export function HomePage({
         onConfirmFeedbackCloseOut={() => {
           void home.confirmFeedbackCloseOut()
         }}
+        onRespondToGuest={() => {
+          const feedbackId = home.snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          home.closeFeedbackDetails()
+          void home.recoveryWizards.openDetailRespondToGuest(feedbackId)
+        }}
+        onAddOffer={() => {
+          const feedbackId = home.snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          home.closeFeedbackDetails()
+          void home.recoveryWizards.openDetailAddOffer(feedbackId)
+        }}
         onFeedbackInternalNoteDraftChange={(value) => {
           home.setFeedbackInternalNoteDraft(value)
         }}
@@ -411,6 +428,10 @@ export function HomePage({
         onConfirmFeedbackNoteDelete={() => {
           void home.confirmFeedbackNoteDelete()
         }}
+      />
+      <RecoveryWizardsHost
+        snapshot={home.snapshot}
+        wizards={home.recoveryWizards}
       />
       <AccountWorkspaceConfirmDialog
         open={pilotConfirmOpen}

@@ -126,9 +126,38 @@ export type OperatorSidebarNavTargets = {
 };
 
 export type OperatorSidebarNavOptions = {
+  /**
+   * @deprecated Prefer `hiddenNavIds`. Kept so older call sites still hide
+   * Team & permissions during the Area-chrome cutover.
+   */
   hideTeamPermissions?: boolean;
+  /**
+   * @deprecated Prefer `hiddenNavIds`. Kept so older call sites still hide
+   * Billing & credits during the Area-chrome cutover.
+   */
   hideBillingCredits?: boolean;
+  /**
+   * SideNav ids with explicit No access. Omit / empty keeps all rows
+   * (CODING_STANDARDS chrome omit default). Home is never listed.
+   */
+  hiddenNavIds?: ReadonlyArray<OperatorSidebarNavId>;
 };
+
+function isHiddenNavId(
+  id: OperatorSidebarNavId,
+  options?: OperatorSidebarNavOptions,
+): boolean {
+  if (options?.hiddenNavIds?.includes(id)) {
+    return true
+  }
+  if (id === "team-permissions" && options?.hideTeamPermissions) {
+    return true
+  }
+  if (id === "billing-credits" && options?.hideBillingCredits) {
+    return true
+  }
+  return false
+}
 
 /** Sidebar chrome for Operator Dashboard — navigable primary destinations. */
 export function getOperatorSidebarNav(
@@ -136,7 +165,9 @@ export function getOperatorSidebarNav(
   navTargets?: OperatorSidebarNavTargets,
   options?: OperatorSidebarNavOptions,
 ): OperatorSidebarNavModel {
-  const primary = OPERATOR_SIDEBAR_PRIMARY_NAV.map((item) => ({
+  const primary = OPERATOR_SIDEBAR_PRIMARY_NAV.filter(
+    (item) => !isHiddenNavId(item.id, options),
+  ).map((item) => ({
     id: item.id,
     label: item.label,
     navigable: isNavigableOperatorSidebarPrimaryNavId(item.id),
@@ -151,15 +182,9 @@ export function getOperatorSidebarNav(
         : undefined,
   }));
 
-  const children = OPERATOR_SIDEBAR_SETTINGS_CHILDREN.filter((item) => {
-    if (item.id === "team-permissions" && options?.hideTeamPermissions) {
-      return false
-    }
-    if (item.id === "billing-credits" && options?.hideBillingCredits) {
-      return false
-    }
-    return true
-  }).map((item) => ({
+  const children = OPERATOR_SIDEBAR_SETTINGS_CHILDREN.filter(
+    (item) => !isHiddenNavId(item.id, options),
+  ).map((item) => ({
     id: item.id,
     label: item.label,
     navigable: isNavigableOperatorSidebarSettingsChildId(item.id),
@@ -177,6 +202,25 @@ export function getOperatorSidebarNav(
 
   const forceExpanded = children.some((child) => child.active);
 
+  const footer = isHiddenNavId(OPERATOR_SIDEBAR_SHOP.id, options)
+    ? []
+    : [
+        {
+          id: OPERATOR_SIDEBAR_SHOP.id,
+          label: OPERATOR_SIDEBAR_SHOP.label,
+          navigable: navTargets != null,
+          active: activeId === OPERATOR_SIDEBAR_SHOP.id,
+          to:
+            navTargets != null
+              ? operatorDashboardNavPath(
+                  navTargets.mode,
+                  OPERATOR_SIDEBAR_SHOP.id,
+                  navTargets.locationId,
+                )
+              : undefined,
+        },
+      ]
+
   return {
     primary,
     settings: {
@@ -187,21 +231,6 @@ export function getOperatorSidebarNav(
       children,
       forceExpanded,
     },
-    footer: [
-      {
-        id: OPERATOR_SIDEBAR_SHOP.id,
-        label: OPERATOR_SIDEBAR_SHOP.label,
-        navigable: navTargets != null,
-        active: activeId === OPERATOR_SIDEBAR_SHOP.id,
-        to:
-          navTargets != null
-            ? operatorDashboardNavPath(
-                navTargets.mode,
-                OPERATOR_SIDEBAR_SHOP.id,
-                navTargets.locationId,
-              )
-            : undefined,
-      },
-    ],
+    footer,
   };
 }

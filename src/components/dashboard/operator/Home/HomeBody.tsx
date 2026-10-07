@@ -107,6 +107,10 @@ type HomeBodyProps = {
   onViewAllActivity?: (tabId: HomeLatestActivityViewAllTabId) => void
   onFeedbackDetailsOpenChange?: (open: boolean) => void
   onRetryFeedbackDetails?: () => void
+  /** FD — open Respond to guest from Feedback detail. */
+  onRespondToGuest?: () => void
+  /** FD — open Add Offer from Feedback detail. */
+  onAddOffer?: () => void
   onStartClassificationCorrection?: () => void
   onClassificationDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onClassificationDraftReasonChange?: (
@@ -194,6 +198,8 @@ export function HomeBody({
   onViewAllActivity,
   onFeedbackDetailsOpenChange,
   onRetryFeedbackDetails,
+  onRespondToGuest,
+  onAddOffer,
   onStartClassificationCorrection,
   onClassificationDraftSentimentChange,
   onClassificationDraftReasonChange,
@@ -424,6 +430,8 @@ export function HomeBody({
         onSetCloseOutAcknowledged={onSetFeedbackCloseOutAcknowledged}
         onConfirmCloseOut={onConfirmFeedbackCloseOut}
         onViewGuestProfile={onViewGuestProfile}
+        onRespondToGuest={onRespondToGuest}
+        onAddOffer={onAddOffer}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}
         onStartNoteEdit={onStartFeedbackNoteEdit}

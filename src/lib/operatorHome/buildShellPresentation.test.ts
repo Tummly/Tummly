@@ -324,4 +324,22 @@ describe("buildOperatorShellPresentation", () => {
       showPausedBadge: true,
     });
   });
+
+  it("omits SideNav rows listed in hiddenNavIds", () => {
+    const presentation = buildOperatorShellPresentation(
+      makeShellInput({
+        navTargets: { mode: "single", locationId: 10 },
+        hiddenNavIds: ["guests", "campaigns", "tummly-shop", "billing-credits"],
+      }),
+      now,
+    );
+
+    expect(
+      presentation.sidebarNav.primary.map((item) => item.id)
+    ).toEqual(["home", "capture", "feedback", "offers", "reports"]);
+    expect(
+      presentation.sidebarNav.settings.children.map((item) => item.id)
+    ).not.toContain("billing-credits");
+    expect(presentation.sidebarNav.footer).toEqual([]);
+  });
 });

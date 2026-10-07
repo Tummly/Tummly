@@ -1,5 +1,17 @@
 import { resolveInitialLocationId } from "@/lib/operatorHome/buildHomeViewModel"
-import { parseOperatorProfile, parseTeamPermissionsAccess, parseBillingCreditsAccess, parseOffersAccess, parsePrivacyConsentAccess, type BillingCreditsAccess, type OffersAccess, type PrivacyConsentAccess, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
+import {
+  parseOperatorProfile,
+  parseTeamPermissionsAccess,
+  parseBillingCreditsAccess,
+  parseOffersAccess,
+  parsePrivacyConsentAccess,
+  parseOperatorAreaChromeAccess,
+  type BillingCreditsAccess,
+  type OffersAccess,
+  type OperatorAreaChromeAccess,
+  type PrivacyConsentAccess,
+  type TeamPermissionsAccess,
+} from "@/lib/operatorHome/parseOperatorProfile"
 import type { LocationItem, LocationsResponse } from "@/types/dashboard"
 
 export type OperatorWorkspaceMode = "single" | "multi"
@@ -19,6 +31,14 @@ export type OperatorWorkspaceSnapshot = {
   billingCreditsAccess: BillingCreditsAccess
   offersAccess: OffersAccess
   privacyConsentAccess: PrivacyConsentAccess
+  guestsAccess: OperatorAreaChromeAccess
+  captureAccess: OperatorAreaChromeAccess
+  feedbackAccess: OperatorAreaChromeAccess
+  campaignsAccess: OperatorAreaChromeAccess
+  reportsAccess: OperatorAreaChromeAccess
+  tummlyShopAccess: OperatorAreaChromeAccess
+  locationsAccess: OperatorAreaChromeAccess
+  accountWorkspaceAccess: OperatorAreaChromeAccess
   subscriptionPlan: string
   billingStatus: string
   /** Omit / false = not restricted (chrome stays available). */
@@ -74,6 +94,14 @@ type WorkspaceAction =
       billingCreditsAccess: BillingCreditsAccess
       offersAccess: OffersAccess
       privacyConsentAccess: PrivacyConsentAccess
+      guestsAccess: OperatorAreaChromeAccess
+      captureAccess: OperatorAreaChromeAccess
+      feedbackAccess: OperatorAreaChromeAccess
+      campaignsAccess: OperatorAreaChromeAccess
+      reportsAccess: OperatorAreaChromeAccess
+      tummlyShopAccess: OperatorAreaChromeAccess
+      locationsAccess: OperatorAreaChromeAccess
+      accountWorkspaceAccess: OperatorAreaChromeAccess
       subscriptionPlan: string
       billingStatus: string
       chargebackRestricted: boolean
@@ -129,6 +157,14 @@ function reduce(
         billingCreditsAccess: action.billingCreditsAccess,
         offersAccess: action.offersAccess,
         privacyConsentAccess: action.privacyConsentAccess,
+        guestsAccess: action.guestsAccess,
+        captureAccess: action.captureAccess,
+        feedbackAccess: action.feedbackAccess,
+        campaignsAccess: action.campaignsAccess,
+        reportsAccess: action.reportsAccess,
+        tummlyShopAccess: action.tummlyShopAccess,
+        locationsAccess: action.locationsAccess,
+        accountWorkspaceAccess: action.accountWorkspaceAccess,
         subscriptionPlan: action.subscriptionPlan,
         billingStatus: action.billingStatus,
         chargebackRestricted: action.chargebackRestricted,
@@ -179,6 +215,14 @@ export function createOperatorWorkspaceSession(
     billingCreditsAccess: "none",
     offersAccess: "none",
     privacyConsentAccess: "none",
+    guestsAccess: "none",
+    captureAccess: "none",
+    feedbackAccess: "none",
+    campaignsAccess: "none",
+    reportsAccess: "none",
+    tummlyShopAccess: "none",
+    locationsAccess: "none",
+    accountWorkspaceAccess: "none",
     subscriptionPlan: "Pilot",
     billingStatus: "Pilot",
     chargebackRestricted: false,
@@ -204,6 +248,14 @@ export function createOperatorWorkspaceSession(
     billingCreditsAccess: state.billingCreditsAccess,
     offersAccess: state.offersAccess,
     privacyConsentAccess: state.privacyConsentAccess,
+    guestsAccess: state.guestsAccess,
+    captureAccess: state.captureAccess,
+    feedbackAccess: state.feedbackAccess,
+    campaignsAccess: state.campaignsAccess,
+    reportsAccess: state.reportsAccess,
+    tummlyShopAccess: state.tummlyShopAccess,
+    locationsAccess: state.locationsAccess,
+    accountWorkspaceAccess: state.accountWorkspaceAccess,
     subscriptionPlan: state.subscriptionPlan,
     billingStatus: state.billingStatus,
     chargebackRestricted: state.chargebackRestricted,
@@ -237,6 +289,14 @@ export function createOperatorWorkspaceSession(
       billingCreditsAccess: state.billingCreditsAccess,
       offersAccess: state.offersAccess,
       privacyConsentAccess: state.privacyConsentAccess,
+      guestsAccess: state.guestsAccess,
+      captureAccess: state.captureAccess,
+      feedbackAccess: state.feedbackAccess,
+      campaignsAccess: state.campaignsAccess,
+      reportsAccess: state.reportsAccess,
+      tummlyShopAccess: state.tummlyShopAccess,
+      locationsAccess: state.locationsAccess,
+      accountWorkspaceAccess: state.accountWorkspaceAccess,
       subscriptionPlan: state.subscriptionPlan,
       billingStatus: state.billingStatus,
       chargebackRestricted: state.chargebackRestricted,
@@ -307,6 +367,31 @@ export function createOperatorWorkspaceSession(
           parseOffersAccess(locationsResult.offersAccess) ?? "manage",
         privacyConsentAccess:
           parsePrivacyConsentAccess(locationsResult.privacyConsentAccess)
+          ?? "manage",
+        // Omit → manage so Account-owner chrome stays until API fields land.
+        guestsAccess:
+          parseOperatorAreaChromeAccess(locationsResult.guestsAccess)
+          ?? "manage",
+        captureAccess:
+          parseOperatorAreaChromeAccess(locationsResult.captureAccess)
+          ?? "manage",
+        feedbackAccess:
+          parseOperatorAreaChromeAccess(locationsResult.feedbackAccess)
+          ?? "manage",
+        campaignsAccess:
+          parseOperatorAreaChromeAccess(locationsResult.campaignsAccess)
+          ?? "manage",
+        reportsAccess:
+          parseOperatorAreaChromeAccess(locationsResult.reportsAccess)
+          ?? "manage",
+        tummlyShopAccess:
+          parseOperatorAreaChromeAccess(locationsResult.tummlyShopAccess)
+          ?? "manage",
+        locationsAccess:
+          parseOperatorAreaChromeAccess(locationsResult.locationsAccess)
+          ?? "manage",
+        accountWorkspaceAccess:
+          parseOperatorAreaChromeAccess(locationsResult.accountWorkspaceAccess)
           ?? "manage",
         subscriptionPlan: locationsResult.subscriptionPlan ?? "Pilot",
         billingStatus: locationsResult.billingStatus ?? "Pilot",
