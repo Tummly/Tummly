@@ -349,6 +349,44 @@ namespace TummlyBackend.Helpers
                 _ => state.Validity ?? string.Empty,
             };
 
+        /// <summary>
+        /// End-date / validity fill for an open Offer-terms Gap
+        /// ("Make the offer valid to 10 days"). Not a fresh Offer create
+        /// and not a mutate-prior edit ("update offer validity to…").
+        /// </summary>
+        public static bool LooksLikeValidityFollowUp(string lower)
+        {
+            if (string.IsNullOrWhiteSpace(lower))
+            {
+                return false;
+            }
+
+            if (ContainsAny(
+                    lower,
+                    "change",
+                    "update",
+                    "switch",
+                    "edit",
+                    "set the",
+                    "set offer",
+                    "create an offer",
+                    "create a offer",
+                    "create offer",
+                    "draft an offer",
+                    "draft a offer",
+                    "offer draft",
+                    "offers catalog draft",
+                    "prepare an offer",
+                    "prepare a offer"
+                ))
+            {
+                return false;
+            }
+
+            return LooksLikeValidityMessage(lower)
+                || RelativeDaysAfterIssueRegex().IsMatch(lower);
+        }
+
         private static readonly string[] GuestFormThankYouPhrases =
         [
             "guest form thank-you",
@@ -666,11 +704,46 @@ namespace TummlyBackend.Helpers
                 return;
             }
 
+            if (TryParseRelativeDaysAfterIssue(lower, utcNow, out var relativeExpiry))
+            {
+                state.Validity = "choose_expiry_date";
+                state.ExpiryDate = relativeExpiry;
+                return;
+            }
+
             if (TryParseNamedExpiryDate(lower, utcNow, out var expiry))
             {
                 state.Validity = "choose_expiry_date";
                 state.ExpiryDate = expiry;
             }
+        }
+
+        private static bool TryParseRelativeDaysAfterIssue(
+            string lower,
+            DateTime utcNow,
+            out string expiry
+        )
+        {
+            expiry = string.Empty;
+            var match = RelativeDaysAfterIssueRegex().Match(lower);
+            if (!match.Success
+                || !int.TryParse(
+                    match.Groups["days"].Value,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var days
+                )
+                || days < 1
+                || days > 366)
+            {
+                return false;
+            }
+
+            // Catalog presets already handled above; other day counts become a
+            // fixed end date from today (operator said "valid for N days").
+            expiry = utcNow.Date.AddDays(days)
+                .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            return true;
         }
 
         private static void ApplyPurchaseRequirement(
@@ -771,12 +844,17 @@ namespace TummlyBackend.Helpers
                 || LooksLikeDaysAfterIssue(lower, 30)
                 || LooksLikeDaysAfterIssue(lower, 14)
                 || LooksLikeDaysAfterIssue(lower, 7)
+                || RelativeDaysAfterIssueRegex().IsMatch(lower)
                 || ContainsAny(
                     lower,
                     "end of this month",
                     "end of the month",
                     "month-end",
-                    "month end"
+                    "month end",
+                    "valid for",
+                    "valid to",
+                    "valid till",
+                    "valid until"
                 )
                 || TryParseNamedExpiryDate(lower, DateTime.UtcNow, out _);
 
@@ -955,5 +1033,14 @@ namespace TummlyBackend.Helpers
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
         )]
         private static partial Regex OrdinalDaySuffixRegex();
+
+        /// <summary>
+        /// "10 days", "10-day", "valid for 10 days", "valid to 10 days".
+        /// </summary>
+        [GeneratedRegex(
+            @"\b(?:valid\s+(?:for|to|till|until)\s+)?(?<days>\d{1,3})\s*-?\s*days?\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
+        private static partial Regex RelativeDaysAfterIssueRegex();
     }
 }

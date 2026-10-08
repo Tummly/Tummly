@@ -3265,6 +3265,70 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(gapState.OfferTermsJson);
         }
 
+        /// <summary>
+        /// QA screenshot: EndDateAsk → "Make the offer valid to 10 days" must not
+        /// drop the draft ask and fail with NoPriorDraftToUpdateBody.
+        /// </summary>
+        [Fact]
+        public async Task SendTurn_OfferPath_EndDateGap_MakeOfferValidTo10Days_DoesNotDropPriorDraft()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Clarify,
+                null,
+                "When should diners be able to use their discount?",
+                AssistantTask.OfferPath,
+                null,
+                new AssistantOfferPathTermsState
+                {
+                    OfferType = "percentage_discount",
+                    DiscountPercentage = 25m,
+                }
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a 25% off lunch offer")
+                )
+            );
+            Assert.Equal(AssistantGapAsk.EndDateAsk, started.Conversation.Messages[^1].Body);
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Make the offer valid to 10 days",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            var body = answered.Conversation.Messages[^1].Body;
+            Assert.DoesNotContain(
+                AssistantGapAsk.PreviousDraftDropped,
+                body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                AssistantOfferPathPersistCopy.NoPriorDraftToUpdateBody(),
+                body,
+                StringComparison.Ordinal
+            );
+            Assert.NotEqual(
+                AssistantOfferPathPersistCopy.FailureTitle,
+                answered.Conversation.Messages[^1].Title
+            );
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferValidity.ChooseExpiryDate, offer.Validity);
+            Assert.Equal(
+                DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(10)),
+                offer.CustomExpiryDate
+            );
+            Assert.Null(await StoredGapStateOrNullAsync(started.Conversation.Id));
+        }
+
         [Fact]
         public async Task SendTurn_OfferPath_GapAnswerRephrased_ResumesToPersistFromFullThread()
         {
@@ -6486,6 +6550,96 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(firstId, campaign.OfferId);
             Assert.Equal("grounded", answered.Conversation.Messages[^1].Class);
             Assert.Null(answered.Conversation.PendingRecoveryDraft);
+        }
+
+        /// <summary>
+        /// QA: create-target chip "Campaign to recover…" must Continue under
+        /// Gap authority and Resolve Campaign — not drop for Feedback recovery.
+        /// </summary>
+        [Fact]
+        public async Task SendTurn_CreateTarget_CampaignToRecover_ResolvesCampaignNotRecovery()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "help me draft something")
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            var openGap = await StoredGapStateAsync(started.Conversation.Id);
+            Assert.Equal(AssistantGapTurn.KindCreateTarget, openGap.Kind);
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Campaign to recover 10 eligible guests.",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            var body = answered.Conversation.Messages[^1].Body;
+            Assert.DoesNotContain(
+                AssistantGapAsk.PreviousDraftDropped,
+                body,
+                StringComparison.Ordinal
+            );
+            Assert.Null(answered.Conversation.PendingRecoveryDraft);
+            Assert.Equal("grounded", answered.Conversation.Messages[^1].Class);
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferTermsGap_DraftARecovery_DropsAndPrefixes()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Clarify,
+                null,
+                "When should diners be able to use their discount?",
+                AssistantTask.OfferPath,
+                null,
+                new AssistantOfferPathTermsState
+                {
+                    OfferType = "percentage_discount",
+                    DiscountPercentage = 25m,
+                }
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a 25% off lunch offer")
+                )
+            );
+            Assert.Equal(AssistantGapAsk.EndDateAsk, started.Conversation.Messages[^1].Body);
+
+            var switched = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Draft a recovery for recent feedback",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.StartsWith(
+                AssistantGapAsk.PreviousDraftDropped,
+                switched.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
         }
 
         [Fact]

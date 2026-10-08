@@ -647,10 +647,10 @@ namespace TummlyBackend.Services
                 );
             }
 
-            // Unmatched routing: cancel already handled. A new create drops
-            // the open Gap. Retrieve, Refuse, and confused fills keep it.
-            // Advisory Gaps route through TryResumeGapAsync (same entry as
-            // Creation); a resolving choice continues the advisory path.
+            // Unmatched routing: cancel already handled. Gap resume authority
+            // decides Continue / Keep / Drop. Advisory Gaps route through
+            // TryResumeGapAsync (same entry as Creation). Create-target Gaps
+            // always Continue so chip paraphrases Resolve.
             if (gapState is not null
                 && AssistantGapTurn.IsAdvisoryGap(gapState))
             {
@@ -661,7 +661,8 @@ namespace TummlyBackend.Services
                     locationName,
                     ownedLocations,
                     replaceFailure,
-                    cancellationToken
+                    cancellationToken,
+                    idempotencyKey
                 );
                 if (resumed.Outcome is not null)
                 {
@@ -675,7 +676,8 @@ namespace TummlyBackend.Services
                 }
             }
             else if (gapState is not null
-                && AssistantGapAsk.LooksLikeNewCreateDuringGap(userMessage))
+                && AssistantGapAuthority.Decide(gapState, userMessage)
+                    == AssistantGapAuthorityDecision.DropForNewCreate)
             {
                 conversation.DraftInterviewJson = null;
                 gapState = null;
@@ -798,7 +800,8 @@ namespace TummlyBackend.Services
                     locationName,
                     ownedLocations,
                     replaceFailure,
-                    cancellationToken
+                    cancellationToken,
+                    idempotencyKey
                 );
                 if (resumed.Outcome is not null)
                 {
@@ -3276,6 +3279,8 @@ namespace TummlyBackend.Services
         /// <summary>
         /// Prefer prior-draft mutate / local Classify over a mislabeled Azure
         /// create task so follow-ups cannot mint a second Campaign or Offer.
+        /// When a Gap is open, keep the provider task — Gap resume authority
+        /// owns fill vs replace; do not reclassify into mutate-NoPrior.
         /// </summary>
         private static string NormalizePersistAssistantTask(
             string providerTask,
@@ -3283,6 +3288,11 @@ namespace TummlyBackend.Services
             AssistantConversation conversation
         )
         {
+            if (AssistantGapTurn.Parse(conversation.DraftInterviewJson) is not null)
+            {
+                return providerTask;
+            }
+
             if (AssistantPriorDraftAuthority.ResolveOffer(
                     conversation.CreatedOfferId,
                     userMessage
@@ -4307,6 +4317,94 @@ namespace TummlyBackend.Services
             string? MergedUserMessage = null
         );
 
+        private sealed record OfferTermsOverlayExtract(
+            AssistantOfferPathTermsState? Terms,
+            AssistantTurnBilling? Billing,
+            AssistantTurnOutcome? Outcome
+        );
+
+        /// <summary>
+        /// One billed live-answer call to extract offerTerms for an open
+        /// Offer-terms Gap when deterministic Merge made no progress.
+        /// </summary>
+        private async Task<OfferTermsOverlayExtract> TryExtractOfferTermsOverlayAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            string analysisScopeLocationName,
+            AssistantMessage? replaceFailure,
+            string? idempotencyKey,
+            CancellationToken cancellationToken
+        )
+        {
+            var billingGate = await TryBeginBilledLiveAnswerAsync(
+                conversation,
+                conversation.OwnedLocationId,
+                idempotencyKey,
+                cancellationToken
+            );
+            if (billingGate.Error is not null)
+            {
+                return new OfferTermsOverlayExtract(null, null, billingGate.Error);
+            }
+
+            var turnBilling = billingGate.Billing;
+            AssistantLiveAnswerResult answer;
+            try
+            {
+                await TryPublishProgressAsync(
+                    conversation.OwnerUserId,
+                    conversation.Id,
+                    AssistantTurnProgressSteps.Preparing,
+                    cancellationToken
+                );
+                answer = await _liveAnswer.CompleteAsync(
+                    new AssistantLiveAnswerInput(
+                        userMessage,
+                        analysisScopeLocationName,
+                        PeriodPhrase: string.Empty,
+                        EmptyEvidence,
+                        History: BuildLiveAnswerHistory(conversation)
+                    ),
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                await PersistAssistantAsync(
+                    conversation,
+                    FailureMessage(DateTime.UtcNow),
+                    replaceFailure,
+                    CancellationToken.None,
+                    liveAnswerAlreadyCompleted: true,
+                    turnBilling: turnBilling
+                );
+                throw;
+            }
+
+            if (answer is not AssistantLiveAnswerResult.Succeeded succeeded)
+            {
+                return new OfferTermsOverlayExtract(
+                    null,
+                    turnBilling,
+                    await PersistAssistantAsync(
+                        conversation,
+                        FailureMessage(DateTime.UtcNow),
+                        replaceFailure,
+                        cancellationToken,
+                        liveAnswerAlreadyCompleted: true,
+                        turnBilling: turnBilling
+                    )
+                );
+            }
+
+            return new OfferTermsOverlayExtract(
+                succeeded.OfferTerms,
+                turnBilling,
+                null
+            );
+        }
+
         private sealed record CombinedCreateResumeContext(
             string SourceUserMessage,
             AssistantOfferPathTermsState PriorTerms,
@@ -4747,7 +4845,8 @@ namespace TummlyBackend.Services
             string analysisScopeLocationName,
             IReadOnlyList<OwnedLocationRow> ownedLocations,
             AssistantMessage? replaceFailure,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            string? idempotencyKey = null
         )
         {
             if (AssistantGapTurn.IsAdvisoryGap(gapState))
@@ -4761,89 +4860,23 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var authority = AssistantGapAuthority.Decide(gapState, userMessage);
+            if (authority == AssistantGapAuthorityDecision.DropForNewCreate)
+            {
+                conversation.DraftInterviewJson = null;
+                return new GapResume(null, AssistantCreateTargets.Detect(userMessage));
+            }
+
+            if (authority == AssistantGapAuthorityDecision.KeepGapAnswerRetrieveOrRefuse)
+            {
+                return new GapResume(null, null);
+            }
+
             var stayOnOfferPath = AssistantGapTurn.IsOfferPathGap(gapState);
             var detected = AssistantCreateTargets.Detect(userMessage);
-            if (detected.Count > 1 && !stayOnOfferPath)
-            {
-                return new GapResume(
-                    await FinishGapTurnAsync(
-                        conversation,
-                        AssistantGapTurn.CreateTarget(
-                            detected,
-                            userMessage,
-                            AssistantTaskClassification.ForCreateTargetGap(
-                                detected,
-                                userMessage
-                            )
-                        ),
-                        AssistantGapTurn.CreateTargetBody(detected),
-                        replaceFailure,
-                        cancellationToken
-                    ),
-                    null
-                );
-            }
 
-            if (gapState.Kind == AssistantGapTurn.KindFeedback)
-            {
-                if (detected.Count == 1
-                    && detected[0] != AssistantCreateTargets.Recovery)
-                {
-                    conversation.DraftInterviewJson = null;
-                    return new GapResume(null, detected);
-                }
-
-                if (AssistantCampaignDraftBind.ResolveNamedChoice(
-                        gapState.Options,
-                        userMessage
-                    ) is not null)
-                {
-                    return new GapResume(null, null);
-                }
-
-                return new GapResume(
-                    await FinishGapTurnAsync(
-                        conversation,
-                        gapState,
-                        AssistantGapAsk.ExplainBind(
-                            AssistantGapTurn.KindFeedback,
-                            gapState.Options
-                        ),
-                        replaceFailure,
-                        cancellationToken
-                    ),
-                    null
-                );
-            }
-
-            var gapTarget = CreateTargetForTask(gapState.AssistantTask);
-            if (detected.Count == 1
-                && gapTarget is not null
-                && !string.Equals(detected[0], gapTarget, StringComparison.Ordinal)
-                && !stayOnOfferPath)
-            {
-                if (detected[0] == AssistantCreateTargets.Offer)
-                {
-                    // The new ask routes through the live answer like any
-                    // fresh offer create; the model drives from there.
-                    conversation.DraftInterviewJson = null;
-                    return new GapResume(null, detected);
-                }
-
-                conversation.DraftInterviewJson = null;
-                return new GapResume(null, detected);
-            }
-
-            if (detected.Count == 1
-                && gapState.Kind == AssistantGapTurn.KindCreateTarget
-                && !gapState.Options.Contains(detected[0], StringComparer.Ordinal)
-                && detected[0] != AssistantCreateTargets.Campaign
-                && detected[0] != AssistantCreateTargets.Offer)
-            {
-                conversation.DraftInterviewJson = null;
-                return new GapResume(null, detected);
-            }
-
+            // Create-target Resolve owns chip paraphrases (Campaign + recover).
+            // Run before Detect target-switch so "recover" cannot drop the Gap.
             if (gapState.Kind == AssistantGapTurn.KindCreateTarget)
             {
                 var resolved = AssistantCreateTargets.Resolve(
@@ -4915,6 +4948,69 @@ namespace TummlyBackend.Services
 
                 conversation.DraftInterviewJson = null;
                 return new GapResume(null, [resolved]);
+            }
+
+            if (detected.Count > 1 && !stayOnOfferPath)
+            {
+                return new GapResume(
+                    await FinishGapTurnAsync(
+                        conversation,
+                        AssistantGapTurn.CreateTarget(
+                            detected,
+                            userMessage,
+                            AssistantTaskClassification.ForCreateTargetGap(
+                                detected,
+                                userMessage
+                            )
+                        ),
+                        AssistantGapTurn.CreateTargetBody(detected),
+                        replaceFailure,
+                        cancellationToken
+                    ),
+                    null
+                );
+            }
+
+            if (gapState.Kind == AssistantGapTurn.KindFeedback)
+            {
+                if (detected.Count == 1
+                    && detected[0] != AssistantCreateTargets.Recovery)
+                {
+                    conversation.DraftInterviewJson = null;
+                    return new GapResume(null, detected);
+                }
+
+                if (AssistantCampaignDraftBind.ResolveNamedChoice(
+                        gapState.Options,
+                        userMessage
+                    ) is not null)
+                {
+                    return new GapResume(null, null);
+                }
+
+                return new GapResume(
+                    await FinishGapTurnAsync(
+                        conversation,
+                        gapState,
+                        AssistantGapAsk.ExplainBind(
+                            AssistantGapTurn.KindFeedback,
+                            gapState.Options
+                        ),
+                        replaceFailure,
+                        cancellationToken
+                    ),
+                    null
+                );
+            }
+
+            var gapTarget = CreateTargetForTask(gapState.AssistantTask);
+            if (detected.Count == 1
+                && gapTarget is not null
+                && !string.Equals(detected[0], gapTarget, StringComparison.Ordinal)
+                && !stayOnOfferPath)
+            {
+                conversation.DraftInterviewJson = null;
+                return new GapResume(null, detected);
             }
 
             if (AssistantGapTurn.IsBindKind(gapState.Kind))
@@ -5081,34 +5177,16 @@ namespace TummlyBackend.Services
                 var prior = AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson)
                     ?? AssistantOfferPathTerms.Parse(gapState.SourceUserMessage);
                 var merged = AssistantOfferPathTerms.Merge(prior, userMessage);
-                if (!AssistantOfferPathTerms.IsComplete(merged))
+                AssistantTurnBilling? extractBilling = null;
+                if (!AssistantOfferPathTerms.IsComplete(merged)
+                    && !AssistantOfferPathTerms.HasNewlyFilledRule(prior, merged))
                 {
-                    if (AssistantOfferPathTerms.HasNewlyFilledRule(prior, merged))
-                    {
-                        return new GapResume(
-                            await FinishGapTurnAsync(
-                                conversation,
-                                AssistantGapTurn.CreateCombinedOfferTerms(
-                                    gapState.SourceUserMessage,
-                                    merged,
-                                    gapState.AssistantTask,
-                                    gapState.ChannelLabel,
-                                    gapState.AllowEmptyChannelAudience
-                                ),
-                                AssistantGapAsk.ForOfferTerms(merged),
-                                replaceFailure,
-                                cancellationToken
-                            ),
-                            null
-                        );
-                    }
-
                     var lastAsk = AssistantGapAsk.ForOfferTerms(prior);
                     if (AssistantGapAsk.LooksLikeConfusedPhrase(userMessage)
-                        || AssistantGapAsk.LooksLikeQuestionNamingAsk(userMessage, lastAsk)
-                        || !AssistantAskIntent.HasReplacingRetrieveAsk(userMessage)
-                            && !AssistantAskIntent.IsHelpCentreAsk(userMessage)
-                            && !AssistantSendScheduleAsk.LooksLikeSendOrSchedule(userMessage))
+                        || AssistantGapAsk.LooksLikeQuestionNamingAsk(
+                            userMessage,
+                            lastAsk
+                        ))
                     {
                         return new GapResume(
                             await FinishGapTurnAsync(
@@ -5128,8 +5206,81 @@ namespace TummlyBackend.Services
                         );
                     }
 
-                    return new GapResume(null, null);
+                    if (AssistantAskIntent.HasReplacingRetrieveAsk(userMessage)
+                        || AssistantAskIntent.IsHelpCentreAsk(userMessage)
+                        || AssistantSendScheduleAsk.LooksLikeSendOrSchedule(
+                            userMessage
+                        ))
+                    {
+                        return new GapResume(null, null);
+                    }
+
+                    // Deterministic Merge made no progress: one structured
+                    // extract (1 AI credit) then Overlay into prior+merge.
+                    var extract = await TryExtractOfferTermsOverlayAsync(
+                        conversation,
+                        userMessage,
+                        analysisScopeLocationName,
+                        replaceFailure,
+                        idempotencyKey,
+                        cancellationToken
+                    );
+                    if (extract.Outcome is not null)
+                    {
+                        return new GapResume(extract.Outcome, null);
+                    }
+
+                    extractBilling = extract.Billing;
+                    if (extract.Terms is not null)
+                    {
+                        merged = AssistantOfferPathTerms.Overlay(
+                            extract.Terms,
+                            merged
+                        );
+                    }
                 }
+
+                if (!AssistantOfferPathTerms.IsComplete(merged))
+                {
+                    var askBody = AssistantOfferPathTerms.HasNewlyFilledRule(
+                        prior,
+                        merged
+                    )
+                        ? AssistantGapAsk.ForOfferTerms(merged)
+                        : AssistantGapAsk.ExplainOfferTerms(merged);
+                    extractBilling?.MarkLiveAnswerSucceeded();
+                    return new GapResume(
+                        await FinishGapTurnAsync(
+                            conversation,
+                            AssistantGapTurn.CreateCombinedOfferTerms(
+                                gapState.SourceUserMessage,
+                                merged,
+                                gapState.AssistantTask,
+                                gapState.ChannelLabel,
+                                gapState.AllowEmptyChannelAudience
+                            ),
+                            askBody,
+                            replaceFailure,
+                            cancellationToken,
+                            liveAnswerAlreadyCompleted: extractBilling is not null,
+                            turnBilling: extractBilling
+                        ),
+                        null
+                    );
+                }
+
+                // Complete terms: refresh stored Gap so outer Overlay resume
+                // sees Merge/extract facts. Extract billing is not consumed
+                // here; the completing live-answer turn bills once.
+                conversation.DraftInterviewJson = AssistantGapTurn.Serialize(
+                    AssistantGapTurn.CreateCombinedOfferTerms(
+                        gapState.SourceUserMessage,
+                        merged,
+                        gapState.AssistantTask,
+                        gapState.ChannelLabel,
+                        gapState.AllowEmptyChannelAudience
+                    )
+                );
 
                 if (string.Equals(
                         gapState.AssistantTask,

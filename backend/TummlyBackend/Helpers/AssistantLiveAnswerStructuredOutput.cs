@@ -478,11 +478,18 @@ namespace TummlyBackend.Helpers
                 purchase requirement, validity, expiry date, placement — using
                 the catalogue wire values in the schema. Map natural wording to
                 the closest wire value and leave a term null when the ask does
-                not name it. Emit null offerTerms for every other task,
-                including retrieve, refusal, clarify, create-campaign-draft,
-                create-campaign-with-offer, and recovery-path. Never invent a
-                term the operator did not give. The server validates every term
-                with its own rules before it saves anything.
+                not name it. Custom day counts that are not 7, 14, or 30 after
+                issue, and named calendar dates, use validity choose_expiry_date
+                with expiryDate as yyyy-MM-dd. Emit null offerTerms for every
+                other task, including retrieve, refusal, clarify,
+                create-campaign-draft, create-campaign-with-offer, and
+                recovery-path. Never invent a term the operator did not give.
+                The server validates every term with its own rules before it
+                saves anything. When the chat history shows an open Offer-terms
+                Gap ask (for example when the offer should end), keep
+                assistantTask offer-path and extract only the terms named in
+                this send plus prior turns — do not switch to retrieve or a
+                new create task for a fill answer.
 
                 An Offer can be saved only when the whole conversation gives:
                 one benefit type and its matching value (a percentage number,

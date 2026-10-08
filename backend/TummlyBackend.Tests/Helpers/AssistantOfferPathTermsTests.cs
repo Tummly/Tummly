@@ -7,6 +7,38 @@ namespace TummlyBackend.Tests.Helpers
     {
         private static readonly DateTime Utc2026 = new(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc);
 
+        [Theory]
+        [InlineData("Make the offer valid to 10 days")]
+        [InlineData("Make the offer valid for 10 days")]
+        [InlineData("make it valid for 10 days")]
+        public void LooksLikeValidityFollowUp_EndDateFill_IsTrue(string message)
+        {
+            Assert.True(
+                AssistantOfferPathTerms.LooksLikeValidityFollowUp(
+                    message.Trim().ToLowerInvariant()
+                )
+            );
+        }
+
+        [Fact]
+        public void Merge_ValidTo10Days_SetsFixedExpiryFromToday()
+        {
+            var prior = new AssistantOfferPathTermsState
+            {
+                OfferType = "percentage_discount",
+                DiscountPercentage = 25m,
+            };
+            var merged = AssistantOfferPathTerms.Merge(
+                prior,
+                "Make the offer valid to 10 days",
+                Utc2026
+            );
+
+            Assert.True(AssistantOfferPathTerms.IsComplete(merged));
+            Assert.Equal("choose_expiry_date", merged.Validity);
+            Assert.Equal("2026-08-29", merged.ExpiryDate);
+        }
+
         [Fact]
         public void Parse_CanonicalTwentyFivePercent_IsComplete()
         {

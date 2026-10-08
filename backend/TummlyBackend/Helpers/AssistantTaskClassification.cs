@@ -62,6 +62,13 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
+            // "Make the offer valid for 10 days" matches make+offer but is an
+            // EndDateAsk fill, not a fresh Offer create.
+            if (AssistantOfferPathTerms.LooksLikeValidityFollowUp(lower))
+            {
+                return false;
+            }
+
             if (AssistantRecoveryIntent.LooksLikeRecoveryAsk(message)
                 && !ContainsAny(
                     lower,

@@ -74,6 +74,18 @@ namespace TummlyBackend.Tests.Helpers
             );
         }
 
+        /// <summary>
+        /// QA: end-date fill wording must not look like mutate-prior Offer edit
+        /// when no CreatedOfferId exists (that yields NoPriorDraftToUpdateBody).
+        /// </summary>
+        [Theory]
+        [InlineData("Make the offer valid to 10 days")]
+        [InlineData("Make the offer valid for 10 days")]
+        public void LooksLikeMutateOfferFamily_ValidityFollowUp_IsFalse(string ask)
+        {
+            Assert.False(AssistantPriorDraftAuthority.LooksLikeMutateOfferFamily(ask));
+        }
+
         [Fact]
         public void ResolveOffer_MutateFamily_NoPrior_IsNoPrior()
         {

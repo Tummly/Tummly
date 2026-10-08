@@ -406,25 +406,23 @@ namespace TummlyBackend.Helpers
             return AssistantAskIntent.HasReplacingRetrieveAsk(message);
         }
 
+        /// <summary>
+        /// Legacy needle used by advisory resume. Creation early-drop uses
+        /// <see cref="AssistantGapAuthority.Decide"/> instead.
+        /// </summary>
         public static bool LooksLikeNewCreateDuringGap(string message)
         {
             if (LooksLikeConfusedPhrase(message)
-                || AssistantAskIntent.IsHelpCentreAsk(message))
+                || AssistantAskIntent.IsHelpCentreAsk(message)
+                || LooksLikeKeepGapAnswer(message))
             {
                 return false;
             }
 
             var detected = AssistantCreateTargets.Detect(message);
-            // Two named creates always replace the open Gap. One named
-            // create does the same unless the send is Retrieve / Refuse.
             if (detected.Count >= 2)
             {
                 return true;
-            }
-
-            if (LooksLikeKeepGapAnswer(message))
-            {
-                return false;
             }
 
             if (detected.Count == 1)

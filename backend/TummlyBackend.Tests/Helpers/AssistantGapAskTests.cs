@@ -136,6 +136,36 @@ namespace TummlyBackend.Tests.Helpers
             );
         }
 
+        /// <summary>
+        /// QA: answering an open EndDateAsk with "Make the offer valid…" must not
+        /// classify as a new create (that drops DraftInterviewJson mid-thread).
+        /// </summary>
+        [Theory]
+        [InlineData("Make the offer valid to 10 days")]
+        [InlineData("Make the offer valid for 10 days")]
+        [InlineData("make it valid for 10 days")]
+        public void NewCreateDuringGap_ValidityFollowUp_DoesNotDrop(string send)
+        {
+            Assert.False(AssistantGapAsk.LooksLikeNewCreateDuringGap(send));
+        }
+
+        /// <summary>
+        /// QA: create-target chip reply that names Campaign + recover must resolve
+        /// the open Gap, not look like a brand-new multi-target create.
+        /// </summary>
+        [Fact]
+        public void CreateTargetChoice_CampaignToRecover_ResolvesCampaign()
+        {
+            const string send = "Campaign to recover 10 eligible guests.";
+            Assert.Equal(
+                AssistantCreateTargets.Campaign,
+                AssistantCreateTargets.Resolve(
+                    [AssistantCreateTargets.Campaign, AssistantCreateTargets.Recovery],
+                    send
+                )
+            );
+        }
+
         [Fact]
         public void ResolveNamedChoice_EmailAndAllEligible_AreUniqueNaturalMatches()
         {

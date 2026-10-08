@@ -95,6 +95,8 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// Offer terms edit on the conversation's prior Offers catalog Draft.
+        /// End-date / validity fills for an open Gap ("Make the offer valid…")
+        /// are not mutate-prior — those resume the Gap instead.
         /// </summary>
         public static bool LooksLikeMutateOfferFamily(string message)
         {
@@ -107,6 +109,11 @@ namespace TummlyBackend.Helpers
             }
 
             var lower = message.Trim().ToLowerInvariant();
+            if (AssistantOfferPathTerms.LooksLikeValidityFollowUp(lower))
+            {
+                return false;
+            }
+
             if (!ContainsAny(
                     lower,
                     "change",

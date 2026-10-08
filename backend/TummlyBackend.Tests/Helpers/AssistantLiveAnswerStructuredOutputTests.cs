@@ -404,12 +404,22 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
             Assert.Contains(
-                "Emit null offerTerms for every other task",
+                "Emit null offerTerms for every",
                 prompt,
                 StringComparison.Ordinal
             );
             Assert.Contains(
                 "The server validates every term",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "choose_expiry_date",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "open Offer-terms",
                 prompt,
                 StringComparison.Ordinal
             );

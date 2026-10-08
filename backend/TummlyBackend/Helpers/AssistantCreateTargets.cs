@@ -81,6 +81,25 @@ namespace TummlyBackend.Helpers
                 return exact[0];
             }
 
+            // Chip paraphrase: "Campaign to recover 10 eligible guests."
+            // Prefer the option that leads the reply over Detect("recover").
+            var leading = options
+                .Where(option =>
+                {
+                    var label = option.ToLowerInvariant();
+                    return normalized == label
+                        || normalized.StartsWith(label + " ", StringComparison.Ordinal)
+                        || normalized.StartsWith(label + ":", StringComparison.Ordinal)
+                        || normalized.StartsWith(label + ",", StringComparison.Ordinal)
+                        || normalized.StartsWith("the " + label + " ", StringComparison.Ordinal);
+                })
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            if (leading.Count == 1)
+            {
+                return leading[0];
+            }
+
             var detected = Detect(message)
                 .Where(item => options.Contains(item, StringComparer.Ordinal))
                 .Distinct(StringComparer.Ordinal)
