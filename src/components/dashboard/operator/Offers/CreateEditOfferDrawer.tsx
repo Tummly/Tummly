@@ -509,7 +509,7 @@ export function CreateEditOfferDrawer({
           <div className={CREATE_EDIT_OFFER_DRAWER_SHELL_CLASS}>
             <header className={CREATE_EDIT_OFFER_DRAWER_HEADER_CLASS}>
               <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <DrawerTitle className="text-2xl font-bold leading-normal tracking-normal text-op-text-primary">
+                <DrawerTitle className="text-2xl font-bold leading-none tracking-normal text-op-text-primary">
                   {createEditOfferDrawerTitle(mode)}
                 </DrawerTitle>
                 <DrawerDescription className="text-sm font-medium leading-normal text-op-text-muted">

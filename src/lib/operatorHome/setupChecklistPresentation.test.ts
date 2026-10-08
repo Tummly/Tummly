@@ -165,7 +165,7 @@ describe("setupChecklistPresentation", () => {
   })
 
   it("uses Figma step copy metrics (16/24 title, 14/17 description)", () => {
-    expect(SETUP_STEP_TITLE_CLASS).toContain("leading-6")
+    expect(SETUP_STEP_TITLE_CLASS).toContain("leading-none")
     expect(SETUP_STEP_DESCRIPTION_CLASS).toContain("leading-[17px]")
     expect(SETUP_STEP_COPY_GAP_CLASS).toBe("gap-[8px]")
   })

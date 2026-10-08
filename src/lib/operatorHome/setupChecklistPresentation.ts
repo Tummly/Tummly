@@ -112,7 +112,7 @@ export function getSetupStepIllustration(
 /** Figma step copy — 16/24 title, 14/17 description, 8px gap (node 3238:28148). */
 export const SETUP_STEP_COPY_GAP_CLASS = "gap-[8px]"
 export const SETUP_STEP_TITLE_CLASS =
-  "m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-foreground"
+  "m-0 text-base font-semibold leading-none tracking-[-0.4px] text-foreground"
 export const SETUP_STEP_DESCRIPTION_CLASS =
   "m-0 text-op-sm leading-[17px] text-op-card-subtitle-color"
 

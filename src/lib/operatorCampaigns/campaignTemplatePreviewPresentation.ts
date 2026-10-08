@@ -44,7 +44,7 @@ export const CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS =
   "flex w-full flex-col gap-6 border-t border-op-card-border p-[22px]"
 
 export const CAMPAIGN_TEMPLATE_PREVIEW_SECTION_TITLE_CLASS =
-  "m-0 text-lg font-bold leading-normal text-op-text-primary"
+  "m-0 text-lg font-bold leading-none text-op-text-primary"
 
 export const CAMPAIGN_TEMPLATE_PREVIEW_FIELD_LABEL_CLASS =
   "m-0 text-sm font-medium leading-normal text-op-text-primary"

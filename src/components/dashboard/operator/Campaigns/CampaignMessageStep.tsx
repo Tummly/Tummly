@@ -77,7 +77,7 @@ function EstimatedUsageSummary({
       aria-label={usageSummary.title}
     >
       <div className="flex flex-col gap-2">
-        <h3 className="m-0 text-lg font-semibold leading-normal text-op-text-primary">
+        <h3 className="m-0 text-lg font-semibold leading-none text-op-text-primary">
           {usageSummary.title}
         </h3>
         <p className="m-0 text-sm font-medium leading-normal text-[var(--op-color-gray-550)]">
@@ -152,7 +152,7 @@ export function CampaignMessageStep({
       <div className="flex w-full flex-col items-start justify-between gap-8 lg:flex-row lg:gap-[42px]">
         <div className="flex min-h-0 w-full max-w-[690px] flex-col gap-7">
           <header className="flex flex-col gap-2">
-            <h2 className="m-0 text-xl font-semibold leading-normal text-op-text-primary sm:text-[22px]">
+            <h2 className="m-0 text-xl font-semibold leading-none text-op-text-primary sm:text-[22px]">
               {message.stepHeading}
             </h2>
             <p className="m-0 max-w-[425px] text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">

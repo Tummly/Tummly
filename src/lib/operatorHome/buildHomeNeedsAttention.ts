@@ -118,7 +118,8 @@ export type HomeNeedsAttentionProjection = {
   isEmpty: boolean
 }
 
-const FEEDBACK_BODY = "Negative feedback is not Resolved."
+	const FEEDBACK_BODY =
+		"Negative or unresolved feedback has not been reviewed yet."
 
 function feedbackTitle(count: number): string {
   return count === 1

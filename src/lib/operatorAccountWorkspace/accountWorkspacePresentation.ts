@@ -191,7 +191,7 @@ export const ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS =
   "flex flex-col gap-10 overflow-clip rounded-op-lg border border-op-card-border bg-op-surface-primary p-6 dark:bg-op-color-gray-992 dark:shadow-none"
 
 export const ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS =
-  "m-0 text-xl font-semibold leading-normal text-op-card-title-color"
+  "m-0 text-xl font-semibold leading-none text-op-card-title-color"
 
 export const ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS =
   "m-0 text-sm font-medium leading-normal text-[var(--op-color-gray-550)]"

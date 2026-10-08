@@ -95,7 +95,7 @@ export function ShopRecommendationSection({
         <div className="flex items-start gap-3">
           <AiIcon size={22} className="mt-0.5" />
           <div className="flex flex-col gap-2">
-            <h3 className="text-xl font-semibold leading-normal text-op-text-primary">
+            <h3 className="text-xl font-semibold leading-none text-op-text-primary">
               Recommended for {locationName}
             </h3>
             <p className="max-w-[610px] text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]">

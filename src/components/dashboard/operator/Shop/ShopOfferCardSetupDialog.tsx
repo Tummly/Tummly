@@ -320,7 +320,7 @@ export function ShopOfferCardSetupDialog({
           <div className="flex min-h-0 flex-1 flex-col justify-between gap-10 overflow-y-auto p-8">
             <div className="flex flex-col gap-10">
               <div className="flex flex-col gap-3">
-                <DialogTitle className="pr-0 font-jakarta text-2xl font-bold leading-normal text-op-text-primary">
+                <DialogTitle className="pr-0 font-jakarta text-2xl font-bold leading-none text-op-text-primary">
                   {SHOP_OFFER_CARD_SETUP_COPY.title}
                 </DialogTitle>
                 <DialogDescription className="font-sans text-base font-medium text-[var(--op-color-gray-550)]">

@@ -40,7 +40,7 @@ export const EXISTING_OFFER_PICKER_ICON_WELL_CLASS =
   "flex size-[47px] shrink-0 items-center justify-center rounded-[2.6px] bg-op-background-secondary"
 
 export const EXISTING_OFFER_PICKER_CARD_TITLE_CLASS =
-  "m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-op-text-primary"
+  "m-0 text-base font-semibold leading-none tracking-[-0.4px] text-op-text-primary"
 
 export const EXISTING_OFFER_PICKER_CARD_META_CLASS =
   "m-0 flex flex-wrap items-start gap-2 text-xs font-normal leading-normal text-[var(--op-color-gray-550)]"

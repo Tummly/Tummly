@@ -122,7 +122,7 @@ function RecommendationSuccessBody(props: {
     <div className={`${RECOMMENDED_INNER_PANEL_CLASS} flex flex-col gap-8`}>
       <div className="flex flex-col gap-[22px]">
         <div className="flex flex-col gap-2">
-          <h3 className="m-0 text-base font-semibold leading-normal text-op-card-title-color">
+          <h3 className="m-0 text-base font-semibold leading-none text-op-card-title-color">
             {props.recommendation.title}
           </h3>
           <RecommendationMetaLine

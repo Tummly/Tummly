@@ -162,7 +162,7 @@ export function StartRecoveryEntryShell({
           <div className="flex min-h-full flex-col">
             {/* Figma 1728 frame uses 200px side inset; scale down on narrower viewports. */}
             <div className="flex flex-1 flex-col px-4 pb-24 pt-10 sm:px-6 sm:pt-[60px] md:px-[100px] min-[1728px]:px-[200px]">
-              <DialogTitle className="pr-0 text-[28px] font-bold leading-normal tracking-normal text-op-text-primary sm:text-[32px]">
+              <DialogTitle className="pr-0 text-[28px] font-bold leading-none tracking-normal text-op-text-primary sm:text-[32px]">
                 Start recovery
               </DialogTitle>
               <DialogDescription

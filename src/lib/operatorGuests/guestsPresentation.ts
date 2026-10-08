@@ -24,7 +24,7 @@ export const GUESTS_PAGE_HEADER_ROW_CLASS =
 export const GUESTS_PAGE_HEADER_COPY_CLASS = "flex flex-col gap-3.5 leading-[0]"
 
 export const GUESTS_PAGE_TITLE_CLASS =
-  "m-0 text-2xl font-bold leading-10 text-foreground sm:text-[32px]"
+  "m-0 text-2xl font-bold leading-none text-foreground sm:text-[32px]"
 
 export const GUESTS_PAGE_SUBTITLE_CLASS =
   "m-0 text-base font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]"
@@ -43,7 +43,7 @@ export const GUESTS_SECTION_HEADER_ROW_CLASS =
   "flex items-center justify-between gap-4"
 
 export const GUESTS_SECTION_TITLE_CLASS =
-  "m-0 text-lg font-bold leading-normal text-op-card-title-color sm:text-xl"
+  "m-0 text-lg font-bold leading-none text-op-card-title-color sm:text-xl"
 
 export const GUESTS_SECTION_SUBTITLE_CLASS =
   "m-0 text-op-sm font-medium leading-normal text-op-card-subtitle-color"
@@ -166,7 +166,7 @@ export const GUESTS_TABLE_EMPTY_COPY_STACK_CLASS =
   "flex flex-col items-center gap-2.5 text-center"
 
 export const GUESTS_TABLE_EMPTY_TITLE_CLASS =
-  "m-0 text-base font-medium leading-normal text-op-empty-title-color"
+  "m-0 text-base font-medium leading-none text-op-empty-title-color"
 
 export const GUESTS_TABLE_EMPTY_HELPER_CLASS =
   "m-0 max-w-[450px] text-sm font-medium leading-[18px] text-muted-foreground dark:text-[#7c7c7c]"

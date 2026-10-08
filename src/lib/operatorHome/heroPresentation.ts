@@ -20,7 +20,7 @@ export const OPERATOR_HOME_HERO_COPY_CLASS =
   "flex min-w-0 flex-1 flex-col items-start gap-[26px]"
 
 export const OPERATOR_HOME_HERO_TITLE_CLASS =
-  "font-jakarta text-2xl leading-10 font-semibold text-op-card-title-color sm:text-[36px]"
+  "font-jakarta text-2xl leading-none font-semibold text-op-card-title-color sm:text-[36px]"
 
 /** Figma Main Bg/Title on body copy (same as headline). */
 export const OPERATOR_HOME_HERO_SUBTITLE_CLASS =

@@ -20,7 +20,7 @@ export const CAPTURE_PAGE_HEADER_COPY_CLASS =
   "flex min-w-0 flex-1 flex-col gap-3.5 leading-[0]"
 
 export const CAPTURE_PAGE_TITLE_CLASS =
-  "m-0 text-2xl font-bold leading-10 text-op-card-title-color sm:text-[32px]"
+  "m-0 text-2xl font-bold leading-none text-op-card-title-color sm:text-[32px]"
 
 export const CAPTURE_PAGE_SUBTITLE_CLASS =
   "m-0 text-base font-medium leading-5 text-op-text-muted"
@@ -55,7 +55,7 @@ export const CAPTURE_PERFORMANCE_HEADER_ROW_CLASS =
   "flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"
 
 export const CAPTURE_SECTION_TITLE_CLASS =
-  "m-0 text-lg font-bold leading-normal text-op-card-title-color sm:text-xl"
+  "m-0 text-lg font-bold leading-none text-op-card-title-color sm:text-xl"
 
 export const CAPTURE_SECTION_SUBTITLE_CLASS =
   "m-0 max-w-[437px] text-op-sm font-medium leading-5 text-op-card-subtitle-color"
@@ -87,7 +87,7 @@ export const CAPTURE_MATERIALS_INNER_COPY_CLASS =
   "flex w-full flex-col gap-1.5"
 
 export const CAPTURE_MATERIALS_INNER_TITLE_CLASS =
-  "m-0 text-base font-medium leading-[22px] text-op-text-primary"
+  "m-0 text-base font-medium leading-none text-op-text-primary"
 
 export const CAPTURE_MATERIALS_INNER_HELPER_CLASS =
   "m-0 text-xs font-medium leading-4 text-op-text-muted"
@@ -109,7 +109,7 @@ export const CAPTURE_GUEST_PREVIEW_HEADER_COPY_CLASS =
 export const CAPTURE_GUEST_PREVIEW_TITLE_STACK_CLASS = "flex flex-col gap-2"
 
 export const CAPTURE_GUEST_PREVIEW_TITLE_CLASS =
-  "m-0 text-2xl font-semibold leading-normal text-op-card-title-color"
+  "m-0 text-2xl font-semibold leading-none text-op-card-title-color"
 
 export const CAPTURE_GUEST_PREVIEW_SUBTITLE_CLASS =
   "m-0 text-sm font-medium leading-normal text-op-text-muted"
@@ -272,7 +272,7 @@ export const CAPTURE_EMPTY_SHELL_CLASS =
   "flex min-h-[291px] flex-1 flex-col items-center justify-center rounded-op-lg border border-op-card-border bg-op-card-background p-6"
 
 export const CAPTURE_EMPTY_TITLE_CLASS =
-  "m-0 text-base font-medium leading-normal text-op-empty-title-color"
+  "m-0 text-base font-medium leading-none text-op-empty-title-color"
 
 export const CAPTURE_EMPTY_HELPER_CLASS =
   "m-0 max-w-[450px] text-center text-sm font-medium leading-[18px] text-op-text-muted"
@@ -618,7 +618,7 @@ export const CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_CONTENT_CLASS =
   "gap-[60px] rounded-op-md bg-op-surface-secondary p-8 text-op-text-primary sm:max-w-[560px]"
 
 export const CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_TITLE_CLASS =
-  "pr-0 text-2xl font-bold tracking-normal text-op-text-primary"
+  "pr-0 text-2xl font-bold leading-none tracking-normal text-op-text-primary"
 
 export const CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_DESCRIPTION_CLASS =
   "max-w-[376px] text-sm font-medium leading-[18px] text-op-text-muted"
@@ -650,7 +650,7 @@ export const CAPTURE_PAUSE_ACTIVATE_DIALOG_CONTENT_CLASS =
   "gap-[60px] rounded-op-md bg-op-surface-secondary p-8 text-op-text-primary sm:max-w-[567px]"
 
 export const CAPTURE_PAUSE_ACTIVATE_DIALOG_TITLE_CLASS =
-  "pr-0 text-2xl font-bold leading-normal tracking-normal text-op-text-primary"
+  "pr-0 text-2xl font-bold leading-none tracking-normal text-op-text-primary"
 
 export const CAPTURE_PAUSE_ACTIVATE_DIALOG_BODY_CLASS =
   "text-base font-medium leading-[22px] tracking-normal text-op-text-muted"

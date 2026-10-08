@@ -193,7 +193,7 @@ export const OFFERS_CONFIRM_DIALOG_DIVIDER_CLASS =
   "h-px w-full shrink-0 bg-op-border-default"
 
 export const OFFERS_CONFIRM_DIALOG_TITLE_CLASS =
-  "pr-0 text-2xl font-bold leading-normal tracking-normal text-op-text-primary"
+  "pr-0 text-2xl font-bold leading-none tracking-normal text-op-text-primary"
 
 export const OFFERS_CONFIRM_DIALOG_DESCRIPTION_CLASS =
   "max-w-[431px] text-sm font-medium leading-[18px] tracking-normal text-[var(--op-color-gray-550)]"

@@ -26,7 +26,7 @@ export const SHELL_AI_CREDITS_BODY_CLASS =
   "flex w-full flex-col gap-[17px] p-5"
 
 export const SHELL_AI_CREDITS_TITLE_CLASS =
-  "m-0 text-sm font-medium leading-normal text-op-text-primary"
+  "m-0 text-sm font-medium leading-none text-op-text-primary"
 
 export const SHELL_AI_CREDITS_USED_LINE_CLASS =
   "m-0 text-xs font-normal leading-normal text-[var(--op-color-gray-550)]"

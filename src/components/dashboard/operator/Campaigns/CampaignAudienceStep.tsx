@@ -109,7 +109,7 @@ function EligibilitySummary({
       aria-label={CAMPAIGN_AUDIENCE_COPY.summaryTitle}
       data-eligibility-source={breakdown.source}
     >
-      <h3 className="m-0 text-lg font-semibold leading-normal text-op-text-primary">
+      <h3 className="m-0 text-lg font-semibold leading-none text-op-text-primary">
         {CAMPAIGN_AUDIENCE_COPY.summaryTitle}
       </h3>
       <dl className="m-0 flex w-full flex-col gap-3.5">
@@ -178,7 +178,7 @@ export function CampaignAudienceStep({
     <div className="flex w-full flex-col items-start justify-between gap-8 lg:flex-row">
       <div className="flex min-h-0 w-full max-w-[690px] flex-col gap-7">
         <header className="flex flex-col gap-2">
-          <h2 className="m-0 text-xl font-semibold leading-normal text-op-text-primary sm:text-[22px]">
+          <h2 className="m-0 text-xl font-semibold leading-none text-op-text-primary sm:text-[22px]">
             {CAMPAIGN_AUDIENCE_COPY.stepHeading}
           </h2>
           <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">

@@ -148,7 +148,7 @@ export function RecoveryOfferStep({
     <>
       <div className="flex w-full max-w-[690px] flex-col gap-7">
         <header className="flex flex-col gap-2">
-          <h2 className="m-0 text-xl font-semibold leading-normal text-op-text-primary sm:text-[22px]">
+          <h2 className="m-0 text-xl font-semibold leading-none text-op-text-primary sm:text-[22px]">
             {RECOVERY_OFFER_STEP_COPY.stepHeading}
           </h2>
           <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">

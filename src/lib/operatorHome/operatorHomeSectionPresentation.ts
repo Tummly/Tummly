@@ -23,13 +23,13 @@ export const OPERATOR_HOME_HEADER_COPY_CLASS =
   "flex min-w-0 flex-col gap-op-2 leading-[0]"
 
 export const OPERATOR_HOME_TITLE_CLASS =
-  "m-0 font-jakarta text-op-lg font-bold leading-normal text-op-card-title-color"
+  "m-0 font-jakarta text-op-lg font-bold leading-none text-op-card-title-color"
 
 export const OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS =
-  "m-0 font-jakarta text-lg font-bold leading-normal text-op-card-title-color sm:text-xl"
+  "m-0 font-jakarta text-lg font-bold leading-none text-op-card-title-color sm:text-xl"
 
 export const OPERATOR_HOME_WHITE_CARD_TITLE_CLASS =
-  "m-0 font-jakarta text-lg font-semibold leading-normal text-op-card-title-color"
+  "m-0 font-jakarta text-lg font-semibold leading-none text-op-card-title-color"
 
 export const OPERATOR_HOME_SUBTITLE_CLASS =
   "m-0 font-sans text-op-sm font-medium leading-normal text-op-card-subtitle-color"
@@ -47,10 +47,10 @@ export const OPERATOR_HOME_EMPTY_COPY_STACK_CLASS =
   "flex flex-col items-center gap-2.5 text-center"
 
 export const OPERATOR_HOME_EMPTY_TITLE_CLASS =
-  "m-0 font-jakarta text-base font-medium leading-normal text-op-empty-title-color"
+  "m-0 font-jakarta text-base font-medium leading-none text-op-empty-title-color"
 
 export const OPERATOR_HOME_EMPTY_TITLE_SEMIBOLD_CLASS =
-  "m-0 font-jakarta text-base font-semibold leading-normal text-op-empty-title-color"
+  "m-0 font-jakarta text-base font-semibold leading-none text-op-empty-title-color"
 
 export const OPERATOR_HOME_EMPTY_HELPER_CLASS =
   "m-0 max-w-[324px] font-sans text-op-sm font-medium leading-[18px] text-op-card-subtitle-color"
@@ -60,7 +60,7 @@ export const LATEST_ACTIVITY_STEPPED_PADDING_CLASS =
   "px-4 sm:px-5 md:px-6"
 
 export const LATEST_ACTIVITY_TITLE_CLASS =
-  "m-0 font-jakarta text-lg sm:text-xl font-bold leading-normal text-op-card-title-color"
+  "m-0 font-jakarta text-lg sm:text-xl font-bold leading-none text-op-card-title-color"
 
 export const LATEST_ACTIVITY_HEADER_CLASS = `flex w-full flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between ${LATEST_ACTIVITY_STEPPED_PADDING_CLASS} pb-5`
 
@@ -209,7 +209,7 @@ export const WEEKLY_BRIEF_EMPTY_COPY_CLASS =
   "flex flex-col gap-2.5 px-4 sm:px-5 md:px-6 text-op-card-subtitle-color"
 
 export const WEEKLY_BRIEF_EMPTY_TITLE_CLASS =
-  "m-0 font-jakarta text-base font-semibold leading-normal text-op-empty-title-color"
+  "m-0 font-jakarta text-base font-semibold leading-none text-op-empty-title-color"
 
 export const WEEKLY_BRIEF_EMPTY_HELPER_CLASS =
   "m-0 font-sans text-op-sm font-normal leading-normal text-op-card-subtitle-color"
@@ -218,7 +218,7 @@ export const WEEKLY_BRIEF_BODY_CLASS =
   "flex flex-col gap-5 px-4 sm:px-5 md:px-6"
 
 export const WEEKLY_BRIEF_HEADLINE_CLASS =
-  "m-0 font-jakarta text-base font-semibold leading-normal text-op-card-title-color"
+  "m-0 font-jakarta text-base font-semibold leading-none text-op-card-title-color"
 
 export const WEEKLY_BRIEF_DOMAIN_BLOCK_CLASS = "flex flex-col gap-1.5"
 
@@ -275,7 +275,7 @@ export const NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR =
 
 /**
  * Figma Needs attention row (3344:39087) — #1d1d1d wash, 14px gap,
- * 30px / 20px padding.
+ * 30px / 20px padding. Title 16/24; body + meta leading-normal; 6px stack gap.
  */
 export const WARNING_ROW_CLASS =
   "flex w-full flex-wrap items-center gap-x-op-3-5 gap-y-3 overflow-clip rounded-op-md bg-op-needs-attention-row-background py-5 pl-[30px] pr-5"
@@ -289,10 +289,10 @@ export const NEEDS_ATTENTION_ROW_TITLE_CLASS =
   "m-0 font-jakarta text-base font-semibold leading-6 tracking-[-0.4px] text-op-card-title-color"
 
 export const NEEDS_ATTENTION_ROW_BODY_CLASS =
-  "m-0 font-sans text-sm font-medium leading-[17px] text-op-card-title-color"
+  "m-0 font-sans text-sm font-medium leading-normal text-op-card-title-color"
 
 export const NEEDS_ATTENTION_ROW_META_CLASS =
-  "m-0 text-xs font-medium leading-[15px] tracking-[-0.4px] text-op-needs-attention-row-meta"
+  "m-0 text-xs font-medium leading-normal tracking-[-0.4px] text-op-needs-attention-row-meta"
 
 export const NEEDS_ATTENTION_ROW_ICON_CLASS =
   "size-4 shrink-0 text-op-action-primary"

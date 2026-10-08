@@ -57,7 +57,7 @@ export const LIVE_OFFERS_CARD_STATUS_BADGE_CLASS =
   "rounded-[2px] bg-op-card-background px-2.5 py-1.5 text-xs font-normal text-op-card-title-color dark:bg-op-card-background"
 
 export const LIVE_OFFERS_CARD_TITLE_CLASS =
-  "m-0 font-jakarta text-base font-semibold leading-6 tracking-[-0.4px] text-op-text-primary"
+  "m-0 font-jakarta text-base font-semibold leading-none tracking-[-0.4px] text-op-text-primary"
 
 export const LIVE_OFFERS_CARD_METRICS_CLASS =
   "m-0 flex flex-wrap items-start gap-2 font-sans text-op-xs font-normal text-op-card-subtitle-color"

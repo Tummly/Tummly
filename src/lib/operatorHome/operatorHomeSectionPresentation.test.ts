@@ -8,8 +8,10 @@ import {
   LATEST_ACTIVITY_TITLE_CLASS,
   LATEST_ACTIVITY_VIEW_ALL_LABEL,
   NEEDS_ATTENTION_EMPTY_COPY,
+  NEEDS_ATTENTION_ROW_BODY_CLASS,
   NEEDS_ATTENTION_ROW_COPY_CLASS,
   NEEDS_ATTENTION_ROW_META_CLASS,
+  NEEDS_ATTENTION_ROW_TITLE_CLASS,
   NEEDS_ATTENTION_VIEW_ALL_LABEL,
   WARNING_ROW_CLASS,
   OPERATOR_HOME_CARD_CLASS,
@@ -175,8 +177,15 @@ describe("operatorHomeSectionPresentation", () => {
     expect(WARNING_ROW_CLASS).toContain("bg-op-needs-attention-row-background")
     expect(WARNING_ROW_CLASS).toContain("rounded-op-md")
     expect(WARNING_ROW_CLASS).toContain("gap-x-op-3-5")
+    expect(WARNING_ROW_CLASS).toContain("py-5")
+    expect(WARNING_ROW_CLASS).toContain("pl-[30px]")
+    expect(WARNING_ROW_CLASS).toContain("pr-5")
     expect(NEEDS_ATTENTION_ROW_COPY_CLASS).toContain("gap-[6px]")
     expect(NEEDS_ATTENTION_ROW_COPY_CLASS).toContain("leading-[0]")
+    expect(NEEDS_ATTENTION_ROW_TITLE_CLASS).toContain("leading-6")
+    expect(NEEDS_ATTENTION_ROW_TITLE_CLASS).toContain("tracking-[-0.4px]")
+    expect(NEEDS_ATTENTION_ROW_BODY_CLASS).toContain("leading-normal")
+    expect(NEEDS_ATTENTION_ROW_META_CLASS).toContain("leading-normal")
     expect(NEEDS_ATTENTION_ROW_META_CLASS).toContain(
       "text-op-needs-attention-row-meta"
     )

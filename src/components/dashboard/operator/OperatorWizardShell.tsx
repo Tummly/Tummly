@@ -34,7 +34,7 @@ const SEND_CONFIRM_CONTENT_CLASS =
 const SEND_CONFIRM_HEADER_ROW_CLASS = "flex items-start gap-[22px]"
 
 const SEND_CONFIRM_TITLE_CLASS =
-  "pr-0 font-jakarta text-2xl font-bold leading-normal tracking-normal text-op-text-primary"
+  "pr-0 font-jakarta text-2xl font-bold leading-none tracking-normal text-op-text-primary"
 
 const SEND_CONFIRM_DESCRIPTION_CLASS =
   "max-w-[395px] text-sm font-medium leading-[18px] tracking-normal text-[var(--op-color-gray-550)]"
@@ -211,7 +211,7 @@ export function OperatorWizardShell({
                       : undefined
                   }
                 >
-                <DialogTitle className="text-[28px] font-bold leading-normal tracking-normal text-op-text-primary sm:text-[32px]">
+                <DialogTitle className="text-[28px] font-bold leading-none tracking-normal text-op-text-primary sm:text-[32px]">
                   {title}
                 </DialogTitle>
                 <DialogDescription
@@ -274,7 +274,7 @@ export function OperatorWizardShell({
 
                 {stepHeading != null && !isLoading ? (
                   <div className="mt-[52px] flex flex-col gap-2">
-                    <h2 className="text-xl font-semibold leading-normal text-op-text-primary sm:text-[22px]">
+                    <h2 className="text-xl font-semibold leading-none text-op-text-primary sm:text-[22px]">
                       {stepHeading}
                     </h2>
                     {stepDescription != null ? (

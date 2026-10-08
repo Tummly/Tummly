@@ -36,7 +36,7 @@ export const CAMPAIGN_TEMPLATE_PICKER_BODY_CLASS =
   "flex min-h-0 flex-1 flex-col overflow-y-auto"
 
 export const CAMPAIGN_TEMPLATE_PICKER_TITLE_CLASS =
-  "pr-0 text-2xl font-bold leading-normal tracking-normal text-op-text-primary"
+  "pr-0 text-2xl font-bold leading-none tracking-normal text-op-text-primary"
 
 export const CAMPAIGN_TEMPLATE_PICKER_SUBTITLE_CLASS =
   "max-w-[395px] text-sm font-medium leading-[18px] tracking-normal text-[var(--op-color-gray-550)]"
@@ -54,7 +54,7 @@ export const CAMPAIGN_TEMPLATE_CARD_CLASS =
   "flex h-full flex-col gap-[46px] overflow-clip rounded-op-md border border-op-card-border p-6"
 
 export const CAMPAIGN_TEMPLATE_CARD_TITLE_CLASS =
-  "m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-op-card-title-color"
+  "m-0 text-base font-semibold leading-none tracking-[-0.4px] text-op-card-title-color"
 
 /** Figma Main Bg / Subtitle (#7c7c7c) — same as picker dialog subtitle. */
 export const CAMPAIGN_TEMPLATE_CARD_DESCRIPTION_CLASS =

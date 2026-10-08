@@ -128,7 +128,7 @@ export const VOID_REQUEST_DIVIDER_CLASS = STAFF_REDEEM_DIVIDER_CLASS
 export const VOID_REQUEST_ERROR_CLASS = STAFF_REDEEM_ERROR_CLASS
 
 export const VOID_REQUEST_FIELD_CLASS =
-  "h-auto min-h-0 rounded-[4px] border border-op-border-default bg-transparent px-[15px] py-[15px] text-sm font-normal leading-5 text-op-text-primary placeholder:text-[var(--op-color-gray-550)] focus-visible:ring-1 focus-visible:ring-op-border-default"
+  "h-auto min-h-0 rounded-[4px] border border-op-border-default bg-transparent px-[15px] py-[15px] text-sm font-normal leading-none text-op-text-primary placeholder:text-[var(--op-color-gray-550)] focus-visible:ring-1 focus-visible:ring-op-border-default"
 
 export const VOID_REQUEST_TEXTAREA_CLASS =
   `${VOID_REQUEST_FIELD_CLASS} min-h-[120px] resize-y`
@@ -139,10 +139,10 @@ export const VOID_REQUEST_CORRECTION_CARD_CLASS =
   "flex w-full flex-col items-start gap-1 rounded-op-md border border-op-border-default bg-transparent px-[18px] py-4 text-left transition-colors hover:bg-op-surface-secondary/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-op-border-default data-[selected=true]:border-[var(--op-color-gray-550)] data-[selected=true]:bg-op-surface-secondary/60"
 
 export const VOID_REQUEST_CORRECTION_TITLE_CLASS =
-  "m-0 text-sm font-medium leading-normal text-op-text-primary"
+  "m-0 text-sm font-medium leading-none text-op-text-primary"
 
 export const VOID_REQUEST_CORRECTION_HELPER_CLASS =
   "m-0 text-xs font-medium leading-normal text-[var(--op-color-gray-550)]"
 
 export const VOID_REQUEST_SECTION_TITLE_CLASS =
-  "m-0 text-lg font-semibold leading-normal text-op-text-primary"
+  "m-0 text-lg font-semibold leading-none text-op-text-primary"
