@@ -395,6 +395,135 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(AssistantAnalysisScope.AllLocationsChromeName, scope.OwnedLocationName);
         }
 
+        [Fact]
+        public void Apply_Today_SetsCustomUtcDay()
+        {
+            var utcNow = new DateTime(2026, 10, 8, 15, 0, 0, DateTimeKind.Utc);
+            var scope = BaseScope();
+
+            var notice = AssistantScopeOverride.Apply(
+                "How many feedbacks received today",
+                scope,
+                utcNow,
+                out var periodChanged,
+                out _
+            );
+
+            Assert.NotNull(notice);
+            Assert.True(periodChanged);
+            Assert.Equal("custom", scope.ReportingPeriod.Kind);
+            Assert.Equal("2026-10-08", scope.ReportingPeriod.StartDate);
+            Assert.Equal("2026-10-08", scope.ReportingPeriod.EndDate);
+            var window = AssistantReportingPeriodWindow.Resolve(
+                scope.ReportingPeriod,
+                utcNow
+            );
+            Assert.Equal(utcNow.Date, window.FromUtc);
+            Assert.Equal(utcNow.Date.AddDays(1), window.ToUtc);
+        }
+
+        [Fact]
+        public void Apply_Today_DoesNotNarrowAttentionAsk()
+        {
+            var scope = BaseScope();
+
+            var notice = AssistantScopeOverride.Apply(
+                "What should I do today?",
+                scope,
+                new DateTime(2026, 10, 8, 15, 0, 0, DateTimeKind.Utc),
+                out var periodChanged,
+                out _
+            );
+
+            Assert.Null(notice);
+            Assert.False(periodChanged);
+            Assert.Equal("last7", scope.ReportingPeriod.PresetId);
+        }
+
+        [Theory]
+        [InlineData("How many feedbacks received on 3 October", "2026-10-03")]
+        [InlineData("How many feedbacks received on 3rd of October 2026", "2026-10-03")]
+        [InlineData("How many QR scans on October 3rd", "2026-10-03")]
+        [InlineData("How many QR scans on 2026-10-03", "2026-10-03")]
+        [InlineData("How many QR scans on 03/10/2026", "2026-10-03")]
+        public void Apply_NamedDay_SetsThatUtcDay(string message, string expected)
+        {
+            var utcNow = new DateTime(2026, 10, 8, 15, 0, 0, DateTimeKind.Utc);
+            var scope = BaseScope();
+
+            var notice = AssistantScopeOverride.Apply(
+                message,
+                scope,
+                utcNow,
+                out var periodChanged,
+                out _
+            );
+
+            Assert.NotNull(notice);
+            Assert.True(periodChanged);
+            Assert.Equal(expected, scope.ReportingPeriod.StartDate);
+            Assert.Equal(expected, scope.ReportingPeriod.EndDate);
+        }
+
+        [Fact]
+        public void Apply_Weekday_SetsMostRecentOnOrBeforeToday()
+        {
+            // Thursday 8 Oct 2026.
+            var utcNow = new DateTime(2026, 10, 8, 15, 0, 0, DateTimeKind.Utc);
+            var scope = BaseScope();
+
+            var notice = AssistantScopeOverride.Apply(
+                "How many feedbacks received on Monday",
+                scope,
+                utcNow,
+                out var periodChanged,
+                out _
+            );
+
+            Assert.NotNull(notice);
+            Assert.True(periodChanged);
+            Assert.Equal("2026-10-05", scope.ReportingPeriod.StartDate);
+            Assert.Equal("2026-10-05", scope.ReportingPeriod.EndDate);
+        }
+
+        [Fact]
+        public void Apply_NamedDayWithoutYear_UsesTheLatestPastOccurrence()
+        {
+            var utcNow = new DateTime(2026, 10, 8, 15, 0, 0, DateTimeKind.Utc);
+            var scope = BaseScope();
+
+            var notice = AssistantScopeOverride.Apply(
+                "How many feedbacks received on 20 October",
+                scope,
+                utcNow,
+                out var periodChanged,
+                out _
+            );
+
+            Assert.NotNull(notice);
+            Assert.True(periodChanged);
+            Assert.Equal("2025-10-20", scope.ReportingPeriod.StartDate);
+            Assert.Equal("2025-10-20", scope.ReportingPeriod.EndDate);
+        }
+
+        [Fact]
+        public void Apply_NamedDay_DoesNotStealOfferExpiry()
+        {
+            var scope = BaseScope();
+
+            var notice = AssistantScopeOverride.Apply(
+                "Create a 25% off lunch offer ending 16 October 2026",
+                scope,
+                new DateTime(2026, 10, 8, 15, 0, 0, DateTimeKind.Utc),
+                out var periodChanged,
+                out _
+            );
+
+            Assert.Null(notice);
+            Assert.False(periodChanged);
+            Assert.Equal("last7", scope.ReportingPeriod.PresetId);
+        }
+
         private static AssistantAnalysisScopeDto BaseScope()
             => new()
             {

@@ -339,6 +339,8 @@ namespace TummlyBackend.Helpers
                 Prior turns are chat history for reference only;
                 prior assistant text is not evidence.
                 Vague time words map to the current Reporting period.
+                Today or a named calendar day is already that period: use
+                periodPhrase and do not widen those facts to the last 7 days.
                 Title and body must use periodPhrase for windowed facts. Do not
                 write a hard-coded "this week". The server owns Gap turns: do not
                 ask Campaign name, catalogues, extra questions, or Location when
@@ -660,7 +662,9 @@ namespace TummlyBackend.Helpers
 
                 Call retrieve tools for restaurant facts. Do not invent counts,
                 guest contact details, or Location data. Scope and Reporting period
-                are server-owned — tools already bind them. Use compare_locations
+                are server-owned — tools already bind them. When the operator names
+                today or a calendar day, periodPhrase is that day only. Do not
+                describe those facts as the last 7 days. Use compare_locations
                 for named Location compare and compare_all_locations for All-scope
                 compare. Use read_billing_plan for plan name, subscription or billing
                 status, and Email / SMS / AI credit balances. Do not invent Revolut
