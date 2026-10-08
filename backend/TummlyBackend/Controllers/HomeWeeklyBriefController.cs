@@ -213,19 +213,34 @@ namespace TummlyBackend.Controllers
                         ready = false,
                         locationId,
                         week = string.Empty,
+                        reason = WeeklyBriefNotReadyReasons.NoClosedOverlap,
                     }
                 );
             }
 
-            // Soft not-ready: missing location, too new for closed week, or Pilot.
-            // Day-of-week is not a gate here (product: manual Generate brief any day).
+            // Soft not-ready: missing location, created at/after closed-week end,
+            // or Pilot. Day-of-week is not a gate here (manual Generate any day).
+            // Does not notify — weekly-brief-ready stays on the Monday job seam.
+            // `reason` lets Reports show a soft empty helper (e.g. location too new).
+            if (locationMeta is null)
+            {
+                return Ok(
+                    new
+                    {
+                        success = true,
+                        ready = false,
+                        locationId,
+                        week = closedWeek.WeekKey,
+                        reason = WeeklyBriefNotReadyReasons.LocationMissing,
+                    }
+                );
+            }
+
             if (
-                locationMeta is null
-                || !WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
+                !WeeklyBriefWeekKey.LocationExistedBeforeClosedWeek(
                     locationMeta.CreatedAt,
                     closedWeek
                 )
-                || WeeklyBriefWeekKey.IsPilotPlan(locationMeta.SubscriptionPlan)
             )
             {
                 return Ok(
@@ -235,6 +250,21 @@ namespace TummlyBackend.Controllers
                         ready = false,
                         locationId,
                         week = closedWeek.WeekKey,
+                        reason = WeeklyBriefNotReadyReasons.LocationTooNew,
+                    }
+                );
+            }
+
+            if (WeeklyBriefWeekKey.IsPilotPlan(locationMeta.SubscriptionPlan))
+            {
+                return Ok(
+                    new
+                    {
+                        success = true,
+                        ready = false,
+                        locationId,
+                        week = closedWeek.WeekKey,
+                        reason = WeeklyBriefNotReadyReasons.Pilot,
                     }
                 );
             }
@@ -914,6 +944,8 @@ namespace TummlyBackend.Controllers
                 feedbackSummary,
                 recommendedActions,
                 suggestedCampaign,
+                insightNarratives = enrichment?.InsightNarratives,
+                insightCandidates = enrichment?.InsightCandidates,
                 reviewedAtUtc = row.ReviewedAtUtc,
                 reviewedByUserId = row.ReviewedByUserId,
             });

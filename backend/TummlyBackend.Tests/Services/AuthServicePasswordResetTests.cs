@@ -173,6 +173,40 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ResetPasswordAsync_ClearsLoginLock()
+        {
+            var user = await SeedUserAsync("Alex Morgan", "locked@tummly.test");
+            user.IsLocked = true;
+            user.FailedLoginAttempts = 5;
+            var resetToken = "reset-token-unlock";
+
+            _context.PasswordResets.Add(
+                new PasswordReset
+                {
+                    UserId = user.Id,
+                    ResetToken = resetToken,
+                    IsUsed = false,
+                    ExpiryTime = DateTime.UtcNow.AddMinutes(30),
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            await _service.ResetPasswordAsync(
+                new ResetPasswordDto
+                {
+                    Token = resetToken,
+                    NewPassword = "NewPassword1!",
+                    ConfirmPassword = "NewPassword1!",
+                }
+            );
+
+            await _context.Entry(user).ReloadAsync();
+            Assert.False(user.IsLocked);
+            Assert.Equal(0, user.FailedLoginAttempts);
+        }
+
+        [Fact]
         public async Task ForgotPasswordAsync_SocialOnlyUser_ThrowsWithProviderMessage()
         {
             var user = new User

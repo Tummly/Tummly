@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { buildReportsWeeklyBriefHubSecondary } from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
+import {
+  buildReportsWeeklyBriefHubSecondary,
+  REPORTS_WEEKLY_BRIEF_LOCATION_TOO_NEW_MESSAGE,
+  weeklyBriefEmptyMessageForReason,
+} from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
 import type { WeeklyBriefBody, WeeklyBriefMetrics } from "@/types/operatorHome"
 
 const metrics: WeeklyBriefMetrics = {
@@ -19,6 +23,20 @@ const metrics: WeeklyBriefMetrics = {
   campaignRecipientsReached: 40,
   unsubscribesInWeek: 0,
 }
+
+describe("weeklyBriefEmptyMessageForReason", () => {
+  it("maps location-too-new to the soft empty helper", () => {
+    expect(weeklyBriefEmptyMessageForReason("location-too-new")).toBe(
+      REPORTS_WEEKLY_BRIEF_LOCATION_TOO_NEW_MESSAGE
+    )
+  })
+
+  it("returns null for unknown or omitted reasons", () => {
+    expect(weeklyBriefEmptyMessageForReason("pilot")).toBeNull()
+    expect(weeklyBriefEmptyMessageForReason(undefined)).toBeNull()
+    expect(weeklyBriefEmptyMessageForReason(null)).toBeNull()
+  })
+})
 
 describe("buildReportsWeeklyBriefHubSecondary", () => {
   it("prefers the first domain summary with data", () => {

@@ -65,7 +65,7 @@ export function CampaignDetailPreviewShell({
         <div className="flex min-h-0 flex-1 flex-col">
           <header className="flex shrink-0 items-start gap-[22px] px-[22px] pb-[22px] pt-8">
             <div className="flex min-w-0 flex-1 flex-col gap-3">
-              <DrawerTitle className="m-0 text-2xl font-bold leading-normal text-op-text-primary">
+              <DrawerTitle className="m-0 text-2xl font-bold leading-none text-op-text-primary">
                 {title}
               </DrawerTitle>
               <DrawerDescription className="m-0 max-w-[385px] text-sm font-medium leading-normal text-[var(--op-color-gray-550)]">

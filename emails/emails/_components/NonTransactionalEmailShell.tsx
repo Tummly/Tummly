@@ -73,6 +73,7 @@ export function NonTransactionalEmailShell({
       <Body
         style={{
           ...emailBodyStyle,
+          backgroundColor: colors.black,
           fontFamily: font,
         }}
       >

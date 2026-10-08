@@ -29,6 +29,7 @@ namespace TummlyBackend.Tests.Services
                     new Dictionary<string, string?>
                     {
                         ["Frontend:BaseUrl"] = "https://app.tummly.test",
+                        ["PublicApi:BaseUrl"] = "https://api.tummly.test",
                     }
                 )
                 .Build();
@@ -218,11 +219,35 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, _emailService.CallCount);
         }
 
+        [Fact]
+        public async Task SendAsync_UsesWorkspaceBrandLogo_WhenUploaded()
+        {
+            var seeded = await SeedAsync(
+                operatorEmail: "operator@example.com",
+                guestContact: "guest@example.com",
+                brandLogoObjectKey: "brand-logos/workspace.png"
+            );
+
+            var result = await _service.SendAsync(
+                seeded.FeedbackId,
+                seeded.OperatorUserId,
+                subject: "Thanks for visiting",
+                body: "Hi guest, thanks for your feedback."
+            );
+
+            Assert.True(result);
+            Assert.Equal(
+                "https://api.tummly.test/api/public/brand-logos/workspace.png",
+                _emailService.LastBrandLogoUrl
+            );
+        }
+
         public void Dispose() => _context.Dispose();
 
         private async Task<(int FeedbackId, int OperatorUserId)> SeedAsync(
             string operatorEmail,
-            string guestContact
+            string guestContact,
+            string? brandLogoObjectKey = null
         )
         {
             var user = new User
@@ -245,6 +270,7 @@ namespace TummlyBackend.Tests.Services
                 Name = "Recovery Venue",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
+                BrandLogoObjectKey = brandLogoObjectKey,
                 CreatedAt = DateTime.UtcNow,
             };
             _context.Restaurants.Add(restaurant);
@@ -299,6 +325,8 @@ namespace TummlyBackend.Tests.Services
 
             public string? LastUnsubscribeHref { get; private set; }
 
+            public string? LastBrandLogoUrl { get; private set; }
+
             public bool ThrowOnSend { get; set; }
 
             public override Task SendGuestResponseEmailAsync(
@@ -323,6 +351,7 @@ namespace TummlyBackend.Tests.Services
                 LastMessage = message;
                 LastOffer = offer;
                 LastUnsubscribeHref = unsubscribeHref;
+                LastBrandLogoUrl = brandLogoUrl;
 
                 if (ThrowOnSend)
                 {

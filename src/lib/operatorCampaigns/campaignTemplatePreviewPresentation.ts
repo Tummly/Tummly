@@ -44,10 +44,17 @@ export const CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS =
   "flex w-full flex-col gap-6 border-t border-op-card-border p-[22px]"
 
 export const CAMPAIGN_TEMPLATE_PREVIEW_SECTION_TITLE_CLASS =
-  "m-0 text-lg font-bold leading-normal text-op-text-primary"
+  "m-0 text-lg font-bold leading-none text-op-text-primary"
 
 export const CAMPAIGN_TEMPLATE_PREVIEW_FIELD_LABEL_CLASS =
   "m-0 text-sm font-medium leading-normal text-op-text-primary"
 
 export const CAMPAIGN_TEMPLATE_PREVIEW_FIELD_VALUE_CLASS =
   "m-0 text-sm font-medium leading-normal text-[var(--op-color-gray-550)]"
+
+/**
+ * Calendar well on Send logic / Suggested timing rows.
+ * Fill `#f5f5f5` / `--op-color-gray-60` light, `#171717` / `--op-color-gray-1000` dark.
+ */
+export const CAMPAIGN_TEMPLATE_PREVIEW_TIMING_ICON_WELL_CLASS =
+  "flex shrink-0 items-center rounded-[2px] bg-op-color-gray-60 p-2.5 dark:bg-[var(--op-color-gray-1000)]"

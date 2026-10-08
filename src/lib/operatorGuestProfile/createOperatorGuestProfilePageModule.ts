@@ -1,5 +1,6 @@
 import { isAxiosError } from "axios"
 
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 
 import {
@@ -448,14 +449,7 @@ function isUnavailableError(error: unknown): boolean {
 }
 
 function readApiErrorMessage(error: unknown, fallback: string): string {
-  if (!isAxiosError(error)) {
-    return fallback
-  }
-  const data = error.response?.data as { message?: unknown } | undefined
-  if (typeof data?.message === "string" && data.message.trim().length > 0) {
-    return data.message
-  }
-  return fallback
+  return getUserFacingApiErrorMessage(error, fallback)
 }
 
 function buildSnapshot(

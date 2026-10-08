@@ -76,6 +76,7 @@ namespace TummlyBackend.Tests.Services
                     && row.Status == WeeklyBriefStatus.Succeeded
                 )
             );
+            // First-write success → WeeklyBriefReadyNotifier (in-product + email).
             Assert.Single(_notifier.Calls);
             Assert.Equal(locationId, _notifier.Calls[0].LocationId);
             Assert.Equal("monday:2026-08-10", _notifier.Calls[0].WeekKey);
@@ -264,7 +265,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProcessAsync_SkipsLocation_WhenCreatedAtOrAfterClosedWeekStart()
+        public async Task ProcessAsync_SkipsLocation_WhenCreatedAtOrAfterClosedWeekEnd()
         {
             var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
                 WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
@@ -272,7 +273,11 @@ namespace TummlyBackend.Tests.Services
             );
             var tooNew = await SeedLocationAsync(
                 "Brand New",
-                createdAtUtc: closed.CoverageStartUtc
+                createdAtUtc: closed.CoverageEndUtcExclusive
+            );
+            var midWeek = await SeedLocationAsync(
+                "Mid Week Signup",
+                createdAtUtc: closed.CoverageStartUtc.AddDays(2)
             );
             var eligible = await SeedLocationAsync(
                 "Established",
@@ -281,13 +286,20 @@ namespace TummlyBackend.Tests.Services
 
             var batch = await _job.ProcessAsync(LondonMondayMidnightUtc);
 
-            Assert.Equal(1, batch.Generated);
+            Assert.Equal(2, batch.Generated);
             Assert.Equal(1, batch.Skipped);
             Assert.Equal(0, batch.Failed);
-            Assert.Equal(1, _provider.CallCount);
+            Assert.Equal(2, _provider.CallCount);
             Assert.False(
                 await _context.WeeklyBriefs.AnyAsync(row =>
                     row.LocationId == tooNew
+                )
+            );
+            Assert.True(
+                await _context.WeeklyBriefs.AnyAsync(row =>
+                    row.LocationId == midWeek
+                    && row.WeekKey == "monday:2026-08-10"
+                    && row.Status == WeeklyBriefStatus.Succeeded
                 )
             );
             Assert.True(
@@ -297,8 +309,12 @@ namespace TummlyBackend.Tests.Services
                     && row.Status == WeeklyBriefStatus.Succeeded
                 )
             );
-            Assert.Single(_notifier.Calls);
-            Assert.Equal(eligible, _notifier.Calls[0].LocationId);
+            Assert.Equal(2, _notifier.Calls.Count);
+            Assert.Contains(_notifier.Calls, call => call.LocationId == midWeek);
+            Assert.Contains(
+                _notifier.Calls,
+                call => call.LocationId == eligible
+            );
         }
 
         [Fact]

@@ -482,6 +482,63 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("draft", campaign.GetProperty("status").GetString());
         }
 
+        [Fact]
+        public async Task GetCampaignById_ReturnsAttachedOfferTitle()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaign-draft-get-offer-title"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = seeded.LocationId,
+                Status = "active",
+                OfferType = CatalogOfferType.PercentageDiscount,
+                Title = "10% off next visit",
+                Description = "Preview offer title",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountPercentage = 10m,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
+
+            var campaign = new Campaign
+            {
+                RestaurantLocationId = seeded.LocationId,
+                Status = "sent",
+                Name = "Offer title campaign",
+                GoalId = "thank-recent-guests",
+                Channel = "email",
+                MessageBody = "Hello",
+                MessageSubject = "Hello",
+                OfferStance = "existing-offer",
+                OfferId = offer.Id,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            context.Campaigns.Add(campaign);
+            await context.SaveChangesAsync();
+
+            using var request = AuthorizedGet(
+                $"/api/campaigns/{campaign.Id}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = (await ReadJsonAsync(response)).GetProperty("campaign");
+            Assert.Equal(
+                "10% off next visit",
+                body.GetProperty("offerTitle").GetString()
+            );
+            Assert.Equal("existing-offer", body.GetProperty("offerStance").GetString());
+        }
+
         [Theory]
         [InlineData("sent")]
         [InlineData("failed")]

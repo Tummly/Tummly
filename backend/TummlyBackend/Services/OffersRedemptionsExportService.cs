@@ -20,6 +20,7 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// Matches <c>OFFERS_REDEMPTION_LOG_COPY.columns</c> (no Actions).
+        /// PDF pack uses the same row facts with template labels in the writer.
         /// </summary>
         private static readonly string[] Headers =
         [
@@ -53,12 +54,13 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var rows = await LoadRowsAsync(
+            var items = await ListRowsAsync(
                 locationId,
                 fromUtc,
                 toUtc,
                 cancellationToken
             );
+            var rows = items.Select(ToCsvRow).ToList();
 
             var stamp = DateTime.UtcNow.ToString(
                 "yyyyMMdd-HHmmss",
@@ -118,7 +120,7 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                var rows = await LoadRowsAsync(
+                var items = await ListRowsAsync(
                     id,
                     fromUtc,
                     toUtc,
@@ -131,7 +133,7 @@ namespace TummlyBackend.Services
                             location.LocationName,
                             location.RestaurantName
                         ),
-                        rows
+                        items.Select(ToCsvRow).ToList()
                     )
                 );
             }
@@ -153,11 +155,13 @@ namespace TummlyBackend.Services
             };
         }
 
-        private async Task<List<string[]>> LoadRowsAsync(
+        public async Task<
+            IReadOnlyList<OfferDetailsRedemptionListItemDto>
+        > ListRowsAsync(
             int locationId,
             DateTime fromUtc,
             DateTime toUtc,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken = default
         )
         {
             var list = await _lifecycle.ListLocationRedemptionsAsync(
@@ -171,7 +175,6 @@ namespace TummlyBackend.Services
                 )
                 .OrderByDescending(row => row.DateTimeUtc)
                 .Take(ExportSoftMaxRows)
-                .Select(ToCsvRow)
                 .ToList();
         }
 

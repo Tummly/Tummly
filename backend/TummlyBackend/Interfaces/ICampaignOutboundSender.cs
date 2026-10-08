@@ -44,6 +44,9 @@ namespace TummlyBackend.Interfaces
         {
             /// <summary>Email = 1; SMS = provider billable segments.</summary>
             public int AcceptedUnits { get; init; } = 1;
+
+            /// <summary>Resend message id when Email send returns one.</summary>
+            public string? ProviderMessageId { get; init; }
         }
 
         /// <summary>Provider rejected; do not settle.</summary>

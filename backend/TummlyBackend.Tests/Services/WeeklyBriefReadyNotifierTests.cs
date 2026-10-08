@@ -12,8 +12,9 @@ namespace TummlyBackend.Tests.Services
 {
     /// <summary>
     /// Seam under test: <see cref="IWeeklyBriefReadyNotifier.NotifyGeneratedAsync"/>
-    /// (ticket 07 + Weekly Brief email). Preference and dedupe are observed through
-    /// <see cref="IOperatorNotificationsService"/>, not notifier internals.
+    /// (Monday job / one-time backfill first-write → weekly-brief-ready + system
+    /// email). Home lazy POST generate does not call this seam. Preference and
+    /// dedupe are observed through <see cref="IOperatorNotificationsService"/>.
     /// </summary>
     public class WeeklyBriefReadyNotifierTests : IDisposable
     {

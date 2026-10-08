@@ -9,6 +9,9 @@ namespace TummlyBackend.Models
         AssistantGuestsEvidence Guests
     )
     {
+        public AssistantBillingEvidence Billing { get; init; } =
+            AssistantBillingEvidence.Empty;
+
         public static AssistantRetrievedEvidence Empty { get; } =
             new(
                 AssistantFeedbackEvidence.Empty,
@@ -38,6 +41,7 @@ namespace TummlyBackend.Models
             && Offers.IsEmpty
             && Campaigns.IsEmpty
             && !Capture.HasSnapshotFacts
-            && Home.IsEmpty;
+            && Home.IsEmpty
+            && Billing.IsEmpty;
     }
 }

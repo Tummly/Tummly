@@ -7,7 +7,9 @@ namespace TummlyBackend.Models
     public sealed record WeeklyBriefEnrichment(
         string? ExecutiveSummary,
         WeeklyBriefEnrichmentFeedbackSummary? FeedbackSummary,
-        IReadOnlyList<WeeklyBriefEnrichmentActionWording> ActionWording
+        IReadOnlyList<WeeklyBriefEnrichmentActionWording> ActionWording,
+        IReadOnlyList<WeeklyBriefInsightNarrative>? InsightNarratives = null,
+        IReadOnlyList<WeeklyBriefInsightCandidate>? InsightCandidates = null
     );
 
     public sealed record WeeklyBriefEnrichmentFeedbackSummary(

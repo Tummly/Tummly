@@ -64,6 +64,7 @@ async function loadCampaignsSummaryFacts(input: {
     scheduledCount: summary.campaignsInFlightScheduled,
     sendingCount: summary.campaignsInFlightSending,
     messagesSentAccepted: summary.messagesSentAccepted,
+    campaignAttributedRedemptions: summary.campaignAttributedRedemptions,
   }
 }
 

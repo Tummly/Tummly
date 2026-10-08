@@ -1,3 +1,4 @@
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import {
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
   labelForHomePerformanceDateRange,
@@ -1975,10 +1976,10 @@ export function createOperatorAiAssistantModule(
         })
         .catch((error: unknown) => {
           state = { ...state, actionInFlight: false }
-          const message =
-            error instanceof Error && error.message.trim() !== ""
-              ? error.message
-              : "Could not open recovery. Please try again."
+          const message = getUserFacingApiErrorMessage(
+            error,
+            "Could not open recovery. Please try again."
+          )
           adapters.notifyRecoveryDraftError(message)
           publish()
         })
@@ -2769,10 +2770,10 @@ export function createOperatorAiAssistantModule(
           })
           .catch((error: unknown) => {
             state = { ...state, actionInFlight: false }
-            const message =
-              error instanceof Error && error.message.trim() !== ""
-                ? error.message
-                : "Could not open recovery. Please try again."
+            const message = getUserFacingApiErrorMessage(
+              error,
+              "Could not open recovery. Please try again."
+            )
             adapters.notifyRecoveryDraftError(message)
             publish()
           })

@@ -408,7 +408,8 @@ namespace TummlyBackend.Services
                         acceptedAtUtc: now,
                         acceptedUnits,
                         now,
-                        CancellationToken.None
+                        CancellationToken.None,
+                        providerMessageId: accepted.ProviderMessageId
                     );
 
                     if (entity.OfferId is int catalogOfferId)
@@ -660,7 +661,8 @@ namespace TummlyBackend.Services
             DateTime? acceptedAtUtc,
             int? acceptedUnits,
             DateTime now,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            string? providerMessageId = null
         )
         {
             var existing = await _context.CampaignRecipientDeliveries
@@ -682,6 +684,10 @@ namespace TummlyBackend.Services
                 existing.Outcome = outcome;
                 existing.AcceptedAtUtc = acceptedAtUtc;
                 existing.AcceptedUnits = acceptedUnits;
+                if (!string.IsNullOrWhiteSpace(providerMessageId))
+                {
+                    existing.ProviderMessageId = providerMessageId.Trim();
+                }
                 existing.UpdatedAtUtc = now;
                 return;
             }
@@ -695,6 +701,9 @@ namespace TummlyBackend.Services
                     Outcome = outcome,
                     AcceptedAtUtc = acceptedAtUtc,
                     AcceptedUnits = acceptedUnits,
+                    ProviderMessageId = string.IsNullOrWhiteSpace(providerMessageId)
+                        ? null
+                        : providerMessageId.Trim(),
                     UpdatedAtUtc = now,
                 }
             );

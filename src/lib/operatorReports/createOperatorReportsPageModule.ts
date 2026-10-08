@@ -1,3 +1,4 @@
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import { isAccountLockedBillingStatus } from "@/lib/operatorHome/lockAlertPresentation"
 import {
   labelForHomePerformanceDateRange,
@@ -36,6 +37,7 @@ import {
 import {
   buildReportsWeeklyBriefHubSecondary,
   REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
+  weeklyBriefEmptyMessageForReason,
 } from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
 import type {
   WeeklyBriefBody,
@@ -120,6 +122,11 @@ export type OperatorReportsWeeklyBriefViewModel = {
   errorMessage: string | null
   errorRetryable: boolean
   generateBusy: boolean
+  /**
+   * Soft empty helper after generate not-ready (e.g. location too new).
+   * Null → default empty copy in hub / weekly-brief page.
+   */
+  emptyMessage: string | null
 }
 
 export type OperatorReportsPageSnapshot = {
@@ -262,11 +269,12 @@ export type OperatorReportsPageModule = {
   closeExportDialog: () => void
   /**
    * Downloads immediately when the kind has no guest/contact data
-   * (overview, capture, campaigns). Guest-data kinds open the client-only
-   * consent step and return false until confirmCsvExport.
+   * (Capture / Campaigns CSV). Overview PDF and guest-data kinds open the
+   * client-only consent step and return false until confirmCsvExport.
    * No-op when export is not allowed.
    * Default format: overview → pdf; others → csv. Pass format "xlsx" for
-   * styled workbook (multi-location when xlsxLocationScope is "all").
+   * styled workbook (multi-location when exportLocationScope is "all").
+   * PDF also accepts multi locationIds when scope is "all".
    */
   requestExport: (
     kind: ReportsExportKind,
@@ -339,6 +347,7 @@ function emptyWeeklyBrief(
     errorMessage: null,
     errorRetryable: false,
     generateBusy: false,
+    emptyMessage: null,
     ...overrides,
   }
 }
@@ -372,6 +381,7 @@ function mapReadyWeeklyBrief(
     errorMessage: null,
     errorRetryable: false,
     generateBusy: false,
+    emptyMessage: null,
   }
 }
 
@@ -756,6 +766,7 @@ export function createOperatorReportsPageModule(
           emptyWeeklyBrief({
             status: "empty",
             week: generated.week,
+            emptyMessage: weeklyBriefEmptyMessageForReason(generated.reason),
           })
         )
         return false
@@ -1293,7 +1304,7 @@ export function createOperatorReportsPageModule(
     const resolvedFormat =
       format
       ?? (kind === "overview" ? "pdf" : "csv")
-    if (!reportsExportRequiresGuestDataAck(kind)) {
+    if (!reportsExportRequiresGuestDataAck(kind, resolvedFormat)) {
       return runExportDownload(kind, resolvedFormat)
     }
     state = {
@@ -1332,7 +1343,8 @@ export function createOperatorReportsPageModule(
         adapters.getReportsDateRange()
       )
       const locationIds =
-        format === "xlsx" && state.xlsxLocationScope === "all"
+        (format === "xlsx" || format === "pdf")
+        && state.xlsxLocationScope === "all"
           ? workspace.locations.map((row) => row.id)
           : undefined
       const result = await adapters.downloadReportsExport({
@@ -1356,10 +1368,10 @@ export function createOperatorReportsPageModule(
       publish()
       return true
     } catch (error) {
-      const message =
-        error instanceof Error && error.message.trim().length > 0
-          ? error.message
-          : "Could not download this export. Please try again."
+      const message = getUserFacingApiErrorMessage(
+        error,
+        "Could not download this export. Please try again."
+      )
       state = {
         ...state,
         exportDownloadBusyKind: null,

@@ -6,6 +6,7 @@ import {
   type FeedbackHomeRealtimeHandlers,
   type OperatorHomePageAdapters,
 } from "./createOperatorHomePageModule"
+import { shouldShowWeeklyBriefWatchNext } from "./operatorHomeSectionPresentation"
 import type { FeedbackItem, LocationItem } from "@/types/dashboard"
 import type {
   HomeRecommendationResponse,
@@ -318,6 +319,17 @@ function createAdapters(overrides: {
   getNeedsAttentionCredits?: OperatorHomePageAdapters["getNeedsAttentionCredits"]
   pauseCampaign?: OperatorHomePageAdapters["pauseCampaign"]
   duplicateCampaign?: OperatorHomePageAdapters["duplicateCampaign"]
+  sendGuestResponse?: OperatorHomePageAdapters["sendGuestResponse"]
+  sendGuestPreviewTest?: OperatorHomePageAdapters["sendGuestPreviewTest"]
+  completeRecovery?: OperatorHomePageAdapters["completeRecovery"]
+  prepareRecoveryDraft?: OperatorHomePageAdapters["prepareRecoveryDraft"]
+  recordInternalAction?: OperatorHomePageAdapters["recordInternalAction"]
+  sendAndRecord?: OperatorHomePageAdapters["sendAndRecord"]
+  sendAndIssueRecoveryOffer?: OperatorHomePageAdapters["sendAndIssueRecoveryOffer"]
+  prepareRecoveryOfferDraft?: OperatorHomePageAdapters["prepareRecoveryOfferDraft"]
+  getRecoveryOfferAttach?: OperatorHomePageAdapters["getRecoveryOfferAttach"]
+  setRecoveryOfferAttach?: OperatorHomePageAdapters["setRecoveryOfferAttach"]
+  listCatalogOffers?: OperatorHomePageAdapters["listCatalogOffers"]
 } = {}): OperatorHomePageAdapters {
   let defaultWeeklyBriefGenerated = false
 
@@ -501,6 +513,66 @@ function createAdapters(overrides: {
       ?? (async () => {
         throw new Error("duplicateCampaign not stubbed")
       }),
+    sendGuestResponse:
+      overrides.sendGuestResponse
+      ?? (async () => {
+        throw new Error("sendGuestResponse not stubbed")
+      }),
+    sendGuestPreviewTest:
+      overrides.sendGuestPreviewTest
+      ?? (async () => {
+        throw new Error("sendGuestPreviewTest not stubbed")
+      }),
+    completeRecovery:
+      overrides.completeRecovery
+      ?? (async () => {
+        throw new Error("completeRecovery not stubbed")
+      }),
+    prepareRecoveryDraft:
+      overrides.prepareRecoveryDraft
+      ?? (async () => {
+        throw new Error("prepareRecoveryDraft not stubbed")
+      }),
+    recordInternalAction:
+      overrides.recordInternalAction
+      ?? (async () => {
+        throw new Error("recordInternalAction not stubbed")
+      }),
+    sendAndRecord:
+      overrides.sendAndRecord
+      ?? (async () => {
+        throw new Error("sendAndRecord not stubbed")
+      }),
+    sendAndIssueRecoveryOffer:
+      overrides.sendAndIssueRecoveryOffer
+      ?? (async () => {
+        throw new Error("sendAndIssueRecoveryOffer not stubbed")
+      }),
+    prepareRecoveryOfferDraft:
+      overrides.prepareRecoveryOfferDraft
+      ?? (async () => {
+        throw new Error("prepareRecoveryOfferDraft not stubbed")
+      }),
+    getRecoveryOfferAttach:
+      overrides.getRecoveryOfferAttach ?? (async () => null),
+    setRecoveryOfferAttach:
+      overrides.setRecoveryOfferAttach ?? (async () => {}),
+    listCatalogOffers:
+      overrides.listCatalogOffers
+      ?? (async () => ({
+        success: true,
+        items: [],
+        totalCount: 0,
+        page: 1,
+        pageSize: 100,
+        tabCounts: {
+          all: 0,
+          needsAttention: 0,
+          drafts: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })),
   }
 }
 
@@ -1269,6 +1341,69 @@ describe("createOperatorHomePageModule", () => {
     })
   })
 
+  it("opens Respond to guest and Add Offer from Feedback detail", async () => {
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Great food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedTags: ["service"],
+      locationGuestId: 5,
+      workflowStatus: "new" as const,
+      permissionStates: {
+        "email-marketing": "granted",
+        "sms-marketing": "not_recorded",
+        "feedback-follow-up": "granted",
+      },
+      restaurantPermissions: {
+        "email-marketing": true,
+        "sms-marketing": false,
+        "feedback-follow-up": true,
+      },
+    }))
+    const setWorkflowStatus = vi.fn(
+      async (
+        _feedbackId: number,
+        workflowStatus: "new" | "in_progress" | "resolved"
+      ) => ({
+        workflowStatus,
+        needsAttention: true,
+        activityEvent: null as null,
+      })
+    )
+    const home = createOperatorHomePageModule(
+      createAdapters({ getFeedbackDetails, setWorkflowStatus })
+    )
+    await home.syncWorkspace(workspaceInput())
+    await home.openFeedbackDetails(10)
+    home.closeFeedbackDetails()
+
+    await home.recoveryWizards.openDetailRespondToGuest(10)
+
+    expect(setWorkflowStatus).toHaveBeenCalledWith(10, "in_progress")
+    expect(home.getSnapshot().respondToGuest).toMatchObject({
+      isOpen: true,
+      feedbackId: 10,
+      loadStatus: "loaded",
+    })
+
+    home.recoveryWizards.respondToGuest.saveAndExit()
+    await home.recoveryWizards.openDetailAddOffer(10)
+
+    expect(home.getSnapshot().respondWithRecoveryOffer).toMatchObject({
+      isOpen: true,
+      feedbackId: 10,
+      loadStatus: "loaded",
+    })
+  })
+
   it("resets Feedback details when the selected Owned location changes", async () => {
     const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
       success: true,
@@ -1968,6 +2103,50 @@ describe("createOperatorHomePageModule", () => {
     expect(recommendation.isNone).toBe(false)
     expect(recommendation.recommendation?.title).toBe("Review open feedback")
     expect(home.getSnapshot().viewModel).not.toHaveProperty("recommendation")
+  })
+
+  it("keeps review-open-feedback action for resolve primary (single target or inbox)", async () => {
+    const withTarget = vi.fn(async () => ({
+      success: true,
+      recommendation: {
+        type: "review-open-feedback" as const,
+        title: "Follow up on Needs attention feedback",
+        opportunity: "1 Needs attention item is waiting for recovery.",
+        whyBullets: [
+          "1 negative feedback item is not Resolved",
+          "Start recovery before the guest goes cold",
+        ],
+        action: { kind: "open-feedback" as const, feedbackId: 42 },
+      },
+    }))
+    const homeWithTarget = createOperatorHomePageModule(
+      createAdapters({ loadHomeRecommendation: withTarget })
+    )
+    await homeWithTarget.syncWorkspace(workspaceInput())
+    expect(
+      homeWithTarget.getSnapshot().recommendation.recommendation?.action
+    ).toEqual({ kind: "open-feedback", feedbackId: 42 })
+
+    const inboxOnly = vi.fn(async () => ({
+      success: true,
+      recommendation: {
+        type: "review-open-feedback" as const,
+        title: "Follow up on Needs attention feedback",
+        opportunity: "3 Needs attention items still need a response.",
+        whyBullets: [
+          "3 negative feedback items are not Resolved",
+          "Urgency rises while guests wait",
+        ],
+        action: { kind: "open-feedback" as const, feedbackId: null },
+      },
+    }))
+    const homeInbox = createOperatorHomePageModule(
+      createAdapters({ loadHomeRecommendation: inboxOnly })
+    )
+    await homeInbox.syncWorkspace(workspaceInput())
+    expect(homeInbox.getSnapshot().recommendation.recommendation?.action).toEqual(
+      { kind: "open-feedback", feedbackId: null }
+    )
   })
 
   it("maps type none to the empty recommendation card state", async () => {
@@ -3150,6 +3329,48 @@ describe("createOperatorHomePageModule", () => {
     expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
     expect(getWeeklyBrief.mock.calls.length).toBeGreaterThanOrEqual(1)
     expect(home.getSnapshot().weeklyBrief.body?.watchNext).toHaveLength(2)
+  })
+
+  it("omits Watch next presentation when ready watchNext is empty", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) => ({
+      ...readyWeeklyBriefResponse(locationId),
+      body: { ...weeklyBriefBodyFixture, watchNext: [] },
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getWeeklyBrief })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+
+    expect(home.getSnapshot().weeklyBrief.body?.watchNext).toEqual([])
+    expect(
+      shouldShowWeeklyBriefWatchNext(
+        home.getSnapshot().weeklyBrief.body?.watchNext
+      )
+    ).toBe(false)
+  })
+
+  it("shows Watch next presentation when ready watchNext has lines", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const home = createOperatorHomePageModule(
+      createAdapters({ getWeeklyBrief })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+
+    expect(
+      shouldShowWeeklyBriefWatchNext(
+        home.getSnapshot().weeklyBrief.body?.watchNext
+      )
+    ).toBe(true)
   })
 
   it("surfaces lazy generate failure then retry succeeds", async () => {

@@ -97,9 +97,9 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task Callback_ExistingUserEmail_NotLinked_RedirectsAccountExists()
+        public async Task Callback_ExistingUserEmail_NotLinked_AutoLinksAndRedirectsSignIn()
         {
-            await SeedUserAsync(ProfileEmail);
+            var user = await SeedUserAsync(ProfileEmail);
             var state = await SeedOAuthStateAsync(
                 ExternalAuthProviders.Google,
                 "/login"
@@ -116,14 +116,33 @@ namespace TummlyBackend.Tests.Services
                 error: null
             );
 
-            Assert.Contains("oauthError=account_exists", redirect);
-            Assert.StartsWith($"{FrontendBase}/login?", redirect);
+            Assert.Contains("/login/oauth/complete?token=", redirect);
+            Assert.DoesNotContain("oauthError=", redirect);
+
+            var link = await _db.UserExternalLogins.SingleAsync();
+            Assert.Equal(user.Id, link.UserId);
+            Assert.Equal(ExternalAuthProviders.Google, link.Provider);
+            Assert.Equal("new-subject", link.ProviderSubject);
+
+            var token = ExtractQueryValue(redirect, "token");
+            var ticket = await _db.ExternalAuthTickets.SingleAsync(x =>
+                x.Token == token
+            );
+            Assert.Equal(
+                ExternalAuthTicketPurposes.SignInExchange,
+                ticket.Purpose
+            );
+            Assert.Contains(
+                $"\"UserId\":{user.Id}",
+                ticket.PayloadJson,
+                StringComparison.Ordinal
+            );
         }
 
         [Fact]
-        public async Task Callback_ExistingUserEmail_SignupReturnPath_RedirectsAccountExists()
+        public async Task Callback_ExistingUserEmail_SignupReturnPath_AutoLinksAndRedirectsSignIn()
         {
-            await SeedUserAsync(ProfileEmail);
+            var user = await SeedUserAsync(ProfileEmail);
             var state = await SeedOAuthStateAsync(
                 ExternalAuthProviders.Google,
                 "/signup"
@@ -140,8 +159,96 @@ namespace TummlyBackend.Tests.Services
                 error: null
             );
 
+            // Sign-up surface still completes Sign-in (no error banner).
+            Assert.Contains("/login/oauth/complete?token=", redirect);
+            Assert.DoesNotContain("oauthError=", redirect);
+
+            var link = await _db.UserExternalLogins.SingleAsync();
+            Assert.Equal(user.Id, link.UserId);
+            Assert.Equal("new-subject", link.ProviderSubject);
+        }
+
+        [Fact]
+        public async Task Callback_ExistingUserEmail_HasOtherProvider_AutoLinksSecondProvider()
+        {
+            var user = await SeedUserAsync(ProfileEmail);
+            _db.UserExternalLogins.Add(
+                new UserExternalLogin
+                {
+                    UserId = user.Id,
+                    Provider = ExternalAuthProviders.Google,
+                    ProviderSubject = "google-sub",
+                }
+            );
+            await _db.SaveChangesAsync();
+
+            var state = await SeedOAuthStateAsync(
+                ExternalAuthProviders.Microsoft,
+                "/login"
+            );
+            _providerClient.Profile = new ExternalOAuthProfile
+            {
+                Provider = ExternalAuthProviders.Microsoft,
+                Subject = "ms-sub",
+                Email = ProfileEmail,
+                EmailVerified = true,
+                FullName = "OAuth User",
+            };
+
+            var redirect = await _sut.HandleCallbackAsync(
+                ExternalAuthProviders.Microsoft,
+                "code-1",
+                state,
+                error: null
+            );
+
+            Assert.Contains("/login/oauth/complete?token=", redirect);
+
+            var links = await _db.UserExternalLogins
+                .OrderBy(x => x.Provider)
+                .ToListAsync();
+            Assert.Equal(2, links.Count);
+            Assert.Equal(ExternalAuthProviders.Google, links[0].Provider);
+            Assert.Equal(ExternalAuthProviders.Microsoft, links[1].Provider);
+            Assert.Equal("ms-sub", links[1].ProviderSubject);
+            Assert.All(links, link => Assert.Equal(user.Id, link.UserId));
+        }
+
+        [Fact]
+        public async Task Callback_LatePending_NoUser_RedirectsAccountExists()
+        {
+            _db.PendingSignups.Add(
+                new PendingSignup
+                {
+                    Id = Guid.NewGuid(),
+                    SessionToken = Guid.NewGuid(),
+                    Email = ProfileEmail,
+                    Status = PendingSignupStatuses.Complete,
+                    TermsAccepted = true,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UpdatedAtUtc = DateTime.UtcNow,
+                }
+            );
+            await _db.SaveChangesAsync();
+
+            var state = await SeedOAuthStateAsync(
+                ExternalAuthProviders.Google,
+                "/signup"
+            );
+            _providerClient.Profile = VerifiedGoogleProfile(
+                subject: "pending-sub",
+                email: ProfileEmail
+            );
+
+            var redirect = await _sut.HandleCallbackAsync(
+                ExternalAuthProviders.Google,
+                "code-1",
+                state,
+                error: null
+            );
+
             Assert.Contains("oauthError=account_exists", redirect);
-            Assert.StartsWith($"{FrontendBase}/signup?", redirect);
+            Assert.Empty(_db.UserExternalLogins);
         }
 
         [Fact]

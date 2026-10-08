@@ -130,7 +130,14 @@ export function CampaignsMessagingUsage({
 
   const viewModel = messagingUsage.viewModel
   if (viewModel == null) {
-    return null
+    // Keep the anchor mounted so header "View messaging usage" can scroll.
+    return (
+      <section
+        id={id}
+        className={GUESTS_SECTION_CLASS}
+        aria-label="Messaging usage"
+      />
+    )
   }
 
   const { email, sms } = viewModel

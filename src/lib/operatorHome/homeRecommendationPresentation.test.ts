@@ -32,14 +32,23 @@ describe("homeRecommendationPresentation", () => {
     ).toBe(HOME_RECOMMENDATION_COPY.reviewCampaignDraft)
   })
 
-  it("labels Home-native primary CTAs from domain action", () => {
+  it("labels review-open-feedback primary as Start recovery (resolve, not View)", () => {
+    expect(HOME_RECOMMENDATION_COPY.startRecovery).toBe("Start recovery")
     expect(
       primaryCtaLabelForHomeRecommendation({
         type: "review-open-feedback",
         action: { kind: "open-feedback", feedbackId: 12 },
       })
-    ).toBe(HOME_RECOMMENDATION_COPY.viewFeedback)
+    ).toBe(HOME_RECOMMENDATION_COPY.startRecovery)
 
+    expect(
+      primaryCtaLabelForHomeRecommendation({
+        type: "review-open-feedback",
+      })
+    ).toBe(HOME_RECOMMENDATION_COPY.startRecovery)
+  })
+
+  it("labels Home-native primary CTAs from domain action", () => {
     expect(
       primaryCtaLabelForHomeRecommendation({
         type: "thank-or-follow-guest",

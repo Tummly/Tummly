@@ -6,14 +6,19 @@ namespace TummlyBackend.Helpers
 {
     public static class OperatorChromeAccess
     {
-        public static async Task<string> TeamPermissionsAsync(
+        /// <summary>
+        /// View/manage chrome for one Operator Area. Explicit "none" when View
+        /// is denied. Scoped and Manage both count as at least view.
+        /// </summary>
+        public static async Task<string> ForAreaAsync(
             IRestaurantPermissionHelper permissions,
-            ClaimsPrincipal user
+            ClaimsPrincipal user,
+            string areaId
         )
         {
             var view = await permissions.AuthorizeAsync(
                 user,
-                OperatorAreaIds.TeamPermissions,
+                areaId,
                 PermissionLevel.View
             );
             if (view.Status != RestaurantPermissionStatus.Allowed)
@@ -23,7 +28,7 @@ namespace TummlyBackend.Helpers
 
             var manage = await permissions.AuthorizeAsync(
                 user,
-                OperatorAreaIds.TeamPermissions,
+                areaId,
                 PermissionLevel.Manage
             );
             return manage.Status == RestaurantPermissionStatus.Allowed
@@ -31,79 +36,64 @@ namespace TummlyBackend.Helpers
                 : "view";
         }
 
-        public static async Task<string> BillingCreditsAsync(
+        public static Task<string> TeamPermissionsAsync(
             IRestaurantPermissionHelper permissions,
             ClaimsPrincipal user
-        )
-        {
-            var view = await permissions.AuthorizeAsync(
-                user,
-                OperatorAreaIds.BillingCredits,
-                PermissionLevel.View
-            );
-            if (view.Status != RestaurantPermissionStatus.Allowed)
-            {
-                return "none";
-            }
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.TeamPermissions);
 
-            var manage = await permissions.AuthorizeAsync(
-                user,
-                OperatorAreaIds.BillingCredits,
-                PermissionLevel.Manage
-            );
-            return manage.Status == RestaurantPermissionStatus.Allowed
-                ? "manage"
-                : "view";
-        }
-
-        public static async Task<string> OffersAsync(
+        public static Task<string> BillingCreditsAsync(
             IRestaurantPermissionHelper permissions,
             ClaimsPrincipal user
-        )
-        {
-            var view = await permissions.AuthorizeAsync(
-                user,
-                OperatorAreaIds.Offers,
-                PermissionLevel.View
-            );
-            if (view.Status != RestaurantPermissionStatus.Allowed)
-            {
-                return "none";
-            }
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.BillingCredits);
 
-            var manage = await permissions.AuthorizeAsync(
-                user,
-                OperatorAreaIds.Offers,
-                PermissionLevel.Manage
-            );
-            return manage.Status == RestaurantPermissionStatus.Allowed
-                ? "manage"
-                : "view";
-        }
-
-        public static async Task<string> PrivacyConsentAsync(
+        public static Task<string> OffersAsync(
             IRestaurantPermissionHelper permissions,
             ClaimsPrincipal user
-        )
-        {
-            var view = await permissions.AuthorizeAsync(
-                user,
-                OperatorAreaIds.PrivacyConsent,
-                PermissionLevel.View
-            );
-            if (view.Status != RestaurantPermissionStatus.Allowed)
-            {
-                return "none";
-            }
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.Offers);
 
-            var manage = await permissions.AuthorizeAsync(
-                user,
-                OperatorAreaIds.PrivacyConsent,
-                PermissionLevel.Manage
-            );
-            return manage.Status == RestaurantPermissionStatus.Allowed
-                ? "manage"
-                : "view";
-        }
+        public static Task<string> PrivacyConsentAsync(
+            IRestaurantPermissionHelper permissions,
+            ClaimsPrincipal user
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.PrivacyConsent);
+
+        public static Task<string> GuestsAsync(
+            IRestaurantPermissionHelper permissions,
+            ClaimsPrincipal user
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.Guests);
+
+        public static Task<string> CaptureAsync(
+            IRestaurantPermissionHelper permissions,
+            ClaimsPrincipal user
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.Capture);
+
+        public static Task<string> FeedbackAsync(
+            IRestaurantPermissionHelper permissions,
+            ClaimsPrincipal user
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.Feedback);
+
+        public static Task<string> CampaignsAsync(
+            IRestaurantPermissionHelper permissions,
+            ClaimsPrincipal user
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.Campaigns);
+
+        public static Task<string> ReportsAsync(
+            IRestaurantPermissionHelper permissions,
+            ClaimsPrincipal user
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.Reports);
+
+        public static Task<string> TummlyShopAsync(
+            IRestaurantPermissionHelper permissions,
+            ClaimsPrincipal user
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.TummlyShop);
+
+        public static Task<string> LocationsAsync(
+            IRestaurantPermissionHelper permissions,
+            ClaimsPrincipal user
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.Locations);
+
+        public static Task<string> AccountWorkspaceAsync(
+            IRestaurantPermissionHelper permissions,
+            ClaimsPrincipal user
+        ) => ForAreaAsync(permissions, user, OperatorAreaIds.AccountWorkspace);
     }
 }

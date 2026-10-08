@@ -134,6 +134,7 @@ namespace TummlyBackend.Services
         {
             var entity = await _context.Campaigns
                 .AsNoTracking()
+                .Include(campaign => campaign.Offer)
                 .FirstOrDefaultAsync(
                     campaign =>
                         campaign.Id == campaignId
@@ -151,6 +152,7 @@ namespace TummlyBackend.Services
         {
             var entity = await _context.Campaigns
                 .AsNoTracking()
+                .Include(campaign => campaign.Offer)
                 .FirstOrDefaultAsync(
                     campaign => campaign.Id == campaignId,
                     cancellationToken
@@ -491,6 +493,9 @@ namespace TummlyBackend.Services
                 Channel = entity.Channel,
                 OfferStance = entity.OfferStance,
                 OfferId = entity.OfferId,
+                OfferTitle = string.IsNullOrWhiteSpace(entity.Offer?.Title)
+                    ? null
+                    : entity.Offer!.Title.Trim(),
                 MessageSubject = entity.MessageSubject,
                 MessageBody = entity.MessageBody,
                 RowVersion = entity.RowVersion,

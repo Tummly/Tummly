@@ -9,7 +9,14 @@ namespace TummlyBackend.Models
         int NewGuests,
         int NeedsRecovery,
         int PositiveFeedback,
-        int DormantGuests
+        int DormantGuests,
+        int OpenFeedbackCount,
+        int NeedsAttentionCount,
+        int ActiveOffers,
+        int OfferNeedsAttentionCount,
+        int CampaignsSentInWindow,
+        int UniqueEmailOpensInWindow,
+        int CampaignAttributedRedemptionsInWindow
     );
 
     public sealed record CampaignRecommendationProviderInput(

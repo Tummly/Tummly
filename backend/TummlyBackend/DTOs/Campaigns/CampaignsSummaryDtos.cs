@@ -19,6 +19,12 @@ namespace TummlyBackend.DTOs.Campaigns
 
         /// <summary>Email-channel accepted count (same as MessagesSentAccepted for MVP).</summary>
         public required int MessagesSentAcceptedEmail { get; init; }
+
+        /// <summary>
+        /// OfferIssues redeemed in the overview window with a Campaign attach
+        /// (CMP-01).
+        /// </summary>
+        public required int CampaignAttributedRedemptions { get; init; }
     }
 
     /// <summary>

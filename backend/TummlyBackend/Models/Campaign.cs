@@ -56,7 +56,10 @@ namespace TummlyBackend.Models
         [MaxLength(32)]
         public string? ScheduleMode { get; set; }
 
-        /// <summary>UTC fire time when schedule-later; null for send-now.</summary>
+        /// <summary>
+        /// Planned UTC fire time for schedule-later; send instant for send-now.
+        /// Null only for Draft (or legacy send-now rows before stamp).
+        /// </summary>
         public DateTime? ScheduledAtUtc { get; set; }
 
         /// <summary>Account / restaurant IANA timezone at commit.</summary>

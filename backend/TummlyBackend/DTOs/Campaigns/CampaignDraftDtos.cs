@@ -77,6 +77,9 @@ namespace TummlyBackend.DTOs.Campaigns
 
         public int? OfferId { get; init; }
 
+        /// <summary>Catalog Offer title when attached; null for No offer.</summary>
+        public string? OfferTitle { get; init; }
+
         public string? MessageSubject { get; init; }
 
         public string? MessageBody { get; init; }

@@ -279,13 +279,22 @@ describe("buildOperatorShellPresentation", () => {
     );
   });
 
-  it("exposes a normalized Self role subtitle for the account trigger", () => {
+  it("exposes Permission role as the account trigger subtitle", () => {
     const presentation = buildOperatorShellPresentation(
-      makeShellInput({ selfRole: "owner-operator" }),
+      makeShellInput({ permissionRole: "Admin" }),
       now,
     );
 
-    expect(presentation.profileSelfRoleSubtitle).toBe("Owner");
+    expect(presentation.profileSelfRoleSubtitle).toBe("Admin");
+  });
+
+  it("omits the account subtitle when Permission role is empty", () => {
+    const presentation = buildOperatorShellPresentation(
+      makeShellInput({ permissionRole: "  " }),
+      now,
+    );
+
+    expect(presentation.profileSelfRoleSubtitle).toBeNull();
   });
 
   it("passes Paused switcher badge flag through to options", () => {
@@ -311,5 +320,23 @@ describe("buildOperatorShellPresentation", () => {
       isActive: false,
       showPausedBadge: true,
     });
+  });
+
+  it("omits SideNav rows listed in hiddenNavIds", () => {
+    const presentation = buildOperatorShellPresentation(
+      makeShellInput({
+        navTargets: { mode: "single", locationId: 10 },
+        hiddenNavIds: ["guests", "campaigns", "tummly-shop", "billing-credits"],
+      }),
+      now,
+    );
+
+    expect(
+      presentation.sidebarNav.primary.map((item) => item.id)
+    ).toEqual(["home", "capture", "feedback", "offers", "reports"]);
+    expect(
+      presentation.sidebarNav.settings.children.map((item) => item.id)
+    ).not.toContain("billing-credits");
+    expect(presentation.sidebarNav.footer).toEqual([]);
   });
 });

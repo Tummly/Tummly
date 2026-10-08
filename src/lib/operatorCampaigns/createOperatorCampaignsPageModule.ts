@@ -96,7 +96,7 @@ export type OperatorCampaignsWorkspaceInput = {
   locations: readonly OperatorCampaignsWorkspaceLocation[]
 }
 
-/** Sibling Campaign summary facts — in-flight + messages (ticket 29). */
+/** Sibling Campaign summary facts — in-flight + messages + redemptions (ticket 29 / CMP-01). */
 export type CampaignsSummarySiblingFacts = {
   /** Scheduled campaigns at the owned location (no date window). */
   scheduledCount: number
@@ -104,6 +104,8 @@ export type CampaignsSummarySiblingFacts = {
   sendingCount: number
   /** Accepted outbound messages in the overview window (Email first). */
   messagesSentAccepted: number
+  /** Campaign-attached redemptions in the overview window. */
+  campaignAttributedRedemptions: number
 }
 
 export type OperatorCampaignsPageAdapters = {
@@ -374,7 +376,8 @@ function toSummaryFacts(
     scheduledCount: sibling.scheduledCount,
     sendingCount: sibling.sendingCount,
     messagesSentAccepted: sibling.messagesSentAccepted,
-    redemptionsHasRealData: false,
+    redemptionsHasRealData: true,
+    redemptions: sibling.campaignAttributedRedemptions,
   }
 }
 

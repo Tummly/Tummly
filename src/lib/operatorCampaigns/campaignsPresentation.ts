@@ -181,7 +181,7 @@ export const CAMPAIGNS_MESSAGING_USAGE_TILE_CLASS =
   "flex flex-col gap-3 rounded-op-md border border-op-border-default p-6"
 
 export const CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS =
-  "m-0 text-lg font-medium leading-normal text-op-card-title-color"
+  "m-0 text-lg font-medium leading-none text-op-card-title-color"
 
 export const CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS =
   "m-0 text-op-sm font-normal leading-normal text-op-card-subtitle-color"

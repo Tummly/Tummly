@@ -29,6 +29,7 @@ namespace TummlyBackend.Tests.Services
                     new Dictionary<string, string?>
                     {
                         ["Frontend:BaseUrl"] = "https://app.tummly.test",
+                        ["PublicApi:BaseUrl"] = "https://api.tummly.test",
                     }
                 )
                 .Build();
@@ -266,13 +267,58 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(_emailService.LastBrandSubtitle);
         }
 
+        [Fact]
+        public async Task SendAsync_UsesWorkspaceBrandLogo_WhenUploaded()
+        {
+            var locationId = await SeedLocationAsync(
+                restaurantName: "Logo Venue",
+                locationName: "Main",
+                address: "1 High Street",
+                brandLogoObjectKey: "brand-logos/workspace.png"
+            );
+
+            var result = await _service.SendAsync(
+                locationId,
+                toEmail: "team@example.com",
+                subject: "Thanks",
+                body: "Hello"
+            );
+
+            Assert.True(result);
+            Assert.Equal(
+                "https://api.tummly.test/api/public/brand-logos/workspace.png",
+                _emailService.LastBrandLogoUrl
+            );
+        }
+
+        [Fact]
+        public async Task SendAsync_OmitsBrandLogo_WhenWorkspaceHasNoUpload()
+        {
+            var locationId = await SeedLocationAsync(
+                restaurantName: "Logo Venue",
+                locationName: "Main",
+                address: "1 High Street"
+            );
+
+            var result = await _service.SendAsync(
+                locationId,
+                toEmail: "team@example.com",
+                subject: "Thanks",
+                body: "Hello"
+            );
+
+            Assert.True(result);
+            Assert.Null(_emailService.LastBrandLogoUrl);
+        }
+
         public void Dispose() => _context.Dispose();
 
         private async Task<int> SeedLocationAsync(
             string restaurantName,
             string locationName,
             string address,
-            string? defaultCampaignSenderName = null
+            string? defaultCampaignSenderName = null,
+            string? brandLogoObjectKey = null
         )
         {
             var user = new User
@@ -296,6 +342,7 @@ namespace TummlyBackend.Tests.Services
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 DefaultCampaignSenderName = defaultCampaignSenderName,
+                BrandLogoObjectKey = brandLogoObjectKey,
                 CreatedAt = DateTime.UtcNow,
             };
             _context.Restaurants.Add(restaurant);
@@ -334,6 +381,8 @@ namespace TummlyBackend.Tests.Services
 
             public string? LastUnsubscribeHref { get; private set; }
 
+            public string? LastBrandLogoUrl { get; private set; }
+
             public bool ThrowOnSend { get; set; }
 
             public override Task SendGuestResponseEmailAsync(
@@ -358,6 +407,7 @@ namespace TummlyBackend.Tests.Services
                 LastMessage = message;
                 LastOffer = offer;
                 LastUnsubscribeHref = unsubscribeHref;
+                LastBrandLogoUrl = brandLogoUrl;
 
                 if (ThrowOnSend)
                 {

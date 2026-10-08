@@ -24,7 +24,7 @@ export function getOAuthErrorMessage(
 
   switch (code.trim()) {
     case "account_exists":
-      return "An account with this email already exists. Sign in with email and password."
+      return "This email already has a Sign-up in progress. Continue that Sign-up, or Sign in if you already finished."
     case "cancelled":
       return surface === "signup"
         ? "Sign-up was cancelled. You can try again when you are ready."

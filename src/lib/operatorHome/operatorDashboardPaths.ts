@@ -205,6 +205,14 @@ export function operatorDashboardOffersRedemptionLogPath(
   return `${root}/offers/redemption-log?location=${locationId}`
 }
 
+/** Offers list with Staff Redeem intent (`redeem=1`). */
+export function operatorDashboardOffersRedeemPath(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  return `${operatorDashboardNavPath(mode, "offers", locationId)}&redeem=1`
+}
+
 /** Offer Details for one catalog offer at the selected location. */
 export function operatorDashboardOfferDetailsPath(
   mode: OperatorDashboardMode,

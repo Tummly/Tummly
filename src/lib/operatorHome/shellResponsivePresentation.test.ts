@@ -13,6 +13,7 @@ import {
   OPERATOR_RIGHT_DRAWER_BODY_CLASS,
   OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
   OPERATOR_RIGHT_DRAWER_WIDTH_CLASS,
+  OPERATOR_RIGHT_SHEET_WIDTH_CLASS,
   OPERATOR_SHELL_GUTTER_X,
   OPERATOR_SHELL_GUTTER_Y,
   OPERATOR_SHELL_MENU_ITEM_CLASS,
@@ -179,14 +180,25 @@ describe("shellResponsivePresentation", () => {
     expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain("shrink-0")
   })
 
-  it("uses Figma panel fill and sharp left radius for right drawers", () => {
+  it("uses Figma panel fill and no border-radius for right drawers", () => {
     expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain(
       "bg-op-surface-secondary"
     )
     expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain("dark:bg-[#202020]")
+    expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain("rounded-none")
     expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain(
-      "data-[vaul-drawer-direction=right]:rounded-l-[2px]"
+      "data-[vaul-drawer-direction=right]:rounded-none"
     )
+  })
+
+  it("caps right Sheet panels at the same 620px width", () => {
+    expect(OPERATOR_RIGHT_SHEET_WIDTH_CLASS).toContain(
+      "data-[side=right]:w-[min(620px,100vw)]"
+    )
+    expect(OPERATOR_RIGHT_SHEET_WIDTH_CLASS).toContain(
+      "data-[side=right]:max-w-[620px]"
+    )
+    expect(OPERATOR_RIGHT_SHEET_WIDTH_CLASS).toContain("sm:max-w-[620px]")
   })
 
   it("wraps drawer actions with touch-friendly height below md", () => {

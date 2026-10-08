@@ -145,6 +145,43 @@ namespace TummlyBackend.Tests.Integration
                 "Owner",
                 data.GetProperty("role").GetString()
             );
+            Assert.Equal(
+                JsonValueKind.Null,
+                data.GetProperty("jobTitle").ValueKind
+            );
+        }
+
+        [Fact]
+        public async Task Me_Returns_JobTitle_From_User_Profile()
+        {
+            var jwt = await SeedPendingOperatorWithTrialAsync(
+                email: "job-title@example.com",
+                selfRole: "owner-operator",
+                jobTitle: "Operations Manager"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/auth/me"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var data = body.GetProperty("data");
+
+            Assert.Equal(
+                "Operations Manager",
+                data.GetProperty("jobTitle").GetString()
+            );
+            Assert.Equal(
+                "owner-operator",
+                data.GetProperty("selfRole").GetString()
+            );
         }
 
         [Fact]
@@ -186,13 +223,15 @@ namespace TummlyBackend.Tests.Integration
         {
             return await SeedPendingOperatorWithTrialAsync(
                 email: "pending@example.com",
-                selfRole: null
+                selfRole: null,
+                jobTitle: null
             );
         }
 
         private async Task<string> SeedPendingOperatorWithTrialAsync(
             string email,
-            string? selfRole
+            string? selfRole,
+            string? jobTitle = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -207,6 +246,7 @@ namespace TummlyBackend.Tests.Integration
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
                 Role = "Owner",
                 AccountType = "Single",
+                JobTitle = jobTitle,
                 IsEmailVerified = true,
                 IsApprovedByAdmin = true,
                 TermsAccepted = true,

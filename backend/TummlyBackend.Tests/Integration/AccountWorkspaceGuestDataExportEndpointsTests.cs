@@ -5,6 +5,7 @@ using System.Text;
 using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -14,7 +15,7 @@ namespace TummlyBackend.Tests.Integration
         : IClassFixture<TummlyWebApplicationFactory>
     {
         private static readonly string ExpectedHeader =
-            "Name,Email,Mobile,Location,Marketing preference,First captured";
+            string.Join(",", GuestExportColumns.Headers);
 
         private readonly TummlyWebApplicationFactory _factory;
         private readonly HttpClient _client;

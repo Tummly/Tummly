@@ -92,7 +92,7 @@ const EXPORT_CARD_CLASS =
   "flex flex-col justify-between gap-6 rounded-op-lg border border-op-border-default bg-op-card-background p-6"
 
 const EXPORT_CARD_TITLE_CLASS =
-  "m-0 text-lg font-semibold leading-normal text-op-text-primary"
+  "m-0 text-lg font-semibold leading-none text-op-text-primary"
 
 const EXPORT_CARD_DESCRIPTION_CLASS =
   "m-0 text-sm font-medium leading-normal text-[var(--op-color-gray-550)]"
@@ -216,7 +216,7 @@ export function ReportsExportDialog({
             {showAllLocationsScope ? (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
-                  XLSX location scope
+                  PDF / XLSX location scope
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button

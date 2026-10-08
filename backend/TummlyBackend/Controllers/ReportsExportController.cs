@@ -59,10 +59,39 @@ namespace TummlyBackend.Controllers
                         );
                     }
 
+                    var includeOffers = true;
+                    var includeConsent = true;
+                    foreach (var id in ids)
+                    {
+                        var offers = await _permissions.AuthorizeLocationAsync(
+                            User,
+                            OperatorAreaIds.Offers,
+                            PermissionLevel.View,
+                            id
+                        );
+                        if (offers.ToHttpResult() != null)
+                        {
+                            includeOffers = false;
+                        }
+
+                        var privacy = await _permissions.AuthorizeLocationAsync(
+                            User,
+                            OperatorAreaIds.PrivacyConsent,
+                            PermissionLevel.View,
+                            id
+                        );
+                        if (privacy.ToHttpResult() != null)
+                        {
+                            includeConsent = false;
+                        }
+                    }
+
                     return await _export.ExportOverviewPdfAsync(
-                        ids[0],
+                        ids,
                         fromUtc,
                         toUtc,
+                        includeOffers,
+                        includeConsent,
                         ct
                     );
                 },
@@ -235,9 +264,9 @@ namespace TummlyBackend.Controllers
                 return idsError;
             }
 
-            // PDF/CSV stay single-location; XLSX may be multi.
+            // CSV stays single-location; PDF/XLSX may be multi (REP-03).
             if (
-                normalizedFormat != "xlsx"
+                normalizedFormat == "csv"
                 && resolvedIds.Count > 1
             )
             {
@@ -245,7 +274,7 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message =
-                        "Multiple locationIds are only supported for format=xlsx.",
+                        "Multiple locationIds are only supported for format=pdf or format=xlsx.",
                 });
             }
 

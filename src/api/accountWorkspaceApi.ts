@@ -1,6 +1,10 @@
 import axiosInstance from "@/api/axiosInstance"
 import { isAxiosError } from "axios"
 import {
+  API_PERMISSION_DENIED_MESSAGE,
+  getUserFacingApiErrorMessage,
+} from "@/lib/apiErrorMessage"
+import {
   defaultAccountWorkspaceCountry,
   normalizeBusinessAddressType,
   normalizeReportingPeriod,
@@ -285,8 +289,16 @@ export async function exportAccountWorkspaceGuestData(
           throw inner
         }
       }
+      if (error.response.status === 403) {
+        throw new Error(API_PERMISSION_DENIED_MESSAGE)
+      }
     }
-    throw error
+    throw new Error(
+      getUserFacingApiErrorMessage(
+        error,
+        "Could not export guest data. Please try again."
+      )
+    )
   }
 }
 

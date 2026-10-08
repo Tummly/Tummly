@@ -12,6 +12,9 @@ export type OffersAccess = TeamPermissionsAccess
 
 export type PrivacyConsentAccess = TeamPermissionsAccess
 
+/** Shared chrome level for any Operator Area SideNav / route gate. */
+export type OperatorAreaChromeAccess = TeamPermissionsAccess
+
 export function parseTeamPermissionsAccess(
   raw: string | null | undefined
 ): TeamPermissionsAccess | null {
@@ -27,11 +30,15 @@ export const parseOffersAccess = parseTeamPermissionsAccess
 
 export const parsePrivacyConsentAccess = parseTeamPermissionsAccess
 
+export const parseOperatorAreaChromeAccess = parseTeamPermissionsAccess
+
 export interface OperatorProfile {
   fullName: string
   /** Nominated account email from `/auth/me` — used to prefill Send test. */
   email: string | null
   activationExpiresAt: string | null
+  /** Free-text Job title from My Account; preferred for account-menu subtitle. */
+  jobTitle: string | null
   /** Self role from linked Trial Request; distinct from permission role. */
   selfRole: string | null
   teamPermissionsAccess: TeamPermissionsAccess
@@ -59,6 +66,12 @@ export function parseOperatorProfile(result: unknown): OperatorProfile | null {
   const activationExpiresAt =
     readOptionalNullableString(data, "activationExpiresAt") ?? null
 
+  const jobTitleRaw = readOptionalNullableString(data, "jobTitle")
+  const jobTitle =
+    jobTitleRaw != null && jobTitleRaw.trim().length > 0
+      ? jobTitleRaw.trim()
+      : null
+
   const selfRole = readOptionalNullableString(data, "selfRole") ?? null
   // Omit means the session predates this field. Existing Account owners must
   // still see Team & permissions. Explicit "none" still hides the SideNav row.
@@ -77,6 +90,7 @@ export function parseOperatorProfile(result: unknown): OperatorProfile | null {
     fullName,
     email,
     activationExpiresAt,
+    jobTitle,
     selfRole,
     teamPermissionsAccess,
     billingCreditsAccess,

@@ -15,7 +15,7 @@ export const OPERATOR_SIDENAV_COLLAPSED_PX = 52
  * and `touch-action: none` so operators can select and copy across answer blocks.
  */
 const ASSISTANT_DRAWER_CHROME_CLASS =
-  "h-full max-h-dvh overflow-hidden bg-op-assistant-list-background !select-text !touch-pan-y data-[vaul-drawer-direction=right]:rounded-l-[2px]"
+  "h-full max-h-dvh overflow-hidden rounded-none bg-op-assistant-list-background !select-text !touch-pan-y data-[vaul-drawer-direction=right]:rounded-none"
 
 /** Collapsed Assistant — Conversations fill + shared 620px width. */
 export const ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS = `${ASSISTANT_DRAWER_CHROME_CLASS} ${OPERATOR_RIGHT_DRAWER_WIDTH_CLASS}`

@@ -42,7 +42,7 @@ export const STAFF_REDEEM_CONTENT_CLASS =
   "gap-10 rounded-op-md border-0 bg-op-surface-secondary p-8 text-op-text-primary shadow-lg sm:max-w-[560px] dark:bg-[var(--op-color-gray-1000)]"
 
 export const STAFF_REDEEM_TITLE_CLASS =
-  "pr-0 text-2xl font-bold leading-normal tracking-normal text-op-text-primary"
+  "pr-0 text-2xl font-bold leading-none tracking-normal text-op-text-primary"
 
 export const STAFF_REDEEM_SUBTITLE_CLASS =
   "text-sm font-medium leading-normal tracking-normal text-[var(--op-color-gray-550)]"
@@ -65,7 +65,7 @@ export const STAFF_REDEEM_ROW_VALUE_CLASS =
 export const STAFF_REDEEM_DIVIDER_CLASS = "h-px w-full bg-op-border-default"
 
 export const STAFF_REDEEM_INSTRUCTION_TITLE_CLASS =
-  "m-0 text-sm font-semibold leading-5 text-op-text-primary"
+  "m-0 text-sm font-semibold leading-none text-op-text-primary"
 
 export const STAFF_REDEEM_INSTRUCTION_BODY_CLASS =
   "m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]"

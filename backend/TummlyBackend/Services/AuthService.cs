@@ -207,13 +207,6 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (user.IsLocked)
-            {
-                throw new Exception(
-                    "Account is locked."
-                );
-            }
-
             bool isPasswordValid =
                 !string.IsNullOrEmpty(user.PasswordHash) &&
                 BCrypt.Net.BCrypt.Verify(
@@ -237,9 +230,12 @@ namespace TummlyBackend.Services
                 );
             }
 
-            user.FailedLoginAttempts = 0;
-
-            await _context.SaveChangesAsync();
+            // Locked accounts keep IsLocked until Sign-in OTP verify.
+            if (!user.IsLocked)
+            {
+                user.FailedLoginAttempts = 0;
+                await _context.SaveChangesAsync();
+            }
 
             if (!user.IsEmailVerified)
             {
@@ -737,6 +733,8 @@ namespace TummlyBackend.Services
                     dto.NewPassword
                 );
 
+            ClearLoginLock(user);
+
             /*
              =========================================
              MARK TOKEN USED
@@ -831,6 +829,8 @@ namespace TummlyBackend.Services
             await TickSelectedRestaurantAsync(user);
 
             otpRecord.IsUsed = true;
+
+            ClearLoginLock(user);
 
             var isFirstSignIn = !user.HasCompletedFirstSignIn;
 
@@ -1253,6 +1253,12 @@ namespace TummlyBackend.Services
             };
         }
 
+        private static void ClearLoginLock(User user)
+        {
+            user.IsLocked = false;
+            user.FailedLoginAttempts = 0;
+        }
+
         private async Task<User> ValidateUserCredentialsAsync(
             UserLoginDto dto
         )
@@ -1269,13 +1275,6 @@ namespace TummlyBackend.Services
             {
                 throw new Exception(
                     "Invalid email or password."
-                );
-            }
-
-            if (user.IsLocked)
-            {
-                throw new Exception(
-                    "Account is locked."
                 );
             }
 
@@ -1302,9 +1301,12 @@ namespace TummlyBackend.Services
                 );
             }
 
-            user.FailedLoginAttempts = 0;
-
-            await _context.SaveChangesAsync();
+            // Locked accounts keep IsLocked until Sign-in OTP verify.
+            if (!user.IsLocked)
+            {
+                user.FailedLoginAttempts = 0;
+                await _context.SaveChangesAsync();
+            }
 
             if (!user.IsEmailVerified)
             {
@@ -1373,6 +1375,7 @@ namespace TummlyBackend.Services
         )
         {
             var hasValidTrust =
+                !user.IsLocked &&
                 user.HasCompletedFirstSignIn &&
                 await TrustedDeviceHelper.IsTrustedAsync(
                     _context,
@@ -1501,13 +1504,6 @@ namespace TummlyBackend.Services
             {
                 throw new Exception(
                     "Invalid email or password."
-                );
-            }
-
-            if (user.IsLocked)
-            {
-                throw new Exception(
-                    "Account is locked."
                 );
             }
 

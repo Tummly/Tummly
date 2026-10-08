@@ -133,6 +133,7 @@ import {
   GUESTS_TABLE_HEAD_CELL_CLASS,
   GUESTS_TABLE_HEAD_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
+import { OPERATOR_RIGHT_SHEET_WIDTH_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 function PlanMetricPair({
@@ -939,7 +940,10 @@ function BillingActivityBody({
       >
         <SheetContent
           side="right"
-          className="w-full sm:max-w-lg"
+          className={cn(
+            OPERATOR_RIGHT_SHEET_WIDTH_CLASS,
+            "rounded-none"
+          )}
           showCloseButton
         >
           <SheetHeader>

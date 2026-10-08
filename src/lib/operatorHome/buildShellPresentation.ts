@@ -7,14 +7,16 @@ import {
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
-import { formatSelfRoleSubtitle } from "@/lib/operatorHome/formatSelfRoleSubtitle"
 import { resolveLockAlertPresentation } from "@/lib/operatorHome/lockAlertPresentation"
 import {
   getOperatorFirstName,
   getOperatorInitials,
 } from "@/lib/operatorHome/operatorProfile"
 import { getOperatorSidebarNav } from "@/lib/operatorHome/sidebarNav"
-import type { OperatorSidebarNavTargets } from "@/lib/operatorHome/sidebarNav"
+import type {
+  OperatorSidebarNavId,
+  OperatorSidebarNavTargets,
+} from "@/lib/operatorHome/sidebarNav"
 import type {
   OperatorHomeLocationOption,
   OperatorShellPresentation,
@@ -23,6 +25,19 @@ import type {
 
 const OMITTED_NAVBAR_CONTROLS = ["search", "help"] as const
 
+/**
+ * Account-menu subtitle: Restaurant Permission role (Owner, Admin, …).
+ */
+export function resolveProfileSubtitle(
+  permissionRole: string | null | undefined
+): string | null {
+  const trimmed = permissionRole?.trim()
+  if (!trimmed) {
+    return null
+  }
+  return trimmed
+}
+
 /** Shell-facing inputs from the Operator workspace session (+ active page chrome). */
 export type BuildOperatorShellPresentationInput = {
   operatorDisplayName: string
@@ -30,8 +45,7 @@ export type BuildOperatorShellPresentationInput = {
   subscriptionPlan: string
   /** Soft lock / Dormant drives Lock Alert; omit or Active hides it. */
   billingStatus?: string | null
-  selfRole?: string | null
-  /** Restaurant Permission role; gates Choose a plan with Billing & credits access. */
+  /** Restaurant Permission role; account subtitle + Choose a plan gating. */
   permissionRole?: string | null
   /** Omit defaults to manage so Account-owner chrome stays visible during rollout. */
   billingCreditsAccess?: BillingCreditsAccessLevel
@@ -43,6 +57,8 @@ export type BuildOperatorShellPresentationInput = {
   navTargets?: OperatorSidebarNavTargets
   hideTeamPermissions?: boolean
   hideBillingCredits?: boolean
+  /** Explicit No-access SideNav ids; omit / empty keeps all rows visible. */
+  hiddenNavIds?: ReadonlyArray<OperatorSidebarNavId>
 }
 
 /**
@@ -90,11 +106,14 @@ export function buildOperatorShellPresentation(
     profileDisplayName: input.operatorDisplayName,
     profileFirstName: getOperatorFirstName(input.operatorDisplayName),
     profileInitials: getOperatorInitials(input.operatorDisplayName),
-    profileSelfRoleSubtitle: formatSelfRoleSubtitle(input.selfRole ?? null),
+    profileSelfRoleSubtitle: resolveProfileSubtitle(
+      input.permissionRole ?? null
+    ),
     omittedNavbarControls: [...OMITTED_NAVBAR_CONTROLS],
     sidebarNav: getOperatorSidebarNav(activeNavId, input.navTargets, {
       hideTeamPermissions: input.hideTeamPermissions,
       hideBillingCredits: input.hideBillingCredits,
+      hiddenNavIds: input.hiddenNavIds,
     }),
     locationSwitcher: {
       interactive: input.locationSwitcherInteractive,

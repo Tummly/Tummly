@@ -119,6 +119,29 @@ describe("buildOperatorHomeViewModel", () => {
     })
   })
 
+  it("keeps Guest form preview when captureAccess is omitted; hides only for none", () => {
+    expect(
+      buildOperatorHomeViewModel({
+        locations,
+        selectedLocationId: 2,
+      })?.canPreviewGuestForm
+    ).toBe(true)
+    expect(
+      buildOperatorHomeViewModel({
+        locations,
+        selectedLocationId: 2,
+        captureAccess: "view",
+      })?.canPreviewGuestForm
+    ).toBe(true)
+    expect(
+      buildOperatorHomeViewModel({
+        locations,
+        selectedLocationId: 2,
+        captureAccess: "none",
+      })?.canPreviewGuestForm
+    ).toBe(false)
+  })
+
   it("updates Smart Guest Link targets when the selected Owned location changes", () => {
     const first = buildOperatorHomeViewModel({
       locations,

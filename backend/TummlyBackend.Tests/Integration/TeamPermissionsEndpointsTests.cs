@@ -487,6 +487,40 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SendInvite_SingleLocationNamedScope_PersistsNamedList()
+        {
+            var seeded = await SeedSingleLocationWorkspaceAsync();
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/team-permissions/invitations",
+                seeded.OwnerJwt,
+                new
+                {
+                    email = $"{Guid.NewGuid():N}@example.com",
+                    fullName = "Named Scope Invitee",
+                    permissionRole = PermissionRoles.Staff,
+                    locationScope = "named",
+                    namedLocationIds = new[] { seeded.LocationId },
+                    message = (string?)null,
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var invite = await context.TeamInvitations
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(LocationScopeKind.NamedList, invite.LocationScope);
+            Assert.Equal(
+                MembershipLocationScope.SerializeNamedIds([seeded.LocationId]),
+                invite.NamedLocationIdsJson
+            );
+        }
+
+        [Fact]
         public async Task SendInvite_SecondLocationManagerForSameLocation_Returns400()
         {
             var seeded = await SeedWorkspaceAsync();
@@ -647,6 +681,64 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        private async Task<SingleLocationSeeded> SeedSingleLocationWorkspaceAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = AddUser(context, "Single Loc Owner", "Owner");
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Single Loc Venue",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Only Site",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            owner.SelectedRestaurantId = restaurant.Id;
+            AddMembership(
+                context,
+                owner.Id,
+                restaurant.Id,
+                PermissionRoles.Owner,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+            billing.BillingStatus = BillingStatuses.Active;
+            billing.BillingCycle = BillingCycles.Monthly;
+            context.BillingAccounts.Add(billing);
+            await context.SaveChangesAsync();
+
+            return new SingleLocationSeeded(
+                jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
+                restaurant.Id,
+                location.Id
+            );
+        }
+
         private async Task<PilotCapSeeded> SeedPilotAtCapWithDeactivatedAsync()
         {
             using var scope = _factory.Services.CreateScope();
@@ -803,6 +895,12 @@ namespace TummlyBackend.Tests.Integration
         private sealed record PilotCapSeeded(
             string OwnerJwt,
             int DeactivatedMembershipId
+        );
+
+        private sealed record SingleLocationSeeded(
+            string OwnerJwt,
+            int RestaurantId,
+            int LocationId
         );
 
         private sealed record Seeded(

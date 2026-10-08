@@ -155,8 +155,8 @@ describe("setupChecklistPresentation", () => {
   })
 
   it("uses per-step Figma illustration frame sizes", () => {
-    expect(getSetupStepIllustration("account-ready")).toEqual({ height: 31 })
-    expect(getSetupStepIllustration("upload-logo")).toEqual({ height: 31 })
+    expect(getSetupStepIllustration("account-ready")).toEqual({ height: 26 })
+    expect(getSetupStepIllustration("upload-logo")).toEqual({ height: 26 })
     expect(getSetupStepIllustration("guest-form").height).toBe(26)
     expect(getSetupStepIllustration("first-response").height).toBe(26)
     expect(getSetupStepIllustration("qr-placement").height).toBe(26)
@@ -165,7 +165,7 @@ describe("setupChecklistPresentation", () => {
   })
 
   it("uses Figma step copy metrics (16/24 title, 14/17 description)", () => {
-    expect(SETUP_STEP_TITLE_CLASS).toContain("leading-6")
+    expect(SETUP_STEP_TITLE_CLASS).toContain("leading-none")
     expect(SETUP_STEP_DESCRIPTION_CLASS).toContain("leading-[17px]")
     expect(SETUP_STEP_COPY_GAP_CLASS).toBe("gap-[8px]")
   })

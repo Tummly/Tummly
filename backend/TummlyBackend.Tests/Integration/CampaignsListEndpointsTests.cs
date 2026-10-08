@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -541,6 +542,88 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetCampaigns_SendDate_FallsBackToEarliestAcceptedAtUtc()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaigns-list-send-date-fallback"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+
+            var campaign = new Campaign
+            {
+                RestaurantLocationId = seeded.LocationId,
+                Status = "sent",
+                Name = "Legacy send-now",
+                GoalId = "thank-recent-guests",
+                Channel = "email",
+                MessageBody = "Hello",
+                MessageSubject = "Hello",
+                OfferStance = "no-offer",
+                ScheduleMode = "send-now",
+                ScheduledAtUtc = null,
+                CreatedAt = now.AddDays(-2),
+                UpdatedAt = now.AddDays(-1),
+            };
+            context.Campaigns.Add(campaign);
+            await context.SaveChangesAsync();
+
+            var restaurantId = (
+                await context.RestaurantLocations.FindAsync(seeded.LocationId)
+            )!.RestaurantId;
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurantId,
+                Email = $"send-date-{Guid.NewGuid():N}@example.com",
+                CreatedAt = now,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var guest = new LocationGuest
+            {
+                RestaurantLocationId = seeded.LocationId,
+                MasterGuestId = master.Id,
+                Name = "Sam",
+                CreatedAt = now,
+            };
+            context.LocationGuests.Add(guest);
+            await context.SaveChangesAsync();
+
+            var firstAccepted = DateTime.SpecifyKind(
+                now.AddHours(-5),
+                DateTimeKind.Utc
+            );
+            context.CampaignRecipientDeliveries.Add(
+                new CampaignRecipientDelivery
+                {
+                    CampaignId = campaign.Id,
+                    LocationGuestId = guest.Id,
+                    Channel = "email",
+                    Outcome = CampaignFireService.AcceptedOutcome,
+                    AcceptedAtUtc = firstAccepted,
+                    UpdatedAtUtc = firstAccepted,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            using var request = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "sent"),
+                seeded.Jwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            Assert.Equal(1, body.GetProperty("items").GetArrayLength());
+            var item = body.GetProperty("items")[0];
+            Assert.Equal(
+                firstAccepted.ToString("O"),
+                item.GetProperty("sendDate").GetString()
+            );
+        }
+
+        [Fact]
         public async Task GetCampaigns_CountsNonVoidedRedemptionsFromOfferIssues()
         {
             var seeded = await SeedOwnerWithLocationAsync(
@@ -671,6 +754,105 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("Lunch push", item.GetProperty("name").GetString());
             Assert.Equal("2", item.GetProperty("redemptions").GetString());
             Assert.Equal(JsonValueKind.Null, item.GetProperty("engagement").ValueKind);
+        }
+
+        [Fact]
+        public async Task GetCampaigns_CountsUniqueOpensAsEngagement()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaigns-list-engagement"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+
+            var campaign = new Campaign
+            {
+                RestaurantLocationId = seeded.LocationId,
+                Status = "sent",
+                Name = "Open count push",
+                GoalId = "thank-recent-guests",
+                Channel = "email",
+                MessageBody = "Hello",
+                MessageSubject = "Hello",
+                OfferStance = "no-offer",
+                ScheduleMode = "send-now",
+                ScheduledAtUtc = now.AddDays(-1),
+                CreatedAt = now.AddDays(-2),
+                UpdatedAt = now.AddDays(-1),
+            };
+            context.Campaigns.Add(campaign);
+            await context.SaveChangesAsync();
+
+            var restaurantId = (
+                await context.RestaurantLocations.FindAsync(seeded.LocationId)
+            )!.RestaurantId;
+
+            async Task<int> AddGuestAsync(string email)
+            {
+                var master = new MasterGuest
+                {
+                    RestaurantId = restaurantId,
+                    Email = email,
+                    CreatedAt = now,
+                };
+                context.MasterGuests.Add(master);
+                await context.SaveChangesAsync();
+                var guest = new LocationGuest
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    MasterGuestId = master.Id,
+                    Name = "Guest",
+                    CreatedAt = now,
+                };
+                context.LocationGuests.Add(guest);
+                await context.SaveChangesAsync();
+                return guest.Id;
+            }
+
+            var openedGuest = await AddGuestAsync(
+                $"open-{Guid.NewGuid():N}@example.com"
+            );
+            var unopenedGuest = await AddGuestAsync(
+                $"plain-{Guid.NewGuid():N}@example.com"
+            );
+
+            context.CampaignRecipientDeliveries.AddRange(
+                new CampaignRecipientDelivery
+                {
+                    CampaignId = campaign.Id,
+                    LocationGuestId = openedGuest,
+                    Channel = "email",
+                    Outcome = CampaignFireService.AcceptedOutcome,
+                    AcceptedAtUtc = now.AddHours(-2),
+                    OpenedAtUtc = now.AddHours(-1),
+                    ProviderMessageId = "resend-open-1",
+                    UpdatedAtUtc = now.AddHours(-1),
+                },
+                new CampaignRecipientDelivery
+                {
+                    CampaignId = campaign.Id,
+                    LocationGuestId = unopenedGuest,
+                    Channel = "email",
+                    Outcome = CampaignFireService.AcceptedOutcome,
+                    AcceptedAtUtc = now.AddHours(-2),
+                    OpenedAtUtc = null,
+                    ProviderMessageId = "resend-plain-1",
+                    UpdatedAtUtc = now.AddHours(-2),
+                }
+            );
+            await context.SaveChangesAsync();
+
+            using var request = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "sent"),
+                seeded.Jwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            Assert.Equal(1, body.GetProperty("items").GetArrayLength());
+            var item = body.GetProperty("items")[0];
+            Assert.Equal("1", item.GetProperty("engagement").GetString());
         }
 
         [Fact]

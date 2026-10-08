@@ -392,8 +392,9 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// True when the location existed strictly before the closed week’s
-        /// coverage start — so a brand-new signup does not get a brief for a
-        /// calendar week it never lived through.
+        /// coverage end (exclusive). Mid-week create during that week still
+        /// qualifies (partial week OK); skip only if created at or after the
+        /// week ended.
         /// </summary>
         public static bool LocationExistedBeforeClosedWeek(
             DateTime locationCreatedAtUtc,
@@ -411,7 +412,7 @@ namespace TummlyBackend.Helpers
                 ),
             };
 
-            return created < closedWeek.CoverageStartUtc;
+            return created < closedWeek.CoverageEndUtcExclusive;
         }
 
         /// <summary>

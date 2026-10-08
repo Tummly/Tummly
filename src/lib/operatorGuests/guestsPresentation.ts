@@ -24,7 +24,7 @@ export const GUESTS_PAGE_HEADER_ROW_CLASS =
 export const GUESTS_PAGE_HEADER_COPY_CLASS = "flex flex-col gap-3.5 leading-[0]"
 
 export const GUESTS_PAGE_TITLE_CLASS =
-  "m-0 text-2xl font-bold leading-10 text-foreground sm:text-[32px]"
+  "m-0 text-2xl font-bold leading-none text-foreground sm:text-[32px]"
 
 export const GUESTS_PAGE_SUBTITLE_CLASS =
   "m-0 text-base font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]"
@@ -43,7 +43,7 @@ export const GUESTS_SECTION_HEADER_ROW_CLASS =
   "flex items-center justify-between gap-4"
 
 export const GUESTS_SECTION_TITLE_CLASS =
-  "m-0 text-lg font-bold leading-normal text-op-card-title-color sm:text-xl"
+  "m-0 text-lg font-bold leading-none text-op-card-title-color sm:text-xl"
 
 export const GUESTS_SECTION_SUBTITLE_CLASS =
   "m-0 text-op-sm font-medium leading-normal text-op-card-subtitle-color"
@@ -166,7 +166,7 @@ export const GUESTS_TABLE_EMPTY_COPY_STACK_CLASS =
   "flex flex-col items-center gap-2.5 text-center"
 
 export const GUESTS_TABLE_EMPTY_TITLE_CLASS =
-  "m-0 text-base font-medium leading-normal text-op-empty-title-color"
+  "m-0 text-base font-medium leading-none text-op-empty-title-color"
 
 export const GUESTS_TABLE_EMPTY_HELPER_CLASS =
   "m-0 max-w-[450px] text-sm font-medium leading-[18px] text-muted-foreground dark:text-[#7c7c7c]"
@@ -185,7 +185,9 @@ export const GUESTS_TABLE_HEAD_ROW_CLASS = "border-0 hover:bg-transparent"
 export const GUESTS_TABLE_HEAD_CELL_CLASS =
   "h-[43px] border border-op-border-default bg-[#ebebeb] px-[18px] py-3 text-left align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:bg-[#212121]"
 
-export const GUESTS_TABLE_BODY_ROW_CLASS = "border-0 hover:bg-transparent"
+/** Body rows — Figma interactive hover (REP-06 / UI-04). Head rows stay inert. */
+export const GUESTS_TABLE_BODY_ROW_CLASS =
+  "border-0 hover:bg-op-color-gray-60 dark:hover:bg-[var(--op-color-gray-990)]"
 
 export const GUESTS_TABLE_BODY_CELL_CLASS =
   "border border-op-border-default px-[18px] py-3 align-middle"
@@ -215,6 +217,15 @@ export const GUESTS_MARKETING_STATUS_BADGE_CLASS = "px-2 py-1.5"
 
 export const GUESTS_TABLE_GUEST_NAME_CLASS =
   "text-sm font-semibold leading-[19px] text-foreground"
+
+/** Name cell: initials chip + link (GST-02 / Home Latest Activity). */
+export const GUESTS_TABLE_GUEST_NAME_CELL_INNER_CLASS =
+  "flex min-w-0 items-center gap-2.5"
+
+export const GUESTS_TABLE_GUEST_AVATAR_CLASS = "size-8 shrink-0 after:hidden"
+
+export const GUESTS_TABLE_GUEST_AVATAR_FALLBACK_CLASS =
+  "bg-[#f4f4f4] text-xs font-medium text-[#7c7c7c] dark:bg-[#202020]"
 
 export const GUESTS_TABLE_LOCATION_CLASS =
   "text-sm font-normal leading-[19px] text-muted-foreground dark:text-[#7c7c7c]"

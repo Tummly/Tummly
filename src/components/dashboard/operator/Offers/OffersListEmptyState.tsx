@@ -36,24 +36,29 @@ export function OffersListEmptyState({
         <p className={OFFERS_TRUE_EMPTY_HELPER_CLASS}>{empty.helper}</p>
       </div>
 
-      {empty.kind === "true-empty" ? (
+      {empty.kind === "true-empty"
+      && (onCreateOffer != null || onUseTemplate != null) ? (
         <div className={OFFERS_TRUE_EMPTY_ACTIONS_CLASS}>
-          <Button
-            type="button"
-            variant="op-primary"
-            className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-            onClick={onCreateOffer}
-          >
-            {empty.createOfferLabel ?? OFFERS_PAGE_COPY.createOffer}
-          </Button>
-          <Button
-            type="button"
-            variant="op-tertiary"
-            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-            onClick={onUseTemplate}
-          >
-            {empty.useTemplateLabel ?? OFFERS_PAGE_COPY.useTemplate}
-          </Button>
+          {onCreateOffer != null ? (
+            <Button
+              type="button"
+              variant="op-primary"
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+              onClick={onCreateOffer}
+            >
+              {empty.createOfferLabel ?? OFFERS_PAGE_COPY.createOffer}
+            </Button>
+          ) : null}
+          {onUseTemplate != null ? (
+            <Button
+              type="button"
+              variant="op-tertiary"
+              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              onClick={onUseTemplate}
+            >
+              {empty.useTemplateLabel ?? OFFERS_PAGE_COPY.useTemplate}
+            </Button>
+          ) : null}
         </div>
       ) : null}
 

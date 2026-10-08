@@ -6,6 +6,7 @@ import {
   type OperatorReportsPageAdapters,
   type OperatorReportsWorkspaceInput,
 } from "@/lib/operatorReports/createOperatorReportsPageModule"
+import { shouldShowWeeklyBriefWatchNext } from "@/lib/operatorReports/weeklyBriefPresentation"
 import type {
   WeeklyBriefBody,
   WeeklyBriefGenerateResponse,
@@ -970,7 +971,7 @@ describe("createOperatorReportsPageModule", () => {
     expect(downloadReportsExport).not.toHaveBeenCalled()
   })
 
-  it("downloads overview PDF without CSV consent", async () => {
+  it("requires guest-data consent before overview PDF download", async () => {
     const downloadReportsExport = vi.fn(async () => ({
       blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
       filename: "tummly-reports-overview-1-20260717-120000Z.pdf",
@@ -984,13 +985,44 @@ describe("createOperatorReportsPageModule", () => {
     await module.syncWorkspace(workspace())
     module.openExportDialog()
 
-    const ok = await module.requestExport("overview")
+    const pending = await module.requestExport("overview")
+    expect(pending).toBe(false)
+    expect(module.getSnapshot().pendingCsvExportKind).toBe("overview")
+    expect(downloadReportsExport).not.toHaveBeenCalled()
+
+    module.setCsvConsentChecked(true)
+    const ok = await module.confirmCsvExport()
     expect(ok).toBe(true)
-    expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
     expect(downloadReportsExport).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "overview", locationId: 1 })
+      expect.objectContaining({
+        kind: "overview",
+        locationId: 1,
+        format: "pdf",
+      })
     )
     expect(triggerBrowserDownload).toHaveBeenCalled()
+  })
+
+  it("passes all workspace locationIds for overview PDF all-scope", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
+      filename: "tummly-reports-overview-multi-20260717-120000Z.pdf",
+    }))
+    const adapters = createAdapters({ downloadReportsExport })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.setXlsxLocationScope("all")
+    module.openExportDialog()
+    await module.requestExport("overview", { format: "pdf" })
+    module.setCsvConsentChecked(true)
+    await module.confirmCsvExport()
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "overview",
+        format: "pdf",
+        locationIds: [1, 2],
+      })
+    )
   })
 
   it("records export download error without closing the dialog", async () => {
@@ -1002,7 +1034,9 @@ describe("createOperatorReportsPageModule", () => {
     await module.syncWorkspace(workspace())
     module.openExportDialog()
 
-    const ok = await module.requestExport("overview")
+    await module.requestExport("overview")
+    module.setCsvConsentChecked(true)
+    const ok = await module.confirmCsvExport()
     expect(ok).toBe(false)
     expect(module.getSnapshot().exportDialogOpen).toBe(true)
     expect(module.getSnapshot().exportDownloadError).toBe("soft_lock")
@@ -1353,6 +1387,28 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().weeklyBrief.status).toBe("empty")
     expect(module.getSnapshot().weeklyBrief.week).toBe("2026-W33")
     expect(module.getSnapshot().weeklyBrief.errorMessage).toBeNull()
+    expect(module.getSnapshot().weeklyBrief.emptyMessage).toBeNull()
+  })
+
+  it("sets soft empty message when generate returns location-too-new", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      notReadyWeeklyBriefResponse(locationId)
+    )
+    const generateWeeklyBrief = vi.fn(async (locationId: number) => ({
+      ...notReadyWeeklyBriefResponse(locationId),
+      reason: "location-too-new" as const,
+    }))
+    const adapters = createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+
+    const ok = await module.ensureWeeklyBriefReady()
+    expect(ok).toBe(false)
+    expect(module.getSnapshot().weeklyBrief.status).toBe("empty")
+    expect(module.getSnapshot().weeklyBrief.emptyMessage).toBe(
+      "We do not have enough data to generate a weekly brief yet because this location is newer than the closed week."
+    )
+    expect(module.getSnapshot().weeklyBrief.errorMessage).toBeNull()
   })
 
   it("generates in place from the weekly-brief page empty CTA", async () => {
@@ -1385,6 +1441,46 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().weeklyBrief.executiveSummary).toBe(
       "Loop health held steady this week. Counter cards drove most scans."
     )
+  })
+
+  it("omits Watch next presentation when ready watchNext is empty", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) => ({
+      ...readyWeeklyBriefResponse(locationId),
+      body: { ...weeklyBriefBodyFixture, watchNext: [] },
+    }))
+    const module = createOperatorReportsPageModule(
+      createAdapters({ getWeeklyBrief })
+    )
+    await module.syncWorkspace(workspace())
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+
+    expect(module.getSnapshot().weeklyBrief.body?.watchNext).toEqual([])
+    expect(
+      shouldShowWeeklyBriefWatchNext(
+        module.getSnapshot().weeklyBrief.body?.watchNext
+      )
+    ).toBe(false)
+  })
+
+  it("shows Watch next presentation when ready watchNext has lines", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const module = createOperatorReportsPageModule(
+      createAdapters({ getWeeklyBrief })
+    )
+    await module.syncWorkspace(workspace())
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+
+    expect(
+      shouldShowWeeklyBriefWatchNext(
+        module.getSnapshot().weeklyBrief.body?.watchNext
+      )
+    ).toBe(true)
   })
 
   it("retries weekly brief with GET then generate if still missing", async () => {

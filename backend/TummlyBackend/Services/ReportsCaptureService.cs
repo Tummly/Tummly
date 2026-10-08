@@ -228,19 +228,51 @@ namespace TummlyBackend.Services
                 r => (r.FeedbackSubmitted, r.MarketingOptIns)
             );
 
+            var claimsByQr = await (
+                from i in _context.OfferIssues.AsNoTracking()
+                join o in _context.CatalogOffers.AsNoTracking()
+                    on i.CatalogOfferId equals o.Id
+                join f in _context.Feedbacks.AsNoTracking()
+                    on i.FeedbackId equals f.Id
+                where
+                    o.RestaurantLocationId == locationId
+                    && i.Source == OfferIssueSources.GuestFormThankYou
+                    && i.ClaimedAtUtc != null
+                    && i.ClaimedAtUtc >= fromUtc
+                    && i.ClaimedAtUtc < toUtc
+                    && placementQrIds.Contains(f.QrCodeId)
+                group i by f.QrCodeId into g
+                select new { QrCodeId = g.Key, Count = g.Count() }
+            ).ToDictionaryAsync(
+                row => row.QrCodeId,
+                row => row.Count,
+                cancellationToken
+            );
+
             return qrRows
                 .Select(q =>
                 {
                     scansByQr.TryGetValue(q.Id, out var scans);
                     feedbackByQr.TryGetValue(q.Id, out var feedback);
+                    claimsByQr.TryGetValue(q.Id, out var claims);
+                    double? conversion =
+                        scans > 0
+                            ? Math.Round(
+                                100.0 * feedback.FeedbackSubmitted / scans,
+                                1
+                            )
+                            : null;
                     return new ReportsCapturePlacementDto
                     {
                         QrCodeId = q.Id,
                         Name = PlacementName(q.QrType),
                         Status = q.Status.ToString(),
                         Scans = scans,
+                        FormOpens = null,
                         Feedback = feedback.FeedbackSubmitted,
                         Contactable = feedback.MarketingOptIns,
+                        Claims = claims,
+                        ConversionPercent = conversion,
                     };
                 })
                 .ToList();

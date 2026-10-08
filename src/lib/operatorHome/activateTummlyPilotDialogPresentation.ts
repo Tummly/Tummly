@@ -32,7 +32,7 @@ export const ACTIVATE_TUMMLY_PILOT_DIALOG_TITLE_ROW_CLASS =
   "flex w-full items-start gap-[22px]"
 
 export const ACTIVATE_TUMMLY_PILOT_DIALOG_TITLE_CLASS =
-  "pr-0 font-jakarta text-2xl font-bold tracking-normal text-op-text-primary"
+  "pr-0 font-jakarta text-2xl font-bold leading-none tracking-normal text-op-text-primary"
 
 /** Figma Main Bg/Title (#171717) — same token as the heading, not Subtitle. */
 export const ACTIVATE_TUMMLY_PILOT_DIALOG_BODY_CLASS =

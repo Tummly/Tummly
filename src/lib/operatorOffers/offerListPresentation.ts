@@ -44,6 +44,17 @@ export type OfferRowAction = {
   label: string
 }
 
+/**
+ * True when Offers Area chrome allows catalog write (Create / Edit / lifecycle).
+ * Chrome only — API writes still require Manage via OffersAreaPermission
+ * (Scoped redeem Check/Mark stays available for Staff).
+ */
+export function offersAccessAllowsManage(
+  offersAccess: "none" | "view" | "manage" | null | undefined
+): boolean {
+  return offersAccess === "manage"
+}
+
 /** Slim ⋮ actions by Offer status (ticket 14 / 20). */
 export function buildOfferRowActions(status: CatalogOfferStatus): OfferRowAction[] {
   const view: OfferRowAction = {
@@ -85,6 +96,18 @@ export function buildOfferRowActions(status: CatalogOfferStatus): OfferRowAction
     default:
       return [view]
   }
+}
+
+/** View-only Offers chrome (Staff / Reporting) — keep View; drop write actions. */
+export function buildOfferRowActionsForAccess(
+  status: CatalogOfferStatus,
+  canManage: boolean
+): OfferRowAction[] {
+  const actions = buildOfferRowActions(status)
+  if (canManage) {
+    return actions
+  }
+  return actions.filter((action) => action.id === "view")
 }
 
 export type OperatorOffersListTableRow = {

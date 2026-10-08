@@ -23,6 +23,7 @@ export type AssistantWaitRetrieveFocus =
   | "capture"
   | "attention"
   | "performance"
+  | "billing"
   | "generic"
 
 export type AssistantWaitPhrasePlan = {
@@ -301,6 +302,23 @@ const RETRIEVE_BY_FOCUS: Record<
       "Drafting the reply…",
     ],
   },
+  billing: {
+    checking: [
+      "Matching your plan and billing question…",
+      "Choosing plan and credit packs…",
+      "Checking account billing access…",
+    ],
+    retrieving: [
+      "Loading plan and billing status…",
+      "Loading Email, SMS, and AI credit balances…",
+      "Loading current account plan facts…",
+    ],
+    preparing: [
+      "Writing the plan and credits answer…",
+      "Grounding billing facts…",
+      "Checking named plan facts…",
+    ],
+  },
   generic: {
     checking: RETRIEVE_CHECKING_GENERIC,
     retrieving: RETRIEVE_RETRIEVING_GENERIC,
@@ -484,6 +502,29 @@ function looksLikeRefuse(lower: string): boolean {
     "what can you do",
     "tell me a joke",
     "write a poem",
+    "how do i",
+    "how to use",
+    "where is the button",
+    "raise a ticket",
+    "contact support",
+    "settings",
+    "buy credit",
+    "buy credits",
+    "buy ai credit",
+    "buy ai credits",
+    "top up",
+    "top-up",
+    "change plan",
+    "upgrade plan",
+    "cancel plan",
+    "cancel subscription",
+    "purchase credit",
+    "purchase credits",
+    "revolut",
+    "pay for",
+    "send an email",
+    "schedule a campaign",
+    "issue an offer",
   ])
 }
 
@@ -491,6 +532,27 @@ export function classifyAssistantWaitRetrieveFocus(
   message: string
 ): AssistantWaitRetrieveFocus {
   const lower = message.trim().toLowerCase()
+  if (
+    containsAny(lower, [
+      "billing",
+      "subscription plan",
+      "subscription status",
+      "ai credit",
+      "ai credits",
+      "email credit",
+      "email credits",
+      "sms credit",
+      "sms credits",
+      "credit balance",
+      "credits remaining",
+      "my plan",
+      "what plan",
+      "which plan",
+      "plan name",
+    ])
+  ) {
+    return "billing"
+  }
   if (
     containsAny(lower, [
       "need attention",
@@ -564,6 +626,11 @@ export function classifyAssistantWaitRetrieveFocus(
 
 export function classifyAssistantWaitGate(message: string): AssistantWaitGate {
   const lower = message.trim().toLowerCase()
+  // Refuse / out-of-scope before create/retrieve so wait copy never claims
+  // summary / named facts / drafting retrieve work for blocked asks.
+  if (looksLikeRefuse(lower)) {
+    return "refuse"
+  }
   if (looksLikeCreateCampaignWithOffer(lower)) {
     return "create-campaign-with-offer"
   }
@@ -575,9 +642,6 @@ export function classifyAssistantWaitGate(message: string): AssistantWaitGate {
   }
   if (looksLikeOfferPath(lower)) {
     return "offer-path"
-  }
-  if (looksLikeRefuse(lower)) {
-    return "refuse"
   }
   return "retrieve"
 }

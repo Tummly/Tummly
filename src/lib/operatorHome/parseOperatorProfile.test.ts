@@ -20,8 +20,26 @@ describe("parseOperatorProfile", () => {
       fullName: "Mohamed Mahmoud",
       email: "mohamed@example.com",
       activationExpiresAt: "2026-07-26T12:00:00.000Z",
+      jobTitle: null,
       selfRole: "owner-operator",
       teamPermissionsAccess: "manage",
+      billingCreditsAccess: "manage",
+    })
+  })
+
+  it("reads Job title from /me when present", () => {
+    expect(
+      parseOperatorProfile({
+        success: true,
+        data: {
+          fullName: "Mohamed Mahmoud",
+          jobTitle: "  Operations Manager  ",
+          selfRole: "owner-operator",
+        },
+      })
+    ).toMatchObject({
+      jobTitle: "Operations Manager",
+      selfRole: "owner-operator",
     })
   })
 
@@ -80,8 +98,10 @@ describe("parseOperatorProfile", () => {
       fullName: "Alex Operator",
       email: null,
       activationExpiresAt: null,
+      jobTitle: null,
       selfRole: null,
       teamPermissionsAccess: "manage",
+      billingCreditsAccess: "manage",
     })
   })
 
@@ -99,8 +119,10 @@ describe("parseOperatorProfile", () => {
       fullName: "Alex Operator",
       email: null,
       activationExpiresAt: null,
+      jobTitle: null,
       selfRole: null,
       teamPermissionsAccess: "manage",
+      billingCreditsAccess: "manage",
     })
   })
 })

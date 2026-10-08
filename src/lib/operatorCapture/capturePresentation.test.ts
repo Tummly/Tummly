@@ -25,6 +25,7 @@ import {
   CAPTURE_MATERIALS_INNER_TITLE_CLASS,
   CAPTURE_PAGE_TITLE_CLASS,
   CAPTURE_PLACEMENTS_BODY_CELL_CLASS,
+  CAPTURE_PLACEMENTS_BODY_ROW_CLASS,
   CAPTURE_PLACEMENTS_HEAD_ACTIONS_CELL_CLASS,
   CAPTURE_PLACEMENTS_HEAD_CELL_CLASS,
   CAPTURE_PLACEMENTS_NAME_CELL_CLASS,
@@ -292,5 +293,14 @@ describe("capturePresentation — operator token audit", () => {
       "guest form opens"
     )
     expect(OPERATOR_CAPTURE_PLACEMENTS_COLUMNS.qrScans).toBe("Guest form opens")
+  })
+
+  it("gives placement body rows a non-transparent hover fill (UI-04)", () => {
+    expect(CAPTURE_PLACEMENTS_BODY_ROW_CLASS).toContain(
+      "hover:bg-op-color-gray-60"
+    )
+    expect(CAPTURE_PLACEMENTS_BODY_ROW_CLASS).not.toContain(
+      "hover:bg-transparent"
+    )
   })
 })

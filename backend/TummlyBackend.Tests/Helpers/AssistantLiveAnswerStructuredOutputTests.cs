@@ -8,6 +8,39 @@ namespace TummlyBackend.Tests.Helpers
     public class AssistantLiveAnswerStructuredOutputTests
     {
         [Fact]
+        public void BuildSystemPrompt_AllowsBillingPlanCreditRetrieve()
+        {
+            var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(
+                "2026-08-16"
+            );
+            var retrievePrompt =
+                AssistantLiveAnswerStructuredOutput.BuildRetrieveToolsSystemPrompt(
+                    "2026-08-16"
+                );
+
+            Assert.Contains(
+                "Billing / plan / usage",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "Billing, AI credits, or Help Centre",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "read_billing_plan",
+                retrievePrompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Never invent Revolut payment success",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
         public void BuildSystemPrompt_RequiresGroundedMarkdownAllowList()
         {
             var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(

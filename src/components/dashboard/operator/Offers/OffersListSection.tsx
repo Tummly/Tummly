@@ -64,6 +64,7 @@ type OffersListSectionProps = {
   onRemoveFilterChip: (chip: FilterChip) => void
   onClearNeedsAttentionWarningChip: () => void
   onRowAction: (offerId: number, actionId: OfferRowActionId) => void
+  canManageOffers?: boolean
   onCreateOffer?: () => void
   onUseTemplate?: () => void
   onViewAllOffers?: () => void
@@ -83,6 +84,7 @@ export function OffersListSection({
   onRemoveFilterChip,
   onClearNeedsAttentionWarningChip,
   onRowAction,
+  canManageOffers = true,
   onCreateOffer,
   onUseTemplate,
   onViewAllOffers,
@@ -90,6 +92,8 @@ export function OffersListSection({
 }: OffersListSectionProps) {
   const copy = OFFERS_PAGE_COPY
   const empty = list.empty
+  const createOfferHandler = canManageOffers ? onCreateOffer : undefined
+  const useTemplateHandler = canManageOffers ? onUseTemplate : undefined
 
   return (
     <section
@@ -240,13 +244,17 @@ export function OffersListSection({
           {empty != null ? (
             <OffersListEmptyState
               empty={empty}
-              onCreateOffer={onCreateOffer}
-              onUseTemplate={onUseTemplate}
+              onCreateOffer={createOfferHandler}
+              onUseTemplate={useTemplateHandler}
               onViewAllOffers={onViewAllOffers}
               onClearAllFilters={onClearAllFilters}
             />
           ) : list.rows.length > 0 ? (
-            <OffersListTable rows={list.rows} onRowAction={onRowAction} />
+            <OffersListTable
+              rows={list.rows}
+              canManageOffers={canManageOffers}
+              onRowAction={onRowAction}
+            />
           ) : null}
         </OperatorTableTabPanel>
 

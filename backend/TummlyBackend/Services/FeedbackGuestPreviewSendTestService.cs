@@ -103,7 +103,10 @@ namespace TummlyBackend.Services
                 brandSubtitle,
                 location.Address,
                 content.Body,
-                brandLogoUrl: null,
+                brandLogoUrl: BrandLogoRules.BuildAbsolutePublicUrl(
+                    restaurant.BrandLogoObjectKey,
+                    _configuration
+                ),
                 offer: offerBlock,
                 unsubscribeHref: unsubscribeHref
             );

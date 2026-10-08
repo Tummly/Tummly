@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TummlyBackend.Models;
@@ -25,9 +26,9 @@ namespace TummlyBackend.Helpers
         /// <summary>Body object schema version nested under the wrapper.</summary>
         public const string BodySchemaVersion = "v1";
 
-        public const string PromptSchemaRevision = "2026-09-04a";
+        public const string PromptSchemaRevision = "2026-10-07a";
 
-        public const int WatchNextMinLength = 1;
+        public const int WatchNextMinLength = 0;
 
         public const int WatchNextMaxLength = 3;
 
@@ -50,6 +51,21 @@ namespace TummlyBackend.Helpers
 
         public static bool TryParseModelContent(
             string? content,
+            out WeeklyBriefBody? body,
+            out WeeklyBriefEnrichment? enrichment,
+            out bool invalidOutput
+        )
+            => TryParseModelContent(
+                content,
+                insightCandidates: null,
+                out body,
+                out enrichment,
+                out invalidOutput
+            );
+
+        public static bool TryParseModelContent(
+            string? content,
+            WeeklyBriefInsightCandidateBag? insightCandidates,
             out WeeklyBriefBody? body,
             out WeeklyBriefEnrichment? enrichment,
             out bool invalidOutput
@@ -112,6 +128,28 @@ namespace TummlyBackend.Helpers
                     return false;
                 }
 
+                if (insightCandidates is not null)
+                {
+                    enrichment = WeeklyBriefInsightNarrativeValidation.AttachCandidates(
+                        enrichment,
+                        insightCandidates
+                    );
+                    if (
+                        !WeeklyBriefInsightNarrativeValidation.TryValidate(
+                            body!,
+                            enrichment,
+                            insightCandidates,
+                            out _
+                        )
+                    )
+                    {
+                        body = null;
+                        enrichment = null;
+                        invalidOutput = true;
+                        return false;
+                    }
+                }
+
                 return true;
             }
         }
@@ -141,8 +179,10 @@ namespace TummlyBackend.Helpers
                 Do not include guest names, emails, phones, or feedback comment bodies.
                 Do not include Home Recommended next-step types.
 
-                body.watchNext must have {WatchNextMinLength} to {WatchNextMaxLength} short
-                advisory lines (text only).
+                body.watchNext: 0 to {WatchNextMaxLength} short advisory lines (text only).
+                When insightCandidates is only no-material-change, watchNext MUST be [].
+                When any other candidate is present, watchNext MUST have 1 to {WatchNextMaxLength}
+                lines grounded in those candidates — never invent filler.
                 For each body section with no signal: set hasData false and use that section's
                 empty summary exactly:
                 capture → "{EmptyCaptureSummary}"
@@ -152,14 +192,23 @@ namespace TummlyBackend.Helpers
                 When hasData is true, summarise that domain from the metrics bag.
                 Set echoedCounts to null; the server attaches echoed counts from metrics.
 
+                Narrate only from the supplied insightCandidates bag. Do not invent candidate
+                types, ids, or numbers. Use only evidence.snapshot values for counts.
+                Never use because / caused by / due to / as a result of unless that candidate
+                has causalEvidence true (v1: always false).
+
                 enrichment.executiveSummary: one plain-English paragraph for Reports
-                (what happened this week from the metrics and tags).
+                (what happened this week from the candidates and metrics).
                 enrichment.feedbackSummary: narrative text + subtitle for private feedback;
                 when feedbackCount and needsAttentionCount are both 0, use empty strings.
                 enrichment.actionWording: optional title/subtitle for known action kinds only
                 (feedback-needs-attention, underperform-qr, repeated-invalid,
                 low-redemption). Omit kinds that do not apply; never invent other kinds.
                 Empty array is allowed.
+                enrichment.insightNarratives: exactly one block for every candidateId in the bag
+                with observation, interpretation, and recommendation (string; use "" when none).
+                Do not omit candidates. recommendation required for control-signal and
+                funnel-drop; forbidden for no-material-change; optional for data-quality-issue.
                 """;
 
         public static string BuildRequestJson(
@@ -184,6 +233,7 @@ namespace TummlyBackend.Helpers
                 ["coverageStartUtc"] = input.CoverageStartUtc.ToString("O"),
                 ["coverageEndUtcExclusive"] =
                     input.CoverageEndUtcExclusive.ToString("O"),
+                ["insightCandidates"] = ToInsightCandidatesJson(input.InsightCandidates),
                 ["metrics"] = new JsonObject
                 {
                     ["guestsJoined"] = metrics.GuestsJoined,
@@ -252,6 +302,7 @@ namespace TummlyBackend.Helpers
                 ["coverageStartUtc"] = input.CoverageStartUtc.ToString("O"),
                 ["coverageEndUtcExclusive"] =
                     input.CoverageEndUtcExclusive.ToString("O"),
+                ["insightCandidates"] = ToInsightCandidatesJson(input.InsightCandidates),
             };
 
             return new JsonArray
@@ -274,9 +325,79 @@ namespace TummlyBackend.Helpers
                 {BuildSystemPrompt(promptSchemaVersion)}
 
                 Tool path: call read_weekly_brief_metrics before writing the brief.
-                Ground every count and tag rollup only on that tool result.
+                Ground every count and tag rollup only on that tool result and the
+                insightCandidates bag in the user payload / tool result.
                 Never invent guest PII or feedback comment bodies.
                 """;
+
+        public static JsonNode ToInsightCandidatesJson(
+            WeeklyBriefInsightCandidateBag? bag
+        )
+        {
+            if (bag is null)
+            {
+                return new JsonObject
+                {
+                    ["thresholdVersion"] = WeeklyBriefInsightCandidates.ThresholdVersion,
+                    ["candidates"] = new JsonArray(),
+                };
+            }
+
+            var candidates = new JsonArray();
+            foreach (var candidate in bag.Candidates)
+            {
+                var snapshot = new JsonObject();
+                foreach (var pair in candidate.Evidence.Snapshot)
+                {
+                    snapshot[pair.Key] = pair.Value switch
+                    {
+                        null => null,
+                        string s => s,
+                        bool b => b,
+                        int i => i,
+                        long l => l,
+                        float f => f,
+                        double d => d,
+                        decimal m => m,
+                        JsonNode node => node.DeepClone(),
+                        _ => JsonValue.Create(Convert.ToString(
+                            pair.Value,
+                            CultureInfo.InvariantCulture
+                        )),
+                    };
+                }
+
+                candidates.Add(
+                    new JsonObject
+                    {
+                        ["id"] = candidate.Id,
+                        ["type"] = candidate.Type,
+                        ["actionKind"] = candidate.ActionKind,
+                        ["metricKey"] = candidate.MetricKey,
+                        ["changeKind"] = candidate.ChangeKind,
+                        ["deltaPercent"] = candidate.DeltaPercent,
+                        ["direction"] = candidate.Direction,
+                        ["themeLabel"] = candidate.ThemeLabel,
+                        ["evidence"] = new JsonObject
+                        {
+                            ["metricKeys"] = new JsonArray(
+                                candidate.Evidence.MetricKeys
+                                    .Select(key => (JsonNode?)key)
+                                    .ToArray()
+                            ),
+                            ["snapshot"] = snapshot,
+                            ["causalEvidence"] = candidate.Evidence.CausalEvidence,
+                        },
+                    }
+                );
+            }
+
+            return new JsonObject
+            {
+                ["thresholdVersion"] = bag.ThresholdVersion,
+                ["candidates"] = candidates,
+            };
+        }
 
         public static bool TryExtractMessageContent(
             string responseJson,
@@ -366,7 +487,6 @@ namespace TummlyBackend.Helpers
             );
 
             if (body.Headline.Length == 0
-                || body.WatchNext.Count < WatchNextMinLength
                 || body.WatchNext.Count > WatchNextMaxLength)
             {
                 body = null;
@@ -481,13 +601,109 @@ namespace TummlyBackend.Helpers
                 );
             }
 
+            if (!TryReadInsightNarratives(
+                    root,
+                    out var insightNarratives,
+                    out invalidOutput
+                ))
+            {
+                return false;
+            }
+
             enrichment = new WeeklyBriefEnrichment(
                 ExecutiveSummary: string.IsNullOrWhiteSpace(executiveSummary)
                     ? null
                     : executiveSummary,
                 FeedbackSummary: feedbackSummary,
-                ActionWording: actionWording
+                ActionWording: actionWording,
+                InsightNarratives: insightNarratives
             );
+            return true;
+        }
+
+        private static bool TryReadInsightNarratives(
+            JsonElement root,
+            out List<WeeklyBriefInsightNarrative> narratives,
+            out bool invalidOutput
+        )
+        {
+            narratives = [];
+            invalidOutput = false;
+
+            if (!root.TryGetProperty("insightNarratives", out var element))
+            {
+                // Pre-v2.1 enrichment fixtures omit the field.
+                return true;
+            }
+
+            if (element.ValueKind != JsonValueKind.Array)
+            {
+                invalidOutput = true;
+                return false;
+            }
+
+            foreach (var item in element.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                if (!item.TryGetProperty("candidateId", out var idElement)
+                    || idElement.ValueKind != JsonValueKind.String
+                    || !item.TryGetProperty("observation", out var obsElement)
+                    || obsElement.ValueKind != JsonValueKind.String
+                    || !item.TryGetProperty("interpretation", out var interpElement)
+                    || interpElement.ValueKind != JsonValueKind.String)
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                string? recommendation = null;
+                if (item.TryGetProperty("recommendation", out var recElement))
+                {
+                    if (recElement.ValueKind != JsonValueKind.String)
+                    {
+                        invalidOutput = true;
+                        return false;
+                    }
+
+                    recommendation = FeedbackRecoveryDraftStructuredOutput
+                        .SanitizeGuestProse(recElement.GetString() ?? string.Empty)
+                        .Trim();
+                    if (recommendation.Length == 0)
+                    {
+                        recommendation = null;
+                    }
+                }
+
+                var candidateId = idElement.GetString()?.Trim() ?? string.Empty;
+                var observation = FeedbackRecoveryDraftStructuredOutput
+                    .SanitizeGuestProse(obsElement.GetString() ?? string.Empty)
+                    .Trim();
+                var interpretation = FeedbackRecoveryDraftStructuredOutput
+                    .SanitizeGuestProse(interpElement.GetString() ?? string.Empty)
+                    .Trim();
+                if (candidateId.Length == 0
+                    || observation.Length == 0
+                    || interpretation.Length == 0)
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                narratives.Add(
+                    new WeeklyBriefInsightNarrative(
+                        candidateId,
+                        observation,
+                        interpretation,
+                        recommendation
+                    )
+                );
+            }
+
             return true;
         }
 
@@ -532,6 +748,7 @@ namespace TummlyBackend.Helpers
                     "executiveSummary",
                     "feedbackSummary",
                     "actionWording",
+                    "insightNarratives",
                 },
                 ["properties"] = new JsonObject
                 {
@@ -579,6 +796,41 @@ namespace TummlyBackend.Helpers
                                 },
                                 ["title"] = new JsonObject { ["type"] = "string" },
                                 ["subtitle"] = new JsonObject
+                                {
+                                    ["type"] = "string",
+                                },
+                            },
+                        },
+                    },
+                    ["insightNarratives"] = new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["items"] = new JsonObject
+                        {
+                            ["type"] = "object",
+                            ["additionalProperties"] = false,
+                            ["required"] = new JsonArray
+                            {
+                                "candidateId",
+                                "observation",
+                                "interpretation",
+                                "recommendation",
+                            },
+                            ["properties"] = new JsonObject
+                            {
+                                ["candidateId"] = new JsonObject
+                                {
+                                    ["type"] = "string",
+                                },
+                                ["observation"] = new JsonObject
+                                {
+                                    ["type"] = "string",
+                                },
+                                ["interpretation"] = new JsonObject
+                                {
+                                    ["type"] = "string",
+                                },
+                                ["recommendation"] = new JsonObject
                                 {
                                     ["type"] = "string",
                                 },

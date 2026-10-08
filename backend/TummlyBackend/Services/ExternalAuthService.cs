@@ -165,20 +165,25 @@ namespace TummlyBackend.Services
 
                 if (linked != null)
                 {
-                    var signInToken = await CreateExchangeTicketAsync(
-                        ExternalAuthTicketPurposes.SignInExchange,
-                        JsonSerializer.Serialize(
-                            new SignInExchangePayload { UserId = linked.UserId }
-                        ),
+                    return await CreateSignInCompleteRedirectAsync(
+                        linked.UserId,
                         cancellationToken
                     );
-                    // Query token survives HTTP 302 Location; SPA strips it after read.
-                    return $"{_frontendBaseUrl}/login/oauth/complete?token={Uri.EscapeDataString(signInToken)}";
                 }
 
-                if (await UserEmailExistsAsync(email, cancellationToken))
+                var existingUser = await FindUserByEmailAsync(
+                    email,
+                    cancellationToken
+                );
+                if (existingUser != null)
                 {
-                    return FrontendErrorUrl(returnPath, "account_exists");
+                    return await AutoLinkOperatorUserAndSignInAsync(
+                        existingUser.Id,
+                        canonical,
+                        subject,
+                        returnPath,
+                        cancellationToken
+                    );
                 }
 
                 if (await StaffEmailExistsAsync(email, cancellationToken))
@@ -339,12 +344,78 @@ namespace TummlyBackend.Services
             string emailLower,
             CancellationToken cancellationToken
         ) =>
+            await FindUserByEmailAsync(emailLower, cancellationToken) != null;
+
+        private async Task<User?> FindUserByEmailAsync(
+            string emailLower,
+            CancellationToken cancellationToken
+        ) =>
             await _context.Users
                 .AsNoTracking()
-                .AnyAsync(
+                .FirstOrDefaultAsync(
                     x => x.Email.ToLower() == emailLower,
                     cancellationToken
                 );
+
+        /// <summary>
+        /// Link verified provider subject to an existing Operator user, then
+        /// Sign-in. Returns an error URL when this provider is already linked
+        /// under a different subject.
+        /// </summary>
+        private async Task<string> AutoLinkOperatorUserAndSignInAsync(
+            int userId,
+            string provider,
+            string providerSubject,
+            string returnPath,
+            CancellationToken cancellationToken
+        )
+        {
+            var existingProviderLink = await _context.UserExternalLogins
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.UserId == userId && x.Provider == provider,
+                    cancellationToken
+                );
+
+            if (existingProviderLink != null)
+            {
+                // Same provider, different subject — do not rebind.
+                return FrontendErrorUrl(returnPath, "failed");
+            }
+
+            await _context.UserExternalLogins.AddAsync(
+                new UserExternalLogin
+                {
+                    UserId = userId,
+                    Provider = provider,
+                    ProviderSubject = providerSubject,
+                    CreatedAtUtc = DateTime.UtcNow,
+                },
+                cancellationToken
+            );
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return await CreateSignInCompleteRedirectAsync(
+                userId,
+                cancellationToken
+            );
+        }
+
+        private async Task<string> CreateSignInCompleteRedirectAsync(
+            int userId,
+            CancellationToken cancellationToken
+        )
+        {
+            var signInToken = await CreateExchangeTicketAsync(
+                ExternalAuthTicketPurposes.SignInExchange,
+                JsonSerializer.Serialize(
+                    new SignInExchangePayload { UserId = userId }
+                ),
+                cancellationToken
+            );
+            // Query token survives HTTP 302 Location; SPA strips it after read.
+            return $"{_frontendBaseUrl}/login/oauth/complete?token={Uri.EscapeDataString(signInToken)}";
+        }
 
         private async Task<bool> StaffEmailExistsAsync(
             string emailLower,

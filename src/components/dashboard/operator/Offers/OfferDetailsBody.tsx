@@ -44,6 +44,8 @@ import { cn } from "@/lib/utils"
 type OfferDetailsBodyProps = {
   viewModel: OfferDetailsViewModel
   offersHref: string
+  /** When false, hide Edit and header write ⋮ (Staff view chrome). Default true. */
+  canManageOffers?: boolean
   onEditOffer: () => void
   onOpenStaffRedeem: () => void
   onHeaderAction: (actionId: OfferDetailsHeaderActionId) => void
@@ -69,6 +71,7 @@ type OfferDetailsBodyProps = {
 export function OfferDetailsBody({
   viewModel,
   offersHref,
+  canManageOffers = true,
   onEditOffer,
   onOpenStaffRedeem,
   onHeaderAction,
@@ -119,27 +122,35 @@ export function OfferDetailsBody({
         </header>
 
         <div className="flex shrink-0 flex-wrap items-center gap-3">
+          {canManageOffers ? (
+            <Button
+              type="button"
+              variant="op-primary"
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+              onClick={onEditOffer}
+            >
+              {viewModel.editOfferLabel}
+            </Button>
+          ) : null}
           <Button
             type="button"
-            variant="op-primary"
-            className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-            onClick={onEditOffer}
-          >
-            {viewModel.editOfferLabel}
-          </Button>
-          <Button
-            type="button"
-            variant="op-tertiary"
-            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            variant={canManageOffers ? "op-tertiary" : "op-primary"}
+            className={
+              canManageOffers
+                ? GUESTS_PAGE_SECONDARY_BUTTON_CLASS
+                : GUESTS_PAGE_PRIMARY_BUTTON_CLASS
+            }
             onClick={onOpenStaffRedeem}
           >
             {viewModel.openStaffRedeemLabel}
           </Button>
-          <OfferDetailsHeaderActionsMenu
-            ariaLabel={viewModel.moreActionsAriaLabel}
-            items={viewModel.headerMenuItems}
-            onAction={onHeaderAction}
-          />
+          {canManageOffers ? (
+            <OfferDetailsHeaderActionsMenu
+              ariaLabel={viewModel.moreActionsAriaLabel}
+              items={viewModel.headerMenuItems}
+              onAction={onHeaderAction}
+            />
+          ) : null}
         </div>
       </div>
 

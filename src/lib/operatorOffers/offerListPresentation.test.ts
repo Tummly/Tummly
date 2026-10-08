@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildOfferRowActions,
+  buildOfferRowActionsForAccess,
   formatOfferAttachSubline,
   formatOfferControlsLabel,
   formatOfferRedemptionRate,
   formatOfferValidityLabel,
   mapCatalogOfferListItemToTableRow,
+  offersAccessAllowsManage,
 } from "@/lib/operatorOffers/offerListPresentation"
 import type { CatalogOffersListItem } from "@/types/operatorCampaigns"
 
@@ -71,6 +73,14 @@ describe("buildOfferRowActions", () => {
       "view",
       "duplicate",
     ])
+  })
+
+  it("keeps only View when canManage is false", () => {
+    expect(offersAccessAllowsManage("view")).toBe(false)
+    expect(offersAccessAllowsManage("manage")).toBe(true)
+    expect(
+      buildOfferRowActionsForAccess("active", false).map((a) => a.id)
+    ).toEqual(["view"])
   })
 })
 

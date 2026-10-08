@@ -77,7 +77,7 @@ namespace TummlyBackend.Services
             {
                 var brandLogoUrl = BrandLogoRules.BuildAbsolutePublicUrl(
                     restaurant?.BrandLogoObjectKey,
-                    _configuration["PublicApi:BaseUrl"]
+                    _configuration
                 );
 
                 var frontendBaseUrl =
@@ -97,22 +97,32 @@ namespace TummlyBackend.Services
                         )
                         : (request.Subject ?? string.Empty);
 
-                await _emailService.SendGuestResponseEmailAsync(
-                    request.ToAddress,
-                    subject,
-                    brandTitle,
-                    brandSubtitle,
-                    location.Address,
-                    request.Body,
-                    brandLogoUrl: brandLogoUrl,
-                    offer: request.Offer,
-                    unsubscribeHref: unsubscribeHref,
-                    // Offer unlocked Figma: message only in the ticket (no subject line).
-                    ticketSubject: request.Offer is not null ? string.Empty : null
-                );
+                var tags = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["campaign_id"] = request.CampaignId.ToString(),
+                    ["location_guest_id"] = request.LocationGuestId.ToString(),
+                };
+                var providerMessageId =
+                    await _emailService.SendCampaignGuestEmailAsync(
+                        request.ToAddress,
+                        subject,
+                        brandTitle,
+                        brandSubtitle,
+                        location.Address,
+                        request.Body,
+                        brandLogoUrl: brandLogoUrl,
+                        offer: request.Offer,
+                        unsubscribeHref: unsubscribeHref,
+                        // Offer unlocked Figma: message only in the ticket (no subject line).
+                        ticketSubject: request.Offer is not null
+                            ? string.Empty
+                            : null,
+                        tags: tags
+                    );
                 return new CampaignOutboundSendResult.Accepted
                 {
                     AcceptedUnits = 1,
+                    ProviderMessageId = providerMessageId,
                 };
             }
             catch (Exception ex)

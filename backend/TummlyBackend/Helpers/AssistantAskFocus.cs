@@ -20,6 +20,7 @@ namespace TummlyBackend.Helpers
         CreateOffer = 9,
         MixedSummary = 10,
         Unknown = 11,
+        Billing = 12,
     }
 
     /// <summary>
@@ -34,6 +35,7 @@ namespace TummlyBackend.Helpers
         Capture = 3,
         Home = 4,
         Guests = 5,
+        Billing = 6,
     }
 
     /// <summary>
@@ -143,6 +145,10 @@ namespace TummlyBackend.Helpers
 
         private static readonly string[] PerformanceNeedles =
         [
+            "explain performance",
+            "explain our performance",
+            "explain the performance",
+            "explain my performance",
             "performance overview",
             "performance",
         ];
@@ -167,6 +173,35 @@ namespace TummlyBackend.Helpers
             "how are we doing",
         ];
 
+        private static readonly string[] BillingNeedles =
+        [
+            "billing",
+            "subscription plan",
+            "subscription status",
+            "ai credit",
+            "ai credits",
+            "email credit",
+            "email credits",
+            "sms credit",
+            "sms credits",
+            "credit balance",
+            "credits remaining",
+            "credits used",
+            "credit used",
+            "credits have we used",
+            "credits did we use",
+            "message usage",
+            "messaging usage",
+            "usage this cycle",
+            "used this cycle",
+            "my plan",
+            "what plan",
+            "which plan",
+            "plan name",
+            "plan do i",
+            "plan does my",
+        ];
+
         public static AssistantAskFocusKind Detect(string userMessage)
         {
             var lower = userMessage.Trim().ToLowerInvariant();
@@ -187,6 +222,7 @@ namespace TummlyBackend.Helpers
                 return AssistantAskFocusKind.CreateOffer;
             }
 
+            var wantsBilling = ContainsAny(lower, BillingNeedles);
             var wantsCapture = ContainsAny(lower, CaptureQrNeedles)
                 || (ContainsAny(lower, "qr") && ContainsAny(lower, "scan"));
             var wantsRedemptions = ContainsAny(lower, OffersRedemptionNeedles);
@@ -206,6 +242,11 @@ namespace TummlyBackend.Helpers
             var wantsMixedNeedle = ContainsAny(lower, MixedSummaryNeedles);
 
             var domainHits = 0;
+            if (wantsBilling)
+            {
+                domainHits++;
+            }
+
             if (wantsCapture)
             {
                 domainHits++;
@@ -240,6 +281,11 @@ namespace TummlyBackend.Helpers
             if (domainHits >= 2)
             {
                 return AssistantAskFocusKind.MixedSummary;
+            }
+
+            if (wantsBilling)
+            {
+                return AssistantAskFocusKind.Billing;
             }
 
             if (wantsCapture)
@@ -316,6 +362,9 @@ namespace TummlyBackend.Helpers
                 AssistantAskFocusKind.Guests
                     => domain == AssistantEvidenceDomain.Guests,
 
+                AssistantAskFocusKind.Billing
+                    => domain == AssistantEvidenceDomain.Billing,
+
                 // Create asks do not pull retrieve domains for the body.
                 AssistantAskFocusKind.CreateCampaign
                     or AssistantAskFocusKind.CreateOffer
@@ -336,7 +385,7 @@ namespace TummlyBackend.Helpers
             AssistantAskFocusKind focus,
             AssistantRetrievedEvidence evidence
         )
-            => new(
+            => new AssistantRetrievedEvidence(
                 IncludesDomain(focus, AssistantEvidenceDomain.Feedback)
                     ? evidence.Feedback
                     : AssistantFeedbackEvidence.Empty,
@@ -355,7 +404,12 @@ namespace TummlyBackend.Helpers
                 IncludesDomain(focus, AssistantEvidenceDomain.Guests)
                     ? evidence.Guests
                     : AssistantGuestsEvidence.Empty
-            );
+            )
+            {
+                Billing = IncludesDomain(focus, AssistantEvidenceDomain.Billing)
+                    ? evidence.Billing
+                    : AssistantBillingEvidence.Empty,
+            };
 
         /// <summary>
         /// QR / scan asks: keep scan counts only. Drop Feedback submitted,

@@ -127,6 +127,7 @@ import {
   GUESTS_TOOLBAR_ROW_CLASS,
   OPERATOR_GUEST_CONTACT_LINK_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
+import { OPERATOR_RIGHT_SHEET_WIDTH_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 import {
   CAPTURE_DIALOG_CLOSE_BUTTON_CLASS,
@@ -489,7 +490,6 @@ export function TeamPermissionsPage() {
               }
               roleOptions={roleOptions}
               locations={snap.locations}
-              isSingleLocation={snap.isSingleLocation}
               busy={snap.busy}
               showMessage
               message={snap.inviteDraft.message}
@@ -1003,7 +1003,10 @@ function AccessActivityBody({
       >
         <SheetContent
           side="right"
-          className="w-full sm:max-w-lg"
+          className={cn(
+            OPERATOR_RIGHT_SHEET_WIDTH_CLASS,
+            "rounded-none"
+          )}
           showCloseButton
         >
           <SheetHeader>
@@ -1136,7 +1139,7 @@ function InvitationsBody({
       {snap.invitations.length === 0 ? (
         <div className="flex flex-col items-start gap-6">
           <div className="flex flex-col gap-2">
-            <p className="m-0 text-base font-semibold leading-normal text-op-card-title-color">
+            <p className="m-0 text-base font-semibold leading-none text-op-card-title-color">
               {copy.invitationsEmptyTitle}
             </p>
             <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
@@ -1553,9 +1556,7 @@ function EditMemberDialog({
             onChange={(values) => pageModule.setEditMemberDraft(values)}
             roleOptions={roleOptions}
             locations={snap.locations}
-            isSingleLocation={
-              snap.isSingleLocation || member?.isAccountOwner === true
-            }
+            hideLocationAccess={member?.isAccountOwner === true}
             busy={snap.busy}
             readOnly={isView}
             readOnlyIdentity

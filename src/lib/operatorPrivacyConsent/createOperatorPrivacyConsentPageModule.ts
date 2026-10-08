@@ -1,3 +1,4 @@
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import {
   chipCount,
   commitPending,
@@ -382,10 +383,10 @@ export function createOperatorPrivacyConsentPageModule(
       if (loadStatus === "loaded") {
         toast = {
           kind: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : PRIVACY_CONSENT_PAGE_COPY.permissionRecordsLoadError,
+          message: getUserFacingApiErrorMessage(
+            error,
+            PRIVACY_CONSENT_PAGE_COPY.permissionRecordsLoadError
+          ),
         }
         emit()
         return
@@ -467,10 +468,10 @@ export function createOperatorPrivacyConsentPageModule(
           }
           toast = {
             kind: "error",
-            message:
-              error instanceof Error
-                ? error.message
-                : PRIVACY_CONSENT_PAGE_COPY.privacyReviewCompleteError,
+            message: getUserFacingApiErrorMessage(
+              error,
+              PRIVACY_CONSENT_PAGE_COPY.privacyReviewCompleteError
+            ),
           }
         }
       }
@@ -560,10 +561,10 @@ export function createOperatorPrivacyConsentPageModule(
         guestPermissions = previous
         toast = {
           kind: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : PRIVACY_CONSENT_PAGE_COPY.guestPermissionToggleError,
+          message: getUserFacingApiErrorMessage(
+            error,
+            PRIVACY_CONSENT_PAGE_COPY.guestPermissionToggleError
+          ),
         }
         emit()
       }

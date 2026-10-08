@@ -519,6 +519,40 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     expect(snap.activeTabId).toBe("invitations")
   })
 
+  it("sends named location scope on a single-location workspace", async () => {
+    const sendInvite = vi.fn(async () => undefined)
+    const api = adapters({
+      sendInvite,
+      getPage: vi.fn(async () =>
+        page({
+          isSingleLocation: true,
+          locations: [{ id: 10, name: "Camden" }],
+        })
+      ),
+    })
+    const module = createOperatorTeamPermissionsPageModule(api)
+    await module.load()
+    expect(module.getSnapshot().isSingleLocation).toBe(true)
+    module.openInvite()
+    module.setInviteDraft({
+      email: "mark@example.com",
+      fullName: "Mark Invitee",
+      permissionRole: "Staff",
+      locationScope: "named",
+      namedLocationIds: [10],
+      message: "",
+    })
+    await module.confirmDialogPrimary()
+    expect(sendInvite).toHaveBeenCalledWith({
+      email: "mark@example.com",
+      fullName: "Mark Invitee",
+      permissionRole: "Staff",
+      locationScope: "named",
+      namedLocationIds: [10],
+      message: "",
+    })
+  })
+
   it("ignores a second send while the first send is busy", async () => {
     let release!: () => void
     const sendInvite = vi.fn(

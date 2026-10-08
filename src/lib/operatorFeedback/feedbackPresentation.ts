@@ -118,7 +118,6 @@ export const FEEDBACK_PAGE_COPY = {
   },
   overflow: {
     exportFeedback: "Export feedback",
-    manageSettings: "Manage feedback settings",
     viewHelp: "View feedback help",
   },
   exportDialog: {
@@ -156,10 +155,6 @@ export const FEEDBACK_PAGE_COPY = {
 
 export const FEEDBACK_HEADER_OVERFLOW_ACTIONS = [
   { id: "export-feedback", label: FEEDBACK_PAGE_COPY.overflow.exportFeedback },
-  {
-    id: "manage-feedback-settings",
-    label: FEEDBACK_PAGE_COPY.overflow.manageSettings,
-  },
   { id: "view-feedback-help", label: FEEDBACK_PAGE_COPY.overflow.viewHelp },
 ] as const
 

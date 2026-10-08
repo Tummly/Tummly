@@ -63,8 +63,17 @@ namespace TummlyBackend.Controllers
                     restaurantName = "",
                     aiAssistantAccess = false,
                     teamPermissionsAccess = "none",
+                    billingCreditsAccess = "none",
                     offersAccess = "none",
                     privacyConsentAccess = "none",
+                    guestsAccess = "none",
+                    captureAccess = "none",
+                    feedbackAccess = "none",
+                    campaignsAccess = "none",
+                    reportsAccess = "none",
+                    tummlyShopAccess = "none",
+                    locationsAccess = "none",
+                    accountWorkspaceAccess = "none",
                     locations = Array.Empty<object>()
                 });
             }
@@ -136,25 +145,59 @@ namespace TummlyBackend.Controllers
                 PermissionLevel.View
             );
 
+            // SideNav + route chrome: omit must not hide on older clients;
+            // explicit "none" hides / redirects (CODING_STANDARDS).
+            // Sequential awaits — RestaurantPermissionHelper shares the request
+            // DbContext; Task.WhenAll races concurrent queries on one instance.
             var teamPermissionsAccess =
                 await OperatorChromeAccess.TeamPermissionsAsync(
                     _permissions,
                     User
                 );
-
             var billingCreditsAccess =
                 await OperatorChromeAccess.BillingCreditsAsync(
                     _permissions,
                     User
                 );
-
             var offersAccess = await OperatorChromeAccess.OffersAsync(
                 _permissions,
                 User
             );
-
             var privacyConsentAccess =
                 await OperatorChromeAccess.PrivacyConsentAsync(
+                    _permissions,
+                    User
+                );
+            var guestsAccess = await OperatorChromeAccess.GuestsAsync(
+                _permissions,
+                User
+            );
+            var captureAccess = await OperatorChromeAccess.CaptureAsync(
+                _permissions,
+                User
+            );
+            var feedbackAccess = await OperatorChromeAccess.FeedbackAsync(
+                _permissions,
+                User
+            );
+            var campaignsAccess = await OperatorChromeAccess.CampaignsAsync(
+                _permissions,
+                User
+            );
+            var reportsAccess = await OperatorChromeAccess.ReportsAsync(
+                _permissions,
+                User
+            );
+            var tummlyShopAccess = await OperatorChromeAccess.TummlyShopAsync(
+                _permissions,
+                User
+            );
+            var locationsAccess = await OperatorChromeAccess.LocationsAsync(
+                _permissions,
+                User
+            );
+            var accountWorkspaceAccess =
+                await OperatorChromeAccess.AccountWorkspaceAsync(
                     _permissions,
                     User
                 );
@@ -248,6 +291,14 @@ namespace TummlyBackend.Controllers
                 billingCreditsAccess,
                 offersAccess,
                 privacyConsentAccess,
+                guestsAccess,
+                captureAccess,
+                feedbackAccess,
+                campaignsAccess,
+                reportsAccess,
+                tummlyShopAccess,
+                locationsAccess,
+                accountWorkspaceAccess,
                 locations = locations.Select(row => new
                 {
                     row.Id,

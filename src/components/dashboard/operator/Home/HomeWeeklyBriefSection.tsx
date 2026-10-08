@@ -13,9 +13,7 @@ import {
   WEEKLY_BRIEF_DOMAIN_LABEL_CLASS,
   WEEKLY_BRIEF_DOMAIN_SUMMARY_CLASS,
   WEEKLY_BRIEF_EMPTY_COPY_CLASS,
-  WEEKLY_BRIEF_EMPTY_HELPER,
   WEEKLY_BRIEF_EMPTY_HELPER_CLASS,
-  WEEKLY_BRIEF_EMPTY_TITLE,
   WEEKLY_BRIEF_EMPTY_TITLE_CLASS,
   WEEKLY_BRIEF_ERROR_COPY_CLASS,
   WEEKLY_BRIEF_HEADER_CLASS,
@@ -25,6 +23,10 @@ import {
   WEEKLY_BRIEF_STATUS_SHELL_CLASS,
   WEEKLY_BRIEF_SUBTITLE,
   WEEKLY_BRIEF_WATCH_LIST_CLASS,
+  capitalizeWeekStartsOnLabel,
+  isWeeklyBriefGenerateDay,
+  resolveWeeklyBriefEmptyCopy,
+  shouldShowWeeklyBriefWatchNext,
 } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { GUESTS_PAGE_SECONDARY_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
 import type { WeeklyBriefBody, WeeklyBriefSection } from "@/types/operatorHome"
@@ -32,6 +34,10 @@ import type { WeeklyBriefBody, WeeklyBriefSection } from "@/types/operatorHome"
 type HomeWeeklyBriefSectionProps = {
   weeklyBrief: OperatorHomeWeeklyBriefViewModel
   onRetry: () => void
+  /** When true, empty copy explains Pilot exclusion. */
+  isPilot?: boolean
+  /** Workspace week-starts-on; defaults to monday (backend default). */
+  weekStartsOn?: string | null
 }
 
 function DomainBlock(props: {
@@ -57,7 +63,7 @@ function ReadyBody(props: { body: WeeklyBriefBody }) {
       <DomainBlock label="Feedback" section={body.feedback} />
       <DomainBlock label="Offers" section={body.offers} />
       <DomainBlock label="Campaigns" section={body.campaigns} />
-      {body.watchNext.length > 0 ? (
+      {shouldShowWeeklyBriefWatchNext(body.watchNext) ? (
         <div className={WEEKLY_BRIEF_DOMAIN_BLOCK_CLASS}>
           <p className={WEEKLY_BRIEF_DOMAIN_LABEL_CLASS}>Watch next</p>
           <ul className={WEEKLY_BRIEF_WATCH_LIST_CLASS}>
@@ -75,7 +81,15 @@ function ReadyBody(props: { body: WeeklyBriefBody }) {
 export function HomeWeeklyBriefSection({
   weeklyBrief,
   onRetry,
+  isPilot = false,
+  weekStartsOn = null,
 }: HomeWeeklyBriefSectionProps) {
+  const emptyCopy = resolveWeeklyBriefEmptyCopy({
+    isGenerateDay: isWeeklyBriefGenerateDay({ weekStartsOn }),
+    isPilot,
+    generateWeekdayLabel: capitalizeWeekStartsOnLabel(weekStartsOn),
+  })
+
   return (
     <section className={WEEKLY_BRIEF_SECTION_CLASS} aria-label="Weekly brief">
       <div className={WEEKLY_BRIEF_HEADER_CLASS}>
@@ -87,12 +101,8 @@ export function HomeWeeklyBriefSection({
 
       {weeklyBrief.status === "empty" ? (
         <div className={WEEKLY_BRIEF_EMPTY_COPY_CLASS}>
-          <p className={WEEKLY_BRIEF_EMPTY_TITLE_CLASS}>
-            {WEEKLY_BRIEF_EMPTY_TITLE}
-          </p>
-          <p className={WEEKLY_BRIEF_EMPTY_HELPER_CLASS}>
-            {WEEKLY_BRIEF_EMPTY_HELPER}
-          </p>
+          <p className={WEEKLY_BRIEF_EMPTY_TITLE_CLASS}>{emptyCopy.title}</p>
+          <p className={WEEKLY_BRIEF_EMPTY_HELPER_CLASS}>{emptyCopy.helper}</p>
         </div>
       ) : null}
 

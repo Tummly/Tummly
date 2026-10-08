@@ -28,6 +28,7 @@ import {
 import { downloadShopOrderInvoicePdf } from "@/lib/operatorShop/downloadOrderInvoice"
 import type { DetailedShopOrder } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
 import { shopOrderCancelBlockMessage } from "@/lib/operatorShop/shopOrderCancelBlockMessage"
+import { OPERATOR_RIGHT_SHEET_WIDTH_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 function formatShipToAddress(input: {
@@ -149,7 +150,10 @@ export function ShopOrderDetailSidebar({
         <SheetContent
           side="right"
           showCloseButton={false}
-          className="z-[140] w-full max-w-full overflow-y-auto border-l border-op-border-default bg-op-card-background p-0 text-op-text-primary shadow-2xl sm:w-[535px] sm:max-w-[535px]"
+          className={cn(
+            OPERATOR_RIGHT_SHEET_WIDTH_CLASS,
+            "z-[140] overflow-y-auto rounded-none border-l border-op-border-default bg-op-card-background p-0 text-op-text-primary shadow-2xl"
+          )}
         >
           <div className="flex flex-col justify-start pb-16">
             {/* Top Header Section */}

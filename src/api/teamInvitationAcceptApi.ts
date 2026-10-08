@@ -1,7 +1,5 @@
-import { isAxiosError } from "axios"
-
 import axiosInstance from "@/api/axiosInstance"
-import { getFetchErrorMessage } from "@/lib/apiEnvelope"
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 
 const skipAuth = { skipAuthRedirect: true } as const
 
@@ -27,22 +25,7 @@ export type TeamInvitationSession = {
 }
 
 function rethrow(error: unknown, fallback: string): never {
-  if (
-    isAxiosError(error)
-    && error.response?.data
-    && typeof error.response.data === "object"
-  ) {
-    throw new Error(
-      getFetchErrorMessage(
-        error.response.data as { message?: string },
-        fallback
-      )
-    )
-  }
-  if (error instanceof Error) {
-    throw error
-  }
-  throw new Error(fallback)
+  throw new Error(getUserFacingApiErrorMessage(error, fallback))
 }
 
 export async function previewTeamInvitation(

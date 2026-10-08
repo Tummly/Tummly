@@ -86,6 +86,7 @@ function createAdapters(
         scheduledCount: 0,
         sendingCount: 0,
         messagesSentAccepted: 0,
+        campaignAttributedRedemptions: 0,
       })),
     loadCampaignRecommendation:
       overrides.loadCampaignRecommendation
@@ -183,7 +184,7 @@ describe("createOperatorCampaignsPageModule", () => {
       {
         id: "campaign-attributed-redemptions",
         label: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsLabel,
-        description: "",
+        description: "0 from campaign offers",
         value: 0,
       },
     ])
@@ -206,6 +207,7 @@ describe("createOperatorCampaignsPageModule", () => {
       scheduledCount: 2,
       sendingCount: 1,
       messagesSentAccepted: 0,
+      campaignAttributedRedemptions: 0,
     }))
     const pageModule = createOperatorCampaignsPageModule(
       createAdapters({ loadCampaignsList, loadCampaignsSummary })
@@ -230,8 +232,17 @@ describe("createOperatorCampaignsPageModule", () => {
     })
   })
 
-  it("keeps redemptions at honest zero with empty description", async () => {
-    const pageModule = createOperatorCampaignsPageModule(createAdapters())
+  it("surfaces live campaign-attributed redemptions on the summary KPI", async () => {
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({
+        loadCampaignsSummary: vi.fn(async () => ({
+          scheduledCount: 0,
+          sendingCount: 0,
+          messagesSentAccepted: 4,
+          campaignAttributedRedemptions: 2,
+        })),
+      })
+    )
 
     await pageModule.syncWorkspace({
       selectedLocationId: 42,
@@ -247,8 +258,8 @@ describe("createOperatorCampaignsPageModule", () => {
     ).toEqual({
       id: "campaign-attributed-redemptions",
       label: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsLabel,
-      description: "",
-      value: 0,
+      description: "2 from campaign offers",
+      value: 2,
     })
   })
 
@@ -430,6 +441,8 @@ describe("createOperatorCampaignsPageModule", () => {
         sendingCount: 1,
         messagesSentAccepted:
           input.overviewDateRange.kind === "all-time" ? 500 : 40,
+        campaignAttributedRedemptions:
+          input.overviewDateRange.kind === "all-time" ? 9 : 1,
       })
     )
     const pageModule = createOperatorCampaignsPageModule(

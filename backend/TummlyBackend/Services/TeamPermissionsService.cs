@@ -650,22 +650,6 @@ namespace TummlyBackend.Services
                 ? LocationScopeKind.NamedList
                 : LocationScopeKind.AllLocations;
             var named = (request.NamedLocationIds ?? []).Distinct().ToArray();
-            if (loaded.IsSingleLocation)
-            {
-                if (
-                    request.PermissionRole == PermissionRoles.AreaManager
-                    || request.PermissionRole == PermissionRoles.LocationManager
-                )
-                {
-                    kind = LocationScopeKind.NamedList;
-                    named = [loaded.Locations[0].Id];
-                }
-                else
-                {
-                    kind = LocationScopeKind.AllLocations;
-                    named = [];
-                }
-            }
 
             var scopeError = MembershipLocationScope.Validate(
                 request.PermissionRole,
@@ -851,7 +835,6 @@ namespace TummlyBackend.Services
             Restaurant? Restaurant,
             string ActorRole,
             string ActorName,
-            bool IsSingleLocation,
             List<TeamPermissionsLocationDto> Locations,
             string? Error
         )> LoadInviteActorAsync(
@@ -865,7 +848,7 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync(row => row.Id == restaurantId);
             if (restaurant == null)
             {
-                return (null, PermissionRoles.Owner, "", false, [], "Restaurant not found.");
+                return (null, PermissionRoles.Owner, "", [], "Restaurant not found.");
             }
 
             var actor = await _context.Users.FirstAsync(row => row.Id == actorUserId);
@@ -873,7 +856,7 @@ namespace TummlyBackend.Services
             var actorRole = actorMembership?.PermissionRole ?? PermissionRoles.Owner;
             if (!TeamPermissionsActor.MayInvite(actorRole, actorCanManage, inviteRole))
             {
-                return (restaurant, actorRole, actor.FullName, false, [], "forbidden");
+                return (restaurant, actorRole, actor.FullName, [], "forbidden");
             }
 
             var locations = await _context.RestaurantLocations
@@ -890,7 +873,6 @@ namespace TummlyBackend.Services
                 restaurant,
                 actorRole,
                 actor.FullName,
-                locations.Count <= 1,
                 locations,
                 null
             );

@@ -131,6 +131,13 @@ export function shouldShowWeeklyBriefSuggestedCampaign(
   return campaign != null
 }
 
+/** Whether the Watch next block should render (omit when empty). */
+export function shouldShowWeeklyBriefWatchNext(
+  watchNext: readonly string[] | null | undefined
+): boolean {
+  return (watchNext?.length ?? 0) > 0
+}
+
 export type WeeklyBriefFeedbackFollowUpNavigatePlan = {
   path: string
   feedbackInbox: AssistantFeedbackInboxIntent

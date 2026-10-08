@@ -98,7 +98,7 @@ Shared Auth chrome for marketing Create account / Log in / Self-service Pilot / 
 | Case | Behaviour |
 |------|-----------|
 | Wrong password | Generic error; **5 failed attempts** → `IsLocked = true` (operators via `ValidateUserCredentialsAsync`) |
-| Locked account | Sign-in rejected with `"Account is locked."` (operators). **Admin on `universal-login`:** lock counter not applied — use `admin-login` for lock enforcement |
+| Locked operator | Correct password → **Sign-in OTP** (no trust-skip). OTP verify clears `IsLocked` + `FailedLoginAttempts` and issues session. Wrong password → generic invalid credentials (does not reveal lock). Password reset also clears lock. **Admin** on `admin-login` stays hard-locked (`"Account is locked."`). **Admin on `universal-login`:** lock counter not applied — use `admin-login` for lock enforcement |
 | OTP expired (10 min) | Verify fails |
 | Resend OTP | Invalidates previous; sends on active channel |
 | Uncheck Remember device | Does not revoke existing trust |

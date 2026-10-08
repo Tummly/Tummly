@@ -684,6 +684,7 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<IRevolutWebhookService, RevolutWebhookService>();
 builder.Services.AddScoped<IRevolutWebhookReceiver, RevolutWebhookReceiver>();
+builder.Services.AddScoped<IResendWebhookService, ResendWebhookService>();
 builder.Services.AddSingleton<IRevolutWebhookInboxWork, RevolutWebhookInboxWork>();
 builder.Services.AddHostedService<RevolutWebhookInboxBackgroundService>();
 builder.Services.AddScoped<IRevolutDunningPayAdapter, RevolutDunningPayAdapter>();

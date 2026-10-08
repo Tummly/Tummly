@@ -712,10 +712,17 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("LocationGuestId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("OpenedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Outcome")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ProviderMessageId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -723,6 +730,10 @@ namespace TummlyBackend.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("LocationGuestId");
+
+                    b.HasIndex("ProviderMessageId");
+
+                    b.HasIndex("CampaignId", "OpenedAtUtc");
 
                     b.HasIndex("Outcome", "AcceptedAtUtc");
 

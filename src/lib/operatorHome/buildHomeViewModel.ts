@@ -55,6 +55,11 @@ export interface BuildOperatorHomeViewModelInput {
   hasCreatedOffer?: boolean
   /** True when the location has at least one campaign. */
   hasCreatedCampaign?: boolean
+  /**
+   * Capture Area chrome. Omit / null / undefined keeps Guest form preview
+   * available (CODING_STANDARDS chrome omit). Only explicit `"none"` hides it.
+   */
+  captureAccess?: "none" | "view" | "manage" | null
 }
 
 const ACTIVITY_EMPTY_COPY = "No activity yet"
@@ -337,7 +342,8 @@ export function buildOperatorHomeViewModel(
   }
 
   const smartGuestLink = selected.guestUrl.trim() || null
-  const canPreviewGuestForm = smartGuestLink != null
+  const captureAllowed = input.captureAccess !== "none"
+  const canPreviewGuestForm = smartGuestLink != null && captureAllowed
   const canCopySmartGuestLink = smartGuestLink != null
   const { feedbackItems, guestJoinedItems } = mapLatestActivityItems(
     input.latestActivity ?? []

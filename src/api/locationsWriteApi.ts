@@ -1,6 +1,7 @@
 import { isAxiosError } from "axios"
 
 import axiosInstance from "@/api/axiosInstance"
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 
 export type CreateOwnedLocationInput = {
   locationName: string
@@ -15,7 +16,6 @@ function readApiError(error: unknown, fallback: string): string {
   if (isAxiosError(error)) {
     const payload = error.response?.data as
       | {
-          message?: unknown
           code?: unknown
           cap?: unknown
           current?: unknown
@@ -31,12 +31,8 @@ function readApiError(error: unknown, fallback: string): string {
       }
       return "Location cap reached."
     }
-    const message = payload?.message
-    if (typeof message === "string" && message.trim() !== "") {
-      return message
-    }
   }
-  return fallback
+  return getUserFacingApiErrorMessage(error, fallback)
 }
 
 export async function createOwnedLocation(

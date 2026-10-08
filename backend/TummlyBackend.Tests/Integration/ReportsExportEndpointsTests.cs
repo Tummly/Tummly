@@ -275,6 +275,36 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Export_Pdf_MultiLocationIds_Returns200WithPortfolio()
+        {
+            var seeded = await SeedOwnerWithTwoLocationsAsync("rex-pdf-multi");
+
+            var url =
+                $"/api/reports/export/overview?locationIds={seeded.LocationIdA}&locationIds={seeded.LocationIdB}"
+                + $"&from={Uri.EscapeDataString(FormatUtc(WindowFrom))}"
+                + $"&to={Uri.EscapeDataString(FormatUtc(WindowTo))}"
+                + "&format=pdf";
+            using var request = AuthorizedGet(url, seeded.Jwt);
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                "application/pdf",
+                response.Content.Headers.ContentType?.MediaType
+            );
+            var fileName =
+                response.Content.Headers.ContentDisposition?.FileName
+                    ?.Trim('"');
+            Assert.NotNull(fileName);
+            Assert.Contains("-multi-", fileName, StringComparison.Ordinal);
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var text = System.Text.Encoding.ASCII.GetString(bytes);
+            Assert.StartsWith("%PDF", text, StringComparison.Ordinal);
+            Assert.Contains("Portfolio Summary", text, StringComparison.Ordinal);
+        }
+
+        [Fact]
         public async Task Export_Csv_RejectsMultipleLocationIds()
         {
             var seeded = await SeedOwnerWithTwoLocationsAsync("rex-csv-multi");

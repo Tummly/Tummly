@@ -12,9 +12,11 @@ namespace TummlyBackend.Interfaces
     public interface IReportsExportService
     {
         Task<ReportsExportFileResult> ExportOverviewPdfAsync(
-            int locationId,
+            IReadOnlyList<int> locationIds,
             DateTime fromUtc,
             DateTime toUtc,
+            bool includeOfferRedemptions,
+            bool includeGuestConsent,
             CancellationToken cancellationToken = default
         );
 

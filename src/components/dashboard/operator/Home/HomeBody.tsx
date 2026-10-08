@@ -80,6 +80,8 @@ type HomeBodyProps = {
   onDismissRecommendation?: () => void
   weeklyBrief: OperatorHomeWeeklyBriefViewModel
   onRetryWeeklyBrief?: () => void
+  /** Pilot plan — empty Weekly brief copy explains exclusion. */
+  isPilot?: boolean
   liveOffersLoadStatus?: "idle" | "loading" | "loaded" | "error"
   liveCards?: readonly OperatorHomeLiveCard[]
   liveOffersError?: string | null
@@ -105,6 +107,10 @@ type HomeBodyProps = {
   onViewAllActivity?: (tabId: HomeLatestActivityViewAllTabId) => void
   onFeedbackDetailsOpenChange?: (open: boolean) => void
   onRetryFeedbackDetails?: () => void
+  /** FD — open Respond to guest from Feedback detail. */
+  onRespondToGuest?: () => void
+  /** FD — open Add Offer from Feedback detail. */
+  onAddOffer?: () => void
   onStartClassificationCorrection?: () => void
   onClassificationDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onClassificationDraftReasonChange?: (
@@ -169,6 +175,7 @@ export function HomeBody({
   onDismissRecommendation,
   weeklyBrief,
   onRetryWeeklyBrief,
+  isPilot = false,
   liveOffersLoadStatus = "idle",
   liveCards = [],
   liveOffersError = null,
@@ -191,6 +198,8 @@ export function HomeBody({
   onViewAllActivity,
   onFeedbackDetailsOpenChange,
   onRetryFeedbackDetails,
+  onRespondToGuest,
+  onAddOffer,
   onStartClassificationCorrection,
   onClassificationDraftSentimentChange,
   onClassificationDraftReasonChange,
@@ -360,6 +369,7 @@ export function HomeBody({
 
       <HomeWeeklyBriefSection
         weeklyBrief={weeklyBrief}
+        isPilot={isPilot}
         onRetry={() => {
           onRetryWeeklyBrief?.()
         }}
@@ -420,6 +430,8 @@ export function HomeBody({
         onSetCloseOutAcknowledged={onSetFeedbackCloseOutAcknowledged}
         onConfirmCloseOut={onConfirmFeedbackCloseOut}
         onViewGuestProfile={onViewGuestProfile}
+        onRespondToGuest={onRespondToGuest}
+        onAddOffer={onAddOffer}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}
         onStartNoteEdit={onStartFeedbackNoteEdit}

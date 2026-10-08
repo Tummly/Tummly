@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button"
 import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import { ShopPaidWriteHelperNote } from "@/components/dashboard/operator/Shop/ShopPaidWriteHelperNote"
+import { OPERATOR_RIGHT_SHEET_WIDTH_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
+import { cn } from "@/lib/utils"
 
 export type CartItem = {
   product: ShopProduct
@@ -53,7 +55,10 @@ export function ShopCartDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="z-50 flex w-full flex-col justify-between border-l border-op-border-default bg-op-card-background p-6 sm:max-w-md"
+        className={cn(
+          OPERATOR_RIGHT_SHEET_WIDTH_CLASS,
+          "z-50 flex flex-col justify-between rounded-none border-l border-op-border-default bg-op-card-background p-6"
+        )}
       >
         <div className="flex flex-col gap-6 overflow-y-auto pr-1">
           <SheetHeader className="text-left">

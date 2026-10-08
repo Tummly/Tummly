@@ -40,7 +40,7 @@ export const REPORTS_PAGE_HEADER_COPY_CLASS =
   "flex min-w-0 flex-1 flex-col gap-3.5 leading-[0]"
 
 export const REPORTS_PAGE_TITLE_CLASS =
-  "m-0 text-2xl font-bold leading-10 text-op-card-title-color sm:text-[32px]"
+  "m-0 text-2xl font-bold leading-none text-op-card-title-color sm:text-[32px]"
 
 export const REPORTS_PAGE_SUBTITLE_CLASS =
   "m-0 text-base font-medium leading-5 text-op-text-muted"
@@ -121,7 +121,7 @@ export const REPORTS_EMPTY_COPY_STACK_CLASS =
   "flex flex-col items-center gap-2.5 text-center"
 
 export const REPORTS_EMPTY_TITLE_CLASS =
-  "m-0 text-base font-medium leading-normal text-op-empty-title-color"
+  "m-0 text-base font-medium leading-none text-op-empty-title-color"
 
 /** Figma Main Bg / Subtitle — Operator gray-550 (#7c7c7c), max width 450. */
 export const REPORTS_EMPTY_HELPER_CLASS =
@@ -135,7 +135,7 @@ export const REPORTS_INSIGHT_BANNER_CLASS =
   "flex items-start gap-3 rounded-sm border border-op-border-default/60 bg-op-background-primary/80 p-4"
 
 export const REPORTS_INSIGHT_TITLE_CLASS =
-  "m-0 text-sm font-semibold leading-normal text-op-text-primary"
+  "m-0 text-sm font-semibold leading-none text-op-text-primary"
 
 export const REPORTS_INSIGHT_BODY_CLASS =
   "m-0 text-sm font-medium leading-relaxed text-op-text-muted"

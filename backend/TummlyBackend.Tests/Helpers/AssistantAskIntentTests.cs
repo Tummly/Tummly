@@ -85,6 +85,8 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData("send it now")]
         [InlineData("change the status")]
         [InlineData("mark as resolved")]
+        [InlineData("change plan")]
+        [InlineData("buy credits with Revolut")]
         public void Classify_RealMutateAsks_StayMutate(string message)
         {
             Assert.Equal(
@@ -92,6 +94,21 @@ namespace TummlyBackend.Tests.Helpers
                 AssistantAskIntent.Classify(message)
             );
             Assert.True(AssistantAskIntent.LooksLikeMutateAsk(message));
+        }
+
+        [Theory]
+        [InlineData("What's billing Does my account have at the moment?")]
+        [InlineData("How many AI credits do I have?")]
+        [InlineData("What plan am I on?")]
+        public void HasRetrieveAsk_BillingAndCredits_IsTrue(string message)
+        {
+            Assert.True(AssistantAskIntent.HasRetrieveAsk(message));
+            Assert.False(AssistantAskIntent.LooksLikeOutOfAllowList(message));
+            Assert.False(
+                AssistantAskIntent.IsFullRefusal(
+                    AssistantAskIntent.Classify(message)
+                )
+            );
         }
     }
 }

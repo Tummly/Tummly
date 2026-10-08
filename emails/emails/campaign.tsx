@@ -115,9 +115,6 @@ CampaignEmail.PreviewProps = {
       <div style="margin:0 0 14px 0;padding:15px 22px;border:1px solid #2f2f30;border-radius:14px;background:rgba(54,54,56,0.15);">
         <p style="margin:0;font-size:14px;font-weight:400;color:#7d7d7d;">BURGERCO-4829</p>
       </div>
-      <div style="margin:0 0 12px 0;padding:16px;border-radius:54px;background:#232323;">
-        <p style="margin:0;font-size:14px;font-weight:500;color:#777777;">Copy offer code</p>
-      </div>
       <table role="presentation" width="100%" style="border-collapse:collapse;">
         <tr>
           <td align="left" style="font-size:12px;font-weight:500;line-height:17px;color:rgba(244,244,244,0.5);">Terms apply</td>

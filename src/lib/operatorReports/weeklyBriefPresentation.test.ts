@@ -12,6 +12,7 @@ import {
   shouldShowWeeklyBriefFeedbackSummary,
   shouldShowWeeklyBriefRecommendedActions,
   shouldShowWeeklyBriefSuggestedCampaign,
+  shouldShowWeeklyBriefWatchNext,
   shouldShowWeeklyBriefWhatChanged,
   weeklyBriefMarkAsReviewedLabel,
 } from "@/lib/operatorReports/weeklyBriefPresentation"
@@ -84,6 +85,15 @@ describe("weeklyBriefPresentation", () => {
           meaning: "More guests are engaging with your QR placements.",
         },
       ])
+    ).toBe(true)
+  })
+
+  it("omits Watch next when empty and shows when lines exist", () => {
+    expect(shouldShowWeeklyBriefWatchNext([])).toBe(false)
+    expect(shouldShowWeeklyBriefWatchNext(null)).toBe(false)
+    expect(shouldShowWeeklyBriefWatchNext(undefined)).toBe(false)
+    expect(
+      shouldShowWeeklyBriefWatchNext(["Follow up on delivery notes"])
     ).toBe(true)
   })
 

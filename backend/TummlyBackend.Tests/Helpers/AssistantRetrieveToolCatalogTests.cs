@@ -53,5 +53,37 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
         }
+
+        [Fact]
+        public void BuildToolsArray_IncludesBillingPlanRead()
+        {
+            var tools = AssistantRetrieveToolCatalog.BuildToolsArray();
+            var names = tools
+                .Select(node => node!["function"]!["name"]!.GetValue<string>())
+                .ToHashSet(StringComparer.Ordinal);
+
+            Assert.Contains(AssistantRetrieveToolCatalog.ReadBillingPlan, names);
+            Assert.True(
+                AssistantRetrieveToolCatalog.IsKnown(
+                    AssistantRetrieveToolCatalog.ReadBillingPlan
+                )
+            );
+            Assert.DoesNotContain(
+                AssistantRetrieveToolCatalog.ReadBillingPlan,
+                AssistantRetrieveToolCatalog.DomainReads
+            );
+        }
+
+        [Fact]
+        public void DomainReadsForFocus_Billing_ReturnsBillingToolOnly()
+        {
+            var tools = AssistantRetrieveToolCatalog.DomainReadsForFocus(
+                AssistantAskFocusKind.Billing
+            );
+            Assert.Equal(
+                [AssistantRetrieveToolCatalog.ReadBillingPlan],
+                tools
+            );
+        }
     }
 }

@@ -707,12 +707,14 @@ namespace TummlyBackend.Services
                 && AssistantProductExpertTopics.IsMixedRetrieve(userMessage);
             var pureProductExpert = productExpertTurn && !mixedProductRetrieve;
 
-            // NL Analysis scope overrides (period + all locations) before compare
+            // NL Analysis scope overrides (period + locations) before compare
             // resolve so auto-promote to All avoids ClarifyUnnamed and tools use
             // the effective window.
             var scopeChange = AssistantScopeOverride.Apply(
                 userMessage,
                 scope,
+                DateTime.UtcNow,
+                locationRefs,
                 out _,
                 out var locationsChanged
             );
@@ -720,11 +722,11 @@ namespace TummlyBackend.Services
             {
                 var copyName = AssistantAnalysisScope.IsAll(scope)
                     ? AssistantAnalysisScope.AllLocationsChromeName
-                    : locationName;
+                    : scope.OwnedLocationName;
                 AssistantAnalysisScope.CopyToConversation(conversation, scope, copyName);
                 if (locationsChanged)
                 {
-                    locationName = AssistantAnalysisScope.AllLocationsChromeName;
+                    locationName = copyName;
                 }
 
                 _pendingScopeChange = scopeChange;

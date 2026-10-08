@@ -1,6 +1,5 @@
-import { isAxiosError } from "axios"
-
 import axiosInstance from "./axiosInstance"
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 
 export type MyAccountLocationAccess = {
   locationName: string
@@ -37,13 +36,7 @@ type AccountApiEnvelope = {
 }
 
 function readApiMessage(error: unknown, fallback: string): string {
-  if (isAxiosError<{ message?: string }>(error)) {
-    const message = error.response?.data?.message
-    if (typeof message === "string" && message.trim().length > 0) {
-      return message
-    }
-  }
-  return fallback
+  return getUserFacingApiErrorMessage(error, fallback)
 }
 
 export async function getMyAccount(): Promise<MyAccountSnapshot> {

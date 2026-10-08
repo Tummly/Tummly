@@ -395,7 +395,14 @@ namespace TummlyBackend.Services
                 return [];
             }
 
-            return AssistantRetrieveToolCatalog.DomainReads;
+            if (AssistantAttentionAsk.IsAttentionRetrieve(input.UserMessage))
+            {
+                return AssistantRetrieveToolCatalog.DomainReads;
+            }
+
+            return AssistantRetrieveToolCatalog.DomainReadsForFocus(
+                AssistantAskFocus.Detect(input.UserMessage)
+            );
         }
 
         private async Task<AttemptResult> SendChatAsync(

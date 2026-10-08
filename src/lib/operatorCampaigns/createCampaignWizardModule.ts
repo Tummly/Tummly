@@ -1,3 +1,4 @@
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import { isCampaignBillingReserveUnavailableError } from "@/lib/operatorCampaigns/campaignBillingReserveUnavailableError"
 import {
   CAMPAIGN_COMMIT_COPY,
@@ -2608,8 +2609,11 @@ export function createCampaignWizardModule(
         commitError = resolveBillingReserveUnavailableCopy({
           billingReserveLive,
         })
-      } else if (error instanceof Error && error.message.trim().length > 0) {
-        commitError = error.message.trim()
+      } else {
+        commitError = getUserFacingApiErrorMessage(
+          error,
+          CAMPAIGN_COMMIT_COPY.reserveFailedDefault
+        )
       }
       state = {
         ...state,

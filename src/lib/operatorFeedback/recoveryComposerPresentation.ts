@@ -1,4 +1,5 @@
 import type { ContactType, LocationGuestMarketingPreference } from "@/types/dashboard"
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import {
   parseFeedbackDetailPermissionStates,
   parseFeedbackDetailRestaurantPermissions,
@@ -165,13 +166,10 @@ export function shouldDetachOfferOnEligibilityLoss(input: {
 }
 
 function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message
-  }
   if (typeof error === "string") {
     return error
   }
-  return ""
+  return getUserFacingApiErrorMessage(error, "")
 }
 
 /** Map API / transport failures to RC-03 send-state copy. */

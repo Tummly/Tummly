@@ -188,10 +188,10 @@ namespace TummlyBackend.Helpers
             );
         }
 
-        public static (byte[] Content, string FileName) RenderFeedbackXlsx(
+        public static (byte[] Content, string FileName) RenderFeedbackRowsXlsx(
             IReadOnlyList<(
                 LocationContext Location,
-                ReportsFeedbackDto Dto
+                IReadOnlyList<ReportsExportFeedbackRowDto> Rows
             )> locations,
             DateTime fromUtc,
             DateTime toUtc,
@@ -212,13 +212,24 @@ namespace TummlyBackend.Helpers
             var sheets = new List<ReportsStyledXlsxWriter.DataSheet>();
             for (var i = 0; i < locations.Count; i++)
             {
+                var location = locations[i].Location;
+                var dataRows = locations[i].Rows
+                    .Select(ReportsExportFeedbackRows.ToCsvRow)
+                    .Cast<IReadOnlyList<string>>()
+                    .ToList();
                 sheets.Add(
-                    BuildFeedbackSheet(
+                    new ReportsStyledXlsxWriter.DataSheet(
                         names[i],
-                        locations[i].Location,
-                        locations[i].Dto,
-                        period,
-                        utcNow
+                        "Feedback Report",
+                        new ReportsStyledXlsxWriter.SheetMeta(
+                            location.RestaurantName,
+                            location.LocationName,
+                            period,
+                            utcNow
+                        ),
+                        ReportsExportFeedbackRows.Headers,
+                        dataRows,
+                        FeedbackWidths
                     )
                 );
             }
@@ -551,10 +562,17 @@ namespace TummlyBackend.Helpers
                 "Form opens",
                 "Feedback",
                 "Contactable",
+                "Claims",
+                "Conversion",
             };
             var rows = new List<IReadOnlyList<string>>();
             foreach (var row in dto.Placements ?? [])
             {
+                var conversion =
+                    row.ConversionPercent is double pct
+                        ? pct.ToString("0.0", CultureInfo.InvariantCulture)
+                            + "%"
+                        : string.Empty;
                 rows.Add(
                     [
                         row.QrCodeId.ToString(CultureInfo.InvariantCulture),
@@ -563,9 +581,12 @@ namespace TummlyBackend.Helpers
                         location.LocationName,
                         row.Status,
                         Int(row.Scans),
-                        string.Empty,
+                        row.FormOpens?.ToString(CultureInfo.InvariantCulture)
+                            ?? string.Empty,
                         Int(row.Feedback),
                         Int(row.Contactable),
+                        Int(row.Claims),
+                        conversion,
                     ]
                 );
             }
@@ -697,9 +718,11 @@ namespace TummlyBackend.Helpers
                 "Goal",
                 "Channel",
                 "Sent",
+                "Delivered",
                 "Claims",
                 "Redemptions",
-                "Unsubscribes",
+                "Unsubs",
+                "Failed",
                 "Status",
             };
             var rows = new List<IReadOnlyList<string>>();
@@ -712,9 +735,11 @@ namespace TummlyBackend.Helpers
                         row.Goal ?? string.Empty,
                         row.Channel ?? string.Empty,
                         Int(row.Sent),
+                        Int(row.Delivered),
                         Int(row.Claims),
                         Int(row.Redemptions),
                         Int(row.Unsubscribes),
+                        Int(row.Failed),
                         row.Status,
                     ]
                 );

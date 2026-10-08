@@ -1,3 +1,5 @@
+using TummlyBackend.DTOs.Offers;
+
 namespace TummlyBackend.Interfaces
 {
     public interface IOffersRedemptionsExportService
@@ -11,6 +13,14 @@ namespace TummlyBackend.Interfaces
 
         Task<ReportsExportFileResult> ExportXlsxAsync(
             IReadOnlyList<int> locationIds,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>Windowed redemption rows for PDF / CSV (REP-03).</summary>
+        Task<IReadOnlyList<OfferDetailsRedemptionListItemDto>> ListRowsAsync(
+            int locationId,
             DateTime fromUtc,
             DateTime toUtc,
             CancellationToken cancellationToken = default

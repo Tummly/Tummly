@@ -10,9 +10,9 @@ import {
 } from "./oauthErrorCopy"
 
 describe("getOAuthErrorMessage", () => {
-  it("maps account_exists", () => {
+  it("maps account_exists for late Sign-up", () => {
     expect(getOAuthErrorMessage("account_exists", "login")).toBe(
-      "An account with this email already exists. Sign in with email and password."
+      "This email already has a Sign-up in progress. Continue that Sign-up, or Sign in if you already finished."
     )
   })
 

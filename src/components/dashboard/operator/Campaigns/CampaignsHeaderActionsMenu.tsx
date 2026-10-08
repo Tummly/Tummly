@@ -1,4 +1,4 @@
-import { Fragment } from "react"
+import { Fragment, useRef } from "react"
 import { Link } from "react-router-dom"
 import { MoreVerticalIcon } from "lucide-react"
 
@@ -30,6 +30,9 @@ export function CampaignsHeaderActionsMenu({
   campaignHelpUrl,
   onViewMessagingUsage,
 }: CampaignsHeaderActionsMenuProps) {
+  // Closing the menu focuses the ⋮ trigger again; that undoes scrollIntoView.
+  const skipCloseAutoFocusRef = useRef(false)
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -43,7 +46,17 @@ export function CampaignsHeaderActionsMenu({
           <MoreVerticalIcon className="size-6" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={GUESTS_ROW_ACTIONS_MENU_CLASS}>
+      <DropdownMenuContent
+        align="end"
+        className={GUESTS_ROW_ACTIONS_MENU_CLASS}
+        onCloseAutoFocus={(event) => {
+          if (!skipCloseAutoFocusRef.current) {
+            return
+          }
+          event.preventDefault()
+          skipCloseAutoFocusRef.current = false
+        }}
+      >
         {CAMPAIGNS_HEADER_OVERFLOW_ACTIONS.map((action, index) => (
           <Fragment key={action.id}>
             {index > 0 ? (
@@ -62,6 +75,7 @@ export function CampaignsHeaderActionsMenu({
               <DropdownMenuItem
                 className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                 onSelect={() => {
+                  skipCloseAutoFocusRef.current = true
                   onViewMessagingUsage()
                 }}
               >

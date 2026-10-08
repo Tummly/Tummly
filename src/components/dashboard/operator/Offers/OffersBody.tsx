@@ -38,6 +38,8 @@ type OffersBodyProps = {
   viewModel: OperatorOffersPageViewModel
   createOfferDrawer: OperatorOffersCreateOfferDrawerViewModel | null
   redemptionLogHref: string
+  /** When false, hide Create Offer and write empty-state CTAs (Staff view chrome). */
+  canManageOffers?: boolean
   onOpenCreateOffer: () => void
   onCreateOfferFromEmpty: () => void
   onUseTemplateFromEmpty: () => void
@@ -71,6 +73,7 @@ export function OffersBody({
   viewModel,
   createOfferDrawer,
   redemptionLogHref,
+  canManageOffers = true,
   onOpenCreateOffer,
   onCreateOfferFromEmpty,
   onUseTemplateFromEmpty,
@@ -106,18 +109,24 @@ export function OffersBody({
         </header>
 
         <div className="flex shrink-0 flex-wrap items-center gap-3">
+          {canManageOffers ? (
+            <Button
+              type="button"
+              variant="op-primary"
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+              onClick={onOpenCreateOffer}
+            >
+              {viewModel.header.createOfferLabel}
+            </Button>
+          ) : null}
           <Button
             type="button"
-            variant="op-primary"
-            className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-            onClick={onOpenCreateOffer}
-          >
-            {viewModel.header.createOfferLabel}
-          </Button>
-          <Button
-            type="button"
-            variant="op-secondary"
-            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            variant={canManageOffers ? "op-secondary" : "op-primary"}
+            className={
+              canManageOffers
+                ? GUESTS_PAGE_SECONDARY_BUTTON_CLASS
+                : GUESTS_PAGE_PRIMARY_BUTTON_CLASS
+            }
             onClick={onOpenStaffRedeem}
           >
             {viewModel.header.openStaffRedeemLabel}
@@ -149,6 +158,7 @@ export function OffersBody({
       <OffersListSection
         tabContentStatus={tabContentStatus}
         list={viewModel.list}
+        canManageOffers={canManageOffers}
         onViewChange={onListViewChange}
         onSearchQueryChange={onSearchQueryChange}
         onSortChange={onSortChange}
@@ -164,7 +174,7 @@ export function OffersBody({
         onClearAllFilters={onClearAllFilters}
       />
 
-      {createOfferDrawer != null ? (
+      {canManageOffers && createOfferDrawer != null ? (
         <CreateEditOfferDrawer
           open={createOfferDrawer.open}
           mode={createOfferDrawer.mode}

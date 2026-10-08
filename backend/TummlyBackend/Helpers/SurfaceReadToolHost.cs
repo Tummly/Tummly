@@ -127,6 +127,10 @@ namespace TummlyBackend.Helpers
                             ["coverageStartUtc"] = input.CoverageStartUtc.ToString("O"),
                             ["coverageEndUtcExclusive"] =
                                 input.CoverageEndUtcExclusive.ToString("O"),
+                            ["insightCandidates"] =
+                                WeeklyBriefStructuredOutput.ToInsightCandidatesJson(
+                                    input.InsightCandidates
+                                ),
                             ["metrics"] = new JsonObject
                             {
                                 ["guestsJoined"] = metrics.GuestsJoined,
@@ -229,6 +233,18 @@ namespace TummlyBackend.Helpers
                                 ["needsRecovery"] = metrics.NeedsRecovery,
                                 ["positiveFeedback"] = metrics.PositiveFeedback,
                                 ["dormantGuests"] = metrics.DormantGuests,
+                                ["openFeedbackCount"] = metrics.OpenFeedbackCount,
+                                ["needsAttentionCount"] =
+                                    metrics.NeedsAttentionCount,
+                                ["activeOffers"] = metrics.ActiveOffers,
+                                ["offerNeedsAttentionCount"] =
+                                    metrics.OfferNeedsAttentionCount,
+                                ["campaignsSentInWindow"] =
+                                    metrics.CampaignsSentInWindow,
+                                ["uniqueEmailOpensInWindow"] =
+                                    metrics.UniqueEmailOpensInWindow,
+                                ["campaignAttributedRedemptionsInWindow"] =
+                                    metrics.CampaignAttributedRedemptionsInWindow,
                             },
                         }
                     )

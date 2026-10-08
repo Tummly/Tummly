@@ -50,7 +50,8 @@ namespace TummlyBackend.Models
         string WeekKey,
         DateTime CoverageStartUtc,
         DateTime CoverageEndUtcExclusive,
-        WeeklyBriefMetrics Metrics
+        WeeklyBriefMetrics Metrics,
+        WeeklyBriefInsightCandidateBag? InsightCandidates = null
     );
 
     /// <summary>

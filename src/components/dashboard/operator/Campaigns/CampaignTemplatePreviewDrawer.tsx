@@ -11,6 +11,7 @@ import {
   CAMPAIGN_TEMPLATE_PREVIEW_FIELD_VALUE_CLASS,
   CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS,
   CAMPAIGN_TEMPLATE_PREVIEW_SECTION_TITLE_CLASS,
+  CAMPAIGN_TEMPLATE_PREVIEW_TIMING_ICON_WELL_CLASS,
 } from "@/lib/operatorCampaigns/campaignTemplatePreviewPresentation"
 import type {
   CampaignTemplatePreviewSnapshot,
@@ -279,7 +280,7 @@ function PreviewBody({
           {copy.suggestedTiming}
         </h2>
         <div className="flex w-full items-center gap-2.5 rounded-[4px] border border-op-card-border px-[18px] py-4">
-          <div className="flex shrink-0 items-center rounded-[2px] bg-[var(--op-color-gray-1000)] p-2.5">
+          <div className={CAMPAIGN_TEMPLATE_PREVIEW_TIMING_ICON_WELL_CLASS}>
             <CalendarIcon
               className="size-4 text-op-text-primary"
               aria-hidden

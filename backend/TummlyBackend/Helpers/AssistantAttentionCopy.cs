@@ -16,11 +16,63 @@ namespace TummlyBackend.Helpers
         public const string RecommendationNone =
             "A recommended action will appear once there is enough guest activity.";
 
-        public const string WeeklyBriefEmptyTitle =
+        public const string WeeklyBriefEmptyTitlePending =
             "Your first weekly brief will be ready on Monday";
+
+        public const string WeeklyBriefEmptyTitleGenerateDay =
+            "Your weekly brief is being generated";
+
+        public const string WeeklyBriefEmptyTitlePilot =
+            "Weekly brief is not included on Pilot";
+
+        /// <summary>
+        /// Pending (non-generate-day) title. Prefer
+        /// <see cref="ResolveWeeklyBriefEmptyTitle"/>.
+        /// </summary>
+        public const string WeeklyBriefEmptyTitle = WeeklyBriefEmptyTitlePending;
 
         public const string WeeklyBriefEmptyHelper =
             "It will summarise guest activity, feedback themes, offers and campaigns.";
+
+        public const string WeeklyBriefEmptyHelperGenerateDay =
+            "Check back shortly — it usually appears within the hour. If it fails, use Retry.";
+
+        public const string WeeklyBriefEmptyHelperPilot =
+            "Upgrade to a paid plan to receive your weekly summary of guest activity.";
+
+        /// <summary>
+        /// Day-aware / Pilot-aware empty title. On generate day never promise
+        /// “will be ready on Monday”.
+        /// </summary>
+        public static string ResolveWeeklyBriefEmptyTitle(
+            bool isGenerateDay,
+            bool isPilot = false
+        )
+        {
+            if (isPilot)
+            {
+                return WeeklyBriefEmptyTitlePilot;
+            }
+
+            return isGenerateDay
+                ? WeeklyBriefEmptyTitleGenerateDay
+                : WeeklyBriefEmptyTitlePending;
+        }
+
+        public static string ResolveWeeklyBriefEmptyHelper(
+            bool isGenerateDay,
+            bool isPilot = false
+        )
+        {
+            if (isPilot)
+            {
+                return WeeklyBriefEmptyHelperPilot;
+            }
+
+            return isGenerateDay
+                ? WeeklyBriefEmptyHelperGenerateDay
+                : WeeklyBriefEmptyHelper;
+        }
 
         public const string NeedsAttentionLoadError =
             "Could not load Needs attention. Please try again.";
@@ -124,9 +176,15 @@ namespace TummlyBackend.Helpers
             return $"{WeeklyBriefClock(locationName, weekKey)}\n\n## Data\n{data}";
         }
 
-        public static string WeeklyBriefEmptyBody(string locationName, string weekKey)
+        public static string WeeklyBriefEmptyBody(
+            string locationName,
+            string weekKey,
+            bool isGenerateDay = false,
+            bool isPilot = false
+        )
             => $"{WeeklyBriefClock(locationName, weekKey)}\n\n## Data\n"
-                + $"{WeeklyBriefEmptyTitle}\n{WeeklyBriefEmptyHelper}";
+                + $"{ResolveWeeklyBriefEmptyTitle(isGenerateDay, isPilot)}\n"
+                + $"{ResolveWeeklyBriefEmptyHelper(isGenerateDay, isPilot)}";
 
         public static string WeeklyBriefErrorBody(string locationName, string weekKey)
             => $"{WeeklyBriefClock(locationName, weekKey)}\n\n## Data\n"

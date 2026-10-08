@@ -1,5 +1,17 @@
 import { resolveInitialLocationId } from "@/lib/operatorHome/buildHomeViewModel"
-import { parseOperatorProfile, parseTeamPermissionsAccess, parseBillingCreditsAccess, parseOffersAccess, parsePrivacyConsentAccess, type BillingCreditsAccess, type OffersAccess, type PrivacyConsentAccess, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
+import {
+  parseOperatorProfile,
+  parseTeamPermissionsAccess,
+  parseBillingCreditsAccess,
+  parseOffersAccess,
+  parsePrivacyConsentAccess,
+  parseOperatorAreaChromeAccess,
+  type BillingCreditsAccess,
+  type OffersAccess,
+  type OperatorAreaChromeAccess,
+  type PrivacyConsentAccess,
+  type TeamPermissionsAccess,
+} from "@/lib/operatorHome/parseOperatorProfile"
 import type { LocationItem, LocationsResponse } from "@/types/dashboard"
 
 export type OperatorWorkspaceMode = "single" | "multi"
@@ -13,11 +25,20 @@ export type OperatorWorkspaceSnapshot = {
   brandLogoPublicUrl: string | null
   operatorDisplayName: string
   activationExpiresAt: string | null
+  jobTitle: string | null
   selfRole: string | null
   teamPermissionsAccess: TeamPermissionsAccess
   billingCreditsAccess: BillingCreditsAccess
   offersAccess: OffersAccess
   privacyConsentAccess: PrivacyConsentAccess
+  guestsAccess: OperatorAreaChromeAccess
+  captureAccess: OperatorAreaChromeAccess
+  feedbackAccess: OperatorAreaChromeAccess
+  campaignsAccess: OperatorAreaChromeAccess
+  reportsAccess: OperatorAreaChromeAccess
+  tummlyShopAccess: OperatorAreaChromeAccess
+  locationsAccess: OperatorAreaChromeAccess
+  accountWorkspaceAccess: OperatorAreaChromeAccess
   subscriptionPlan: string
   billingStatus: string
   /** Omit / false = not restricted (chrome stays available). */
@@ -47,7 +68,10 @@ export type OperatorWorkspaceSession = {
     restaurantName: string
     brandLogoPublicUrl: string | null
   }) => void
-  applyOperatorDisplayName: (fullName: string) => void
+  applyOperatorProfile: (input: {
+    fullName: string
+    jobTitle: string | null
+  }) => void
 }
 
 type WorkspaceState = OperatorWorkspaceSnapshot & {
@@ -64,11 +88,20 @@ type WorkspaceAction =
       brandLogoPublicUrl: string | null
       operatorDisplayName: string
       activationExpiresAt: string | null
+      jobTitle: string | null
       selfRole: string | null
       teamPermissionsAccess: TeamPermissionsAccess
       billingCreditsAccess: BillingCreditsAccess
       offersAccess: OffersAccess
       privacyConsentAccess: PrivacyConsentAccess
+      guestsAccess: OperatorAreaChromeAccess
+      captureAccess: OperatorAreaChromeAccess
+      feedbackAccess: OperatorAreaChromeAccess
+      campaignsAccess: OperatorAreaChromeAccess
+      reportsAccess: OperatorAreaChromeAccess
+      tummlyShopAccess: OperatorAreaChromeAccess
+      locationsAccess: OperatorAreaChromeAccess
+      accountWorkspaceAccess: OperatorAreaChromeAccess
       subscriptionPlan: string
       billingStatus: string
       chargebackRestricted: boolean
@@ -85,7 +118,11 @@ type WorkspaceAction =
       restaurantName: string
       brandLogoPublicUrl: string | null
     }
-  | { type: "apply_operator_display_name"; operatorDisplayName: string }
+  | {
+      type: "apply_operator_profile"
+      operatorDisplayName: string
+      jobTitle: string | null
+    }
 
 function isOwnedLocationId(
   locations: LocationItem[],
@@ -114,11 +151,20 @@ function reduce(
         brandLogoPublicUrl: action.brandLogoPublicUrl,
         operatorDisplayName: action.operatorDisplayName,
         activationExpiresAt: action.activationExpiresAt,
+        jobTitle: action.jobTitle,
         selfRole: action.selfRole,
         teamPermissionsAccess: action.teamPermissionsAccess,
         billingCreditsAccess: action.billingCreditsAccess,
         offersAccess: action.offersAccess,
         privacyConsentAccess: action.privacyConsentAccess,
+        guestsAccess: action.guestsAccess,
+        captureAccess: action.captureAccess,
+        feedbackAccess: action.feedbackAccess,
+        campaignsAccess: action.campaignsAccess,
+        reportsAccess: action.reportsAccess,
+        tummlyShopAccess: action.tummlyShopAccess,
+        locationsAccess: action.locationsAccess,
+        accountWorkspaceAccess: action.accountWorkspaceAccess,
         subscriptionPlan: action.subscriptionPlan,
         billingStatus: action.billingStatus,
         chargebackRestricted: action.chargebackRestricted,
@@ -139,10 +185,11 @@ function reduce(
         restaurantName: action.restaurantName,
         brandLogoPublicUrl: action.brandLogoPublicUrl,
       }
-    case "apply_operator_display_name":
+    case "apply_operator_profile":
       return {
         ...state,
         operatorDisplayName: action.operatorDisplayName,
+        jobTitle: action.jobTitle,
       }
     default:
       return state
@@ -162,11 +209,20 @@ export function createOperatorWorkspaceSession(
     brandLogoPublicUrl: null,
     operatorDisplayName: "Operator",
     activationExpiresAt: null,
+    jobTitle: null,
     selfRole: null,
     teamPermissionsAccess: "none",
     billingCreditsAccess: "none",
     offersAccess: "none",
     privacyConsentAccess: "none",
+    guestsAccess: "none",
+    captureAccess: "none",
+    feedbackAccess: "none",
+    campaignsAccess: "none",
+    reportsAccess: "none",
+    tummlyShopAccess: "none",
+    locationsAccess: "none",
+    accountWorkspaceAccess: "none",
     subscriptionPlan: "Pilot",
     billingStatus: "Pilot",
     chargebackRestricted: false,
@@ -186,11 +242,20 @@ export function createOperatorWorkspaceSession(
     brandLogoPublicUrl: state.brandLogoPublicUrl,
     operatorDisplayName: state.operatorDisplayName,
     activationExpiresAt: state.activationExpiresAt,
+    jobTitle: state.jobTitle,
     selfRole: state.selfRole,
     teamPermissionsAccess: state.teamPermissionsAccess,
     billingCreditsAccess: state.billingCreditsAccess,
     offersAccess: state.offersAccess,
     privacyConsentAccess: state.privacyConsentAccess,
+    guestsAccess: state.guestsAccess,
+    captureAccess: state.captureAccess,
+    feedbackAccess: state.feedbackAccess,
+    campaignsAccess: state.campaignsAccess,
+    reportsAccess: state.reportsAccess,
+    tummlyShopAccess: state.tummlyShopAccess,
+    locationsAccess: state.locationsAccess,
+    accountWorkspaceAccess: state.accountWorkspaceAccess,
     subscriptionPlan: state.subscriptionPlan,
     billingStatus: state.billingStatus,
     chargebackRestricted: state.chargebackRestricted,
@@ -218,11 +283,20 @@ export function createOperatorWorkspaceSession(
       brandLogoPublicUrl: state.brandLogoPublicUrl,
       operatorDisplayName: state.operatorDisplayName,
       activationExpiresAt: state.activationExpiresAt,
+      jobTitle: state.jobTitle,
       selfRole: state.selfRole,
       teamPermissionsAccess: state.teamPermissionsAccess,
       billingCreditsAccess: state.billingCreditsAccess,
       offersAccess: state.offersAccess,
       privacyConsentAccess: state.privacyConsentAccess,
+      guestsAccess: state.guestsAccess,
+      captureAccess: state.captureAccess,
+      feedbackAccess: state.feedbackAccess,
+      campaignsAccess: state.campaignsAccess,
+      reportsAccess: state.reportsAccess,
+      tummlyShopAccess: state.tummlyShopAccess,
+      locationsAccess: state.locationsAccess,
+      accountWorkspaceAccess: state.accountWorkspaceAccess,
       subscriptionPlan: state.subscriptionPlan,
       billingStatus: state.billingStatus,
       chargebackRestricted: state.chargebackRestricted,
@@ -279,6 +353,7 @@ export function createOperatorWorkspaceSession(
         brandLogoPublicUrl: locationsResult.brandLogoPublicUrl ?? null,
         operatorDisplayName: profile?.fullName ?? "Operator",
         activationExpiresAt: profile?.activationExpiresAt ?? null,
+        jobTitle: profile?.jobTitle ?? null,
         selfRole: profile?.selfRole ?? null,
         teamPermissionsAccess:
           parseTeamPermissionsAccess(locationsResult.teamPermissionsAccess)
@@ -292,6 +367,31 @@ export function createOperatorWorkspaceSession(
           parseOffersAccess(locationsResult.offersAccess) ?? "manage",
         privacyConsentAccess:
           parsePrivacyConsentAccess(locationsResult.privacyConsentAccess)
+          ?? "manage",
+        // Omit → manage so Account-owner chrome stays until API fields land.
+        guestsAccess:
+          parseOperatorAreaChromeAccess(locationsResult.guestsAccess)
+          ?? "manage",
+        captureAccess:
+          parseOperatorAreaChromeAccess(locationsResult.captureAccess)
+          ?? "manage",
+        feedbackAccess:
+          parseOperatorAreaChromeAccess(locationsResult.feedbackAccess)
+          ?? "manage",
+        campaignsAccess:
+          parseOperatorAreaChromeAccess(locationsResult.campaignsAccess)
+          ?? "manage",
+        reportsAccess:
+          parseOperatorAreaChromeAccess(locationsResult.reportsAccess)
+          ?? "manage",
+        tummlyShopAccess:
+          parseOperatorAreaChromeAccess(locationsResult.tummlyShopAccess)
+          ?? "manage",
+        locationsAccess:
+          parseOperatorAreaChromeAccess(locationsResult.locationsAccess)
+          ?? "manage",
+        accountWorkspaceAccess:
+          parseOperatorAreaChromeAccess(locationsResult.accountWorkspaceAccess)
           ?? "manage",
         subscriptionPlan: locationsResult.subscriptionPlan ?? "Pilot",
         billingStatus: locationsResult.billingStatus ?? "Pilot",
@@ -358,7 +458,7 @@ export function createOperatorWorkspaceSession(
         brandLogoPublicUrl,
       })
     },
-    applyOperatorDisplayName: (fullName) => {
+    applyOperatorProfile: ({ fullName, jobTitle }) => {
       if (state.status !== "loaded") {
         return
       }
@@ -366,9 +466,12 @@ export function createOperatorWorkspaceSession(
       if (trimmed.length === 0) {
         return
       }
+      const trimmedJob = jobTitle?.trim()
       dispatch({
-        type: "apply_operator_display_name",
+        type: "apply_operator_profile",
         operatorDisplayName: trimmed,
+        jobTitle:
+          trimmedJob != null && trimmedJob.length > 0 ? trimmedJob : null,
       })
     },
   }

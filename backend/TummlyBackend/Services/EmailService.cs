@@ -79,12 +79,13 @@ namespace TummlyBackend.Services
          =========================================
         */
 
-        private async Task SendEmailAsync(
+        private async Task<string?> SendEmailAsync(
             string toEmail,
             string subject,
             string htmlBody,
             IReadOnlyList<EmailInlineImage>? inlineImages = null,
-            IReadOnlyList<EmailFileAttachment>? fileAttachments = null
+            IReadOnlyList<EmailFileAttachment>? fileAttachments = null,
+            IReadOnlyDictionary<string, string>? tags = null
         )
         {
             var (html, images) = EmbedLoopbackChromeImages(
@@ -94,14 +95,14 @@ namespace TummlyBackend.Services
 
             if (UsesResend)
             {
-                await SendViaResendAsync(
+                return await SendViaResendAsync(
                     toEmail,
                     subject,
                     html,
                     images,
-                    fileAttachments
+                    fileAttachments,
+                    tags
                 );
-                return;
             }
 
             await SendViaSmtpAsync(
@@ -111,6 +112,7 @@ namespace TummlyBackend.Services
                 images,
                 fileAttachments
             );
+            return null;
         }
 
         /// <summary>
@@ -212,12 +214,13 @@ namespace TummlyBackend.Services
             return (html, merged ?? inlineImages);
         }
 
-        private async Task SendViaResendAsync(
+        private async Task<string?> SendViaResendAsync(
             string toEmail,
             string subject,
             string htmlBody,
             IReadOnlyList<EmailInlineImage>? inlineImages,
-            IReadOnlyList<EmailFileAttachment>? fileAttachments
+            IReadOnlyList<EmailFileAttachment>? fileAttachments,
+            IReadOnlyDictionary<string, string>? tags = null
         )
         {
             var (deliverTo, html) =
@@ -231,6 +234,29 @@ namespace TummlyBackend.Services
                     ? subject
                     : $"[QA for {toEmail}] {subject}";
 
+            ResendTag[]? resendTags = null;
+            if (tags is { Count: > 0 })
+            {
+                resendTags = tags
+                    .Where(
+                        pair =>
+                            !string.IsNullOrWhiteSpace(pair.Key)
+                            && !string.IsNullOrWhiteSpace(pair.Value)
+                    )
+                    .Select(
+                        pair => new ResendTag
+                        {
+                            Name = pair.Key.Trim(),
+                            Value = pair.Value.Trim(),
+                        }
+                    )
+                    .ToArray();
+                if (resendTags.Length == 0)
+                {
+                    resendTags = null;
+                }
+            }
+
             var payload = new ResendEmailPayload
             {
                 From = FormatFromAddress(),
@@ -241,6 +267,7 @@ namespace TummlyBackend.Services
                     ? null
                     : _emailSettings.ReplyToEmail,
                 Attachments = ToResendAttachments(inlineImages, fileAttachments),
+                Tags = resendTags,
             };
 
             var client = _httpClientFactory.CreateClient("Resend");
@@ -260,17 +287,27 @@ namespace TummlyBackend.Services
 
             var response = await client.SendAsync(request);
 
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                return;
+                var errorBody =
+                    await response.Content.ReadAsStringAsync();
+
+                throw new InvalidOperationException(
+                    $"Failed to send email via Resend ({(int)response.StatusCode}): {errorBody}"
+                );
             }
 
-            var errorBody =
-                await response.Content.ReadAsStringAsync();
-
-            throw new InvalidOperationException(
-                $"Failed to send email via Resend ({(int)response.StatusCode}): {errorBody}"
-            );
+            try
+            {
+                var parsed =
+                    await response.Content.ReadFromJsonAsync<ResendSendResponse>();
+                var id = parsed?.Id?.Trim();
+                return string.IsNullOrWhiteSpace(id) ? null : id;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private (string DeliverTo, string Html) ApplyQaRedirect(
@@ -898,7 +935,43 @@ namespace TummlyBackend.Services
                 emailAssetsBaseUrl: GetEmailChromeBaseUrl()
             );
 
-            await SendEmailAsync(toEmail, subject, htmlBody);
+            _ = await SendEmailAsync(toEmail, subject, htmlBody);
+        }
+
+        public async Task<string?> SendCampaignGuestEmailAsync(
+            string toEmail,
+            string subject,
+            string brandTitle,
+            string? brandSubtitle,
+            string? locationAddress,
+            string message,
+            string? brandLogoUrl = null,
+            GuestResponseEmailOfferBlock? offer = null,
+            string? unsubscribeHref = null,
+            string? ticketSubject = null,
+            IReadOnlyDictionary<string, string>? tags = null
+        )
+        {
+            var htmlBody = GuestResponseEmailTemplate.Generate(
+                _environment,
+                brandTitle,
+                brandSubtitle,
+                locationAddress,
+                ticketSubject ?? subject,
+                message,
+                GetFrontendBaseUrl(),
+                brandLogoUrl,
+                offer,
+                unsubscribeHref,
+                emailAssetsBaseUrl: GetEmailChromeBaseUrl()
+            );
+
+            return await SendEmailAsync(
+                toEmail,
+                subject,
+                htmlBody,
+                tags: tags
+            );
         }
 
         public async Task SendTeamInvitationEmailAsync(
@@ -1296,6 +1369,25 @@ namespace TummlyBackend.Services
             [JsonPropertyName("attachments")]
             [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
             public ResendAttachment[]? Attachments { get; set; }
+
+            [JsonPropertyName("tags")]
+            [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+            public ResendTag[]? Tags { get; set; }
+        }
+
+        private sealed class ResendTag
+        {
+            [JsonPropertyName("name")]
+            public string Name { get; set; } = string.Empty;
+
+            [JsonPropertyName("value")]
+            public string Value { get; set; } = string.Empty;
+        }
+
+        private sealed class ResendSendResponse
+        {
+            [JsonPropertyName("id")]
+            public string? Id { get; set; }
         }
 
         private sealed class ResendAttachment

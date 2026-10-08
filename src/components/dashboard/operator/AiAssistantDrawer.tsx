@@ -1123,10 +1123,10 @@ export function AiAssistantDrawer({
             <AiAssistantLoadingBorder
               loading={snapshot.turnInFlight}
               className={cn(
-                "flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-l-[2px]",
+                "flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-none",
                 !snapshot.turnInFlight && "border-0"
               )}
-              contentClassName="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-l-[2px] bg-op-assistant-list-background"
+              contentClassName="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-none bg-op-assistant-list-background"
             >
               {panelContent}
             </AiAssistantLoadingBorder>

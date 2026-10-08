@@ -14,6 +14,7 @@ namespace TummlyBackend.Helpers
         public const string ReadCapturePerformance = "read_capture_performance";
         public const string ReadHomeKpis = "read_home_kpis";
         public const string ReadGuests = "read_guests";
+        public const string ReadBillingPlan = "read_billing_plan";
         public const string CompareLocations = "compare_locations";
         public const string CompareAllLocations = "compare_all_locations";
 
@@ -25,6 +26,7 @@ namespace TummlyBackend.Helpers
             ReadCapturePerformance,
             ReadHomeKpis,
             ReadGuests,
+            ReadBillingPlan,
             CompareLocations,
             CompareAllLocations,
         ];
@@ -45,6 +47,38 @@ namespace TummlyBackend.Helpers
 
         public static bool IsCompareTool(string? name)
             => name is CompareLocations or CompareAllLocations;
+
+        /// <summary>
+        /// Forced / Fake tool wave for a detected ask focus. Billing is not in
+        /// <see cref="DomainReads"/> so ordinary venue asks do not load it.
+        /// </summary>
+        public static IReadOnlyList<string> DomainReadsForFocus(
+            AssistantAskFocusKind focus
+        )
+            => focus switch
+            {
+                AssistantAskFocusKind.Feedback
+                    => [ReadFeedbackSummary],
+                AssistantAskFocusKind.OffersClaims
+                    or AssistantAskFocusKind.OffersRedemptions
+                    => [ReadOffers],
+                AssistantAskFocusKind.CampaignsActive
+                    or AssistantAskFocusKind.CampaignsAny
+                    => [ReadCampaigns],
+                AssistantAskFocusKind.CaptureQr
+                    => [ReadCapturePerformance],
+                AssistantAskFocusKind.Performance
+                    => [ReadHomeKpis],
+                AssistantAskFocusKind.Guests
+                    => [ReadGuests],
+                AssistantAskFocusKind.Billing
+                    => [ReadBillingPlan],
+                AssistantAskFocusKind.CreateCampaign
+                    => [ReadCampaigns, ReadOffers],
+                AssistantAskFocusKind.CreateOffer
+                    => [ReadOffers],
+                _ => DomainReads,
+            };
 
         public static JsonArray BuildToolsArray()
             => new(
@@ -71,6 +105,10 @@ namespace TummlyBackend.Helpers
                 Tool(
                     ReadGuests,
                     "Read Location Guest sample rows and counts at the scoped Owned location. Not limited to the Reporting period."
+                ),
+                Tool(
+                    ReadBillingPlan,
+                    "Read the restaurant plan name, subscription or billing status, and Email / SMS / AI credit balances the operator may view. Read only — do not purchase, top up, change plan, or claim Revolut payment success."
                 ),
                 Tool(
                     CompareLocations,

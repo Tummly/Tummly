@@ -24,7 +24,7 @@ type FeedbackPageHeaderActionsMenuProps = {
   onExportFeedback: () => void
 }
 
-/** Feedback page header ⋮ — Export live; Manage settings disabled; Help live. */
+/** Feedback page header ⋮ — Export and Help only (no dead Settings row). */
 export function FeedbackPageHeaderActionsMenu({
   locationName,
   onExportFeedback,
@@ -68,17 +68,7 @@ export function FeedbackPageHeaderActionsMenu({
               >
                 {action.label}
               </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem
-                disabled
-                aria-disabled
-                aria-label={`${action.label} (unavailable)`}
-                title={`${action.label} is unavailable`}
-                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-              >
-                {action.label}
-              </DropdownMenuItem>
-            )}
+            ) : null}
           </Fragment>
         ))}
       </DropdownMenuContent>

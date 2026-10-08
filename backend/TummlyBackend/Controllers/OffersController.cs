@@ -1271,15 +1271,10 @@ namespace TummlyBackend.Controllers
             int locationId
         )
         {
-            var path = Request.Path.Value ?? string.Empty;
-            var minimum = path.Contains(
-                "/redeem",
-                StringComparison.OrdinalIgnoreCase
-            )
-                ? PermissionLevel.Scoped
-                : HttpMethods.IsGet(Request.Method)
-                    ? PermissionLevel.View
-                    : PermissionLevel.Manage;
+            var minimum = OffersAreaPermission.MinimumForHttpRequest(
+                Request.Path.Value,
+                Request.Method
+            );
             return await _permissions.AuthorizeLocationAsync(
                 User,
                 OperatorAreaIds.Offers,

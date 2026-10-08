@@ -125,12 +125,18 @@ export const OPERATOR_RIGHT_DRAWER_WIDTH_CLASS =
   "data-[vaul-drawer-direction=right]:w-[min(620px,100vw)] data-[vaul-drawer-direction=right]:sm:max-w-[620px]"
 
 /**
- * Right drawer chrome — sharp 2px left radius (Figma Button/Radius), overrides
- * DrawerContent’s default `rounded-l-xl`.
+ * Right drawer chrome — no border-radius (overrides DrawerContent `rounded-l-xl`).
  */
-export const OPERATOR_RIGHT_DRAWER_CONTENT_CLASS = `h-full max-h-dvh overflow-hidden bg-op-surface-secondary dark:bg-[#202020] data-[vaul-drawer-direction=right]:rounded-l-[2px] ${OPERATOR_RIGHT_DRAWER_WIDTH_CLASS}`
+export const OPERATOR_RIGHT_DRAWER_CONTENT_CLASS = `h-full max-h-dvh overflow-hidden rounded-none bg-op-surface-secondary dark:bg-[#202020] data-[vaul-drawer-direction=right]:rounded-none ${OPERATOR_RIGHT_DRAWER_WIDTH_CLASS}`
 
 export const OPERATOR_RIGHT_DRAWER_BODY_CLASS = "min-h-0 flex-1 overflow-y-auto"
+
+/**
+ * Right Sheet panel — same 620px width cap as Vaul drawers; no border-radius.
+ * Overrides SheetContent defaults (`w-3/4`, `sm:max-w-sm`).
+ */
+export const OPERATOR_RIGHT_SHEET_WIDTH_CLASS =
+  "w-full data-[side=right]:w-[min(620px,100vw)] data-[side=right]:max-w-[620px] sm:max-w-[620px]"
 
 /** Notification filter tabs — single row, horizontal scroll below md. */
 export const OPERATOR_NOTIFICATION_FILTER_TABLIST_CLASS =

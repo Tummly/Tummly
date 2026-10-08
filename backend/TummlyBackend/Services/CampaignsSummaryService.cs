@@ -68,12 +68,27 @@ namespace TummlyBackend.Services
                     cancellationToken: cancellationToken
                 );
 
+            var campaignAttributedRedemptions = await _context.OfferIssues
+                .AsNoTracking()
+                .CountAsync(
+                    issue =>
+                        issue.CampaignId != null
+                        && issue.CatalogOffer != null
+                        && issue.CatalogOffer.RestaurantLocationId == locationId
+                        && issue.RedeemedAtUtc != null
+                        && issue.RedemptionVoidedAtUtc == null
+                        && issue.RedeemedAtUtc >= fromUtc
+                        && issue.RedeemedAtUtc < toUtc,
+                    cancellationToken
+                );
+
             return new CampaignsSummaryDto
             {
                 CampaignsInFlightScheduled = scheduled,
                 CampaignsInFlightSending = sending,
                 MessagesSentAccepted = messagesAcceptedEmail,
                 MessagesSentAcceptedEmail = messagesAcceptedEmail,
+                CampaignAttributedRedemptions = campaignAttributedRedemptions,
             };
         }
 

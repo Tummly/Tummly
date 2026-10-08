@@ -55,6 +55,7 @@ export type OperatorHomePageModuleApi = {
   startFeedbackNoteDelete: OperatorHomePageModule["startFeedbackNoteDelete"]
   cancelFeedbackNoteDelete: OperatorHomePageModule["cancelFeedbackNoteDelete"]
   confirmFeedbackNoteDelete: OperatorHomePageModule["confirmFeedbackNoteDelete"]
+  recoveryWizards: OperatorHomePageModule["recoveryWizards"]
 }
 
 export function useHomePageModule(): OperatorHomePageModuleApi {
@@ -120,5 +121,6 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     startFeedbackNoteDelete: pageModule.startFeedbackNoteDelete,
     cancelFeedbackNoteDelete: pageModule.cancelFeedbackNoteDelete,
     confirmFeedbackNoteDelete: pageModule.confirmFeedbackNoteDelete,
+    recoveryWizards: pageModule.recoveryWizards,
   }
 }

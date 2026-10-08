@@ -369,6 +369,44 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
 
+            // Legacy send-now rows may lack ScheduledAtUtc — fall back to first accept.
+            var earliestAcceptedByCampaign = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .Where(
+                    row =>
+                        pageIds.Contains(row.CampaignId)
+                        && row.Outcome == CampaignFireService.AcceptedOutcome
+                        && row.AcceptedAtUtc != null
+                )
+                .GroupBy(row => row.CampaignId)
+                .Select(
+                    group => new
+                    {
+                        CampaignId = group.Key,
+                        Earliest = group.Min(row => row.AcceptedAtUtc),
+                    }
+                )
+                .ToDictionaryAsync(
+                    row => row.CampaignId,
+                    row => row.Earliest,
+                    cancellationToken
+                );
+
+            var opensByCampaign = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .Where(
+                    row =>
+                        pageIds.Contains(row.CampaignId)
+                        && row.OpenedAtUtc != null
+                )
+                .GroupBy(row => row.CampaignId)
+                .Select(group => new { CampaignId = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(
+                    row => row.CampaignId,
+                    row => row.Count,
+                    cancellationToken
+                );
+
             var items = pageRows
                 .Select(campaign =>
                 {
@@ -381,11 +419,19 @@ namespace TummlyBackend.Services
                         campaign.Id,
                         out var recipients
                     );
+                    earliestAcceptedByCampaign.TryGetValue(
+                        campaign.Id,
+                        out var earliestAccepted
+                    );
+                    opensByCampaign.TryGetValue(campaign.Id, out var opens);
+                    var sendAt = campaign.ScheduledAtUtc ?? earliestAccepted;
                     var isSms = string.Equals(
                         campaign.Channel,
                         "sms",
                         StringComparison.Ordinal
                     );
+                    // Honest zeros once a campaign has send activity (CMP-01).
+                    var hasSendActivity = accepted > 0 || recipients > 0;
                     return new CampaignsListItemDto
                     {
                         Id = campaign.Id,
@@ -416,13 +462,16 @@ namespace TummlyBackend.Services
                         CreatedByUserId = campaign.CreatedByUserId,
                         CreatedByDisplayName = campaign.CreatedByDisplayName,
                         UpdatedAt = campaign.UpdatedAt,
-                        SendDate = campaign.ScheduledAtUtc == null
+                        SendDate = sendAt == null ? null : sendAt.Value.ToString("O"),
+                        Delivery = hasSendActivity ? accepted.ToString() : null,
+                        Engagement = isSms
                             ? null
-                            : campaign.ScheduledAtUtc.Value.ToString("O"),
-                        Delivery = accepted > 0 ? accepted.ToString() : null,
-                        Engagement = null,
-                        Redemptions =
-                            redemptions > 0 ? redemptions.ToString() : null,
+                            : accepted > 0
+                                ? opens.ToString()
+                                : null,
+                        Redemptions = hasSendActivity
+                            ? redemptions.ToString()
+                            : null,
                         RecipientCount = recipients > 0 ? recipients : null,
                         SmsPartsPerMessage = isSms
                             ? CampaignSmsSegmentCalculator.CountSegments(

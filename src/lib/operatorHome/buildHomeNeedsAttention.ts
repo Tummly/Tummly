@@ -118,7 +118,8 @@ export type HomeNeedsAttentionProjection = {
   isEmpty: boolean
 }
 
-const FEEDBACK_BODY = "Negative feedback is not Resolved."
+	const FEEDBACK_BODY =
+		"Negative or unresolved feedback has not been reviewed yet."
 
 function feedbackTitle(count: number): string {
   return count === 1
@@ -185,7 +186,8 @@ function mapFeedbackRow(input: {
       locationName: input.locationName,
       nowMs: input.nowMs,
     }),
-    ctas: [{ kind: "review-feedback", label: "Review feedback" }],
+    // Align with Home Recommended resolve CTA (ticket 02) — same Start recovery voice.
+    ctas: [{ kind: "review-feedback", label: "Start recovery" }],
   }
 }
 

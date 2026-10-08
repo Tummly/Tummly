@@ -1,15 +1,23 @@
+import type { CampaignAudienceEligibilityBreakdown } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import { CAMPAIGN_AUDIENCE_OPTIONS } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import { CAMPAIGN_CHANNEL_OPTIONS } from "@/lib/operatorCampaigns/campaignChannelPresentation"
-import { CAMPAIGN_DETAIL_PREVIEW_COPY } from "@/lib/operatorCampaigns/campaignDetailPreviewPresentation"
+import {
+  buildCampaignDetailOfferLogicRows,
+  CAMPAIGN_DETAIL_PREVIEW_COPY,
+} from "@/lib/operatorCampaigns/campaignDetailPreviewPresentation"
 import { CAMPAIGN_OFFER_OPTIONS } from "@/lib/operatorCampaigns/campaignOfferPresentation"
 import {
   labelForCampaignGoalId,
   type CampaignGoalId,
 } from "@/lib/operatorCampaigns/campaignWizardPresentation"
-import type { CampaignTemplatePreviewChannelId } from "@/types/operatorCampaigns"
+import type {
+  CampaignTemplatePreviewChannelId,
+  CatalogOfferDetail,
+} from "@/types/operatorCampaigns"
 
 export type CampaignDetailPreviewSource = {
   id: number
+  locationId: number
   status: string
   name: string
   goalId: string | null
@@ -17,12 +25,20 @@ export type CampaignDetailPreviewSource = {
   channel: string | null
   offerStance: string | null
   offerId: number | null
+  offerTitle?: string | null
   messageSubject: string | null
   messageBody: string | null
 }
 
 export type CampaignDetailPreviewAdapters = {
   loadCampaign: (id: number) => Promise<CampaignDetailPreviewSource>
+  /** Attached catalog Offer for Offer logic preview (Figma 5116:19586). */
+  loadOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  /** Live audience eligibility for Audience eligibility (Figma 5116:19438). */
+  loadAudienceEligibility?: (input: {
+    locationId: number
+    audienceKey: string
+  }) => Promise<CampaignAudienceEligibilityBreakdown>
 }
 
 export type CampaignDetailPreviewChannelTab = {
@@ -47,6 +63,12 @@ export type CampaignDetailPreviewOfferLogicRow = {
   value: string
 }
 
+export type CampaignDetailPreviewEligibility = {
+  emailCount: number | null
+  smsCount: number | null
+  totalUniqueGuests: number | null
+}
+
 export type CampaignDetailPreviewViewModel = {
   campaignId: number
   title: string
@@ -62,6 +84,8 @@ export type CampaignDetailPreviewViewModel = {
   activeMessage: CampaignDetailPreviewMessage | null
   showOfferLogic: boolean
   offerLogic: CampaignDetailPreviewOfferLogicRow[]
+  showAudienceEligibility: boolean
+  eligibility: CampaignDetailPreviewEligibility | null
   sendLogicLabel: string
   footerDisclaimer: string
   editCampaignLabel: string
@@ -79,11 +103,18 @@ export type CampaignDetailPreviewModule = {
   getSnapshot: () => CampaignDetailPreviewSnapshot
   subscribe: (listener: () => void) => () => void
   open: (campaignId: number) => Promise<void>
-  /** Open Preview from an already-loaded Campaign. Does not fetch again. */
+  /** Open Preview from an already-loaded Campaign. Does not fetch the campaign again. */
   openLoaded: (campaign: CampaignDetailPreviewSource) => void
   close: () => void
   retryLoad: () => Promise<void>
   setSelectedChannel: (channelId: CampaignTemplatePreviewChannelId) => void
+}
+
+type PreviewEnrichment = {
+  showOfferLogic: boolean
+  offerLogic: CampaignDetailPreviewOfferLogicRow[]
+  showAudienceEligibility: boolean
+  eligibility: CampaignDetailPreviewEligibility | null
 }
 
 type PreviewState = {
@@ -93,14 +124,15 @@ type PreviewState = {
   campaignId: number | null
   campaign: CampaignDetailPreviewSource | null
   selectedChannelId: CampaignTemplatePreviewChannelId | null
+  enrichment: PreviewEnrichment
   loadGeneration: number
 }
 
-function emptyLabel(value: string | null | undefined): string {
-  if (value == null || value.trim().length === 0) {
-    return CAMPAIGN_DETAIL_PREVIEW_COPY.emptyValue
-  }
-  return value
+const EMPTY_ENRICHMENT: PreviewEnrichment = {
+  showOfferLogic: false,
+  offerLogic: [],
+  showAudienceEligibility: false,
+  eligibility: null,
 }
 
 function goalLabel(goalId: string | null): string {
@@ -133,13 +165,17 @@ function channelLabel(channel: string | null): string {
   )
 }
 
-function offerLabel(offerStance: string | null): string {
-  if (offerStance == null || offerStance.trim().length === 0) {
+function offerLabel(campaign: CampaignDetailPreviewSource): string {
+  const attached = campaign.offerTitle?.trim() ?? ""
+  if (attached.length > 0) {
+    return attached
+  }
+  if (campaign.offerStance == null || campaign.offerStance.trim().length === 0) {
     return CAMPAIGN_DETAIL_PREVIEW_COPY.emptyValue
   }
   return (
-    CAMPAIGN_OFFER_OPTIONS.find((option) => option.id === offerStance)?.title
-    ?? offerStance
+    CAMPAIGN_OFFER_OPTIONS.find((option) => option.id === campaign.offerStance)
+      ?.title ?? campaign.offerStance
   )
 }
 
@@ -168,9 +204,78 @@ function sendLogicLabelForStatus(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
+function hasConfiguredOffer(campaign: CampaignDetailPreviewSource): boolean {
+  return (
+    campaign.offerId != null
+    && campaign.offerId > 0
+    && campaign.offerStance !== "no-offer"
+  )
+}
+
+function hasConfiguredAudience(campaign: CampaignDetailPreviewSource): boolean {
+  return campaign.audienceKey != null && campaign.audienceKey.trim().length > 0
+}
+
+async function enrichPreviewSections(
+  campaign: CampaignDetailPreviewSource,
+  adapters: CampaignDetailPreviewAdapters
+): Promise<PreviewEnrichment> {
+  let showOfferLogic = false
+  let offerLogic: CampaignDetailPreviewOfferLogicRow[] = []
+  if (hasConfiguredOffer(campaign) && adapters.loadOffer != null) {
+    try {
+      const offer = await adapters.loadOffer(campaign.offerId!)
+      offerLogic = buildCampaignDetailOfferLogicRows(offer)
+      showOfferLogic = offerLogic.length > 0
+    } catch {
+      showOfferLogic = false
+      offerLogic = []
+    }
+  }
+
+  let showAudienceEligibility = false
+  let eligibility: CampaignDetailPreviewEligibility | null = null
+  if (hasConfiguredAudience(campaign)) {
+    showAudienceEligibility = true
+    if (adapters.loadAudienceEligibility != null) {
+      try {
+        const breakdown = await adapters.loadAudienceEligibility({
+          locationId: campaign.locationId,
+          audienceKey: campaign.audienceKey!,
+        })
+        eligibility = {
+          emailCount: breakdown.emailEligible,
+          smsCount: breakdown.smsEligible,
+          totalUniqueGuests: breakdown.currentlyEligible,
+        }
+      } catch {
+        eligibility = {
+          emailCount: null,
+          smsCount: null,
+          totalUniqueGuests: null,
+        }
+      }
+    } else {
+      eligibility = {
+        emailCount: null,
+        smsCount: null,
+        totalUniqueGuests: null,
+      }
+    }
+  }
+
+  return {
+    showOfferLogic,
+    offerLogic,
+    showAudienceEligibility,
+    eligibility,
+  }
+}
+
 function buildViewModel(
   campaign: CampaignDetailPreviewSource,
-  selectedChannelId: CampaignTemplatePreviewChannelId
+  selectedChannelId: CampaignTemplatePreviewChannelId,
+  enrichment: PreviewEnrichment
 ): CampaignDetailPreviewViewModel {
   const channelId = resolveChannelId(campaign.channel)
   const channelTabs: CampaignDetailPreviewChannelTab[] = [
@@ -195,13 +300,15 @@ function buildViewModel(
       goal: goalLabel(campaign.goalId),
       audience: audienceLabel(campaign.audienceKey),
       channel: channelLabel(campaign.channel),
-      offer: offerLabel(campaign.offerStance),
+      offer: offerLabel(campaign),
     },
     channelTabs,
     selectedChannelId,
     activeMessage,
-    showOfferLogic: false,
-    offerLogic: [],
+    showOfferLogic: enrichment.showOfferLogic,
+    offerLogic: enrichment.offerLogic,
+    showAudienceEligibility: enrichment.showAudienceEligibility,
+    eligibility: enrichment.eligibility,
     sendLogicLabel: sendLogicLabelForStatus(campaign.status),
     footerDisclaimer: CAMPAIGN_DETAIL_PREVIEW_COPY.footerDisclaimer,
     editCampaignLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.editCampaign,
@@ -212,7 +319,11 @@ function buildViewModel(
 function projectSnapshot(state: PreviewState): CampaignDetailPreviewSnapshot {
   const viewModel =
     state.campaign != null && state.selectedChannelId != null
-      ? buildViewModel(state.campaign, state.selectedChannelId)
+      ? buildViewModel(
+          state.campaign,
+          state.selectedChannelId,
+          state.enrichment
+        )
       : null
 
   return {
@@ -233,6 +344,7 @@ export function createCampaignDetailPreviewModule(
     campaignId: null,
     campaign: null,
     selectedChannelId: null,
+    enrichment: EMPTY_ENRICHMENT,
     loadGeneration: 0,
   }
 
@@ -251,6 +363,25 @@ export function createCampaignDetailPreviewModule(
     emit()
   }
 
+  const applyCampaign = async (
+    campaign: CampaignDetailPreviewSource,
+    generation: number
+  ) => {
+    const enrichment = await enrichPreviewSections(campaign, adapters)
+    if (generation !== state.loadGeneration) {
+      return
+    }
+
+    setState({
+      loadStatus: "loaded",
+      loadError: null,
+      campaign,
+      selectedChannelId: resolveChannelId(campaign.channel),
+      campaignId: campaign.id,
+      enrichment,
+    })
+  }
+
   const loadDetail = async (campaignId: number) => {
     const generation = state.loadGeneration + 1
     setState({
@@ -259,6 +390,7 @@ export function createCampaignDetailPreviewModule(
       loadError: null,
       campaign: null,
       selectedChannelId: null,
+      enrichment: EMPTY_ENRICHMENT,
       campaignId,
     })
 
@@ -267,15 +399,7 @@ export function createCampaignDetailPreviewModule(
       if (generation !== state.loadGeneration) {
         return
       }
-
-      const selectedChannelId = resolveChannelId(campaign.channel)
-      setState({
-        loadStatus: "loaded",
-        loadError: null,
-        campaign,
-        selectedChannelId,
-        campaignId: campaign.id,
-      })
+      await applyCampaign(campaign, generation)
     } catch {
       if (generation !== state.loadGeneration) {
         return
@@ -285,6 +409,7 @@ export function createCampaignDetailPreviewModule(
         loadError: CAMPAIGN_DETAIL_PREVIEW_COPY.loadError,
         campaign: null,
         selectedChannelId: null,
+        enrichment: EMPTY_ENRICHMENT,
       })
     }
   }
@@ -306,12 +431,14 @@ export function createCampaignDetailPreviewModule(
       setState({
         loadGeneration: generation,
         open: true,
-        loadStatus: "loaded",
+        loadStatus: "loading",
         loadError: null,
-        campaign,
-        selectedChannelId: resolveChannelId(campaign.channel),
+        campaign: null,
+        selectedChannelId: null,
+        enrichment: EMPTY_ENRICHMENT,
         campaignId: campaign.id,
       })
+      void applyCampaign(campaign, generation)
     },
     close: () => {
       setState({
@@ -321,6 +448,7 @@ export function createCampaignDetailPreviewModule(
         campaignId: null,
         campaign: null,
         selectedChannelId: null,
+        enrichment: EMPTY_ENRICHMENT,
         loadGeneration: state.loadGeneration + 1,
       })
     },

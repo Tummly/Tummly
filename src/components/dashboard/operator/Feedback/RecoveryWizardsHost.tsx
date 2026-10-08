@@ -10,9 +10,9 @@ import type {
 
 /**
  * Mounts the Start recovery entry shell plus the four recovery wizards
- * against a shared `RecoveryWizardsModule`. Reused by Feedback, Guests, and
- * Guest Profile so an operator gets the same recovery path from any of
- * those surfaces (see ticket 21 / AUDIT F-02).
+ * against a shared `RecoveryWizardsModule`. Reused by Feedback, Home,
+ * Guests, and Guest Profile so an operator gets the same recovery path
+ * from any of those surfaces (see ticket 21 / AUDIT F-02).
  */
 export function RecoveryWizardsHost({
   snapshot,

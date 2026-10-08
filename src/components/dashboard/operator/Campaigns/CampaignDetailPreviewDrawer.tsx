@@ -11,6 +11,7 @@ import {
   CAMPAIGN_TEMPLATE_PREVIEW_FIELD_VALUE_CLASS,
   CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS,
   CAMPAIGN_TEMPLATE_PREVIEW_SECTION_TITLE_CLASS,
+  CAMPAIGN_TEMPLATE_PREVIEW_TIMING_ICON_WELL_CLASS,
 } from "@/lib/operatorCampaigns/campaignTemplatePreviewPresentation"
 import type {
   CampaignDetailPreviewSnapshot,
@@ -36,6 +37,25 @@ function SummaryField({ label, value }: { label: string; value: string }) {
     <div className="flex flex-col gap-1.5">
       <p className={CAMPAIGN_TEMPLATE_PREVIEW_FIELD_LABEL_CLASS}>{label}</p>
       <p className={CAMPAIGN_TEMPLATE_PREVIEW_FIELD_VALUE_CLASS}>{value}</p>
+    </div>
+  )
+}
+
+function EligibilityRow({
+  label,
+  value,
+}: {
+  label: string
+  value: number | null
+}) {
+  return (
+    <div className="flex w-full items-center justify-between gap-3">
+      <p className={CAMPAIGN_TEMPLATE_PREVIEW_FIELD_VALUE_CLASS}>{label}</p>
+      <p className={CAMPAIGN_TEMPLATE_PREVIEW_FIELD_LABEL_CLASS}>
+        {value == null
+          ? CAMPAIGN_DETAIL_PREVIEW_COPY.emptyValue
+          : value.toLocaleString("en-GB")}
+      </p>
     </div>
   )
 }
@@ -114,7 +134,7 @@ function PreviewBody({
         <h2 className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_TITLE_CLASS}>
           {copy.campaignSummary}
         </h2>
-        <div className="flex w-full flex-col gap-[22px]">
+        <div className="flex w-full flex-col gap-[12px]">
           <SummaryField label={copy.goal} value={summary.goal} />
           <SummaryField label={copy.audience} value={summary.audience} />
           <SummaryField label={copy.channel} value={summary.channel} />
@@ -205,12 +225,35 @@ function PreviewBody({
         </section>
       ) : null}
 
+      {viewModel.showAudienceEligibility
+        && viewModel.eligibility != null ? (
+        <section className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS}>
+          <h2 className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_TITLE_CLASS}>
+            {copy.audienceEligibility}
+          </h2>
+          <div className="flex w-full flex-col gap-[22px]">
+            <EligibilityRow
+              label={copy.emailEligible}
+              value={viewModel.eligibility.emailCount}
+            />
+            <EligibilityRow
+              label={copy.smsEligible}
+              value={viewModel.eligibility.smsCount}
+            />
+            <EligibilityRow
+              label={copy.totalUniqueGuests}
+              value={viewModel.eligibility.totalUniqueGuests}
+            />
+          </div>
+        </section>
+      ) : null}
+
       <section className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS}>
         <h2 className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_TITLE_CLASS}>
           {copy.sendLogic}
         </h2>
         <div className="flex w-full items-center gap-2.5 rounded-[4px] border border-op-card-border px-[18px] py-4">
-          <div className="flex shrink-0 items-center rounded-[2px] bg-[var(--op-color-gray-1000)] p-2.5">
+          <div className={CAMPAIGN_TEMPLATE_PREVIEW_TIMING_ICON_WELL_CLASS}>
             <CalendarIcon
               className="size-4 text-op-text-primary"
               aria-hidden

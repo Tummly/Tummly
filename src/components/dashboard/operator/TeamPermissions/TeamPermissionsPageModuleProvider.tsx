@@ -20,6 +20,7 @@ import {
   updateTeamMemberRole,
 } from "@/api/teamPermissionsApi"
 import { teamPermissionsPageModuleContext } from "@/components/dashboard/operator/TeamPermissions/utils/teamPermissionsPageModuleContext"
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import {
   createOperatorTeamPermissionsPageModule,
   resolveTeamPermissionsTabId,
@@ -53,9 +54,7 @@ export function TeamPermissionsPageModuleProvider({
             toast.success("Member updated.")
           } catch (error) {
             toast.error(
-              error instanceof Error
-                ? error.message
-                : "Could not update member."
+              getUserFacingApiErrorMessage(error, "Could not update member.")
             )
             throw error
           }
@@ -82,9 +81,10 @@ export function TeamPermissionsPageModuleProvider({
             toast.success("Invitation resent.")
           } catch (error) {
             toast.error(
-              error instanceof Error
-                ? error.message
-                : "Could not resend invitation."
+              getUserFacingApiErrorMessage(
+                error,
+                "Could not resend invitation."
+              )
             )
             throw error
           }
@@ -95,9 +95,10 @@ export function TeamPermissionsPageModuleProvider({
             toast.success("Invitation revoked.")
           } catch (error) {
             toast.error(
-              error instanceof Error
-                ? error.message
-                : "Could not revoke invitation."
+              getUserFacingApiErrorMessage(
+                error,
+                "Could not revoke invitation."
+              )
             )
             throw error
           }

@@ -1,6 +1,6 @@
 import { isAxiosError } from "axios"
 
-import type { PlanEntitlementsAccountSnapshot } from "@/lib/planEntitlements/planEntitlementsPresentation"
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import {
   normalizePlanEntitlementsAccount,
   teamMemberCapReachedMessage,
@@ -16,7 +16,6 @@ function readApiError(error: unknown, fallback: string): string {
   if (isAxiosError(error)) {
     const payload = error.response?.data as
       | {
-          message?: unknown
           code?: unknown
           cap?: unknown
           current?: unknown
@@ -34,15 +33,8 @@ function readApiError(error: unknown, fallback: string): string {
         available: true,
       })
     }
-    const message = payload?.message
-    if (typeof message === "string" && message.trim() !== "") {
-      return message
-    }
   }
-  if (error instanceof Error && error.message.trim() !== "") {
-    return error.message
-  }
-  return fallback
+  return getUserFacingApiErrorMessage(error, fallback)
 }
 
 function rethrow(error: unknown, fallback: string): never {
@@ -50,16 +42,20 @@ function rethrow(error: unknown, fallback: string): never {
 }
 
 export async function getTeamPermissionsPage(): Promise<TeamPermissionsPageData> {
-  const { data } = await axiosInstance.get<TeamPermissionsPageData>(
-    "/team-permissions"
-  )
-  return {
-    ...data,
-    matrix: data.matrix ?? [],
-    invitations: data.invitations ?? [],
-    entitlements: normalizePlanEntitlementsAccount(
-      data.entitlements as Record<string, unknown> | undefined
-    ),
+  try {
+    const { data } = await axiosInstance.get<TeamPermissionsPageData>(
+      "/team-permissions"
+    )
+    return {
+      ...data,
+      matrix: data.matrix ?? [],
+      invitations: data.invitations ?? [],
+      entitlements: normalizePlanEntitlementsAccount(
+        data.entitlements as Record<string, unknown> | undefined
+      ),
+    }
+  } catch (error) {
+    rethrow(error, "Could not load team permissions.")
   }
 }
 
@@ -67,45 +63,72 @@ export async function updateTeamMemberRole(
   membershipId: number,
   permissionRole: string
 ): Promise<void> {
-  await axiosInstance.patch(`/team-permissions/members/${membershipId}/role`, {
-    permissionRole,
-  })
+  try {
+    await axiosInstance.patch(
+      `/team-permissions/members/${membershipId}/role`,
+      {
+        permissionRole,
+      }
+    )
+  } catch (error) {
+    rethrow(error, "Could not update member role.")
+  }
 }
 
 export async function updateTeamMemberLocationScope(
   membershipId: number,
   payload: { locationScope: "all" | "named"; namedLocationIds: number[] }
 ): Promise<void> {
-  await axiosInstance.patch(
-    `/team-permissions/members/${membershipId}/location-scope`,
-    payload
-  )
+  try {
+    await axiosInstance.patch(
+      `/team-permissions/members/${membershipId}/location-scope`,
+      payload
+    )
+  } catch (error) {
+    rethrow(error, "Could not update member location scope.")
+  }
 }
 
 export async function deactivateTeamMember(
   membershipId: number
 ): Promise<void> {
-  await axiosInstance.post(
-    `/team-permissions/members/${membershipId}/deactivate`
-  )
+  try {
+    await axiosInstance.post(
+      `/team-permissions/members/${membershipId}/deactivate`
+    )
+  } catch (error) {
+    rethrow(error, "Could not deactivate member.")
+  }
 }
 
 export async function reactivateTeamMember(
   membershipId: number
 ): Promise<void> {
-  await axiosInstance.post(
-    `/team-permissions/members/${membershipId}/reactivate`
-  )
+  try {
+    await axiosInstance.post(
+      `/team-permissions/members/${membershipId}/reactivate`
+    )
+  } catch (error) {
+    rethrow(error, "Could not reactivate member.")
+  }
 }
 
 export async function removeTeamMember(membershipId: number): Promise<void> {
-  await axiosInstance.delete(`/team-permissions/members/${membershipId}`)
+  try {
+    await axiosInstance.delete(`/team-permissions/members/${membershipId}`)
+  } catch (error) {
+    rethrow(error, "Could not remove member.")
+  }
 }
 
 export async function saveTeamPermissionsMatrix(
   adminCells: Array<{ areaId: string; level: string }>
 ): Promise<void> {
-  await axiosInstance.put("/team-permissions/matrix", { adminCells })
+  try {
+    await axiosInstance.put("/team-permissions/matrix", { adminCells })
+  } catch (error) {
+    rethrow(error, "Could not save permission matrix.")
+  }
 }
 
 export async function sendTeamInvitation(
@@ -151,14 +174,18 @@ export async function getTeamAccessActivity(params: {
   page: number
   pageSize: number
 }): Promise<AccessActivityList> {
-  const { data } = await axiosInstance.get<AccessActivityList>(
-    "/team-permissions/access-activity",
-    { params }
-  )
-  return {
-    items: data.items ?? [],
-    totalCount: data.totalCount ?? 0,
-    page: data.page ?? params.page,
-    pageSize: data.pageSize ?? params.pageSize,
+  try {
+    const { data } = await axiosInstance.get<AccessActivityList>(
+      "/team-permissions/access-activity",
+      { params }
+    )
+    return {
+      items: data.items ?? [],
+      totalCount: data.totalCount ?? 0,
+      page: data.page ?? params.page,
+      pageSize: data.pageSize ?? params.pageSize,
+    }
+  } catch (error) {
+    rethrow(error, "Could not load access activity.")
   }
 }

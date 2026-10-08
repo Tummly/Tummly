@@ -20,6 +20,7 @@ export type OperatorWorkspaceSessionApi = {
   selectLocation: OperatorWorkspaceSession["selectLocation"]
   preferLocationFromQuery: OperatorWorkspaceSession["preferLocationFromQuery"]
   applyRestaurantIdentity: OperatorWorkspaceSession["applyRestaurantIdentity"]
+  applyOperatorProfile: OperatorWorkspaceSession["applyOperatorProfile"]
 }
 
 export function useWorkspaceSession(
@@ -53,5 +54,6 @@ export function useWorkspaceSession(
     selectLocation: session.selectLocation,
     preferLocationFromQuery: session.preferLocationFromQuery,
     applyRestaurantIdentity: session.applyRestaurantIdentity,
+    applyOperatorProfile: session.applyOperatorProfile,
   }
 }

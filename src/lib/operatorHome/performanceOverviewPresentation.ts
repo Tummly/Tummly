@@ -15,7 +15,7 @@ export const PERFORMANCE_HEADER_ROW_CLASS =
 export const PERFORMANCE_HEADER_COPY_CLASS = "flex flex-col gap-2 leading-[0]"
 
 export const PERFORMANCE_TITLE_CLASS =
-  "m-0 font-jakarta text-lg font-bold leading-normal text-op-card-title-color sm:text-xl"
+  "m-0 font-jakarta text-lg font-bold leading-none text-op-card-title-color sm:text-xl"
 
 export const PERFORMANCE_SUBTITLE_CLASS =
   "m-0 font-sans text-op-sm font-medium leading-normal text-op-card-subtitle-color"

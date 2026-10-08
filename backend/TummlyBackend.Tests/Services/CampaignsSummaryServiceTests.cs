@@ -108,6 +108,68 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task GetSummaryAsync_CampaignAttributedRedemptions_CountsInWindow()
+        {
+            var (locationId, restaurantId) = await SeedLocationAsync();
+            var campaignId = await AddCampaignAsync(
+                locationId,
+                CampaignsListService.SentStatus
+            );
+            var offerId = await AddCatalogOfferAsync(locationId);
+            var guestId = await AddGuestAsync(locationId, restaurantId);
+
+            var windowStart = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+            var windowEnd = new DateTime(2026, 8, 9, 0, 0, 0, DateTimeKind.Utc);
+
+            _context.OfferIssues.AddRange(
+                new OfferIssue
+                {
+                    CatalogOfferId = offerId,
+                    LocationGuestId = guestId,
+                    CampaignId = campaignId,
+                    Source = OfferIssueSources.Campaign,
+                    OfferType = CatalogOfferType.PercentageDiscount,
+                    Validity = CatalogOfferValidity.Days7AfterIssue,
+                    Title = "10% off",
+                    Description = "Ten percent",
+                    ClaimCode = "TUM-000001",
+                    IssuedAtUtc = windowStart,
+                    ClaimedAtUtc = windowStart,
+                    ExpiryAtUtc = windowStart.AddDays(7),
+                    RedeemedAtUtc = windowStart.AddDays(1),
+                },
+                new OfferIssue
+                {
+                    CatalogOfferId = offerId,
+                    LocationGuestId = guestId,
+                    CampaignId = campaignId,
+                    Source = OfferIssueSources.Campaign,
+                    OfferType = CatalogOfferType.PercentageDiscount,
+                    Validity = CatalogOfferValidity.Days7AfterIssue,
+                    Title = "10% off",
+                    Description = "Ten percent",
+                    ClaimCode = "TUM-000002",
+                    IssuedAtUtc = windowStart,
+                    ClaimedAtUtc = windowStart,
+                    ExpiryAtUtc = windowStart.AddDays(7),
+                    RedeemedAtUtc = windowEnd.AddDays(1),
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var result = await _summary.GetSummaryAsync(
+                new CampaignsSummaryQuery
+                {
+                    LocationId = locationId,
+                    OverviewDateFrom = windowStart,
+                    OverviewDateTo = windowEnd,
+                }
+            );
+
+            Assert.Equal(1, result.CampaignAttributedRedemptions);
+        }
+
+        [Fact]
         public async Task GetSummaryAsync_InFlight_IgnoresOverviewDateWindow()
         {
             var (locationId, _) = await SeedLocationAsync();
@@ -188,6 +250,26 @@ namespace TummlyBackend.Tests.Services
             _context.Campaigns.Add(campaign);
             await _context.SaveChangesAsync();
             return campaign.Id;
+        }
+
+        private async Task<int> AddCatalogOfferAsync(int locationId)
+        {
+            var now = DateTime.UtcNow;
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = locationId,
+                Status = "active",
+                OfferType = CatalogOfferType.PercentageDiscount,
+                Title = "10% off",
+                Description = "Ten percent",
+                Validity = CatalogOfferValidity.Days7AfterIssue,
+                DiscountPercentage = 10,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            _context.CatalogOffers.Add(offer);
+            await _context.SaveChangesAsync();
+            return offer.Id;
         }
 
         private async Task<int> AddGuestAsync(int locationId, int restaurantId)

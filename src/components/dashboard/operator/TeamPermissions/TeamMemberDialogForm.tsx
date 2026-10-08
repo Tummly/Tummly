@@ -41,7 +41,8 @@ type TeamMemberDialogFormProps = {
   onChange: (values: TeamMemberFormValues) => void
   roleOptions: readonly string[]
   locations: ReadonlyArray<{ id: number; name: string }>
-  isSingleLocation: boolean
+  /** Hide Location access (Account owner — scope is not editable). */
+  hideLocationAccess?: boolean
   busy?: boolean
   readOnly?: boolean
   readOnlyIdentity?: boolean
@@ -58,7 +59,7 @@ export function TeamMemberDialogForm({
   onChange,
   roleOptions,
   locations,
-  isSingleLocation,
+  hideLocationAccess = false,
   busy = false,
   readOnly = false,
   readOnlyIdentity = false,
@@ -166,7 +167,7 @@ export function TeamMemberDialogForm({
           </Select>
         </div>
 
-        {isSingleLocation ? null : (
+        {hideLocationAccess ? null : (
           <div className={TEAM_PERMISSIONS_INVITE_FIELD_STACK_CLASS}>
             <label
               htmlFor={`${idPrefix}-location-access`}

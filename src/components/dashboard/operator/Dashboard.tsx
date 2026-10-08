@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef } from "react"
-import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
+import {
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom"
 
 import { ActivateTummlyPilotDialogHost } from "@/components/dashboard/operator/ActivateTummlyPilotDialogHost"
 import { PendingPaymentInterstitialHost } from "@/components/dashboard/operator/PendingPaymentInterstitialHost"
@@ -29,6 +35,11 @@ import {
   closeExclusivePeerRightDrawers,
 } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
+import {
+  buildOperatorSidebarAreaAccess,
+  isDeniedOperatorSidebarActiveId,
+  resolveHiddenOperatorSidebarNavIds,
+} from "@/lib/operatorHome/operatorAreaChromeAccess"
 import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import { getOperatorFirstName } from "@/lib/operatorHome/operatorProfile"
 import {
@@ -37,6 +48,7 @@ import {
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
   operatorDashboardOfferDetailsPath,
+  operatorDashboardOffersRedeemPath,
   resolveOperatorSidebarActiveId,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
@@ -293,6 +305,7 @@ function DashboardContent({ mode }: DashboardProps) {
       selectedLocationId: workspace.snapshot.selectedLocationId,
       billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
       workspaceName: workspace.snapshot.restaurantName,
+      captureAccess: workspace.snapshot.captureAccess,
     })
   }, [
     workspace.snapshot.status,
@@ -300,6 +313,7 @@ function DashboardContent({ mode }: DashboardProps) {
     workspace.snapshot.selectedLocationId,
     workspace.snapshot.billingCreditsAccess,
     workspace.snapshot.restaurantName,
+    workspace.snapshot.captureAccess,
   ])
 
   const handleSignOut = () => {
@@ -355,12 +369,40 @@ function DashboardContent({ mode }: DashboardProps) {
     )
   }
 
+  const areaAccess = buildOperatorSidebarAreaAccess(workspace.snapshot)
+  const activeNavId = resolveOperatorSidebarActiveId(pathname)
+  const staffMayOpenOffers = !isDeniedOperatorSidebarActiveId(
+    "offers",
+    areaAccess
+  )
+  if (isDeniedOperatorSidebarActiveId(activeNavId, areaAccess)) {
+    // Staff: Offers redeem when Offers is allowed; never bounce to a denied row
+    // (Offers "none" + Offers fallback would Navigate-loop).
+    const fallbackPath =
+      workspace.snapshot.permissionRole === "Staff" && staffMayOpenOffers
+        ? operatorDashboardOffersRedeemPath(mode, selectedLocationId)
+        : operatorDashboardNavPath(mode, "home", selectedLocationId)
+    return <Navigate to={fallbackPath} replace />
+  }
+
+  if (
+    workspace.snapshot.permissionRole === "Staff"
+    && activeNavId === "home"
+    && staffMayOpenOffers
+  ) {
+    return (
+      <Navigate
+        to={operatorDashboardOffersRedeemPath(mode, selectedLocationId)}
+        replace
+      />
+    )
+  }
+
   const presentation = buildOperatorShellPresentation({
     operatorDisplayName: workspace.snapshot.operatorDisplayName,
     activationExpiresAt: workspace.snapshot.activationExpiresAt,
     subscriptionPlan: workspace.snapshot.subscriptionPlan,
     billingStatus: workspace.snapshot.billingStatus,
-    selfRole: workspace.snapshot.selfRole,
     permissionRole: workspace.snapshot.permissionRole,
     billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
     locations: workspace.snapshot.locations.map((location) => {
@@ -377,15 +419,12 @@ function DashboardContent({ mode }: DashboardProps) {
     locationSwitcherInteractive:
       workspace.snapshot.locationSwitcherInteractive,
     brandLogoPublicUrl: workspace.snapshot.brandLogoPublicUrl,
-    activeNavId: resolveOperatorSidebarActiveId(pathname),
+    activeNavId,
     navTargets: {
       mode,
       locationId: selectedLocationId,
     },
-    hideTeamPermissions:
-      workspace.snapshot.teamPermissionsAccess === "none",
-    hideBillingCredits:
-      workspace.snapshot.billingCreditsAccess === "none",
+    hiddenNavIds: resolveHiddenOperatorSidebarNavIds(areaAccess),
   })
 
   return (
@@ -393,7 +432,7 @@ function DashboardContent({ mode }: DashboardProps) {
       presentation={presentation}
       onSelectLocation={handleSelectLocation}
       onSignOut={handleSignOut}
-      onOperatorDisplayNameChange={workspace.applyOperatorDisplayName}
+      onOperatorProfileChange={workspace.applyOperatorProfile}
       notifications={{
         snapshot: notifications.snapshot,
         onOpen: () => {
@@ -549,6 +588,7 @@ function DashboardContent({ mode }: DashboardProps) {
             permissionRole: workspace.snapshot.permissionRole,
             chargebackRestricted: workspace.snapshot.chargebackRestricted,
             offersAccess: workspace.snapshot.offersAccess,
+            captureAccess: workspace.snapshot.captureAccess,
             privacyConsentAccess: workspace.snapshot.privacyConsentAccess,
             selectedLocationId,
             locations: workspace.snapshot.locations,
@@ -600,8 +640,16 @@ export type DashboardOutletContext = {
   permissionRole: string
   /** Omit / false keeps purchase CTAs enabled. */
   chargebackRestricted: boolean
-  /** Offers Area chrome — omit/manage keeps redemption log export visible. */
+  /**
+   * Offers Area chrome. Omit / manage keeps write + redemption-log export.
+   * Only explicit `"none"` hides Offers (CODING_STANDARDS chrome omit).
+   */
   offersAccess: "none" | "view" | "manage"
+  /**
+   * Capture Area chrome. Omit / view / manage keep Guest form preview.
+   * Only explicit `"none"` hides it (CODING_STANDARDS chrome omit).
+   */
+  captureAccess: "none" | "view" | "manage"
   /** Privacy consent Area chrome — omit/manage keeps Guest consent export visible. */
   privacyConsentAccess: "none" | "view" | "manage"
   selectedLocationId: number

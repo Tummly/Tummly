@@ -8,6 +8,7 @@ import {
   type FilterSheetSession,
   type OperatorFilterSelection,
 } from "@/lib/operatorFilterSheet"
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { buildFeedbackSummarySection } from "@/lib/operatorFeedback/buildFeedbackSummarySection"
 import {
@@ -1629,9 +1630,10 @@ export function createOperatorFeedbackPageModule(
           error instanceof Error
           && error.message === FEEDBACK_PAGE_COPY.exportDialog.softMaxError
             ? error.message
-            : error instanceof Error && error.message.length > 0
-              ? error.message
-              : FEEDBACK_PAGE_COPY.exportDialog.genericError
+            : getUserFacingApiErrorMessage(
+                error,
+                FEEDBACK_PAGE_COPY.exportDialog.genericError
+              )
         state = {
           ...state,
           exportPreparing: false,

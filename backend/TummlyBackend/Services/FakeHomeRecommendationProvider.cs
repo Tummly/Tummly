@@ -104,13 +104,13 @@ namespace TummlyBackend.Services
             {
                 "review-open-feedback" => new HomeRecommendationModelOutput(
                     Type: "review-open-feedback",
-                    Title: "Review open feedback",
+                    Title: "Follow up on open feedback",
                     Opportunity:
-                        "Guests left feedback that still needs a response.",
+                        "Open and Needs attention feedback still needs a response or recovery.",
                     WhyBullets:
                     [
-                        "Open feedback is waiting in the inbox",
-                        "Responding quickly keeps guests engaged",
+                        "Open and Needs attention counts show unresolved guest feedback",
+                        "Start recovery or respond before urgency rises",
                     ],
                     Action: new HomeRecommendationDomainActionOutput(
                         Kind: "open-feedback",

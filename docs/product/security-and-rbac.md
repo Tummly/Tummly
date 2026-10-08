@@ -14,7 +14,7 @@ Roles, access control, session handling, and tenant isolation for Tummly.
 | Password hashing (BCrypt) | Shipped |
 | Sign-in OTP | Shipped |
 | Trusted device | Shipped |
-| Failed login / account lock fields | Shipped — **5 attempts** → `IsLocked` (operators on `universal-login`; admins on `admin-login` only) |
+| Failed login / account lock fields | Shipped — **5 attempts** → `IsLocked`; operators self-unlock via Sign-in OTP (or password reset); admins hard-locked on `admin-login` only |
 | Guest feedback rate limit | Shipped |
 | Address lookup rate limit | Shipped |
 | Audit logging | Shipped (append-only table + `GET /api/admin/audit-events`; no Admin UI) |
@@ -135,7 +135,7 @@ Full cookie/storage inventory: [cookie-storage-inventory.md](./cookie-storage-in
 
 ### Partial
 
-- `FailedLoginAttempts`, `IsLocked` on `User` and `Admin` — **5 failed password attempts** locks account. Operator lock enforced on `universal-login` operator path. **Admin lock not enforced on `universal-login`** (only on `admin-login`).
+- `FailedLoginAttempts`, `IsLocked` on `User` and `Admin` — **5 failed password attempts** locks account. Operators: locked + correct password forces **Sign-in OTP** (no trust-skip); OTP verify or password reset clears lock. Admins: hard lock on `admin-login` only (`"Account is locked."`). **Admin lock not enforced on `universal-login`**.
 
 ---
 

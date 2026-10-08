@@ -125,6 +125,34 @@ namespace TummlyBackend.Helpers
                 $"{publicApiBaseUrl.Trim().TrimEnd('/')}{BuildPublicUrl(objectKey)}";
         }
 
+        /// <summary>
+        /// Workspace brand logo for guest-facing email. Prefers
+        /// <c>PublicApi:BaseUrl</c>, else <c>Frontend:BaseUrl</c>. Null when
+        /// no logo is uploaded (templates use the Location Switcher
+        /// BrandLogoMark / Building2 placeholder asset).
+        /// </summary>
+        public static string? BuildAbsolutePublicUrl(
+            string? objectKey,
+            IConfiguration configuration
+        )
+        {
+            if (string.IsNullOrWhiteSpace(objectKey))
+            {
+                return null;
+            }
+
+            var publicApi = configuration["PublicApi:BaseUrl"];
+            if (!string.IsNullOrWhiteSpace(publicApi))
+            {
+                return BuildAbsolutePublicUrl(objectKey, publicApi);
+            }
+
+            return BuildAbsolutePublicUrl(
+                objectKey,
+                configuration["Frontend:BaseUrl"]
+            );
+        }
+
         public static string? TryParseObjectKeyFromPublicSegment(string segment)
         {
             if (string.IsNullOrWhiteSpace(segment))

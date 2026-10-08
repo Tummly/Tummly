@@ -1,10 +1,15 @@
 import type {
   WeeklyBriefBody,
   WeeklyBriefMetrics,
+  WeeklyBriefNotReadyReason,
 } from "@/types/operatorHome"
 
 export const REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE =
   "Could not load your weekly brief. Please try again."
+
+/** Soft empty helper when generate returns reason location-too-new. */
+export const REPORTS_WEEKLY_BRIEF_LOCATION_TOO_NEW_MESSAGE =
+  "We do not have enough data to generate a weekly brief yet because this location is newer than the closed week."
 
 export const REPORTS_HUB_GUEST_LOOP_COPY = {
   sectionTitle: "This week's guest loop",
@@ -14,6 +19,16 @@ export const REPORTS_HUB_GUEST_LOOP_COPY = {
   generateBrief: "Generate brief",
   retry: "Retry",
 } as const
+
+/** Map generate soft-not-ready reason → empty helper; null keeps default copy. */
+export function weeklyBriefEmptyMessageForReason(
+  reason: WeeklyBriefNotReadyReason | string | null | undefined
+): string | null {
+  if (reason === "location-too-new") {
+    return REPORTS_WEEKLY_BRIEF_LOCATION_TOO_NEW_MESSAGE
+  }
+  return null
+}
 
 const DOMAIN_ORDER = [
   "feedback",
