@@ -678,6 +678,11 @@ namespace TummlyBackend.Helpers
                 ##/### headings, **bold**, top-level - lists and 1. lists. Refusal,
                 failure, and clarify bodies are plain text.
 
+                When chat history already asked a question, answer that question.
+                Do not drop the earlier draft or start a new topic. For an open
+                Offer, keep assistantTask offer-path and fill offerTerms from
+                the whole thread, including this reply.
+
                 Prefer parallel tool calls for the domains the question needs.
                 Do not dump allow-list domains the operator did not ask about.
                 Empty tool evidence is a grounded empty answer: say what is

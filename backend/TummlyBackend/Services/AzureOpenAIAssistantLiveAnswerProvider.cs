@@ -45,14 +45,6 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (input.ExecuteRetrieveTools is null)
-            {
-                _logger.LogError(
-                    "Assistant retrieve tools enabled but ExecuteRetrieveTools is null."
-                );
-                return new AssistantLiveAnswerResult.Failed(Retryable: true);
-            }
-
             var deploymentName = AssistantModelDeployment();
             if (string.IsNullOrWhiteSpace(_settings.Endpoint)
                 || string.IsNullOrWhiteSpace(_settings.ApiKey)
@@ -68,6 +60,18 @@ namespace TummlyBackend.Services
                 AssistantLiveAnswerStructuredOutput.HttpClientName
             );
             var requestUri = BuildChatCompletionsUri(deploymentName);
+            if (input.ExecuteRetrieveTools is null)
+            {
+                // Follow-ups such as an Offer expiry fill send history and no
+                // retrieve executor. Answer from the thread instead of failing.
+                return await CompleteHistoryOnlyAsync(
+                    client,
+                    requestUri,
+                    deploymentName,
+                    input,
+                    cancellationToken
+                );
+            }
             var messages = AssistantLiveAnswerStructuredOutput
                 .BuildRetrieveToolsSeedMessages(
                     input,
@@ -385,6 +389,57 @@ namespace TummlyBackend.Services
                     out _
                 )
                 && result is null)
+            {
+                return new AssistantLiveAnswerResult.Failed(Retryable: true);
+            }
+
+            return result ?? new AssistantLiveAnswerResult.Failed(Retryable: true);
+        }
+
+        private async Task<AssistantLiveAnswerResult> CompleteHistoryOnlyAsync(
+            HttpClient client,
+            Uri requestUri,
+            string deploymentName,
+            AssistantLiveAnswerInput input,
+            CancellationToken cancellationToken
+        )
+        {
+            var messages = AssistantLiveAnswerStructuredOutput
+                .BuildRetrieveToolsSeedMessages(
+                    input,
+                    _settings.PromptSchemaVersion
+                );
+            var json = AssistantLiveAnswerStructuredOutput.BuildRetrieveToolsRoundJson(
+                deploymentName,
+                input,
+                _settings.PromptSchemaVersion,
+                messages,
+                allowTools: false
+            );
+            var response = await SendChatAsync(
+                client,
+                requestUri,
+                json,
+                cancellationToken
+            );
+            if (response.Kind != AttemptKind.Succeeded
+                || response.ResponseJson is null)
+            {
+                return response.Result
+                    ?? new AssistantLiveAnswerResult.Failed(Retryable: true);
+            }
+
+            if (!AssistantLiveAnswerStructuredOutput.TryExtractMessageContent(
+                    response.ResponseJson,
+                    out var content
+                )
+                || !AssistantLiveAnswerStructuredOutput.TryParseModelContent(
+                    content,
+                    input.Evidence,
+                    input.UserMessage,
+                    out var result,
+                    out _
+                ))
             {
                 return new AssistantLiveAnswerResult.Failed(Retryable: true);
             }

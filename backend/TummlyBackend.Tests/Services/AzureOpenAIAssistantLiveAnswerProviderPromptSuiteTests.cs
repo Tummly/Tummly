@@ -169,6 +169,102 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task OfferExpiryFollowUp_WithoutTools_ReadsHistoryAndKeepsTerms()
+        {
+            var payload = JsonSerializer.Serialize(
+                new Dictionary<string, object?>
+                {
+                    ["answerClass"] = "grounded",
+                    ["title"] = "Lunch offer",
+                    ["body"] = "The 25% lunch offer ends two weeks after a guest gets it.",
+                    ["actions"] = Array.Empty<object>(),
+                    ["assistantTask"] = AssistantTask.OfferPath,
+                    ["conversationTitle"] = "Lunch offer",
+                    ["offerTerms"] = new Dictionary<string, object?>
+                    {
+                        ["offerType"] = "percentage_discount",
+                        ["discountPercentage"] = 25,
+                        ["discountAmount"] = null,
+                        ["freeItemText"] = null,
+                        ["purchaseRequirement"] = null,
+                        ["minimumSpend"] = null,
+                        ["replacementItemText"] = null,
+                        ["validity"] = "14_days_after_issue",
+                        ["expiryDate"] = null,
+                        ["placement"] = null,
+                    },
+                }
+            );
+            var content = JsonSerializer.Serialize(payload);
+            var handler = new ScriptedHandler(
+                $$"""
+                {
+                  "choices": [
+                    {
+                      "message": {
+                        "role": "assistant",
+                        "content": {{content}}
+                      }
+                    }
+                  ]
+                }
+                """
+            );
+            var httpClient = new HttpClient(handler);
+            var provider = new AzureOpenAIAssistantLiveAnswerProvider(
+                new StubHttpClientFactory(httpClient),
+                Options.Create(
+                    new FeedbackClassificationSettings
+                    {
+                        Provider = "AzureOpenAI",
+                        Endpoint = "https://tummly-test.openai.azure.com/",
+                        ApiKey = "test-key",
+                        DeploymentName = "gpt-4o-mini",
+                        ApiVersion = "2024-08-01-preview",
+                        PromptSchemaVersion = "2026-07-18",
+                    }
+                ),
+                NullLogger<AzureOpenAIAssistantLiveAnswerProvider>.Instance
+            );
+
+            var result = await provider.CompleteAsync(
+                new AssistantLiveAnswerInput(
+                    "next Friday",
+                    "Camden",
+                    "this week",
+                    AssistantRetrievedEvidence.Empty,
+                    History:
+                    [
+                        new AssistantLiveAnswerHistoryTurn(
+                            AssistantMessageRole.User,
+                            "Create a 25% off lunch offer"
+                        ),
+                        new AssistantLiveAnswerHistoryTurn(
+                            AssistantMessageRole.Assistant,
+                            "When should the offer end? Send a date, or how many days after a guest gets it."
+                        ),
+                    ]
+                )
+            );
+
+            var succeeded = Assert.IsType<AssistantLiveAnswerResult.Succeeded>(result);
+            Assert.Equal(AssistantTask.OfferPath, succeeded.AssistantTask);
+            Assert.Equal("14_days_after_issue", succeeded.OfferTerms?.Validity);
+            Assert.Contains("25% lunch offer", succeeded.Body, StringComparison.Ordinal);
+            Assert.Equal(1, handler.RequestCount);
+            Assert.Contains("Create a 25% off lunch offer", handler.RequestBodies[0]);
+            Assert.Contains("When should the offer end?", handler.RequestBodies[0]);
+            Assert.Contains("next Friday", handler.RequestBodies[0]);
+            Assert.Contains("\"response_format\"", handler.RequestBodies[0]);
+            Record(
+                "offer expiry follow-up",
+                "next Friday",
+                succeeded.Body,
+                "history kept the 25% lunch offer; no retrieve tools"
+            );
+        }
+
+        [Fact]
         public async Task AssistantDeploymentName_OverridesSharedDeployment()
         {
             var handler = new ScriptedHandler(

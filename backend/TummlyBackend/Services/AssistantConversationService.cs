@@ -5233,9 +5233,10 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                // Complete terms: refresh stored Gap so outer Overlay resume
-                // sees Merge/extract facts. Extract billing is not consumed
-                // here; the completing live-answer turn bills once.
+                // Complete terms stay on the Gap for the resume below. A parsed
+                // fill still falls through to one completing live answer.
+                // An extract that already filled the Offer persists below and
+                // bills on that save.
                 conversation.DraftInterviewJson = AssistantGapTurn.Serialize(
                     AssistantGapTurn.CreateCombinedOfferTerms(
                         gapState.SourceUserMessage,
@@ -5306,6 +5307,33 @@ namespace TummlyBackend.Services
                 if (resumedLocation.Outcome is not null)
                 {
                     return new GapResume(resumedLocation.Outcome, null);
+                }
+
+                if (extractBilling is not null)
+                {
+                    // The follow-up already completed the open Offer. Save it
+                    // from those terms. A second live answer classifies a short
+                    // reply ("the day we discussed") as a new topic and drops
+                    // the draft.
+                    extractBilling.MarkLiveAnswerSucceeded();
+                    var persistedFromExtract = await PersistCreateAndStoreAsync(
+                        conversation,
+                        gapState.SourceUserMessage,
+                        CreatePersistLocationId(
+                            resumedLocation.LocationId,
+                            conversation
+                        ),
+                        resumedLocation.LocationName ?? analysisScopeLocationName,
+                        updateScope: false,
+                        replaceFailure,
+                        cancellationToken,
+                        ownedLocations.Select(location => location.Id).ToList(),
+                        gapState.AssistantTask,
+                        merged,
+                        turnBilling: extractBilling,
+                        liveAnswerAlreadyCompleted: true
+                    );
+                    return new GapResume(persistedFromExtract, null);
                 }
 
                 return new GapResume(
@@ -6170,7 +6198,9 @@ namespace TummlyBackend.Services
             string assistantTask = AssistantTask.CreateCampaignDraft,
             AssistantOfferPathTermsState? offerTerms = null,
             AssistantCampaignDraftBindChoice? choice = null,
-            bool allowEmptyAudience = false
+            bool allowEmptyAudience = false,
+            AssistantTurnBilling? turnBilling = null,
+            bool liveAnswerAlreadyCompleted = false
         )
         {
             if (updateScope && locationId != conversation.OwnedLocationId)
@@ -6214,7 +6244,9 @@ namespace TummlyBackend.Services
                         offerPersist.Actions
                     ),
                     replaceFailure,
-                    cancellationToken
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: liveAnswerAlreadyCompleted,
+                    turnBilling: turnBilling
                 );
             }
 
@@ -6241,7 +6273,9 @@ namespace TummlyBackend.Services
                 conversation,
                 PersistTurnMessage(DateTime.UtcNow, persist),
                 replaceFailure,
-                cancellationToken
+                cancellationToken,
+                liveAnswerAlreadyCompleted: liveAnswerAlreadyCompleted,
+                turnBilling: turnBilling
             );
         }
 
