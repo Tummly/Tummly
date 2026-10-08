@@ -103,7 +103,7 @@ namespace TummlyBackend.Tests.Helpers
             Assert.DoesNotContain("\"parallel_tool_calls\"", json);
             Assert.Contains("\"response_format\"", json);
             Assert.DoesNotContain("\"tools\"", json);
-            Assert.Contains("\"max_completion_tokens\":4096", json);
+            Assert.Contains("\"max_completion_tokens\":8192", json);
         }
 
         [Fact]
@@ -168,6 +168,12 @@ namespace TummlyBackend.Tests.Helpers
 
             Assert.Contains("\"parallel_tool_calls\":true", json);
             Assert.Contains("\"tool_choice\":\"auto\"", json);
+            Assert.Contains("\"max_completion_tokens\":4096", json);
+            Assert.Contains(
+                "explain what the retrieved numbers mean",
+                json,
+                StringComparison.Ordinal
+            );
             Assert.Contains(AssistantRetrieveToolCatalog.ReadFeedbackSummary, json);
             Assert.DoesNotContain("\"response_format\"", json);
         }

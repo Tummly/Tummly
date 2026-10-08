@@ -13,7 +13,8 @@ namespace TummlyBackend.Services
 {
     /// <summary>
     /// Production live-answer provider: Azure OpenAI Structured Outputs.
-    /// Retrieve-tool path: one native tool wave (parallel), then forced final answer.
+    /// Retrieve-tool path: one native tool wave, one corrective tool wave,
+    /// then a forced structured final answer.
     /// </summary>
     public sealed class AzureOpenAIAssistantLiveAnswerProvider
         : IAssistantLiveAnswerProvider
@@ -52,9 +53,10 @@ namespace TummlyBackend.Services
                 return new AssistantLiveAnswerResult.Failed(Retryable: true);
             }
 
+            var deploymentName = AssistantModelDeployment();
             if (string.IsNullOrWhiteSpace(_settings.Endpoint)
                 || string.IsNullOrWhiteSpace(_settings.ApiKey)
-                || string.IsNullOrWhiteSpace(_settings.DeploymentName))
+                || string.IsNullOrWhiteSpace(deploymentName))
             {
                 _logger.LogError(
                     "Azure OpenAI Assistant live answer is misconfigured (endpoint, api key, or deployment)."
@@ -65,7 +67,7 @@ namespace TummlyBackend.Services
             var client = _httpClientFactory.CreateClient(
                 AssistantLiveAnswerStructuredOutput.HttpClientName
             );
-            var requestUri = BuildChatCompletionsUri();
+            var requestUri = BuildChatCompletionsUri(deploymentName);
             var messages = AssistantLiveAnswerStructuredOutput
                 .BuildRetrieveToolsSeedMessages(
                     input,
@@ -75,7 +77,7 @@ namespace TummlyBackend.Services
             // Round 1: tools allowed (no structured schema yet).
             var round1Json = AssistantLiveAnswerStructuredOutput
                 .BuildRetrieveToolsRoundJson(
-                    _settings.DeploymentName,
+                    deploymentName,
                     input,
                     _settings.PromptSchemaVersion,
                     messages,
@@ -171,6 +173,21 @@ namespace TummlyBackend.Services
                     messages,
                     toolResults
                 );
+
+                var corrective = await TrySecondToolWaveAsync(
+                    client,
+                    requestUri,
+                    deploymentName,
+                    messages,
+                    input,
+                    evidenceForParse,
+                    cancellationToken
+                );
+                evidenceForParse = corrective.Evidence;
+                if (corrective.Result is not null)
+                {
+                    return corrective.Result;
+                }
             }
             else if (AssistantLiveAnswerStructuredOutput.TryExtractMessageContent(
                     round1Response.ResponseJson,
@@ -239,7 +256,7 @@ namespace TummlyBackend.Services
 
                     var finalOnlyJson = AssistantLiveAnswerStructuredOutput
                         .BuildRetrieveToolsRoundJson(
-                            _settings.DeploymentName,
+                            deploymentName,
                             input,
                             _settings.PromptSchemaVersion,
                             messages,
@@ -317,10 +334,12 @@ namespace TummlyBackend.Services
                 );
             }
 
-            // Round 2: tools disabled; structured final answer required.
+            // Final round: tools disabled; structured answer required.
+            // A third tool wave is ignored so a missed domain can be corrected
+            // once and cannot loop.
             var round2Json = AssistantLiveAnswerStructuredOutput
                 .BuildRetrieveToolsRoundJson(
-                    _settings.DeploymentName,
+                    deploymentName,
                     input,
                     _settings.PromptSchemaVersion,
                     messages,
@@ -360,7 +379,7 @@ namespace TummlyBackend.Services
                     : new AssistantLiveAnswerResult.Failed(Retryable: true);
             }
 
-            // Cap: ignore any second-wave tool_calls if the model still emits them.
+            // Cap: ignore tool_calls on the structured final round.
             if (AssistantLiveAnswerStructuredOutput.TryExtractToolCalls(
                     round2Response.ResponseJson,
                     out _
@@ -371,6 +390,101 @@ namespace TummlyBackend.Services
             }
 
             return result ?? new AssistantLiveAnswerResult.Failed(Retryable: true);
+        }
+
+        private string AssistantModelDeployment()
+            => string.IsNullOrWhiteSpace(_settings.AssistantDeploymentName)
+                ? _settings.DeploymentName
+                : _settings.AssistantDeploymentName.Trim();
+
+        /// <summary>
+        /// One corrective tool wave after the model's first lookups. A parsed
+        /// answer with no further tool calls is returned as-is. Another tool
+        /// call is executed, then the caller forces the structured answer.
+        /// </summary>
+        private async Task<(
+            AssistantRetrievedEvidence Evidence,
+            AssistantLiveAnswerResult? Result
+        )> TrySecondToolWaveAsync(
+            HttpClient client,
+            Uri requestUri,
+            string deploymentName,
+            JsonArray messages,
+            AssistantLiveAnswerInput input,
+            AssistantRetrievedEvidence evidence,
+            CancellationToken cancellationToken
+        )
+        {
+            var roundJson = AssistantLiveAnswerStructuredOutput
+                .BuildRetrieveToolsRoundJson(
+                    deploymentName,
+                    input,
+                    _settings.PromptSchemaVersion,
+                    messages,
+                    allowTools: true
+                );
+            var response = await SendChatAsync(
+                client,
+                requestUri,
+                roundJson,
+                cancellationToken
+            );
+            if (response.Kind != AttemptKind.Succeeded
+                || response.ResponseJson is null)
+            {
+                return (
+                    evidence,
+                    response.Result
+                        ?? new AssistantLiveAnswerResult.Failed(Retryable: true)
+                );
+            }
+
+            if (AssistantLiveAnswerStructuredOutput.TryExtractToolCalls(
+                    response.ResponseJson,
+                    out var toolCalls
+                ))
+            {
+                if (input.OnRetrieveProgress is not null)
+                {
+                    await input.OnRetrieveProgress(
+                        AssistantTurnProgressSteps.Retrieving,
+                        cancellationToken
+                    );
+                }
+
+                var toolResults = await input.ExecuteRetrieveTools!(
+                    toolCalls,
+                    cancellationToken
+                );
+                evidence = input.ReadToolEvidence?.Invoke() ?? evidence;
+                AssistantLiveAnswerStructuredOutput.AppendAssistantToolCallsMessage(
+                    messages,
+                    response.ResponseJson
+                );
+                AssistantLiveAnswerStructuredOutput.AppendToolResultMessages(
+                    messages,
+                    toolResults
+                );
+                return (evidence, null);
+            }
+
+            if (AssistantLiveAnswerStructuredOutput.TryExtractMessageContent(
+                    response.ResponseJson,
+                    out var content
+                )
+                && AssistantLiveAnswerStructuredOutput.TryParseModelContent(
+                    content,
+                    evidence,
+                    input.UserMessage,
+                    out var parsed,
+                    out _
+                )
+                && parsed is not null)
+            {
+                return (evidence, parsed);
+            }
+
+            return (evidence, null);
         }
 
         private static IEnumerable<string> ForcedRetrieveToolCalls(
@@ -454,11 +568,11 @@ namespace TummlyBackend.Services
             return AttemptResult.SucceededJson(responseJson);
         }
 
-        private Uri BuildChatCompletionsUri()
+        private Uri BuildChatCompletionsUri(string deploymentName)
         {
             var endpoint = _settings.Endpoint.TrimEnd('/') + "/";
             var relative =
-                $"openai/deployments/{Uri.EscapeDataString(_settings.DeploymentName)}"
+                $"openai/deployments/{Uri.EscapeDataString(deploymentName)}"
                 + $"/chat/completions?api-version={Uri.EscapeDataString(_settings.ApiVersion)}";
 
             return new Uri(new Uri(endpoint), relative);

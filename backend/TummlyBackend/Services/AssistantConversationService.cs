@@ -1659,74 +1659,38 @@ namespace TummlyBackend.Services
                         body = withCaveat.Body;
                         actions = withCaveat.Actions;
                     }
-                    // Prefer local question-first copy for narrow focuses so Azure
-                    // cannot dump unrequested Capture Feedback / opt-in zeros.
-                    else if (succeeded.Class == AssistantMessageClass.Grounded
-                        && string.Equals(
-                            succeeded.AssistantTask,
-                            AssistantTask.Retrieve,
-                            StringComparison.Ordinal
-                        )
-                        && compareEvidence is not { Count: >= 2 }
-                        && !isCompareAll
-                        && PreferLocalQuestionFirstBody(
-                            AssistantAskFocus.Detect(userMessage)
-                        ))
-                    {
-                        var local = AssistantLiveAnswerCopy.WithSentences(
-                            AssistantLiveAnswerCopy.GroundedFromEvidence(
-                                userMessage,
-                                locationName,
-                                periodPhrase,
-                                savedEvidence
-                            ),
-                            caveat,
-                            droppedUnknown
-                        );
-                        title = AssistantContactRedaction.RedactTitle(
-                            local.Title,
-                            redactionTokens
-                        );
-                        body = AssistantContactRedaction.RedactBody(
-                            local.Body,
-                            redactionTokens
-                        );
-                        actions = AssistantActionCatalog.ValidateForLiveAsk(
-                            local.Actions,
-                            local.Class,
-                            savedEvidence,
-                            userMessage,
-                            groundedAsk
-                        );
-                    }
                     if (isCompareAll)
                     {
                         actions = [];
                     }
-                    // Pure product-expert: lock canned copy (also overrides a
-                    // model/Fake create task on capability asks).
-                    if (pureProductExpert)
+                    // Product-expert row label. The body stays the model's.
+                    // The usual title gate rejects a label that echoes the
+                    // answer title; product-expert labels often do that.
+                    if (pureProductExpert
+                        && !string.IsNullOrWhiteSpace(succeeded.ConversationTitle)
+                        && conversation.Messages.Count(
+                            message => message.Role == AssistantMessageRole.User
+                        ) == 1)
                     {
-                        var canned = AssistantProductExpertTopics.Assemble(productTopics);
-                        title = canned.Title;
-                        body = canned.Body;
-                        actions = [];
-                        proposedConversationTitle = canned.ConversationTitle;
-                        if (conversation.Messages.Count(
-                                message => message.Role == AssistantMessageRole.User
-                            ) == 1)
+                        var productTitle = AssistantConversationTitle.TryAccept(
+                            succeeded.ConversationTitle,
+                            liveAnswerMessageTitle: null
+                        );
+                        if (productTitle is not null)
                         {
-                            conversation.Title = canned.ConversationTitle;
+                            conversation.Title = productTitle;
                         }
                     }
-                    // Mixed retrieve+product: tools answer stands; do not append
-                    // canned product copy (KOL tools-only contract).
+                    // Successful live answers keep the model title and body.
+                    // Question-first templates and product-expert canned copy
+                    // no longer replace them. Actions stay server-validated,
+                    // contacts stay redacted, and empty retrieve evidence above
+                    // still cannot invent counts. Campaign, offer, and recovery
+                    // persist paths own their confirmation copy.
                     assistantMessage = new AssistantMessage
                     {
                         Role = AssistantMessageRole.Assistant,
-                        Class = pureProductExpert
-                            ? AssistantMessageClass.Grounded
-                            : succeeded.Class,
+                        Class = succeeded.Class,
                         Title = title,
                         Body = body,
                         ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
@@ -8112,14 +8076,6 @@ namespace TummlyBackend.Services
                 liveAnswerAlreadyCompleted: true
             );
         }
-
-        private static bool PreferLocalQuestionFirstBody(AssistantAskFocusKind focus)
-            => focus is AssistantAskFocusKind.CaptureQr
-                or AssistantAskFocusKind.OffersRedemptions
-                or AssistantAskFocusKind.OffersClaims
-                or AssistantAskFocusKind.CampaignsActive
-                or AssistantAskFocusKind.CampaignsAny
-                or AssistantAskFocusKind.Feedback;
 
         private static AssistantMessage FailureMessage(DateTime createdAt)
             => new()

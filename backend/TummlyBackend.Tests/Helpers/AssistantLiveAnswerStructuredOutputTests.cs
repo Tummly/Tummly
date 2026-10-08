@@ -194,7 +194,7 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.Contains(
-                "Answer only what was asked",
+                "Explain what the numbers mean",
                 prompt,
                 StringComparison.Ordinal
             );

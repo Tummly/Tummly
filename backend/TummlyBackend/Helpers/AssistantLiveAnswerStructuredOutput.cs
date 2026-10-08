@@ -443,10 +443,13 @@ namespace TummlyBackend.Helpers
                 invent causes. Do not add ## Recommendation unless the server
                 advisory Reason path already produced one.
 
-                Question-first rules: use askFocus in the user payload to decide
-                which domain to answer from. Answer only what was asked; do not dump allow-list domains
-                the operator did not ask about. Direct answer first; then optional
-                short detail; at most one next-step suggestion. Omit zero-value classification buckets.
+                Assistant voice: read the operator's question and answer it in
+                natural language, the way a capable colleague would. Use askFocus
+                in the user payload to decide which domain to answer from.
+                Explain what the numbers mean and what the operator can do next.
+                Do not dump allow-list domains the operator did not ask about.
+                Direct answer first; then a short interpretation; at most one next-step suggestion.
+                Omit zero-value classification buckets.
                 Never echo internal terms such as current-state, eligibility keys,
                 camelCase KPIs, or "Succeeded classification" in title or body.
 
@@ -647,8 +650,13 @@ namespace TummlyBackend.Helpers
 
         public static string BuildRetrieveToolsSystemPrompt(string promptSchemaVersion)
             => $"""
-                You write one complete live answer for an operator AI Assistant.
+                You are the operator's AI assistant for one restaurant.
                 Prompt/schema version: {promptSchemaVersion}.
+
+                Read the question and answer it the way a capable colleague would.
+                Interpret what was asked, explain what the retrieved numbers mean,
+                and name one practical next step. Use natural language. Do not
+                reply with a bare count, a template, or a dump of unrelated zeros.
 
                 Call retrieve tools for restaurant facts. Do not invent counts,
                 guest contact details, or Location data. Scope and Reporting period
@@ -660,25 +668,33 @@ namespace TummlyBackend.Helpers
                 Do not call write or mutate tools — campaign, offer, and
                 recovery drafts persist on the server after your structured answer.
 
-                After tool results, return Structured Outputs only with answerClass
-                grounded, refusal, failure, or clarify; assistantTask retrieve,
+                After tool results, if those tools missed the domain the question
+                needs, call the missing retrieve tools once more. Then return
+                Structured Outputs only with answerClass grounded, refusal,
+                failure, or clarify; assistantTask retrieve,
                 create-campaign-draft, create-campaign-with-offer, offer-path,
                 recovery-path, or refuse; title; body; actions; conversationTitle;
                 offerTerms when creating an Offer. Grounded body Markdown allow-list:
                 ##/### headings, **bold**, top-level - lists and 1. lists. Refusal,
                 failure, and clarify bodies are plain text.
 
-                Question-first: answer only what was asked. Prefer parallel tool calls
-                for the domains needed. Empty tool evidence is a grounded empty answer.
+                Prefer parallel tool calls for the domains the question needs.
+                Do not dump allow-list domains the operator did not ask about.
+                Empty tool evidence is a grounded empty answer: say what is
+                missing instead of inventing a count or a cause.
                 """;
 
         /// <summary>
-        /// gpt-5-mini (QA) spends reasoning tokens inside max_completion_tokens;
-        /// without headroom, Structured Outputs finish with empty content.
+        /// gpt-5-mini (QA) spends reasoning tokens inside max_completion_tokens.
+        /// A 512 cap left no room for the tool call, so the round finished empty.
         /// </summary>
-        public const int RetrieveToolsRoundMaxCompletionTokens = 512;
+        public const int RetrieveToolsRoundMaxCompletionTokens = 4096;
 
-        public const int StructuredAnswerMaxCompletionTokens = 4096;
+        /// <summary>
+        /// Final structured answer. Headroom covers reasoning tokens plus the
+        /// operator-facing explanation.
+        /// </summary>
+        public const int StructuredAnswerMaxCompletionTokens = 8192;
 
         public static string BuildRetrieveToolsRoundJson(
             string deploymentName,

@@ -99,11 +99,18 @@ namespace TummlyBackend.Services
                 exception ?? new InvalidOperationException("Fake live answer boom");
         }
 
+        /// <summary>
+        /// When a test forces the answer text, still run retrieve tools first
+        /// so the conversation service sees real evidence and can keep that text.
+        /// </summary>
+        public bool ExecuteToolsBeforeForcedResult { get; set; }
+
         public void ResetToCannedStub()
         {
             _throwOnComplete = null;
             Delay = TimeSpan.Zero;
             SecondRoundDelay = TimeSpan.Zero;
+            ExecuteToolsBeforeForcedResult = false;
             _forcedResult = null;
             _resultQueue.Clear();
             CompleteCount = 0;
@@ -136,6 +143,11 @@ namespace TummlyBackend.Services
 
             if (_forcedResult is not null)
             {
+                if (ExecuteToolsBeforeForcedResult)
+                {
+                    await RunRetrieveToolsIfEnabledAsync(input, cancellationToken);
+                }
+
                 return _forcedResult;
             }
 

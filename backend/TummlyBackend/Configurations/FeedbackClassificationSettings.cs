@@ -20,6 +20,13 @@ namespace TummlyBackend.Configurations
         /// <summary>Mini-tier deployment / model id (e.g. gpt-4o-mini).</summary>
         public string DeploymentName { get; set; } = "gpt-4o-mini";
 
+        /// <summary>
+        /// Optional deployment used only by the operator Assistant live answer.
+        /// Empty falls back to <see cref="DeploymentName"/> so classification,
+        /// recommendations, and drafts keep the shared deployment.
+        /// </summary>
+        public string AssistantDeploymentName { get; set; } = string.Empty;
+
         public string ApiVersion { get; set; } = "2024-08-01-preview";
 
         public string Region { get; set; } = string.Empty;
