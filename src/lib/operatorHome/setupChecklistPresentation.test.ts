@@ -155,8 +155,8 @@ describe("setupChecklistPresentation", () => {
   })
 
   it("uses per-step Figma illustration frame sizes", () => {
-    expect(getSetupStepIllustration("account-ready")).toEqual({ height: 31 })
-    expect(getSetupStepIllustration("upload-logo")).toEqual({ height: 31 })
+    expect(getSetupStepIllustration("account-ready")).toEqual({ height: 26 })
+    expect(getSetupStepIllustration("upload-logo")).toEqual({ height: 26 })
     expect(getSetupStepIllustration("guest-form").height).toBe(26)
     expect(getSetupStepIllustration("first-response").height).toBe(26)
     expect(getSetupStepIllustration("qr-placement").height).toBe(26)

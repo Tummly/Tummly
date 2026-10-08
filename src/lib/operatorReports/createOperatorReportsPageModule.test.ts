@@ -971,7 +971,7 @@ describe("createOperatorReportsPageModule", () => {
     expect(downloadReportsExport).not.toHaveBeenCalled()
   })
 
-  it("downloads overview PDF without CSV consent", async () => {
+  it("requires guest-data consent before overview PDF download", async () => {
     const downloadReportsExport = vi.fn(async () => ({
       blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
       filename: "tummly-reports-overview-1-20260717-120000Z.pdf",
@@ -985,13 +985,44 @@ describe("createOperatorReportsPageModule", () => {
     await module.syncWorkspace(workspace())
     module.openExportDialog()
 
-    const ok = await module.requestExport("overview")
+    const pending = await module.requestExport("overview")
+    expect(pending).toBe(false)
+    expect(module.getSnapshot().pendingCsvExportKind).toBe("overview")
+    expect(downloadReportsExport).not.toHaveBeenCalled()
+
+    module.setCsvConsentChecked(true)
+    const ok = await module.confirmCsvExport()
     expect(ok).toBe(true)
-    expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
     expect(downloadReportsExport).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "overview", locationId: 1 })
+      expect.objectContaining({
+        kind: "overview",
+        locationId: 1,
+        format: "pdf",
+      })
     )
     expect(triggerBrowserDownload).toHaveBeenCalled()
+  })
+
+  it("passes all workspace locationIds for overview PDF all-scope", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
+      filename: "tummly-reports-overview-multi-20260717-120000Z.pdf",
+    }))
+    const adapters = createAdapters({ downloadReportsExport })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.setXlsxLocationScope("all")
+    module.openExportDialog()
+    await module.requestExport("overview", { format: "pdf" })
+    module.setCsvConsentChecked(true)
+    await module.confirmCsvExport()
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "overview",
+        format: "pdf",
+        locationIds: [1, 2],
+      })
+    )
   })
 
   it("records export download error without closing the dialog", async () => {
@@ -1003,7 +1034,9 @@ describe("createOperatorReportsPageModule", () => {
     await module.syncWorkspace(workspace())
     module.openExportDialog()
 
-    const ok = await module.requestExport("overview")
+    await module.requestExport("overview")
+    module.setCsvConsentChecked(true)
+    const ok = await module.confirmCsvExport()
     expect(ok).toBe(false)
     expect(module.getSnapshot().exportDialogOpen).toBe(true)
     expect(module.getSnapshot().exportDownloadError).toBe("soft_lock")

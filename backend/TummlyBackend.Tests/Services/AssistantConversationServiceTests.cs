@@ -4872,6 +4872,37 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_HelpWithGuestRecoveryChip_EligibleFeedback_StoresWorkAndReview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Help with guest recovery")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("open-recovery", action.Type);
+            Assert.Equal("Review recovery", action.Label);
+            Assert.NotNull(ok.Conversation.PendingRecoveryDraft);
+            Assert.Equal(action.FeedbackId, ok.Conversation.PendingRecoveryDraft!.FeedbackId);
+            Assert.Equal("respond-to-guest", ok.Conversation.PendingRecoveryDraft.Intent);
+        }
+
+        [Fact]
         public async Task SendTurn_PrepareRecoveryResponse_EligibleGuestMessage_StoresWorkAndReview()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -9284,6 +9315,55 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, _fake.LastInput!.ReadToolEvidence!().Home.FeedbackSubmitted);
             Assert.Equal(1, _fake.LastInput.ReadToolEvidence!().Home.GuestsJoined);
             Assert.Equal(1, _fake.LastInput.ReadToolEvidence!().Home.QrScans);
+        }
+
+        [Fact]
+        public async Task SendTurn_ExplainPerformance_RetrievesHomeKpis_WithDataInterpretation()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+            await SeedLocationGuestAsync(locationId, DateTime.UtcNow.AddHours(-2));
+            var qrId = await SeedQrCodeAsync(locationId);
+            await SeedQrScanAsync(locationId, qrId, DateTime.UtcNow.AddHours(-3));
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Explain performance for the last 30 days"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Contains("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                "## Interpretation",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("Feedback submitted", answer.Body);
+            Assert.Contains("Guests joined", answer.Body);
+            Assert.Contains("QR scans", answer.Body);
+            Assert.DoesNotContain(
+                "## Recommendation",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.NotNull(_fake.LastInput);
+            Assert.Equal(
+                1,
+                _fake.LastInput!.ReadToolEvidence!().Home.FeedbackSubmitted
+            );
+            Assert.Equal(
+                1,
+                _fake.LastInput.ReadToolEvidence!().Home.GuestsJoined
+            );
+            Assert.Equal(
+                1,
+                _fake.LastInput.ReadToolEvidence!().Home.QrScans
+            );
         }
 
         [Fact]

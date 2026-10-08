@@ -62,6 +62,50 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void GroundedFromEvidence_SummariseWithNeedsAttention_UsesPeriodTitle()
+        {
+            var evidence = AssistantRetrievedEvidence.FromFeedback(
+                new AssistantFeedbackEvidence(
+                    TotalCount: 3,
+                    SampleCount: 1,
+                    SucceededPositive: 0,
+                    SucceededNeutral: 1,
+                    SucceededNegative: 2,
+                    NeedsAttention: 2,
+                    TagCounts: [],
+                    Rows: [],
+                    GuestRows: [],
+                    Placeholder4GuestRows: [],
+                    ContactRedactionTokens: []
+                )
+            );
+
+            var result = AssistantLiveAnswerCopy.GroundedFromEvidence(
+                "Summarise feedback for the last 50 days",
+                "Camden",
+                "the last 50 days",
+                evidence
+            );
+
+            Assert.Equal(AssistantMessageClass.Grounded, result.Class);
+            Assert.DoesNotContain(
+                "Feedback that needs attention",
+                result.Title,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Camden",
+                result.Title,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "the last 50 days",
+                result.Title,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
         public void GroundedFromEvidence_SingleNeutralFeedback_OmitsZeroBuckets()
         {
             var evidence = AssistantRetrievedEvidence.FromFeedback(
@@ -198,6 +242,54 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.OrdinalIgnoreCase
             );
             Assert.True(result.Actions.Count <= 1);
+        }
+
+        [Fact]
+        public void GroundedFromEvidence_ExplainPerformance_UsesDataInterpretationLayers()
+        {
+            var evidence = new AssistantRetrievedEvidence(
+                Feedback: AssistantFeedbackEvidence.Empty,
+                Offers: AssistantOffersEvidence.Empty,
+                Campaigns: AssistantCampaignsEvidence.Empty,
+                Capture: AssistantCaptureEvidence.Empty,
+                Home: new AssistantHomeKpiEvidence(2, 0, 5, 0, 7, 0),
+                Guests: AssistantGuestsEvidence.Empty
+            );
+
+            var result = AssistantLiveAnswerCopy.GroundedFromEvidence(
+                "Explain performance",
+                "Camden",
+                "the last 30 days",
+                evidence
+            );
+
+            Assert.Equal(AssistantMessageClass.Grounded, result.Class);
+            Assert.Contains("## Data", result.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                "## Interpretation",
+                result.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "**Feedback submitted:** 2",
+                result.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "**Guests joined:** 5",
+                result.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "**QR scans:** 7",
+                result.Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "## Recommendation",
+                result.Body,
+                StringComparison.Ordinal
+            );
         }
 
         [Fact]

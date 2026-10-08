@@ -10,6 +10,7 @@ import {
   type RecoveryWizardsModule,
   type RecoveryWizardsSnapshot,
 } from "@/lib/operatorFeedback/createRecoveryWizardsModule"
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import {
   buildHomeNeedsAttention,
@@ -77,6 +78,10 @@ export type OperatorHomeWorkspaceInput = {
   billingCreditsAccess?: BillingCreditsAccess
   /** Restaurant / workspace display name for Account-wide credit row copy. */
   workspaceName?: string | null
+  /**
+   * Capture Area chrome. Omit keeps Guest form preview; only `"none"` hides it.
+   */
+  captureAccess?: "none" | "view" | "manage" | null
 }
 
 export type HomeNeedsAttentionCreditsSource = {
@@ -485,6 +490,7 @@ function assembleViewModel(
     checklistAcks,
     hasCreatedOffer,
     hasCreatedCampaign,
+    captureAccess: workspace.captureAccess,
   })
 }
 
@@ -1733,10 +1739,10 @@ export function createOperatorHomePageModule(
         await fetchLiveOffersForSelectedLocation({ keepVisible: true })
         return true
       } catch (error) {
-        const message =
-          error instanceof Error && error.message.trim().length > 0
-            ? error.message.trim()
-            : "Could not pause this campaign. Please try again."
+        const message = getUserFacingApiErrorMessage(
+          error,
+          "Could not pause this campaign. Please try again."
+        )
         dispatch({ type: "action_error", error: message })
         return false
       } finally {
@@ -1763,10 +1769,10 @@ export function createOperatorHomePageModule(
         })
         return { ok: true, campaignId: response.campaign.id }
       } catch (error) {
-        const message =
-          error instanceof Error && error.message.trim().length > 0
-            ? error.message.trim()
-            : NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR
+        const message = getUserFacingApiErrorMessage(
+          error,
+          NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR
+        )
         dispatch({ type: "action_error", error: message })
         return { ok: false, error: message }
       } finally {

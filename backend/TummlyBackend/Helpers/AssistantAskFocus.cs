@@ -145,6 +145,10 @@ namespace TummlyBackend.Helpers
 
         private static readonly string[] PerformanceNeedles =
         [
+            "explain performance",
+            "explain our performance",
+            "explain the performance",
+            "explain my performance",
             "performance overview",
             "performance",
         ];
@@ -182,6 +186,14 @@ namespace TummlyBackend.Helpers
             "sms credits",
             "credit balance",
             "credits remaining",
+            "credits used",
+            "credit used",
+            "credits have we used",
+            "credits did we use",
+            "message usage",
+            "messaging usage",
+            "usage this cycle",
+            "used this cycle",
             "my plan",
             "what plan",
             "which plan",

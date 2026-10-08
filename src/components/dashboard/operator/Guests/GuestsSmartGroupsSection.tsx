@@ -2,6 +2,7 @@ import {
   ChevronDownIcon,
 } from "lucide-react"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -28,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { getOperatorInitials } from "@/lib/operatorHome/operatorProfile"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
 import { formatPhoneForDisplay } from "@/lib/phoneNumber"
@@ -58,6 +60,9 @@ import {
   GUESTS_TABLE_CLASS,
   GUESTS_TABLE_FEEDBACK_COUNT_CLASS,
   GUESTS_TABLE_FRAME_CLASS,
+  GUESTS_TABLE_GUEST_AVATAR_CLASS,
+  GUESTS_TABLE_GUEST_AVATAR_FALLBACK_CLASS,
+  GUESTS_TABLE_GUEST_NAME_CELL_INNER_CLASS,
   GUESTS_TABLE_GUEST_NAME_CLASS,
   GUESTS_TABLE_HEAD_ACTIONS_CELL_CLASS,
   GUESTS_TABLE_HEAD_CHECKBOX_CELL_CLASS,
@@ -402,16 +407,25 @@ export function GuestsSmartGroupsSection({
                         </div>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <Button
-                          type="button"
-                          variant="link"
-                          className={`${GUESTS_TABLE_GUEST_NAME_CLASS} h-auto min-h-0 p-0 font-semibold`}
-                          onClick={() => {
-                            onViewGuest(row.id)
-                          }}
-                        >
-                          {row.name}
-                        </Button>
+                        <div className={GUESTS_TABLE_GUEST_NAME_CELL_INNER_CLASS}>
+                          <Avatar className={GUESTS_TABLE_GUEST_AVATAR_CLASS}>
+                            <AvatarFallback
+                              className={GUESTS_TABLE_GUEST_AVATAR_FALLBACK_CLASS}
+                            >
+                              {getOperatorInitials(row.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <Button
+                            type="button"
+                            variant="link"
+                            className={`${GUESTS_TABLE_GUEST_NAME_CLASS} h-auto min-h-0 p-0 font-semibold`}
+                            onClick={() => {
+                              onViewGuest(row.id)
+                            }}
+                          >
+                            {row.name}
+                          </Button>
+                        </div>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         {row.email.trim() ? (

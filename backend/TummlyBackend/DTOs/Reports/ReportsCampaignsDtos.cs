@@ -12,11 +12,17 @@ namespace TummlyBackend.DTOs.Reports
 
         public int Sent { get; init; }
 
+        /// <summary>Accepted delivery row count (REP-02 / REP-03).</summary>
+        public int Delivered { get; init; }
+
         public int Claims { get; init; }
 
         public int Redemptions { get; init; }
 
         public int Unsubscribes { get; init; }
+
+        /// <summary>Rejected delivery row count.</summary>
+        public int Failed { get; init; }
 
         public string Status { get; init; } = string.Empty;
     }

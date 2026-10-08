@@ -437,6 +437,12 @@ namespace TummlyBackend.Helpers
                 Performance overview. Do not summarise or list retrieved evidence
                 for those asks.
 
+                When askFocus is Performance and the operator asks to explain
+                performance, ground only on Home Performance overview KPIs from
+                evidence. Body must use ## Data then ## Interpretation. Do not
+                invent causes. Do not add ## Recommendation unless the server
+                advisory Reason path already produced one.
+
                 Question-first rules: use askFocus in the user payload to decide
                 which domain to answer from. Answer only what was asked; do not dump allow-list domains
                 the operator did not ask about. Direct answer first; then optional
@@ -1109,6 +1115,11 @@ namespace TummlyBackend.Helpers
                 ["billingIsPilot"] = evidence.Billing.IsPilot,
                 ["billingScheduledChangeLine"] = evidence.Billing.ScheduledChangeLine,
                 ["billingPlanPriceNet"] = evidence.Billing.PlanPriceNet,
+                ["billingHasUsageSnapshot"] = evidence.Billing.HasUsageSnapshot,
+                ["billingUsagePeriodLabel"] = evidence.Billing.UsagePeriodLabel,
+                ["billingEmailUsedThisCycle"] = evidence.Billing.EmailUsedThisCycle,
+                ["billingSmsUsedThisCycle"] = evidence.Billing.SmsUsedThisCycle,
+                ["billingAiUsedThisCycle"] = evidence.Billing.AiUsedThisCycle,
             };
         }
 

@@ -1,5 +1,9 @@
 import axiosInstance from "./axiosInstance"
 import { isAxiosError } from "axios"
+import {
+  API_PERMISSION_DENIED_MESSAGE,
+  getUserFacingApiErrorMessage,
+} from "@/lib/apiErrorMessage"
 import { triggerBrowserDownload as defaultTriggerBrowserDownload } from "@/lib/operatorHome/homeActions"
 import type { CaptureArchiveListQueryParams } from "@/lib/operatorCapture/captureArchiveListQueryParams"
 import type {
@@ -842,8 +846,16 @@ export const exportFeedback = async (
           throw inner
         }
       }
+      if (error.response.status === 403) {
+        throw new Error(API_PERMISSION_DENIED_MESSAGE)
+      }
     }
-    throw error
+    throw new Error(
+      getUserFacingApiErrorMessage(
+        error,
+        "Could not export feedback. Please try again."
+      )
+    )
   }
 }
 
@@ -1471,7 +1483,7 @@ export type ReportsExportDownloadFormat = "pdf" | "csv" | "xlsx"
 export const downloadReportsExport = async (input: {
   kind: ReportsExportKind
   locationId: number
-  /** When set (and length > 1), XLSX multi-location export. */
+  /** When set (and length > 1), PDF/XLSX multi-location export. */
   locationIds?: number[]
   from: string
   to: string
@@ -1488,7 +1500,7 @@ export const downloadReportsExport = async (input: {
         ? "/privacy-consent/permission-records/export"
         : `/reports/export/${input.kind}`
   const multi =
-    format === "xlsx"
+    (format === "xlsx" || format === "pdf")
     && input.locationIds != null
     && input.locationIds.length > 1
   const scopeToken = multi ? "multi" : String(input.locationId)
@@ -1540,8 +1552,16 @@ export const downloadReportsExport = async (input: {
           throw inner
         }
       }
+      if (error.response.status === 403) {
+        throw new Error(API_PERMISSION_DENIED_MESSAGE)
+      }
     }
-    throw error
+    throw new Error(
+      getUserFacingApiErrorMessage(
+        error,
+        "Could not download this export. Please try again."
+      )
+    )
   }
 }
 

@@ -279,25 +279,22 @@ describe("buildOperatorShellPresentation", () => {
     );
   });
 
-  it("exposes a normalized Self role subtitle for the account trigger", () => {
+  it("exposes Permission role as the account trigger subtitle", () => {
     const presentation = buildOperatorShellPresentation(
-      makeShellInput({ selfRole: "owner-operator" }),
+      makeShellInput({ permissionRole: "Admin" }),
       now,
     );
 
-    expect(presentation.profileSelfRoleSubtitle).toBe("Owner");
+    expect(presentation.profileSelfRoleSubtitle).toBe("Admin");
   });
 
-  it("prefers My Account Job title over Trial Self role for the account subtitle", () => {
+  it("omits the account subtitle when Permission role is empty", () => {
     const presentation = buildOperatorShellPresentation(
-      makeShellInput({
-        jobTitle: "Operations Manager",
-        selfRole: "owner-operator",
-      }),
+      makeShellInput({ permissionRole: "  " }),
       now,
     );
 
-    expect(presentation.profileSelfRoleSubtitle).toBe("Operations Manager");
+    expect(presentation.profileSelfRoleSubtitle).toBeNull();
   });
 
   it("passes Paused switcher badge flag through to options", () => {

@@ -489,7 +489,6 @@ export function TeamPermissionsPage() {
               }
               roleOptions={roleOptions}
               locations={snap.locations}
-              isSingleLocation={snap.isSingleLocation}
               busy={snap.busy}
               showMessage
               message={snap.inviteDraft.message}
@@ -1553,9 +1552,7 @@ function EditMemberDialog({
             onChange={(values) => pageModule.setEditMemberDraft(values)}
             roleOptions={roleOptions}
             locations={snap.locations}
-            isSingleLocation={
-              snap.isSingleLocation || member?.isAccountOwner === true
-            }
+            hideLocationAccess={member?.isAccountOwner === true}
             busy={snap.busy}
             readOnly={isView}
             readOnlyIdentity

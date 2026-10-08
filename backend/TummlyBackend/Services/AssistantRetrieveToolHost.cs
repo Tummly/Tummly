@@ -467,6 +467,45 @@ namespace TummlyBackend.Services
             }
 
             var plan = page.PlanSubscription;
+            var usage = await _billingCredits.GetUsageAsync(view.RestaurantId);
+            var emailUsed = 0;
+            var smsUsed = 0;
+            var aiUsed = 0;
+            string? usagePeriodLabel = null;
+            var hasUsage = false;
+            if (usage is not null)
+            {
+                hasUsage = true;
+                usagePeriodLabel = usage.PeriodLabel;
+                foreach (var channel in usage.Channels)
+                {
+                    if (string.Equals(
+                            channel.Channel,
+                            CreditChannels.Email,
+                            StringComparison.OrdinalIgnoreCase
+                        ))
+                    {
+                        emailUsed = channel.UsedThisCycle;
+                    }
+                    else if (string.Equals(
+                            channel.Channel,
+                            CreditChannels.Sms,
+                            StringComparison.OrdinalIgnoreCase
+                        ))
+                    {
+                        smsUsed = channel.UsedThisCycle;
+                    }
+                    else if (string.Equals(
+                            channel.Channel,
+                            CreditChannels.Ai,
+                            StringComparison.OrdinalIgnoreCase
+                        ))
+                    {
+                        aiUsed = channel.UsedThisCycle;
+                    }
+                }
+            }
+
             var evidence = new AssistantBillingEvidence(
                 plan.SubscriptionPlan,
                 plan.BillingStatus,
@@ -477,7 +516,12 @@ namespace TummlyBackend.Services
                 plan.RenewalDateLabel,
                 plan.IsPilot,
                 plan.ScheduledChangeLine,
-                plan.PlanPriceNet
+                plan.PlanPriceNet,
+                emailUsed,
+                smsUsed,
+                aiUsed,
+                usagePeriodLabel,
+                hasUsage
             );
             MergeEvidence(context, billing: evidence);
             return Result(

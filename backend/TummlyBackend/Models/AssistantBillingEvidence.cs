@@ -2,6 +2,7 @@ namespace TummlyBackend.Models
 {
     /// <summary>
     /// Restaurant plan / billing status / credit balances for Assistant retrieve.
+    /// Optional cycle usage from Credits usage snapshot.
     /// Server-owned; never invent Revolut payment success.
     /// </summary>
     public sealed record AssistantBillingEvidence(
@@ -14,7 +15,12 @@ namespace TummlyBackend.Models
         string? RenewalDateLabel,
         bool IsPilot,
         string? ScheduledChangeLine,
-        string PlanPriceNet
+        string PlanPriceNet,
+        int EmailUsedThisCycle = 0,
+        int SmsUsedThisCycle = 0,
+        int AiUsedThisCycle = 0,
+        string? UsagePeriodLabel = null,
+        bool HasUsageSnapshot = false
     )
     {
         public static AssistantBillingEvidence Empty { get; } =

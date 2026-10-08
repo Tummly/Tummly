@@ -21,6 +21,7 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// Matches Permission records table columns (no Action / View).
+        /// PDF pack remaps the same facts to template labels in the writer.
         /// </summary>
         private static readonly string[] Headers =
         [
@@ -50,7 +51,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var rows = await LoadRowsAsync(locationId, cancellationToken);
+            var rows = await ListRowsAsync(locationId, cancellationToken);
 
             var stamp = DateTime.UtcNow.ToString(
                 "yyyyMMdd-HHmmss",
@@ -108,7 +109,7 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                var rows = await LoadRowsAsync(id, cancellationToken);
+                var rows = await ListRowsAsync(id, cancellationToken);
                 sheets.Add(
                     (
                         new ReportsStyledXlsxPack.LocationContext(
@@ -136,9 +137,9 @@ namespace TummlyBackend.Services
             };
         }
 
-        private async Task<string[][]> LoadRowsAsync(
+        public async Task<IReadOnlyList<string[]>> ListRowsAsync(
             int locationId,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken = default
         )
         {
             var baseQuery = _context.LocationGuestPermissionLedgerEntries

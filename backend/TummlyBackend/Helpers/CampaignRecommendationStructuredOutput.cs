@@ -51,6 +51,16 @@ namespace TummlyBackend.Helpers
                     ["needsRecovery"] = metrics.NeedsRecovery,
                     ["positiveFeedback"] = metrics.PositiveFeedback,
                     ["dormantGuests"] = metrics.DormantGuests,
+                    ["openFeedbackCount"] = metrics.OpenFeedbackCount,
+                    ["needsAttentionCount"] = metrics.NeedsAttentionCount,
+                    ["activeOffers"] = metrics.ActiveOffers,
+                    ["offerNeedsAttentionCount"] =
+                        metrics.OfferNeedsAttentionCount,
+                    ["campaignsSentInWindow"] = metrics.CampaignsSentInWindow,
+                    ["uniqueEmailOpensInWindow"] =
+                        metrics.UniqueEmailOpensInWindow,
+                    ["campaignAttributedRedemptionsInWindow"] =
+                        metrics.CampaignAttributedRedemptionsInWindow,
                 },
             };
 
@@ -253,6 +263,11 @@ namespace TummlyBackend.Helpers
                 thank-recent-guests, re-engage, recovery-follow-up, or none.
                 Never emit quiet-time, promote-something-new, or unredeemed-offer.
                 Use only the fed metrics counts - never invent guest counts.
+                Metrics include guest Smart Groups plus Feedback Needs attention,
+                Active Offers, Campaigns sent, email opens, and campaign-attributed
+                redemptions in the period. Prefer the type that best fits those facts.
+                whyBullets must cite concrete metric counts that support the type
+                and the draftPrefill CTA (do not invent unrelated reasons).
                 Do not include guest names, emails, phones, or feedback text.
                 When type is none, set title/opportunity/eligibleAudience/whyBullets/
                 suggestedChannel/estimatedUsage/draftPrefill to null.

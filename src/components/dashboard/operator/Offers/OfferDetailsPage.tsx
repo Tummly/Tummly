@@ -1,5 +1,7 @@
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useOutletContext } from "react-router-dom"
 import { toast } from "sonner"
+
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 
 import { CreateEditOfferDrawer } from "@/components/dashboard/operator/Offers/CreateEditOfferDrawer"
 import { OfferDetailsBody } from "@/components/dashboard/operator/Offers/OfferDetailsBody"
@@ -18,6 +20,7 @@ import {
   type OfferDetailsVoidRequestRow,
 } from "@/lib/operatorOffers/createOfferDetailsPageModule"
 import { OFFER_DETAILS_COPY } from "@/lib/operatorOffers/offerDetailsPresentation"
+import { offersAccessAllowsManage } from "@/lib/operatorOffers/offerListPresentation"
 import { catalogOfferWriteSuccessToast } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import type {
   VoidCreatePreview,
@@ -138,6 +141,8 @@ export function OfferDetailsPage({
   mode,
 }: OfferDetailsPageProps) {
   const navigate = useNavigate()
+  const { offersAccess } = useOutletContext<DashboardOutletContext>()
+  const canManageOffers = offersAccessAllowsManage(offersAccess)
   const {
     snapshot,
     retryLoad,
@@ -206,13 +211,20 @@ export function OfferDetailsPage({
       <OfferDetailsBody
         viewModel={viewModel}
         offersHref={offersHref}
+        canManageOffers={canManageOffers}
         onEditOffer={() => {
+          if (!canManageOffers) {
+            return
+          }
           void offersPage.pageModule.openEditOfferDrawer(viewModel.offerId)
         }}
         onOpenStaffRedeem={() => {
           staffRedeem.open(viewModel.locationId)
         }}
         onHeaderAction={(actionId) => {
+          if (!canManageOffers) {
+            return
+          }
           if (actionId === "rename") {
             void offersPage.pageModule.openEditOfferDrawer(viewModel.offerId)
             return
@@ -296,7 +308,7 @@ export function OfferDetailsPage({
           )
         }}
       />
-      {createOfferDrawer != null ? (
+      {canManageOffers && createOfferDrawer != null ? (
         <CreateEditOfferDrawer
           open={createOfferDrawer.open}
           mode={createOfferDrawer.mode}

@@ -1,5 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
+
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import {
   useNavigate,
   useOutletContext,
@@ -109,9 +111,7 @@ export function LocationsPage() {
   })
 
   const lifecycleActionErrorMessage = (error: unknown) =>
-    error instanceof Error && error.message.trim().length > 0
-      ? error.message
-      : copy.lifecycleErrorToast
+    getUserFacingApiErrorMessage(error, copy.lifecycleErrorToast)
 
   const runLifecycleAction = async (
     locationId: string,
@@ -138,7 +138,7 @@ export function LocationsPage() {
         .then(() => toast.success("Location activated."))
         .catch((error: unknown) => {
           toast.error(
-            error instanceof Error ? error.message : "Could not activate."
+            getUserFacingApiErrorMessage(error, "Could not activate.")
           )
         })
       return
@@ -341,10 +341,10 @@ export function LocationsPage() {
             await pageModule.createDraft(input)
             toast.success("Draft location created.")
           } catch (error) {
-            const message =
-              error instanceof Error
-                ? error.message
-                : "Could not create location."
+            const message = getUserFacingApiErrorMessage(
+              error,
+              "Could not create location."
+            )
             setAddError(message)
             throw error
           } finally {
@@ -392,9 +392,10 @@ export function LocationsPage() {
             setImportOpen(false)
           } catch (error) {
             toast.error(
-              error instanceof Error
-                ? error.message
-                : "Could not import locations."
+              getUserFacingApiErrorMessage(
+                error,
+                "Could not import locations."
+              )
             )
             throw error
           } finally {
@@ -432,9 +433,7 @@ export function LocationsPage() {
             setDeleteTarget(null)
           } catch (error) {
             setDeleteError(
-              error instanceof Error
-                ? error.message
-                : "Could not delete draft."
+              getUserFacingApiErrorMessage(error, "Could not delete draft.")
             )
           } finally {
             setDeleteBusy(false)

@@ -4,6 +4,7 @@ import {
   buildCampaignRowActions,
   formatCampaignListChannelDetail,
   formatCampaignListDeliveryLabel,
+  formatCampaignListEngagementLabel,
   formatCampaignListRedemptionsLabel,
   formatCampaignListSendDate,
   mapCampaignListItemToTableRow,
@@ -124,6 +125,11 @@ describe("mapCampaignListItemToTableRow", () => {
       })
     )
     expect(row.redemptionsLabel).toBe("2 redeemed")
+  })
+
+  it("formats zero engagement and redemptions as labelled zeros (CMP-01)", () => {
+    expect(formatCampaignListEngagementLabel("0")).toBe("0 opened")
+    expect(formatCampaignListRedemptionsLabel("0")).toBe("0 redeemed")
   })
 
   it("formats Channel detail with recipients and SMS parts", () => {

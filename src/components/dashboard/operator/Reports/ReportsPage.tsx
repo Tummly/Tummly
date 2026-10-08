@@ -170,11 +170,10 @@ function HubRecommendedActionsSection(props: {
           </h2>
         </div>
         {props.cards.map((card) => (
-          <div key={card.id} className="flex flex-col gap-4">
-            <ReportsInsightBanner title={card.title}>
-              {card.subtitle}
-            </ReportsInsightBanner>
-            <div>
+          <ReportsInsightBanner
+            key={card.id}
+            title={card.title}
+            action={
               <Button
                 type="button"
                 variant="op-tertiary"
@@ -183,8 +182,10 @@ function HubRecommendedActionsSection(props: {
               >
                 {card.cta}
               </Button>
-            </div>
-          </div>
+            }
+          >
+            {card.subtitle}
+          </ReportsInsightBanner>
         ))}
       </div>
     </ReportsSection>

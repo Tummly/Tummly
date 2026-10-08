@@ -15,21 +15,6 @@ namespace TummlyBackend.Services
         private const int NewThisMonthDays = 30;
         private const int DormantDays = 90;
 
-        private static readonly string[] ExportHeaders =
-        [
-            "Name",
-            "Email",
-            "Mobile",
-            "Marketing status",
-            "Location",
-            "Latest feedback",
-            "Feedback submissions",
-            "Last interaction",
-            "Last interaction at",
-            "First captured",
-            "Guest tags",
-        ];
-
         private static readonly HashSet<string> ValidSmartGroups =
             new(StringComparer.OrdinalIgnoreCase)
             {
@@ -383,34 +368,23 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var tagLabels = await LoadTagDisplayNamesAsync(
-                exportRows.Select(row => row.LocationGuestId).ToList()
-            );
-
             var csvRows = exportRows
                 .Select(row =>
-                {
-                    tagLabels.TryGetValue(row.LocationGuestId, out var tags);
-                    return (IReadOnlyList<string>)
-                    [
+                    GuestExportColumns.ToRow(
                         row.Name,
-                        row.Email ?? string.Empty,
-                        row.Mobile ?? string.Empty,
-                        row.MarketingStatus,
+                        row.Email,
+                        row.Mobile,
                         row.LocationName,
-                        FormatLatestFeedbackLabel(row.LatestFeedbackSentiment),
-                        row.FeedbackSubmissionCount.ToString(),
-                        "Feedback submitted",
-                        FormatIsoUtc(row.LastInteractionAt),
-                        FormatIsoUtc(row.CapturedAt),
-                        tags == null
-                            ? string.Empty
-                            : string.Join(";", tags),
-                    ];
-                })
+                        row.MarketingPreference,
+                        row.CapturedAt
+                    )
+                )
                 .ToList();
 
-            var content = Rfc4180Csv.WriteUtf8(ExportHeaders, csvRows);
+            var content = Rfc4180Csv.WriteUtf8(
+                GuestExportColumns.Headers,
+                csvRows
+            );
             var selectedSegment = isSelected ? "-selected" : string.Empty;
             var stamp = utcNow.ToString("yyyyMMdd-HHmmss");
 
@@ -621,6 +595,7 @@ namespace TummlyBackend.Services
                 FeedbackSubmissionCount = stats?.FeedbackSubmissionCount ?? 0,
                 LatestFeedbackSentiment = latestFeedbackSentiment,
                 LastInteractionAt = lastInteractionAt,
+                MarketingPreference = locationGuest.MarketingPreference,
                 MarketingStatus = LocationGuestProjections.DeriveMarketingStatus(
                     locationGuest.MarketingPreference,
                     masterGuest.Email,
@@ -717,72 +692,6 @@ namespace TummlyBackend.Services
                 query.Contact,
                 query.Sentiment
             );
-        }
-
-        private async Task<Dictionary<int, List<string>>> LoadTagDisplayNamesAsync(
-            IReadOnlyList<int> locationGuestIds
-        )
-        {
-            if (locationGuestIds.Count == 0)
-            {
-                return new Dictionary<int, List<string>>();
-            }
-
-            var rows = await (
-                from membership in _context.LocationGuestTags.AsNoTracking()
-                join tag in _context.GuestTags.AsNoTracking()
-                    on membership.GuestTagId equals tag.Id
-                where locationGuestIds.Contains(membership.LocationGuestId)
-                select new
-                {
-                    membership.LocationGuestId,
-                    tag.DisplayName,
-                }
-            ).ToListAsync();
-
-            return rows
-                .GroupBy(row => row.LocationGuestId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group
-                        .Select(row => row.DisplayName)
-                        .Distinct(StringComparer.Ordinal)
-                        .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-                        .ToList()
-                );
-        }
-
-        private static string FormatLatestFeedbackLabel(string wireSentiment)
-        {
-            return wireSentiment switch
-            {
-                "positive" => "Positive",
-                "neutral" => "Neutral",
-                "negative" => "Negative",
-                _ => string.Empty,
-            };
-        }
-
-        private static string FormatIsoUtc(DateTime? value)
-        {
-            if (value == null)
-            {
-                return string.Empty;
-            }
-
-            var utc = value.Value.Kind switch
-            {
-                DateTimeKind.Utc => value.Value,
-                DateTimeKind.Local => value.Value.ToUniversalTime(),
-                _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc),
-            };
-
-            return utc.ToString("O");
-        }
-
-        private static string FormatIsoUtc(DateTime value)
-        {
-            return FormatIsoUtc((DateTime?)value);
         }
 
         private static (DateTime FromUtc, DateTime ToUtc)? ResolveTableDateWindow(
@@ -963,6 +872,12 @@ namespace TummlyBackend.Services
             public string LatestFeedbackSentiment { get; init; } = "none";
 
             public DateTime? LastInteractionAt { get; init; }
+
+            public LocationGuestMarketingPreference MarketingPreference
+            {
+                get;
+                init;
+            }
 
             public string MarketingStatus { get; init; } = "Not eligible";
 

@@ -247,6 +247,12 @@ namespace TummlyBackend.Helpers
                 }
             }
 
+            // Rolling last N days (1–180) not covered by fixed / example needles.
+            if (AssistantScopeOverride.TryDetectRollingDayCount(lower) is not null)
+            {
+                return true;
+            }
+
             return false;
         }
 

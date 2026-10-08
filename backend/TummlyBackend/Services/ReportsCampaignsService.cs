@@ -294,6 +294,34 @@ namespace TummlyBackend.Services
                 row => row.Units
             );
 
+            var deliveredByCampaign = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .Where(row =>
+                    campaignIds.Contains(row.CampaignId)
+                    && row.Outcome == CampaignFireService.AcceptedOutcome
+                )
+                .GroupBy(row => row.CampaignId)
+                .Select(g => new { CampaignId = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+            var deliveredById = deliveredByCampaign.ToDictionary(
+                row => row.CampaignId,
+                row => row.Count
+            );
+
+            var failedByCampaign = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .Where(row =>
+                    campaignIds.Contains(row.CampaignId)
+                    && row.Outcome == CampaignFireService.RejectedOutcome
+                )
+                .GroupBy(row => row.CampaignId)
+                .Select(g => new { CampaignId = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+            var failedById = failedByCampaign.ToDictionary(
+                row => row.CampaignId,
+                row => row.Count
+            );
+
             var claimsByCampaign = await (
                 from i in _context.OfferIssues.AsNoTracking()
                 join o in _context.CatalogOffers.AsNoTracking()
@@ -343,10 +371,12 @@ namespace TummlyBackend.Services
                     Goal = c.GoalId,
                     Channel = c.Channel,
                     Sent = unitsById.GetValueOrDefault(c.Id),
+                    Delivered = deliveredById.GetValueOrDefault(c.Id),
                     Claims = claimsById.GetValueOrDefault(c.Id),
                     Redemptions = redemptionsById.GetValueOrDefault(c.Id),
                     // LocationActivity has no campaign attribution yet.
                     Unsubscribes = 0,
+                    Failed = failedById.GetValueOrDefault(c.Id),
                     Status = c.Status,
                 })
                 .ToList();

@@ -32,6 +32,20 @@ namespace TummlyBackend.DTOs.Campaigns
         public int PositiveFeedback { get; init; }
 
         public int DormantGuests { get; init; }
+
+        public int OpenFeedbackCount { get; init; }
+
+        public int NeedsAttentionCount { get; init; }
+
+        public int ActiveOffers { get; init; }
+
+        public int OfferNeedsAttentionCount { get; init; }
+
+        public int CampaignsSentInWindow { get; init; }
+
+        public int UniqueEmailOpensInWindow { get; init; }
+
+        public int CampaignAttributedRedemptionsInWindow { get; init; }
     }
 
     public sealed class CampaignRecommendationDraftPrefillDto

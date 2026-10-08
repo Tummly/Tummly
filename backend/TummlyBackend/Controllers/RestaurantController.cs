@@ -147,58 +147,60 @@ namespace TummlyBackend.Controllers
 
             // SideNav + route chrome: omit must not hide on older clients;
             // explicit "none" hides / redirects (CODING_STANDARDS).
-            var teamPermissionsAccessTask =
-                OperatorChromeAccess.TeamPermissionsAsync(_permissions, User);
-            var billingCreditsAccessTask =
-                OperatorChromeAccess.BillingCreditsAsync(_permissions, User);
-            var offersAccessTask =
-                OperatorChromeAccess.OffersAsync(_permissions, User);
-            var privacyConsentAccessTask =
-                OperatorChromeAccess.PrivacyConsentAsync(_permissions, User);
-            var guestsAccessTask =
-                OperatorChromeAccess.GuestsAsync(_permissions, User);
-            var captureAccessTask =
-                OperatorChromeAccess.CaptureAsync(_permissions, User);
-            var feedbackAccessTask =
-                OperatorChromeAccess.FeedbackAsync(_permissions, User);
-            var campaignsAccessTask =
-                OperatorChromeAccess.CampaignsAsync(_permissions, User);
-            var reportsAccessTask =
-                OperatorChromeAccess.ReportsAsync(_permissions, User);
-            var tummlyShopAccessTask =
-                OperatorChromeAccess.TummlyShopAsync(_permissions, User);
-            var locationsAccessTask =
-                OperatorChromeAccess.LocationsAsync(_permissions, User);
-            var accountWorkspaceAccessTask =
-                OperatorChromeAccess.AccountWorkspaceAsync(_permissions, User);
-
-            await Task.WhenAll(
-                teamPermissionsAccessTask,
-                billingCreditsAccessTask,
-                offersAccessTask,
-                privacyConsentAccessTask,
-                guestsAccessTask,
-                captureAccessTask,
-                feedbackAccessTask,
-                campaignsAccessTask,
-                reportsAccessTask,
-                tummlyShopAccessTask,
-                locationsAccessTask,
-                accountWorkspaceAccessTask
+            // Sequential awaits — RestaurantPermissionHelper shares the request
+            // DbContext; Task.WhenAll races concurrent queries on one instance.
+            var teamPermissionsAccess =
+                await OperatorChromeAccess.TeamPermissionsAsync(
+                    _permissions,
+                    User
+                );
+            var billingCreditsAccess =
+                await OperatorChromeAccess.BillingCreditsAsync(
+                    _permissions,
+                    User
+                );
+            var offersAccess = await OperatorChromeAccess.OffersAsync(
+                _permissions,
+                User
             );
-
-            var teamPermissionsAccess = await teamPermissionsAccessTask;
-            var billingCreditsAccess = await billingCreditsAccessTask;
-            var offersAccess = await offersAccessTask;
-            var privacyConsentAccess = await privacyConsentAccessTask;
-            var guestsAccess = await guestsAccessTask;
-            var captureAccess = await captureAccessTask;
-            var feedbackAccess = await feedbackAccessTask;
-            var campaignsAccess = await campaignsAccessTask;
-            var reportsAccess = await reportsAccessTask;
-            var tummlyShopAccess = await tummlyShopAccessTask;
-            var locationsAccess = await locationsAccessTask;
-            var accountWorkspaceAccess = await accountWorkspaceAccessTask;
+            var privacyConsentAccess =
+                await OperatorChromeAccess.PrivacyConsentAsync(
+                    _permissions,
+                    User
+                );
+            var guestsAccess = await OperatorChromeAccess.GuestsAsync(
+                _permissions,
+                User
+            );
+            var captureAccess = await OperatorChromeAccess.CaptureAsync(
+                _permissions,
+                User
+            );
+            var feedbackAccess = await OperatorChromeAccess.FeedbackAsync(
+                _permissions,
+                User
+            );
+            var campaignsAccess = await OperatorChromeAccess.CampaignsAsync(
+                _permissions,
+                User
+            );
+            var reportsAccess = await OperatorChromeAccess.ReportsAsync(
+                _permissions,
+                User
+            );
+            var tummlyShopAccess = await OperatorChromeAccess.TummlyShopAsync(
+                _permissions,
+                User
+            );
+            var locationsAccess = await OperatorChromeAccess.LocationsAsync(
+                _permissions,
+                User
+            );
+            var accountWorkspaceAccess =
+                await OperatorChromeAccess.AccountWorkspaceAsync(
+                    _permissions,
+                    User
+                );
 
             var actorMembership = await _context.RestaurantMemberships
                 .AsNoTracking()

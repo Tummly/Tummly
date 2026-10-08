@@ -48,5 +48,44 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
         }
+
+        [Fact]
+        public void GroundedFromEvidence_UsageAsk_IncludesUsedThisCycle()
+        {
+            var evidence = AssistantRetrievedEvidence.Empty with
+            {
+                Billing = new AssistantBillingEvidence(
+                    SubscriptionPlan: "Growth",
+                    BillingStatus: "Active",
+                    EmailCreditsRemaining: 100,
+                    SmsCreditsRemaining: 20,
+                    AiCreditsRemaining: 42,
+                    BillingCycle: "monthly",
+                    RenewalDateLabel: "Renews 1 Nov 2026",
+                    IsPilot: false,
+                    ScheduledChangeLine: null,
+                    PlanPriceNet: "£99",
+                    EmailUsedThisCycle: 12,
+                    SmsUsedThisCycle: 5,
+                    AiUsedThisCycle: 3,
+                    UsagePeriodLabel: "1–31 Oct 2026",
+                    HasUsageSnapshot: true
+                ),
+            };
+
+            var result = AssistantLiveAnswerCopy.GroundedFromEvidence(
+                "How many credits have we used this cycle?",
+                "Camden",
+                "this week",
+                evidence
+            );
+
+            Assert.Equal(AssistantMessageClass.Grounded, result.Class);
+            Assert.Contains("12", result.Body, StringComparison.Ordinal);
+            Assert.Contains("5", result.Body, StringComparison.Ordinal);
+            Assert.Contains("3", result.Body, StringComparison.Ordinal);
+            Assert.Contains("1–31 Oct 2026", result.Body, StringComparison.Ordinal);
+            Assert.Contains("100", result.Body, StringComparison.Ordinal);
+        }
     }
 }

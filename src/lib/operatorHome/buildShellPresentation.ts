@@ -7,7 +7,6 @@ import {
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
-import { formatSelfRoleSubtitle } from "@/lib/operatorHome/formatSelfRoleSubtitle"
 import { resolveLockAlertPresentation } from "@/lib/operatorHome/lockAlertPresentation"
 import {
   getOperatorFirstName,
@@ -27,17 +26,16 @@ import type {
 const OMITTED_NAVBAR_CONTROLS = ["search", "help"] as const
 
 /**
- * Account-menu subtitle: My Account Job title wins; otherwise Trial Self role.
+ * Account-menu subtitle: Restaurant Permission role (Owner, Admin, …).
  */
 export function resolveProfileSubtitle(
-  jobTitle: string | null | undefined,
-  selfRole: string | null | undefined
+  permissionRole: string | null | undefined
 ): string | null {
-  const trimmedJob = jobTitle?.trim()
-  if (trimmedJob) {
-    return trimmedJob
+  const trimmed = permissionRole?.trim()
+  if (!trimmed) {
+    return null
   }
-  return formatSelfRoleSubtitle(selfRole)
+  return trimmed
 }
 
 /** Shell-facing inputs from the Operator workspace session (+ active page chrome). */
@@ -47,10 +45,7 @@ export type BuildOperatorShellPresentationInput = {
   subscriptionPlan: string
   /** Soft lock / Dormant drives Lock Alert; omit or Active hides it. */
   billingStatus?: string | null
-  /** My Account Job title; preferred over Trial Self role for the account subtitle. */
-  jobTitle?: string | null
-  selfRole?: string | null
-  /** Restaurant Permission role; gates Choose a plan with Billing & credits access. */
+  /** Restaurant Permission role; account subtitle + Choose a plan gating. */
   permissionRole?: string | null
   /** Omit defaults to manage so Account-owner chrome stays visible during rollout. */
   billingCreditsAccess?: BillingCreditsAccessLevel
@@ -112,8 +107,7 @@ export function buildOperatorShellPresentation(
     profileFirstName: getOperatorFirstName(input.operatorDisplayName),
     profileInitials: getOperatorInitials(input.operatorDisplayName),
     profileSelfRoleSubtitle: resolveProfileSubtitle(
-      input.jobTitle ?? null,
-      input.selfRole ?? null
+      input.permissionRole ?? null
     ),
     omittedNavbarControls: [...OMITTED_NAVBAR_CONTROLS],
     sidebarNav: getOperatorSidebarNav(activeNavId, input.navTargets, {

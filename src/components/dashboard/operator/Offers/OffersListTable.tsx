@@ -30,11 +30,16 @@ import {
 
 type OffersListTableProps = {
   rows: readonly OperatorOffersListTableRow[]
+  canManageOffers?: boolean
   onRowAction: (offerId: number, actionId: OfferRowActionId) => void
 }
 
 /** Offers table — Figma Main Offers columns (3498:1587 / ticket 20). */
-export function OffersListTable({ rows, onRowAction }: OffersListTableProps) {
+export function OffersListTable({
+  rows,
+  canManageOffers = true,
+  onRowAction,
+}: OffersListTableProps) {
   const copy = OFFERS_LIST_TABLE_COPY
 
   return (
@@ -120,6 +125,7 @@ export function OffersListTable({ rows, onRowAction }: OffersListTableProps) {
                 <OffersRowActionsMenu
                   offerTitle={row.title}
                   status={row.status}
+                  canManageOffers={canManageOffers}
                   onAction={(actionId) => {
                     onRowAction(row.id, actionId)
                   }}

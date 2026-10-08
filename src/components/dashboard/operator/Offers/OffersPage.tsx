@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from "react"
-import { useNavigate, useOutletContext } from "react-router-dom"
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react"
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { OffersBody } from "@/components/dashboard/operator/Offers/OffersBody"
@@ -21,6 +21,7 @@ import {
 import { OFFERS_LOAD_ERROR_MESSAGE } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
 import { OFFERS_PAGE_COPY } from "@/lib/operatorOffers/offersPresentation"
+import { offersAccessAllowsManage } from "@/lib/operatorOffers/offerListPresentation"
 import {
   operatorDashboardOfferDetailsPath,
   operatorDashboardOffersRedemptionLogPath,
@@ -39,11 +40,31 @@ export function OffersPage() {
     confirmCreateOffer,
   } = useOffersPageModule()
   const staffRedeem = useStaffRedeemModule()
-  const { mode } = useOutletContext<DashboardOutletContext>()
+  const { mode, offersAccess, selectedLocationId } =
+    useOutletContext<DashboardOutletContext>()
+  const canManageOffers = offersAccessAllowsManage(offersAccess)
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const redeemOpenedRef = useRef(false)
   const offersIntent = useDashboardUiStore((state) => state.offersIntent)
   const setOffersIntent = useDashboardUiStore((state) => state.setOffersIntent)
   const gateFreeProductWrite = useGateFreeProductWrite()
+
+  const staffRedeemDialog = (
+    <StaffRedeemDialog
+      snapshot={staffRedeem.snapshot}
+      onOpenChange={(open) => {
+        if (!open) {
+          staffRedeem.close()
+        }
+      }}
+      onCodeChange={staffRedeem.setCode}
+      onCheckOffer={staffRedeem.checkOffer}
+      onCancelConfirm={staffRedeem.cancelConfirm}
+      onMarkAsRedeemed={staffRedeem.markAsRedeemed}
+      onApplyScannedCode={staffRedeem.applyScannedCode}
+    />
+  )
 
   useEffect(
     () => () => {
@@ -83,6 +104,9 @@ export function OffersPage() {
       return
     }
     setOffersIntent(null)
+    if (!canManageOffers) {
+      return
+    }
     gateFreeProductWrite(() => {
       openCreateOfferDrawer()
     })
@@ -92,7 +116,24 @@ export function OffersPage() {
     setOffersIntent,
     snapshot.viewModel,
     gateFreeProductWrite,
+    canManageOffers,
   ])
+
+  // Open before paint so Staff never see Offers chrome without Redeem.
+  useLayoutEffect(() => {
+    if (searchParams.get("redeem") !== "1") {
+      redeemOpenedRef.current = false
+      return
+    }
+    if (redeemOpenedRef.current) {
+      return
+    }
+    redeemOpenedRef.current = true
+    staffRedeem.open(selectedLocationId)
+    const next = new URLSearchParams(searchParams)
+    next.delete("redeem")
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams, selectedLocationId, staffRedeem])
 
   const redemptionLogHref = useMemo(() => {
     if (snapshot.viewModel == null) {
@@ -109,33 +150,39 @@ export function OffersPage() {
     && (snapshot.loadStatus === "idle" || snapshot.loadStatus === "loading")
   ) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        role="status"
-        aria-live="polite"
-        aria-label="Loading offers"
-      >
-        <Spinner />
-      </div>
+      <>
+        <div
+          className="flex flex-1 items-center justify-center"
+          role="status"
+          aria-live="polite"
+          aria-label="Loading offers"
+        >
+          <Spinner />
+        </div>
+        {staffRedeemDialog}
+      </>
     )
   }
 
   if (snapshot.loadStatus === "error" && snapshot.viewModel == null) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <p className="m-0 text-sm text-muted-foreground">
-          {snapshot.loadError ?? OFFERS_LOAD_ERROR_MESSAGE}
-        </p>
-        <Button
-          type="button"
-          variant="op-secondary"
-          onClick={() => {
-            void pageModule.retryLoad()
-          }}
-        >
-          {OFFERS_PAGE_COPY.retry}
-        </Button>
-      </div>
+      <>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3">
+          <p className="m-0 text-sm text-muted-foreground">
+            {snapshot.loadError ?? OFFERS_LOAD_ERROR_MESSAGE}
+          </p>
+          <Button
+            type="button"
+            variant="op-secondary"
+            onClick={() => {
+              void pageModule.retryLoad()
+            }}
+          >
+            {OFFERS_PAGE_COPY.retry}
+          </Button>
+        </div>
+        {staffRedeemDialog}
+      </>
     )
   }
 
@@ -153,6 +200,7 @@ export function OffersPage() {
         viewModel={snapshot.viewModel}
         createOfferDrawer={snapshot.createOfferDrawer}
         redemptionLogHref={redemptionLogHref}
+        canManageOffers={canManageOffers}
         onOpenCreateOffer={() => {
           gateFreeProductWrite(() => {
             void openCreateOffer()
@@ -210,6 +258,9 @@ export function OffersPage() {
                 snapshot.viewModel!.locationId
               )
             )
+            return
+          }
+          if (!canManageOffers) {
             return
           }
           if (actionId === "edit") {
@@ -307,19 +358,7 @@ export function OffersPage() {
           })()
         }}
       />
-      <StaffRedeemDialog
-        snapshot={staffRedeem.snapshot}
-        onOpenChange={(open) => {
-          if (!open) {
-            staffRedeem.close()
-          }
-        }}
-        onCodeChange={staffRedeem.setCode}
-        onCheckOffer={staffRedeem.checkOffer}
-        onCancelConfirm={staffRedeem.cancelConfirm}
-        onMarkAsRedeemed={staffRedeem.markAsRedeemed}
-        onApplyScannedCode={staffRedeem.applyScannedCode}
-      />
+      {staffRedeemDialog}
     </>
   )
 }

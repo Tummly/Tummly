@@ -408,6 +408,10 @@ namespace TummlyBackend.Helpers
                 "business health",
                 "overview of",
                 "overall performance",
+                "explain performance",
+                "explain our performance",
+                "explain the performance",
+                "explain my performance",
                 "how are things"
             );
 

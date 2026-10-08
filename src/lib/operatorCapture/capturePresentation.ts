@@ -211,8 +211,9 @@ export const CAPTURE_PLACEMENTS_HEAD_CELL_CLASS =
 export const CAPTURE_PLACEMENTS_HEAD_ACTIONS_CELL_CLASS =
   "h-[43px] border border-op-border-default bg-[var(--op-color-gray-150)] px-[18px] py-3 text-center align-middle text-sm font-semibold leading-[19px] whitespace-nowrap text-op-text-primary dark:bg-[var(--op-color-gray-985)]"
 
+/** Body rows — same interactive hover as Guests / Operator tables (UI-04). */
 export const CAPTURE_PLACEMENTS_BODY_ROW_CLASS =
-  "border-0 hover:bg-transparent"
+  "border-0 hover:bg-op-color-gray-60 dark:hover:bg-[var(--op-color-gray-990)]"
 
 export const CAPTURE_PLACEMENTS_BODY_CELL_CLASS =
   "border border-op-border-default px-[18px] py-3 align-middle text-sm font-normal leading-[19px] text-op-text-primary"

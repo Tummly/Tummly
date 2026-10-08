@@ -1,3 +1,4 @@
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import {
   commitPending,
   emptySelection,
@@ -893,10 +894,10 @@ function formatTeamMembersUsageLabel(
             privacyConsentHasAccess
           )
         } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Could not send invite."
+          const message = getUserFacingApiErrorMessage(
+            error,
+            "Could not send invite."
+          )
           if (classifyInviteError(message) === "fullName") {
             inviteFullNameError = message
             inviteEmailError = null

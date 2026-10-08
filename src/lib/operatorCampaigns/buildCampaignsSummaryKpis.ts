@@ -9,7 +9,7 @@ export type CampaignsSummaryFacts = {
   /** Submitted/accepted outbound messages in the overview window (Email first). */
   messagesSentAccepted: number
   /**
-   * False until Offers mark-complete + Campaign offer attach facts exist.
+   * True when summary API supplies campaign-attributed redemptions (CMP-01).
    * When false, redemptions stay honest 0 with empty description.
    */
   redemptionsHasRealData: boolean
@@ -72,8 +72,9 @@ export function buildCampaignsSummaryKpis(
     {
       id: "campaign-attributed-redemptions",
       label: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsLabel,
-      // Honest empty until Offers mark-complete + Campaign offer attach exist.
-      description: "",
+      description: facts.redemptionsHasRealData
+        ? `${formatCount(redemptionsValue)} from campaign offers`
+        : "",
       value: redemptionsValue,
     },
   ]

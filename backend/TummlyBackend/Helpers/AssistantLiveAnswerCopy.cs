@@ -551,7 +551,10 @@ namespace TummlyBackend.Helpers
                 return $"Feedback at {ownedLocationName} over {periodPhrase}";
             }
 
-            if (!feedback.IsEmpty && feedback.NeedsAttention > 0)
+            // Summarise keeps a period-summary title; Needs attention count stays in body.
+            if (grounded != AssistantGroundedAsk.Summarise
+                && !feedback.IsEmpty
+                && feedback.NeedsAttention > 0)
             {
                 return $"Feedback that needs attention at {ownedLocationName}";
             }
@@ -627,6 +630,17 @@ namespace TummlyBackend.Helpers
             if (focus == AssistantAskFocusKind.CaptureQr)
             {
                 return CaptureQrBody(ownedLocationName, periodPhrase, evidence.Capture);
+            }
+
+            if (AssistantExplainPerformance.LooksLike(userMessage)
+                && focus == AssistantAskFocusKind.Performance
+                && !evidence.Home.IsEmpty)
+            {
+                return AssistantExplainPerformance.GroundedBody(
+                    ownedLocationName,
+                    periodPhrase,
+                    evidence.Home
+                );
             }
 
             var parts = new List<string>();
@@ -736,13 +750,20 @@ namespace TummlyBackend.Helpers
                 : $"Your plan is **{billing.SubscriptionPlan}** ({cycle}) with billing status **{billing.BillingStatus}**.";
             var creditsLine =
                 $"You have **{billing.EmailCreditsRemaining}** Email, **{billing.SmsCreditsRemaining}** SMS, and **{billing.AiCreditsRemaining}** AI credits remaining.";
+            var usageLine = billing.HasUsageSnapshot
+                ? string.IsNullOrWhiteSpace(billing.UsagePeriodLabel)
+                    ? $"This cycle you have used **{billing.EmailUsedThisCycle}** Email, **{billing.SmsUsedThisCycle}** SMS, and **{billing.AiUsedThisCycle}** AI credits."
+                    : $"In {billing.UsagePeriodLabel} you have used **{billing.EmailUsedThisCycle}** Email, **{billing.SmsUsedThisCycle}** SMS, and **{billing.AiUsedThisCycle}** AI credits."
+                : null;
             var extra = renewal is null ? scopeNote : $"{renewal}. {scopeNote}";
             if (!string.IsNullOrWhiteSpace(billing.ScheduledChangeLine))
             {
                 extra = $"{billing.ScheduledChangeLine}. {extra}";
             }
 
-            return $"{planLine} {creditsLine} {extra}";
+            return usageLine is null
+                ? $"{planLine} {creditsLine} {extra}"
+                : $"{planLine} {creditsLine} {usageLine} {extra}";
         }
 
         private static string CampaignsActiveBody(

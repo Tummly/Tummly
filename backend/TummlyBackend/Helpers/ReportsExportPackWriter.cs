@@ -25,16 +25,8 @@ namespace TummlyBackend.Helpers
             "Form opens",
             "Feedback",
             "Contactable",
-        ];
-
-        /// <summary>Matches <see cref="ReportsStyledXlsxPack"/> Feedback sheet columns.</summary>
-        private static readonly string[] FeedbackHeaders =
-        [
-            "Section",
-            "Metric",
-            "Current",
-            "Previous",
-            "Source",
+            "Claims",
+            "Conversion",
         ];
 
         /// <summary>Matches <see cref="ReportsStyledXlsxPack"/> Campaigns sheet columns.</summary>
@@ -45,27 +37,13 @@ namespace TummlyBackend.Helpers
             "Goal",
             "Channel",
             "Sent",
+            "Delivered",
             "Claims",
             "Redemptions",
-            "Unsubscribes",
+            "Unsubs",
+            "Failed",
             "Status",
         ];
-
-        public static (byte[] Content, string FileName) RenderOverviewPdf(
-            ReportsOverviewDto dto,
-            string locationName,
-            int locationId,
-            DateTime fromUtc,
-            DateTime toUtc,
-            DateTime utcNow
-        )
-        {
-            var stamp = Stamp(utcNow);
-            var fileName =
-                $"tummly-reports-overview-{locationId}-{stamp}Z.pdf";
-            var lines = BuildOverviewLines(dto, locationName, fromUtc, toUtc);
-            return (BuildSimplePdf("Reports overview", lines), fileName);
-        }
 
         public static (byte[] Content, string FileName) RenderCaptureCsv(
             ReportsCaptureDto dto,
@@ -80,6 +58,11 @@ namespace TummlyBackend.Helpers
             var rows = new List<string[]>();
             foreach (var row in dto.Placements ?? [])
             {
+                var conversion =
+                    row.ConversionPercent is double pct
+                        ? pct.ToString("0.0", CultureInfo.InvariantCulture)
+                            + "%"
+                        : string.Empty;
                 rows.Add(
                     [
                         row.QrCodeId.ToString(CultureInfo.InvariantCulture),
@@ -88,9 +71,12 @@ namespace TummlyBackend.Helpers
                         locationName,
                         row.Status,
                         row.Scans.ToString(CultureInfo.InvariantCulture),
-                        string.Empty,
+                        row.FormOpens?.ToString(CultureInfo.InvariantCulture)
+                            ?? string.Empty,
                         row.Feedback.ToString(CultureInfo.InvariantCulture),
                         row.Contactable.ToString(CultureInfo.InvariantCulture),
+                        row.Claims.ToString(CultureInfo.InvariantCulture),
+                        conversion,
                     ]
                 );
             }
@@ -98,8 +84,8 @@ namespace TummlyBackend.Helpers
             return (Rfc4180Csv.WriteUtf8(CaptureHeaders, rows), fileName);
         }
 
-        public static (byte[] Content, string FileName) RenderFeedbackCsv(
-            ReportsFeedbackDto dto,
+        public static (byte[] Content, string FileName) RenderFeedbackRowsCsv(
+            IReadOnlyList<ReportsExportFeedbackRowDto> feedbackRows,
             int locationId,
             DateTime utcNow
         )
@@ -107,69 +93,13 @@ namespace TummlyBackend.Helpers
             var stamp = Stamp(utcNow);
             var fileName =
                 $"tummly-reports-feedback-{locationId}-{stamp}Z.csv";
-
-            var rows = new List<string[]>();
-            void Add(string section, string metric, ReportsMetricDto value)
-            {
-                rows.Add(
-                    [
-                        section,
-                        metric,
-                        value.Value.ToString(CultureInfo.InvariantCulture),
-                        value.ValuePrevious.ToString(CultureInfo.InvariantCulture),
-                        string.Empty,
-                    ]
-                );
-            }
-
-            if (dto.Kpis != null)
-            {
-                Add("KPI", "Feedback received", dto.Kpis.FeedbackReceived);
-                Add("KPI", "Marketing opt-ins", dto.Kpis.MarketingOptIns);
-                Add("KPI", "Follow-up needed", dto.Kpis.FollowUpNeeded);
-                Add("KPI", "Resolved", dto.Kpis.Resolved);
-            }
-
-            if (dto.Status != null)
-            {
-                Add("Status", "New", dto.Status.New);
-                Add("Status", "In progress", dto.Status.InProgress);
-                Add("Status", "Follow-up needed", dto.Status.FollowUpNeeded);
-                Add("Status", "Resolved", dto.Status.Resolved);
-            }
-
-            foreach (var row in dto.BySource ?? [])
-            {
-                rows.Add(
-                    [
-                        "By source",
-                        "Feedback",
-                        row.Feedback.ToString(CultureInfo.InvariantCulture),
-                        string.Empty,
-                        row.Source,
-                    ]
-                );
-                rows.Add(
-                    [
-                        "By source",
-                        "Marketing opt-ins",
-                        row.MarketingOptIns.ToString(CultureInfo.InvariantCulture),
-                        string.Empty,
-                        row.Source,
-                    ]
-                );
-                rows.Add(
-                    [
-                        "By source",
-                        "Follow-up needed",
-                        row.FollowUpNeeded.ToString(CultureInfo.InvariantCulture),
-                        string.Empty,
-                        row.Source,
-                    ]
-                );
-            }
-
-            return (Rfc4180Csv.WriteUtf8(FeedbackHeaders, rows), fileName);
+            var rows = feedbackRows
+                .Select(ReportsExportFeedbackRows.ToCsvRow)
+                .ToList();
+            return (
+                Rfc4180Csv.WriteUtf8(ReportsExportFeedbackRows.Headers, rows),
+                fileName
+            );
         }
 
         public static (byte[] Content, string FileName) RenderCampaignsCsv(
@@ -191,9 +121,11 @@ namespace TummlyBackend.Helpers
                         row.Goal ?? string.Empty,
                         row.Channel ?? string.Empty,
                         row.Sent.ToString(CultureInfo.InvariantCulture),
+                        row.Delivered.ToString(CultureInfo.InvariantCulture),
                         row.Claims.ToString(CultureInfo.InvariantCulture),
                         row.Redemptions.ToString(CultureInfo.InvariantCulture),
                         row.Unsubscribes.ToString(CultureInfo.InvariantCulture),
+                        row.Failed.ToString(CultureInfo.InvariantCulture),
                         row.Status,
                     ]
                 );

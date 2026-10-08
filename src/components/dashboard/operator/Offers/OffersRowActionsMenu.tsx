@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  buildOfferRowActions,
+  buildOfferRowActionsForAccess,
   type OfferRowActionId,
 } from "@/lib/operatorOffers/offerListPresentation"
 import {
@@ -24,6 +24,8 @@ import type { CatalogOfferStatus } from "@/types/operatorCampaigns"
 type OffersRowActionsMenuProps = {
   offerTitle: string
   status: CatalogOfferStatus
+  /** When false, only View remains (Staff / view Offers chrome). Default true. */
+  canManageOffers?: boolean
   onAction: (id: OfferRowActionId) => void
 }
 
@@ -31,9 +33,10 @@ type OffersRowActionsMenuProps = {
 export function OffersRowActionsMenu({
   offerTitle,
   status,
+  canManageOffers = true,
   onAction,
 }: OffersRowActionsMenuProps) {
-  const actions = buildOfferRowActions(status)
+  const actions = buildOfferRowActionsForAccess(status, canManageOffers)
 
   return (
     <DropdownMenu modal={false}>

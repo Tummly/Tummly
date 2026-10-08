@@ -88,15 +88,14 @@ export type SetupStepIllustrationConfig = {
 }
 
 /**
- * Figma checklist step icons — fixed frames for committed SVGs
- * (account/logo ~28×31, outline icons 26×26, guest-form chat 20×20).
+ * Figma checklist step icons (3353:42471) — Lucide 26×26 frames for every step.
  */
 export const SETUP_STEP_ILLUSTRATION: Record<
   OperatorHomeSetupStepId,
   SetupStepIllustrationConfig
 > = {
-  "account-ready": { height: 31 },
-  "upload-logo": { height: 31 },
+  "account-ready": { height: 26 },
+  "upload-logo": { height: 26 },
   "guest-form": { height: 26 },
   "first-response": { height: 26 },
   "qr-placement": { height: 26 },

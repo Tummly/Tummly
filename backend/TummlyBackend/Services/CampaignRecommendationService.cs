@@ -186,6 +186,8 @@ namespace TummlyBackend.Services
             var utcNow = DateTime.UtcNow;
             var newGuestCutoff = utcNow.AddDays(-NewGuestDays);
             var dormantCutoff = utcNow.AddDays(-DormantDays);
+            var windowFrom = fromUtc ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc);
+            var windowTo = toUtc ?? utcNow.AddYears(1);
 
             var scoped = GuestsListQueryComposer.ScopeToLocations(
                 _context.LocationGuests.AsNoTracking(),
@@ -208,6 +210,106 @@ namespace TummlyBackend.Services
                 .WhereMarketingEligible(overviewQuery)
                 .CountAsync(cancellationToken);
 
+            var feedbackInWindow = _context.Feedbacks
+                .AsNoTracking()
+                .Where(f =>
+                    f.RestaurantLocationId == locationId
+                    && f.CreatedAt >= windowFrom
+                    && f.CreatedAt < windowTo
+                );
+
+            var openFeedbackCount = await feedbackInWindow.CountAsync(
+                f =>
+                    f.WorkflowStatus == FeedbackWorkflowStatus.New
+                    || f.WorkflowStatus == FeedbackWorkflowStatus.InProgress,
+                cancellationToken
+            );
+
+            var needsAttentionCount = await feedbackInWindow.CountAsync(
+                f =>
+                    f.ClassificationStatus == ClassificationStatus.Succeeded
+                    && f.Sentiment == FeedbackSentiment.Negative
+                    && f.WorkflowStatus != FeedbackWorkflowStatus.Resolved,
+                cancellationToken
+            );
+
+            var activeOffers = await _context.CatalogOffers
+                .AsNoTracking()
+                .CountAsync(
+                    o =>
+                        o.RestaurantLocationId == locationId
+                        && o.Status == CatalogOfferStatus.Active,
+                    cancellationToken
+                );
+
+            var venueToday = CatalogOfferStatus.VenueLocalToday(utcNow, 0);
+            var offerRows = await _context.CatalogOffers
+                .AsNoTracking()
+                .Where(o => o.RestaurantLocationId == locationId)
+                .Select(o => new
+                {
+                    o.Status,
+                    o.Validity,
+                    o.CustomExpiryDate,
+                })
+                .ToListAsync(cancellationToken);
+
+            var offerNeedsAttentionCount = offerRows.Count(row =>
+            {
+                var effective = CatalogOfferStatus.ResolveEffectiveStatus(
+                    row.Status,
+                    row.Validity,
+                    row.CustomExpiryDate,
+                    venueToday
+                );
+                return CatalogOfferStatus.IsNeedsAttentionRule(
+                    row.Validity,
+                    row.CustomExpiryDate,
+                    effective,
+                    venueToday
+                );
+            });
+
+            var campaignsSentInWindow = await _context.Campaigns
+                .AsNoTracking()
+                .CountAsync(
+                    c =>
+                        c.RestaurantLocationId == locationId
+                        && (c.Status == CampaignsListService.SentStatus
+                            || c.Status == CampaignsListService.PartiallySentStatus)
+                        && c.ScheduledAtUtc != null
+                        && c.ScheduledAtUtc >= windowFrom
+                        && c.ScheduledAtUtc < windowTo,
+                    cancellationToken
+                );
+
+            // Sticky OpenedAtUtc — one open per accepted delivery (email.opened).
+            var uniqueEmailOpensInWindow = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .CountAsync(
+                    row =>
+                        row.OpenedAtUtc != null
+                        && row.OpenedAtUtc >= windowFrom
+                        && row.OpenedAtUtc < windowTo
+                        && row.Campaign != null
+                        && row.Campaign.RestaurantLocationId == locationId,
+                    cancellationToken
+                );
+
+            var campaignAttributedRedemptionsInWindow = await _context.OfferIssues
+                .AsNoTracking()
+                .CountAsync(
+                    issue =>
+                        issue.CampaignId != null
+                        && issue.CatalogOffer != null
+                        && issue.CatalogOffer.RestaurantLocationId == locationId
+                        && issue.RedeemedAtUtc != null
+                        && issue.RedemptionVoidedAtUtc == null
+                        && issue.RedeemedAtUtc >= windowFrom
+                        && issue.RedeemedAtUtc < windowTo,
+                    cancellationToken
+                );
+
             return new CampaignRecommendationMetrics(
                 MarketingEligible: marketingEligible,
                 AllGuests: await scoped.CountAsync(cancellationToken),
@@ -222,7 +324,15 @@ namespace TummlyBackend.Services
                     .CountAsync(cancellationToken),
                 DormantGuests: await GuestsListQueryComposer
                     .WhereDormant(scoped, dormantCutoff)
-                    .CountAsync(cancellationToken)
+                    .CountAsync(cancellationToken),
+                OpenFeedbackCount: openFeedbackCount,
+                NeedsAttentionCount: needsAttentionCount,
+                ActiveOffers: activeOffers,
+                OfferNeedsAttentionCount: offerNeedsAttentionCount,
+                CampaignsSentInWindow: campaignsSentInWindow,
+                UniqueEmailOpensInWindow: uniqueEmailOpensInWindow,
+                CampaignAttributedRedemptionsInWindow:
+                    campaignAttributedRedemptionsInWindow
             );
         }
 
@@ -293,13 +403,17 @@ namespace TummlyBackend.Services
                 return false;
             }
 
+            var whyBullets = CampaignRecommendationWhyFacts.ForType(
+                output.Type,
+                metrics
+            );
             dto = new CampaignRecommendationDto
             {
                 Type = output.Type,
                 Title = output.Title,
                 Opportunity = output.Opportunity,
                 EligibleAudience = output.EligibleAudience,
-                WhyBullets = output.WhyBullets.ToArray(),
+                WhyBullets = whyBullets,
                 SuggestedChannel = output.SuggestedChannel,
                 EstimatedUsage = output.EstimatedUsage,
                 EchoedCounts = ToEchoedCounts(metrics),
@@ -379,6 +493,14 @@ namespace TummlyBackend.Services
                 NeedsRecovery = metrics.NeedsRecovery,
                 PositiveFeedback = metrics.PositiveFeedback,
                 DormantGuests = metrics.DormantGuests,
+                OpenFeedbackCount = metrics.OpenFeedbackCount,
+                NeedsAttentionCount = metrics.NeedsAttentionCount,
+                ActiveOffers = metrics.ActiveOffers,
+                OfferNeedsAttentionCount = metrics.OfferNeedsAttentionCount,
+                CampaignsSentInWindow = metrics.CampaignsSentInWindow,
+                UniqueEmailOpensInWindow = metrics.UniqueEmailOpensInWindow,
+                CampaignAttributedRedemptionsInWindow =
+                    metrics.CampaignAttributedRedemptionsInWindow,
             };
         }
 

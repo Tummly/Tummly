@@ -135,6 +135,13 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("email", recommendation.GetProperty("suggestedChannel").GetString());
             Assert.Equal("Main", recommendation.GetProperty("locationName").GetString());
 
+            // CMP-13: why bullets are server fact-backed, not provider copy.
+            var whyBullets = recommendation.GetProperty("whyBullets");
+            Assert.True(whyBullets.GetArrayLength() >= 1);
+            var whyText = whyBullets.ToString();
+            Assert.DoesNotContain("Have a valid marketing permission", whyText);
+            Assert.Contains("marketing-eligible", whyText);
+
             var echoed = recommendation.GetProperty("echoedCounts");
             Assert.True(echoed.GetProperty("marketingEligible").GetInt32() >= 1);
             Assert.True(echoed.GetProperty("allGuests").GetInt32() >= 1);
@@ -142,6 +149,14 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(echoed.TryGetProperty("needsRecovery", out _));
             Assert.True(echoed.TryGetProperty("positiveFeedback", out _));
             Assert.True(echoed.TryGetProperty("dormantGuests", out _));
+            Assert.True(echoed.TryGetProperty("openFeedbackCount", out _));
+            Assert.True(echoed.TryGetProperty("needsAttentionCount", out _));
+            Assert.True(echoed.TryGetProperty("activeOffers", out _));
+            Assert.True(echoed.TryGetProperty("campaignsSentInWindow", out _));
+            Assert.True(echoed.TryGetProperty("uniqueEmailOpensInWindow", out _));
+            Assert.True(
+                echoed.TryGetProperty("campaignAttributedRedemptionsInWindow", out _)
+            );
 
             var prefill = recommendation.GetProperty("draftPrefill");
             Assert.Equal(

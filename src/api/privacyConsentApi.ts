@@ -1,6 +1,5 @@
-import { isAxiosError } from "axios"
-
 import axiosInstance from "@/api/axiosInstance"
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import type {
   PrivacyConsentActivityApiItem,
   PrivacyConsentPageApiData,
@@ -17,14 +16,7 @@ export type PatchPrivacyConsentTogglesInput = {
 }
 
 function readApiError(error: unknown, fallback: string): string {
-  if (isAxiosError(error)) {
-    const payload = error.response?.data as { message?: unknown } | undefined
-    const message = payload?.message
-    if (typeof message === "string" && message.trim() !== "") {
-      return message
-    }
-  }
-  return fallback
+  return getUserFacingApiErrorMessage(error, fallback)
 }
 
 function rethrow(error: unknown, fallback: string): never {

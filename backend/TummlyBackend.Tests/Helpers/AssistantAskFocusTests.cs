@@ -74,12 +74,51 @@ namespace TummlyBackend.Tests.Helpers
             "How many AI credits do I have?",
             AssistantAskFocusKind.Billing
         )]
+        [InlineData(
+            "How many credits have we used this cycle?",
+            AssistantAskFocusKind.Billing
+        )]
+        [InlineData(
+            "Show me message usage",
+            AssistantAskFocusKind.Billing
+        )]
+        [InlineData(
+            "Explain performance",
+            AssistantAskFocusKind.Performance
+        )]
+        [InlineData(
+            "explain our performance for the last 30 days",
+            AssistantAskFocusKind.Performance
+        )]
         public void Detect_MapsTesterPhrases_ToFocus(
             string message,
             AssistantAskFocusKind expected
         )
         {
             Assert.Equal(expected, AssistantAskFocus.Detect(message));
+        }
+
+        [Fact]
+        public void Detect_ExplainPerformance_IncludesHomeDomainOnly()
+        {
+            var focus = AssistantAskFocus.Detect("Explain performance");
+            Assert.Equal(AssistantAskFocusKind.Performance, focus);
+            Assert.True(
+                AssistantAskFocus.IncludesDomain(
+                    focus,
+                    AssistantEvidenceDomain.Home
+                )
+            );
+            Assert.False(
+                AssistantAskFocus.IncludesDomain(
+                    focus,
+                    AssistantEvidenceDomain.Offers
+                )
+            );
+            Assert.Equal(
+                new[] { AssistantRetrieveToolCatalog.ReadHomeKpis },
+                AssistantRetrieveToolCatalog.DomainReadsForFocus(focus)
+            );
         }
 
         [Theory]

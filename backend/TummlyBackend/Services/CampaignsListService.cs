@@ -430,6 +430,8 @@ namespace TummlyBackend.Services
                         "sms",
                         StringComparison.Ordinal
                     );
+                    // Honest zeros once a campaign has send activity (CMP-01).
+                    var hasSendActivity = accepted > 0 || recipients > 0;
                     return new CampaignsListItemDto
                     {
                         Id = campaign.Id,
@@ -461,10 +463,15 @@ namespace TummlyBackend.Services
                         CreatedByDisplayName = campaign.CreatedByDisplayName,
                         UpdatedAt = campaign.UpdatedAt,
                         SendDate = sendAt == null ? null : sendAt.Value.ToString("O"),
-                        Delivery = accepted > 0 ? accepted.ToString() : null,
-                        Engagement = opens > 0 ? opens.ToString() : null,
-                        Redemptions =
-                            redemptions > 0 ? redemptions.ToString() : null,
+                        Delivery = hasSendActivity ? accepted.ToString() : null,
+                        Engagement = isSms
+                            ? null
+                            : accepted > 0
+                                ? opens.ToString()
+                                : null,
+                        Redemptions = hasSendActivity
+                            ? redemptions.ToString()
+                            : null,
                         RecipientCount = recipients > 0 ? recipients : null,
                         SmsPartsPerMessage = isSms
                             ? CampaignSmsSegmentCalculator.CountSegments(

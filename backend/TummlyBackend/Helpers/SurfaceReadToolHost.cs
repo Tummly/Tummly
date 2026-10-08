@@ -233,6 +233,18 @@ namespace TummlyBackend.Helpers
                                 ["needsRecovery"] = metrics.NeedsRecovery,
                                 ["positiveFeedback"] = metrics.PositiveFeedback,
                                 ["dormantGuests"] = metrics.DormantGuests,
+                                ["openFeedbackCount"] = metrics.OpenFeedbackCount,
+                                ["needsAttentionCount"] =
+                                    metrics.NeedsAttentionCount,
+                                ["activeOffers"] = metrics.ActiveOffers,
+                                ["offerNeedsAttentionCount"] =
+                                    metrics.OfferNeedsAttentionCount,
+                                ["campaignsSentInWindow"] =
+                                    metrics.CampaignsSentInWindow,
+                                ["uniqueEmailOpensInWindow"] =
+                                    metrics.UniqueEmailOpensInWindow,
+                                ["campaignAttributedRedemptionsInWindow"] =
+                                    metrics.CampaignAttributedRedemptionsInWindow,
                             },
                         }
                     )

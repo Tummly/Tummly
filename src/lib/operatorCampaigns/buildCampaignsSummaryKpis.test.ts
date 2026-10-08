@@ -62,6 +62,23 @@ describe("buildCampaignsSummaryKpis", () => {
     )
   })
 
+  it("describes live campaign-attributed redemptions when facts are present", () => {
+    const { kpis } = buildCampaignsSummaryKpis({
+      ...baseFacts,
+      redemptionsHasRealData: true,
+      redemptions: 12,
+    })
+
+    expect(kpis.find((kpi) => kpi.id === "campaign-attributed-redemptions")).toEqual(
+      {
+        id: "campaign-attributed-redemptions",
+        label: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsLabel,
+        description: "12 from campaign offers",
+        value: 12,
+      }
+    )
+  })
+
   it("returns four display KPIs including live marketing eligible", () => {
     const { kpis } = buildCampaignsSummaryKpis(baseFacts)
 

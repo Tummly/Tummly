@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -13,9 +14,7 @@ namespace TummlyBackend.Tests.Integration
         : IClassFixture<TummlyWebApplicationFactory>
     {
         private static readonly string ExpectedHeader =
-            "Name,Email,Mobile,Marketing status,Location,Latest feedback,"
-            + "Feedback submissions,Last interaction,Last interaction at,"
-            + "First captured,Guest tags";
+            string.Join(",", GuestExportColumns.Headers);
 
         private readonly TummlyWebApplicationFactory _factory;
         private readonly HttpClient _client;
@@ -78,12 +77,13 @@ namespace TummlyBackend.Tests.Integration
 
             var jane = lines.Single(line => line.StartsWith("Jane Doe,"));
             Assert.Contains("jane@example.com", jane);
-            Assert.Contains("Eligible — Email", jane);
             Assert.Contains("Camden Street", jane);
-            Assert.Contains("Positive", jane);
-            Assert.Contains(",2,", jane);
-            Assert.Contains("Feedback submitted", jane);
-            Assert.Contains("Regular;VIP", jane);
+            Assert.Contains("Allowed", jane);
+            Assert.DoesNotContain("Eligible — Email", jane);
+            Assert.DoesNotContain("Latest feedback", csv);
+            Assert.DoesNotContain("Guest tags", csv);
+            Assert.DoesNotContain("Feedback submitted", jane);
+            Assert.DoesNotContain("Regular;VIP", jane);
         }
 
         [Fact]

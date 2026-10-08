@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils"
 type ReportsInsightBannerProps = {
   title?: string
   children: ReactNode
+  /** Optional CTA rendered inside the banner below the body (REP-05). */
+  action?: ReactNode
   className?: string
 }
 
@@ -18,16 +20,20 @@ type ReportsInsightBannerProps = {
 export function ReportsInsightBanner({
   title,
   children,
+  action,
   className,
 }: ReportsInsightBannerProps) {
   return (
     <div className={cn(REPORTS_INSIGHT_BANNER_CLASS, className)}>
       <AiIcon size={16} className="mt-0.5" />
-      <div className="flex min-w-0 flex-col gap-1">
-        {title != null ? (
-          <p className={REPORTS_INSIGHT_TITLE_CLASS}>{title}</p>
-        ) : null}
-        <div className={REPORTS_INSIGHT_BODY_CLASS}>{children}</div>
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          {title != null ? (
+            <p className={REPORTS_INSIGHT_TITLE_CLASS}>{title}</p>
+          ) : null}
+          <div className={REPORTS_INSIGHT_BODY_CLASS}>{children}</div>
+        </div>
+        {action != null ? <div className="min-w-0">{action}</div> : null}
       </div>
     </div>
   )

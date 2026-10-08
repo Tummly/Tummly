@@ -14,16 +14,6 @@ namespace TummlyBackend.Services
         public const string ExportSoftMaxMessage =
             "Export exceeds 10,000 guest rows for this workspace.";
 
-        private static readonly string[] ExportHeaders =
-        [
-            "Name",
-            "Email",
-            "Mobile",
-            "Location",
-            "Marketing preference",
-            "First captured",
-        ];
-
         private readonly ApplicationDbContext _context;
 
         public GuestDataExportService(ApplicationDbContext context)
@@ -100,15 +90,14 @@ namespace TummlyBackend.Services
 
             var rows = guests
                 .Select(lg =>
-                    (IReadOnlyList<string>)
-                    [
+                    GuestExportColumns.ToRow(
                         lg.Name,
-                        lg.MasterGuest?.Email ?? string.Empty,
-                        lg.MasterGuest?.Mobile ?? string.Empty,
+                        lg.MasterGuest?.Email,
+                        lg.MasterGuest?.Mobile,
                         lg.RestaurantLocation?.LocationName ?? string.Empty,
-                        FormatMarketingPreference(lg.MarketingPreference),
-                        FormatIsoUtc(lg.CreatedAt),
-                    ]
+                        lg.MarketingPreference,
+                        lg.CreatedAt
+                    )
                 )
                 .ToList();
 
@@ -125,7 +114,10 @@ namespace TummlyBackend.Services
                     {
                         FileName = fileName,
                         ContentType = "text/csv",
-                        Content = Rfc4180Csv.WriteUtf8(ExportHeaders, rows),
+                        Content = Rfc4180Csv.WriteUtf8(
+                            GuestExportColumns.Headers,
+                            rows
+                        ),
                     },
                     null,
                     StatusCodes.Status200OK
@@ -137,7 +129,10 @@ namespace TummlyBackend.Services
                 {
                     FileName = fileName,
                     ContentType = OpenXmlSpreadsheet.ContentType,
-                    Content = OpenXmlSpreadsheet.Write(ExportHeaders, rows),
+                    Content = OpenXmlSpreadsheet.Write(
+                        GuestExportColumns.Headers,
+                        rows
+                    ),
                 },
                 null,
                 StatusCodes.Status200OK
@@ -153,33 +148,6 @@ namespace TummlyBackend.Services
             }
 
             return key;
-        }
-
-        private static string FormatMarketingPreference(
-            LocationGuestMarketingPreference preference
-        ) =>
-            preference switch
-            {
-                LocationGuestMarketingPreference.Allowed => "Allowed",
-                LocationGuestMarketingPreference.OptedOut => "Opted out",
-                LocationGuestMarketingPreference.NotRecorded => "Not recorded",
-                _ => throw new ArgumentOutOfRangeException(
-                    nameof(preference),
-                    preference,
-                    "Unknown Location Guest marketing preference."
-                ),
-            };
-
-        private static string FormatIsoUtc(DateTime value)
-        {
-            var utc = value.Kind switch
-            {
-                DateTimeKind.Utc => value,
-                DateTimeKind.Local => value.ToUniversalTime(),
-                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
-            };
-
-            return utc.ToString("O");
         }
     }
 }

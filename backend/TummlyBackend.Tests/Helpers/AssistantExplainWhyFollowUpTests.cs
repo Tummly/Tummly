@@ -205,6 +205,39 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void NamesNewPeriodOrLocation_RollingLastNDays_WhenSavedIsLast7()
+        {
+            var scope = new AssistantAnalysisScopeDto
+            {
+                OwnedLocationId = 1,
+                ReportingPeriod = new AssistantReportingPeriodDto
+                {
+                    Kind = "preset",
+                    PresetId = "last7",
+                },
+            };
+            var owned = new AssistantOwnedLocationRef[]
+            {
+                new(1, "Camden", "addr", default),
+            };
+
+            Assert.True(
+                AssistantExplainWhyFollowUp.NamesNewPeriodOrLocation(
+                    "explain these results for the last 50 days",
+                    scope,
+                    owned
+                )
+            );
+            Assert.True(
+                AssistantExplainWhyFollowUp.NamesNewPeriodOrLocation(
+                    "explain these results for the last 14 days",
+                    scope,
+                    owned
+                )
+            );
+        }
+
+        [Fact]
         public void NamesNewPeriodOrLocation_OtherOwnedLocation()
         {
             var scope = new AssistantAnalysisScopeDto

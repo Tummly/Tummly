@@ -2,6 +2,8 @@ import { useEffect, useState } from "react"
 import { isAxiosError } from "axios"
 import { XIcon } from "lucide-react"
 
+import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
+
 import {
   changeMyAccountPassword,
   getMyAccount,
@@ -208,7 +210,10 @@ export function MyAccountDialog({
         jobTitle: snapshot.jobTitle,
       })
       setProfileError(
-        error instanceof Error ? error.message : "Unable to save profile changes."
+        getUserFacingApiErrorMessage(
+          error,
+          "Unable to save profile changes."
+        )
       )
     } finally {
       setProfileSaving(false)
@@ -241,7 +246,7 @@ export function MyAccountDialog({
       setPasswordSuccess("Password changed successfully.")
     } catch (error) {
       setPasswordError(
-        error instanceof Error ? error.message : "Unable to change password."
+        getUserFacingApiErrorMessage(error, "Unable to change password.")
       )
     } finally {
       setPasswordSaving(false)

@@ -4,12 +4,17 @@ import type {
 } from "@/types/operatorReports"
 
 /**
- * Guest-data ack (RPT-007) — only when the pack may include guest/contact rows.
- * Aggregate overview PDF, Capture CSV, and Campaigns CSV download without ack.
+ * Guest-data ack (RPT-007) — when the pack may include guest/contact rows.
+ * Overview PDF includes Feedback comments (+ optional consent page) so it
+ * requires ack (REP-03). Capture CSV and Campaigns CSV still download without.
  */
 export function reportsExportRequiresGuestDataAck(
-  kind: ReportsExportKind
+  kind: ReportsExportKind,
+  format?: "pdf" | "csv" | "xlsx"
 ): boolean {
+  if (kind === "overview" && (format == null || format === "pdf")) {
+    return true
+  }
   return (
     kind === "feedback"
     || kind === "offers-redemptions"

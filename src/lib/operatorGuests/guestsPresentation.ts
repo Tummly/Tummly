@@ -185,7 +185,9 @@ export const GUESTS_TABLE_HEAD_ROW_CLASS = "border-0 hover:bg-transparent"
 export const GUESTS_TABLE_HEAD_CELL_CLASS =
   "h-[43px] border border-op-border-default bg-[#ebebeb] px-[18px] py-3 text-left align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:bg-[#212121]"
 
-export const GUESTS_TABLE_BODY_ROW_CLASS = "border-0 hover:bg-transparent"
+/** Body rows — Figma interactive hover (REP-06 / UI-04). Head rows stay inert. */
+export const GUESTS_TABLE_BODY_ROW_CLASS =
+  "border-0 hover:bg-op-color-gray-60 dark:hover:bg-[var(--op-color-gray-990)]"
 
 export const GUESTS_TABLE_BODY_CELL_CLASS =
   "border border-op-border-default px-[18px] py-3 align-middle"
@@ -215,6 +217,15 @@ export const GUESTS_MARKETING_STATUS_BADGE_CLASS = "px-2 py-1.5"
 
 export const GUESTS_TABLE_GUEST_NAME_CLASS =
   "text-sm font-semibold leading-[19px] text-foreground"
+
+/** Name cell: initials chip + link (GST-02 / Home Latest Activity). */
+export const GUESTS_TABLE_GUEST_NAME_CELL_INNER_CLASS =
+  "flex min-w-0 items-center gap-2.5"
+
+export const GUESTS_TABLE_GUEST_AVATAR_CLASS = "size-8 shrink-0 after:hidden"
+
+export const GUESTS_TABLE_GUEST_AVATAR_FALLBACK_CLASS =
+  "bg-[#f4f4f4] text-xs font-medium text-[#7c7c7c] dark:bg-[#202020]"
 
 export const GUESTS_TABLE_LOCATION_CLASS =
   "text-sm font-normal leading-[19px] text-muted-foreground dark:text-[#7c7c7c]"

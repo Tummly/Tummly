@@ -28,8 +28,13 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.Equal(1, billing.Calls);
+            Assert.Equal(1, billing.UsageCalls);
             Assert.Equal("Growth", context.AccumulatedEvidence.Billing.SubscriptionPlan);
             Assert.Equal(42, context.AccumulatedEvidence.Billing.AiCreditsRemaining);
+            Assert.True(context.AccumulatedEvidence.Billing.HasUsageSnapshot);
+            Assert.Equal(12, context.AccumulatedEvidence.Billing.EmailUsedThisCycle);
+            Assert.Equal(5, context.AccumulatedEvidence.Billing.SmsUsedThisCycle);
+            Assert.Equal(3, context.AccumulatedEvidence.Billing.AiUsedThisCycle);
             using var doc = JsonDocument.Parse(results[0].ContentJson);
             Assert.Equal("success", doc.RootElement.GetProperty("status").GetString());
             Assert.Equal(
@@ -38,6 +43,13 @@ namespace TummlyBackend.Tests.Services
                     .GetProperty("evidence")
                     .GetProperty("billingSubscriptionPlan")
                     .GetString()
+            );
+            Assert.Equal(
+                3,
+                doc.RootElement
+                    .GetProperty("evidence")
+                    .GetProperty("billingAiUsedThisCycle")
+                    .GetInt32()
             );
         }
 
@@ -310,6 +322,8 @@ namespace TummlyBackend.Tests.Services
         {
             public int Calls { get; private set; }
 
+            public int UsageCalls { get; private set; }
+
             public Task<BillingCreditsPageDto?> GetPageAsync(
                 int userId,
                 int restaurantId,
@@ -338,7 +352,34 @@ namespace TummlyBackend.Tests.Services
             }
 
             public Task<CreditsUsageSnapshotDto?> GetUsageAsync(int restaurantId)
-                => Task.FromResult<CreditsUsageSnapshotDto?>(null);
+            {
+                UsageCalls++;
+                Assert.Equal(99, restaurantId);
+                return Task.FromResult<CreditsUsageSnapshotDto?>(
+                    new CreditsUsageSnapshotDto
+                    {
+                        PeriodLabel = "1–31 Oct 2026",
+                        Channels =
+                        [
+                            new CreditChannelUsageDto
+                            {
+                                Channel = CreditChannels.Email,
+                                UsedThisCycle = 12,
+                            },
+                            new CreditChannelUsageDto
+                            {
+                                Channel = CreditChannels.Sms,
+                                UsedThisCycle = 5,
+                            },
+                            new CreditChannelUsageDto
+                            {
+                                Channel = CreditChannels.Ai,
+                                UsedThisCycle = 3,
+                            },
+                        ],
+                    }
+                );
+            }
 
             public Task<(byte[] Content, string FileName)?> GetInvoicePdfAsync(
                 int restaurantId,

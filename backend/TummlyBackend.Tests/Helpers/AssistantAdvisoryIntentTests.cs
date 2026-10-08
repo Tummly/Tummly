@@ -14,6 +14,8 @@ namespace TummlyBackend.Tests.Helpers
 
         [Theory]
         [InlineData("How are we doing this month?", AdvisoryAskSubType.GeneralHealth)]
+        [InlineData("Explain performance", AdvisoryAskSubType.GeneralHealth)]
+        [InlineData("explain our performance for the last 30 days", AdvisoryAskSubType.GeneralHealth)]
         [InlineData("How can we grow covers?", AdvisoryAskSubType.Growth)]
         [InlineData("Compare this month vs last month", AdvisoryAskSubType.Comparison)]
         [InlineData("Why did covers drop?", AdvisoryAskSubType.Diagnostic)]
@@ -24,6 +26,14 @@ namespace TummlyBackend.Tests.Helpers
         )
         {
             Assert.Equal(expected, AssistantAdvisoryIntent.ClassifySubType(message));
+        }
+
+        [Fact]
+        public void LooksLikeAdvisoryRetrieve_ExplainPerformanceChip_IsTrue()
+        {
+            Assert.True(
+                AssistantAdvisoryIntent.LooksLikeAdvisoryRetrieve("Explain performance")
+            );
         }
 
         [Fact]

@@ -89,12 +89,14 @@ export type CampaignsListResponse = {
   filterCatalog?: CampaignsListFilterCatalog
 }
 
-/** Overview sibling summary KPIs (ticket 29) — in-flight + messages accepted. */
+/** Overview sibling summary KPIs (ticket 29) — in-flight + messages + redemptions. */
 export type CampaignsSummaryDetail = {
   campaignsInFlightScheduled: number
   campaignsInFlightSending: number
   messagesSentAccepted: number
   messagesSentAcceptedEmail: number
+  /** Campaign-attached OfferIssues redeemed in the overview window (CMP-01). */
+  campaignAttributedRedemptions: number
 }
 
 export type CampaignsSummaryResponse = {
@@ -642,6 +644,13 @@ export type CampaignRecommendationEchoedCounts = {
   needsRecovery: number
   positiveFeedback: number
   dormantGuests: number
+  openFeedbackCount?: number
+  needsAttentionCount?: number
+  activeOffers?: number
+  offerNeedsAttentionCount?: number
+  campaignsSentInWindow?: number
+  uniqueEmailOpensInWindow?: number
+  campaignAttributedRedemptionsInWindow?: number
 }
 
 export type CampaignRecommendationDraftPrefill = {
