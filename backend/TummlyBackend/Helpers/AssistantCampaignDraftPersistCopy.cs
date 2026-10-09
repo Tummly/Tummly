@@ -17,7 +17,8 @@ namespace TummlyBackend.Helpers
             int? eligibleCount,
             string campaignName,
             string offerLabel = "No Offer",
-            string? offerNote = null
+            string? offerNote = null,
+            string? limitNote = null
         )
             => DraftBody(
                 $"I saved a Campaign Draft for {locationName}.\n\n",
@@ -27,7 +28,8 @@ namespace TummlyBackend.Helpers
                 eligibleCount,
                 campaignName,
                 offerLabel,
-                offerNote
+                offerNote,
+                limitNote
             );
 
         public static string UpdatedBody(
@@ -37,7 +39,8 @@ namespace TummlyBackend.Helpers
             int? eligibleCount,
             string campaignName,
             string offerLabel = "No Offer",
-            string? offerNote = null
+            string? offerNote = null,
+            string? limitNote = null
         )
             => DraftBody(
                 $"I updated the Campaign Draft for {locationName}.\n\n",
@@ -47,7 +50,8 @@ namespace TummlyBackend.Helpers
                 eligibleCount,
                 campaignName,
                 offerLabel,
-                offerNote
+                offerNote,
+                limitNote
             );
 
         public static string NoPriorDraftToUpdateBody()
@@ -62,7 +66,8 @@ namespace TummlyBackend.Helpers
             int? eligibleCount,
             string campaignName,
             string offerLabel,
-            string? offerNote
+            string? offerNote,
+            string? limitNote = null
         )
         {
             var countQualifier = string.Equals(
@@ -89,6 +94,11 @@ namespace TummlyBackend.Helpers
             if (!string.IsNullOrWhiteSpace(offerNote))
             {
                 body += $"\n\n{offerNote}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(limitNote))
+            {
+                body += $"\n\n{limitNote}";
             }
 
             return body;

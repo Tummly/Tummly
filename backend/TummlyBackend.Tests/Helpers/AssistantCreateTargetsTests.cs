@@ -232,6 +232,11 @@ namespace TummlyBackend.Tests.Helpers
                     "Create a campaign for email eligible guests"
                 )
             );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeChangeCampaignAudienceOrChannel(
+                    "Please, edit the campaign to be for 10 Email guests only that submitted negative feedback"
+                )
+            );
         }
 
         [Fact]

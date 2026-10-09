@@ -37,6 +37,7 @@ namespace TummlyBackend.Helpers
             "last week",
             "this week",
             "yesterday",
+            "today",
             "last month",
             // Rolling last-N examples (not fixed presets) — explain-why / caveat lists.
             "last 14 days",
@@ -76,6 +77,43 @@ namespace TummlyBackend.Helpers
                 | RegexOptions.CultureInvariant
                 | RegexOptions.Compiled
         );
+
+        private static readonly Regex TodayRegex = new(
+            @"\btoday\b",
+            RegexOptions.IgnoreCase
+                | RegexOptions.CultureInvariant
+                | RegexOptions.Compiled
+        );
+
+        private static readonly Regex NamedReportingDayRegex = new(
+            @"\b(?:(?<iso>\d{4}-\d{2}-\d{2})|(?<numeric>\d{1,2}[/-]\d{1,2}[/-]\d{4})|(?<day>\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?\s+(?<month>jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?(?:\s+(?<year>\d{4}))?|(?<month2>jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(?<day2>\d{1,2})(?:st|nd|rd|th)?(?:\s+(?<year2>\d{4}))?)\b",
+            RegexOptions.IgnoreCase
+                | RegexOptions.CultureInvariant
+                | RegexOptions.Compiled
+        );
+
+        private static readonly Regex WeekdayRegex = new(
+            @"\b(?<rel>last|this|on)\s+(?<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+            RegexOptions.IgnoreCase
+                | RegexOptions.CultureInvariant
+                | RegexOptions.Compiled
+        );
+
+        private static readonly string[] ReportingDayCues =
+        [
+            "feedback",
+            "scan",
+            "guest",
+            "kpi",
+            "redemption",
+            "capture",
+            "performance",
+            "campaign",
+            "how many",
+            "how is",
+            "received",
+            "joined",
+        ];
 
         public static string? TryDetectPeriodPreset(string message)
         {
@@ -147,6 +185,13 @@ namespace TummlyBackend.Helpers
                 return null;
             }
 
+            // "What should I do today" is an attention ask, not a one-day window.
+            if (TodayRegex.IsMatch(lower)
+                && !AssistantAttentionAsk.IsAttentionRetrieve(message))
+            {
+                return "today";
+            }
+
             foreach (var (needle, kind) in CalendarPeriodNeedles)
             {
                 if (lower.Contains(needle, StringComparison.Ordinal))
@@ -156,6 +201,45 @@ namespace TummlyBackend.Helpers
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// One calendar day named in a data question: "3 October", "03/10/2026",
+        /// or "on Monday". Create, schedule, and offer-validity dates are left
+        /// alone. More than one day is not guessed.
+        /// </summary>
+        public static DateTime? TryDetectNamedReportingDay(string message, DateTime utcNow)
+        {
+            if (string.IsNullOrWhiteSpace(message)
+                || !LooksLikeReportingDayAsk(message)
+                || AssistantTaskClassification.LooksLikeCreateTurn(message)
+                || AssistantSendScheduleAsk.LooksLikeSendOrSchedule(message))
+            {
+                return null;
+            }
+
+            var named = NamedReportingDayRegex.Matches(message);
+            if (named.Count == 1 && TryParseNamedReportingDay(named[0], utcNow, out var day))
+            {
+                return day;
+            }
+
+            if (named.Count > 0)
+            {
+                return null;
+            }
+
+            var weekdays = WeekdayRegex.Matches(message);
+            if (weekdays.Count != 1)
+            {
+                return null;
+            }
+
+            return WeekdayOnOrBefore(
+                weekdays[0].Groups["rel"].Value,
+                weekdays[0].Groups["day"].Value,
+                utcNow
+            );
         }
 
         public static bool TryDetectCompareAllIntent(string message)
@@ -282,6 +366,7 @@ namespace TummlyBackend.Helpers
 
             return kind switch
             {
+                "today" => CustomPeriod(today, today),
                 "yesterday" => CustomPeriod(today.AddDays(-1), today.AddDays(-1)),
                 "thisWeek" => CustomPeriod(StartOfUtcWeekMonday(today), today),
                 "lastWeek" => LastWeekPeriod(today),
@@ -451,17 +536,22 @@ namespace TummlyBackend.Helpers
                 else
                 {
                     var calendarKind = TryDetectCalendarPeriodKind(userMessage);
-                    if (calendarKind is not null)
+                    var namedDay = calendarKind is null
+                        ? TryDetectNamedReportingDay(userMessage, utcNow)
+                        : null;
+                    var nextPeriod = calendarKind is not null
+                        ? CalendarPeriod(calendarKind, utcNow)
+                        : namedDay is DateTime day
+                            ? CustomPeriod(day, day)
+                            : null;
+                    if (nextPeriod is not null
+                        && !SameCustomPeriod(scope.ReportingPeriod, nextPeriod))
                     {
-                        var nextPeriod = CalendarPeriod(calendarKind, utcNow);
-                        if (!SameCustomPeriod(scope.ReportingPeriod, nextPeriod))
-                        {
-                            previousPeriodLabel = PeriodLabel(scope.ReportingPeriod);
-                            scope.ReportingPeriod = nextPeriod;
-                            nextPeriodLabel = PeriodLabel(nextPeriod);
-                            periodChanged = true;
-                            kinds.Add("period");
-                        }
+                        previousPeriodLabel = PeriodLabel(scope.ReportingPeriod);
+                        scope.ReportingPeriod = nextPeriod;
+                        nextPeriodLabel = PeriodLabel(nextPeriod);
+                        periodChanged = true;
+                        kinds.Add("period");
                     }
                 }
             }
@@ -561,6 +651,184 @@ namespace TummlyBackend.Helpers
             var firstLastMonth = firstThisMonth.AddMonths(-1);
             var lastDayLastMonth = firstThisMonth.AddDays(-1);
             return CustomPeriod(firstLastMonth, lastDayLastMonth);
+        }
+
+        private static bool LooksLikeReportingDayAsk(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            foreach (var cue in ReportingDayCues)
+            {
+                if (lower.Contains(cue, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryParseNamedReportingDay(
+            Match match,
+            DateTime utcNow,
+            out DateTime day
+        )
+        {
+            day = default;
+            var now = EnsureUtc(utcNow);
+            if (match.Groups["iso"].Success
+                && DateTime.TryParseExact(
+                    match.Groups["iso"].Value,
+                    "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var iso
+                ))
+            {
+                day = StartOfUtcDay(iso);
+                return true;
+            }
+
+            if (match.Groups["numeric"].Success)
+            {
+                var parts = match.Groups["numeric"].Value.Split('/', '-');
+                if (parts.Length == 3
+                    && int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var first)
+                    && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var second)
+                    && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var year)
+                    && TryBuildDayMonth(first, second, year, out day))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
+            var dayText = match.Groups["day"].Success
+                ? match.Groups["day"].Value
+                : match.Groups["day2"].Value;
+            var monthText = match.Groups["month"].Success
+                ? match.Groups["month"].Value
+                : match.Groups["month2"].Value;
+            var yearText = match.Groups["year"].Success
+                ? match.Groups["year"].Value
+                : match.Groups["year2"].Value;
+            if (!int.TryParse(dayText, NumberStyles.None, CultureInfo.InvariantCulture, out var dayNumber)
+                || !TryMonthNumber(monthText, out var monthNumber))
+            {
+                return false;
+            }
+
+            int? explicitYear = null;
+            if (!string.IsNullOrEmpty(yearText))
+            {
+                if (!int.TryParse(yearText, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedYear))
+                {
+                    return false;
+                }
+
+                explicitYear = parsedYear;
+            }
+
+            var yearNumber = explicitYear ?? now.Year;
+            if (!TryCalendarDay(yearNumber, monthNumber, dayNumber, out day))
+            {
+                return false;
+            }
+
+            if (explicitYear is null && day.Date > now.Date)
+            {
+                if (!TryCalendarDay(yearNumber - 1, monthNumber, dayNumber, out day))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Slash dates are day/month. When only one side can be a month, use that.
+        /// </summary>
+        private static bool TryBuildDayMonth(int first, int second, int year, out DateTime day)
+        {
+            day = default;
+            var dayNumber = first;
+            var monthNumber = second;
+            if (first > 12 && second <= 12)
+            {
+                dayNumber = first;
+                monthNumber = second;
+            }
+            else if (second > 12 && first <= 12)
+            {
+                dayNumber = second;
+                monthNumber = first;
+            }
+
+            return TryCalendarDay(year, monthNumber, dayNumber, out day);
+        }
+
+        private static bool TryCalendarDay(int year, int month, int dayNumber, out DateTime day)
+        {
+            day = default;
+            if (month is < 1 or > 12 || dayNumber < 1 || year < 1 || year > 9999)
+            {
+                return false;
+            }
+
+            if (dayNumber > DateTime.DaysInMonth(year, month))
+            {
+                return false;
+            }
+
+            day = new DateTime(year, month, dayNumber, 0, 0, 0, DateTimeKind.Utc);
+            return true;
+        }
+
+        private static bool TryMonthNumber(string text, out int month)
+        {
+            month = 0;
+            var token = text.Trim().TrimEnd('.').ToLowerInvariant();
+            if (token.StartsWith("sept", StringComparison.Ordinal))
+            {
+                token = "sep";
+            }
+
+            if (token.Length > 3)
+            {
+                token = token[..3];
+            }
+
+            month = token switch
+            {
+                "jan" => 1,
+                "feb" => 2,
+                "mar" => 3,
+                "apr" => 4,
+                "may" => 5,
+                "jun" => 6,
+                "jul" => 7,
+                "aug" => 8,
+                "sep" => 9,
+                "oct" => 10,
+                "nov" => 11,
+                "dec" => 12,
+                _ => 0,
+            };
+            return month != 0;
+        }
+
+        private static DateTime WeekdayOnOrBefore(string relation, string weekdayName, DateTime utcNow)
+        {
+            var today = StartOfUtcDay(EnsureUtc(utcNow));
+            var target = Enum.Parse<DayOfWeek>(weekdayName, ignoreCase: true);
+            var delta = ((int)today.DayOfWeek - (int)target + 7) % 7;
+            if (relation.Equals("last", StringComparison.OrdinalIgnoreCase) && delta == 0)
+            {
+                delta = 7;
+            }
+
+            return today.AddDays(-delta);
         }
 
         private static bool ContainsName(string text, string name)

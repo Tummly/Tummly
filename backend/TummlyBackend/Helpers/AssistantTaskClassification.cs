@@ -169,6 +169,16 @@ namespace TummlyBackend.Helpers
                 || terms.ConflictingBenefits.Count > 0;
         }
 
+        /// <summary>
+        /// The operator named an Offer to create, change, or attach.
+        /// A channel word such as Email is not an Offer.
+        /// </summary>
+        public static bool NamesOfferBenefit(string message)
+            => LooksLikeCreateCampaignWithOffer(message)
+                || LooksLikeOfferPath(message)
+                || LooksLikeAttachToCampaignIntent(message)
+                || LooksLikeRemoveOfferFromCampaign(message);
+
         public static bool LooksLikeAttachToCampaignIntent(string message)
         {
             var lower = message.Trim().ToLowerInvariant();
@@ -272,6 +282,7 @@ namespace TummlyBackend.Helpers
                     "change",
                     "update",
                     "switch",
+                    "edit",
                     "set the",
                     "set audience",
                     "set channel",
@@ -282,17 +293,32 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
-            return ContainsAny(
-                lower,
-                "audience",
-                "channel",
-                "email eligible",
-                "email-eligible",
-                "sms eligible",
-                "sms-eligible",
-                "email only",
-                "sms only"
-            );
+            if (ContainsAny(
+                    lower,
+                    "audience",
+                    "channel",
+                    "email eligible",
+                    "email-eligible",
+                    "sms eligible",
+                    "sms-eligible",
+                    "email only",
+                    "sms only"
+                ))
+            {
+                return true;
+            }
+
+            // "Edit the campaign for 10 Email guests" names the Campaign.
+            // Broad words such as email or feedback need that noun.
+            return NamesCampaignNoun(lower)
+                && ContainsAny(
+                    lower,
+                    "guest",
+                    "guests",
+                    "email",
+                    "sms",
+                    "feedback"
+                );
         }
 
         /// <summary>

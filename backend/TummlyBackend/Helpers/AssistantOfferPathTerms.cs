@@ -704,6 +704,13 @@ namespace TummlyBackend.Helpers
                 return;
             }
 
+            if (TryParseLooseDuration(lower, utcNow, out var looseValidity, out var looseExpiry))
+            {
+                state.Validity = looseValidity;
+                state.ExpiryDate = looseExpiry;
+                return;
+            }
+
             if (TryParseRelativeDaysAfterIssue(lower, utcNow, out var relativeExpiry))
             {
                 state.Validity = "choose_expiry_date";
@@ -717,6 +724,138 @@ namespace TummlyBackend.Helpers
                 state.ExpiryDate = expiry;
             }
         }
+
+        /// <summary>
+        /// Spoken durations that are not "N days": "two weeks", "a fortnight",
+        /// "next week", "a month". Presets stay on 7, 14, and 30 days.
+        /// </summary>
+        private static bool TryParseLooseDuration(
+            string lower,
+            DateTime utcNow,
+            out string validity,
+            out string? expiry
+        )
+        {
+            validity = string.Empty;
+            expiry = null;
+            int? days = null;
+            if (ContainsAny(lower, "a fortnight", "fortnight"))
+            {
+                days = 14;
+            }
+            else if (ContainsAny(lower, "a couple of weeks", "couple of weeks"))
+            {
+                days = 14;
+            }
+            else if (ContainsAny(lower, "next week", "a week", "one week"))
+            {
+                days = 7;
+            }
+            else if (ContainsAny(lower, "a month", "one month"))
+            {
+                days = 30;
+            }
+            else if (TryParseNextWeekday(lower, utcNow, out var weekdayExpiry))
+            {
+                validity = "choose_expiry_date";
+                expiry = weekdayExpiry;
+                return true;
+            }
+            else
+            {
+                var weeks = WeekCountRegex().Match(lower);
+                if (weeks.Success
+                    && WeekWordToCount.TryGetValue(weeks.Groups["n"].Value, out var count))
+                {
+                    days = count * 7;
+                }
+            }
+
+            if (days is not int dayCount)
+            {
+                return false;
+            }
+
+            if (dayCount == 7)
+            {
+                validity = "7_days_after_issue";
+                return true;
+            }
+
+            if (dayCount == 14)
+            {
+                validity = "14_days_after_issue";
+                return true;
+            }
+
+            if (dayCount == 30)
+            {
+                validity = "30_days_after_issue";
+                return true;
+            }
+
+            validity = "choose_expiry_date";
+            expiry = utcNow.Date.AddDays(dayCount)
+                .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        private static bool TryParseNextWeekday(
+            string lower,
+            DateTime utcNow,
+            out string expiry
+        )
+        {
+            expiry = string.Empty;
+            var match = NextWeekdayRegex().Match(lower);
+            if (!match.Success
+                || !Enum.TryParse<DayOfWeek>(
+                    match.Groups["day"].Value,
+                    ignoreCase: true,
+                    out var weekday
+                ))
+            {
+                return false;
+            }
+
+            var date = utcNow.Date.AddDays(1);
+            while (date.DayOfWeek != weekday)
+            {
+                date = date.AddDays(1);
+            }
+
+            expiry = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        [GeneratedRegex(
+            @"\b(?:next|this)\s+(?<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
+        private static partial Regex NextWeekdayRegex();
+
+        private static readonly Dictionary<string, int> WeekWordToCount =
+            new(StringComparer.Ordinal)
+            {
+                ["1"] = 1,
+                ["2"] = 2,
+                ["3"] = 3,
+                ["4"] = 4,
+                ["5"] = 5,
+                ["6"] = 6,
+                ["one"] = 1,
+                ["two"] = 2,
+                ["three"] = 3,
+                ["four"] = 4,
+                ["five"] = 5,
+                ["six"] = 6,
+            };
+
+        [GeneratedRegex(
+            @"\b(?<n>1|2|3|4|5|6|one|two|three|four|five|six)\s+weeks?\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
+        private static partial Regex WeekCountRegex();
 
         private static bool TryParseRelativeDaysAfterIssue(
             string lower,
@@ -844,6 +983,7 @@ namespace TummlyBackend.Helpers
                 || LooksLikeDaysAfterIssue(lower, 30)
                 || LooksLikeDaysAfterIssue(lower, 14)
                 || LooksLikeDaysAfterIssue(lower, 7)
+                || TryParseLooseDuration(lower, DateTime.UtcNow, out _, out _)
                 || RelativeDaysAfterIssueRegex().IsMatch(lower)
                 || ContainsAny(
                     lower,

@@ -1709,7 +1709,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_ForcedCreateTask_OnWhatCanYouDo_StaysProductExpertRetrieve()
+        public async Task SendTurn_ForcedCreateTask_OnWhatCanYouDo_KeepsModelBody_DoesNotPersist()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             _fake.SucceedWith(
@@ -1727,8 +1727,8 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("grounded", answer.Class);
-            Assert.Equal(AssistantProductExpertCopy.CapabilitiesTitle, answer.Title);
-            Assert.Equal(AssistantProductExpertCopy.CapabilitiesBody, answer.Body);
+            Assert.Equal("Campaign Draft", answer.Title);
+            Assert.Equal("Create Campaign Draft.", answer.Body);
             Assert.Empty(answer.Actions);
             Assert.Equal(0, await _context.Campaigns.CountAsync());
         }

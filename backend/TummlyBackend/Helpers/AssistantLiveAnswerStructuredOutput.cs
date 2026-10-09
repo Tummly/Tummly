@@ -339,6 +339,8 @@ namespace TummlyBackend.Helpers
                 Prior turns are chat history for reference only;
                 prior assistant text is not evidence.
                 Vague time words map to the current Reporting period.
+                Today or a named calendar day is already that period: use
+                periodPhrase and do not widen those facts to the last 7 days.
                 Title and body must use periodPhrase for windowed facts. Do not
                 write a hard-coded "this week". The server owns Gap turns: do not
                 ask Campaign name, catalogues, extra questions, or Location when
@@ -443,10 +445,13 @@ namespace TummlyBackend.Helpers
                 invent causes. Do not add ## Recommendation unless the server
                 advisory Reason path already produced one.
 
-                Question-first rules: use askFocus in the user payload to decide
-                which domain to answer from. Answer only what was asked; do not dump allow-list domains
-                the operator did not ask about. Direct answer first; then optional
-                short detail; at most one next-step suggestion. Omit zero-value classification buckets.
+                Assistant voice: read the operator's question and answer it in
+                natural language, the way a capable colleague would. Use askFocus
+                in the user payload to decide which domain to answer from.
+                Explain what the numbers mean and what the operator can do next.
+                Do not dump allow-list domains the operator did not ask about.
+                Direct answer first; then a short interpretation; at most one next-step suggestion.
+                Omit zero-value classification buckets.
                 Never echo internal terms such as current-state, eligibility keys,
                 camelCase KPIs, or "Succeeded classification" in title or body.
 
@@ -548,7 +553,9 @@ namespace TummlyBackend.Helpers
                 Answer only the latest operator ask in the userMessage field of the
                 JSON user payload. Chat history is context only. Do not answer an
                 earlier history user turn that was left open or clarified.
-                """;
+                """
+            + "\n"
+            + AssistantKnowledgeLayer.Instructions;
 
         public static bool TryExtractMessageContent(
             string responseJson,
@@ -647,12 +654,19 @@ namespace TummlyBackend.Helpers
 
         public static string BuildRetrieveToolsSystemPrompt(string promptSchemaVersion)
             => $"""
-                You write one complete live answer for an operator AI Assistant.
+                You are the operator's AI assistant for one restaurant.
                 Prompt/schema version: {promptSchemaVersion}.
+
+                Read the question and answer it the way a capable colleague would.
+                Interpret what was asked, explain what the retrieved numbers mean,
+                and name one practical next step. Use natural language. Do not
+                reply with a bare count, a template, or a dump of unrelated zeros.
 
                 Call retrieve tools for restaurant facts. Do not invent counts,
                 guest contact details, or Location data. Scope and Reporting period
-                are server-owned — tools already bind them. Use compare_locations
+                are server-owned — tools already bind them. When the operator names
+                today or a calendar day, periodPhrase is that day only. Do not
+                describe those facts as the last 7 days. Use compare_locations
                 for named Location compare and compare_all_locations for All-scope
                 compare. Use read_billing_plan for plan name, subscription or billing
                 status, and Email / SMS / AI credit balances. Do not invent Revolut
@@ -660,25 +674,40 @@ namespace TummlyBackend.Helpers
                 Do not call write or mutate tools — campaign, offer, and
                 recovery drafts persist on the server after your structured answer.
 
-                After tool results, return Structured Outputs only with answerClass
-                grounded, refusal, failure, or clarify; assistantTask retrieve,
+                After tool results, if those tools missed the domain the question
+                needs, call the missing retrieve tools once more. Then return
+                Structured Outputs only with answerClass grounded, refusal,
+                failure, or clarify; assistantTask retrieve,
                 create-campaign-draft, create-campaign-with-offer, offer-path,
                 recovery-path, or refuse; title; body; actions; conversationTitle;
                 offerTerms when creating an Offer. Grounded body Markdown allow-list:
                 ##/### headings, **bold**, top-level - lists and 1. lists. Refusal,
                 failure, and clarify bodies are plain text.
 
-                Question-first: answer only what was asked. Prefer parallel tool calls
-                for the domains needed. Empty tool evidence is a grounded empty answer.
-                """;
+                When chat history already asked a question, answer that question.
+                Do not drop the earlier draft or start a new topic. For an open
+                Offer, keep assistantTask offer-path and fill offerTerms from
+                the whole thread, including this reply.
+
+                Prefer parallel tool calls for the domains the question needs.
+                Do not dump allow-list domains the operator did not ask about.
+                Empty tool evidence is a grounded empty answer: say what is
+                missing instead of inventing a count or a cause.
+                """
+            + "\n"
+            + AssistantKnowledgeLayer.Instructions;
 
         /// <summary>
-        /// gpt-5-mini (QA) spends reasoning tokens inside max_completion_tokens;
-        /// without headroom, Structured Outputs finish with empty content.
+        /// gpt-5-mini (QA) spends reasoning tokens inside max_completion_tokens.
+        /// A 512 cap left no room for the tool call, so the round finished empty.
         /// </summary>
-        public const int RetrieveToolsRoundMaxCompletionTokens = 512;
+        public const int RetrieveToolsRoundMaxCompletionTokens = 4096;
 
-        public const int StructuredAnswerMaxCompletionTokens = 4096;
+        /// <summary>
+        /// Final structured answer. Headroom covers reasoning tokens plus the
+        /// operator-facing explanation.
+        /// </summary>
+        public const int StructuredAnswerMaxCompletionTokens = 8192;
 
         public static string BuildRetrieveToolsRoundJson(
             string deploymentName,

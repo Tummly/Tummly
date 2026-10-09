@@ -229,6 +229,9 @@ namespace TummlyBackend.Services
                 "positive-feedback" => GuestsListQueryComposer.WherePositiveFeedback(
                     scoped
                 ),
+                "negative-feedback" => GuestsListQueryComposer.WhereNeedsRecovery(
+                    scoped
+                ),
                 "dormant-guests" => GuestsListQueryComposer.WhereDormant(
                     scoped,
                     dormantCutoff

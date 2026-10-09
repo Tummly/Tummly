@@ -11,6 +11,10 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData("Make the offer valid to 10 days")]
         [InlineData("Make the offer valid for 10 days")]
         [InlineData("make it valid for 10 days")]
+        [InlineData("two weeks")]
+        [InlineData("a fortnight")]
+        [InlineData("next week")]
+        [InlineData("a month")]
         public void LooksLikeValidityFollowUp_EndDateFill_IsTrue(string message)
         {
             Assert.True(
@@ -37,6 +41,31 @@ namespace TummlyBackend.Tests.Helpers
             Assert.True(AssistantOfferPathTerms.IsComplete(merged));
             Assert.Equal("choose_expiry_date", merged.Validity);
             Assert.Equal("2026-08-29", merged.ExpiryDate);
+        }
+
+        [Theory]
+        [InlineData("two weeks", "14_days_after_issue", null)]
+        [InlineData("a fortnight", "14_days_after_issue", null)]
+        [InlineData("next week", "7_days_after_issue", null)]
+        [InlineData("a month", "30_days_after_issue", null)]
+        [InlineData("three weeks", "choose_expiry_date", "2026-09-09")]
+        public void Merge_SpokenDuration_KeepsPriorBenefitAndSetsValidity(
+            string reply,
+            string validity,
+            string? expiry
+        )
+        {
+            var prior = new AssistantOfferPathTermsState
+            {
+                OfferType = "percentage_discount",
+                DiscountPercentage = 25m,
+            };
+            var merged = AssistantOfferPathTerms.Merge(prior, reply, Utc2026);
+
+            Assert.Equal(25m, merged.DiscountPercentage);
+            Assert.True(AssistantOfferPathTerms.IsComplete(merged));
+            Assert.Equal(validity, merged.Validity);
+            Assert.Equal(expiry, merged.ExpiryDate);
         }
 
         [Fact]

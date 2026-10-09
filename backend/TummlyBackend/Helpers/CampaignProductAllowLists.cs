@@ -23,6 +23,7 @@ namespace TummlyBackend.Helpers
                 "all-eligible-guests",
                 "new-guests",
                 "positive-feedback",
+                "negative-feedback",
                 "offer-not-redeemed",
                 "recent-redeemers",
                 "no-recent-tummly-activity",

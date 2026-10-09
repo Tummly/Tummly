@@ -1659,74 +1659,38 @@ namespace TummlyBackend.Services
                         body = withCaveat.Body;
                         actions = withCaveat.Actions;
                     }
-                    // Prefer local question-first copy for narrow focuses so Azure
-                    // cannot dump unrequested Capture Feedback / opt-in zeros.
-                    else if (succeeded.Class == AssistantMessageClass.Grounded
-                        && string.Equals(
-                            succeeded.AssistantTask,
-                            AssistantTask.Retrieve,
-                            StringComparison.Ordinal
-                        )
-                        && compareEvidence is not { Count: >= 2 }
-                        && !isCompareAll
-                        && PreferLocalQuestionFirstBody(
-                            AssistantAskFocus.Detect(userMessage)
-                        ))
-                    {
-                        var local = AssistantLiveAnswerCopy.WithSentences(
-                            AssistantLiveAnswerCopy.GroundedFromEvidence(
-                                userMessage,
-                                locationName,
-                                periodPhrase,
-                                savedEvidence
-                            ),
-                            caveat,
-                            droppedUnknown
-                        );
-                        title = AssistantContactRedaction.RedactTitle(
-                            local.Title,
-                            redactionTokens
-                        );
-                        body = AssistantContactRedaction.RedactBody(
-                            local.Body,
-                            redactionTokens
-                        );
-                        actions = AssistantActionCatalog.ValidateForLiveAsk(
-                            local.Actions,
-                            local.Class,
-                            savedEvidence,
-                            userMessage,
-                            groundedAsk
-                        );
-                    }
                     if (isCompareAll)
                     {
                         actions = [];
                     }
-                    // Pure product-expert: lock canned copy (also overrides a
-                    // model/Fake create task on capability asks).
-                    if (pureProductExpert)
+                    // Product-expert row label. The body stays the model's.
+                    // The usual title gate rejects a label that echoes the
+                    // answer title; product-expert labels often do that.
+                    if (pureProductExpert
+                        && !string.IsNullOrWhiteSpace(succeeded.ConversationTitle)
+                        && conversation.Messages.Count(
+                            message => message.Role == AssistantMessageRole.User
+                        ) == 1)
                     {
-                        var canned = AssistantProductExpertTopics.Assemble(productTopics);
-                        title = canned.Title;
-                        body = canned.Body;
-                        actions = [];
-                        proposedConversationTitle = canned.ConversationTitle;
-                        if (conversation.Messages.Count(
-                                message => message.Role == AssistantMessageRole.User
-                            ) == 1)
+                        var productTitle = AssistantConversationTitle.TryAccept(
+                            succeeded.ConversationTitle,
+                            liveAnswerMessageTitle: null
+                        );
+                        if (productTitle is not null)
                         {
-                            conversation.Title = canned.ConversationTitle;
+                            conversation.Title = productTitle;
                         }
                     }
-                    // Mixed retrieve+product: tools answer stands; do not append
-                    // canned product copy (KOL tools-only contract).
+                    // Successful live answers keep the model title and body.
+                    // Question-first templates and product-expert canned copy
+                    // no longer replace them. Actions stay server-validated,
+                    // contacts stay redacted, and empty retrieve evidence above
+                    // still cannot invent counts. Campaign, offer, and recovery
+                    // persist paths own their confirmation copy.
                     assistantMessage = new AssistantMessage
                     {
                         Role = AssistantMessageRole.Assistant,
-                        Class = pureProductExpert
-                            ? AssistantMessageClass.Grounded
-                            : succeeded.Class,
+                        Class = succeeded.Class,
                         Title = title,
                         Body = body,
                         ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
@@ -1795,7 +1759,22 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (campaignMode == AssistantPriorDraftMode.NoPrior)
+            var bind = choice is { HasValue: true } || preparedBind is null
+                ? await BindCampaignAsync(
+                    userMessage,
+                    locationId,
+                    locationName,
+                    ownedLocationIds,
+                    cancellationToken,
+                    choice
+                )
+                : preparedBind;
+            if (campaignMode == AssistantPriorDraftMode.NoPrior
+                && bind is not AssistantCampaignDraftBindOutcome.Gap
+                && bind is not AssistantCampaignDraftBindOutcome.UnevaluableAudience
+                && (bind is not AssistantCampaignDraftBindOutcome.Bound concrete
+                    || concrete.Fields.AudienceKey
+                        == AssistantCampaignDraftBind.AudienceAllEligible))
             {
                 return new CreateCampaignDraftTurn(
                     AssistantMessageClass.Grounded,
@@ -1807,16 +1786,6 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var bind = choice is { HasValue: true } || preparedBind is null
-                ? await BindCampaignAsync(
-                    userMessage,
-                    locationId,
-                    locationName,
-                    ownedLocationIds,
-                    cancellationToken,
-                    choice
-                )
-                : preparedBind;
             switch (bind)
             {
                 case AssistantCampaignDraftBindOutcome.Gap gap:
@@ -2067,7 +2036,8 @@ namespace TummlyBackend.Services
                     bound.Fields.AudienceLabel,
                     eligibleCount,
                     patched.Name,
-                    offerLabel
+                    offerLabel,
+                    limitNote: bound.Fields.LimitNote
                 ),
                 AssistantActionCatalog.ValidateReviewCampaign(
                     patched.Id,
@@ -2219,7 +2189,8 @@ namespace TummlyBackend.Services
                     created.OfferStance == "existing-offer" && created.OfferId is not null
                         ? fields.OfferLabel
                         : "No Offer",
-                    fields.OfferNote
+                    fields.OfferNote,
+                    fields.LimitNote
                 ),
                 AssistantActionCatalog.ValidateReviewCampaign(
                     created.Id,
@@ -5019,6 +4990,18 @@ namespace TummlyBackend.Services
                     gapState.Options,
                     userMessage
                 );
+                if (choice is null
+                    && gapState.Kind == AssistantGapTurn.KindChannel)
+                {
+                    var earlier = new List<string> { gapState.SourceUserMessage };
+                    earlier.AddRange(
+                        conversation.Messages
+                            .Where(message => message.Role == AssistantMessageRole.User)
+                            .Select(message => message.Body)
+                    );
+                    choice = AssistantCampaignDraftBind.ResolveSingleChannelLabel(earlier);
+                }
+
                 if (choice is null)
                 {
                     return new GapResume(
@@ -5269,9 +5252,10 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                // Complete terms: refresh stored Gap so outer Overlay resume
-                // sees Merge/extract facts. Extract billing is not consumed
-                // here; the completing live-answer turn bills once.
+                // Complete terms stay on the Gap for the resume below. A parsed
+                // fill still falls through to one completing live answer.
+                // An extract that already filled the Offer persists below and
+                // bills on that save.
                 conversation.DraftInterviewJson = AssistantGapTurn.Serialize(
                     AssistantGapTurn.CreateCombinedOfferTerms(
                         gapState.SourceUserMessage,
@@ -5342,6 +5326,33 @@ namespace TummlyBackend.Services
                 if (resumedLocation.Outcome is not null)
                 {
                     return new GapResume(resumedLocation.Outcome, null);
+                }
+
+                if (extractBilling is not null)
+                {
+                    // The follow-up already completed the open Offer. Save it
+                    // from those terms. A second live answer classifies a short
+                    // reply ("the day we discussed") as a new topic and drops
+                    // the draft.
+                    extractBilling.MarkLiveAnswerSucceeded();
+                    var persistedFromExtract = await PersistCreateAndStoreAsync(
+                        conversation,
+                        gapState.SourceUserMessage,
+                        CreatePersistLocationId(
+                            resumedLocation.LocationId,
+                            conversation
+                        ),
+                        resumedLocation.LocationName ?? analysisScopeLocationName,
+                        updateScope: false,
+                        replaceFailure,
+                        cancellationToken,
+                        ownedLocations.Select(location => location.Id).ToList(),
+                        gapState.AssistantTask,
+                        merged,
+                        turnBilling: extractBilling,
+                        liveAnswerAlreadyCompleted: true
+                    );
+                    return new GapResume(persistedFromExtract, null);
                 }
 
                 return new GapResume(
@@ -6206,7 +6217,9 @@ namespace TummlyBackend.Services
             string assistantTask = AssistantTask.CreateCampaignDraft,
             AssistantOfferPathTermsState? offerTerms = null,
             AssistantCampaignDraftBindChoice? choice = null,
-            bool allowEmptyAudience = false
+            bool allowEmptyAudience = false,
+            AssistantTurnBilling? turnBilling = null,
+            bool liveAnswerAlreadyCompleted = false
         )
         {
             if (updateScope && locationId != conversation.OwnedLocationId)
@@ -6250,7 +6263,9 @@ namespace TummlyBackend.Services
                         offerPersist.Actions
                     ),
                     replaceFailure,
-                    cancellationToken
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: liveAnswerAlreadyCompleted,
+                    turnBilling: turnBilling
                 );
             }
 
@@ -6277,7 +6292,9 @@ namespace TummlyBackend.Services
                 conversation,
                 PersistTurnMessage(DateTime.UtcNow, persist),
                 replaceFailure,
-                cancellationToken
+                cancellationToken,
+                liveAnswerAlreadyCompleted: liveAnswerAlreadyCompleted,
+                turnBilling: turnBilling
             );
         }
 
@@ -8112,14 +8129,6 @@ namespace TummlyBackend.Services
                 liveAnswerAlreadyCompleted: true
             );
         }
-
-        private static bool PreferLocalQuestionFirstBody(AssistantAskFocusKind focus)
-            => focus is AssistantAskFocusKind.CaptureQr
-                or AssistantAskFocusKind.OffersRedemptions
-                or AssistantAskFocusKind.OffersClaims
-                or AssistantAskFocusKind.CampaignsActive
-                or AssistantAskFocusKind.CampaignsAny
-                or AssistantAskFocusKind.Feedback;
 
         private static AssistantMessage FailureMessage(DateTime createdAt)
             => new()
