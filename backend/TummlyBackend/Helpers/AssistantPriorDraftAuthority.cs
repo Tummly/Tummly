@@ -81,6 +81,13 @@ namespace TummlyBackend.Helpers
                 return true;
             }
 
+            if (AssistantCampaignDraftBind.TryReadGuestCap(message) is not null
+                && !AssistantTaskClassification.LooksLikeCreateCampaignDraft(message)
+                && !AssistantTaskClassification.LooksLikeCreateCampaignWithOffer(message))
+            {
+                return true;
+            }
+
             var lower = message.Trim().ToLowerInvariant();
             return ContainsAny(
                 lower,

@@ -26,7 +26,8 @@ namespace TummlyBackend.Helpers
         string OfferStance,
         int? OfferId,
         string OfferLabel,
-        string? OfferNote
+        string? OfferNote,
+        string? LimitNote = null
     );
 
     public sealed record AssistantCampaignDraftBindChoice(
@@ -82,6 +83,7 @@ namespace TummlyBackend.Helpers
         public const string AudienceAllEligible = "all-eligible-guests";
         public const string AudienceNewGuests = "new-guests";
         public const string AudiencePositive = "positive-feedback";
+        public const string AudienceNegative = "negative-feedback";
         public const string AudienceDormant = "dormant-guests";
         public const string AudienceRecovery = "completed-recovery-follow-up";
 
@@ -91,6 +93,7 @@ namespace TummlyBackend.Helpers
                 [AudienceAllEligible] = "All eligible guests",
                 [AudienceNewGuests] = "New guests",
                 [AudiencePositive] = "Positive feedback",
+                [AudienceNegative] = "Negative feedback",
                 [AudienceDormant] = "Dormant guests",
                 [AudienceRecovery] = "Completed recovery follow-up",
             };
@@ -101,6 +104,13 @@ namespace TummlyBackend.Helpers
                 [AudienceNewGuests] =
                     ["new guests", "new guest", "first-time", "first time"],
                 [AudiencePositive] = ["positive", "happy"],
+                [AudienceNegative] =
+                [
+                    "negative feedback",
+                    "poor feedback",
+                    "unhappy",
+                    "submitted negative",
+                ],
                 [AudienceDormant] = ["dormant", "lapsed", "90 days", "90-day", "90 day"],
                 [AudienceRecovery] =
                 [
@@ -168,9 +178,23 @@ namespace TummlyBackend.Helpers
                 );
             }
 
+            var guestCap = TryReadGuestCap(lower);
+            if (audiences.Count == 0
+                && guestCap is int blockedCap
+                && bindChoice.AudienceLabel is null
+                && !NamesAllEligiblePhrase(lower))
+            {
+                return new AssistantCampaignDraftBindOutcome.UnevaluableAudience(
+                    GuestCountIsNotAudienceBody(blockedCap)
+                );
+            }
+
             var audienceKey = audiences.Count == 1
                 ? audiences[0]
                 : AudienceAllEligible;
+            var limitNote = guestCap is int appliedCap
+                ? GuestCountNotAppliedNote(appliedCap)
+                : null;
             var goalId = InferGoal(lower);
             var templateId = ResolveTemplateId(text, templates);
             var name = AssistantCampaignDraftName.Compose(
@@ -192,7 +216,8 @@ namespace TummlyBackend.Helpers
                     OfferStance: offer.Stance,
                     OfferId: offer.OfferId,
                     OfferLabel: offer.Label,
-                    OfferNote: offer.Note
+                    OfferNote: offer.Note,
+                    LimitNote: limitNote
                 )
             );
         }
@@ -224,6 +249,71 @@ namespace TummlyBackend.Helpers
 
         public static string UnevaluableAudienceBody()
             => "This audience cannot be evaluated yet. I did not save a Campaign Draft.";
+
+        public static string GuestCountIsNotAudienceBody(int count)
+            => $"A count of {count} guests is not a Campaign audience. "
+                + "I did not save a Campaign Draft. "
+                + "Name the guests, for example guests with negative feedback, "
+                + "new guests, or all eligible guests.";
+
+        public static string GuestCountNotAppliedNote(int count)
+            => $"I cannot limit this Draft to {count} guests. "
+                + "The audience is every eligible guest in the selected audience.";
+
+        /// <summary>
+        /// A guest-count phrase such as "10 guests" or "10 Email guests".
+        /// A percent, a price, or a day count does not match.
+        /// </summary>
+        public static int? TryReadGuestCap(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return null;
+            }
+
+            var match = GuestCapRegex().Match(message);
+            if (!match.Success
+                || !int.TryParse(
+                    match.Groups[1].Value,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var count
+                )
+                || count < 1)
+            {
+                return null;
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// One channel named across the open task and earlier operator turns.
+        /// Both channels, or neither channel, returns null.
+        /// </summary>
+        public static string? ResolveSingleChannelLabel(IEnumerable<string> texts)
+        {
+            var email = false;
+            var sms = false;
+            foreach (var text in texts)
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    continue;
+                }
+
+                var named = NamedChannels(text.ToLowerInvariant());
+                email |= named.Email;
+                sms |= named.Sms;
+            }
+
+            if (email == sms)
+            {
+                return null;
+            }
+
+            return email ? "Email" : "SMS";
+        }
 
         public static string? ResolveNamedChoice(
             IReadOnlyList<string> options,
@@ -298,15 +388,9 @@ namespace TummlyBackend.Helpers
                     : new ChannelBind("email", "Email", false);
             }
 
-            var scan = EmailEligibleRegex().Replace(lower, " ");
-            var namesSms = ContainsAny(
-                scan,
-                "sms",
-                "text message",
-                "text them"
-            );
-            var namesEmail = ContainsPhrase(scan, "email")
-                || ContainsPhrase(scan, "mail them");
+            var named = NamedChannels(lower);
+            var namesSms = named.Sms;
+            var namesEmail = named.Email;
 
             if (namesSms && namesEmail)
             {
@@ -320,6 +404,31 @@ namespace TummlyBackend.Helpers
 
             return new ChannelBind("email", "Email", false);
         }
+
+        private static (bool Email, bool Sms) NamedChannels(string lower)
+        {
+            var scan = EmailEligibleRegex().Replace(lower, " ");
+            var namesSms = ContainsAny(
+                scan,
+                "sms",
+                "text message",
+                "text them"
+            );
+            var namesEmail = ContainsPhrase(scan, "email")
+                || ContainsPhrase(scan, "mail them");
+            return (namesEmail, namesSms);
+        }
+
+        private static bool NamesAllEligiblePhrase(string lower)
+            => ContainsAny(
+                lower,
+                "email-eligible",
+                "email eligible",
+                "eligible guests",
+                "everyone",
+                "all guests",
+                "all currently"
+            );
 
         private static List<string> ResolveAudiences(string lower, string? chosenLabel)
         {
@@ -361,6 +470,11 @@ namespace TummlyBackend.Helpers
             if (NamesAudience(lower, AudiencePositive))
             {
                 Add(AudiencePositive);
+            }
+
+            if (NamesAudience(lower, AudienceNegative))
+            {
+                Add(AudienceNegative);
             }
 
             var namedTighter = named
@@ -806,6 +920,12 @@ namespace TummlyBackend.Helpers
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
         )]
         private static partial Regex EmailEligibleRegex();
+
+        [GeneratedRegex(
+            @"\b(\d+)\s+(?:email\s+|sms\s+)?guests?\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
+        private static partial Regex GuestCapRegex();
 
         [GeneratedRegex(
             @"(\d+(?:\.\d+)?)\s*(?:%|percent(?:age)?s?\b)",

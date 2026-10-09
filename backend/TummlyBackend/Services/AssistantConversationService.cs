@@ -1759,7 +1759,22 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (campaignMode == AssistantPriorDraftMode.NoPrior)
+            var bind = choice is { HasValue: true } || preparedBind is null
+                ? await BindCampaignAsync(
+                    userMessage,
+                    locationId,
+                    locationName,
+                    ownedLocationIds,
+                    cancellationToken,
+                    choice
+                )
+                : preparedBind;
+            if (campaignMode == AssistantPriorDraftMode.NoPrior
+                && bind is not AssistantCampaignDraftBindOutcome.Gap
+                && bind is not AssistantCampaignDraftBindOutcome.UnevaluableAudience
+                && (bind is not AssistantCampaignDraftBindOutcome.Bound concrete
+                    || concrete.Fields.AudienceKey
+                        == AssistantCampaignDraftBind.AudienceAllEligible))
             {
                 return new CreateCampaignDraftTurn(
                     AssistantMessageClass.Grounded,
@@ -1771,16 +1786,6 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var bind = choice is { HasValue: true } || preparedBind is null
-                ? await BindCampaignAsync(
-                    userMessage,
-                    locationId,
-                    locationName,
-                    ownedLocationIds,
-                    cancellationToken,
-                    choice
-                )
-                : preparedBind;
             switch (bind)
             {
                 case AssistantCampaignDraftBindOutcome.Gap gap:
@@ -2031,7 +2036,8 @@ namespace TummlyBackend.Services
                     bound.Fields.AudienceLabel,
                     eligibleCount,
                     patched.Name,
-                    offerLabel
+                    offerLabel,
+                    limitNote: bound.Fields.LimitNote
                 ),
                 AssistantActionCatalog.ValidateReviewCampaign(
                     patched.Id,
@@ -2183,7 +2189,8 @@ namespace TummlyBackend.Services
                     created.OfferStance == "existing-offer" && created.OfferId is not null
                         ? fields.OfferLabel
                         : "No Offer",
-                    fields.OfferNote
+                    fields.OfferNote,
+                    fields.LimitNote
                 ),
                 AssistantActionCatalog.ValidateReviewCampaign(
                     created.Id,
@@ -4983,6 +4990,18 @@ namespace TummlyBackend.Services
                     gapState.Options,
                     userMessage
                 );
+                if (choice is null
+                    && gapState.Kind == AssistantGapTurn.KindChannel)
+                {
+                    var earlier = new List<string> { gapState.SourceUserMessage };
+                    earlier.AddRange(
+                        conversation.Messages
+                            .Where(message => message.Role == AssistantMessageRole.User)
+                            .Select(message => message.Body)
+                    );
+                    choice = AssistantCampaignDraftBind.ResolveSingleChannelLabel(earlier);
+                }
+
                 if (choice is null)
                 {
                     return new GapResume(

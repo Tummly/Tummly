@@ -9,6 +9,7 @@ export type CampaignAudienceId =
   | "all-eligible-guests"
   | "new-guests"
   | "positive-feedback"
+  | "negative-feedback"
   | "offer-not-redeemed"
   | "recent-redeemers"
   | "no-recent-tummly-activity"
@@ -113,6 +114,15 @@ export const CAMPAIGN_AUDIENCE_OPTIONS: readonly CampaignAudienceOptionDef[] = [
     description:
       "Guests who selected Positive in private feedback during the chosen period.",
     liveSmartGroupId: "positive-feedback",
+    unevaluable: false,
+    recommended: false,
+  },
+  {
+    id: "negative-feedback",
+    title: "Negative feedback",
+    description:
+      "Guests who submitted negative private feedback.",
+    liveSmartGroupId: "needs-recovery",
     unevaluable: false,
     recommended: false,
   },

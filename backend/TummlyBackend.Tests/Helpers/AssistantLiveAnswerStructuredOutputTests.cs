@@ -34,6 +34,21 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
             Assert.Contains(
+                AssistantKnowledgeLayer.Version,
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                AssistantKnowledgeLayer.Version,
+                retrievePrompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Do not invent an Offer",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
                 "Never invent Revolut payment success",
                 prompt,
                 StringComparison.Ordinal

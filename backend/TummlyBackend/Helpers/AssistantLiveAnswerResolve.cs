@@ -23,6 +23,25 @@ namespace TummlyBackend.Helpers
             }
 
             var localTask = AssistantTaskClassification.Classify(userMessage);
+            if (providerResult is AssistantLiveAnswerResult.Succeeded inventedOffer
+                && string.Equals(
+                    inventedOffer.AssistantTask,
+                    AssistantTask.CreateCampaignWithOffer,
+                    StringComparison.Ordinal
+                )
+                && localTask != AssistantTask.CreateCampaignWithOffer
+                && localTask != AssistantTask.OfferPath
+                && !AssistantTaskClassification.NamesOfferBenefit(userMessage))
+            {
+                providerResult = inventedOffer with
+                {
+                    AssistantTask = localTask == AssistantTask.CreateCampaignDraft
+                        ? AssistantTask.CreateCampaignDraft
+                        : AssistantTask.Retrieve,
+                    OfferTerms = null,
+                };
+            }
+
             if (IsCreateOrRecoveryTask(localTask))
             {
                 if (providerResult is AssistantLiveAnswerResult.Failed)

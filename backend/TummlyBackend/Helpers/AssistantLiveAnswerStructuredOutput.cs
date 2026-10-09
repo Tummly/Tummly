@@ -553,7 +553,9 @@ namespace TummlyBackend.Helpers
                 Answer only the latest operator ask in the userMessage field of the
                 JSON user payload. Chat history is context only. Do not answer an
                 earlier history user turn that was left open or clarified.
-                """;
+                """
+            + "\n"
+            + AssistantKnowledgeLayer.Instructions;
 
         public static bool TryExtractMessageContent(
             string responseJson,
@@ -691,7 +693,9 @@ namespace TummlyBackend.Helpers
                 Do not dump allow-list domains the operator did not ask about.
                 Empty tool evidence is a grounded empty answer: say what is
                 missing instead of inventing a count or a cause.
-                """;
+                """
+            + "\n"
+            + AssistantKnowledgeLayer.Instructions;
 
         /// <summary>
         /// gpt-5-mini (QA) spends reasoning tokens inside max_completion_tokens.

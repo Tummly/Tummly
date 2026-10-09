@@ -175,6 +175,29 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void Resolve_ProviderCombinedCreate_EmailOnly_DoesNotKeepInventedOffer()
+        {
+            var resolved = AssistantLiveAnswerResolve.Resolve(
+                new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Campaign Draft saved",
+                    "Offer: Enjoy a free Chocolate Brownie",
+                    [],
+                    AssistantTask.CreateCampaignWithOffer
+                ),
+                "Email",
+                "Camden street",
+                "the last 7 days",
+                AssistantRetrievedEvidence.Empty,
+                allowLocalRetrieveFallback: true
+            );
+
+            var succeeded = Assert.IsType<AssistantLiveAnswerResult.Succeeded>(resolved);
+            Assert.Equal(AssistantTask.Retrieve, succeeded.AssistantTask);
+            Assert.Null(succeeded.OfferTerms);
+        }
+
+        [Fact]
         public void Resolve_ProviderFailed_CompareAll_KeepsFailure()
         {
             var resolved = AssistantLiveAnswerResolve.Resolve(

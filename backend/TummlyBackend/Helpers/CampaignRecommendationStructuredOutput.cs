@@ -278,7 +278,7 @@ namespace TummlyBackend.Helpers
                 re-engage-inactive, promote-something-new,
                 follow-up-completed-recovery, custom-campaign.
                 Allowed audienceKey values: all-eligible-guests, new-guests,
-                positive-feedback, offer-not-redeemed, recent-redeemers,
+                positive-feedback, negative-feedback, offer-not-redeemed, recent-redeemers,
                 no-recent-tummly-activity, completed-recovery-follow-up,
                 dormant-guests.
                 Allowed offerStance values: no-offer, existing-offer,

@@ -382,7 +382,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void UnhappyGuests_DoesNotBindPositiveAudience()
+        public void UnhappyGuests_BindsNegativeFeedback_NotPositive()
         {
             var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
                 AssistantCampaignDraftBind.Resolve(
@@ -393,8 +393,63 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
 
-            Assert.Equal("all-eligible-guests", bound.Fields.AudienceKey);
+            Assert.Equal("negative-feedback", bound.Fields.AudienceKey);
             Assert.NotEqual("positive-feedback", bound.Fields.AudienceKey);
+            Assert.Equal("no-offer", bound.Fields.OfferStance);
+        }
+
+        [Fact]
+        public void EditForTenEmailGuestsWithNegativeFeedback_BindsThatAudience()
+        {
+            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
+                AssistantCampaignDraftBind.Resolve(
+                    "Please, edit the campaign to be for 10 Email guests only that submitted negative feedback",
+                    "Camden street",
+                    [],
+                    []
+                )
+            );
+
+            Assert.Equal("email", bound.Fields.Channel);
+            Assert.Equal("negative-feedback", bound.Fields.AudienceKey);
+            Assert.Equal("Negative feedback", bound.Fields.AudienceLabel);
+            Assert.Equal("no-offer", bound.Fields.OfferStance);
+            Assert.Contains("10", bound.Fields.LimitNote, StringComparison.Ordinal);
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify(
+                    "Please, edit the campaign to be for 10 Email guests only that submitted negative feedback"
+                )
+            );
+        }
+
+        [Fact]
+        public void OnlyTenGuests_IsNotAllEligible()
+        {
+            var blocked = Assert.IsType<AssistantCampaignDraftBindOutcome.UnevaluableAudience>(
+                AssistantCampaignDraftBind.Resolve(
+                    "I want only 10 guests",
+                    "Camden street",
+                    [],
+                    []
+                )
+            );
+
+            Assert.Contains("10", blocked.Body, StringComparison.Ordinal);
+            Assert.Contains("did not save", blocked.Body, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void ResolveSingleChannelLabel_UsesEarlierEmail()
+        {
+            var label = AssistantCampaignDraftBind.ResolveSingleChannelLabel(
+            [
+                "Please, edit the campaign to be for 10 Email guests only that submitted negative feedback",
+                "I already said that in my prompt above",
+            ]
+            );
+
+            Assert.Equal("Email", label);
         }
 
         [Fact]
