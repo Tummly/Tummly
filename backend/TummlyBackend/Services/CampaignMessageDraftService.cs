@@ -145,26 +145,12 @@ namespace TummlyBackend.Services
             CampaignMessageDraftProviderResult.Succeeded succeeded
         )
         {
-            if (!string.Equals(
-                    input.AudienceKey,
-                    AssistantCampaignDraftBind.AudienceNegative,
-                    StringComparison.Ordinal
-                )
-                || !CampaignNegativeFeedbackCopy.NeedsGovernedCopy(
-                    succeeded.Subject,
-                    succeeded.Body
-                ))
-            {
-                return new CampaignMessageDraftServiceResult.Ok(
-                    succeeded.Body,
-                    succeeded.Subject,
-                    succeeded.Channel
-                );
-            }
-
-            var governed = CampaignNegativeFeedbackCopy.Governed(
+            var governed = CampaignAudienceVoice.Fit(
+                input.AudienceKey,
                 input.LocationName,
                 succeeded.Channel,
+                succeeded.Subject,
+                succeeded.Body,
                 input.ConfirmedOffer?.Title
             );
             return new CampaignMessageDraftServiceResult.Ok(

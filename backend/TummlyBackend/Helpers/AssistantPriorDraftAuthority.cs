@@ -37,6 +37,13 @@ namespace TummlyBackend.Helpers
                     : AssistantPriorDraftMode.NoPrior;
             }
 
+            if (hasPrior
+                && AssistantCampaignDraftBind.LooksLikeContinueEarlier(userMessage)
+                && !AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage))
+            {
+                return AssistantPriorDraftMode.MutatePrior;
+            }
+
             return AssistantPriorDraftMode.CreateNew;
         }
 
@@ -49,6 +56,13 @@ namespace TummlyBackend.Helpers
             if (LooksLikeExplicitAnother(userMessage, "offer"))
             {
                 return AssistantPriorDraftMode.CreateNew;
+            }
+
+            if (LooksLikeBareOfferFill(userMessage))
+            {
+                return hasPrior
+                    ? AssistantPriorDraftMode.MutatePrior
+                    : AssistantPriorDraftMode.NoPrior;
             }
 
             if (LooksLikeMutateOfferFamily(userMessage))
@@ -81,6 +95,11 @@ namespace TummlyBackend.Helpers
                 return true;
             }
 
+            if (LooksLikeUseExistingOffer(message))
+            {
+                return true;
+            }
+
             if (AssistantCampaignDraftBind.TryReadGuestCap(message) is not null
                 && !AssistantTaskClassification.LooksLikeCreateCampaignDraft(message)
                 && !AssistantTaskClassification.LooksLikeCreateCampaignWithOffer(message))
@@ -97,6 +116,56 @@ namespace TummlyBackend.Helpers
                 "sms-eligible",
                 "email only",
                 "sms only"
+            );
+        }
+
+        public static bool LooksLikeUseExistingOffer(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            return lower.Contains("use the", StringComparison.Ordinal)
+                && lower.Contains("offer", StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// A short field fill for the open Offer Draft: "5 days", "make it 15%",
+        /// "they need to buy food first". A full "Make the offer valid…" sentence
+        /// stays a Gap fill and is not this shape.
+        /// </summary>
+        public static bool LooksLikeBareOfferFill(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            if (lower.Length == 0 || lower.Length > 80)
+            {
+                return false;
+            }
+
+            if (ContainsAny(
+                    lower,
+                    "make the offer valid",
+                    "create an offer",
+                    "create a offer",
+                    "draft an offer"
+                ))
+            {
+                return false;
+            }
+
+            if (AssistantOfferPathTerms.LooksLikeValidityFollowUp(lower))
+            {
+                return true;
+            }
+
+            if (ContainsAny(lower, "make it ", "make them ")
+                && lower.Contains('%', StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return ContainsAny(
+                lower,
+                "buy food",
+                "buy something",
+                "need to buy"
             );
         }
 

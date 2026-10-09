@@ -308,6 +308,12 @@ namespace TummlyBackend.Helpers
             );
         }
 
+        public static bool AsksForAll(string userMessage)
+            => LooksLikeAll(userMessage);
+
+        public static bool IsShortConfirm(string userMessage)
+            => LooksLikeConfirm(userMessage);
+
         private static bool LooksLikeAll(string userMessage)
         {
             var lower = userMessage.Trim().ToLowerInvariant();

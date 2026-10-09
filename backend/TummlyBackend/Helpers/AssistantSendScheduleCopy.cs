@@ -12,7 +12,29 @@ namespace TummlyBackend.Helpers
         public static string CampaignBody(string step)
             => string.Equals(step, AssistantSendScheduleAsk.StepSchedule, StringComparison.Ordinal)
                 ? "Nothing was sent. Opening Campaign Schedule so you can pick a send time."
-                : "Nothing was sent. Opening Campaign Review so you can confirm.";
+                : "This Draft is ready to send. Nothing is sent until you confirm.";
+
+        public static string ReadyToSendBody(
+            string campaignName,
+            string? channel,
+            string? audienceKey,
+            int? offerId
+        )
+        {
+            var offerLine = offerId is int id && id > 0
+                ? $"Offer {id}"
+                : "No Offer";
+            return "This Draft is ready to send.\n\n"
+                + $"- **Name:** {campaignName}\n"
+                + $"- **Channel:** {channel}\n"
+                + $"- **Audience:** {audienceKey}\n"
+                + $"- **Offer:** {offerLine}\n\n"
+                + "Nothing is sent until you confirm.";
+        }
+
+        public static string DatePendingTimeBody(string dateLocal)
+            => $"The Draft date is {dateLocal}. The time is still open. "
+                + "Nothing is scheduled until you confirm a time.";
 
         public static string RecoveryBody()
             => "Nothing was sent. Opening Feedback recovery Review.";

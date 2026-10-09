@@ -380,5 +380,25 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
         }
+
+        [Theory]
+        [InlineData("Thank recent guests.")]
+        [InlineData("Re-engage guests we haven't seen for three months.")]
+        [InlineData("Promote our new chicken shawarma.")]
+        public void GovernedGoal_IsACampaignCreate(string message)
+        {
+            Assert.Equal(
+                [AssistantCreateTargets.Campaign],
+                AssistantCreateTargets.Detect(message)
+            );
+        }
+
+        [Fact]
+        public void TrendQuestion_IsNotACampaignCreate()
+        {
+            Assert.Empty(
+                AssistantCreateTargets.Detect("Is slow service becoming a trend?")
+            );
+        }
     }
 }

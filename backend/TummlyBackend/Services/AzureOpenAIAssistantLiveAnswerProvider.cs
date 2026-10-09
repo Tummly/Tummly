@@ -581,46 +581,65 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-            request.Headers.TryAddWithoutValidation("api-key", _settings.ApiKey);
-            request.Headers.Accept.Add(
-                new MediaTypeWithQualityHeaderValue("application/json")
-            );
-            request.Content = new StringContent(
-                body,
-                Encoding.UTF8,
-                "application/json"
-            );
-
-            using var response = await client.SendAsync(
-                request,
-                cancellationToken
-            );
-
-            if (IsTransientStatusCode(response.StatusCode))
+            const int maxWaits = 3;
+            for (var attempt = 0; ; attempt++)
             {
-                _logger.LogWarning(
-                    "Azure OpenAI returned {StatusCode} for Assistant live answer",
-                    (int)response.StatusCode
+                using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
+                request.Headers.TryAddWithoutValidation("api-key", _settings.ApiKey);
+                request.Headers.Accept.Add(
+                    new MediaTypeWithQualityHeaderValue("application/json")
                 );
-                return AttemptResult.Transient();
-            }
+                request.Content = new StringContent(
+                    body,
+                    Encoding.UTF8,
+                    "application/json"
+                );
 
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogError(
-                    "Azure OpenAI Assistant live answer failed with {StatusCode}",
-                    (int)response.StatusCode
+                using var response = await client.SendAsync(
+                    request,
+                    cancellationToken
                 );
-                return AttemptResult.Failed(
-                    new AssistantLiveAnswerResult.Failed(Retryable: true)
-                );
-            }
 
-            var responseJson = await response.Content.ReadAsStringAsync(
-                cancellationToken
-            );
-            return AttemptResult.SucceededJson(responseJson);
+                if (IsTransientStatusCode(response.StatusCode) && attempt < maxWaits)
+                {
+                    var wait = AzureOpenAIChatCompletions.WaitAfterTransient(
+                        response,
+                        attempt
+                    );
+                    _logger.LogWarning(
+                        "Azure OpenAI returned {StatusCode} for Assistant live answer. Waiting {Seconds} seconds.",
+                        (int)response.StatusCode,
+                        wait.TotalSeconds
+                    );
+                    await Task.Delay(wait, cancellationToken);
+                    continue;
+                }
+
+                if (IsTransientStatusCode(response.StatusCode))
+                {
+                    _logger.LogWarning(
+                        "Azure OpenAI returned {StatusCode} for Assistant live answer",
+                        (int)response.StatusCode
+                    );
+                    return AttemptResult.Transient();
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError(
+                        "Azure OpenAI Assistant live answer failed with {StatusCode}",
+                        (int)response.StatusCode
+                    );
+                    return AttemptResult.Failed(
+                        new AssistantLiveAnswerResult.Failed(Retryable: true)
+                    );
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync(
+                    cancellationToken
+                );
+                return AttemptResult.SucceededJson(responseJson);
+            }
         }
 
         private Uri BuildChatCompletionsUri(string deploymentName)

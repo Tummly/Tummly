@@ -61,10 +61,15 @@ namespace TummlyBackend.Services
                 return [];
             }
 
-            var tasks = calls
-                .Select(call => ExecuteOneAsync(context, call, cancellationToken))
-                .ToArray();
-            return await Task.WhenAll(tasks);
+            // One context serves every retrieve. Parallel calls throw and
+            // the turn becomes the generic failure sentence.
+            var results = new List<AssistantToolCallResult>(calls.Count);
+            foreach (var call in calls)
+            {
+                results.Add(await ExecuteOneAsync(context, call, cancellationToken));
+            }
+
+            return results;
         }
 
         private async Task<AssistantToolCallResult> ExecuteOneAsync(
@@ -553,32 +558,28 @@ namespace TummlyBackend.Services
             }
 
             var byId = context.OwnedLocations.ToDictionary(location => location.Id);
-            var tasks = locationIds
-                .Select(async locationId =>
+            var rows = new List<AssistantCompareLocationEvidence>();
+            foreach (var locationId in locationIds)
+            {
+                var pack = await RetrieveAllDomainsAsync(
+                    context,
+                    locationId,
+                    cancellationToken
+                );
+                if (pack is null || !byId.TryGetValue(locationId, out var locationRef))
                 {
-                    var pack = await RetrieveAllDomainsAsync(
-                        context,
-                        locationId,
-                        cancellationToken
-                    );
-                    if (pack is null || !byId.TryGetValue(locationId, out var locationRef))
-                    {
-                        return null;
-                    }
+                    continue;
+                }
 
-                    return new AssistantCompareLocationEvidence(
+                rows.Add(
+                    new AssistantCompareLocationEvidence(
                         locationId,
                         locationRef.Name,
                         locationRef.CaptureStatus,
                         pack
-                    );
-                })
-                .ToArray();
-
-            var rows = (await Task.WhenAll(tasks))
-                .Where(row => row is not null)
-                .Cast<AssistantCompareLocationEvidence>()
-                .ToList();
+                    )
+                );
+            }
             if (rows.Count == 0)
             {
                 return Result(call, StatusPayload("unavailable", null));
@@ -718,36 +719,20 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var feedbackTask = ReadFeedbackEvidenceAsync(
+            var feedback = await ReadFeedbackEvidenceAsync(
                 context,
                 locationId,
                 cancellationToken
             );
-            var offersTask = ReadOffersEvidenceAsync(context, locationId, cancellationToken);
-            var campaignsTask = ReadCampaignsEvidenceAsync(
+            var offers = await ReadOffersEvidenceAsync(context, locationId, cancellationToken);
+            var campaigns = await ReadCampaignsEvidenceAsync(
                 context,
                 locationId,
                 cancellationToken
             );
-            var captureTask = ReadCaptureEvidenceAsync(context, locationId, cancellationToken);
-            var homeTask = ReadHomeEvidenceAsync(context, locationId, cancellationToken);
-            var guestsTask = ReadGuestsEvidenceAsync(context, locationId, cancellationToken);
-
-            await Task.WhenAll(
-                feedbackTask,
-                offersTask,
-                campaignsTask,
-                captureTask,
-                homeTask,
-                guestsTask
-            );
-
-            var feedback = await feedbackTask;
-            var offers = await offersTask;
-            var campaigns = await campaignsTask;
-            var capture = await captureTask;
-            var home = await homeTask;
-            var guests = await guestsTask;
+            var capture = await ReadCaptureEvidenceAsync(context, locationId, cancellationToken);
+            var home = await ReadHomeEvidenceAsync(context, locationId, cancellationToken);
+            var guests = await ReadGuestsEvidenceAsync(context, locationId, cancellationToken);
             if (feedback is null
                 || offers is null
                 || campaigns is null

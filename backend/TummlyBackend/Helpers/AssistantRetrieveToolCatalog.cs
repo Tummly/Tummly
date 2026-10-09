@@ -17,6 +17,9 @@ namespace TummlyBackend.Helpers
         public const string ReadBillingPlan = "read_billing_plan";
         public const string CompareLocations = "compare_locations";
         public const string CompareAllLocations = "compare_all_locations";
+        public const string ReadShopOrders = "read_shop_orders";
+        public const string ReadWeeklyBriefStatus = "read_weekly_brief_status";
+        public const string ReadReportExportStatus = "read_report_export_status";
 
         public static readonly string[] All =
         [
@@ -29,6 +32,9 @@ namespace TummlyBackend.Helpers
             ReadBillingPlan,
             CompareLocations,
             CompareAllLocations,
+            ReadShopOrders,
+            ReadWeeklyBriefStatus,
+            ReadReportExportStatus,
         ];
 
         public static readonly string[] DomainReads =
@@ -117,6 +123,18 @@ namespace TummlyBackend.Helpers
                 Tool(
                     CompareAllLocations,
                     "Compare all owned Locations in Analysis All scope with thin packs, retrieve budget, and failed or not-started names."
+                ),
+                Tool(
+                    ReadShopOrders,
+                    "Read how many Shop orders exist for this Location. Read only. Do not place, cancel, or pay for an order."
+                ),
+                Tool(
+                    ReadWeeklyBriefStatus,
+                    "Read how many Weekly Briefs exist for this Location. Read only. Do not generate a Brief."
+                ),
+                Tool(
+                    ReadReportExportStatus,
+                    "Say whether a report export can be started from Reports. Read only. Do not build a file."
                 )
             );
 

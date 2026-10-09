@@ -48,6 +48,12 @@ namespace TummlyBackend.Models
         /// </summary>
         public string? ScopeChangeJson { get; set; }
 
+        /// <summary>
+        /// Model deployment, instruction version, knowledge version, and tool
+        /// names for this material Assistant answer.
+        /// </summary>
+        public string? TurnTraceJson { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

@@ -302,7 +302,11 @@ namespace TummlyBackend.Helpers
                     "sms eligible",
                     "sms-eligible",
                     "email only",
-                    "sms only"
+                    "sms only",
+                    "subject",
+                    "to sms",
+                    "to email",
+                    "back to email"
                 ))
             {
                 return true;
@@ -403,6 +407,11 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
+            if (LooksLikeGovernedCampaignGoal(lower) && !LooksLikeOpenQuestion(lower))
+            {
+                return true;
+            }
+
             if (!NamesCampaignNoun(lower))
             {
                 return false;
@@ -430,6 +439,32 @@ namespace TummlyBackend.Helpers
         /// <summary>
         /// Campaign noun including common operator typos from QA history.
         /// </summary>
+        private static bool LooksLikeGovernedCampaignGoal(string lower)
+            => ContainsAny(
+                lower,
+                "thank recent",
+                "re-engage",
+                "reengage",
+                "haven't seen",
+                "have not seen",
+                "promote our",
+                "promote the",
+                "promote my"
+            );
+
+        private static bool LooksLikeOpenQuestion(string lower)
+            => lower.Contains('?', StringComparison.Ordinal)
+                || lower.StartsWith("why ", StringComparison.Ordinal)
+                || lower.StartsWith("how ", StringComparison.Ordinal)
+                || lower.StartsWith("what ", StringComparison.Ordinal)
+                || lower.StartsWith("which ", StringComparison.Ordinal)
+                || lower.StartsWith("when ", StringComparison.Ordinal)
+                || lower.StartsWith("where ", StringComparison.Ordinal)
+                || lower.StartsWith("who ", StringComparison.Ordinal)
+                || lower.StartsWith("did ", StringComparison.Ordinal)
+                || lower.StartsWith("is ", StringComparison.Ordinal)
+                || lower.StartsWith("are ", StringComparison.Ordinal);
+
         private static bool NamesCampaignNoun(string lower)
             => ContainsAny(
                 lower,

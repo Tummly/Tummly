@@ -167,6 +167,20 @@ namespace TummlyBackend.Helpers
             };
         }
 
+        public static string NextOfferTermsAsk(
+            AssistantOfferPathTermsState prior,
+            AssistantOfferPathTermsState merged
+        )
+        {
+            var ask = ForOfferTerms(merged);
+            if (prior.Validity is null && merged.Validity is not null)
+            {
+                return $"The offer validity is {AssistantOfferPathTerms.ValidityLabel(merged)}. {ask}";
+            }
+
+            return ask;
+        }
+
         public static string ExplainOfferTerms(AssistantOfferPathTermsState terms)
         {
             var ask = ForOfferTerms(terms);

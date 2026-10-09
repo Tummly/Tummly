@@ -29,5 +29,17 @@ namespace TummlyBackend.Tests.Helpers
             Assert.DoesNotContain("tab:", cleaned, StringComparison.Ordinal);
             Assert.DoesNotContain("Actions", cleaned, StringComparison.Ordinal);
         }
+
+        [Fact]
+        public void AlignPeriod_ReplacesLastSevenDays()
+        {
+            var cleaned = AssistantOperatorProse.AlignPeriod(
+                "Camden received 4 feedback items over the last 7 days.",
+                "3 October 2026"
+            );
+
+            Assert.Contains("3 October 2026", cleaned, StringComparison.Ordinal);
+            Assert.DoesNotContain("last 7 days", cleaned, StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

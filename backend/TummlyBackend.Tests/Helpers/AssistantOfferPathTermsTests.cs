@@ -49,6 +49,7 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData("next week", "7_days_after_issue", null)]
         [InlineData("a month", "30_days_after_issue", null)]
         [InlineData("three weeks", "choose_expiry_date", "2026-09-09")]
+        [InlineData("for three days", "choose_expiry_date", "2026-08-22")]
         public void Merge_SpokenDuration_KeepsPriorBenefitAndSetsValidity(
             string reply,
             string validity,
@@ -643,6 +644,29 @@ namespace TummlyBackend.Tests.Helpers
 
             Assert.Equal("choose_expiry_date", state.Validity);
             Assert.Equal("2026-09-30", state.ExpiryDate);
+        }
+
+        [Fact]
+        public void DropUnnamedTitle_RemovesModelTitleTheOperatorDidNotWrite()
+        {
+            var state = new AssistantOfferPathTermsState
+            {
+                OfferType = "percentage_discount",
+                DiscountPercentage = 10m,
+                Validity = "choose_expiry_date",
+                ExpiryDate = "2026-08-22",
+                Title = "Happy Hour",
+                Description = "Enjoy a free visit.",
+            };
+
+            AssistantOfferPathTerms.DropUnnamedTitle(
+                state,
+                "Create a 10% Campaign for three days."
+            );
+            AssistantOfferPathTerms.ProposeCopy(state);
+
+            Assert.Equal("10% off", state.Title);
+            Assert.Equal("Save 10%.", state.Description);
         }
     }
 }

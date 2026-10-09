@@ -242,6 +242,30 @@ namespace TummlyBackend.Helpers
                 ? ["one authorised benefit"]
                 : MissingFields(state);
 
+        /// <summary>
+        /// A model title such as "Happy Hour" is kept only when the operator
+        /// wrote that title. ProposeCopy then fills "10% off".
+        /// </summary>
+        public static void DropUnnamedTitle(
+            AssistantOfferPathTermsState state,
+            string userMessage
+        )
+        {
+            var title = state.Title?.Trim();
+            if (string.IsNullOrEmpty(title))
+            {
+                return;
+            }
+
+            if (userMessage.Contains(title, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            state.Title = null;
+            state.Description = null;
+        }
+
         public static void ProposeCopy(AssistantOfferPathTermsState state)
         {
             if (!IsComplete(state))
@@ -704,6 +728,21 @@ namespace TummlyBackend.Helpers
                 return;
             }
 
+            if (TryParseSpokenDayCount(lower, out var spokenDays))
+            {
+                if (spokenDays is 7 or 14 or 30)
+                {
+                    state.Validity = $"{spokenDays}_days_after_issue";
+                    state.ExpiryDate = null;
+                    return;
+                }
+
+                state.Validity = "choose_expiry_date";
+                state.ExpiryDate = utcNow.Date.AddDays(spokenDays)
+                    .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                return;
+            }
+
             if (TryParseLooseDuration(lower, utcNow, out var looseValidity, out var looseExpiry))
             {
                 state.Validity = looseValidity;
@@ -857,6 +896,36 @@ namespace TummlyBackend.Helpers
         )]
         private static partial Regex WeekCountRegex();
 
+        private static readonly Dictionary<string, int> DayWordToCount =
+            new(StringComparer.Ordinal)
+            {
+                ["one"] = 1,
+                ["two"] = 2,
+                ["three"] = 3,
+                ["four"] = 4,
+                ["five"] = 5,
+                ["six"] = 6,
+                ["seven"] = 7,
+                ["eight"] = 8,
+                ["nine"] = 9,
+                ["ten"] = 10,
+            };
+
+        [GeneratedRegex(
+            @"\b(?<n>one|two|three|four|five|six|seven|eight|nine|ten)\s+days?\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
+        private static partial Regex SpokenDayCountRegex();
+
+        private static bool TryParseSpokenDayCount(string lower, out int days)
+        {
+            days = 0;
+            var match = SpokenDayCountRegex().Match(lower);
+            return match.Success
+                && DayWordToCount.TryGetValue(match.Groups["n"].Value, out days)
+                && days is >= 1 and <= 366;
+        }
+
         private static bool TryParseRelativeDaysAfterIssue(
             string lower,
             DateTime utcNow,
@@ -912,7 +981,15 @@ namespace TummlyBackend.Helpers
                     state.MinimumSpend ??= spend;
                 }
             }
-            else if (ContainsAny(lower, "any purchase", "buy anything", "any order"))
+            else if (ContainsAny(
+                    lower,
+                    "any purchase",
+                    "buy anything",
+                    "any order",
+                    "buy food",
+                    "buy something",
+                    "need to buy"
+                ))
             {
                 state.PurchaseRequirement = "with_any_purchase";
             }
@@ -983,6 +1060,7 @@ namespace TummlyBackend.Helpers
                 || LooksLikeDaysAfterIssue(lower, 30)
                 || LooksLikeDaysAfterIssue(lower, 14)
                 || LooksLikeDaysAfterIssue(lower, 7)
+                || TryParseSpokenDayCount(lower, out _)
                 || TryParseLooseDuration(lower, DateTime.UtcNow, out _, out _)
                 || RelativeDaysAfterIssueRegex().IsMatch(lower)
                 || ContainsAny(

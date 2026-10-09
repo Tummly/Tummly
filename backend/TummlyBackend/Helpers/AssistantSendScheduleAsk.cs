@@ -173,6 +173,16 @@ namespace TummlyBackend.Helpers
                 );
             }
 
+            if (TryResolveWeekdayDate(lower, nowUtc, out var weekdayDate))
+            {
+                return new CampaignLandingResult(
+                    StepSchedule,
+                    ModeScheduleLater,
+                    weekdayDate,
+                    null
+                );
+            }
+
             return new CampaignLandingResult(
                 StepSchedule,
                 ModeScheduleLater,
@@ -232,6 +242,48 @@ namespace TummlyBackend.Helpers
 
         private static bool HasScheduleWord(string lower)
             => ScheduleWordRegex().IsMatch(lower);
+
+        private static bool TryResolveWeekdayDate(
+            string lower,
+            DateTime nowUtc,
+            out string dateLocal
+        )
+        {
+            dateLocal = string.Empty;
+            string[] names =
+            [
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+                "sunday",
+            ];
+            foreach (var name in names)
+            {
+                if (!lower.Contains(name, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (!Enum.TryParse<DayOfWeek>(name, ignoreCase: true, out var weekday))
+                {
+                    continue;
+                }
+
+                var date = nowUtc.Date.AddDays(1);
+                while (date.DayOfWeek != weekday)
+                {
+                    date = date.AddDays(1);
+                }
+
+                dateLocal = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                return true;
+            }
+
+            return false;
+        }
 
         private static (string DateLocal, string TimeLocal)? TryParseFutureDatetime(
             string message,

@@ -51,6 +51,12 @@ namespace TummlyBackend.Helpers
         public bool UseConfirmedActionForGuestResponse { get; set; }
 
         public AssistantRecoveryEligibilitySnapshot? EligibilitySnapshot { get; set; }
+
+        /// <summary>
+        /// Negative Feedback ids still to recover after this one, newest first
+        /// already removed.
+        /// </summary>
+        public List<int> PendingFeedbackIds { get; set; } = [];
     }
 
     public static class AssistantRecoveryWork

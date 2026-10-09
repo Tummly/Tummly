@@ -39,32 +39,75 @@ namespace TummlyBackend.Helpers
             CancellationToken cancellationToken
         )
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-            request.Headers.TryAddWithoutValidation("api-key", apiKey);
-            request.Headers.Accept.Add(
-                new MediaTypeWithQualityHeaderValue("application/json")
-            );
-            request.Content = new StringContent(
-                body,
-                Encoding.UTF8,
-                "application/json"
-            );
-
-            using var response = await client.SendAsync(request, cancellationToken);
-            if (IsTransientStatusCode(response.StatusCode))
+            const int maxWaits = 3;
+            for (var attempt = 0; ; attempt++)
             {
-                return new AzureOpenAIChatSendResult.Transient((int)response.StatusCode);
+                using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
+                request.Headers.TryAddWithoutValidation("api-key", apiKey);
+                request.Headers.Accept.Add(
+                    new MediaTypeWithQualityHeaderValue("application/json")
+                );
+                request.Content = new StringContent(
+                    body,
+                    Encoding.UTF8,
+                    "application/json"
+                );
+
+                using var response = await client.SendAsync(request, cancellationToken);
+                if (IsTransientStatusCode(response.StatusCode) && attempt < maxWaits)
+                {
+                    var wait = WaitAfterTransient(response, attempt);
+                    await Task.Delay(wait, cancellationToken);
+                    continue;
+                }
+
+                if (IsTransientStatusCode(response.StatusCode))
+                {
+                    return new AzureOpenAIChatSendResult.Transient((int)response.StatusCode);
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new AzureOpenAIChatSendResult.Failed((int)response.StatusCode);
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync(
+                    cancellationToken
+                );
+                return new AzureOpenAIChatSendResult.Succeeded(responseJson);
+            }
+        }
+
+        public static int FallbackWaitSeconds(int zeroBasedWait)
+            => zeroBasedWait switch
+            {
+                0 => 2,
+                1 => 4,
+                _ => 8,
+            };
+
+        public static TimeSpan WaitAfterTransient(HttpResponseMessage response, int zeroBasedWait)
+        {
+            var retryAfter = response.Headers.RetryAfter;
+            if (retryAfter?.Delta is TimeSpan delta && delta > TimeSpan.Zero)
+            {
+                return delta > TimeSpan.FromSeconds(30)
+                    ? TimeSpan.FromSeconds(30)
+                    : delta;
             }
 
-            if (!response.IsSuccessStatusCode)
+            if (retryAfter?.Date is DateTimeOffset when)
             {
-                return new AzureOpenAIChatSendResult.Failed((int)response.StatusCode);
+                var until = when - DateTimeOffset.UtcNow;
+                if (until > TimeSpan.Zero)
+                {
+                    return until > TimeSpan.FromSeconds(30)
+                        ? TimeSpan.FromSeconds(30)
+                        : until;
+                }
             }
 
-            var responseJson = await response.Content.ReadAsStringAsync(
-                cancellationToken
-            );
-            return new AzureOpenAIChatSendResult.Succeeded(responseJson);
+            return TimeSpan.FromSeconds(FallbackWaitSeconds(zeroBasedWait));
         }
 
         public static bool IsTransientStatusCode(HttpStatusCode statusCode)

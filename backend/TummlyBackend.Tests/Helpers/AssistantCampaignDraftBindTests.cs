@@ -142,6 +142,38 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void ThankRecentGuests_BindsNewGuests()
+        {
+            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
+                AssistantCampaignDraftBind.Resolve(
+                    "Thank recent guests.",
+                    "Camden",
+                    [],
+                    []
+                )
+            );
+
+            Assert.Equal("new-guests", bound.Fields.AudienceKey);
+            Assert.Equal("thank-recent-guests", bound.Fields.GoalId);
+        }
+
+        [Fact]
+        public void ReengageUnseenForThreeMonths_BindsDormantGuests()
+        {
+            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
+                AssistantCampaignDraftBind.Resolve(
+                    "Re-engage guests we haven't seen for three months.",
+                    "Camden",
+                    [],
+                    []
+                )
+            );
+
+            Assert.Equal("dormant-guests", bound.Fields.AudienceKey);
+            Assert.Equal("re-engage-inactive", bound.Fields.GoalId);
+        }
+
+        [Fact]
         public void DormantLapsed90Days_BindsDormantGuests()
         {
             var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(

@@ -655,7 +655,8 @@ namespace TummlyBackend.Helpers
             else if (!feedback.IsEmpty)
             {
                 parts.Add(
-                    FeedbackBodyFromAsk(
+                    FeedbackAnswerForAsk(
+                        userMessage,
                         grounded,
                         ownedLocationName,
                         periodPhrase,
@@ -814,6 +815,37 @@ namespace TummlyBackend.Helpers
             AssistantOffersEvidence evidence
         )
             => $"Offers Performance over {periodPhrase}: {evidence.Redemptions} redemptions.";
+
+        private static string FeedbackAnswerForAsk(
+            string userMessage,
+            AssistantGroundedAsk grounded,
+            string ownedLocationName,
+            string periodPhrase,
+            AssistantFeedbackEvidence evidence
+        )
+        {
+            var lower = userMessage.ToLowerInvariant();
+            if (lower.Contains("trend", StringComparison.Ordinal))
+            {
+                return $"{ownedLocationName} does not have enough matching Feedback over {periodPhrase} to call this a trend.";
+            }
+
+            if (lower.Contains("love the food", StringComparison.Ordinal)
+                || lower.Contains("right?", StringComparison.Ordinal))
+            {
+                return $"{ownedLocationName} over {periodPhrase}: "
+                    + $"{evidence.SucceededPositive} positive, "
+                    + $"{evidence.SucceededNeutral} neutral, "
+                    + $"{evidence.SucceededNegative} negative.";
+            }
+
+            return FeedbackBodyFromAsk(
+                grounded,
+                ownedLocationName,
+                periodPhrase,
+                evidence
+            );
+        }
 
         private static string FeedbackBodyFromAsk(
             AssistantGroundedAsk grounded,

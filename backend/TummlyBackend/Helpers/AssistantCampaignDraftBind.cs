@@ -111,7 +111,20 @@ namespace TummlyBackend.Helpers
                     "unhappy",
                     "submitted negative",
                 ],
-                [AudienceDormant] = ["dormant", "lapsed", "90 days", "90-day", "90 day"],
+                [AudienceDormant] =
+                [
+                    "dormant",
+                    "lapsed",
+                    "90 days",
+                    "90-day",
+                    "90 day",
+                    "three months",
+                    "3 months",
+                    "haven't seen",
+                    "have not seen",
+                    "haven't visited",
+                    "have not visited",
+                ],
                 [AudienceRecovery] =
                 [
                     "completed recovery follow-up",
@@ -189,13 +202,13 @@ namespace TummlyBackend.Helpers
                 );
             }
 
+            var goalId = InferGoal(lower);
             var audienceKey = audiences.Count == 1
                 ? audiences[0]
-                : AudienceAllEligible;
+                : AudienceForUnnamedGoal(goalId);
             var limitNote = guestCap is int appliedCap
                 ? GuestCountNotAppliedNote(appliedCap)
                 : null;
-            var goalId = InferGoal(lower);
             var templateId = ResolveTemplateId(text, templates);
             var name = AssistantCampaignDraftName.Compose(
                 goalId,
@@ -264,6 +277,56 @@ namespace TummlyBackend.Helpers
         /// A guest-count phrase such as "10 guests" or "10 Email guests".
         /// A percent, a price, or a day count does not match.
         /// </summary>
+        public static bool NamesExplicitAudience(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            return ResolveAudiences(lower, null).Count > 0
+                || NamesAllEligiblePhrase(lower);
+        }
+
+        public static bool NamesExplicitChannel(string message)
+        {
+            var named = NamedChannels(message.Trim().ToLowerInvariant());
+            return named.Email || named.Sms;
+        }
+
+        public static bool LooksLikeShortenSubject(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            return lower.Contains("subject", StringComparison.Ordinal)
+                && lower.Contains("short", StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Keeps the first half of the words, and at least one fewer word.
+        /// </summary>
+        public static string ShortenSubject(string subject)
+        {
+            var words = subject.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length <= 1)
+            {
+                return subject.Trim();
+            }
+
+            var keep = Math.Max(1, words.Length / 2);
+            if (keep >= words.Length)
+            {
+                keep = words.Length - 1;
+            }
+
+            return string.Join(' ', words.Take(keep));
+        }
+
+        public static bool LooksLikeContinueEarlier(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            return lower.Contains("already said", StringComparison.Ordinal)
+                || lower.Contains("i told you", StringComparison.Ordinal)
+                || lower.Contains("as i said", StringComparison.Ordinal)
+                || lower.Contains("like i said", StringComparison.Ordinal)
+                || lower.Contains("same as before", StringComparison.Ordinal);
+        }
+
         public static int? TryReadGuestCap(string message)
         {
             if (string.IsNullOrWhiteSpace(message))
@@ -548,6 +611,15 @@ namespace TummlyBackend.Helpers
                 "saved-group"
             );
 
+        /// <summary>
+        /// Thank-recent uses the governed New guests audience.
+        /// A vague "inactive" ask stays all eligible.
+        /// </summary>
+        private static string AudienceForUnnamedGoal(string goalId)
+            => goalId == "thank-recent-guests"
+                ? AudienceNewGuests
+                : AudienceAllEligible;
+
         private static string InferGoal(string lower)
         {
             if (ContainsAny(
@@ -800,6 +872,17 @@ namespace TummlyBackend.Helpers
                     if (offer.DiscountPercentage is decimal value && value == percent)
                     {
                         AddUnique(offer);
+                    }
+                }
+
+                if (matches.Count == 0)
+                {
+                    foreach (var offer in offers)
+                    {
+                        if (offer.DiscountPercentage is decimal value && value == percent)
+                        {
+                            AddUnique(offer);
+                        }
                     }
                 }
             }
