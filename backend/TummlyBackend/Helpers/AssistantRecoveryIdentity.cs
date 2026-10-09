@@ -85,12 +85,74 @@ namespace TummlyBackend.Helpers
                 return new Match.One(latest);
             }
 
+            if (LooksLikeAll(userMessage))
+            {
+                if (pool.Count == 1)
+                {
+                    return new Match.One(pool[0]);
+                }
+
+                return new Match.Many(pool);
+            }
+
+            if (LooksLikeConfirm(userMessage))
+            {
+                if (pool.Count == 1)
+                {
+                    return new Match.One(pool[0]);
+                }
+
+                return new Match.Many(pool);
+            }
+
             if (pool.Count == 1)
             {
                 return new Match.One(pool[0]);
             }
 
             return new Match.Many(pool);
+        }
+
+        /// <summary>
+        /// Labels the operator can tell apart. Same guest and same calendar
+        /// day get a time, then a short excerpt, then the Feedback reference.
+        /// </summary>
+        public static IReadOnlyList<string> ChoiceLabels(
+            IReadOnlyList<AssistantFeedbackEvidenceRow> rows,
+            bool includeVenue = false
+        )
+        {
+            var plain = rows
+                .Select(row => FormatLabel(row, includeVenue))
+                .ToList();
+            if (AllUnique(plain))
+            {
+                return plain;
+            }
+
+            var withTime = rows
+                .Select(row => WithTime(FormatLabel(row, includeVenue), row.CreatedAt))
+                .ToList();
+            if (AllUnique(withTime))
+            {
+                return withTime;
+            }
+
+            var withExcerpt = rows
+                .Select((row, index) =>
+                    AppendDetail(withTime[index], ExcerptDetail(row.Excerpt))
+                )
+                .ToList();
+            if (AllUnique(withExcerpt))
+            {
+                return withExcerpt;
+            }
+
+            return rows
+                .Select((row, index) =>
+                    AppendDetail(withExcerpt[index], row.FeedbackReference)
+                )
+                .ToList();
         }
 
         public static string FormatLabel(
@@ -113,15 +175,40 @@ namespace TummlyBackend.Helpers
             bool includeVenue = false
         )
         {
-            var labels = rows
-                .Select(row => FormatLabel(row, includeVenue))
-                .Distinct(StringComparer.Ordinal)
-                .ToList();
-            return WhichFeedbackQuestion(labels);
+            return ReplyBody(userMessage: "", rows, includeVenue);
+        }
+
+        public static string ReplyBody(
+            string userMessage,
+            IReadOnlyList<AssistantFeedbackEvidenceRow> rows,
+            bool includeVenue = false
+        )
+        {
+            var question = WhichFeedbackQuestion(ChoiceLabels(rows, includeVenue));
+            if (LooksLikeAll(userMessage))
+            {
+                return "I can recover one Feedback at a time. " + question;
+            }
+
+            if (LooksLikeConfirm(userMessage) && rows.Count > 1)
+            {
+                return "I still need one Feedback. " + question;
+            }
+
+            return question;
         }
 
         public static string RepeatGapBody(IReadOnlyList<string> options)
-            => AssistantGapAsk.ExplainBind(AssistantGapTurn.KindFeedback, options);
+        {
+            var distinct = options
+                .Where(option => !string.IsNullOrWhiteSpace(option))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            return AssistantGapAsk.ExplainBind(
+                AssistantGapTurn.KindFeedback,
+                distinct
+            );
+        }
 
         private static string WhichFeedbackQuestion(IReadOnlyList<string> labels)
             => AssistantGapAsk.ForBind(AssistantGapTurn.KindFeedback, labels);
@@ -219,6 +306,84 @@ namespace TummlyBackend.Helpers
                 $@"\b{Regex.Escape(first[0])}\b",
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
             );
+        }
+
+        private static bool LooksLikeAll(string userMessage)
+        {
+            var lower = userMessage.Trim().ToLowerInvariant();
+            return lower.Contains("all negative", StringComparison.Ordinal)
+                || lower.Contains("all of them", StringComparison.Ordinal)
+                || lower.Contains("all of these", StringComparison.Ordinal)
+                || lower.Contains("all feedback", StringComparison.Ordinal)
+                || lower.Contains("every negative", StringComparison.Ordinal)
+                || lower.Contains("every feedback", StringComparison.Ordinal)
+                || lower.StartsWith("all ", StringComparison.Ordinal);
+        }
+
+        private static bool LooksLikeConfirm(string userMessage)
+        {
+            var normalized = userMessage
+                .Trim()
+                .Trim('.', '!', '?')
+                .ToLowerInvariant();
+            return normalized is "yes"
+                or "y"
+                or "yeah"
+                or "yep"
+                or "ok"
+                or "okay"
+                or "sure"
+                or "that one"
+                or "this one"
+                or "the only one"
+                or "that"
+                or "go ahead"
+                or "do it"
+                or "please"
+                or "yes please";
+        }
+
+        private static bool AllUnique(IReadOnlyList<string> labels)
+            => labels
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() == labels.Count;
+
+        private static string WithTime(string label, DateTime createdAt)
+        {
+            var time = createdAt.ToString("HH:mm", CultureInfo.InvariantCulture);
+            var close = label.LastIndexOf(')');
+            if (close < 0)
+            {
+                return $"{label} {time}";
+            }
+
+            return label.Insert(close, " " + time);
+        }
+
+        private static string ExcerptDetail(string excerpt)
+        {
+            var text = excerpt.Trim();
+            if (text.Length == 0)
+            {
+                return "";
+            }
+
+            if (text.Length > 42)
+            {
+                text = text[..42].TrimEnd() + "…";
+            }
+
+            return $"\"{text}\"";
+        }
+
+        private static string AppendDetail(string label, string detail)
+        {
+            if (string.IsNullOrWhiteSpace(detail))
+            {
+                return label;
+            }
+
+            return $"{label} — {detail}";
         }
 
         private static bool AsksNegative(string userMessage)

@@ -128,6 +128,107 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void SameGuestSameDay_ChoiceLabelsIncludeTime()
+        {
+            var morning = Row(
+                11,
+                "Salman Shahid",
+                "negative",
+                hoursAgo: 5,
+                createdAt: new DateTime(2026, 10, 5, 9, 15, 0, DateTimeKind.Utc),
+                excerpt: "Food was cold"
+            );
+            var afternoon = Row(
+                12,
+                "Salman Shahid",
+                "negative",
+                hoursAgo: 2,
+                createdAt: new DateTime(2026, 10, 5, 16, 40, 0, DateTimeKind.Utc),
+                excerpt: "Slow service"
+            );
+
+            var labels = AssistantRecoveryIdentity.ChoiceLabels([morning, afternoon]);
+
+            Assert.Equal(2, labels.Distinct(StringComparer.Ordinal).Count());
+            Assert.Contains("09:15", labels[0], StringComparison.Ordinal);
+            Assert.Contains("16:40", labels[1], StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "Salman Shahid (5 Oct 2026), Salman Shahid (5 Oct 2026)",
+                AssistantRecoveryIdentity.GapBody([morning, afternoon]),
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void Yes_WithOneFeedback_BindsThatRow()
+        {
+            var match = AssistantRecoveryIdentity.Resolve(
+                "yes",
+                [Row(11, "Salman Shahid", "negative", hoursAgo: 1)]
+            );
+
+            var one = Assert.IsType<AssistantRecoveryIdentity.Match.One>(match);
+            Assert.Equal(11, one.Row.Id);
+        }
+
+        [Fact]
+        public void Yes_WithThreeSameDayRows_AsksForOneDistinctFeedback()
+        {
+            var rows = SameDayRows();
+            var match = AssistantRecoveryIdentity.Resolve("yes", rows);
+
+            Assert.IsType<AssistantRecoveryIdentity.Match.Many>(match);
+            var body = AssistantRecoveryIdentity.ReplyBody("yes", rows);
+            Assert.Contains("I still need one Feedback", body, StringComparison.Ordinal);
+            Assert.Contains("09:15", body, StringComparison.Ordinal);
+            Assert.Contains("12:00", body, StringComparison.Ordinal);
+            Assert.Contains("16:40", body, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "Salman Shahid (5 Oct 2026), Salman Shahid (5 Oct 2026)",
+                body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void AllNegativeFeedbacks_SaysOneAtATime_WithDistinctRows()
+        {
+            var rows = SameDayRows();
+            var match = AssistantRecoveryIdentity.Resolve(
+                "all negative feedbacks",
+                rows
+            );
+
+            Assert.IsType<AssistantRecoveryIdentity.Match.Many>(match);
+            var body = AssistantRecoveryIdentity.ReplyBody(
+                "all negative feedbacks",
+                rows
+            );
+            Assert.Contains(
+                "I can recover one Feedback at a time",
+                body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("09:15", body, StringComparison.Ordinal);
+            Assert.Contains("16:40", body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void AllNegativeFeedbacks_WithOneNegative_BindsThatRow()
+        {
+            var match = AssistantRecoveryIdentity.Resolve(
+                "all negative feedbacks",
+                [
+                    Row(11, "Salman Shahid", "negative", hoursAgo: 1),
+                    Row(12, "Salman Shahid", "positive", hoursAgo: 2),
+                ]
+            );
+
+            var one = Assert.IsType<AssistantRecoveryIdentity.Match.One>(match);
+            Assert.Equal(11, one.Row.Id);
+        }
+
+        [Fact]
         public void NamedGuestMiss_IsStillNone()
         {
             var match = AssistantRecoveryIdentity.Resolve(
@@ -139,6 +240,35 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(AssistantRecoveryIdentity.ReasonNamedMiss, none.Reason);
         }
 
+        private static IReadOnlyList<AssistantFeedbackEvidenceRow> SameDayRows()
+            =>
+            [
+                Row(
+                    11,
+                    "Salman Shahid",
+                    "negative",
+                    hoursAgo: 5,
+                    createdAt: new DateTime(2026, 10, 5, 9, 15, 0, DateTimeKind.Utc),
+                    excerpt: "Food was cold"
+                ),
+                Row(
+                    12,
+                    "Salman Shahid",
+                    "negative",
+                    hoursAgo: 3,
+                    createdAt: new DateTime(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc),
+                    excerpt: "Long wait"
+                ),
+                Row(
+                    13,
+                    "Salman Shahid",
+                    "negative",
+                    hoursAgo: 1,
+                    createdAt: new DateTime(2026, 10, 5, 16, 40, 0, DateTimeKind.Utc),
+                    excerpt: "Slow service"
+                ),
+            ];
+
         private static AssistantFeedbackEvidenceRow Row(
             int id,
             string guestName,
@@ -146,7 +276,8 @@ namespace TummlyBackend.Tests.Helpers
             int hoursAgo,
             string workflow = "New",
             string? locationName = null,
-            DateTime? createdAt = null
+            DateTime? createdAt = null,
+            string excerpt = "Slow service"
         )
             => new(
                 id,
@@ -159,7 +290,7 @@ namespace TummlyBackend.Tests.Helpers
                 sentiment == "negative" && workflow != "Resolved",
                 null,
                 "Email",
-                "Slow service",
+                excerpt,
                 $"FDB-{id.ToString().PadLeft(6, '0')}",
                 null,
                 [],

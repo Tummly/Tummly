@@ -121,6 +121,8 @@ namespace TummlyBackend.Tests.Helpers
                 prompt,
                 StringComparison.OrdinalIgnoreCase
             );
+            Assert.Contains("negative-feedback", prompt, StringComparison.Ordinal);
+            Assert.Contains("make it right", prompt, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

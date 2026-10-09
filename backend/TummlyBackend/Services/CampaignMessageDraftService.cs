@@ -1,4 +1,5 @@
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -126,11 +127,7 @@ namespace TummlyBackend.Services
             return providerResult switch
             {
                 CampaignMessageDraftProviderResult.Succeeded succeeded =>
-                    new CampaignMessageDraftServiceResult.Ok(
-                        succeeded.Body,
-                        succeeded.Subject,
-                        succeeded.Channel
-                    ),
+                    FitAudienceVoice(input, succeeded),
                 CampaignMessageDraftProviderResult.Failed failed =>
                     new CampaignMessageDraftServiceResult.Failed(
                         "We could not prepare a draft.",
@@ -141,6 +138,40 @@ namespace TummlyBackend.Services
                     Retryable: true
                 ),
             };
+        }
+
+        private static CampaignMessageDraftServiceResult FitAudienceVoice(
+            CampaignMessageDraftInput input,
+            CampaignMessageDraftProviderResult.Succeeded succeeded
+        )
+        {
+            if (!string.Equals(
+                    input.AudienceKey,
+                    AssistantCampaignDraftBind.AudienceNegative,
+                    StringComparison.Ordinal
+                )
+                || !CampaignNegativeFeedbackCopy.NeedsGovernedCopy(
+                    succeeded.Subject,
+                    succeeded.Body
+                ))
+            {
+                return new CampaignMessageDraftServiceResult.Ok(
+                    succeeded.Body,
+                    succeeded.Subject,
+                    succeeded.Channel
+                );
+            }
+
+            var governed = CampaignNegativeFeedbackCopy.Governed(
+                input.LocationName,
+                succeeded.Channel,
+                input.ConfirmedOffer?.Title
+            );
+            return new CampaignMessageDraftServiceResult.Ok(
+                governed.Body,
+                governed.Subject,
+                succeeded.Channel
+            );
         }
     }
 }

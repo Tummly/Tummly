@@ -25,6 +25,15 @@ namespace TummlyBackend.Helpers
                 ? "SMS"
                 : "Email";
 
+            if (string.Equals(
+                    audienceKey,
+                    AssistantCampaignDraftBind.AudienceNegative,
+                    StringComparison.Ordinal
+                ))
+            {
+                return $"Make it right by {channelWord} at {place}";
+            }
+
             return goalId switch
             {
                 "re-engage-inactive" when audienceKey

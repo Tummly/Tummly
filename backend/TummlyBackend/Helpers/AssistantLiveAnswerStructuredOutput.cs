@@ -542,9 +542,13 @@ namespace TummlyBackend.Helpers
                 Do not attach Actions. List totals for every retrieved venue.
                 Paint at most 3 Feedback excerpts in the whole body. Theme and tag
                 totals are every item in the Reporting period; do not say themes
-                came from the excerpt sample. When a venue's feedbackTotalCount is
-                greater than feedbackSampleCount, say Comment samples are
-                sample of total at the venue name. Name failedLocationNames as
+                came from the excerpt sample. When a venue's feedback total is
+                greater than the sample count, say comment samples are a
+                sample of the total at the venue name. Use plain words for
+                every count. Never write a field name or a camelCase identifier
+                in the title or body. Do not add an Actions heading. Do not
+                write action type names or tab values. The server shows Actions.
+                Name failedLocationNames as
                 Could not load data for that name. Name notStartedLocationNames with
                 Not retrieved this turn, then the names. Retry this send, or name up to
                 3 locations. When any gap applies, state that the ranking is
@@ -692,7 +696,10 @@ namespace TummlyBackend.Helpers
                 Prefer parallel tool calls for the domains the question needs.
                 Do not dump allow-list domains the operator did not ask about.
                 Empty tool evidence is a grounded empty answer: say what is
-                missing instead of inventing a count or a cause.
+                missing instead of inventing a count or a cause. Write counts
+                in plain words. Never write a field name, a camelCase
+                identifier, an action type, or a tab value in the answer. Do
+                not add an Actions section. The server shows Actions.
                 """
             + "\n"
             + AssistantKnowledgeLayer.Instructions;
@@ -889,7 +896,7 @@ namespace TummlyBackend.Helpers
                     return false;
                 }
 
-                var body = bodyElement.GetString()?.Trim() ?? string.Empty;
+                var body = AssistantOperatorProse.Scrub(bodyElement.GetString());
                 if (body.Length == 0)
                 {
                     invalidOutput = true;
@@ -901,7 +908,9 @@ namespace TummlyBackend.Helpers
                     && titleElement.ValueKind == JsonValueKind.String)
                 {
                     var rawTitle = titleElement.GetString()?.Trim();
-                    title = string.IsNullOrEmpty(rawTitle) ? null : rawTitle;
+                    title = string.IsNullOrEmpty(rawTitle)
+                        ? null
+                        : AssistantOperatorProse.Scrub(rawTitle);
                 }
 
                 if (answerClass == AssistantMessageClass.Grounded && title is null)

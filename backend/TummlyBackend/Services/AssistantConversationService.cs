@@ -3695,19 +3695,16 @@ namespace TummlyBackend.Services
                     return await FinishGapTurnAsync(
                         conversation,
                         AssistantGapTurn.CreateFeedback(
-                            many.Rows
-                                .Select(row =>
-                                    AssistantRecoveryIdentity.FormatLabel(row, includeVenue)
-                                )
-                                .ToList(),
+                            AssistantRecoveryIdentity.ChoiceLabels(
+                                many.Rows,
+                                includeVenue
+                            ),
                             gapState.SourceUserMessage
                         ),
-                        AssistantRecoveryIdentity.RepeatGapBody(
-                            many.Rows
-                                .Select(row =>
-                                    AssistantRecoveryIdentity.FormatLabel(row, includeVenue)
-                                )
-                                .ToList()
+                        AssistantRecoveryIdentity.ReplyBody(
+                            userMessage,
+                            many.Rows,
+                            includeVenue
                         ),
                         replaceFailure,
                         cancellationToken
@@ -3805,17 +3802,18 @@ namespace TummlyBackend.Services
                         null
                     );
                 case AssistantRecoveryIdentity.Match.Many many:
-                    var labels = many.Rows
-                        .Select(row =>
-                            AssistantRecoveryIdentity.FormatLabel(row, includeVenue)
-                        )
-                        .ToList();
                     return new RecoveryPersistTurn(
                         "",
                         AssistantRecoveryIdentity.GapBody(many.Rows, includeVenue),
                         none,
                         null,
-                        AssistantGapTurn.CreateFeedback(labels, userMessage)
+                        AssistantGapTurn.CreateFeedback(
+                            AssistantRecoveryIdentity.ChoiceLabels(
+                                many.Rows,
+                                includeVenue
+                            ),
+                            userMessage
+                        )
                     );
             }
 
@@ -4951,27 +4949,9 @@ namespace TummlyBackend.Services
                     return new GapResume(null, detected);
                 }
 
-                if (AssistantCampaignDraftBind.ResolveNamedChoice(
-                        gapState.Options,
-                        userMessage
-                    ) is not null)
-                {
-                    return new GapResume(null, null);
-                }
-
-                return new GapResume(
-                    await FinishGapTurnAsync(
-                        conversation,
-                        gapState,
-                        AssistantGapAsk.ExplainBind(
-                            AssistantGapTurn.KindFeedback,
-                            gapState.Options
-                        ),
-                        replaceFailure,
-                        cancellationToken
-                    ),
-                    null
-                );
+                // The later resume reads the reply against the Feedback rows.
+                // A yes, or "all negative feedbacks", must reach that match.
+                return new GapResume(null, null);
             }
 
             var gapTarget = CreateTargetForTask(gapState.AssistantTask);

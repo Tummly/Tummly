@@ -199,6 +199,21 @@ namespace TummlyBackend.Helpers
                 Never invent a redemption code, claim code, promo code, or QR claim.
                 When offerStance is no-offer or confirmedOffer is absent, do not invent
                 an offer, discount, or claim code.
+                Do not invent a website, a phone number, a reservation system,
+                a private-event offer, or a social account.
+
+                Audience voice:
+                audienceKey negative-feedback means guests whose private Feedback
+                was negative. Subject and body must say the last visit was not
+                right and that the team wants to make it right. Be brief and
+                sincere. Do not quote the Feedback. Do not invent what went wrong.
+                Do not write a cheerful invitation about latest dishes, atmosphere,
+                celebrations, or social updates.
+                audienceKey positive-feedback thanks the guest for the visit.
+                audienceKey dormant-guests says it has been a while and invites
+                them back. audienceKey new-guests welcomes a first visit.
+                audienceKey all-eligible-guests may be a general invitation, still
+                without invented contact channels.
 
                 When mode is prepare, draft both body and subject (subject null for sms).
                 When mode is rewrite_subject, rewrite only the subject from
