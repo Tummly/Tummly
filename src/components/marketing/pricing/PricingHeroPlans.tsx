@@ -2,8 +2,8 @@ import { CheckIcon, ChevronDownIcon, CoinsIcon, MailIcon, MessageSquareIcon } fr
 import type { MouseEvent } from "react"
 import { Link } from "react-router-dom"
 
+import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
-import { Button } from "@/components/ui/button"
 import {
   PRICING_CADENCE_COPY,
   PRICING_GROUP_BANNER,
@@ -39,28 +39,17 @@ const pricingCadenceShellClass =
   "flex items-center gap-2.5 rounded-[6px] border border-[rgba(38,38,38,0.21)] p-3"
 
 const pricingCadenceItemClass =
-  "inline-flex h-[41px] items-center justify-center gap-2.5 rounded px-3 text-sm font-medium text-[#7c7c7c] transition-colors"
+  "inline-flex h-[41px] cursor-pointer items-center justify-center gap-2.5 rounded px-3 text-sm font-medium text-[#7c7c7c] transition-colors hover:bg-[#efefef] hover:text-[#141414] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
 
 /** Selected tab — Figma Main Bg `#202020` + white title. */
-const pricingCadenceItemActiveClass = "bg-[#202020] text-white"
+const pricingCadenceItemActiveClass =
+  "bg-[#202020] text-white hover:bg-[#2a2a2a] hover:text-white"
 
 const pricingCadenceSaveBadgeClass =
   "rounded-full bg-[#14a74a] px-2.5 py-2 text-[10px] font-medium leading-none text-white"
 
-const pilotButtonClass =
-  "h-11 w-full shrink-0 rounded-[4px] border border-[#4e4e4e] bg-transparent text-sm font-medium text-[#141414] shadow-none hover:bg-[#141414]/5"
-
-const popularButtonClass =
-  "h-11 w-full shrink-0 rounded-[4px] bg-[#14a74a] text-sm font-medium text-white shadow-none hover:bg-[#14a74a]/90"
-
-const groupPrimaryButtonClass =
-  "h-auto min-h-0 rounded-[4px] bg-[#14a74a] px-[18px] py-3 text-sm font-medium leading-5 text-white shadow-none hover:bg-[#14a74a]/90"
-
 const groupSecondaryClass =
   "rounded-sm text-sm font-medium text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
-
-const groupContactButtonClass =
-  "h-11 w-[203px] shrink-0 rounded-[4px] border border-[#4e4e4e] bg-transparent text-sm font-medium text-[#141414] shadow-none hover:bg-[#141414]/5"
 
 function FeatureIcon({ icon }: { icon: PlanFeatureIcon }) {
   switch (icon) {
@@ -148,9 +137,13 @@ function PricingPlanCardView({
           </p>
         </div>
 
-        <Button asChild className={card.isMostPopular ? popularButtonClass : pilotButtonClass}>
+        <MarketingButton
+          asChild
+          variant={card.isMostPopular ? "primary" : "secondary"}
+          className="w-full shrink-0"
+        >
           <RequestTrialLink planIntent={planIntent}>{card.ctaLabel}</RequestTrialLink>
-        </Button>
+        </MarketingButton>
 
         <div className="flex flex-col gap-5.5">
           {card.coreFeatures.map((row) => (
@@ -178,13 +171,14 @@ type PricingHeroPlansProps = {
   onCadenceChange: (cadence: BillingCadence) => void
 }
 
-/** Figma Pricing hero + plan cards (`5139:4326` / mobile `4974:29544`). */
-export function PricingHeroPlans({
-  cadence,
-  onCadenceChange,
-}: PricingHeroPlansProps) {
-  return (
-    <section className="-mt-5 w-full bg-[#fafafa]">
+  /** Figma Pricing hero + plan cards (`5139:4326` / mobile `4974:29544`). */
+  export function PricingHeroPlans({
+    cadence,
+    onCadenceChange,
+  }: PricingHeroPlansProps) {
+    // Keep header chrome gap (`py-5`) so top radius reads on `#CBCBCB` — do not use `-mt-5`.
+    return (
+      <section className="w-full overflow-hidden rounded-tl-[8px] rounded-tr-[8px] bg-white">
       <div
         className={cn(
           "flex w-full flex-col gap-10",
@@ -276,7 +270,7 @@ export function PricingHeroPlans({
 
         <div
           id="for-groups"
-          className="order-2 flex scroll-mt-[180px] flex-col gap-8 rounded-[6px] bg-[#dfebe3] px-8 py-7 lg:order-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:bg-[#f3fff7] lg:px-10 lg:py-8"
+          className="order-2 flex scroll-mt-[180px] flex-col gap-8 rounded-[6px] bg-[#dfebe3] px-8 py-7 lg:order-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:rounded-[8px] lg:px-10 lg:py-8"
         >
           <div className="flex max-w-[720px] flex-col gap-[18px] lg:gap-3">
             <h2 className="m-0 font-jakarta text-[28px] font-medium leading-none text-[#141414]">
@@ -290,21 +284,24 @@ export function PricingHeroPlans({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-4">
-            <Button asChild className={cn(groupContactButtonClass, "lg:hidden")}>
+            <MarketingButton
+              asChild
+              variant="secondary"
+              className="w-[203px] shrink-0 lg:hidden"
+            >
               <Link to={PRICING_GROUP_BANNER.secondaryTo}>
                 {PRICING_GROUP_BANNER.secondaryLabel}
               </Link>
-            </Button>
-            <Button
+            </MarketingButton>
+            <MarketingButton
               asChild
-              className={cn(groupPrimaryButtonClass, "hidden lg:inline-flex")}
+              variant="primary"
+              className="hidden lg:inline-flex"
             >
-              <RequestTrialLink
-                planIntent={{ plan: "Group", cadence }}
-              >
+              <RequestTrialLink planIntent={{ plan: "Group", cadence }}>
                 {PRICING_GROUP_BANNER.primaryLabel}
               </RequestTrialLink>
-            </Button>
+            </MarketingButton>
             <Link
               to={PRICING_GROUP_BANNER.secondaryTo}
               className={cn(groupSecondaryClass, "hidden lg:inline")}

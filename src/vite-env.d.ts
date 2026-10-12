@@ -74,6 +74,8 @@ interface ImportMetaEnv {
   readonly VITE_APP_ENV?: string;
   readonly VITE_GA_MEASUREMENT_ID?: string;
   readonly VITE_TEAM_PERMISSIONS_MATRIX_EDIT?: string;
+  /** Public marketing media base (Azure Blob `marketing` container, no trailing slash). */
+  readonly VITE_MARKETING_MEDIA_BASE_URL?: string;
 }
 
 interface ImportMeta {

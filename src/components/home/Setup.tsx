@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button"
+import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import {
   marketingSectionBody,
@@ -23,7 +23,7 @@ function SetupCard({
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-[6px] border border-[#d2d2d2] bg-white">
       <div className="bg-[#f4f4f4] px-7.5 py-7.5">
-        <h3 className="m-0 text-[22px] font-bold leading-[normal] text-[#232323]">
+        <h3 className="m-0 text-[22px] font-bold leading-none text-[#232323]">
           {title}
         </h3>
       </div>
@@ -38,9 +38,9 @@ function SetupCard({
           </p>
         </div>
 
-        <Button variant="secondary" className="self-start" asChild>
+        <MarketingButton asChild variant="secondary" className="self-start">
           <RequestTrialLink>{buttonLabel}</RequestTrialLink>
-        </Button>
+        </MarketingButton>
       </div>
     </article>
   )

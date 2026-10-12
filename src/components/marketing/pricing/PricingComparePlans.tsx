@@ -1,10 +1,11 @@
+import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
-import { Button } from "@/components/ui/button"
 import {
   PRICING_COMPARE_HEADING,
   PRICING_COMPARISON_GROUPS,
   PRICING_PLAN_CARDS,
   PRICING_PLAN_IDS,
+  PRICING_SECTION_HEADING,
   PRICING_SECTION_INSET,
   PRICING_SECTION_Y,
   pricingCompareAnnualSubline,
@@ -13,12 +14,6 @@ import {
 } from "@/content/marketing/pricingPage"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
-
-const secondaryButtonClass =
-  "h-11 w-full rounded-[4px] border border-[#4e4e4e] bg-transparent text-sm font-medium text-[#141414] shadow-none hover:bg-[#141414]/5"
-
-const primaryButtonClass =
-  "h-11 w-full rounded-[4px] bg-[#14a74a] text-sm font-medium text-white shadow-none hover:bg-[#14a74a]/90"
 
 /**
  * Figma compare header (`5437:13879`): Feature 224px + four equal plan cols,
@@ -49,12 +44,12 @@ function ComparisonPlanHeader({
       )}
     >
       <div className="flex flex-col gap-[22px]">
-        <h3 className="m-0 font-jakarta text-xl font-[500] leading-normal text-[#141414]">
+        <h3 className="m-0 font-jakarta text-xl font-[500] leading-none text-[#141414]">
           {card.id}
         </h3>
         <div className="flex flex-col gap-2">
           <p className="m-0 flex flex-wrap items-baseline text-[#141414]">
-            <span className="font-jakarta text-[28px] font-[500] leading-normal">
+            <span className="font-jakarta text-[28px] font-[500] leading-none">
               {price.amount}
             </span>
             <span className="font-sans text-sm font-medium leading-normal">
@@ -66,9 +61,10 @@ function ComparisonPlanHeader({
           </p>
         </div>
       </div>
-      <Button
+      <MarketingButton
         asChild
-        className={card.isMostPopular ? primaryButtonClass : secondaryButtonClass}
+        variant={card.isMostPopular ? "primary" : "secondary"}
+        className="w-full"
       >
         <RequestTrialLink
           planIntent={
@@ -79,7 +75,7 @@ function ComparisonPlanHeader({
         >
           {card.ctaLabel}
         </RequestTrialLink>
-      </Button>
+      </MarketingButton>
     </div>
   )
 }
@@ -103,15 +99,16 @@ export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
           PRICING_SECTION_Y,
         )}
       >
-        <h2 className="m-0 font-jakarta text-[34px] font-[500] leading-normal text-black lg:text-[46px]">
+        <h2 className={cn("m-0", PRICING_SECTION_HEADING)}>
           {PRICING_COMPARE_HEADING}
         </h2>
 
-        <div className="-mx-5 overflow-x-auto rounded-[6px] sm:mx-0">
-          <div className="min-w-[960px] sm:min-w-0">
+        {/* Keep desktop column widths; smaller viewports scroll horizontally. */}
+        <div className="-mx-5 overflow-x-auto overscroll-x-contain rounded-[6px] sm:mx-0">
+          <div className="min-w-[960px]">
             {/* Plan header strip — Figma sticky `#f8f8f8` (`5437:13879`). */}
-            <div className="flex items-end gap-[22px] border-b border-[#e0e0e0] bg-[#f8f8f8] p-6">
-              <div className="flex w-[140px] shrink-0 items-center sm:w-[224px]">
+            <div className="flex items-end gap-[22px] bg-[#f8f8f8] p-6">
+              <div className="flex w-[224px] shrink-0 items-center">
                 <p className="m-0 text-lg font-semibold text-[#141414]">
                   Feature
                 </p>
@@ -133,7 +130,7 @@ export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
               {PRICING_COMPARISON_GROUPS.map((group) => (
                 <div key={group.id} className="flex flex-col">
                   <div className="flex min-h-12.5 items-start">
-                    <p className="m-0 w-[140px] shrink-0 text-base font-bold text-[#141414] sm:w-[224px]">
+                    <p className="m-0 w-[224px] shrink-0 text-base font-bold text-[#141414]">
                       {group.title}
                     </p>
                   </div>
@@ -142,7 +139,7 @@ export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
                       key={row.label}
                       className="flex min-h-12.5 items-start gap-[22px]"
                     >
-                      <p className="m-0 w-[140px] shrink-0 py-3.5 text-sm font-semibold text-[#141414] sm:w-[224px]">
+                      <p className="m-0 w-[224px] shrink-0 py-3.5 text-sm font-semibold text-[#141414]">
                         {row.label}
                       </p>
                       <div className="flex min-w-0 flex-1 gap-[22px]">

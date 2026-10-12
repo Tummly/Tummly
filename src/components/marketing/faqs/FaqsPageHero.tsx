@@ -12,7 +12,7 @@ type FaqsPageHeroProps = {
 
 /** Figma FAQ title metrics; family is *headline* Plus Jakarta Sans. */
 const faqHeroHeading =
-  "font-jakarta text-[36px] font-medium leading-10 tracking-normal lg:text-[66px] lg:leading-[74px]"
+  "font-jakarta text-[36px] font-medium leading-none tracking-normal lg:text-[66px] lg:leading-[74px]"
 
 /** Figma FAQ body: *functional* Helvetica Neue 18 / 24. */
 const faqHeroBody =

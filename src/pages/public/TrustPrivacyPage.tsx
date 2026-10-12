@@ -10,13 +10,11 @@ import {
   TRUST_PRIVACY_PROSE_SECTIONS,
   TRUST_PRIVACY_SIGN_UP_CTA,
 } from "@/content/marketing/trustPrivacyPage"
-import { warmCtaLaunchBg } from "@/lib/prefetchCtaLaunchBg"
+import { scheduleWarmSignUpCtaMedia } from "@/lib/prefetchSignUpCtaMedia"
 
 /** Figma Trust & privacy (`4974:26874`). */
 export default function TrustPrivacyPage() {
-  useEffect(() => {
-    warmCtaLaunchBg({ priority: true })
-  }, [])
+  useEffect(() => scheduleWarmSignUpCtaMedia(), [])
 
   return (
     <>

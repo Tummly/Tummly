@@ -1,9 +1,11 @@
 import type { ReactNode } from "react"
 import { Link } from "react-router-dom"
 
-import signupModalBackdrop from "@/assets/images/signup-modal-backdrop.png"
 import { MarketingLogo } from "@/components/marketing/MarketingLogo"
+import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
+
+const signupModalBackdrop = remoteSimpleUrl("signup/signup-modal-backdrop")
 
 type SignupModalShellProps = {
   children: ReactNode

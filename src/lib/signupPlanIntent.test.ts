@@ -24,6 +24,15 @@ describe("buildSignupPath", () => {
       buildSignupPath({ plan: "Starter", cadence: "annual" })
     ).toBe("/signup?plan=Starter&cadence=annual")
   })
+
+  it("appends email for marketing CTA handoff", () => {
+    expect(
+      buildSignupPath({ plan: "Pilot" }, { email: " ops@example.com " })
+    ).toBe("/signup?plan=Pilot&email=ops%40example.com")
+    expect(buildSignupPath(null, { email: "ops@example.com" })).toBe(
+      "/signup?email=ops%40example.com"
+    )
+  })
 })
 
 describe("parseSignupPlanIntent", () => {

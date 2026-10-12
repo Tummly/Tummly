@@ -12,17 +12,29 @@ const SIGNUP_PLAN_INTENT_KEY = "tummly.signupPlanIntent"
 
 const PAID_PLANS = new Set(["Starter", "Growth", "Group"])
 
-/** Build `/signup?plan=&cadence=` for Pricing / marketing CTAs. */
-export function buildSignupPath(intent?: SignupPlanIntent | null): string {
-  if (intent == null) {
-    return SIGNUP_PATH
-  }
+export type BuildSignupPathOptions = {
+  /** Prefills Work email on `/signup` so the visitor does not type it again. */
+  email?: string | null
+}
+
+/** Build `/signup?plan=&cadence=&email=` for Pricing / marketing CTAs. */
+export function buildSignupPath(
+  intent?: SignupPlanIntent | null,
+  options?: BuildSignupPathOptions,
+): string {
   const params = new URLSearchParams()
-  params.set("plan", intent.plan)
-  if (intent.plan !== "Pilot" && intent.cadence != null) {
-    params.set("cadence", intent.cadence)
+  if (intent != null) {
+    params.set("plan", intent.plan)
+    if (intent.plan !== "Pilot" && intent.cadence != null) {
+      params.set("cadence", intent.cadence)
+    }
   }
-  return `${SIGNUP_PATH}?${params.toString()}`
+  const email = options?.email?.trim()
+  if (email != null && email !== "") {
+    params.set("email", email)
+  }
+  const query = params.toString()
+  return query === "" ? SIGNUP_PATH : `${SIGNUP_PATH}?${query}`
 }
 
 export function parseSignupPlanIntent(

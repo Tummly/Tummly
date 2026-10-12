@@ -10,16 +10,14 @@ import {
   filterFaqsPageSections,
 } from "@/content/marketing/faqsPage"
 import { marketingChromeContentInset } from "@/lib/marketing-layout"
-import { warmCtaLaunchBg } from "@/lib/prefetchCtaLaunchBg"
+import { scheduleWarmSignUpCtaMedia } from "@/lib/prefetchSignUpCtaMedia"
 import { cn } from "@/lib/utils"
 
 export default function FaqsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const sections = filterFaqsPageSections(FAQS_PAGE_SECTIONS, searchQuery)
 
-  useEffect(() => {
-    warmCtaLaunchBg({ priority: true })
-  }, [])
+  useEffect(() => scheduleWarmSignUpCtaMedia(), [])
 
   return (
     <>

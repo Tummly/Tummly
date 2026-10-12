@@ -1,7 +1,9 @@
 import type { CSSProperties, ReactNode } from "react"
 
-import authHeroLogo from "@/assets/images/auth-hero-logo.png"
 import { topDecorationPicture } from "@/assets/guest-feedback-images"
+import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
+
+const authHeroLogo = remoteSimpleUrl("auth/auth-hero-logo")
 import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import {
   GUEST_PREVIEW_EMPTY_VALUE,
