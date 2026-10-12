@@ -64,8 +64,8 @@ function ImageWithCard({
         <CardTitle
           className={cn(
             isTrial
-              ? "text-lg leading-[normal] font-bold"
-              : "text-2xl leading-normal font-bold lg:text-2xl",
+              ? "text-lg font-bold leading-none"
+              : "text-2xl font-bold leading-none lg:text-2xl",
             isInverse ? "text-white" : "text-[#232323]"
           )}
         >

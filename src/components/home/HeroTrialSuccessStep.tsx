@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 
+import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { Button } from "@/components/ui/button"
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 
@@ -25,7 +26,7 @@ function HeroTrialSuccessStep({
     <div className="relative z-[2] flex min-h-full w-full flex-col text-[#232323]">
       <div className="flex flex-col gap-7 sm:gap-8 lg:gap-[34px]">
         <header className="flex flex-col gap-3 lg:gap-3">
-          <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-[normal] tracking-[-0.56px]">
+          <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-none tracking-[-0.56px]">
             Email verified
           </h2>
           <p className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] sm:text-base">
@@ -46,7 +47,7 @@ function HeroTrialSuccessStep({
         </header>
 
         <section className="flex flex-col gap-2">
-          <h3 className="m-0 text-base font-bold leading-[normal] tracking-[-0.32px]">
+          <h3 className="m-0 text-base font-bold leading-none tracking-[-0.32px]">
             What happens next
           </h3>
           <ol className="m-0 list-decimal pl-[21px] text-sm font-medium leading-[22px] tracking-[-0.28px]">
@@ -63,13 +64,14 @@ function HeroTrialSuccessStep({
       </div>
 
       <div className="mt-auto flex flex-col items-stretch gap-5 pt-7 sm:pt-8 lg:gap-[22px] lg:pt-[34px]">
-        <Button
+        <MarketingButton
           type="button"
+          variant="primary"
+          className="w-full"
           onClick={onReturnToTummly}
-          className="h-auto min-h-0 w-full rounded-[54px] border border-[rgba(20,162,71,0)] bg-[#14a247] px-5 py-[9px] text-base font-medium leading-5 text-white hover:bg-[#129641]"
         >
           Return to Tummly
-        </Button>
+        </MarketingButton>
 
         <p className="m-0 max-w-[327px] text-sm font-medium leading-5 text-[#232323]">
           Used the wrong email?{" "}

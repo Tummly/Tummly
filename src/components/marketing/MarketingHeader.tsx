@@ -2,11 +2,11 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { MenuIcon } from "lucide-react"
 
-import marketingArrowRight from "@/assets/svg/marketing-arrow-right.svg"
 import SignInLink from "@/components/auth/SignInLink"
 import { MarketingLogo } from "@/components/marketing/MarketingLogo"
 import { MarketingNavLink } from "@/components/marketing/MarketingNavLink"
 import { MarketingResourcesMenu } from "@/components/marketing/MarketingResourcesMenu"
+import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,29 +18,22 @@ import {
 } from "@/components/ui/sheet"
 import { HELP_CENTRE_URL } from "@/config/support"
 import {
+  MARKETING_DEMO_PATH,
   MARKETING_PRIMARY_NAV,
-  MARKETING_PRICING_PATH,
   MARKETING_RESOURCES_NAV,
 } from "@/constants/marketingNav"
 import {
   marketingChromeBackground,
-  marketingChromeContentInset,
-  marketingHeaderBannerGap,
   marketingHeaderChromePadding,
 } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
 import { useAuthStore } from "@/stores/authStore"
 
-const pilotButtonClass =
-  "h-auto min-h-0 w-auto rounded-[4px] bg-[#14a74a] px-[18px] py-3 text-sm font-medium leading-5 whitespace-nowrap text-white hover:bg-[#14a74a]/90"
+	const logInClass =
+  "rounded-sm px-[18px] py-2.5 text-sm font-medium leading-5 text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
 
-const logInClass =
-  "rounded-sm px-[18px] py-2.5 text-sm font-medium text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
-
-const forGroupsBannerClass =
-  "inline-flex items-center gap-2 rounded-[4px] text-xs font-medium leading-5 text-[#fafafa] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-
+/** Figma marketing Header (`5700:25213`): nav | centred logo | CTAs. */
 export default function MarketingHeader() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const navigate = useNavigate()
@@ -86,87 +79,62 @@ export default function MarketingHeader() {
         marketingHeaderChromePadding,
       )}
     >
-      <div className={cn("flex w-full flex-col", marketingHeaderBannerGap)}>
-        <div
-          className={cn(
-            "flex min-h-12 w-full flex-wrap items-center justify-center gap-x-[17px] gap-y-1 bg-[#141414] py-2",
-            marketingChromeContentInset,
-          )}
-        >
-          <p className="m-0 text-center text-sm text-[#f4f4f4]">
-            Planning a multi-Location rollout?
-          </p>
-          <Link to={MARKETING_PRICING_PATH} className={forGroupsBannerClass}>
-            See Tummly for groups
-            <img
-              src={marketingArrowRight}
-              alt=""
-              width={15}
-              height={10}
-              className="block size-auto h-2.5 w-[15px] shrink-0"
-              aria-hidden
+      <nav
+        aria-label="Main"
+        className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-4"
+      >
+        {/* Full nav needs ~xl; below that use the sheet so mid widths do not collide. */}
+        <div className="hidden min-w-0 items-center gap-6 xl:flex xl:gap-9">
+          {MARKETING_PRIMARY_NAV.map((item) => (
+            <MarketingNavLink
+              key={item.id}
+              label={item.label}
+              href={item.href}
+              className="shrink-0 whitespace-nowrap text-sm"
             />
-          </Link>
+          ))}
+          <MarketingResourcesMenu />
         </div>
 
-        <div className="w-full bg-[#fafafa]">
-          <nav
-            aria-label="Main"
-            className={cn(
-              "flex h-[78px] w-full items-center justify-between gap-4",
-              marketingChromeContentInset,
-            )}
-          >
-          <div className="flex min-w-0 items-center gap-6 lg:gap-[42px]">
-            <Link
-              to={homePath}
-              className="shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
-            >
-              <MarketingLogo className="max-w-[min(118px,40vw)]" />
-            </Link>
+        <div className="flex xl:hidden" />
 
-            <div className="hidden items-center gap-9 lg:flex">
-              {MARKETING_PRIMARY_NAV.map((item) => (
-                <MarketingNavLink
-                  key={item.id}
-                  label={item.label}
-                  href={item.href}
-                  className="text-sm"
-                />
-              ))}
-              <MarketingResourcesMenu />
-            </div>
-          </div>
+        <Link
+          to={homePath}
+          className="justify-self-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
+        >
+          <MarketingLogo className="max-w-[min(118px,40vw)]" />
+        </Link>
 
-          <div className="hidden items-center gap-3 lg:flex">
+        <div className="flex items-center justify-end justify-self-end">
+          <div className="hidden items-center gap-3 xl:flex">
             {isSignedIn ? (
               <>
                 {role === "USER" ? (
-                  <Link
-                    to={HELP_CENTRE_URL}
-                    className={logInClass}
-                  >
+                  <Link to={HELP_CENTRE_URL} className={logInClass}>
                     Help
                   </Link>
                 ) : null}
-                <Button
+                <MarketingButton
                   variant="secondary"
+                  showArrow={false}
                   onClick={handleLogout}
-                  className="h-[44px] min-h-0 rounded-[4px] px-[18px] text-sm"
                 >
                   Log out
-                </Button>
+                </MarketingButton>
               </>
             ) : (
               <>
-                <SignInLink to="/login" className={logInClass}>
+                <SignInLink to="/login" className={cn(logInClass, "shrink-0")}>
                   Log in
                 </SignInLink>
-                <Button asChild className={pilotButtonClass}>
+                <MarketingButton asChild variant="secondary">
+                  <Link to={MARKETING_DEMO_PATH}>Try demo</Link>
+                </MarketingButton>
+                <MarketingButton asChild variant="primary">
                   <RequestTrialLink planIntent={{ plan: "Pilot" }}>
-                    Start 30 day Pilot
+                    Start 30-day Pilot
                   </RequestTrialLink>
-                </Button>
+                </MarketingButton>
               </>
             )}
           </div>
@@ -177,7 +145,7 @@ export default function MarketingHeader() {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="lg:hidden"
+                className="xl:hidden"
                 aria-label="Open menu"
               >
                 <MenuIcon className="size-5" />
@@ -229,16 +197,17 @@ export default function MarketingHeader() {
                           Help
                         </Link>
                       ) : null}
-                      <Button
+                      <MarketingButton
                         variant="secondary"
-                        className="rounded-[4px]"
+                        showArrow={false}
+                        className="w-full"
                         onClick={() => {
                           closeMobile()
                           handleLogout()
                         }}
                       >
                         Log out
-                      </Button>
+                      </MarketingButton>
                     </>
                   ) : (
                     <>
@@ -249,23 +218,35 @@ export default function MarketingHeader() {
                       >
                         Log in
                       </SignInLink>
-                      <Button asChild className={cn(pilotButtonClass, "w-full")}>
+                      <MarketingButton
+                        asChild
+                        variant="secondary"
+                        className="w-full"
+                      >
+                        <Link to={MARKETING_DEMO_PATH} onClick={closeMobile}>
+                          Try demo
+                        </Link>
+                      </MarketingButton>
+                      <MarketingButton
+                        asChild
+                        variant="primary"
+                        className="w-full"
+                      >
                         <RequestTrialLink
                           planIntent={{ plan: "Pilot" }}
                           onClick={closeMobile}
                         >
-                          Start 30 day Pilot
+                          Start 30-day Pilot
                         </RequestTrialLink>
-                      </Button>
+                      </MarketingButton>
                     </>
                   )}
                 </div>
               </div>
             </SheetContent>
           </Sheet>
-        </nav>
         </div>
-      </div>
+      </nav>
     </header>
   )
 }

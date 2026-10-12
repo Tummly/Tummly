@@ -35,7 +35,7 @@ function ServiceItem({ icon, title, description }: ServiceItemProps) {
       </div>
 
       <div className="flex w-full flex-col gap-3.5 wrap-break-word">
-        <h3 className="m-0 text-lg font-bold leading-[normal] text-black">
+        <h3 className="m-0 text-lg font-bold leading-none text-black">
           {title}
         </h3>
         <p className="m-0 text-sm font-normal leading-5 text-black">

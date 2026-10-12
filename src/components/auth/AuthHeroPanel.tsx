@@ -1,6 +1,8 @@
-import authHeadlineBrush from "@/assets/images/auth-headline-brush.png"
 import { authSignInPanelPicture } from "@/assets/critical-images/auth-sign-in-panel"
 import OptimizedImage from "@/components/media/OptimizedImage"
+import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
+
+const authHeadlineBrush = remoteSimpleUrl("auth/auth-headline-brush")
 
 /** Figma Sign in panel `5017:1573` — bottom fade over lifestyle photo */
 const AUTH_HERO_GRADIENT =

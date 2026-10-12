@@ -26,13 +26,13 @@ export const FAQS_PAGE_HERO = {
   searchPlaceholder: "Search Tummly FAQs",
 } as const
 
-/** Figma FAQ Sign up CTA (`4974:26424`). */
+/** Figma FAQ Sign up CTA (`5661:14510` / `4151:3811`). */
 export const FAQS_PAGE_SIGN_UP_CTA = {
   title: "Ready to see Guest Loop in a real restaurant?",
   body: "Start with one Location and see how Guest Loop works with real guests.",
   primaryLabel: "Start 30-day Pilot",
-  secondaryLabel: "See pricing",
-  badge: "1 verified Location · No payment card required",
+  badge: "No payment card required",
+  planIntent: { plan: "Pilot" as const },
 } as const
 
 /**

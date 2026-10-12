@@ -155,7 +155,7 @@ export default function HelpCentreContactPage() {
       panel={
         <>
           <header className="flex flex-col gap-[18px]">
-            <h2 className="m-0 font-jakarta text-[30px] font-medium leading-normal text-black lg:text-[54px]">
+            <h2 className="m-0 font-jakarta text-[30px] font-medium leading-none text-black lg:text-[54px]">
               How can we help?
             </h2>
             <p className="m-0 max-w-[590px] text-base leading-[22px] text-[#141414] lg:text-lg lg:leading-6">

@@ -44,6 +44,7 @@ import AcceptableUsePage from "../public/AcceptableUsePage";
 import ShopPrintTermsPage from "../public/ShopPrintTermsPage";
 import FaqsPage from "../public/FaqsPage";
 import PricingPage from "../public/PricingPage";
+import AiAssistantPage from "../public/AiAssistantPage";
 import TrustPrivacyPage from "../public/TrustPrivacyPage";
 import UnsubscribePage from "../public/UnsubscribePage";
 import NotFoundPage from "../public/NotFoundPage";
@@ -582,6 +583,7 @@ function AppRoutes() {
           <Route path="shop-print-terms" element={<ShopPrintTermsPage />} />
           <Route path="faqs" element={<FaqsPage />} />
           <Route path="pricing" element={<PricingPage />} />
+          <Route path="ai-assistant" element={<AiAssistantPage />} />
           <Route path="trust-privacy" element={<TrustPrivacyPage />} />
           <Route path="unsubscribe" element={<UnsubscribePage />} />
 

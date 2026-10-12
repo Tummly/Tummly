@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 /** Page chrome / gutters behind marketing header and footer (Figma Home). */
 export const marketingChromeBackground = "bg-[#CBCBCB]";
 
-/** Outer padding around the sticky header stack (banner + nav). */
-export const marketingHeaderChromePadding = "p-5";
+/** Outer padding around the sticky header (Figma Header `5700:25213`: 30 / 20). */
+export const marketingHeaderChromePadding = "px-[30px] py-5";
 
 /**
  * Horizontal gutters for marketing page body (Home, legal, Help Centre, etc.).
@@ -12,11 +12,8 @@ export const marketingHeaderChromePadding = "p-5";
  */
 export const marketingBodyChromePadding = "px-5";
 
-/** Space between the top banner and the main nav bar. */
-export const marketingHeaderBannerGap = "gap-3";
-
 /**
- * Inner L/R padding for marketing header banner/nav and footer links (Figma: 60px).
+ * Inner L/R padding for marketing page heroes and footer links (Figma: 60px).
  */
 export const marketingChromeContentInset = "px-[60px]";
 
@@ -71,17 +68,17 @@ export function marketingCarouselItemClassCompact(index: number, slideCount: num
 /** Shared vertical section padding for marketing homepage blocks. */
 export const marketingSectionPadding = "py-12 sm:py-16 lg:py-22.5";
 
-/** Section H2: *headline* Jakarta; 34px below `lg`; fluid scale at `lg+`. */
+/** Section H2: *headline* Jakarta; 34px below `lg`; fluid scale at `lg+`. Figma line-height 1. */
 export const marketingSectionHeading =
-  "font-jakarta text-[34px] font-bold leading-[normal] text-[#232323] lg:text-[clamp(1.75rem,4vw,2.625rem)]";
+  "font-jakarta text-[34px] font-bold leading-none text-[#232323] lg:text-[clamp(1.75rem,4vw,2.625rem)]";
 
 /** Section body: *functional* Helvetica Neue; 16px / 22px below `lg`; desktop scale at `lg+`. */
 export const marketingSectionBody =
   "font-sans text-base font-medium leading-[22px] text-[#232323] lg:text-[17px] lg:leading-6.5 lg:text-lg";
 
-/** Hero H1 — *headline* Plus Jakarta Sans. */
+/** Hero H1 — *headline* Plus Jakarta Sans. Figma line-height 1. */
 export const marketingHeroHeading =
-  "font-jakarta text-[36px] font-bold leading-[normal] lg:text-[46px]";
+  "font-jakarta text-[36px] font-bold leading-none lg:text-[46px]";
 
 /** Hero body — *functional* Helvetica Neue. */
 export const marketingHeroBody =

@@ -54,6 +54,24 @@ function SignupPage() {
   }, [searchParams])
 
   useEffect(() => {
+    const emailFromQuery = searchParams.get("email")?.trim()
+    if (emailFromQuery == null || emailFromQuery === "") {
+      return
+    }
+
+    form.setValue("email", emailFromQuery, {
+      shouldDirty: true,
+      shouldTouch: true,
+    })
+
+    const next = new URLSearchParams(searchParams)
+    next.delete("email")
+    setSearchParams(next, { replace: true })
+    // Intentional: prefill once from marketing CTA, then strip email from the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot prefill
+  }, [])
+
+  useEffect(() => {
     const oauthError = searchParams.get("oauthError")
     const oauthMessage = searchParams.get("oauthMessage")
     const stashed = peekOAuthErrorMessage("signup")

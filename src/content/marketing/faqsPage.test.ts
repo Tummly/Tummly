@@ -20,8 +20,8 @@ describe("faqsPage content", () => {
       "Ready to see Guest Loop in a real restaurant?",
     )
     expect(FAQS_PAGE_SIGN_UP_CTA.primaryLabel).toBe("Start 30-day Pilot")
-    expect(FAQS_PAGE_SIGN_UP_CTA.secondaryLabel).toBe("See pricing")
-    expect(FAQS_PAGE_SIGN_UP_CTA.badge).toContain("No payment card required")
+    expect(FAQS_PAGE_SIGN_UP_CTA.badge).toBe("No payment card required")
+    expect(FAQS_PAGE_SIGN_UP_CTA.planIntent).toEqual({ plan: "Pilot" })
   })
 
   it("has exactly seven sections matching Figma order", () => {

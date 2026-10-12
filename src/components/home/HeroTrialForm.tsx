@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 
 import heroFormAccent from "@/assets/svg/hero-form-accent.svg"
 import SignInLink from "@/components/auth/SignInLink"
+import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { Button } from "@/components/ui/button"
 
 /**
@@ -48,7 +49,7 @@ function HeroTrialForm() {
 
       <div className="relative z-[2] flex w-full flex-col">
         <header className="mb-7 flex flex-col gap-3 text-[#232323] sm:mb-8 lg:mb-[34px] lg:gap-3">
-          <h2 className="m-0 text-[26px] font-bold leading-[normal] tracking-[-0.56px] lg:text-[clamp(1.375rem,3vw,1.75rem)]">
+          <h2 className="m-0 text-[26px] font-bold leading-none tracking-[-0.56px] lg:text-[clamp(1.375rem,3vw,1.75rem)]">
             Create your Tummly account
           </h2>
           <p className="m-0 text-base font-medium leading-[21px] tracking-[-0.32px]">
@@ -58,12 +59,9 @@ function HeroTrialForm() {
         </header>
 
         <div className="mt-auto flex flex-col items-center gap-5 pt-2 lg:gap-[22px]">
-          <Button
-            asChild
-            className="h-auto min-h-0 w-full rounded-[54px] border border-[rgba(20,162,71,0)] bg-[#14a247] px-[17px] py-[13px] text-base leading-5 text-white hover:bg-[#129641]"
-          >
+          <MarketingButton asChild variant="primary" className="w-full">
             <Link to="/signup">Sign up</Link>
-          </Button>
+          </MarketingButton>
 
           <p className="m-0 flex flex-wrap items-center justify-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">
             <span>Already have an account?</span>

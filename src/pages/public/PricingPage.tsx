@@ -12,15 +12,13 @@ import {
   PRICING_SIGN_UP_CTA,
 } from "@/content/marketing/pricingPage"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
-import { warmCtaLaunchBg } from "@/lib/prefetchCtaLaunchBg"
+import { scheduleWarmSignUpCtaMedia } from "@/lib/prefetchSignUpCtaMedia"
 
 /** Figma marketing Pricing (`4974:29048`). */
 export default function PricingPage() {
   const [cadence, setCadence] = useState<BillingCadence>("monthly")
 
-  useEffect(() => {
-    warmCtaLaunchBg({ priority: true })
-  }, [])
+  useEffect(() => scheduleWarmSignUpCtaMedia(), [])
 
   return (
     <>

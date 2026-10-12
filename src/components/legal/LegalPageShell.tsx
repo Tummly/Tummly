@@ -8,6 +8,7 @@ import { DownloadIcon } from "lucide-react"
 
 import { downloadLegalDocument } from "@/api/legalDocumentsApi"
 import { CookieSettingsTrigger } from "@/components/common/CookieSettingsDialog"
+import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { MarketingSignUpCta } from "@/components/marketing/MarketingSignUpCta"
 import { LegalRelatedLinks } from "@/components/legal/LegalRelatedLinks"
 import {
@@ -16,26 +17,25 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { Button } from "@/components/ui/button"
 import { LEGAL_SIGN_UP_CTA } from "@/content/legal/legalSignUpCta"
 import type { LegalPageContent, LegalSection } from "@/content/legal/types"
 import { marketingChromeContentInset } from "@/lib/marketing-layout"
-import { warmCtaLaunchBg } from "@/lib/prefetchCtaLaunchBg"
+import { scheduleWarmSignUpCtaMedia } from "@/lib/prefetchSignUpCtaMedia"
 import { cn } from "@/lib/utils"
 
 import marketingArrowRight from "@/assets/svg/marketing-arrow-right.svg"
 
 /**
- * Clear the sticky marketing header (chrome pad + banner + gap + nav).
+ * Clear the sticky marketing header (chrome pad + nav; Figma `5700:25213` ≈ 86px).
  * Too small a value parks the TOC under the header so the top items look cut off.
  */
-const MARKETING_HEADER_STICKY_OFFSET_PX = 180
-const stickyTopClass = "lg:top-[180px]"
-const stickyMaxHeightClass = "lg:max-h-[calc(100vh-12.5rem)]"
-const sectionScrollMarginClass = "scroll-mt-[180px]"
+const MARKETING_HEADER_STICKY_OFFSET_PX = 100
+const stickyTopClass = "lg:top-[100px]"
+const stickyMaxHeightClass = "lg:max-h-[calc(100vh-6.25rem)]"
+const sectionScrollMarginClass = "scroll-mt-[100px]"
 
 const heroHeading =
-  "font-jakarta text-[36px] font-medium leading-10 tracking-normal lg:text-[66px] lg:leading-[74px]"
+  "font-jakarta text-[36px] font-medium leading-none tracking-normal lg:text-[66px] lg:leading-[74px]"
 
 const heroMeta =
   "text-base font-medium leading-[22px] tracking-normal lg:text-[18px] lg:leading-6"
@@ -44,7 +44,7 @@ const heroBody =
   "text-base font-normal leading-[22px] tracking-normal lg:text-[18px] lg:leading-6"
 
 const sectionHeading =
-  "text-[24px] font-medium leading-normal text-[#141414] lg:text-[28px]"
+  "text-[24px] font-medium leading-none text-[#141414] lg:text-[28px]"
 
 const sectionBody =
   "flex flex-col gap-3 text-base leading-[22px] text-[#141414] lg:text-[18px] lg:leading-6 [&_h4]:m-0 [&_h4]:pt-3 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:leading-6 [&_h4:first-child]:pt-0 [&_li]:ms-6 [&_li]:list-item [&_p]:m-0 [&_ul]:m-0 [&_ul]:list-disc [&_ul]:ps-6"
@@ -165,9 +165,7 @@ export function LegalPageShell({ content }: LegalPageShellProps) {
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
-  useEffect(() => {
-    warmCtaLaunchBg({ priority: true })
-  }, [])
+  useEffect(() => scheduleWarmSignUpCtaMedia(), [])
 
   const closeMobileToc = useCallback(() => {
     setMobileTocValue(undefined)
@@ -292,16 +290,16 @@ export function LegalPageShell({ content }: LegalPageShellProps) {
 
             {documentKey ? (
               <div className="flex flex-col items-start gap-2">
-                <Button
+                <MarketingButton
                   type="button"
-                  variant="outline"
-                  size="responsive"
+                  variant="secondary"
+                  showArrow={false}
                   onClick={handleDownload}
                   disabled={isDownloading}
                 >
-                  <DownloadIcon data-icon="inline-start" />
+                  <DownloadIcon className="size-4 shrink-0" aria-hidden />
                   {isDownloading ? "Downloading…" : "Download document"}
-                </Button>
+                </MarketingButton>
                 {downloadError ? (
                   <p role="alert" className="m-0 text-sm text-destructive">
                     {downloadError}

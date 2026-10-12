@@ -24,6 +24,15 @@ export type MarketingNavItem = {
 export const MARKETING_FAQS_HASH = "#faqs"
 export const MARKETING_FAQS_PATH = "/faqs"
 export const MARKETING_TRUST_PRIVACY_PATH = "/trust-privacy"
+export const MARKETING_AI_ASSISTANT_PATH = "/ai-assistant"
+
+/** Demo product page — page ships later. */
+export const MARKETING_DEMO_PATH = "/demo-product"
+
+export const MARKETING_DEMO_HREF: MarketingNavHref = {
+  kind: "route",
+  to: MARKETING_DEMO_PATH,
+}
 
 export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
   { id: "product", label: "Product", href: { kind: "placeholder" } },
@@ -42,7 +51,11 @@ export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
 ]
 
 export const MARKETING_RESOURCES_NAV: MarketingNavItem[] = [
-  { id: "ai-assistant", label: "AI Assistant", href: { kind: "placeholder" } },
+  {
+    id: "ai-assistant",
+    label: "AI Assistant",
+    href: { kind: "route", to: MARKETING_AI_ASSISTANT_PATH },
+  },
   {
     id: "trust-privacy",
     label: "Trust & privacy",
@@ -68,7 +81,12 @@ export const MARKETING_FOOTER_PRODUCT: MarketingNavItem[] = [
     label: "Pricing",
     href: { kind: "route", to: MARKETING_PRICING_PATH },
   },
-  { id: "ai-assistant", label: "AI Assistant", href: { kind: "placeholder" } },
+  {
+    id: "ai-assistant",
+    label: "AI Assistant",
+    href: { kind: "route", to: MARKETING_AI_ASSISTANT_PATH },
+  },
+  { id: "try-demo", label: "Try demo", href: MARKETING_DEMO_HREF },
 ]
 
 export const MARKETING_FOOTER_RESTAURANTS: MarketingNavItem[] = [
@@ -144,7 +162,7 @@ export const MARKETING_FOOTER_COMPANY: MarketingNavItem[] = [
 
 export const MARKETING_FOOTER_SOCIAL: MarketingNavItem[] = [
   { id: "instagram", label: "Instagram", href: { kind: "placeholder" } },
-  { id: "tiktok", label: "TikTok", href: { kind: "placeholder" } },
+  { id: "linkedin", label: "LinkedIn", href: { kind: "placeholder" } },
   { id: "x", label: "X", href: { kind: "placeholder" } },
   { id: "facebook", label: "Facebook", href: { kind: "placeholder" } },
 ]
@@ -168,3 +186,64 @@ export const MARKETING_FOOTER_COLUMNS = [
     items: MARKETING_FOOTER_SOCIAL,
   },
 ] as const
+
+export const MARKETING_FOOTER_BOTTOM_LINKS: MarketingNavItem[] = [
+  {
+    id: "privacy",
+    label: "Privacy",
+    href: { kind: "route", to: LEGAL_ROUTES.privacy },
+  },
+  {
+    id: "cookies",
+    label: "Cookies",
+    href: { kind: "route", to: LEGAL_ROUTES.cookiePolicy },
+  },
+  {
+    id: "terms",
+    label: "Terms",
+    href: { kind: "route", to: LEGAL_ROUTES.terms },
+  },
+]
+
+export type MarketingTrustCredential = {
+  id: string
+  title: string
+  linkLabel: string
+  href: MarketingNavHref
+}
+
+/** “Built with trust in mind” credentials (Figma footer). */
+export const MARKETING_FOOTER_TRUST_CREDENTIALS: MarketingTrustCredential[] = [
+  {
+    id: "ico-registration",
+    title: "ICO Data Protection Registration",
+    linkLabel: "View registration",
+    href: { kind: "placeholder" },
+  },
+  {
+    id: "ico-essentials",
+    title: "ICO Data Protection Essentials",
+    linkLabel: "View record",
+    href: { kind: "placeholder" },
+  },
+  {
+    id: "cyber-essentials",
+    title: "Cyber Essentials",
+    linkLabel: "View certificate",
+    href: { kind: "placeholder" },
+  },
+  {
+    id: "cyber-essentials-plus",
+    title: "Cyber Essentials Plus",
+    linkLabel: "View certificate",
+    href: { kind: "placeholder" },
+  },
+  {
+    id: "iso-27001",
+    title: "ISO/IEC 27001",
+    linkLabel: "View certification",
+    href: { kind: "placeholder" },
+  },
+]
+
+export const MARKETING_FOOTER_FHH_URL = "https://fhh.group"

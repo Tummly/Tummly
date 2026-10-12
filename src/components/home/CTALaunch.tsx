@@ -1,6 +1,7 @@
 import SignInLink from "@/components/auth/SignInLink"
 
 import { ctaLaunchBgPicture } from "@/assets/marketing-images"
+import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import OptimizedImage from "@/components/media/OptimizedImage"
 import { Button } from "@/components/ui/button"
@@ -76,14 +77,9 @@ function CTALaunch() {
 
           <div className="flex flex-col gap-3">
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:flex-wrap sm:items-center">
-              <Button
-                variant="cta"
-                size="responsive"
-                asChild
-                className="shadow-none hover:bg-white/95"
-              >
+              <MarketingButton asChild variant="primary">
                 <RequestTrialLink>Sign up</RequestTrialLink>
-              </Button>
+              </MarketingButton>
 
               <p className="m-0 text-sm font-medium leading-[normal] text-white lg:text-base">
                 Already have an account?{" "}

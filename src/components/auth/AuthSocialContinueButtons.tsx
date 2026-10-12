@@ -7,7 +7,11 @@ import { cn } from "@/lib/utils"
 type AuthSocialContinueButtonsProps = {
   /** `stack` matches Sign-in; `row` matches Signup Figma side-by-side. */
   layout?: "stack" | "row"
+  /** `dark` matches marketing Sign up CTA on photo/video. */
+  tone?: "light" | "dark"
   returnPath: string
+  /** Runs before the browser leaves for the provider (e.g. stash plan intent). */
+  onBeforeStart?: () => void
 }
 
 /**
@@ -15,9 +19,25 @@ type AuthSocialContinueButtonsProps = {
  */
 export function AuthSocialContinueButtons({
   layout = "stack",
+  tone = "light",
   returnPath,
+  onBeforeStart,
 }: AuthSocialContinueButtonsProps) {
   const isRow = layout === "row"
+  const isDark = tone === "dark"
+
+  const buttonClass = cn(
+    "h-11 min-h-11 gap-3 border-[#4e4e4e] bg-transparent px-[19px] py-[13px] text-sm font-medium leading-5",
+    isDark
+      ? "rounded-[8px] text-white hover:bg-white/8"
+      : "rounded-[4px] text-[#141414] hover:bg-[#f5f5f5]",
+    isRow ? "w-full flex-1 sm:min-w-0" : "w-full",
+  )
+
+  const start = (provider: "google" | "microsoft") => {
+    onBeforeStart?.()
+    window.location.assign(buildExternalAuthStartUrl(provider, returnPath))
+  }
 
   return (
     <div
@@ -25,21 +45,14 @@ export function AuthSocialContinueButtons({
         "flex w-full",
         isRow
           ? "flex-col gap-2.5 sm:flex-row sm:items-start sm:gap-2.5"
-          : "flex-col items-center gap-2.5"
+          : "flex-col items-center gap-2.5",
       )}
     >
       <Button
         type="button"
         variant="outline"
-        className={cn(
-          "h-11 min-h-11 gap-3 rounded-[4px] border-[#4e4e4e] bg-transparent px-[19px] py-[13px] text-sm font-medium leading-5 text-[#141414] hover:bg-[#f5f5f5]",
-          isRow ? "w-full flex-1 sm:min-w-0" : "w-full"
-        )}
-        onClick={() => {
-          window.location.assign(
-            buildExternalAuthStartUrl("google", returnPath)
-          )
-        }}
+        className={buttonClass}
+        onClick={() => start("google")}
       >
         Continue with Google
         <img
@@ -54,15 +67,8 @@ export function AuthSocialContinueButtons({
       <Button
         type="button"
         variant="outline"
-        className={cn(
-          "h-11 min-h-11 gap-3 rounded-[4px] border-[#4e4e4e] bg-transparent px-[19px] py-[13px] text-sm font-medium leading-5 text-[#141414] hover:bg-[#f5f5f5]",
-          isRow ? "w-full flex-1 sm:min-w-0" : "w-full"
-        )}
-        onClick={() => {
-          window.location.assign(
-            buildExternalAuthStartUrl("microsoft", returnPath)
-          )
-        }}
+        className={buttonClass}
+        onClick={() => start("microsoft")}
       >
         Continue with Microsoft
         <img

@@ -5,14 +5,17 @@ import type {
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { MANAGE_PLAN_IDS } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
-import {
-  MARKETING_FAQS_PATH,
-  MARKETING_PRICING_PATH,
-} from "@/constants/marketingNav"
+import { MARKETING_FAQS_PATH } from "@/constants/marketingNav"
+import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
 
-import counterCardImage from "@/assets/images/marketing/pricing/counter-card.png"
-import tableTentImage from "@/assets/images/marketing/pricing/table-tent.png"
-import windowStickerImage from "@/assets/images/marketing/pricing/window-sticker.png"
+const qrFeaturedGuestCardsImage = remoteSimpleUrl(
+  "pricing/qr-featured-guest-cards",
+)
+const qrPeek01Image = remoteSimpleUrl("pricing/qr-peek-01")
+const qrPeek02Image = remoteSimpleUrl("pricing/qr-peek-02")
+const qrPeek04Image = remoteSimpleUrl("pricing/qr-peek-04")
+const qrPeek05Image = remoteSimpleUrl("pricing/qr-peek-05")
+const qrPeek06Image = remoteSimpleUrl("pricing/qr-peek-06")
 
 export type PricingPlanId = ManagePlanId
 
@@ -223,11 +226,11 @@ export const PRICING_SECTION_Y = "py-12.5 lg:py-[70px]"
  * Do not compose with `marketingSectionHeading` (that token is Bold).
  */
 export const PRICING_SECTION_HEADING =
-  "font-jakarta text-[34px] font-[500] leading-normal text-black lg:text-[46px]"
+  "font-jakarta text-[34px] font-[500] leading-none text-black lg:text-[46px]"
 
 /** Pricing hero H1 — Jakarta Medium 66/74 desktop (Figma `5437:13643`). */
 export const PRICING_HERO_HEADING =
-  "font-jakarta text-[34px] font-[500] leading-normal text-[#141414] lg:text-[66px] lg:leading-[74px]"
+  "font-jakarta text-[34px] font-[500] leading-none text-[#141414] lg:text-[66px] lg:leading-[74px]"
 
 /** Pricing body — *functional* Helvetica Neue Regular 18/24. */
 export const PRICING_SECTION_BODY =
@@ -495,33 +498,57 @@ export const PRICING_QR_MATERIALS = {
   ],
   ctaLabel: "See QR materials",
   ctaTo: MARKETING_FAQS_PATH,
-  products: [
+  /** Shared overlay copy for every expanded strip panel. */
+  cardTitle: "QR Guest Cards",
+  cardDescription:
+    "Put QR Guest Cards into the moments you already hand to guests.",
+  /** Figma peek strip (`5880:19364`) — default expanded slide is index 2. */
+  slides: [
     {
-      id: "counter-card",
-      image: counterCardImage,
-      imageAlt: "Tummly counter cards with QR codes and guest offers",
+      id: "peek-01",
+      image: qrPeek01Image,
+      imageAlt: "Tummly table tent with QR code on a restaurant table",
+      featured: false,
     },
     {
-      id: "table-tent",
-      image: tableTentImage,
-      imageAlt: "Tummly table tent with QR code for private feedback",
+      id: "peek-02",
+      image: qrPeek02Image,
+      imageAlt: "Tummly QR materials beside takeaway packaging",
+      featured: false,
     },
     {
-      id: "window-sticker",
-      image: windowStickerImage,
-      imageAlt: "Tummly window sticker inviting guests to share feedback",
+      id: "guest-cards",
+      image: qrFeaturedGuestCardsImage,
+      imageAlt: "Hand holding a Tummly QR Guest Card offer",
+      featured: true,
+    },
+    {
+      id: "peek-04",
+      image: qrPeek04Image,
+      imageAlt: "Takeaway bag sealed with a Tummly QR sticker",
+      featured: false,
+    },
+    {
+      id: "peek-05",
+      image: qrPeek05Image,
+      imageAlt: "Burger packaging with a Tummly QR Guest Card",
+      featured: false,
+    },
+    {
+      id: "peek-06",
+      image: qrPeek06Image,
+      imageAlt: "Paper bags sealed with green Tummly QR stickers",
+      featured: false,
     },
   ],
 } as const
 
-/** Figma Pricing Sign up CTA (`4974:29531`). */
+/** Figma Pricing Sign up CTA (`5661:14510` / `4151:3811`). */
 export const PRICING_SIGN_UP_CTA = {
   title: "Ready to see Guest Loop in a real restaurant?",
   body: "Start with one Location and see how Guest Loop works with real guests.",
   primaryLabel: "Start 30-day Pilot",
-  secondaryLabel: "See pricing",
-  secondaryTo: MARKETING_PRICING_PATH,
-  badge: "1 verified Location · No payment card required",
+  badge: "No payment card required",
   planIntent: { plan: "Pilot" as const },
 } as const
 
