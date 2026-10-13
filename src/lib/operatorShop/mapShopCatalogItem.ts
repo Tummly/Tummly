@@ -1,24 +1,16 @@
-import tummlyBagImg from "@/assets/images/shop/tummly-bag.png"
 import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
 import type {
   ShopCatalogDetailWire,
   ShopCatalogListItemWire,
   ShopProduct,
 } from "@/lib/operatorShop/shopCatalogTypes"
-
-const SHOP_IMAGE_BY_URL: Record<string, string> = {
-  "/assets/images/shop/tummly-sticker.png": tummlyStickerImg,
-  "/assets/images/shop/tummly-bag.png": tummlyBagImg,
-}
-
-function resolveImageSrc(imageUrl: string): string {
-  return SHOP_IMAGE_BY_URL[imageUrl] ?? imageUrl
-}
+import { resolveShopCatalogImageSrcs } from "@/lib/operatorShop/resolveShopCatalogImageSrc"
 
 function mapListItemToProduct(
   item: ShopCatalogListItemWire,
   catalogVersion: string
 ): ShopProduct {
+  const imageSrcs = resolveShopCatalogImageSrcs(item.imageUrls, item.imageUrl)
   return {
     id: item.skuId,
     title: item.title,
@@ -35,7 +27,11 @@ function mapListItemToProduct(
     mintOnShopFulfilment: false,
     isPlanIncluded: item.isPlanIncluded === true ? true : undefined,
     popularBadge: item.popularBadge ?? undefined,
-    imageSrc: resolveImageSrc(item.imageUrl),
+    tags: item.tags ?? [],
+    imageSrc: imageSrcs[0] ?? tummlyStickerImg,
+    imageSrcs,
+    aboutBody: "",
+    specifications: [],
   }
 }
 
@@ -47,6 +43,7 @@ export function mapShopCatalogListResponse(
 }
 
 export function mapShopCatalogDetail(item: ShopCatalogDetailWire): ShopProduct {
+  const imageSrcs = resolveShopCatalogImageSrcs(item.imageUrls, item.imageUrl)
   return {
     id: item.skuId,
     title: item.title,
@@ -63,6 +60,10 @@ export function mapShopCatalogDetail(item: ShopCatalogDetailWire): ShopProduct {
     mintOnShopFulfilment: item.mintOnShopFulfilment,
     isPlanIncluded: item.isPlanIncluded === true ? true : undefined,
     popularBadge: item.popularBadge ?? undefined,
-    imageSrc: resolveImageSrc(item.imageUrl),
+    tags: item.tags ?? [],
+    imageSrc: imageSrcs[0] ?? tummlyStickerImg,
+    imageSrcs,
+    aboutBody: item.aboutBody?.trim() ?? "",
+    specifications: item.specifications ?? [],
   }
 }

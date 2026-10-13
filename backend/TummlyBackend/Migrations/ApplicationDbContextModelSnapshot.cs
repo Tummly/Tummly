@@ -3767,6 +3767,177 @@ namespace TummlyBackend.Migrations
                     b.ToTable("ShopLocationDetails");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.ShopMaterialSku", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AboutBody")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Dimensions")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Material")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("MinOrderQty")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("MintOnShopFulfilment")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("PublishedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("QrType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("SkuId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("SpecificationsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("UnitNetPence")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QrType")
+                        .IsUnique()
+                        .HasFilter("[Status] <> N'Deleted'");
+
+                    b.HasIndex("SkuId")
+                        .IsUnique();
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("ShopMaterialSkus");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopMaterialSkuImage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("SkuId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SkuId", "SortOrder");
+
+                    b.ToTable("ShopMaterialSkuImages");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopMaterialSkuTag", b =>
+                {
+                    b.Property<int>("SkuId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("int");
+
+                    b.HasKey("SkuId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("ShopMaterialSkuTags");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopMaterialTag", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("ShopMaterialTags");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.ShopOrder", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5602,6 +5773,36 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Location");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.ShopMaterialSkuImage", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.ShopMaterialSku", "Sku")
+                        .WithMany("Images")
+                        .HasForeignKey("SkuId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Sku");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopMaterialSkuTag", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.ShopMaterialSku", "Sku")
+                        .WithMany("SkuTags")
+                        .HasForeignKey("SkuId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.ShopMaterialTag", "Tag")
+                        .WithMany("SkuTags")
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Sku");
+
+                    b.Navigation("Tag");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.ShopOrder", b =>
                 {
                     b.HasOne("TummlyBackend.Models.User", "CancelledByUser")
@@ -5783,6 +5984,18 @@ namespace TummlyBackend.Migrations
             modelBuilder.Entity("TummlyBackend.Models.ShopCart", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopMaterialSku", b =>
+                {
+                    b.Navigation("Images");
+
+                    b.Navigation("SkuTags");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopMaterialTag", b =>
+                {
+                    b.Navigation("SkuTags");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.ShopOrder", b =>

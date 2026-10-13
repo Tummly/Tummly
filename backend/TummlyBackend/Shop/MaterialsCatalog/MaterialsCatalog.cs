@@ -207,6 +207,17 @@ namespace TummlyBackend.Shop.MaterialsCatalog
 
         private static ShopCatalogListItemDto MapListItem(MaterialsCatalogSku sku)
         {
+            var tags = new List<string>();
+            if (sku.IsPlanIncluded)
+            {
+                tags.Add("Included with your plan");
+            }
+
+            if (!string.IsNullOrWhiteSpace(sku.PopularBadge))
+            {
+                tags.Add(sku.PopularBadge);
+            }
+
             return new ShopCatalogListItemDto
             {
                 SkuId = sku.SkuId,
@@ -216,9 +227,13 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 UnitNetPence = sku.UnitNetPence,
                 Currency = sku.Currency,
                 ImageUrl = sku.ImageUrl,
+                ImageUrls = string.IsNullOrWhiteSpace(sku.ImageUrl)
+                    ? []
+                    : [sku.ImageUrl],
                 QrType = sku.QrType,
                 IsPlanIncluded = sku.IsPlanIncluded ? true : null,
                 PopularBadge = sku.PopularBadge,
+                Tags = tags,
             };
         }
 
@@ -227,6 +242,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             MaterialsCatalogSku sku
         )
         {
+            var list = MapListItem(sku);
             return new ShopCatalogDetailDto
             {
                 SkuId = sku.SkuId,
@@ -236,14 +252,18 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 UnitNetPence = sku.UnitNetPence,
                 Currency = sku.Currency,
                 ImageUrl = sku.ImageUrl,
+                ImageUrls = list.ImageUrls,
                 QrType = sku.QrType,
                 IsPlanIncluded = sku.IsPlanIncluded ? true : null,
                 PopularBadge = sku.PopularBadge,
+                Tags = list.Tags,
                 Material = sku.Material,
                 Dimensions = sku.Dimensions,
                 MinOrderQty = sku.MinOrderQty,
                 CatalogVersion = catalogId,
                 MintOnShopFulfilment = sku.MintOnShopFulfilment,
+                AboutBody = string.Empty,
+                Specifications = [],
             };
         }
     }

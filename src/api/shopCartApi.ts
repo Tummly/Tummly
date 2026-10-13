@@ -74,7 +74,11 @@ export function mapShopCartToItems(
       catalogVersion: "",
       minOrderQty: 1,
       mintOnShopFulfilment: false,
+      tags: [],
       imageSrc: "",
+      imageSrcs: [],
+      aboutBody: "",
+      specifications: [],
     }
     return { product: fallback, quantity: line.quantity }
   })

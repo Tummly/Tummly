@@ -10,6 +10,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -44,7 +45,7 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.True(body.GetProperty("success").GetBoolean());
             Assert.Equal(
-                "tummly_uk_materials_catalog_v1",
+                ShopMaterialCatalogMapper.CatalogVersionId,
                 body.GetProperty("catalogVersion").GetString()
             );
             // Factory defaults TUMMLY_VAT_MODE_ACTIVE=true → 2000 bps.
@@ -200,7 +201,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("OfferCard", item.GetProperty("qrType").GetString());
             Assert.False(item.GetProperty("mintOnShopFulfilment").GetBoolean());
             Assert.Equal(
-                "tummly_uk_materials_catalog_v1",
+                ShopMaterialCatalogMapper.CatalogVersionId,
                 item.GetProperty("catalogVersion").GetString()
             );
         }
@@ -217,6 +218,8 @@ namespace TummlyBackend.Tests.Integration
                 .GetRequiredService<ApplicationDbContext>();
             var jwtService = scope.ServiceProvider
                 .GetRequiredService<IJwtService>();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(context);
 
             var owner = new User
             {
