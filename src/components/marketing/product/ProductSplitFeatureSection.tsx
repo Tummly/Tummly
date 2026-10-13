@@ -33,6 +33,8 @@ export type ProductSplitFeatureSectionProps = {
   imageAlt: string
   imageWidth: number
   imageHeight: number
+  /** Optional srcset when Blob publishes 1x + 2x widths. */
+  imageSrcSet?: string
   /**
    * When true, media sits on the left on desktop (Campaigns).
    * Mobile still shows copy first.
@@ -61,6 +63,7 @@ export function ProductSplitFeatureSection({
   imageAlt,
   imageWidth,
   imageHeight,
+  imageSrcSet,
   mediaFirst = false,
   cta,
   className,
@@ -124,6 +127,8 @@ export function ProductSplitFeatureSection({
     >
       <img
         src={imageSrc}
+        srcSet={imageSrcSet}
+        sizes="(min-width: 1024px) 766px, 100vw"
         alt={imageAlt}
         width={imageWidth}
         height={imageHeight}

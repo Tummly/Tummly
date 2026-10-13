@@ -213,24 +213,39 @@ async function generateAsset(asset, meta) {
   const outDir = path.join(OUT_DIR, asset.blobDir)
   ensureDir(outDir)
 
-  const maxWidth = Math.max(...asset.widths)
+  // Never emit a variant wider than the master (avoids `*-1532.webp` that is
+  // actually 766px). Drop requested widths above srcW and warn.
+  const usableWidths = [
+    ...new Set(
+      asset.widths
+        .map((width) => Math.min(width, srcW))
+        .filter((width) => width >= 1),
+    ),
+  ].sort((a, b) => a - b)
+  const skipped = asset.widths.filter((width) => width > srcW)
+  if (skipped.length > 0) {
+    process.stdout.write(
+      `  warn ${asset.id}: source ${srcW}px — skip widths ${skipped.join(", ")} (need larger master)\n`,
+    )
+  }
+
+  const maxWidth = Math.max(...usableWidths)
   const aspect = srcH / srcW
   meta[asset.id] = {
-    w: Math.min(maxWidth, srcW),
-    h: Math.round(Math.min(maxWidth, srcW) * aspect),
+    w: maxWidth,
+    h: Math.round(maxWidth * aspect),
     blobDir: asset.blobDir,
     baseName: asset.baseName,
-    widths: asset.widths,
+    widths: usableWidths,
     formats: asset.formats,
   }
 
-  for (const width of asset.widths) {
-    const targetW = Math.min(width, srcW)
+  for (const width of usableWidths) {
     for (const format of asset.formats) {
       const fileName = variantFileName(asset.baseName, width, format)
       const outPath = path.join(outDir, fileName)
       const pipeline = sharp(absSource, { failOn: "none" }).resize({
-        width: targetW,
+        width,
         withoutEnlargement: true,
       })
       await encode(pipeline, format, asset.quality).toFile(outPath)
@@ -239,7 +254,7 @@ async function generateAsset(asset, meta) {
   }
 
   if ("primaryFormat" in asset && asset.primaryFormat) {
-    const primaryWidth = Math.max(...asset.widths)
+    const primaryWidth = Math.max(...usableWidths)
     meta[asset.id].primary = variantFileName(
       asset.baseName,
       primaryWidth,

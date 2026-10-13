@@ -10,7 +10,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { ChevronRight } from "lucide-react"
 
 import { PRODUCT_CAPTURE_MATERIALS } from "@/content/marketing/productPage"
-import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
+import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
 
 const MATERIAL_COUNT = PRODUCT_CAPTURE_MATERIALS.length
@@ -36,10 +36,12 @@ function normalizeWheelDeltaY(event: WheelEvent) {
 const materialImages = Object.fromEntries(
   PRODUCT_CAPTURE_MATERIALS.map((material) => [
     material.id,
-    remoteSimpleUrl(material.mediaId),
+    remoteSimpleImg(material.mediaId),
   ]),
-) as Record<(typeof PRODUCT_CAPTURE_MATERIALS)[number]["id"], string>
-
+) as Record<
+  (typeof PRODUCT_CAPTURE_MATERIALS)[number]["id"],
+  ReturnType<typeof remoteSimpleImg>
+>
 function clampIndex(index: number) {
   return Math.max(0, Math.min(MATERIAL_COUNT - 1, index))
 }
@@ -260,7 +262,7 @@ function MediaPane({
   material: CaptureMaterial
   reduceMotion: boolean | null
 }) {
-  const imageSrc = materialImages[material.id]
+  const image = materialImages[material.id]
   const objectPosition =
     MEDIA_OBJECT_POSITION[material.id] ?? "object-center"
 
@@ -287,10 +289,12 @@ function MediaPane({
             crop top/bottom; landscape sources crop the sides.
           */}
           <img
-            src={imageSrc}
+            src={image.src}
+            srcSet={image.srcSet}
+            sizes="(min-width: 1024px) 50vw, 100vw"
             alt={material.imageAlt}
-            width={750}
-            height={661}
+            width={image.width}
+            height={image.height}
             className={cn(
               "absolute inset-0 size-full object-cover",
               objectPosition,

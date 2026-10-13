@@ -93,104 +93,110 @@
     "fallbackFormat": "jpg"
   },
   "product/feedback-phone": {
-    "w": 766,
-    "h": 592,
+    "w": 1516,
+    "h": 1184,
     "blobDir": "images/product",
     "baseName": "feedback-phone",
     "widths": [
-      766
+      766,
+      1516
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "feedback-phone-766.webp",
+    "primary": "feedback-phone-1516.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/feedback-recovery": {
-    "w": 766,
-    "h": 647,
+    "w": 1516,
+    "h": 1242,
     "blobDir": "images/product",
     "baseName": "feedback-recovery",
     "widths": [
-      766
+      766,
+      1516
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "feedback-recovery-766.webp",
+    "primary": "feedback-recovery-1516.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/guests": {
-    "w": 766,
-    "h": 648,
+    "w": 1516,
+    "h": 1296,
     "blobDir": "images/product",
     "baseName": "guests",
     "widths": [
-      766
+      766,
+      1516
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "guests-766.webp",
+    "primary": "guests-1516.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/campaigns": {
-    "w": 766,
-    "h": 648,
+    "w": 1516,
+    "h": 1296,
     "blobDir": "images/product",
     "baseName": "campaigns",
     "widths": [
-      766
+      766,
+      1516
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "campaigns-766.webp",
+    "primary": "campaigns-1516.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/reports": {
-    "w": 766,
-    "h": 648,
+    "w": 1516,
+    "h": 1296,
     "blobDir": "images/product",
     "baseName": "reports",
     "widths": [
-      766
+      766,
+      1516
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "reports-766.webp",
+    "primary": "reports-1516.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/ai-assistant": {
-    "w": 766,
-    "h": 648,
+    "w": 1516,
+    "h": 1296,
     "blobDir": "images/product",
     "baseName": "ai-assistant",
     "widths": [
-      766
+      766,
+      1516
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "ai-assistant-766.webp",
+    "primary": "ai-assistant-1516.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
@@ -351,223 +357,236 @@
     "primaryFormat": "png"
   },
   "product/capture-guest-cards": {
-    "w": 750,
-    "h": 937,
+    "w": 1122,
+    "h": 1402,
     "blobDir": "images/product",
     "baseName": "capture-guest-cards",
     "widths": [
-      750
+      750,
+      1122
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-guest-cards-750.webp",
+    "primary": "capture-guest-cards-1122.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-counter-display": {
-    "w": 750,
-    "h": 563,
+    "w": 1448,
+    "h": 1086,
     "blobDir": "images/product",
     "baseName": "capture-counter-display",
     "widths": [
-      750
+      750,
+      1448
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-counter-display-750.webp",
+    "primary": "capture-counter-display-1448.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-tray-liner": {
-    "w": 750,
-    "h": 563,
+    "w": 1448,
+    "h": 1086,
     "blobDir": "images/product",
     "baseName": "capture-tray-liner",
     "widths": [
-      750
+      750,
+      1448
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-tray-liner-750.webp",
+    "primary": "capture-tray-liner-1448.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-table-tent": {
-    "w": 750,
-    "h": 1000,
+    "w": 1086,
+    "h": 1448,
     "blobDir": "images/product",
     "baseName": "capture-table-tent",
     "widths": [
-      750
+      750,
+      1086
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-table-tent-750.webp",
+    "primary": "capture-table-tent-1086.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-table-talker": {
-    "w": 750,
-    "h": 937,
+    "w": 1122,
+    "h": 1402,
     "blobDir": "images/product",
     "baseName": "capture-table-talker",
     "widths": [
-      750
+      750,
+      1122
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-table-talker-750.webp",
+    "primary": "capture-table-talker-1122.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-window-sticker": {
-    "w": 750,
-    "h": 937,
+    "w": 1122,
+    "h": 1402,
     "blobDir": "images/product",
     "baseName": "capture-window-sticker",
     "widths": [
-      750
+      750,
+      1122
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-window-sticker-750.webp",
+    "primary": "capture-window-sticker-1122.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-receipt-label": {
-    "w": 750,
-    "h": 937,
+    "w": 1122,
+    "h": 1402,
     "blobDir": "images/product",
     "baseName": "capture-receipt-label",
     "widths": [
-      750
+      750,
+      1122
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-receipt-label-750.webp",
+    "primary": "capture-receipt-label-1122.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-delivery-bag-seal": {
-    "w": 750,
-    "h": 937,
+    "w": 1122,
+    "h": 1402,
     "blobDir": "images/product",
     "baseName": "capture-delivery-bag-seal",
     "widths": [
-      750
+      750,
+      1122
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-delivery-bag-seal-750.webp",
+    "primary": "capture-delivery-bag-seal-1122.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-package-label": {
-    "w": 750,
-    "h": 563,
+    "w": 1448,
+    "h": 1086,
     "blobDir": "images/product",
     "baseName": "capture-package-label",
     "widths": [
-      750
+      750,
+      1448
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-package-label-750.webp",
+    "primary": "capture-package-label-1448.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-drink-cup-seal": {
-    "w": 750,
-    "h": 563,
+    "w": 1448,
+    "h": 1086,
     "blobDir": "images/product",
     "baseName": "capture-drink-cup-seal",
     "widths": [
-      750
+      750,
+      1448
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-drink-cup-seal-750.webp",
+    "primary": "capture-drink-cup-seal-1448.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-pizza-box-label": {
-    "w": 750,
-    "h": 563,
+    "w": 1448,
+    "h": 1086,
     "blobDir": "images/product",
     "baseName": "capture-pizza-box-label",
     "widths": [
-      750
+      750,
+      1448
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-pizza-box-label-750.webp",
+    "primary": "capture-pizza-box-label-1448.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/capture-poster-club": {
-    "w": 750,
-    "h": 1000,
+    "w": 1086,
+    "h": 1448,
     "blobDir": "images/product",
     "baseName": "capture-poster-club",
     "widths": [
-      750
+      750,
+      1086
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "capture-poster-club-750.webp",
+    "primary": "capture-poster-club-1086.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "product/hero-collage": {
-    "w": 766,
-    "h": 609,
+    "w": 1532,
+    "h": 1218,
     "blobDir": "images/product",
     "baseName": "hero-collage",
     "widths": [
-      766
+      766,
+      1532
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "hero-collage-766.webp",
+    "primary": "hero-collage-1532.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   }

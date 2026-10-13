@@ -9,10 +9,10 @@ import {
   PRODUCT_SECTION_Y,
 } from "@/content/marketing/productPage"
 import { marketingHeroHeading } from "@/lib/marketing-layout"
-import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
+import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
 
-const heroCollageImage = remoteSimpleUrl("product/hero-collage")
+const heroCollageImage = remoteSimpleImg("product/hero-collage")
 
 /**
  * Figma Product hero `5661:22625` (1668×749).
@@ -80,10 +80,12 @@ export function ProductHero() {
 
         <div className="w-full shrink-0 overflow-hidden rounded-[12px] lg:w-[min(100%,766px)] lg:max-w-[766px]">
           <img
-            src={heroCollageImage}
+            src={heroCollageImage.src}
+            srcSet={heroCollageImage.srcSet}
+            sizes="(min-width: 1024px) 766px, 100vw"
             alt={PRODUCT_HERO.dashboardImageAlt}
-            width={766}
-            height={609}
+            width={heroCollageImage.width}
+            height={heroCollageImage.height}
             className="block h-auto w-full"
             decoding="async"
             fetchPriority="high"

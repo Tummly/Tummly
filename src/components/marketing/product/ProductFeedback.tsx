@@ -1,8 +1,8 @@
 import { ProductSplitFeatureSection } from "@/components/marketing/product/ProductSplitFeatureSection"
 import { PRODUCT_FEEDBACK } from "@/content/marketing/productPage"
-import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
+import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 
-const feedbackPhoneImage = remoteSimpleUrl("product/feedback-phone")
+const feedbackPhoneImage = remoteSimpleImg("product/feedback-phone")
 
 /** Figma Product Feedback section `5661:22688`. */
 export function ProductFeedback() {
@@ -12,10 +12,11 @@ export function ProductFeedback() {
       title={PRODUCT_FEEDBACK.title}
       body={PRODUCT_FEEDBACK.body}
       points={PRODUCT_FEEDBACK.points}
-      imageSrc={feedbackPhoneImage}
+      imageSrc={feedbackPhoneImage.src}
+      imageSrcSet={feedbackPhoneImage.srcSet}
       imageAlt={PRODUCT_FEEDBACK.phoneImageAlt}
-      imageWidth={766}
-      imageHeight={592}
+      imageWidth={feedbackPhoneImage.width}
+      imageHeight={feedbackPhoneImage.height}
     />
   )
 }
