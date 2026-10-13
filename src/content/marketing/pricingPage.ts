@@ -6,16 +6,7 @@ import type {
 import { MANAGE_PLAN_IDS } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import { MARKETING_FAQS_PATH } from "@/constants/marketingNav"
-import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
-
-const qrFeaturedGuestCardsImage = remoteSimpleUrl(
-  "pricing/qr-featured-guest-cards",
-)
-const qrPeek01Image = remoteSimpleUrl("pricing/qr-peek-01")
-const qrPeek02Image = remoteSimpleUrl("pricing/qr-peek-02")
-const qrPeek04Image = remoteSimpleUrl("pricing/qr-peek-04")
-const qrPeek05Image = remoteSimpleUrl("pricing/qr-peek-05")
-const qrPeek06Image = remoteSimpleUrl("pricing/qr-peek-06")
+import { MARKETING_QR_EXPAND_STRIP } from "@/content/marketing/qrMaterialsExpandStrip"
 
 export type PricingPlanId = ManagePlanId
 
@@ -235,6 +226,46 @@ export const PRICING_HERO_HEADING =
 /** Pricing body — *functional* Helvetica Neue Regular 18/24. */
 export const PRICING_SECTION_BODY =
   "font-sans text-base font-normal leading-[22px] text-[#141414] lg:text-[18px] lg:leading-6"
+
+/**
+ * Marketing plan cards — Figma `5661:13671`.
+ * Keep separate from Operator `MANAGE_PLAN_*` tokens.
+ */
+export const PRICING_PLAN_CARDS_GRID_CLASS =
+  "grid grid-cols-1 gap-6 xl:grid-cols-[repeat(4,minmax(0,1fr))] xl:gap-4"
+
+export const PRICING_PLAN_CARD_CLASS =
+  "flex h-full w-full min-w-0 flex-col gap-10 rounded-[6px] px-3 py-6"
+
+export const PRICING_PLAN_CARD_POPULAR_CLASS =
+  "flex h-full w-full min-w-0 flex-col gap-10 rounded-[6px] border border-solid border-[#14a74a] bg-[rgba(20,167,74,0.05)] px-[26px] py-6"
+
+/** Plan name — *headline* Jakarta SemiBold 30. */
+export const PRICING_PLAN_CARD_TITLE_CLASS =
+  "m-0 font-jakarta text-[30px] font-semibold leading-none text-[#141414]"
+
+/** Plan blurb — *functional* Helvetica Neue Regular 14/19. */
+export const PRICING_PLAN_CARD_DESCRIPTION_CLASS =
+  "m-0 max-w-[346px] font-sans text-sm font-normal leading-[19px] text-[#141414]"
+
+/** Price amount — *functional* Helvetica Neue Regular 36 (Figma, not Jakarta). */
+export const PRICING_PLAN_PRICE_AMOUNT_CLASS =
+  "font-sans text-[36px] font-normal leading-none text-[#141414]"
+
+/** Price suffix — *functional* Helvetica Neue Regular 14. */
+export const PRICING_PLAN_PRICE_SUFFIX_CLASS =
+  "font-sans text-sm font-normal leading-none text-[#141414]"
+
+/** Price subline — *functional* Helvetica Neue Medium 14 / `#7c7c7c`. */
+export const PRICING_PLAN_PRICE_SUBLINE_CLASS =
+  "m-0 min-h-10 font-sans text-sm font-medium leading-normal text-[#7c7c7c]"
+
+export const PRICING_PLAN_FEATURE_ROW_CLASS =
+  "flex items-center justify-between gap-3 font-sans text-sm whitespace-nowrap text-[#141414]"
+
+export const PRICING_PLAN_FEATURE_LABEL_CLASS = "shrink-0 font-medium"
+
+export const PRICING_PLAN_FEATURE_VALUE_CLASS = "shrink-0 text-right font-normal"
 
 export const PRICING_GUEST_LOOP = {
   title: "Every plan starts with the same Guest Loop.",
@@ -498,49 +529,10 @@ export const PRICING_QR_MATERIALS = {
   ],
   ctaLabel: "See QR materials",
   ctaTo: MARKETING_FAQS_PATH,
-  /** Shared overlay copy for every expanded strip panel. */
-  cardTitle: "QR Guest Cards",
-  cardDescription:
-    "Put QR Guest Cards into the moments you already hand to guests.",
-  /** Figma peek strip (`5880:19364`) — default expanded slide is index 2. */
-  slides: [
-    {
-      id: "peek-01",
-      image: qrPeek01Image,
-      imageAlt: "Tummly table tent with QR code on a restaurant table",
-      featured: false,
-    },
-    {
-      id: "peek-02",
-      image: qrPeek02Image,
-      imageAlt: "Tummly QR materials beside takeaway packaging",
-      featured: false,
-    },
-    {
-      id: "guest-cards",
-      image: qrFeaturedGuestCardsImage,
-      imageAlt: "Hand holding a Tummly QR Guest Card offer",
-      featured: true,
-    },
-    {
-      id: "peek-04",
-      image: qrPeek04Image,
-      imageAlt: "Takeaway bag sealed with a Tummly QR sticker",
-      featured: false,
-    },
-    {
-      id: "peek-05",
-      image: qrPeek05Image,
-      imageAlt: "Burger packaging with a Tummly QR Guest Card",
-      featured: false,
-    },
-    {
-      id: "peek-06",
-      image: qrPeek06Image,
-      imageAlt: "Paper bags sealed with green Tummly QR stickers",
-      featured: false,
-    },
-  ],
+  /** Shared overlay + slides — see `MARKETING_QR_EXPAND_STRIP`. */
+  cardTitle: MARKETING_QR_EXPAND_STRIP.cardTitle,
+  cardDescription: MARKETING_QR_EXPAND_STRIP.cardDescription,
+  slides: MARKETING_QR_EXPAND_STRIP.slides,
 } as const
 
 /** Figma Pricing Sign up CTA (`5661:14510` / `4151:3811`). */

@@ -34,7 +34,7 @@ function ChipIcon({ icon }: { icon: AiAssistantGuestLoopChip["icon"] }) {
   )
 }
 
-/** Figma Guest Loop video section `5924:17849` — unmute for audio track. */
+/** Figma Guest Loop video section `5924:17849` — full player chrome. */
 export function AiAssistantGuestLoop() {
   return (
     <section className="w-full bg-white">
@@ -76,7 +76,7 @@ export function AiAssistantGuestLoop() {
         >
           <AiAssistantMutedVideo
             src={aiAssistantVideoUrl("guestLoop")}
-            withAudioToggle
+            withPlayerControls
             className="aspect-video w-full rounded-[12px] bg-[#e8e8e8]"
           />
         </div>

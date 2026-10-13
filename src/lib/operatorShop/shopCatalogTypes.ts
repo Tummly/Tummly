@@ -7,6 +7,11 @@ export type ShopCatalogCategory =
   | "takeaway"
   | "delivery"
 
+export type ShopProductSpecification = {
+  label: string
+  value: string
+}
+
 export type ShopProduct = {
   id: string
   title: string
@@ -23,7 +28,11 @@ export type ShopProduct = {
   mintOnShopFulfilment: boolean
   isPlanIncluded?: boolean
   popularBadge?: string
+  tags: string[]
   imageSrc: string
+  imageSrcs: string[]
+  aboutBody: string
+  specifications: ShopProductSpecification[]
 }
 
 export type ShopCatalogListItemWire = {
@@ -34,9 +43,11 @@ export type ShopCatalogListItemWire = {
   unitNetPence: number
   currency: string
   imageUrl: string
+  imageUrls?: string[] | null
   qrType: CapturePlacementQrType
   isPlanIncluded?: boolean | null
   popularBadge?: string | null
+  tags?: string[] | null
 }
 
 export type ShopCatalogDetailWire = ShopCatalogListItemWire & {
@@ -45,6 +56,8 @@ export type ShopCatalogDetailWire = ShopCatalogListItemWire & {
   minOrderQty: number
   catalogVersion: string
   mintOnShopFulfilment: boolean
+  aboutBody?: string | null
+  specifications?: ShopProductSpecification[] | null
 }
 
 export function findShopProductById(

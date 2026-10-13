@@ -151,6 +151,45 @@ builder.Services.Configure<RecaptchaSettings>(
 );
 
 builder.Services.AddQueryAttachmentStorage(builder.Configuration);
+builder.Services.Configure<ShopCatalogObjectStorageSettings>(
+    builder.Configuration.GetSection("ShopCatalogObjectStorage")
+);
+{
+    // When unset locally, use in-memory storage so Admin list/tag APIs still
+    // resolve. Upload then reports "not configured" until Bucket+Endpoint are set.
+    var shopCatalogSettings = new ShopCatalogObjectStorageSettings();
+    builder.Configuration
+        .GetSection("ShopCatalogObjectStorage")
+        .Bind(shopCatalogSettings);
+    if (!shopCatalogSettings.IsConfigured)
+    {
+        builder.Services.AddSingleton<
+            IShopCatalogImageStorage,
+            InMemoryShopCatalogImageStorage
+        >();
+    }
+    else if (
+        string.Equals(
+            shopCatalogSettings.Provider,
+            ObjectStorageSettings.S3Provider,
+            StringComparison.OrdinalIgnoreCase
+        )
+    )
+    {
+        builder.Services.AddSingleton<
+            IShopCatalogImageStorage,
+            S3ShopCatalogImageStorage
+        >();
+    }
+    else
+    {
+        builder.Services.AddSingleton<
+            IShopCatalogImageStorage,
+            AzureShopCatalogImageStorage
+        >();
+    }
+}
+
 if (builder.Environment.IsEnvironment("Testing"))
 {
     // Prefer in-memory object storage so print-ready QR generation can run
@@ -164,6 +203,19 @@ if (builder.Environment.IsEnvironment("Testing"))
     }
 
     builder.Services.AddSingleton<IQueryAttachmentStorage, InMemoryQueryAttachmentStorage>();
+
+    var shopImageDescriptors = builder.Services
+        .Where(descriptor => descriptor.ServiceType == typeof(IShopCatalogImageStorage))
+        .ToList();
+    foreach (var descriptor in shopImageDescriptors)
+    {
+        builder.Services.Remove(descriptor);
+    }
+
+    builder.Services.AddSingleton<
+        IShopCatalogImageStorage,
+        InMemoryShopCatalogImageStorage
+    >();
 }
 
 builder.Services.Configure<HelpCentreSettings>(
@@ -600,9 +652,8 @@ builder.Services.AddScoped<IPlanEntitlementsSnapshot, PlanEntitlementsSnapshotSe
 builder.Services.AddSingleton<IPricebookCatalog>(sp =>
     PricebookCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
-builder.Services.AddSingleton<IMaterialsCatalog>(sp =>
-    MaterialsCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
-);
+builder.Services.AddScoped<IMaterialsCatalog, DbMaterialsCatalog>();
+builder.Services.AddScoped<IAdminShopCatalogService, AdminShopCatalogService>();
 builder.Services.AddSingleton(sp =>
     PrintTemplatePack.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
@@ -1347,6 +1398,16 @@ app.Lifetime.ApplicationStarted.Register(() =>
     {
         // Integration tests use in-memory DB; skip migrate and mark ready.
         initState.MarkSucceeded();
+        using (var seedScope = app.Services.CreateScope())
+        {
+            var seedContext = seedScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            ShopMaterialsCatalogSeed
+                .EnsureSeededAsync(seedContext)
+                .GetAwaiter()
+                .GetResult();
+        }
+
         return;
     }
 
@@ -1447,6 +1508,8 @@ static async Task InitializeDatabaseAsync(
     // Seed Admin/Support is best-effort — does not gate /health/ready (ADR-0015).
     try
     {
+        await ShopMaterialsCatalogSeed.EnsureSeededAsync(context);
+
         if (!await context.Admins.AnyAsync())
         {
             var admin = new TummlyBackend.Models.Admin

@@ -978,20 +978,22 @@ namespace TummlyBackend.Services
 
             foreach (var line in lines)
             {
-                var hasQrTypeSnapshot = TryResolveKnownSkuQrType(
-                    line.CatalogSkuId,
-                    out var qrType
-                );
+                // Prefer recipe-backed catalog QrType (denormalized PlacementKey).
+                // Fall back to legacy sku-id map for older complimentary orders.
+                QrType qrType;
                 if (
-                    !hasQrTypeSnapshot
-                    && (
-                        !skus.TryGetValue(line.CatalogSkuId, out var sku)
-                        || !Enum.TryParse<QrType>(
-                            sku.QrType,
-                            ignoreCase: false,
-                            out qrType
-                        )
+                    skus.TryGetValue(line.CatalogSkuId, out var sku)
+                    && Enum.TryParse<QrType>(
+                        sku.QrType,
+                        ignoreCase: false,
+                        out qrType
                     )
+                )
+                {
+                    // ok
+                }
+                else if (
+                    !TryResolveLegacySkuQrType(line.CatalogSkuId, out qrType)
                 )
                 {
                     continue;
@@ -1009,7 +1011,10 @@ namespace TummlyBackend.Services
             return result;
         }
 
-        private static bool TryResolveKnownSkuQrType(
+        /// <summary>
+        /// Legacy complimentary SKU ids before PlacementRecipe existed.
+        /// </summary>
+        private static bool TryResolveLegacySkuQrType(
             string catalogSkuId,
             out QrType qrType
         )

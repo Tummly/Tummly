@@ -111,12 +111,10 @@ export function ShopProductScreen({
   const selectedPack =
     PACKAGE_OPTIONS.find((p) => p.id === selectedPackId) ?? PACKAGE_OPTIONS[2]
 
-  const thumbnails = [
-    product.imageSrc,
-    tummlyStickerImg,
-    tummlyBagImg,
-    product.imageSrc,
-  ]
+  const thumbnails =
+    product.imageSrcs.length > 0
+      ? product.imageSrcs
+      : [product.imageSrc, tummlyStickerImg, tummlyBagImg].filter(Boolean)
 
   const handleSelectPack = (pack: PackageOption) => {
     setSelectedPackId(pack.id)
@@ -213,14 +211,16 @@ export function ShopProductScreen({
           </div>
 
           {/* About Section — flat on page (not a card) */}
-          <div className="flex flex-col gap-3">
-            <h3 className="text-lg font-medium text-op-text-primary">
-              About the {product.title.toLowerCase()}
-            </h3>
-            <p className="text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]">
-              The Tummly {product.title.toLowerCase()} gives dine-in guests a clear opportunity to share private feedback while their experience is still recent. Each order uses a location-specific QR placement, allowing Tummly to measure scans, form starts and completed feedback submissions from table-based prompts.
-            </p>
-          </div>
+          {product.aboutBody ? (
+            <div className="flex flex-col gap-3">
+              <h3 className="text-lg font-medium text-op-text-primary">
+                About the {product.title.toLowerCase()}
+              </h3>
+              <p className="text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]">
+                {product.aboutBody}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {/* Right Column: Configuration & Order Summary */}
@@ -425,26 +425,20 @@ export function ShopProductScreen({
               Product specifications
             </h3>
             <div className="flex flex-col gap-3.5 text-base">
-              {(
-                [
-                  ["Finished size", "A5"],
-                  ["Construction", "Folded A-frame"],
-                  ["Print", "Double-sided"],
-                  ["Finish", "Matte"],
-                  ["Material", product.material],
-                  ["QR connection", "Location and placement-specific"],
-                  ["Recommended use", "Dine-in tables"],
-                  ["Minimum quantity", "Pack of 5"],
-                  ["Production", "Made to order"],
-                ] as const
-              ).map(([label, value], index, rows) => (
-                <div key={label} className="flex flex-col gap-3.5">
+              {(product.specifications.length > 0
+                ? product.specifications
+                : [
+                    { label: "Material", value: product.material },
+                    { label: "Dimensions", value: product.dimensions },
+                  ].filter((row) => row.value)
+              ).map((row, index, rows) => (
+                <div key={`${row.label}-${index}`} className="flex flex-col gap-3.5">
                   <div className="flex items-center justify-between gap-4">
                     <span className="font-semibold text-[var(--op-color-gray-550)]">
-                      {label}
+                      {row.label}
                     </span>
                     <span className="font-medium text-op-text-primary text-right">
-                      {value}
+                      {row.value}
                     </span>
                   </div>
                   {index < rows.length - 1 ? (

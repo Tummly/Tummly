@@ -1,3 +1,5 @@
+using TummlyBackend.Helpers;
+
 namespace TummlyBackend.DTOs.Shop
 {
     public sealed class ShopCatalogListItemDto
@@ -16,11 +18,15 @@ namespace TummlyBackend.DTOs.Shop
 
         public required string ImageUrl { get; init; }
 
+        public IReadOnlyList<string> ImageUrls { get; init; } = [];
+
         public required string QrType { get; init; }
 
         public bool? IsPlanIncluded { get; init; }
 
         public string? PopularBadge { get; init; }
+
+        public IReadOnlyList<string> Tags { get; init; } = [];
     }
 
     public sealed class ShopCatalogDetailDto
@@ -39,11 +45,15 @@ namespace TummlyBackend.DTOs.Shop
 
         public required string ImageUrl { get; init; }
 
+        public IReadOnlyList<string> ImageUrls { get; init; } = [];
+
         public required string QrType { get; init; }
 
         public bool? IsPlanIncluded { get; init; }
 
         public string? PopularBadge { get; init; }
+
+        public IReadOnlyList<string> Tags { get; init; } = [];
 
         public required string Material { get; init; }
 
@@ -54,5 +64,13 @@ namespace TummlyBackend.DTOs.Shop
         public required string CatalogVersion { get; init; }
 
         public bool MintOnShopFulfilment { get; init; }
+
+        public string AboutBody { get; init; } = string.Empty;
+
+        public IReadOnlyList<ShopMaterialSpecificationRow> Specifications
+        {
+            get;
+            init;
+        } = [];
     }
 }

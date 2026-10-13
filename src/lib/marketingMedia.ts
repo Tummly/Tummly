@@ -4,6 +4,8 @@
  *
  * Publish / refresh image variants (from repo root):
  *   npm run marketing-media:publish
+ *   npm run marketing-media:publish -- --new              # ids missing from meta
+ *   npm run marketing-media:publish -- --only product     # id or prefix
  * Generate only (no upload):
  *   npm run marketing-media:generate
  */
@@ -29,6 +31,13 @@ export const SIGN_UP_CTA_VIDEO_PATH = "cta/signup-cta.mp4"
 
 export function signUpCtaVideoUrl(): string {
   return marketingMediaUrl(SIGN_UP_CTA_VIDEO_PATH)
+}
+
+/** Home hero campaign visual (`marketing/home/hero-campaign.mp4`). */
+export const HOME_HERO_VIDEO_PATH = "home/hero-campaign.mp4"
+
+export function homeHeroVideoUrl(): string {
+  return marketingMediaUrl(HOME_HERO_VIDEO_PATH)
 }
 
 /** AI Assistant marketing page videos (`marketing/ai-assistant/*`). */

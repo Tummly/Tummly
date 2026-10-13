@@ -24,13 +24,13 @@ function buildPreloadTags(bundle: OutputBundle): string {
   const heroSrcset = extractAvifSrcset(bundle, "hero-bg");
   const helpCenterSrcset = extractAvifSrcset(bundle, "help-center-bg");
   const authSignInPanelSrcset = extractAvifSrcset(bundle, "auth-sign-in-panel");
-  const ctaLaunchBgSrcset = extractAvifSrcset(bundle, "cta-launch-bg");
+  const signupCtaBgSrcset = extractAvifSrcset(bundle, "signup-cta-bg");
 
   if (
     !heroSrcset &&
     !authSignInPanelSrcset &&
     !helpCenterSrcset &&
-    !ctaLaunchBgSrcset
+    !signupCtaBgSrcset
   ) {
     return "";
   }
@@ -44,8 +44,8 @@ function buildPreloadTags(bundle: OutputBundle): string {
   const authSignInPanelJson = authSignInPanelSrcset
     ? JSON.stringify(authSignInPanelSrcset)
     : "null";
-  const ctaLaunchBgJson = ctaLaunchBgSrcset
-    ? JSON.stringify(ctaLaunchBgSrcset)
+  const signupCtaBgJson = signupCtaBgSrcset
+    ? JSON.stringify(signupCtaBgSrcset)
     : "null";
 
   const loginPreloadScript = `<script>
@@ -81,12 +81,12 @@ function buildPreloadTags(bundle: OutputBundle): string {
         imagesizes: "100vw"
       });
     }
-    var ctaLaunchBgSrcsetHome = ${ctaLaunchBgJson};
-    if (ctaLaunchBgSrcsetHome) {
+    var signupCtaBgSrcsetHome = ${signupCtaBgJson};
+    if (signupCtaBgSrcsetHome) {
       appendPrefetch({
         as: "image",
         type: "image/avif",
-        imagesrcset: ctaLaunchBgSrcsetHome,
+        imagesrcset: signupCtaBgSrcsetHome,
         imagesizes: ${JSON.stringify(panoramicSizes)}
       });
     }
@@ -110,12 +110,12 @@ function buildPreloadTags(bundle: OutputBundle): string {
     path === "/shop-print-terms" ||
     path === "/shop-print-terms/"
   ) {
-    var ctaLaunchBgSrcsetMarketing = ${ctaLaunchBgJson};
-    if (ctaLaunchBgSrcsetMarketing) {
+    var signupCtaBgSrcsetMarketing = ${signupCtaBgJson};
+    if (signupCtaBgSrcsetMarketing) {
       appendPreload({
         as: "image",
         type: "image/avif",
-        imagesrcset: ctaLaunchBgSrcsetMarketing,
+        imagesrcset: signupCtaBgSrcsetMarketing,
         imagesizes: ${JSON.stringify(panoramicSizes)}
       });
     }

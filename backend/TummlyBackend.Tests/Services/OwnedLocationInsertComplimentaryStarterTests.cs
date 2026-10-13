@@ -103,12 +103,14 @@ namespace TummlyBackend.Tests.Services
             _context.SaveChanges();
             _restaurantId = restaurant.Id;
 
-            _context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(
-                    restaurant.Id,
-                    "TUMMLY-UK-GBP-2026-08-V3"
-                )
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
             );
+            // Free has 0 included locations; Pilot is entitled so draft insert can proceed.
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Pilot;
+            billing.BillingStatus = BillingStatuses.Pilot;
+            _context.BillingAccounts.Add(billing);
             _context.SaveChanges();
         }
 

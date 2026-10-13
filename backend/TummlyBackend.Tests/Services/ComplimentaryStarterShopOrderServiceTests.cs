@@ -25,9 +25,13 @@ namespace TummlyBackend.Tests.Services
                 .Options;
 
             _context = new ApplicationDbContext(options);
+            ShopMaterialsCatalogSeed
+                .EnsureSeededAsync(_context)
+                .GetAwaiter()
+                .GetResult();
             _service = new ComplimentaryStarterShopOrderService(
                 _context,
-                MaterialsCatalog.LoadFromDirectory(ResolveMaterialsPackDir()),
+                new DbMaterialsCatalog(_context),
                 new ShopOrderNumberAllocator(_context)
             );
 
@@ -58,11 +62,68 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(order.RevolutOrderId);
             Assert.Equal("ORD-1", order.OrderNumber);
             Assert.Equal(3, order.Lines.Count);
+            Assert.Contains(order.Lines, line => line.MaterialType == "table-tent");
+            Assert.Contains(order.Lines, line => line.MaterialType == "window-sticker");
+            Assert.Contains(order.Lines, line => line.MaterialType == "offer-card");
 
             var billing = await _context.BillingAccounts.SingleAsync();
             Assert.Equal(
                 StarterKitStates.Unused,
                 billing.StarterKitState
+            );
+        }
+
+        [Fact]
+        public async Task EnsureForLocationAsync_UsesReplacedPublishedSkuOnRecipe()
+        {
+            var offer = await _context.ShopMaterialSkus
+                .Include(row => row.PlacementRecipe)
+                .SingleAsync(row => row.SkuId == "offer-card");
+            offer.Status = ShopMaterialSkuStatuses.Deleted;
+            await _context.SaveChangesAsync();
+
+            _context.ShopMaterialSkus.Add(
+                new ShopMaterialSku
+                {
+                    SkuId = "offer-card-v2",
+                    Title = "Offer Card V2",
+                    Category = "payment",
+                    Description = "Replacement",
+                    Material = "Card",
+                    Dimensions = "85mm",
+                    PlacementRecipeId = offer.PlacementRecipeId,
+                    QrType = "OfferCard",
+                    UnitNetPence = 1800,
+                    MinOrderQty = 1,
+                    Currency = "GBP",
+                    Status = ShopMaterialSkuStatuses.Published,
+                    AboutBody = "",
+                    SpecificationsJson = "[]",
+                    PublishedAtUtc = DateTime.UtcNow,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UpdatedAtUtc = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var result = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+
+            Assert.True(result.Created);
+            var order = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .SingleAsync(row => row.Id == result.ShopOrderId);
+            Assert.Contains(
+                order.Lines,
+                line => line.CatalogSkuId == "offer-card-v2"
+            );
+            Assert.DoesNotContain(
+                order.Lines,
+                line => line.CatalogSkuId == "offer-card"
             );
         }
 

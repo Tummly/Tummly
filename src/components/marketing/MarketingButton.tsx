@@ -27,6 +27,8 @@ type MarketingButtonVariant =
   | "secondary"
   | "secondary-inverse"
 
+type MarketingButtonDensity = "default" | "compact"
+
 type MarketingButtonProps = Omit<
   ComponentPropsWithoutRef<"button">,
   "children"
@@ -36,6 +38,8 @@ type MarketingButtonProps = Omit<
   asChild?: boolean
   /** Figma arrow reveal on hover. Default true. */
   showArrow?: boolean
+  /** Tighter padding for dense chrome (e.g. mobile header). */
+  density?: MarketingButtonDensity
 }
 
 const baseClass =
@@ -57,14 +61,26 @@ type SurfaceStyle = {
   gap: number
 }
 
-function restSurface(variant: MarketingButtonVariant): SurfaceStyle {
-  const shared = {
-    paddingLeft: 18,
-    paddingRight: 18,
-    paddingTop: 12,
-    paddingBottom: 12,
-    gap: 6,
-  }
+function restSurface(
+  variant: MarketingButtonVariant,
+  density: MarketingButtonDensity,
+): SurfaceStyle {
+  const shared =
+    density === "compact"
+      ? {
+          paddingLeft: 10,
+          paddingRight: 10,
+          paddingTop: 8,
+          paddingBottom: 8,
+          gap: 4,
+        }
+      : {
+          paddingLeft: 18,
+          paddingRight: 18,
+          paddingTop: 12,
+          paddingBottom: 12,
+          gap: 6,
+        }
   switch (variant) {
     case "primary":
       return { ...shared, backgroundColor: "#14a74a" }
@@ -77,14 +93,26 @@ function restSurface(variant: MarketingButtonVariant): SurfaceStyle {
   }
 }
 
-function hoverSurface(variant: MarketingButtonVariant): SurfaceStyle {
-  const shared = {
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    gap: 4,
-  }
+function hoverSurface(
+  variant: MarketingButtonVariant,
+  density: MarketingButtonDensity,
+): SurfaceStyle {
+  const shared =
+    density === "compact"
+      ? {
+          paddingLeft: 8,
+          paddingRight: 8,
+          paddingTop: 8,
+          paddingBottom: 8,
+          gap: 2,
+        }
+      : {
+          paddingLeft: 16,
+          paddingRight: 16,
+          paddingTop: 12,
+          paddingBottom: 12,
+          gap: 4,
+        }
   switch (variant) {
     case "primary":
       return { ...shared, backgroundColor: "#28bb5e" }
@@ -163,6 +191,7 @@ export function MarketingButton({
   variant = "primary",
   asChild = false,
   showArrow = true,
+  density = "default",
   type = "button",
   disabled,
   onMouseEnter,
@@ -172,8 +201,8 @@ export function MarketingButton({
   const reduceMotion = useReducedMotion()
   const [hovered, setHovered] = useState(false)
   const surfaceRef = useRef<HTMLElement | null>(null)
-  const rest = restSurface(variant)
-  const hover = hoverSurface(variant)
+  const rest = restSurface(variant, density)
+  const hover = hoverSurface(variant, density)
   const active = !disabled && hovered
 
   useEffect(() => {

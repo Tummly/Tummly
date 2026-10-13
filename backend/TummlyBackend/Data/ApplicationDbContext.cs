@@ -95,6 +95,16 @@ namespace TummlyBackend.Data
 
         public DbSet<ShopLocationDetails> ShopLocationDetails { get; set; }
 
+        public DbSet<PlacementRecipe> PlacementRecipes { get; set; }
+
+        public DbSet<ShopMaterialTag> ShopMaterialTags { get; set; }
+
+        public DbSet<ShopMaterialSku> ShopMaterialSkus { get; set; }
+
+        public DbSet<ShopMaterialSkuTag> ShopMaterialSkuTags { get; set; }
+
+        public DbSet<ShopMaterialSkuImage> ShopMaterialSkuImages { get; set; }
+
         public DbSet<RevolutPendingPaySession> RevolutPendingPaySessions
         {
             get;
@@ -2507,6 +2517,81 @@ namespace TummlyBackend.Data
                 .WithOne()
                 .HasForeignKey<ShopLocationDetails>(row => row.LocationId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            /*
+             =========================================
+             SHOP MATERIALS CATALOG (Admin-managed)
+             =========================================
+            */
+
+            modelBuilder.Entity<PlacementRecipe>(e =>
+            {
+                e.HasIndex(row => row.Slug).IsUnique();
+                e.HasIndex(row => row.PlacementKey).IsUnique();
+                e.Property(row => row.Slug).HasMaxLength(80).IsRequired();
+                e.Property(row => row.Label).HasMaxLength(80).IsRequired();
+                e.Property(row => row.PlacementKey).HasMaxLength(40).IsRequired();
+                e.Property(row => row.PrintRoute).HasMaxLength(40).IsRequired();
+            });
+
+            modelBuilder.Entity<ShopMaterialTag>(e =>
+            {
+                e.HasIndex(row => row.Slug).IsUnique();
+                e.Property(row => row.Slug).HasMaxLength(80).IsRequired();
+                e.Property(row => row.Label).HasMaxLength(80).IsRequired();
+            });
+
+            modelBuilder.Entity<ShopMaterialSku>(e =>
+            {
+                // Soft-deleted rows free the skuId so Admin can recreate the same id.
+                e.HasIndex(row => row.SkuId)
+                    .IsUnique()
+                    .HasFilter("[Status] <> N'Deleted'");
+                e.HasIndex(row => row.Status);
+                // One Draft/Published product per placement recipe; soft-delete frees the slot.
+                e.HasIndex(row => row.PlacementRecipeId)
+                    .IsUnique()
+                    .HasFilter("[Status] <> N'Deleted'");
+                e.Property(row => row.SkuId).HasMaxLength(80).IsRequired();
+                e.Property(row => row.Title).HasMaxLength(200).IsRequired();
+                e.Property(row => row.Category).HasMaxLength(40).IsRequired();
+                e.Property(row => row.Description).HasMaxLength(1000).IsRequired();
+                e.Property(row => row.Material).HasMaxLength(200).IsRequired();
+                e.Property(row => row.Dimensions).HasMaxLength(120).IsRequired();
+                e.Property(row => row.QrType).HasMaxLength(40).IsRequired();
+                e.Property(row => row.Currency).HasMaxLength(8).IsRequired();
+                e.Property(row => row.Status).HasMaxLength(16).IsRequired();
+                e.Property(row => row.AboutBody).IsRequired();
+                e.Property(row => row.SpecificationsJson).IsRequired();
+                e.HasOne(row => row.PlacementRecipe)
+                    .WithMany(row => row.Skus)
+                    .HasForeignKey(row => row.PlacementRecipeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ShopMaterialSkuTag>(e =>
+            {
+                e.HasKey(row => new { row.SkuId, row.TagId });
+                e.HasOne(row => row.Sku)
+                    .WithMany(row => row.SkuTags)
+                    .HasForeignKey(row => row.SkuId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(row => row.Tag)
+                    .WithMany(row => row.SkuTags)
+                    .HasForeignKey(row => row.TagId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ShopMaterialSkuImage>(e =>
+            {
+                e.HasIndex(row => new { row.SkuId, row.SortOrder });
+                e.Property(row => row.StorageKey).HasMaxLength(512).IsRequired();
+                e.Property(row => row.ContentType).HasMaxLength(128).IsRequired();
+                e.HasOne(row => row.Sku)
+                    .WithMany(row => row.Images)
+                    .HasForeignKey(row => row.SkuId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
 
             modelBuilder.Entity<ShopLocationDetails>()
                 .Property(row => row.TakeawayVolume)

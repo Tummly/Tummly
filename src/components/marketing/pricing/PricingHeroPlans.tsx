@@ -10,6 +10,17 @@ import {
   PRICING_HERO_HEADING,
   PRICING_PAGE_HERO,
   PRICING_PLAN_CARDS,
+  PRICING_PLAN_CARD_CLASS,
+  PRICING_PLAN_CARD_DESCRIPTION_CLASS,
+  PRICING_PLAN_CARD_POPULAR_CLASS,
+  PRICING_PLAN_CARD_TITLE_CLASS,
+  PRICING_PLAN_CARDS_GRID_CLASS,
+  PRICING_PLAN_FEATURE_LABEL_CLASS,
+  PRICING_PLAN_FEATURE_ROW_CLASS,
+  PRICING_PLAN_FEATURE_VALUE_CLASS,
+  PRICING_PLAN_PRICE_AMOUNT_CLASS,
+  PRICING_PLAN_PRICE_SUBLINE_CLASS,
+  PRICING_PLAN_PRICE_SUFFIX_CLASS,
   PRICING_SECTION_BODY,
   PRICING_SECTION_INSET,
   PRICING_SECTION_Y,
@@ -19,18 +30,8 @@ import {
 } from "@/content/marketing/pricingPage"
 import type { BillingCadence, PlanFeatureIcon } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import {
-  MANAGE_PLAN_CARD_CLASS,
-  MANAGE_PLAN_CARD_DESCRIPTION_CLASS,
-  MANAGE_PLAN_CARD_POPULAR_CLASS,
-  MANAGE_PLAN_CARD_TITLE_CLASS,
-  MANAGE_PLAN_CARDS_GRID_CLASS,
   MANAGE_PLAN_COMPLETE_LIST_TRIGGER_CLASS,
   MANAGE_PLAN_COPY,
-  MANAGE_PLAN_FEATURE_LABEL_CLASS,
-  MANAGE_PLAN_FEATURE_ROW_CLASS,
-  MANAGE_PLAN_FEATURE_VALUE_CLASS,
-  MANAGE_PLAN_PRICE_AMOUNT_CLASS,
-  MANAGE_PLAN_PRICE_SUFFIX_CLASS,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
 
@@ -63,22 +64,29 @@ function FeatureIcon({ icon }: { icon: PlanFeatureIcon }) {
 }
 
 function PlanFeatureRow({ row }: { row: PricingFeatureRow }) {
+  const emphasizeLabel = row.label === "Starter Kit"
   return (
     <div
       className={cn(
-        MANAGE_PLAN_FEATURE_ROW_CLASS,
+        PRICING_PLAN_FEATURE_ROW_CLASS,
         "max-lg:flex-wrap max-lg:whitespace-normal",
       )}
     >
       <div className="flex min-w-0 items-center gap-3">
         {row.icon != null ? <FeatureIcon icon={row.icon} /> : null}
-        <p className={cn(MANAGE_PLAN_FEATURE_LABEL_CLASS, "max-lg:whitespace-normal")}>
+        <p
+          className={cn(
+            PRICING_PLAN_FEATURE_LABEL_CLASS,
+            emphasizeLabel && "font-semibold",
+            "max-lg:whitespace-normal",
+          )}
+        >
           {row.label}
         </p>
       </div>
       <p
         className={cn(
-          MANAGE_PLAN_FEATURE_VALUE_CLASS,
+          PRICING_PLAN_FEATURE_VALUE_CLASS,
           "max-lg:whitespace-normal max-lg:shrink",
         )}
       >
@@ -101,38 +109,45 @@ function PricingPlanCardView({
       ? ({ plan: "Pilot" } as const)
       : ({ plan: card.id, cadence } as const)
 
+  const cardClass = card.isMostPopular
+    ? PRICING_PLAN_CARD_POPULAR_CLASS
+    : PRICING_PLAN_CARD_CLASS
+
   return (
     <article
-      className={
-        card.isMostPopular
-          ? MANAGE_PLAN_CARD_POPULAR_CLASS
-          : MANAGE_PLAN_CARD_CLASS
-      }
+      className={cn(cardClass, card.id === "Pilot" && "relative")}
     >
+      {/* Straight rule after Pilot — Figma `5661:13765` (not border-radius). */}
+      {card.id === "Pilot" ? (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 -right-2 hidden w-px bg-[#e0e0e0] xl:block"
+        />
+      ) : null}
       <div className="flex flex-col gap-3">
         <div className="flex min-h-9 items-center justify-between gap-3">
-          <h3 className={MANAGE_PLAN_CARD_TITLE_CLASS}>{card.id}</h3>
+          <h3 className={PRICING_PLAN_CARD_TITLE_CLASS}>{card.id}</h3>
           {card.isMostPopular ? (
-            <span className="shrink-0 rounded bg-[#14a74a]/18 px-3 py-2 text-xs font-medium text-[#14a74a]">
+            <span className="shrink-0 rounded bg-[#14a74a]/18 px-3 py-2 font-sans text-xs font-medium text-[#14a74a]">
               {MANAGE_PLAN_COPY.mostPopular}
             </span>
           ) : null}
         </div>
-        <p className={cn(MANAGE_PLAN_CARD_DESCRIPTION_CLASS, "min-h-19")}>
+        <p className={cn(PRICING_PLAN_CARD_DESCRIPTION_CLASS, "min-h-19")}>
           {card.description}
         </p>
       </div>
 
       <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-0.5">
           <p className="m-0 text-[#141414]">
-            <span className={MANAGE_PLAN_PRICE_AMOUNT_CLASS}>{price.amount}</span>
-            <span className={MANAGE_PLAN_PRICE_SUFFIX_CLASS}>{price.suffix}</span>
+            <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>{price.amount}</span>
+            <span className={PRICING_PLAN_PRICE_SUFFIX_CLASS}>{price.suffix}</span>
           </p>
-          <p className="m-0 min-h-10 text-sm font-medium leading-5 text-[#737373] lg:hidden">
+          <p className={cn(PRICING_PLAN_PRICE_SUBLINE_CLASS, "lg:hidden")}>
             {price.sublineMobile}
           </p>
-          <p className="m-0 hidden min-h-10 text-sm font-medium leading-5 text-[#737373] lg:block">
+          <p className={cn(PRICING_PLAN_PRICE_SUBLINE_CLASS, "hidden lg:block")}>
             {price.subline}
           </p>
         </div>
@@ -171,14 +186,14 @@ type PricingHeroPlansProps = {
   onCadenceChange: (cadence: BillingCadence) => void
 }
 
-  /** Figma Pricing hero + plan cards (`5139:4326` / mobile `4974:29544`). */
-  export function PricingHeroPlans({
-    cadence,
-    onCadenceChange,
-  }: PricingHeroPlansProps) {
-    // Keep header chrome gap (`py-5`) so top radius reads on `#CBCBCB` — do not use `-mt-5`.
-    return (
-      <section className="w-full overflow-hidden rounded-tl-[8px] rounded-tr-[8px] bg-white">
+/** Figma Pricing hero + plan cards (`5661:13671` / hero `5139:4326`). */
+export function PricingHeroPlans({
+  cadence,
+  onCadenceChange,
+}: PricingHeroPlansProps) {
+  // Keep header chrome gap (`py-5`) so top radius reads on `#CBCBCB` — do not use `-mt-5`.
+  return (
+    <section className="w-full overflow-hidden rounded-tl-[8px] rounded-tr-[8px] bg-white">
       <div
         className={cn(
           "flex w-full flex-col gap-10",
@@ -215,7 +230,7 @@ type PricingHeroPlansProps = {
                   key={item}
                   className="m-0 flex items-center gap-2 text-xs font-medium leading-normal text-[#727272]"
                 >
-                  <CheckIcon className="size-3 shrink-0 text-[#14a74a]" aria-hidden />
+                  <CheckIcon className="size-3 shrink-0 text-[#727272]" aria-hidden />
                   {item}
                 </p>
               ))}
@@ -262,7 +277,7 @@ type PricingHeroPlansProps = {
           </div>
         </div>
 
-        <div className={cn(MANAGE_PLAN_CARDS_GRID_CLASS, "order-1")}>
+        <div className={cn(PRICING_PLAN_CARDS_GRID_CLASS, "order-1")}>
           {PRICING_PLAN_CARDS.map((card) => (
             <PricingPlanCardView key={card.id} card={card} cadence={cadence} />
           ))}

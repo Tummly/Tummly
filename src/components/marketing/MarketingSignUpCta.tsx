@@ -1,4 +1,11 @@
-import { useId, useState, type CSSProperties, type FormEvent } from "react"
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react"
 import { CircleCheckBig } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
@@ -16,11 +23,12 @@ import {
   saveSignupPlanIntent,
   type SignupPlanIntent,
 } from "@/lib/signupPlanIntent"
-import {
-  marketingHeroBody,
-  marketingSectionHeading,
-} from "@/lib/marketing-layout"
+import { marketingHeroBody } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
+
+/** Figma Sign up Frame 270 title — Jakarta Medium 46 / leading normal (~58). */
+const SIGN_UP_TITLE =
+  "font-jakarta text-[34px] font-medium leading-none text-white lg:text-[46px] lg:leading-[58px]"
 
 /** Desktop: left-fade over right-anchored media (Figma `4151:3811`). */
 const SIGN_UP_GRADIENT_DESKTOP =
@@ -59,8 +67,48 @@ type MarketingSignUpCtaProps = {
 export function MarketingSignUpCta({ content }: MarketingSignUpCtaProps) {
   const navigate = useNavigate()
   const emailFieldId = useId()
+  const mediaRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   const [email, setEmail] = useState("")
   const [videoFailed, setVideoFailed] = useState(false)
+  const [videoInView, setVideoInView] = useState(false)
+
+  useEffect(() => {
+    const root = mediaRef.current
+    if (root == null || typeof IntersectionObserver === "undefined") {
+      setVideoInView(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setVideoInView(entry?.isIntersecting === true)
+      },
+      {
+        root: null,
+        rootMargin: "0px",
+        threshold: 0.25,
+      },
+    )
+
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const el = videoRef.current
+    if (el == null || videoFailed) {
+      return
+    }
+
+    if (videoInView) {
+      void el.play().catch(() => {
+        /* Autoplay can still be blocked. */
+      })
+    } else {
+      el.pause()
+    }
+  }, [videoFailed, videoInView])
 
   const signupReturnPath = buildSignupPath(content.planIntent)
 
@@ -100,6 +148,7 @@ export function MarketingSignUpCta({ content }: MarketingSignUpCtaProps) {
           Desktop: right-anchored 16:9 panel with a left fade (Figma).
         */}
         <div
+          ref={mediaRef}
           aria-hidden
           className={cn(
             "relative order-2 aspect-video w-full overflow-hidden [&_picture]:contents",
@@ -118,8 +167,8 @@ export function MarketingSignUpCta({ content }: MarketingSignUpCtaProps) {
           />
           {!videoFailed ? (
             <video
+              ref={videoRef}
               className="absolute inset-0 size-full max-w-none object-cover object-center"
-              autoPlay
               muted
               loop
               playsInline
@@ -145,17 +194,11 @@ export function MarketingSignUpCta({ content }: MarketingSignUpCtaProps) {
         <div
           className={cn(
             "relative z-10 order-1 flex w-full flex-col items-start gap-10 px-6.25 py-12.5",
-            "sm:gap-12 lg:absolute lg:inset-0 lg:h-full lg:max-w-[573px] lg:justify-between lg:gap-0 lg:px-15 lg:py-17.5",
+            "sm:gap-12 lg:absolute lg:inset-0 lg:h-full lg:max-w-2xl lg:justify-between lg:gap-0 lg:px-15 lg:py-17.5",
           )}
         >
           <div className="flex flex-col gap-[18px]">
-            <h2
-              className={cn(
-                "m-0 max-w-md md:max-w-[544px]",
-                marketingSectionHeading,
-                "font-jakarta text-white",
-              )}
-            >
+            <h2 className={cn("m-0 max-w-md md:max-w-[544px]", SIGN_UP_TITLE)}>
               {content.title}
             </h2>
             <p
@@ -169,7 +212,7 @@ export function MarketingSignUpCta({ content }: MarketingSignUpCtaProps) {
             </p>
           </div>
 
-          <div className="flex w-full flex-col items-start gap-[26px]">
+          <div className="flex w-full flex-col items-start max-w-xl gap-[26px]">
             <div className="inline-flex items-center gap-3">
               <CircleCheckBig
                 aria-hidden

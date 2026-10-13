@@ -29,9 +29,13 @@ namespace TummlyBackend.Tests.Services
                 .Options;
 
             _context = new ApplicationDbContext(options);
+            ShopMaterialsCatalogSeed
+                .EnsureSeededAsync(_context)
+                .GetAwaiter()
+                .GetResult();
             _complimentary = new ComplimentaryStarterShopOrderService(
                 _context,
-                MaterialsCatalog.LoadFromDirectory(ResolveMaterialsPackDir()),
+                new DbMaterialsCatalog(_context),
                 new ShopOrderNumberAllocator(_context)
             );
             _write = new LocationsLifecycleWriteService(
