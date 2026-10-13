@@ -19,6 +19,16 @@ export type AdminShopCatalogSpecification = {
   value: string
 }
 
+export type AdminPlacementRecipe = {
+  id: number
+  slug: string
+  label: string
+  placementKey: string
+  printRoute: string
+  mintOnFulfilmentDefault: boolean
+  isAvailable: boolean
+}
+
 export type AdminShopCatalogSku = {
   skuId: string
   title: string
@@ -26,7 +36,11 @@ export type AdminShopCatalogSku = {
   description: string
   material: string
   dimensions: string
-  qrType: "TableTent" | "WindowSticker" | "OfferCard"
+  placementRecipeId: number
+  placementRecipeLabel: string
+  placementRecipeSlug: string
+  qrType: string
+  printRoute: string
   unitNetPence: number
   minOrderQty: number
   currency: string
@@ -47,7 +61,7 @@ export type AdminShopCatalogSkuWrite = {
   description?: string
   material?: string
   dimensions?: string
-  qrType?: string
+  placementRecipeId?: number
   unitNetPence?: number
   minOrderQty?: number
   currency?: string
@@ -62,6 +76,19 @@ type ItemResponse = { success: boolean; item: AdminShopCatalogSku }
 type TagListResponse = { success: boolean; items: AdminShopCatalogTag[] }
 type TagItemResponse = { success: boolean; item: AdminShopCatalogTag }
 type ImageItemResponse = { success: boolean; item: AdminShopCatalogImage }
+type RecipeListResponse = {
+  success: boolean
+  items: AdminPlacementRecipe[]
+}
+
+export async function fetchAdminPlacementRecipes(): Promise<
+  AdminPlacementRecipe[]
+> {
+  const response = await axiosInstance.get<RecipeListResponse>(
+    "/admin/shop-catalog/placement-recipes"
+  )
+  return response.data.items
+}
 
 export async function fetchAdminShopCatalogSkus(
   status?: "Draft" | "Published"

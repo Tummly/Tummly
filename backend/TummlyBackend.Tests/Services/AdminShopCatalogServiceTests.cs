@@ -33,6 +33,7 @@ namespace TummlyBackend.Tests.Services
             var skus = await _service.ListSkusAsync();
             Assert.Equal(3, skus.Count);
             Assert.All(skus, sku => Assert.Equal("Published", sku.Status));
+            Assert.All(skus, sku => Assert.True(sku.PlacementRecipeId > 0));
             Assert.Contains(
                 skus,
                 sku => sku.SkuId == "table-tents" && sku.Images.Count == 1
@@ -40,8 +41,17 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task Create_RejectsDuplicateQrType_WhileActiveProductExists()
+        public async Task ListPlacementRecipes_MarksTakenSlotsUnavailable()
         {
+            var recipes = await _service.ListPlacementRecipesAsync();
+            Assert.Equal(3, recipes.Count);
+            Assert.All(recipes, recipe => Assert.False(recipe.IsAvailable));
+        }
+
+        [Fact]
+        public async Task Create_RejectsDuplicatePlacementRecipe_WhileActiveProductExists()
+        {
+            var offerRecipe = await RecipeIdAsync("offer-card");
             var (created, createError) = await _service.CreateSkuAsync(
                 new AdminShopCatalogSkuWriteRequest
                 {
@@ -50,22 +60,28 @@ namespace TummlyBackend.Tests.Services
                     Description = "Duplicate type",
                     Material = "Card",
                     Dimensions = "85mm x 55mm",
-                    QrType = "OfferCard",
+                    PlacementRecipeId = offerRecipe,
                     UnitNetPence = 1800,
                 }
             );
 
             Assert.Null(created);
-            Assert.Contains("OfferCard", createError, StringComparison.Ordinal);
             Assert.Contains("already exists", createError, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
-        public async Task Create_AllowsQrType_AfterExistingProductDeleted()
+        public async Task Create_AllowsPlacementRecipe_AfterExistingProductDeleted()
         {
             var (deleted, deleteError) = await _service.DeleteAsync("offer-card");
             Assert.Null(deleteError);
             Assert.Equal(ShopMaterialSkuStatuses.Deleted, deleted!.Status);
+
+            var offerRecipe = await RecipeIdAsync("offer-card");
+            var recipes = await _service.ListPlacementRecipesAsync();
+            Assert.Contains(
+                recipes,
+                row => row.Id == offerRecipe && row.IsAvailable
+            );
 
             var (created, createError) = await _service.CreateSkuAsync(
                 new AdminShopCatalogSkuWriteRequest
@@ -75,7 +91,7 @@ namespace TummlyBackend.Tests.Services
                     Description = "Replacement listing",
                     Material = "Card",
                     Dimensions = "85mm x 55mm",
-                    QrType = "OfferCard",
+                    PlacementRecipeId = offerRecipe,
                     UnitNetPence = 1900,
                     AboutBody = "Replacement about",
                 }
@@ -84,6 +100,33 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(createError);
             Assert.NotNull(created);
             Assert.Equal("OfferCard", created!.QrType);
+            Assert.Equal(offerRecipe, created.PlacementRecipeId);
+            Assert.Equal("Draft", created.Status);
+        }
+
+        [Fact]
+        public async Task Create_ReusesSoftDeletedSkuId()
+        {
+            await _service.DeleteAsync("offer-card");
+            var offerRecipe = await RecipeIdAsync("offer-card");
+
+            var (created, createError) = await _service.CreateSkuAsync(
+                new AdminShopCatalogSkuWriteRequest
+                {
+                    SkuId = "offer-card",
+                    Title = "Offer Card Reloaded",
+                    Category = "payment",
+                    Description = "Same sku id after soft delete",
+                    Material = "Card",
+                    Dimensions = "85mm x 55mm",
+                    PlacementRecipeId = offerRecipe,
+                    UnitNetPence = 1800,
+                }
+            );
+
+            Assert.Null(createError);
+            Assert.NotNull(created);
+            Assert.Equal("offer-card", created!.SkuId);
             Assert.Equal("Draft", created.Status);
         }
 
@@ -91,6 +134,7 @@ namespace TummlyBackend.Tests.Services
         public async Task Create_ThenPublish_RequiresImage()
         {
             await _service.DeleteAsync("table-tents");
+            var tentRecipe = await RecipeIdAsync("table-tent");
 
             var (created, createError) = await _service.CreateSkuAsync(
                 new AdminShopCatalogSkuWriteRequest
@@ -100,7 +144,7 @@ namespace TummlyBackend.Tests.Services
                     Description = "Extra stock listing",
                     Material = "Acrylic",
                     Dimensions = "A6",
-                    QrType = "TableTent",
+                    PlacementRecipeId = tentRecipe,
                     UnitNetPence = 2000,
                     AboutBody = "About extra tents",
                 }
@@ -108,6 +152,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(createError);
             Assert.NotNull(created);
             Assert.Equal("Draft", created!.Status);
+            Assert.Equal("TableTent", created.QrType);
 
             var (publishedFail, publishError) = await _service.PublishAsync(
                 created.SkuId
@@ -139,6 +184,7 @@ namespace TummlyBackend.Tests.Services
         public async Task DbCatalog_HidesDraft_FromOperatorList()
         {
             await _service.DeleteAsync("window-stickers");
+            var windowRecipe = await RecipeIdAsync("window-sticker");
 
             await _service.CreateSkuAsync(
                 new AdminShopCatalogSkuWriteRequest
@@ -148,7 +194,7 @@ namespace TummlyBackend.Tests.Services
                     Description = "Not live",
                     Material = "Vinyl",
                     Dimensions = "150mm",
-                    QrType = "WindowSticker",
+                    PlacementRecipeId = windowRecipe,
                     UnitNetPence = 1000,
                 }
             );
@@ -161,6 +207,15 @@ namespace TummlyBackend.Tests.Services
                 ShopMaterialCatalogMapper.CatalogVersionId,
                 catalog.CurrentCatalogId
             );
+        }
+
+        private async Task<int> RecipeIdAsync(string slug)
+        {
+            var id = await _context.PlacementRecipes
+                .Where(row => row.Slug == slug)
+                .Select(row => row.Id)
+                .FirstAsync();
+            return id;
         }
 
         public void Dispose() => _context.Dispose();

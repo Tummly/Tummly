@@ -2713,6 +2713,57 @@ namespace TummlyBackend.Migrations
                     b.ToTable("PendingTrialRequests");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.PlacementRecipe", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IncludeInComplimentaryStarter")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<bool>("MintOnFulfilmentDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PlacementKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("PrintRoute")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlacementKey")
+                        .IsUnique();
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("PlacementRecipes");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.PrintReadyQrAsset", b =>
                 {
                     b.Property<int>("Id")
@@ -3813,6 +3864,9 @@ namespace TummlyBackend.Migrations
                     b.Property<bool>("MintOnShopFulfilment")
                         .HasColumnType("bit");
 
+                    b.Property<int>("PlacementRecipeId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("PublishedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -3848,12 +3902,13 @@ namespace TummlyBackend.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("QrType")
+                    b.HasIndex("PlacementRecipeId")
                         .IsUnique()
                         .HasFilter("[Status] <> N'Deleted'");
 
                     b.HasIndex("SkuId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[Status] <> N'Deleted'");
 
                     b.HasIndex("Status");
 
@@ -5773,6 +5828,17 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Location");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.ShopMaterialSku", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.PlacementRecipe", "PlacementRecipe")
+                        .WithMany("Skus")
+                        .HasForeignKey("PlacementRecipeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PlacementRecipe");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.ShopMaterialSkuImage", b =>
                 {
                     b.HasOne("TummlyBackend.Models.ShopMaterialSku", "Sku")
@@ -5968,6 +6034,11 @@ namespace TummlyBackend.Migrations
             modelBuilder.Entity("TummlyBackend.Models.MasterGuest", b =>
                 {
                     b.Navigation("LocationGuests");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.PlacementRecipe", b =>
+                {
+                    b.Navigation("Skus");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.Restaurant", b =>

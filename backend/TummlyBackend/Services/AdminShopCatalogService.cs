@@ -12,14 +12,6 @@ namespace TummlyBackend.Services
 {
     public sealed class AdminShopCatalogService : IAdminShopCatalogService
     {
-        private static readonly HashSet<string> AllowedQrTypes =
-            new(StringComparer.Ordinal)
-            {
-                "TableTent",
-                "WindowSticker",
-                "OfferCard",
-            };
-
         private static readonly HashSet<string> AllowedCategories =
             new(StringComparer.Ordinal)
             {
@@ -42,6 +34,37 @@ namespace TummlyBackend.Services
             _imageStorage = imageStorage;
         }
 
+        public async Task<IReadOnlyList<AdminPlacementRecipeDto>> ListPlacementRecipesAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var recipes = await _context.PlacementRecipes
+                .AsNoTracking()
+                .Where(row => row.IsActive)
+                .OrderBy(row => row.Label)
+                .ToListAsync(cancellationToken);
+
+            var takenRecipeIds = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .Where(row => row.Status != ShopMaterialSkuStatuses.Deleted)
+                .Select(row => row.PlacementRecipeId)
+                .ToListAsync(cancellationToken);
+            var taken = takenRecipeIds.ToHashSet();
+
+            return recipes
+                .Select(row => new AdminPlacementRecipeDto
+                {
+                    Id = row.Id,
+                    Slug = row.Slug,
+                    Label = row.Label,
+                    PlacementKey = row.PlacementKey,
+                    PrintRoute = row.PrintRoute,
+                    MintOnFulfilmentDefault = row.MintOnFulfilmentDefault,
+                    IsAvailable = !taken.Contains(row.Id),
+                })
+                .ToList();
+        }
+
         public async Task<IReadOnlyList<AdminShopCatalogSkuDto>> ListSkusAsync(
             string? statusFilter = null,
             CancellationToken cancellationToken = default
@@ -49,6 +72,7 @@ namespace TummlyBackend.Services
         {
             var query = _context.ShopMaterialSkus
                 .AsNoTracking()
+                .Include(row => row.PlacementRecipe)
                 .Include(row => row.Images)
                 .Include(row => row.SkuTags)
                 .ThenInclude(row => row.Tag)
@@ -102,7 +126,9 @@ namespace TummlyBackend.Services
             }
 
             if (await _context.ShopMaterialSkus.AnyAsync(
-                    row => row.SkuId == skuId,
+                    row =>
+                        row.SkuId == skuId
+                        && row.Status != ShopMaterialSkuStatuses.Deleted,
                     cancellationToken
                 ))
             {
@@ -115,17 +141,33 @@ namespace TummlyBackend.Services
                 return (null, validation);
             }
 
-            var qrType = request.QrType!.Trim();
+            if (request.PlacementRecipeId is null or <= 0)
+            {
+                return (null, "Placement recipe is required.");
+            }
+
+            var recipe = await _context.PlacementRecipes
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.Id == request.PlacementRecipeId.Value
+                        && row.IsActive,
+                    cancellationToken
+                );
+            if (recipe == null)
+            {
+                return (null, "Placement recipe was not found.");
+            }
+
             if (await _context.ShopMaterialSkus.AnyAsync(
                     row =>
-                        row.QrType == qrType
+                        row.PlacementRecipeId == recipe.Id
                         && row.Status != ShopMaterialSkuStatuses.Deleted,
                     cancellationToken
                 ))
             {
                 return (
                     null,
-                    $"A product with QR type '{qrType}' already exists. Delete or keep the existing product — only one active product is allowed per QR type."
+                    $"A product for placement '{recipe.Label}' already exists. Delete the existing product before adding another — only one active product is allowed per placement recipe."
                 );
             }
 
@@ -139,32 +181,94 @@ namespace TummlyBackend.Services
             }
 
             var now = DateTime.UtcNow;
-            var sku = new ShopMaterialSku
+            var category = request.Category!.Trim();
+            var description = request.Description!.Trim();
+            var material = request.Material!.Trim();
+            var dimensions = request.Dimensions!.Trim();
+            var unitNetPence = request.UnitNetPence!.Value;
+            var minOrderQty = request.MinOrderQty ?? 1;
+            var currency = string.IsNullOrWhiteSpace(request.Currency)
+                ? "GBP"
+                : request.Currency.Trim().ToUpperInvariant();
+            var mintOnFulfilment =
+                request.MintOnShopFulfilment
+                ?? recipe.MintOnFulfilmentDefault;
+            var aboutBody = request.AboutBody?.Trim() ?? string.Empty;
+            var specificationsJson = ShopMaterialSpecifications.Serialize(
+                request.Specifications ?? []
+            );
+
+            // Soft-deleted rows free the filtered unique index — revive that row
+            // instead of inserting a second row with the same skuId.
+            var softDeleted = await _context.ShopMaterialSkus
+                .Include(row => row.SkuTags)
+                .Include(row => row.Images)
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.SkuId == skuId
+                        && row.Status == ShopMaterialSkuStatuses.Deleted,
+                    cancellationToken
+                );
+
+            ShopMaterialSku sku;
+            if (softDeleted != null)
             {
-                SkuId = skuId,
-                Title = title,
-                Category = request.Category!.Trim(),
-                Description = request.Description!.Trim(),
-                Material = request.Material!.Trim(),
-                Dimensions = request.Dimensions!.Trim(),
-                QrType = qrType,
-                UnitNetPence = request.UnitNetPence!.Value,
-                MinOrderQty = request.MinOrderQty ?? 1,
-                Currency = string.IsNullOrWhiteSpace(request.Currency)
-                    ? "GBP"
-                    : request.Currency.Trim().ToUpperInvariant(),
-                MintOnShopFulfilment = request.MintOnShopFulfilment ?? false,
-                Status = ShopMaterialSkuStatuses.Draft,
-                AboutBody = request.AboutBody?.Trim() ?? string.Empty,
-                SpecificationsJson = ShopMaterialSpecifications.Serialize(
-                    request.Specifications ?? []
-                ),
-                CreatedAtUtc = now,
-                UpdatedAtUtc = now,
-            };
+                sku = softDeleted;
+                sku.Title = title;
+                sku.Category = category;
+                sku.Description = description;
+                sku.Material = material;
+                sku.Dimensions = dimensions;
+                sku.PlacementRecipeId = recipe.Id;
+                sku.QrType = recipe.PlacementKey;
+                sku.UnitNetPence = unitNetPence;
+                sku.MinOrderQty = minOrderQty;
+                sku.Currency = currency;
+                sku.MintOnShopFulfilment = mintOnFulfilment;
+                sku.Status = ShopMaterialSkuStatuses.Draft;
+                sku.PublishedAtUtc = null;
+                sku.AboutBody = aboutBody;
+                sku.SpecificationsJson = specificationsJson;
+                sku.UpdatedAtUtc = now;
+
+                if (sku.SkuTags.Count > 0)
+                {
+                    _context.ShopMaterialSkuTags.RemoveRange(sku.SkuTags);
+                    sku.SkuTags.Clear();
+                }
+
+                if (sku.Images.Count > 0)
+                {
+                    _context.ShopMaterialSkuImages.RemoveRange(sku.Images);
+                    sku.Images.Clear();
+                }
+            }
+            else
+            {
+                sku = new ShopMaterialSku
+                {
+                    SkuId = skuId,
+                    Title = title,
+                    Category = category,
+                    Description = description,
+                    Material = material,
+                    Dimensions = dimensions,
+                    PlacementRecipeId = recipe.Id,
+                    QrType = recipe.PlacementKey,
+                    UnitNetPence = unitNetPence,
+                    MinOrderQty = minOrderQty,
+                    Currency = currency,
+                    MintOnShopFulfilment = mintOnFulfilment,
+                    Status = ShopMaterialSkuStatuses.Draft,
+                    AboutBody = aboutBody,
+                    SpecificationsJson = specificationsJson,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now,
+                };
+                _context.ShopMaterialSkus.Add(sku);
+            }
 
             await AttachTagsAsync(sku, request.TagIds, cancellationToken);
-            _context.ShopMaterialSkus.Add(sku);
             await _context.SaveChangesAsync(cancellationToken);
 
             var loaded = await LoadSkuAsync(skuId, tracking: false, cancellationToken);
@@ -183,14 +287,12 @@ namespace TummlyBackend.Services
                 return (null, "Product was not found.");
             }
 
-            if (request.QrType != null
-                && !string.Equals(
-                    request.QrType.Trim(),
-                    sku.QrType,
-                    StringComparison.Ordinal
-                ))
+            if (
+                request.PlacementRecipeId != null
+                && request.PlacementRecipeId.Value != sku.PlacementRecipeId
+            )
             {
-                return (null, "QrType cannot be changed after create.");
+                return (null, "Placement recipe cannot be changed after create.");
             }
 
             if (request.SkuId != null
@@ -590,6 +692,7 @@ namespace TummlyBackend.Services
         )
         {
             IQueryable<ShopMaterialSku> query = _context.ShopMaterialSkus
+                .Include(row => row.PlacementRecipe)
                 .Include(row => row.Images)
                 .Include(row => row.SkuTags)
                 .ThenInclude(row => row.Tag);
@@ -599,10 +702,14 @@ namespace TummlyBackend.Services
                 query = query.AsNoTracking();
             }
 
-            return await query.FirstOrDefaultAsync(
-                row => row.SkuId == skuId,
-                cancellationToken
-            );
+            // Prefer a live row if a soft-deleted duplicate somehow exists.
+            return await query
+                .Where(row => row.SkuId == skuId)
+                .OrderBy(row =>
+                    row.Status == ShopMaterialSkuStatuses.Deleted ? 1 : 0
+                )
+                .ThenByDescending(row => row.Id)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         private async Task AttachTagsAsync(
@@ -673,11 +780,6 @@ namespace TummlyBackend.Services
                     return "Dimensions are required.";
                 }
 
-                if (string.IsNullOrWhiteSpace(request.QrType))
-                {
-                    return "QrType is required.";
-                }
-
                 if (request.UnitNetPence is null or < 0)
                 {
                     return "UnitNetPence must be zero or greater.";
@@ -690,14 +792,6 @@ namespace TummlyBackend.Services
             )
             {
                 return "Category is not supported.";
-            }
-
-            if (
-                request.QrType != null
-                && !AllowedQrTypes.Contains(request.QrType.Trim())
-            )
-            {
-                return "QrType must be TableTent, WindowSticker, or OfferCard.";
             }
 
             if (request.UnitNetPence is < 0)
@@ -722,7 +816,13 @@ namespace TummlyBackend.Services
                 Description = sku.Description,
                 Material = sku.Material,
                 Dimensions = sku.Dimensions,
+                PlacementRecipeId = sku.PlacementRecipeId,
+                PlacementRecipeLabel = sku.PlacementRecipe?.Label ?? sku.QrType,
+                PlacementRecipeSlug = sku.PlacementRecipe?.Slug ?? string.Empty,
                 QrType = sku.QrType,
+                PrintRoute =
+                    sku.PlacementRecipe?.PrintRoute
+                    ?? PlacementPrintRoutes.EmbeddedPdf,
                 UnitNetPence = sku.UnitNetPence,
                 MinOrderQty = sku.MinOrderQty,
                 Currency = sku.Currency,

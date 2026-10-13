@@ -96,9 +96,13 @@ namespace TummlyBackend.Tests.Services
             ApplicationDbContext context
         )
         {
+            ShopMaterialsCatalogSeed
+                .EnsureSeededAsync(context)
+                .GetAwaiter()
+                .GetResult();
             return new ComplimentaryStarterShopOrderService(
                 context,
-                MaterialsCatalog.LoadFromDirectory(ResolveMaterialsPackDir()),
+                new DbMaterialsCatalog(context),
                 new ShopOrderNumberAllocator(context)
             );
         }

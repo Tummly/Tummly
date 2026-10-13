@@ -11,13 +11,6 @@ namespace TummlyBackend.Services
     {
         private const string UkCountry = "United Kingdom";
 
-        private static readonly (string SkuId, string MaterialType)[] StarterSkus =
-        [
-            ("table-tents", "table-tents"),
-            ("window-stickers", "window-stickers"),
-            ("offer-card", "offer-card"),
-        ];
-
         private readonly ApplicationDbContext _context;
         private readonly IMaterialsCatalog _catalog;
         private readonly IShopOrderNumberAllocator _orderNumbers;
@@ -102,6 +95,17 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var starterSkus = await LoadComplimentaryStarterSkusAsync(
+                cancellationToken
+            );
+            if (starterSkus.Count == 0)
+            {
+                return new ComplimentaryStarterShopOrderResult(
+                    Guid.Empty,
+                    Created: false
+                );
+            }
+
             var now = DateTime.UtcNow;
             var orderNumber = await _orderNumbers.AllocateNextOrderNumberAsync(
                 restaurantId,
@@ -169,16 +173,17 @@ namespace TummlyBackend.Services
                 UpdatedAtUtc = now,
             };
 
-            foreach (var (skuId, materialType) in StarterSkus)
+            foreach (var sku in starterSkus)
             {
-                var detail = _catalog.TryBuildDetail(skuId);
-                var title = detail?.Title ?? skuId;
+                var detail = _catalog.TryBuildDetail(sku.SkuId);
+                var title = detail?.Title ?? sku.Title;
+                var materialType = sku.PlacementRecipe?.Slug ?? sku.SkuId;
                 order.Lines.Add(
                     new ShopOrderLine
                     {
                         Id = Guid.NewGuid(),
                         ShopOrderId = order.Id,
-                        CatalogSkuId = skuId,
+                        CatalogSkuId = sku.SkuId,
                         TitleSnapshot = title,
                         MaterialType = materialType,
                         Quantity = 1,
@@ -237,6 +242,28 @@ namespace TummlyBackend.Services
             }
 
             return shopOrderIds;
+        }
+
+        /// <summary>
+        /// One published SKU per starter placement recipe (Admin can replace commerce
+        /// while keeping the recipe slot).
+        /// </summary>
+        private async Task<IReadOnlyList<ShopMaterialSku>> LoadComplimentaryStarterSkusAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .Include(row => row.PlacementRecipe)
+                .Where(row =>
+                    row.Status == ShopMaterialSkuStatuses.Published
+                    && row.PlacementRecipe != null
+                    && row.PlacementRecipe.IsActive
+                    && row.PlacementRecipe.IncludeInComplimentaryStarter
+                )
+                .OrderBy(row => row.PlacementRecipe!.Id)
+                .ThenBy(row => row.Id)
+                .ToListAsync(cancellationToken);
         }
     }
 }

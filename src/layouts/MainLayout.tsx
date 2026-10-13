@@ -4,6 +4,7 @@ import MarketingHeader from "@/components/marketing/MarketingHeader"
 import {
   marketingBodyChromePadding,
   marketingChromeBackground,
+  marketingShellMaxWidthClass,
 } from "@/lib/marketing-layout"
 import {
   isOperatorDashboardPath,
@@ -15,29 +16,41 @@ function MainLayout() {
   const { pathname } = useLocation()
   const isOperatorDashboard = isOperatorDashboardPath(pathname)
   const isStaffDashboard = isStaffDashboardPath(pathname)
-  const skipMarketingChrome = isOperatorDashboard || isStaffDashboard
+
+  if (isOperatorDashboard) {
+    return (
+      <div className="flex h-dvh flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <Outlet />
+        </div>
+      </div>
+    )
+  }
+
+  if (isStaffDashboard) {
+    return (
+      <div className="flex min-h-dvh flex-col bg-background">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <Outlet />
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div
-      className={
-        isOperatorDashboard
-          ? "flex h-dvh flex-col overflow-hidden"
-          : isStaffDashboard
-            ? "flex min-h-dvh flex-col bg-background"
-            : cn("flex min-h-dvh flex-col", marketingChromeBackground)
-      }
-    >
-      {skipMarketingChrome ? null : <MarketingHeader />}
+    <div className={cn("flex min-h-dvh flex-col", marketingChromeBackground)}>
       <div
-        className={
-          isOperatorDashboard
-            ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-            : isStaffDashboard
-              ? "flex min-h-0 flex-1 flex-col"
-              : cn("flex flex-1 flex-col", marketingBodyChromePadding)
-        }
+        className={cn(
+          "flex min-h-dvh w-full flex-1 flex-col",
+          marketingShellMaxWidthClass,
+        )}
       >
-        <Outlet />
+        <MarketingHeader />
+        <div
+          className={cn("flex flex-1 flex-col", marketingBodyChromePadding)}
+        >
+          <Outlet />
+        </div>
       </div>
     </div>
   )

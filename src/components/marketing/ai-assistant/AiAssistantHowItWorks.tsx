@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils"
 
 function StepRow({ step }: { step: AiAssistantHowItWorksStep }) {
   const textBlock = (
-    <div className="flex w-full max-w-md shrink-0 flex-col items-start gap-13 md:max-w-3xl">
+    <div className="flex w-full max-w-md shrink-0 flex-col items-start gap-13 md:max-w-xl">
       <div className="flex w-full flex-col gap-4.5">
         <div className="flex flex-col gap-2">
           <p className="m-0 font-sans text-sm font-normal leading-5 text-black">

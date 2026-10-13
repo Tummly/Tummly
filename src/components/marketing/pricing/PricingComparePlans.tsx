@@ -1,3 +1,5 @@
+import { useRef, type UIEvent } from "react"
+
 import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import {
@@ -14,6 +16,12 @@ import {
 } from "@/content/marketing/pricingPage"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
+
+/**
+ * Clear sticky marketing header chrome (pad + nav ≈ 100px).
+ * Keep compare plan header under the site nav while scrolling the matrix.
+ */
+const COMPARE_HEADER_STICKY_TOP = "top-[100px]"
 
 /**
  * Figma compare header (`5437:13879`): Feature 224px + four equal plan cols,
@@ -88,10 +96,35 @@ type PricingComparePlansProps = {
  * Figma Compare plans (`5437:13695`):
  * white section, Jakarta Medium 46 heading, 60px gap to table,
  * sticky `#f8f8f8` plan header, 224px feature col.
+ *
+ * Header and body use separate overflow-x scrollers so `sticky` can clear
+ * the marketing nav; horizontal scroll stays in sync.
  */
 export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
+  const headerScrollRef = useRef<HTMLDivElement>(null)
+  const bodyScrollRef = useRef<HTMLDivElement>(null)
+  const syncLockRef = useRef(false)
+
+  function syncHorizontalScroll(
+    source: "header" | "body",
+    event: UIEvent<HTMLDivElement>,
+  ) {
+    if (syncLockRef.current) {
+      return
+    }
+    const left = event.currentTarget.scrollLeft
+    const target =
+      source === "header" ? bodyScrollRef.current : headerScrollRef.current
+    if (target == null || target.scrollLeft === left) {
+      return
+    }
+    syncLockRef.current = true
+    target.scrollLeft = left
+    syncLockRef.current = false
+  }
+
   return (
-    <section id="compare-plans" className="w-full scroll-mt-45 bg-white">
+    <section id="compare-plans" className="w-full scroll-mt-[100px] bg-white">
       <div
         className={cn(
           "flex w-full flex-col gap-15",
@@ -103,11 +136,19 @@ export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
           {PRICING_COMPARE_HEADING}
         </h2>
 
-        {/* Keep desktop column widths; smaller viewports scroll horizontally. */}
-        <div className="-mx-5 overflow-x-auto overscroll-x-contain rounded-[6px] sm:mx-0">
-          <div className="min-w-[960px]">
-            {/* Plan header strip — Figma sticky `#f8f8f8` (`5437:13879`). */}
-            <div className="flex items-end gap-[22px] bg-[#f8f8f8] p-6">
+        <div className="rounded-[6px]">
+          {/* Plan header strip — sticky under marketing nav (`5437:13879`). */}
+          <div
+            ref={headerScrollRef}
+            onScroll={(event) => {
+              syncHorizontalScroll("header", event)
+            }}
+            className={cn(
+              "sticky z-20 -mx-5 overflow-x-auto overscroll-x-contain bg-[#f8f8f8] sm:mx-0",
+              COMPARE_HEADER_STICKY_TOP,
+            )}
+          >
+            <div className="flex min-w-[960px] items-end gap-[22px] p-6">
               <div className="flex w-[224px] shrink-0 items-center">
                 <p className="m-0 text-lg font-semibold text-[#141414]">
                   Feature
@@ -124,9 +165,17 @@ export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
                 ))}
               </div>
             </div>
+          </div>
 
-            {/* Feature matrix body */}
-            <div className="flex flex-col gap-[26px] bg-white px-6 py-[26px]">
+          {/* Feature matrix body */}
+          <div
+            ref={bodyScrollRef}
+            onScroll={(event) => {
+              syncHorizontalScroll("body", event)
+            }}
+            className="-mx-5 overflow-x-auto overscroll-x-contain sm:mx-0"
+          >
+            <div className="flex min-w-[960px] flex-col gap-[26px] bg-white px-6 py-[26px]">
               {PRICING_COMPARISON_GROUPS.map((group) => (
                 <div key={group.id} className="flex flex-col">
                   <div className="flex min-h-12.5 items-start">

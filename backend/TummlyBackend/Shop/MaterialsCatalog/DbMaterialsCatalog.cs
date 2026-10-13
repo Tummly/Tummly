@@ -35,6 +35,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
 
             var skus = _context.ShopMaterialSkus
                 .AsNoTracking()
+                .Include(row => row.PlacementRecipe)
                 .Include(row => row.Images)
                 .Include(row => row.SkuTags)
                 .ThenInclude(row => row.Tag)
@@ -87,6 +88,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
         )
         {
             var query = _context.ShopMaterialSkus
+                .Include(row => row.PlacementRecipe)
                 .Include(row => row.Images)
                 .Include(row => row.SkuTags)
                 .ThenInclude(row => row.Tag)
@@ -108,6 +110,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
         {
             return _context.ShopMaterialSkus
                 .AsNoTracking()
+                .Include(row => row.PlacementRecipe)
                 .Include(row => row.Images)
                 .Include(row => row.SkuTags)
                 .ThenInclude(row => row.Tag)

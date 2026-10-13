@@ -8,12 +8,14 @@ import {
   createAdminShopCatalogTag,
   deleteAdminShopCatalogImage,
   deleteAdminShopCatalogSku,
+  fetchAdminPlacementRecipes,
   fetchAdminShopCatalogSkus,
   fetchAdminShopCatalogTags,
   publishAdminShopCatalogSku,
   unpublishAdminShopCatalogSku,
   updateAdminShopCatalogSku,
   uploadAdminShopCatalogImage,
+  type AdminPlacementRecipe,
   type AdminShopCatalogSku,
   type AdminShopCatalogSpecification,
   type AdminShopCatalogTag,
@@ -60,12 +62,6 @@ import { cn } from "@/lib/utils"
 /** Select menus must sit above the right Drawer portal. */
 const DRAWER_SELECT_CONTENT_CLASS = "z-[150]"
 
-const QR_TYPE_OPTIONS = [
-  { value: "TableTent", label: "Table Tent" },
-  { value: "WindowSticker", label: "Window Sticker" },
-  { value: "OfferCard", label: "Offer Card" },
-] as const
-
 const CATEGORY_OPTIONS = [
   { value: "tabletop", label: "Tabletop" },
   { value: "window", label: "Window" },
@@ -74,6 +70,12 @@ const CATEGORY_OPTIONS = [
   { value: "delivery", label: "Delivery" },
 ] as const
 
+const CATEGORY_BY_PLACEMENT_KEY: Record<string, string> = {
+  TableTent: "tabletop",
+  WindowSticker: "window",
+  OfferCard: "payment",
+}
+
 type EditorState = {
   skuId: string
   title: string
@@ -81,7 +83,8 @@ type EditorState = {
   description: string
   material: string
   dimensions: string
-  qrType: string
+  placementRecipeId: number
+  placementRecipeLabel: string
   unitNetPence: string
   minOrderQty: string
   aboutBody: string
@@ -93,31 +96,22 @@ type EditorState = {
   status: AdminShopCatalogSku["status"] | "new"
 }
 
-function availableQrTypeOptions(skus: AdminShopCatalogSku[]) {
-  const taken = new Set(skus.map((sku) => sku.qrType))
-  return QR_TYPE_OPTIONS.filter((option) => !taken.has(option.value))
-}
-
-function emptyEditor(qrType: string): EditorState {
-  const categoryByQrType: Record<string, string> = {
-    TableTent: "tabletop",
-    WindowSticker: "window",
-    OfferCard: "payment",
-  }
+function emptyEditor(recipe: AdminPlacementRecipe): EditorState {
   return {
     skuId: "",
     title: "",
-    category: categoryByQrType[qrType] ?? "tabletop",
+    category: CATEGORY_BY_PLACEMENT_KEY[recipe.placementKey] ?? "tabletop",
     description: "",
     material: "",
     dimensions: "",
-    qrType,
+    placementRecipeId: recipe.id,
+    placementRecipeLabel: recipe.label,
     unitNetPence: "1800",
     minOrderQty: "1",
     aboutBody: "",
     specifications: [{ label: "", value: "" }],
     tagIds: [],
-    mintOnShopFulfilment: false,
+    mintOnShopFulfilment: recipe.mintOnFulfilmentDefault,
     isNew: true,
     images: [],
     status: "new",
@@ -132,7 +126,8 @@ function editorFromSku(sku: AdminShopCatalogSku): EditorState {
     description: sku.description,
     material: sku.material,
     dimensions: sku.dimensions,
-    qrType: sku.qrType,
+    placementRecipeId: sku.placementRecipeId,
+    placementRecipeLabel: sku.placementRecipeLabel,
     unitNetPence: String(sku.unitNetPence),
     minOrderQty: String(sku.minOrderQty),
     aboutBody: sku.aboutBody,
@@ -160,20 +155,25 @@ function apiErrorMessage(error: unknown, fallback: string) {
 export function AdminShopCatalogPanel() {
   const [skus, setSkus] = useState<AdminShopCatalogSku[]>([])
   const [tags, setTags] = useState<AdminShopCatalogTag[]>([])
+  const [recipes, setRecipes] = useState<AdminPlacementRecipe[]>([])
   const [loading, setLoading] = useState(true)
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [saving, setSaving] = useState(false)
   const [newTagLabel, setNewTagLabel] = useState("")
 
+  const availableRecipes = recipes.filter((recipe) => recipe.isAvailable)
+
   const reload = useCallback(async () => {
     setLoading(true)
     try {
-      const [nextSkus, nextTags] = await Promise.all([
+      const [nextSkus, nextTags, nextRecipes] = await Promise.all([
         fetchAdminShopCatalogSkus(),
         fetchAdminShopCatalogTags(),
+        fetchAdminPlacementRecipes(),
       ])
       setSkus(nextSkus)
       setTags(nextTags)
+      setRecipes(nextRecipes)
     } catch {
       toast.error("Could not load shop materials.")
     } finally {
@@ -206,7 +206,6 @@ export function AdminShopCatalogPanel() {
         description: editor.description,
         material: editor.material,
         dimensions: editor.dimensions,
-        qrType: editor.qrType,
         unitNetPence,
         minOrderQty,
         aboutBody: editor.aboutBody,
@@ -220,6 +219,7 @@ export function AdminShopCatalogPanel() {
         ? await createAdminShopCatalogSku({
             ...body,
             skuId: editor.skuId.trim() || undefined,
+            placementRecipeId: editor.placementRecipeId,
           })
         : await updateAdminShopCatalogSku(editor.skuId, body)
       toast.success(editor.isNew ? "Draft product created." : "Product saved.")
@@ -316,14 +316,13 @@ export function AdminShopCatalogPanel() {
           type="button"
           variant="op-primary"
           onClick={() => {
-            const available = availableQrTypeOptions(skus)
-            if (available.length === 0) {
+            if (availableRecipes.length === 0) {
               toast.error(
-                "All QR types already have a product. Delete one before adding another."
+                "All placement recipes already have a product. Delete one before adding another."
               )
               return
             }
-            setEditor(emptyEditor(available[0]!.value))
+            setEditor(emptyEditor(availableRecipes[0]!))
           }}
         >
           <PlusIcon className="size-4" />
@@ -340,7 +339,7 @@ export function AdminShopCatalogPanel() {
                   Product
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  QR type
+                  Placement
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Price
@@ -400,7 +399,7 @@ export function AdminShopCatalogPanel() {
                       </div>
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                      {sku.qrType}
+                      {sku.placementRecipeLabel}
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       £{(sku.unitNetPence / 100).toFixed(2)}
@@ -522,18 +521,38 @@ export function AdminShopCatalogPanel() {
                     }
                   />
                   <FloatingLabelSelect
-                    label="QR type"
-                    value={editor.qrType}
+                    label="Placement"
+                    value={String(editor.placementRecipeId)}
                     options={
                       editor.isNew
-                        ? [...availableQrTypeOptions(skus)]
-                        : [...QR_TYPE_OPTIONS]
+                        ? availableRecipes.map((recipe) => ({
+                            value: String(recipe.id),
+                            label: recipe.label,
+                          }))
+                        : [
+                            {
+                              value: String(editor.placementRecipeId),
+                              label: editor.placementRecipeLabel,
+                            },
+                          ]
                     }
                     disabled={!editor.isNew}
                     contentClassName={DRAWER_SELECT_CONTENT_CLASS}
-                    onValueChange={(value) =>
-                      setEditor({ ...editor, qrType: value })
-                    }
+                    onValueChange={(value) => {
+                      const recipe = recipes.find(
+                        (row) => String(row.id) === value
+                      )
+                      if (!recipe) return
+                      setEditor({
+                        ...editor,
+                        placementRecipeId: recipe.id,
+                        placementRecipeLabel: recipe.label,
+                        category:
+                          CATEGORY_BY_PLACEMENT_KEY[recipe.placementKey] ??
+                          editor.category,
+                        mintOnShopFulfilment: recipe.mintOnFulfilmentDefault,
+                      })
+                    }}
                   />
                 </div>
                 <FloatingLabelTextarea

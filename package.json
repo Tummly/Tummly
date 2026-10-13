@@ -14,7 +14,9 @@
     "email:dev": "npm run dev --prefix emails",
     "email:export": "npm run export:backend --prefix emails",
     "marketing-media:publish": "node scripts/marketing-media/publish.mjs",
-    "marketing-media:generate": "node scripts/marketing-media/publish.mjs --skip-upload"
+    "marketing-media:publish:new": "node scripts/marketing-media/publish.mjs --new",
+    "marketing-media:generate": "node scripts/marketing-media/publish.mjs --skip-upload",
+    "marketing-media:generate:new": "node scripts/marketing-media/publish.mjs --new --skip-upload"
   },
   "dependencies": {
     "@fontsource-variable/lora": "^5.3.0",

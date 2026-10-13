@@ -17,6 +17,17 @@ namespace TummlyBackend.Controllers
             _catalog = catalog;
         }
 
+        [HttpGet("placement-recipes")]
+        public async Task<IActionResult> ListPlacementRecipes(
+            CancellationToken cancellationToken
+        )
+        {
+            var items = await _catalog.ListPlacementRecipesAsync(
+                cancellationToken
+            );
+            return Ok(new { success = true, items });
+        }
+
         [HttpGet("skus")]
         public async Task<IActionResult> ListSkus(
             [FromQuery] string? status,

@@ -61,7 +61,7 @@ namespace TummlyBackend.Tests.Services
                 new NoOpPrintReadyQrMaterialsWork(),
                 new ComplimentaryStarterShopOrderService(
                     _db,
-                    MaterialsCatalog.LoadFromDirectory(ResolveMaterialsPackDir()),
+                    SeedDbMaterialsCatalog(_db),
                     new ShopOrderNumberAllocator(_db)
                 ),
                 _configuration,
@@ -365,38 +365,15 @@ namespace TummlyBackend.Tests.Services
             return packDir;
         }
 
-        private static string ResolveMaterialsPackDir()
+        private static DbMaterialsCatalog SeedDbMaterialsCatalog(
+            ApplicationDbContext context
+        )
         {
-            var packDir = Path.GetFullPath(
-                Path.Combine(
-                    AppContext.BaseDirectory,
-                    "..",
-                    "..",
-                    "..",
-                    "..",
-                    "..",
-                    "docs",
-                    "product",
-                    "materials-catalog-v1"
-                )
-            );
-            if (!Directory.Exists(packDir))
-            {
-                packDir = Path.GetFullPath(
-                    Path.Combine(
-                        AppContext.BaseDirectory,
-                        "..",
-                        "..",
-                        "..",
-                        "..",
-                        "docs",
-                        "product",
-                        "materials-catalog-v1"
-                    )
-                );
-            }
-
-            return packDir;
+            ShopMaterialsCatalogSeed
+                .EnsureSeededAsync(context)
+                .GetAwaiter()
+                .GetResult();
+            return new DbMaterialsCatalog(context);
         }
 
         public void Dispose()

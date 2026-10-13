@@ -5,6 +5,9 @@ import { buildSignupPath } from "@/lib/signupPlanIntent"
 /** Marketing Pricing page — banner “For groups” CTA and related links. */
 export const MARKETING_PRICING_PATH = "/pricing"
 
+/** Marketing Product page — Guest Loop product overview. */
+export const MARKETING_PRODUCT_PATH = "/product"
+
 /** Marketing How it works page — Contact CTA (page ships later). */
 export const MARKETING_HOW_IT_WORKS_PATH = "/how-it-works"
 
@@ -35,7 +38,11 @@ export const MARKETING_DEMO_HREF: MarketingNavHref = {
 }
 
 export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
-  { id: "product", label: "Product", href: { kind: "placeholder" } },
+  {
+    id: "product",
+    label: "Product",
+    href: { kind: "route", to: MARKETING_PRODUCT_PATH },
+  },
   { id: "how-it-works", label: "How it works", href: { kind: "placeholder" } },
   {
     id: "pricing",
@@ -74,7 +81,11 @@ export const MARKETING_RESOURCES_NAV: MarketingNavItem[] = [
 ]
 
 export const MARKETING_FOOTER_PRODUCT: MarketingNavItem[] = [
-  { id: "guest-loop", label: "Guest Loop", href: { kind: "placeholder" } },
+  {
+    id: "guest-loop",
+    label: "Guest Loop",
+    href: { kind: "route", to: MARKETING_PRODUCT_PATH },
+  },
   { id: "how-it-works", label: "How it works", href: { kind: "placeholder" } },
   {
     id: "pricing",

@@ -5,6 +5,10 @@ namespace TummlyBackend.Interfaces
 {
     public interface IAdminShopCatalogService
     {
+        Task<IReadOnlyList<AdminPlacementRecipeDto>> ListPlacementRecipesAsync(
+            CancellationToken cancellationToken = default
+        );
+
         Task<IReadOnlyList<AdminShopCatalogSkuDto>> ListSkusAsync(
             string? statusFilter = null,
             CancellationToken cancellationToken = default

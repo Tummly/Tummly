@@ -12,6 +12,8 @@ type AuthSocialContinueButtonsProps = {
   returnPath: string
   /** Runs before the browser leaves for the provider (e.g. stash plan intent). */
   onBeforeStart?: () => void
+  /** Merged onto each continue button (e.g. Figma home hero `rounded-[8px]`). */
+  className?: string
 }
 
 /**
@@ -22,6 +24,7 @@ export function AuthSocialContinueButtons({
   tone = "light",
   returnPath,
   onBeforeStart,
+  className,
 }: AuthSocialContinueButtonsProps) {
   const isRow = layout === "row"
   const isDark = tone === "dark"
@@ -32,6 +35,7 @@ export function AuthSocialContinueButtons({
       ? "rounded-[8px] text-white hover:bg-white/10 hover:text-white"
       : "rounded-[4px] text-[#141414] hover:bg-[#f5f5f5]",
     isRow ? "w-full flex-1 sm:min-w-0" : "w-full",
+    className,
   )
 
   const start = (provider: "google" | "microsoft") => {

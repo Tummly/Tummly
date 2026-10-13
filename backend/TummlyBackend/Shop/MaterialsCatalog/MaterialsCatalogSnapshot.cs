@@ -23,6 +23,11 @@ namespace TummlyBackend.Shop.MaterialsCatalog
 
         public required string QrType { get; init; }
 
+        /// <summary>Print engine id from PlacementRecipe (e.g. EmbeddedPdf).</summary>
+        public string PrintRoute { get; init; } = "EmbeddedPdf";
+
+        public int? PlacementRecipeId { get; init; }
+
         public int UnitNetPence { get; init; }
 
         public int MinOrderQty { get; init; }

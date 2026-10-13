@@ -95,6 +95,8 @@ namespace TummlyBackend.Data
 
         public DbSet<ShopLocationDetails> ShopLocationDetails { get; set; }
 
+        public DbSet<PlacementRecipe> PlacementRecipes { get; set; }
+
         public DbSet<ShopMaterialTag> ShopMaterialTags { get; set; }
 
         public DbSet<ShopMaterialSku> ShopMaterialSkus { get; set; }
@@ -2522,6 +2524,16 @@ namespace TummlyBackend.Data
              =========================================
             */
 
+            modelBuilder.Entity<PlacementRecipe>(e =>
+            {
+                e.HasIndex(row => row.Slug).IsUnique();
+                e.HasIndex(row => row.PlacementKey).IsUnique();
+                e.Property(row => row.Slug).HasMaxLength(80).IsRequired();
+                e.Property(row => row.Label).HasMaxLength(80).IsRequired();
+                e.Property(row => row.PlacementKey).HasMaxLength(40).IsRequired();
+                e.Property(row => row.PrintRoute).HasMaxLength(40).IsRequired();
+            });
+
             modelBuilder.Entity<ShopMaterialTag>(e =>
             {
                 e.HasIndex(row => row.Slug).IsUnique();
@@ -2531,10 +2543,13 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<ShopMaterialSku>(e =>
             {
-                e.HasIndex(row => row.SkuId).IsUnique();
+                // Soft-deleted rows free the skuId so Admin can recreate the same id.
+                e.HasIndex(row => row.SkuId)
+                    .IsUnique()
+                    .HasFilter("[Status] <> N'Deleted'");
                 e.HasIndex(row => row.Status);
-                // One Draft/Published product per QR type; soft-deleted rows free the type.
-                e.HasIndex(row => row.QrType)
+                // One Draft/Published product per placement recipe; soft-delete frees the slot.
+                e.HasIndex(row => row.PlacementRecipeId)
                     .IsUnique()
                     .HasFilter("[Status] <> N'Deleted'");
                 e.Property(row => row.SkuId).HasMaxLength(80).IsRequired();
@@ -2548,6 +2563,10 @@ namespace TummlyBackend.Data
                 e.Property(row => row.Status).HasMaxLength(16).IsRequired();
                 e.Property(row => row.AboutBody).IsRequired();
                 e.Property(row => row.SpecificationsJson).IsRequired();
+                e.HasOne(row => row.PlacementRecipe)
+                    .WithMany(row => row.Skus)
+                    .HasForeignKey(row => row.PlacementRecipeId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<ShopMaterialSkuTag>(e =>

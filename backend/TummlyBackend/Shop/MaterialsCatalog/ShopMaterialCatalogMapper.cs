@@ -143,6 +143,11 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 Material = sku.Material,
                 Dimensions = sku.Dimensions,
                 QrType = sku.QrType,
+                PrintRoute =
+                    sku.PlacementRecipe?.PrintRoute
+                    ?? PlacementPrintRoutes.EmbeddedPdf,
+                PlacementRecipeId =
+                    sku.PlacementRecipeId > 0 ? sku.PlacementRecipeId : null,
                 UnitNetPence = sku.UnitNetPence,
                 MinOrderQty = sku.MinOrderQty,
                 Currency = sku.Currency,

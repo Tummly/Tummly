@@ -37,9 +37,13 @@ namespace TummlyBackend.Services
         private static readonly HashSet<string> ValidMaterialTypes =
             new(StringComparer.OrdinalIgnoreCase)
             {
+                // Placement recipe slugs (complimentary lines after Admin replace).
+                "table-tent",
+                "window-sticker",
+                "offer-card",
+                // Legacy CatalogSkuId material types.
                 "table-tents",
                 "window-stickers",
-                "offer-card",
                 // Retired catalog SKUs — kept so historical orders remain filterable.
                 "counter-cards",
                 "packaging-stickers",

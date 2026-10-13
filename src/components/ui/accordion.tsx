@@ -46,10 +46,15 @@ function AccordionTrigger({
         {...props}
       >
         {children}
-        <ChevronDownIcon
+        <span
           data-slot="accordion-trigger-icon"
-          className="pointer-events-none shrink-0 transition-transform duration-200 group-data-[state=open]/accordion-trigger:rotate-180"
-        />
+          className="pointer-events-none inline-flex shrink-0 items-center justify-center"
+        >
+          <ChevronDownIcon
+            aria-hidden
+            className="size-full transition-transform duration-200 group-data-[state=open]/accordion-trigger:rotate-180"
+          />
+        </span>
       </AccordionPrimitive.Trigger>
     </AccordionPrimitive.Header>
   )

@@ -32,69 +32,6 @@
 
 /** @type {PictureAsset[]} */
 export const PICTURE_ASSETS = [
-  // Home carousels
-  ...[1, 2].map((n) => ({
-    id: `carousel/c1-${n}`,
-    source: `src/assets/images/crousal/c1-${n}.png`,
-    blobDir: "images/carousel",
-    baseName: `c1-${n}`,
-    widths: [640, 800, 1024],
-    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 100,
-    fallbackFormat: /** @type {"png"} */ ("png"),
-  })),
-  ...[3, 4].map((n) => ({
-    id: `carousel/c1-${n}`,
-    source: `src/assets/images/crousal/c1-${n}.jpg`,
-    blobDir: "images/carousel",
-    baseName: `c1-${n}`,
-    widths: [640, 800, 1024],
-    formats: /** @type {Format[]} */ (["avif", "webp", "jpg"]),
-    quality: 100,
-    fallbackFormat: /** @type {"jpg"} */ ("jpg"),
-  })),
-  ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
-    id: `carousel/c2-${n}`,
-    source: `src/assets/images/crousal/c2-${n}.png`,
-    blobDir: "images/carousel",
-    baseName: `c2-${n}`,
-    widths: [640, 800, 1024],
-    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 100,
-    fallbackFormat: /** @type {"png"} */ ("png"),
-  })),
-  // Why Tummly
-  ...[1, 2].map((n) => ({
-    id: `why-tummly/why-tummly-${n}`,
-    source: `src/assets/images/why-tummly/why-tummly-${n}.png`,
-    blobDir: "images/why-tummly",
-    baseName: `why-tummly-${n}`,
-    widths: [640, 800, 1024],
-    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 100,
-    fallbackFormat: /** @type {"png"} */ ("png"),
-  })),
-  {
-    id: "why-tummly/why-tummly-3",
-    source: "src/assets/images/why-tummly/why-tummly-3.jpg",
-    blobDir: "images/why-tummly",
-    baseName: "why-tummly-3",
-    widths: [640, 800, 1024],
-    formats: ["avif", "webp", "jpg"],
-    quality: 100,
-    fallbackFormat: "jpg",
-  },
-  // How it works
-  ...[1, 2, 3].map((n) => ({
-    id: `how-it-works/how-it-works-${n}`,
-    source: `src/assets/images/how-it-works/how-it-works-${n}.png`,
-    blobDir: "images/how-it-works",
-    baseName: `how-it-works-${n}`,
-    widths: [640, 800, 1024],
-    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 100,
-    fallbackFormat: /** @type {"png"} */ ("png"),
-  })),
   // Heroes / CTA
   {
     id: "hero/hero-bg",
@@ -112,16 +49,6 @@ export const PICTURE_ASSETS = [
     blobDir: "images/hero",
     baseName: "hero-bg-mobile",
     widths: [393, 786],
-    formats: ["avif", "webp", "png"],
-    quality: 100,
-    fallbackFormat: "png",
-  },
-  {
-    id: "cta/cta-launch-bg",
-    source: "src/assets/images/cta-launch-bg.png",
-    blobDir: "images/cta",
-    baseName: "cta-launch-bg",
-    widths: [640, 1024, 1536, 1920, 2362],
     formats: ["avif", "webp", "png"],
     quality: 100,
     fallbackFormat: "png",
@@ -162,6 +89,60 @@ export const PICTURE_ASSETS = [
 /** Plain <img> / email assets — one primary URL + optional extra formats. */
 /** @type {SimpleAsset[]} */
 export const SIMPLE_ASSETS = [
+  // Product page UI mocks — sources live in gitignored scratch; runtime via Blob.
+  // Hero collage (Figma `5838:27265`) — baseName distinct from retired
+  // `hero-dashboard` so immutable blob URLs cache-bust after visual swaps.
+  {
+    id: "product/hero-collage",
+    source: ".scratch/marketing-media-sources/product/hero-dashboard.png",
+    blobDir: "images/product",
+    baseName: "hero-collage",
+    widths: [766],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 85,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  ...[
+    "feedback-phone",
+    "feedback-recovery",
+    "guests",
+    "campaigns",
+    "reports",
+    "ai-assistant",
+  ].map((name) => ({
+    id: `product/${name}`,
+    source: `.scratch/marketing-media-sources/product/${name}.png`,
+    blobDir: "images/product",
+    baseName: name,
+    widths: [766],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 85,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  })),
+  // Product Capture scroll-hijack media (Figma `6106:17567` … `6106:18055`)
+  ...[
+    "capture-guest-cards",
+    "capture-counter-display",
+    "capture-tray-liner",
+    "capture-table-tent",
+    "capture-table-talker",
+    "capture-window-sticker",
+    "capture-receipt-label",
+    "capture-delivery-bag-seal",
+    "capture-package-label",
+    "capture-drink-cup-seal",
+    "capture-pizza-box-label",
+    "capture-poster-club",
+  ].map((name) => ({
+    id: `product/${name}`,
+    source: `.scratch/marketing-media-sources/product/${name}.png`,
+    blobDir: "images/product",
+    baseName: name,
+    widths: [750],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 85,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  })),
   {
     id: "pricing/qr-featured-guest-cards",
     source: "src/assets/images/marketing/pricing/qr-featured-guest-cards.png",

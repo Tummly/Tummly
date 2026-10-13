@@ -6,6 +6,8 @@
  *   node scripts/marketing-media/publish.mjs
  *   node scripts/marketing-media/publish.mjs --skip-upload   # generate only
  *   node scripts/marketing-media/publish.mjs --skip-generate # upload existing out/
+ *   node scripts/marketing-media/publish.mjs --new           # only ids missing from meta
+ *   node scripts/marketing-media/publish.mjs --only product  # id or id-prefix (repeatable)
  *
  * Requires: sharp (devDep), az CLI (Docker-wrapped — files must live under repo).
  * Account: sttummlyqavfavue / container: marketing
@@ -46,9 +48,62 @@ const CONTENT_TYPE_BY_EXT = {
   ".mp4": "video/mp4",
 }
 
-const args = new Set(process.argv.slice(2))
-const skipUpload = args.has("--skip-upload")
-const skipGenerate = args.has("--skip-generate")
+/**
+ * @param {string[]} argv
+ * @returns {{
+ *   skipUpload: boolean,
+ *   skipGenerate: boolean,
+ *   newOnly: boolean,
+ *   onlyFilters: string[],
+ * }}
+ */
+function parseArgs(argv) {
+  let skipUpload = false
+  let skipGenerate = false
+  let newOnly = false
+  /** @type {string[]} */
+  const onlyFilters = []
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i]
+    if (arg === "--skip-upload") {
+      skipUpload = true
+      continue
+    }
+    if (arg === "--skip-generate") {
+      skipGenerate = true
+      continue
+    }
+    if (arg === "--new") {
+      newOnly = true
+      continue
+    }
+    if (arg === "--only") {
+      const value = argv[i + 1]
+      if (value == null || value.startsWith("-")) {
+        throw new Error("--only requires an asset id or prefix (e.g. product)")
+      }
+      onlyFilters.push(value)
+      i += 1
+      continue
+    }
+    if (arg.startsWith("--only=")) {
+      const value = arg.slice("--only=".length).trim()
+      if (value === "") {
+        throw new Error("--only= requires an asset id or prefix")
+      }
+      onlyFilters.push(value)
+      continue
+    }
+    throw new Error(`Unknown argument: ${arg}`)
+  }
+
+  return { skipUpload, skipGenerate, newOnly, onlyFilters }
+}
+
+const { skipUpload, skipGenerate, newOnly, onlyFilters } = parseArgs(
+  process.argv.slice(2),
+)
 
 function ensureDir(dir) {
   mkdirSync(dir, { recursive: true })
@@ -78,6 +133,45 @@ function variantFileName(baseName, width, format) {
 
 function blobPath(blobDir, fileName) {
   return `${blobDir}/${fileName}`
+}
+
+/** @returns {Record<string, object>} */
+function readExistingMeta() {
+  if (!existsSync(META_PATH)) {
+    return {}
+  }
+  return /** @type {Record<string, object>} */ (
+    JSON.parse(readFileSync(META_PATH, "utf8"))
+  )
+}
+
+/**
+ * @param {{ id: string }} asset
+ * @param {string[]} filters
+ */
+function matchesOnlyFilter(asset, filters) {
+  if (filters.length === 0) {
+    return true
+  }
+  return filters.some(
+    (filter) => asset.id === filter || asset.id.startsWith(filter),
+  )
+}
+
+/**
+ * @param {typeof PICTURE_ASSETS | typeof SIMPLE_ASSETS} assets
+ * @param {Record<string, object>} existingMeta
+ */
+function selectAssets(assets, existingMeta) {
+  return assets.filter((asset) => {
+    if (!matchesOnlyFilter(asset, onlyFilters)) {
+      return false
+    }
+    if (newOnly && existingMeta[asset.id] != null) {
+      return false
+    }
+    return true
+  })
 }
 
 /**
@@ -154,33 +248,65 @@ async function generateAsset(asset, meta) {
   }
 }
 
-async function generateAll() {
+/**
+ * @param {boolean} filtered
+ */
+async function generateSelected(filtered) {
+  const existingMeta = readExistingMeta()
+  const pictureAssets = selectAssets(PICTURE_ASSETS, existingMeta)
+  const simpleAssets = selectAssets(SIMPLE_ASSETS, existingMeta)
+
+  if (pictureAssets.length === 0 && simpleAssets.length === 0) {
+    const hint = newOnly
+      ? "No missing assets (meta already has every manifest id)."
+      : onlyFilters.length > 0
+        ? `No assets matched --only ${onlyFilters.join(", ")}.`
+        : "No assets selected."
+    throw new Error(hint)
+  }
+
   if (existsSync(OUT_DIR)) {
     rmSync(OUT_DIR, { recursive: true, force: true })
   }
   ensureDir(OUT_DIR)
 
   /** @type {Record<string, object>} */
-  const meta = {}
+  const generatedMeta = {}
 
-  process.stdout.write("Generating picture assets…\n")
-  for (const asset of PICTURE_ASSETS) {
-    process.stdout.write(`- ${asset.id}\n`)
-    await generateAsset(asset, meta)
-    meta[asset.id].kind = "picture"
-    meta[asset.id].fallbackFormat =
-      /** @type {import("./manifest.mjs").PictureAsset} */ (asset).fallbackFormat
+  if (pictureAssets.length > 0) {
+    process.stdout.write(
+      filtered
+        ? `Generating ${pictureAssets.length} picture asset(s)…\n`
+        : "Generating picture assets…\n",
+    )
+    for (const asset of pictureAssets) {
+      process.stdout.write(`- ${asset.id}\n`)
+      await generateAsset(asset, generatedMeta)
+      generatedMeta[asset.id].kind = "picture"
+      generatedMeta[asset.id].fallbackFormat =
+        /** @type {import("./manifest.mjs").PictureAsset} */ (asset).fallbackFormat
+    }
   }
 
-  process.stdout.write("Generating simple assets…\n")
-  for (const asset of SIMPLE_ASSETS) {
-    process.stdout.write(`- ${asset.id}\n`)
-    await generateAsset(asset, meta)
-    meta[asset.id].kind = "simple"
-    meta[asset.id].primaryFormat = asset.primaryFormat
+  if (simpleAssets.length > 0) {
+    process.stdout.write(
+      filtered
+        ? `Generating ${simpleAssets.length} simple asset(s)…\n`
+        : "Generating simple assets…\n",
+    )
+    for (const asset of simpleAssets) {
+      process.stdout.write(`- ${asset.id}\n`)
+      await generateAsset(asset, generatedMeta)
+      generatedMeta[asset.id].kind = "simple"
+      generatedMeta[asset.id].primaryFormat = asset.primaryFormat
+    }
   }
 
-  writeFileSync(META_PATH, `${JSON.stringify(meta, null, 2)}\n`, "utf8")
+  const nextMeta = filtered
+    ? { ...existingMeta, ...generatedMeta }
+    : generatedMeta
+
+  writeFileSync(META_PATH, `${JSON.stringify(nextMeta, null, 2)}\n`, "utf8")
   process.stdout.write(`Wrote meta → ${path.relative(ROOT, META_PATH)}\n`)
 }
 
@@ -214,8 +340,9 @@ function uploadAll() {
 
   const accountKey = azKey()
   const sourceRel = path.relative(ROOT, OUT_DIR)
+  const fileCount = listOutFiles().length
   process.stdout.write(
-    `Uploading batch from ${sourceRel}/ → ${CONTAINER}/ (cache: ${CACHE_CONTROL})…\n`,
+    `Uploading ${fileCount} file(s) from ${sourceRel}/ → ${CONTAINER}/ (cache: ${CACHE_CONTROL})…\n`,
   )
 
   const result = spawnSync(
@@ -331,8 +458,10 @@ function repairContentTypes(accountKey) {
 }
 
 async function main() {
+  const filtered = newOnly || onlyFilters.length > 0
+
   if (!skipGenerate) {
-    await generateAll()
+    await generateSelected(filtered)
   } else if (!existsSync(OUT_DIR)) {
     throw new Error("OUT_DIR missing; cannot --skip-generate")
   }
@@ -341,9 +470,12 @@ async function main() {
     uploadAll()
   }
 
-  // Fingerprint sources so CI/docs can detect drift.
+  // Fingerprint sources in scope so CI/docs can detect drift.
+  const inScope = [...PICTURE_ASSETS, ...SIMPLE_ASSETS].filter((asset) =>
+    matchesOnlyFilter(asset, onlyFilters),
+  )
   const hash = createHash("sha256")
-  for (const asset of [...PICTURE_ASSETS, ...SIMPLE_ASSETS]) {
+  for (const asset of inScope) {
     hash.update(asset.source)
     hash.update(readFileSync(path.join(ROOT, asset.source)))
   }

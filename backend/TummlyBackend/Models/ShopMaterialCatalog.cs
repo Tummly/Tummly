@@ -9,6 +9,59 @@ namespace TummlyBackend.Models
         public const string Deleted = "Deleted";
     }
 
+    /// <summary>
+    /// Print fulfilment engines. Engineering seeds recipes that point at these.
+    /// </summary>
+    public static class PlacementPrintRoutes
+    {
+        public const string EmbeddedPdf = "EmbeddedPdf";
+
+        public const string PatchCsv60 = "PatchCsv60";
+
+        public const string GuestCardCsv = "GuestCardCsv";
+    }
+
+    /// <summary>
+    /// Seeded placement + print binding. Admin attaches commercial SKUs to unused recipes.
+    /// </summary>
+    public sealed class PlacementRecipe
+    {
+        public int Id { get; set; }
+
+        [Required]
+        [MaxLength(80)]
+        public string Slug { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(80)]
+        public string Label { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Platform placement key (matches <c>QrType</c> enum name), e.g. TableTent.
+        /// </summary>
+        [Required]
+        [MaxLength(40)]
+        public string PlacementKey { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(40)]
+        public string PrintRoute { get; set; } = PlacementPrintRoutes.EmbeddedPdf;
+
+        public bool MintOnFulfilmentDefault { get; set; }
+
+        /// <summary>
+        /// When true, the published SKU on this recipe is included in complimentary starter orders.
+        /// </summary>
+        public bool IncludeInComplimentaryStarter { get; set; }
+
+        public bool IsActive { get; set; } = true;
+
+        public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+        public ICollection<ShopMaterialSku> Skus { get; set; } =
+            new List<ShopMaterialSku>();
+    }
+
     public sealed class ShopMaterialTag
     {
         public int Id { get; set; }
@@ -55,9 +108,16 @@ namespace TummlyBackend.Models
         [MaxLength(120)]
         public string Dimensions { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Denormalized copy of <see cref="PlacementRecipe.PlacementKey"/> for fulfilment queries.
+        /// </summary>
         [Required]
         [MaxLength(40)]
         public string QrType { get; set; } = string.Empty;
+
+        public int PlacementRecipeId { get; set; }
+
+        public PlacementRecipe PlacementRecipe { get; set; } = null!;
 
         public int UnitNetPence { get; set; }
 

@@ -30,10 +30,14 @@ import { cn } from "@/lib/utils"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
 import { useAuthStore } from "@/stores/authStore"
 
-	const logInClass =
-  "rounded-sm px-[18px] py-2.5 text-sm font-medium leading-5 text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
+const logInClass =
+  "rounded-sm px-2.5 py-2 text-sm font-medium leading-5 text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30 sm:px-[18px] sm:py-2.5"
 
-/** Figma marketing Header (`5700:25213`): nav | centred logo | CTAs. */
+/**
+ * Figma marketing Header (`5700:25213`).
+ * Desktop (xl+): nav | centred logo | CTAs.
+ * Below xl: logo left | CTAs + hamburger (nav links live in the sheet).
+ */
 export default function MarketingHeader() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const navigate = useNavigate()
@@ -70,6 +74,53 @@ export default function MarketingHeader() {
 
   const closeMobile = () => setMobileOpen(false)
 
+  const renderHeaderActions = (density: "default" | "compact") =>
+    isSignedIn ? (
+      <>
+        {role === "USER" ? (
+          <Link to={HELP_CENTRE_URL} className={cn(logInClass, "shrink-0")}>
+            Help
+          </Link>
+        ) : null}
+        <MarketingButton
+          variant="secondary"
+          showArrow={false}
+          density={density}
+          className="shrink-0"
+          onClick={handleLogout}
+        >
+          Log out
+        </MarketingButton>
+      </>
+    ) : (
+      <>
+        <SignInLink to="/login" className={cn(logInClass, "shrink-0")}>
+          Log in
+        </SignInLink>
+        <MarketingButton
+          asChild
+          variant="secondary"
+          showArrow={density === "default"}
+          density={density}
+          className="shrink-0"
+        >
+          <Link to={MARKETING_DEMO_PATH}>Try demo</Link>
+        </MarketingButton>
+        <MarketingButton
+          asChild
+          variant="primary"
+          showArrow={density === "default"}
+          density={density}
+          className="shrink-0"
+        >
+          <RequestTrialLink planIntent={{ plan: "Pilot" }}>
+            <span className="max-sm:hidden">Start 30-day Pilot</span>
+            <span className="sm:hidden">Start Pilot</span>
+          </RequestTrialLink>
+        </MarketingButton>
+      </>
+    )
+
   return (
     <header
       className={cn(
@@ -77,11 +128,15 @@ export default function MarketingHeader() {
         "sticky top-0 z-40 w-full",
         marketingChromeBackground,
         marketingHeaderChromePadding,
+        "max-xl:px-4",
       )}
     >
       <nav
         aria-label="Main"
-        className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-4"
+        className={cn(
+          "flex w-full items-center justify-between gap-2",
+          "xl:grid xl:grid-cols-[1fr_auto_1fr] xl:gap-4",
+        )}
       >
         {/* Full nav needs ~xl; below that use the sheet so mid widths do not collide. */}
         <div className="hidden min-w-0 items-center gap-6 xl:flex xl:gap-9">
@@ -96,47 +151,22 @@ export default function MarketingHeader() {
           <MarketingResourcesMenu />
         </div>
 
-        <div className="flex xl:hidden" />
-
         <Link
           to={homePath}
-          className="justify-self-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
+          className={cn(
+            "shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30",
+            "justify-self-start xl:justify-self-center",
+          )}
         >
-          <MarketingLogo className="max-w-[min(118px,40vw)]" />
+          <MarketingLogo className="max-w-[min(118px,32vw)] xl:max-w-[min(118px,40vw)]" />
         </Link>
 
-        <div className="flex items-center justify-end justify-self-end">
+        <div className="flex min-w-0 items-center justify-end gap-1 justify-self-end sm:gap-2 xl:gap-3">
+          <div className="flex min-w-0 items-center gap-1 xl:hidden sm:gap-2">
+            {renderHeaderActions("compact")}
+          </div>
           <div className="hidden items-center gap-3 xl:flex">
-            {isSignedIn ? (
-              <>
-                {role === "USER" ? (
-                  <Link to={HELP_CENTRE_URL} className={logInClass}>
-                    Help
-                  </Link>
-                ) : null}
-                <MarketingButton
-                  variant="secondary"
-                  showArrow={false}
-                  onClick={handleLogout}
-                >
-                  Log out
-                </MarketingButton>
-              </>
-            ) : (
-              <>
-                <SignInLink to="/login" className={cn(logInClass, "shrink-0")}>
-                  Log in
-                </SignInLink>
-                <MarketingButton asChild variant="secondary">
-                  <Link to={MARKETING_DEMO_PATH}>Try demo</Link>
-                </MarketingButton>
-                <MarketingButton asChild variant="primary">
-                  <RequestTrialLink planIntent={{ plan: "Pilot" }}>
-                    Start 30-day Pilot
-                  </RequestTrialLink>
-                </MarketingButton>
-              </>
-            )}
+            {renderHeaderActions("default")}
           </div>
 
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -145,7 +175,7 @@ export default function MarketingHeader() {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="xl:hidden"
+                className="shrink-0 xl:hidden"
                 aria-label="Open menu"
               >
                 <MenuIcon className="size-5" />
@@ -183,64 +213,6 @@ export default function MarketingHeader() {
                       onNavigate={closeMobile}
                     />
                   ))}
-                </div>
-
-                <div className="mt-2 flex flex-col gap-3 border-t border-[#e7e7e7] pt-5">
-                  {isSignedIn ? (
-                    <>
-                      {role === "USER" ? (
-                        <Link
-                          to={HELP_CENTRE_URL}
-                          className="text-sm font-medium text-[#141414]"
-                          onClick={closeMobile}
-                        >
-                          Help
-                        </Link>
-                      ) : null}
-                      <MarketingButton
-                        variant="secondary"
-                        showArrow={false}
-                        className="w-full"
-                        onClick={() => {
-                          closeMobile()
-                          handleLogout()
-                        }}
-                      >
-                        Log out
-                      </MarketingButton>
-                    </>
-                  ) : (
-                    <>
-                      <SignInLink
-                        to="/login"
-                        className="text-sm font-medium text-[#141414]"
-                        onClick={closeMobile}
-                      >
-                        Log in
-                      </SignInLink>
-                      <MarketingButton
-                        asChild
-                        variant="secondary"
-                        className="w-full"
-                      >
-                        <Link to={MARKETING_DEMO_PATH} onClick={closeMobile}>
-                          Try demo
-                        </Link>
-                      </MarketingButton>
-                      <MarketingButton
-                        asChild
-                        variant="primary"
-                        className="w-full"
-                      >
-                        <RequestTrialLink
-                          planIntent={{ plan: "Pilot" }}
-                          onClick={closeMobile}
-                        >
-                          Start 30-day Pilot
-                        </RequestTrialLink>
-                      </MarketingButton>
-                    </>
-                  )}
                 </div>
               </div>
             </SheetContent>

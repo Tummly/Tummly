@@ -20,6 +20,25 @@ namespace TummlyBackend.DTOs.Admin
         public int SortOrder { get; init; }
     }
 
+    public sealed class AdminPlacementRecipeDto
+    {
+        public int Id { get; init; }
+
+        public required string Slug { get; init; }
+
+        public required string Label { get; init; }
+
+        /// <summary>Platform placement key (denormalized as Sku.QrType).</summary>
+        public required string PlacementKey { get; init; }
+
+        public required string PrintRoute { get; init; }
+
+        public bool MintOnFulfilmentDefault { get; init; }
+
+        /// <summary>True when no Draft/Published SKU uses this recipe.</summary>
+        public bool IsAvailable { get; init; }
+    }
+
     public sealed class AdminShopCatalogSkuDto
     {
         public required string SkuId { get; init; }
@@ -34,7 +53,16 @@ namespace TummlyBackend.DTOs.Admin
 
         public required string Dimensions { get; init; }
 
+        public int PlacementRecipeId { get; init; }
+
+        public required string PlacementRecipeLabel { get; init; }
+
+        public required string PlacementRecipeSlug { get; init; }
+
+        /// <summary>Denormalized placement key for operators / fulfilment.</summary>
         public required string QrType { get; init; }
+
+        public required string PrintRoute { get; init; }
 
         public int UnitNetPence { get; init; }
 
@@ -78,7 +106,8 @@ namespace TummlyBackend.DTOs.Admin
 
         public string? Dimensions { get; init; }
 
-        public string? QrType { get; init; }
+        /// <summary>Required on create. Ignored on update (recipe cannot change).</summary>
+        public int? PlacementRecipeId { get; init; }
 
         public int? UnitNetPence { get; init; }
 

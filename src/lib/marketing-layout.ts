@@ -3,14 +3,20 @@ import { cn } from "@/lib/utils";
 /** Page chrome / gutters behind marketing header and footer (Figma Home). */
 export const marketingChromeBackground = "bg-[#CBCBCB]";
 
+/**
+ * Cap the marketing shell at 2K (2560). 1080p / smaller stay full-bleed with
+ * gutters; only wider viewports centre at this fixed width.
+ */
+export const marketingShellMaxWidthClass = "mx-auto w-full max-w-[2560px]";
+
 /** Outer padding around the sticky header (Figma Header `5700:25213`: 30 / 20). */
 export const marketingHeaderChromePadding = "px-[30px] py-5";
 
 /**
  * Horizontal gutters for marketing page body (Home, legal, Help Centre, etc.).
- * Matches the header chrome side inset (Figma Home: 20px).
+ * Matches the header chrome side inset (Figma Header: 30px).
  */
-export const marketingBodyChromePadding = "px-5";
+export const marketingBodyChromePadding = "px-[30px]";
 
 /**
  * Inner L/R padding for marketing page heroes and footer links (Figma: 60px).
@@ -25,45 +31,6 @@ export const marketingSectionInsetLeft =
 
 export const marketingSectionInsetRight =
   "pr-[25px] lg:pr-16 xl:pr-45";
-
-/** Last-slide end inset — Embla reads margin-right (not container padding) for scroll bounds. */
-export const marketingCarouselEndMargin =
-  "mr-[25px] lg:mr-16 xl:mr-45";
-
-/** Track inset — viewport stays full bleed; slides scroll off the left edge naturally. */
-export const marketingCarouselTrackInset = marketingSectionInsetLeft;
-
-/** Carousel track: left inset on the scroll container, not the viewport. */
-export const marketingCarouselContentClass = cn("-ml-0", marketingCarouselTrackInset);
-
-/** Embla options for marketing peek carousels. */
-export function marketingCarouselOptions() {
-  return {
-    align: "start",
-    containScroll: "trimSnaps",
-    loop: false,
-  } as const;
-}
-
-/** Slide width: one full slide below `lg`; desktop peek via fixed width at `lg+`.
- * Gap uses margin (not padding) so border-box basis keeps equal content/image sizes. */
-export function marketingCarouselItemClass(index: number, slideCount: number) {
-  return cn(
-    "!pl-0 max-lg:basis-[calc(100%-1.5625rem)] lg:basis-109",
-    index > 0 && "ml-7.5",
-    index === slideCount - 1 && marketingCarouselEndMargin,
-  );
-}
-
-export const marketingCarouselContentClassCompact = marketingCarouselContentClass;
-
-export function marketingCarouselItemClassCompact(index: number, slideCount: number) {
-  return cn(
-    "!pl-0 basis-[calc(100%-3.125rem)]",
-    index > 0 && "ml-4",
-    index === slideCount - 1 && marketingCarouselEndMargin,
-  );
-}
 
 /** Shared vertical section padding for marketing homepage blocks. */
 export const marketingSectionPadding = "py-12 sm:py-16 lg:py-22.5";
