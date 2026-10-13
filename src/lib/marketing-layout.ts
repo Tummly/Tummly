@@ -4,13 +4,20 @@ import { cn } from "@/lib/utils";
 export const marketingChromeBackground = "bg-[#CBCBCB]";
 
 /**
- * Cap the marketing shell at 2K (2560). 1080p / smaller stay full-bleed with
- * gutters; only wider viewports centre at this fixed width.
+ * Cap the marketing shell at 1080p (1920). Smaller viewports stay full-bleed
+ * with gutters; only wider viewports centre at this fixed width.
  */
-export const marketingShellMaxWidthClass = "mx-auto w-full max-w-[2560px]";
+export const marketingShellMaxWidthClass = "mx-auto w-full max-w-[1920px]";
 
 /** Outer padding around the sticky header (Figma Header `5700:25213`: 30 / 20). */
 export const marketingHeaderChromePadding = "px-[30px] py-5";
+
+/**
+ * Sticky / scroll-margin offset under the marketing header
+ * (chrome `py-5` + nav row ≈ 86px — Figma Header `5700:25213`).
+ */
+export const marketingHeaderStickyTopClass = "top-[86px]";
+export const marketingHeaderScrollMarginClass = "scroll-mt-[86px]";
 
 /**
  * Horizontal gutters for marketing page body (Home, legal, Help Centre, etc.).

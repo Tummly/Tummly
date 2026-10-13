@@ -8,6 +8,7 @@ import {
   PRODUCT_SECTION_HEADING,
   PRODUCT_SECTION_INSET,
 } from "@/content/marketing/productPage"
+import { marketingHeaderStickyTopClass } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
 /** Figma Product FAQs `5661:24202` — same accordion pattern as AI Assistant. */
@@ -23,13 +24,18 @@ export function ProductFaqs() {
           "pt-12.5 pb-17.5",
         )}
       >
-        <header className="flex w-full shrink-0 flex-col lg:sticky lg:top-44 lg:w-137 lg:max-w-137 lg:pt-5">
+        <header
+          className={cn(
+            "flex w-full shrink-0 flex-col lg:sticky lg:w-137 lg:max-w-137",
+            marketingHeaderStickyTopClass,
+          )}
+        >
           <h2 className={cn("m-0", PRODUCT_SECTION_HEADING)}>
             {PRODUCT_FAQS.title}
           </h2>
         </header>
 
-        <div className="flex min-w-0 w-full flex-1 flex-col gap-7.5 lg:max-w-[746px] lg:pt-5">
+        <div className="flex min-w-0 w-full flex-1 flex-col gap-7.5 lg:max-w-[746px]">
           <Accordion
             type="single"
             collapsible

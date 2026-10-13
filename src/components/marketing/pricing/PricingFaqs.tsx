@@ -8,6 +8,7 @@ import {
   PRICING_SECTION_HEADING,
   PRICING_SECTION_INSET,
 } from "@/content/marketing/pricingPage"
+import { marketingHeaderStickyTopClass } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
 /**
@@ -26,13 +27,18 @@ export function PricingFaqs() {
           "pt-12.5 pb-17.5",
         )}
       >
-        <header className="flex w-full shrink-0 flex-col lg:sticky lg:top-44 lg:w-137 lg:max-w-137 lg:pt-5">
+        <header
+          className={cn(
+            "flex w-full shrink-0 flex-col lg:sticky lg:w-137 lg:max-w-137",
+            marketingHeaderStickyTopClass,
+          )}
+        >
           <h2 className={cn("m-0", PRICING_SECTION_HEADING)}>
             {PRICING_FAQS.title}
           </h2>
         </header>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-7.5 lg:pt-5">
+        <div className="flex min-w-0 flex-1 flex-col gap-7.5">
           <Accordion
             type="single"
             collapsible

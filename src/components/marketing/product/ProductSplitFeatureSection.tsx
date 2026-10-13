@@ -116,7 +116,9 @@ export function ProductSplitFeatureSection({
   const mediaBlock = (
     <div
       className={cn(
-        "w-full shrink-0 overflow-hidden rounded-[12px] lg:w-[min(100%,766px)] lg:max-w-[766px]",
+        "w-full shrink-0 overflow-hidden rounded-[12px]",
+        // Desktop: stretch to the copy column height so media matches text.
+        "lg:flex lg:w-[min(100%,766px)] lg:max-w-[766px] lg:self-stretch",
         mediaFirst ? "order-2 lg:order-1" : null,
       )}
     >
@@ -125,7 +127,7 @@ export function ProductSplitFeatureSection({
         alt={imageAlt}
         width={imageWidth}
         height={imageHeight}
-        className="block h-auto w-full"
+        className="block h-auto w-full lg:h-full lg:min-h-full lg:w-full lg:object-cover lg:object-center"
         decoding="async"
       />
     </div>
@@ -138,7 +140,7 @@ export function ProductSplitFeatureSection({
     >
       <div
         className={cn(
-          "flex w-full flex-col items-start gap-10 lg:flex-row lg:items-start lg:justify-between lg:gap-[70px]",
+          "flex w-full flex-col items-start gap-10 lg:flex-row lg:items-stretch lg:justify-between lg:gap-[70px]",
           PRODUCT_SECTION_INSET,
           PRODUCT_SECTION_Y,
         )}

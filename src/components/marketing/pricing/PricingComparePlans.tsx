@@ -14,14 +14,12 @@ import {
   pricingPlanPrice,
   type PricingPlanId,
 } from "@/content/marketing/pricingPage"
+import {
+  marketingHeaderScrollMarginClass,
+  marketingHeaderStickyTopClass,
+} from "@/lib/marketing-layout"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
-
-/**
- * Clear sticky marketing header chrome (pad + nav ≈ 100px).
- * Keep compare plan header under the site nav while scrolling the matrix.
- */
-const COMPARE_HEADER_STICKY_TOP = "top-[100px]"
 
 /**
  * Figma compare header (`5437:13879`): Feature 224px + four equal plan cols,
@@ -57,7 +55,7 @@ function ComparisonPlanHeader({
         </h3>
         <div className="flex flex-col gap-2">
           <p className="m-0 flex flex-wrap items-baseline text-[#141414]">
-            <span className="font-jakarta text-[28px] font-[500] leading-none">
+            <span className="font-sans text-[28px] font-[500] leading-none">
               {price.amount}
             </span>
             <span className="font-sans text-sm font-medium leading-normal">
@@ -124,7 +122,10 @@ export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
   }
 
   return (
-    <section id="compare-plans" className="w-full scroll-mt-[100px] bg-white">
+    <section
+      id="compare-plans"
+      className={cn("w-full bg-white", marketingHeaderScrollMarginClass)}
+    >
       <div
         className={cn(
           "flex w-full flex-col gap-15",
@@ -145,7 +146,7 @@ export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
             }}
             className={cn(
               "sticky z-20 -mx-5 overflow-x-auto overscroll-x-contain bg-[#f8f8f8] sm:mx-0",
-              COMPARE_HEADER_STICKY_TOP,
+              marketingHeaderStickyTopClass,
             )}
           >
             <div className="flex min-w-[960px] items-end gap-[22px] p-6">

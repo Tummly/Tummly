@@ -17,9 +17,10 @@ import { cn } from "@/lib/utils"
 /**
  * Figma Button hover (`5661:14507` / Primary `4128:13978` → `4128:13980`,
  * Secondary `4129:14593` → `4129:14592`): SMART_ANIMATE, ease-out, 300ms.
- * Arrow frame expands 0 → 15px; padding 18 → 16; gap 6 → 4.
+ * Width stays at the hover size; label shifts left and the arrow fades in.
  */
 const HOVER_MS = 0.3
+const ARROW_W = 15
 
 type MarketingButtonVariant =
   | "primary"
@@ -149,17 +150,17 @@ function MarketingButtonArrow({
       aria-hidden
       initial={false}
       animate={{
-        width: hovered ? 15 : 0,
         opacity: hovered ? 1 : 0,
       }}
       transition={{
         duration: reduceMotion ? 0 : HOVER_MS,
         ease: "easeOut",
       }}
-      className="relative block h-2.5 shrink-0 overflow-hidden"
+      className="relative block h-2.5 w-3.75 shrink-0"
+      style={{ width: ARROW_W }}
     >
       <svg
-        width={15}
+        width={ARROW_W}
         height={10}
         viewBox="0 0 15 10"
         fill="none"
@@ -204,6 +205,9 @@ export function MarketingButton({
   const rest = restSurface(variant, density)
   const hover = hoverSurface(variant, density)
   const active = !disabled && hovered
+  /** Hover layout locks width; rest only changes fill color + label/arrow motion. */
+  const layout = showArrow ? hover : rest
+  const labelShift = showArrow ? (ARROW_W + hover.gap) / 2 : 0
 
   useEffect(() => {
     const el = surfaceRef.current
@@ -212,14 +216,16 @@ export function MarketingButton({
     const to = active ? hover : rest
     const controls = animate(
       el,
-      {
-        backgroundColor: to.backgroundColor,
-        paddingLeft: to.paddingLeft,
-        paddingRight: to.paddingRight,
-        paddingTop: to.paddingTop,
-        paddingBottom: to.paddingBottom,
-        gap: to.gap,
-      },
+      showArrow
+        ? { backgroundColor: to.backgroundColor }
+        : {
+            backgroundColor: to.backgroundColor,
+            paddingLeft: to.paddingLeft,
+            paddingRight: to.paddingRight,
+            paddingTop: to.paddingTop,
+            paddingBottom: to.paddingBottom,
+            gap: to.gap,
+          },
       {
         duration: reduceMotion ? 0 : HOVER_MS,
         ease: "easeOut",
@@ -229,9 +235,15 @@ export function MarketingButton({
     return () => {
       controls.stop()
     }
-  }, [active, hover, rest, reduceMotion])
+  }, [active, hover, rest, reduceMotion, showArrow])
 
   const composedClass = cn(baseClass, variantClass[variant], className)
+  const surfaceStyle = showArrow
+    ? {
+        ...layout,
+        backgroundColor: rest.backgroundColor,
+      }
+    : rest
 
   const setHover = (next: boolean) => {
     if (disabled) return
@@ -245,6 +257,28 @@ export function MarketingButton({
       reduceMotion={reduceMotion}
     />
   ) : null
+
+  const inner = (label: ReactNode) =>
+    showArrow ? (
+      <motion.span
+        className="inline-flex items-center"
+        style={{ gap: hover.gap }}
+        initial={false}
+        animate={{ x: active ? 0 : labelShift }}
+        transition={{
+          duration: reduceMotion ? 0 : HOVER_MS,
+          ease: "easeOut",
+        }}
+      >
+        {label}
+        {arrow}
+      </motion.span>
+    ) : (
+      <>
+        {label}
+        {arrow}
+      </>
+    )
 
   if (asChild) {
     const child = Children.only(children)
@@ -263,7 +297,7 @@ export function MarketingButton({
         data-slot="marketing-button"
         data-variant={variant}
         className={cn(composedClass, element.props.className)}
-        style={rest}
+        style={surfaceStyle}
         onMouseEnter={(event) => {
           setHover(true)
           onMouseEnter?.(event as never)
@@ -276,12 +310,7 @@ export function MarketingButton({
       >
         {cloneElement(element, {
           className: undefined,
-          children: (
-            <>
-              {element.props.children}
-              {arrow}
-            </>
-          ),
+          children: inner(element.props.children),
         })}
       </Slot.Root>
     )
@@ -295,7 +324,7 @@ export function MarketingButton({
       type={type}
       disabled={disabled}
       className={composedClass}
-      style={rest}
+      style={surfaceStyle}
       onMouseEnter={(event) => {
         setHover(true)
         onMouseEnter?.(event)
@@ -306,8 +335,7 @@ export function MarketingButton({
       }}
       {...props}
     >
-      {children}
-      {arrow}
+      {inner(children)}
     </button>
   )
 }

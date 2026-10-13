@@ -3,6 +3,8 @@ import { FaqsAccordionItem } from "@/components/marketing/faqs/FaqsAccordionItem
 import type { FaqsPageSection } from "@/content/marketing/faqsPage"
 import {
   marketingChromeContentInset,
+  marketingHeaderScrollMarginClass,
+  marketingHeaderStickyTopClass,
   marketingSectionHeading,
 } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
@@ -25,7 +27,7 @@ export function FaqsTopicSection({
   return (
     <section
       id={section.id}
-      className="w-full scroll-mt-44 bg-white"
+      className={cn("w-full bg-white", marketingHeaderScrollMarginClass)}
     >
       <div
         className={cn(
@@ -34,7 +36,12 @@ export function FaqsTopicSection({
           "pt-12.5 pb-17.5",
         )}
       >
-        <header className="flex w-full shrink-0 flex-col gap-3 lg:sticky lg:top-44 lg:w-137 lg:max-w-137 lg:pt-5">
+        <header
+          className={cn(
+            "flex w-full shrink-0 flex-col gap-3 lg:sticky lg:w-137 lg:max-w-137",
+            marketingHeaderStickyTopClass,
+          )}
+        >
           <h2 className={cn("m-0 text-[#141414]", marketingSectionHeading)}>
             {section.title}
           </h2>
@@ -43,7 +50,7 @@ export function FaqsTopicSection({
         <Accordion
           type="single"
           collapsible
-          className="min-w-0 flex-1 gap-7.5 lg:pt-5"
+          className="min-w-0 flex-1 gap-7.5"
           defaultValue={sectionDefault}
         >
           {section.items.map((item) => (
