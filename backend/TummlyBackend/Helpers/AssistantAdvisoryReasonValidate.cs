@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using TummlyBackend.Models;
 
@@ -179,20 +180,178 @@ namespace TummlyBackend.Helpers
 
         public static string RenderBody(AssistantAdvisoryReasonOutput output)
         {
+            var summary = FormatSummaryForOperator(output.Summary);
             if (output.Recommendations.Count == 0)
             {
-                return output.Summary;
+                return $"## Summary\n\n{summary}";
             }
 
-            var lines = output.Recommendations.Select(RenderRecommendationLine);
-            return output.Summary + "\n\n" + string.Join("\n", lines);
+            var lines = output.Recommendations
+                .Select(RenderRecommendationLine)
+                .Take(3);
+            return "## Summary\n\n"
+                + summary
+                + "\n\n## Recommended next steps\n\n"
+                + string.Join("\n", lines);
+        }
+
+        /// <summary>
+        /// Operator-facing summary: scrub technical refs, prefer short bullets.
+        /// </summary>
+        public static string FormatSummaryForOperator(string summary)
+        {
+            var scrubbed = ScrubTechnicalProse(summary);
+            scrubbed = AssistantOperatorProse.Scrub(scrubbed);
+            if (string.IsNullOrWhiteSpace(scrubbed))
+            {
+                return scrubbed;
+            }
+
+            if (scrubbed.Contains("\n- ", StringComparison.Ordinal)
+                || scrubbed.TrimStart().StartsWith("- ", StringComparison.Ordinal))
+            {
+                return scrubbed;
+            }
+
+            var sentences = SplitSentences(scrubbed);
+            if (sentences.Count <= 1)
+            {
+                return scrubbed;
+            }
+
+            return string.Join(
+                "\n",
+                sentences.Take(6).Select(sentence => $"- {sentence}")
+            );
+        }
+
+        public static string ScrubTechnicalProse(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return text?.Trim() ?? string.Empty;
+            }
+
+            var cleaned = text;
+            // Drop parenthetical tech dumps: (IsNewAccount: true), (Account.Revenue, …)
+            cleaned = Regex.Replace(
+                cleaned,
+                @"\s*\((?:[^)]*[A-Z][A-Za-z0-9_.]*(?:[:.=,]|true|false)[^)]*)\)",
+                string.Empty,
+                RegexOptions.CultureInvariant
+            );
+            // Drop dotted snapshot paths: Account.Revenue, Feedback.Flags
+            cleaned = Regex.Replace(
+                cleaned,
+                @"\b[A-Z][A-Za-z]+(?:\.[A-Z][A-Za-z0-9_]+)+\b(?:\s*=\s*[^,;.]+)?",
+                string.Empty,
+                RegexOptions.CultureInvariant
+            );
+            // Drop SCREAMING_SNAKE flag codes
+            cleaned = Regex.Replace(
+                cleaned,
+                @"\b[A-Z]{2,}(?:_[A-Z0-9]+)+\b",
+                string.Empty,
+                RegexOptions.CultureInvariant
+            );
+            // Drop leftover "includes ," / empty equals fragments
+            cleaned = Regex.Replace(
+                cleaned,
+                @"\b(?:includes|equals)\s*[,;.]",
+                ".",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+            );
+            cleaned = Regex.Replace(cleaned, @"\s{2,}", " ", RegexOptions.CultureInvariant);
+            cleaned = Regex.Replace(cleaned, @"\s+([,;.])", "$1", RegexOptions.CultureInvariant);
+            cleaned = Regex.Replace(cleaned, @"([.!?]){2,}", "$1", RegexOptions.CultureInvariant);
+            return cleaned.Trim();
+        }
+
+        private static List<string> SplitSentences(string text)
+        {
+            var parts = Regex.Split(text.Trim(), @"(?<=[.!?])\s+")
+                .Select(part => part.Trim())
+                .Where(part => part.Length > 0)
+                .ToList();
+            return parts;
+        }
+
+        public static string AnswerTitle(AdvisoryAskSubType subType)
+            => subType switch
+            {
+                AdvisoryAskSubType.Growth => "Growth outlook",
+                AdvisoryAskSubType.Comparison => "Period comparison",
+                AdvisoryAskSubType.Diagnostic => "What stands out",
+                AdvisoryAskSubType.PureProductFaq => "Product guidance",
+                _ => "Performance overview",
+            };
+
+        /// <summary>
+        /// Compact bar chart of key Advisory snapshot metrics for the UI.
+        /// </summary>
+        public static AssistantAnswerChart? BuildOverviewChart(
+            RestaurantContextSnapshot snapshot
+        )
+        {
+            var series = new List<AssistantAnswerChartPoint>();
+            AddMetricBar(series, "Covers", snapshot.Account.Covers.Current);
+            AddMetricBar(series, "New guests", snapshot.Guests.NewGuestCount.Current);
+            AddMetricBar(
+                series,
+                "Flagged feedback",
+                snapshot.Feedback.Flagged.Count
+            );
+            AddMetricBar(
+                series,
+                "Funnel completes",
+                snapshot.Capture.FunnelCompleteCount.Current
+            );
+            AddMetricBar(
+                series,
+                "QR / funnel starts",
+                snapshot.Capture.FunnelStartCount.Current
+            );
+
+            if (!AssistantAnswerChartGrounding.HasChartableSeries(series))
+            {
+                return null;
+            }
+
+            return new AssistantAnswerChart(
+                "Key metrics this period",
+                AssistantAnswerChartGrounding.BarKind,
+                "Metric",
+                series
+            );
+        }
+
+        private static void AddMetricBar(
+            List<AssistantAnswerChartPoint> series,
+            string label,
+            decimal value
+        )
+        {
+            if (value <= 0m)
+            {
+                return;
+            }
+
+            var rounded = (int)Math.Round(value, MidpointRounding.AwayFromZero);
+            if (rounded <= 0)
+            {
+                return;
+            }
+
+            series.Add(new AssistantAnswerChartPoint(label, rounded));
         }
 
         private static string RenderRecommendationLine(
             AssistantAdvisoryReasonRecommendation recommendation
         )
         {
-            var line = $"{recommendation.Headline} — {recommendation.Reason}";
+            var headline = ScrubTechnicalProse(recommendation.Headline.Trim());
+            var reason = ScrubTechnicalProse(recommendation.Reason.Trim());
+            var line = $"- **{headline}** — {reason}";
             if (IsRouterAction(recommendation.Action))
             {
                 line += $" ({recommendation.Action})";

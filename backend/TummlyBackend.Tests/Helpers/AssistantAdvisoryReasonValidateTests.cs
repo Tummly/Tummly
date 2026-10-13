@@ -268,10 +268,62 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.Equal(
-                "Summary.\n\n"
-                + "Draft a campaign — Covers are soft (create-campaign-draft)\n"
-                + "Watch capture — Funnel is thin",
+                "## Summary\n\n"
+                + "Summary.\n\n"
+                + "## Recommended next steps\n\n"
+                + "- **Draft a campaign** — Covers are soft (create-campaign-draft)\n"
+                + "- **Watch capture** — Funnel is thin",
                 body
+            );
+        }
+
+        [Fact]
+        public void FormatSummaryForOperator_ScrubsTechAndBulletsSentences()
+        {
+            var formatted = AssistantAdvisoryReasonValidate.FormatSummaryForOperator(
+                "The account is new (IsNewAccount: true). "
+                + "You have 24 covers and revenue is 0 (Account.Revenue, Account.AvgTicket). "
+                + "Sentiment is neutral at 50 (Feedback.SentimentScore = 50)."
+            );
+
+            Assert.DoesNotContain("IsNewAccount", formatted, StringComparison.Ordinal);
+            Assert.DoesNotContain("Account.Revenue", formatted, StringComparison.Ordinal);
+            Assert.DoesNotContain("Feedback.SentimentScore", formatted, StringComparison.Ordinal);
+            Assert.Contains("- ", formatted, StringComparison.Ordinal);
+            Assert.Contains("24 covers", formatted, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void BuildOverviewChart_IncludesPositiveMetricsOnly()
+        {
+            var chart = AssistantAdvisoryReasonValidate.BuildOverviewChart(
+                SnapshotWithCovers(covers: 24m)
+            );
+
+            Assert.NotNull(chart);
+            Assert.Equal("Key metrics this period", chart!.Title);
+            Assert.Contains(
+                chart.Series,
+                point => point.Label == "Covers" && point.Value == 24
+            );
+            Assert.Contains(
+                chart.Series,
+                point => point.Label == "New guests" && point.Value == 10
+            );
+            Assert.DoesNotContain(
+                chart.Series,
+                point => point.Label == "Flagged feedback"
+            );
+        }
+
+        [Fact]
+        public void AnswerTitle_MapsGeneralHealthToPerformanceOverview()
+        {
+            Assert.Equal(
+                "Performance overview",
+                AssistantAdvisoryReasonValidate.AnswerTitle(
+                    AdvisoryAskSubType.GeneralHealth
+                )
             );
         }
     }

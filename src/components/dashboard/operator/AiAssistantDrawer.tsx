@@ -17,6 +17,7 @@ import { AiAssistantConversationList } from "@/components/dashboard/operator/AiA
 import { AiAssistantCreditsBar } from "@/components/dashboard/operator/AiAssistantCreditsBar"
 import { AiAssistantDeleteDialog } from "@/components/dashboard/operator/AiAssistantDeleteDialog"
 import { AiAssistantLoadingBorder } from "@/components/dashboard/operator/AiAssistantLoadingBorder"
+import { AssistantAnswerBarChart } from "@/components/dashboard/operator/AssistantAnswerBarChart"
 import { AssistantPreparingAnswer } from "@/components/dashboard/operator/AssistantPreparingAnswer"
 import { GroundedLiveAnswerBody } from "@/components/dashboard/operator/GroundedLiveAnswerBody"
 import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
@@ -115,6 +116,30 @@ function readViewportAtLeastLg(): boolean {
   return window.matchMedia(LG_VIEWPORT_QUERY).matches
 }
 
+/** Body must be clearly longer than the short note before we offer "Show details". */
+function bodyNeedsShowDetails(body: string, shortNote: string): boolean {
+  const note = shortNote.trim()
+  const trimmed = body.trim()
+  if (trimmed.length === 0) {
+    return false
+  }
+
+  const withoutNote = trimmed
+    .replace(note, "")
+    .replace(/^#+\s+.+$/gm, "")
+    .trim()
+  if (withoutNote.length < 200) {
+    return false
+  }
+
+  const nonEmptyLines = withoutNote
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+
+  return withoutNote.length >= 320 || nonEmptyLines.length > 6
+}
+
 function ThreadMessage({
   message,
   retryVisible,
@@ -155,6 +180,48 @@ function ThreadMessage({
   const scopeNotice = message.scopeChange
     ? formatScopeChangeNotice(message.scopeChange)
     : null
+  const chart = message.presentation?.chart
+  const recommended = message.presentation?.recommendedNextStep
+  const metrics = message.presentation?.metrics ?? []
+  const shortNote = message.presentation?.shortNote
+  const bodyTrimmed = message.body.trim()
+  /** Only collapse behind "Show details" when body is clearly longer than the short note. */
+  const showDetailsToggle =
+    message.class === "grounded"
+    && shortNote != null
+    && shortNote.trim().length > 0
+    && bodyNeedsShowDetails(bodyTrimmed, shortNote)
+  const pillTypes = new Set([
+    "view-feedback-set",
+    "prepare-recovery",
+    "review-campaign",
+    "open-recovery",
+  ])
+  const cardActionTypes = new Set(
+    [recommended?.primaryAction?.type, recommended?.secondaryAction?.type].filter(
+      (type): type is NonNullable<typeof type> => type != null && type.length > 0
+    )
+  )
+  const pillActions = (message.actions ?? []).filter(
+    (action) =>
+      pillTypes.has(action.type) && !cardActionTypes.has(action.type)
+  )
+  const listActions = (message.actions ?? []).filter(
+    (action) =>
+      !cardActionTypes.has(action.type) && !pillTypes.has(action.type)
+  )
+  const ctaPills = [
+    recommended?.primaryAction,
+    recommended?.secondaryAction,
+    ...pillActions,
+  ].filter(
+    (action): action is NonNullable<typeof action> =>
+      action != null && action.type.length > 0
+  )
+  const uniqueCtas = ctaPills.filter(
+    (action, index, all) =>
+      all.findIndex((other) => other.type === action.type) === index
+  )
 
   return (
     <div
@@ -164,19 +231,94 @@ function ThreadMessage({
       <div className="flex flex-col gap-[12px]">
         <div className="flex gap-3 items-start">
           <AiIcon size={26} className="text-op-assistant-list-title" />
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
             {message.title ? (
-              <p className="text-sm leading-5 font-normal text-op-text-primary">
+              <p className="text-sm leading-5 font-semibold text-op-text-primary">
                 {message.title}
               </p>
             ) : null}
-            {message.class === "grounded" ? (
+            {message.class === "grounded" && metrics.length > 0 ? (
+              <div
+                className="flex flex-wrap gap-2"
+                data-assistant-answer-metrics=""
+              >
+                {metrics.map((metric) => (
+                  <div
+                    key={`${metric.label}-${metric.value}`}
+                    className="flex flex-col gap-0.5 rounded-[8px] border border-op-assistant-list-border bg-op-assistant-list-row-active/50 px-2.5 py-1.5"
+                  >
+                    <span className="text-[10px] leading-3 text-op-assistant-list-subtitle">
+                      {metric.label}
+                    </span>
+                    <span className="text-sm font-semibold leading-5 text-op-text-primary">
+                      {metric.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {message.class === "grounded" && showDetailsToggle && shortNote ? (
+              <p className="m-0 text-sm leading-5 text-[var(--op-color-gray-550)]">
+                {shortNote}
+              </p>
+            ) : null}
+            {message.class === "grounded" && showDetailsToggle ? (
+              <details className="group">
+                <summary className="cursor-pointer list-none text-xs font-medium text-op-assistant-list-title underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
+                  Show details
+                </summary>
+                <div className="mt-2">
+                  <GroundedLiveAnswerBody body={message.body} />
+                </div>
+              </details>
+            ) : null}
+            {message.class === "grounded"
+            && !showDetailsToggle
+            && bodyTrimmed.length > 0 ? (
               <GroundedLiveAnswerBody body={message.body} />
-            ) : (
+            ) : null}
+            {message.class !== "grounded" ? (
               <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
                 {message.body}
               </p>
-            )}
+            ) : null}
+            {message.class === "grounded" && chart ? (
+              <AssistantAnswerBarChart chart={chart} />
+            ) : null}
+            {message.class === "grounded" && uniqueCtas.length > 0 ? (
+              <div
+                className="flex flex-wrap gap-2"
+                data-assistant-answer-ctas=""
+              >
+                {uniqueCtas.map((action) => (
+                  <Button
+                    key={action.type}
+                    type="button"
+                    variant={
+                      action.type === "view-feedback-set"
+                      || action.type === "prepare-recovery"
+                        ? "op-secondary"
+                        : "op-secondary"
+                    }
+                    className="h-9 rounded-full px-3 text-sm"
+                    disabled={action.clickable === false}
+                    onClick={() => {
+                      onActivateAction(action)
+                    }}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            {message.class === "grounded" && recommended?.text ? (
+              <p
+                className="m-0 text-xs leading-4 text-op-assistant-list-subtitle"
+                data-assistant-recommended-next-step=""
+              >
+                {recommended.text}
+              </p>
+            ) : null}
             {scopeNotice ? (
               <button
                 type="button"
@@ -190,12 +332,12 @@ function ThreadMessage({
           </div>
         </div>
       </div>
-      {message.class === "grounded" && (message.actions?.length ?? 0) > 0 ? (
+      {message.class === "grounded" && listActions.length > 0 ? (
         <div className="flex flex-col gap-3.5">
           <p className="text-sm leading-5 font-medium text-op-assistant-list-title">
             Actions
           </p>
-          {message.actions?.map((action) => (
+          {listActions.map((action) => (
             <button
               key={action.type}
               type="button"

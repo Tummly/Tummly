@@ -140,6 +140,36 @@ export type OperatorAiAssistantAction = {
   clickable?: boolean
 }
 
+export type OperatorAiAssistantAnswerChartPoint = {
+  label: string
+  value: number
+}
+
+export type OperatorAiAssistantAnswerChart = {
+  title: string
+  kind: "bar" | string
+  xLabel?: string | null
+  series: OperatorAiAssistantAnswerChartPoint[]
+}
+
+export type OperatorAiAssistantRecommendedNextStep = {
+  text: string
+  primaryAction?: OperatorAiAssistantAction | null
+  secondaryAction?: OperatorAiAssistantAction | null
+}
+
+export type OperatorAiAssistantAnswerMetric = {
+  label: string
+  value: string
+}
+
+export type OperatorAiAssistantMessagePresentation = {
+  chart?: OperatorAiAssistantAnswerChart | null
+  recommendedNextStep?: OperatorAiAssistantRecommendedNextStep | null
+  metrics?: OperatorAiAssistantAnswerMetric[] | null
+  shortNote?: string | null
+}
+
 export type OperatorAiAssistantMessage = {
   id: string
   role: "user" | "assistant" | "wait"
@@ -148,6 +178,7 @@ export type OperatorAiAssistantMessage = {
   body: string
   analysisScope?: OperatorAiAssistantAnalysisScope
   actions?: OperatorAiAssistantAction[]
+  presentation?: OperatorAiAssistantMessagePresentation | null
   /** Server applied an NL Analysis scope override on this turn. */
   scopeChange?: OperatorAiAssistantScopeChangeNotice | null
 }

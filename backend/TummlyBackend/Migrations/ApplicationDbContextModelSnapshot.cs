@@ -383,6 +383,9 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("PresentationJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ReportingPeriodEndDate")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");

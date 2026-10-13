@@ -54,14 +54,57 @@ describe("parseGroundedLiveAnswerMarkdown", () => {
     ])
   })
 
+  it("parses blockquotes for feedback excerpts", () => {
+    expect(
+      parseGroundedLiveAnswerMarkdown('> "Service was slow at 8 PM."')
+    ).toEqual([
+      {
+        type: "blockquote",
+        children: [{ type: "quote", value: "Service was slow at 8 PM." }],
+      },
+    ])
+  })
+
+  it("parses curly double quotes as feedback quote spans", () => {
+    expect(
+      parseGroundedLiveAnswerMarkdown(
+        '1. Priya Nguyen (Email) — “Bill had an unexpected charge.”'
+      )
+    ).toEqual([
+      {
+        type: "orderedList",
+        items: [
+          [
+            { type: "text", value: "Priya Nguyen (Email) — " },
+            { type: "quote", value: "Bill had an unexpected charge." },
+          ],
+        ],
+      },
+    ])
+  })
+
+  it("parses markdown tables", () => {
+    expect(
+      parseGroundedLiveAnswerMarkdown(
+        "| Metric | Value |\n| --- | --- |\n| Covers | 24 |\n| New guests | 24 |"
+      )
+    ).toEqual([
+      {
+        type: "table",
+        headers: ["Metric", "Value"],
+        rows: [
+          ["Covers", "24"],
+          ["New guests", "24"],
+        ],
+      },
+    ])
+  })
+
   it("flattens unsupported markdown into plain text tokens", () => {
     expect(
       parseGroundedLiveAnswerMarkdown(
         [
           "[Report](https://example.com) and ![Chart](chart.png)",
-          "> Quoted detail",
-          "| Name | Score |",
-          "| --- | --- |",
           "`code` and <strong>raw HTML</strong>",
           "#### Not a short heading",
           "",
@@ -78,12 +121,6 @@ describe("parseGroundedLiveAnswerMarkdown", () => {
             type: "text",
             value: "[Report](https://example.com) and ![Chart](chart.png)",
           },
-          { type: "lineBreak" },
-          { type: "text", value: "> Quoted detail" },
-          { type: "lineBreak" },
-          { type: "text", value: "| Name | Score |" },
-          { type: "lineBreak" },
-          { type: "text", value: "| --- | --- |" },
           { type: "lineBreak" },
           { type: "text", value: "`code` and <strong>raw HTML</strong>" },
           { type: "lineBreak" },

@@ -126,7 +126,9 @@ namespace TummlyBackend.Helpers
                     "actions",
                     "assistantTask",
                     "conversationTitle",
-                    "offerTerms"
+                    "offerTerms",
+                    "chart",
+                    "recommendedNextStep",
                 },
                 ["properties"] = new JsonObject
                 {
@@ -178,6 +180,22 @@ namespace TummlyBackend.Helpers
                     {
                         ["type"] = "string"
                     },
+                    ["chart"] = new JsonObject
+                    {
+                        ["anyOf"] = new JsonArray
+                        {
+                            ChartObject(),
+                            new JsonObject { ["type"] = "null" }
+                        }
+                    },
+                    ["recommendedNextStep"] = new JsonObject
+                    {
+                        ["anyOf"] = new JsonArray
+                        {
+                            RecommendedNextStepObject(),
+                            new JsonObject { ["type"] = "null" }
+                        }
+                    },
                     ["actions"] = new JsonObject
                     {
                         ["type"] = "array",
@@ -222,6 +240,88 @@ namespace TummlyBackend.Helpers
                         },
                     },
                 }
+            };
+
+        private static JsonObject ChartObject()
+            => new()
+            {
+                ["type"] = "object",
+                ["additionalProperties"] = false,
+                ["required"] = new JsonArray(
+                    "title",
+                    "kind",
+                    "xLabel",
+                    "series"
+                ),
+                ["properties"] = new JsonObject
+                {
+                    ["title"] = new JsonObject { ["type"] = "string" },
+                    ["kind"] = new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JsonArray(
+                            AssistantAnswerChartGrounding.BarKind
+                        ),
+                    },
+                    ["xLabel"] = NullableString(),
+                    ["series"] = new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["items"] = new JsonObject
+                        {
+                            ["type"] = "object",
+                            ["additionalProperties"] = false,
+                            ["required"] = new JsonArray("label", "value"),
+                            ["properties"] = new JsonObject
+                            {
+                                ["label"] = new JsonObject
+                                {
+                                    ["type"] = "string"
+                                },
+                                ["value"] = new JsonObject
+                                {
+                                    ["type"] = "integer"
+                                },
+                            },
+                        },
+                    },
+                },
+            };
+
+        private static JsonObject RecommendedNextStepObject()
+            => new()
+            {
+                ["type"] = "object",
+                ["additionalProperties"] = false,
+                ["required"] = new JsonArray(
+                    "text",
+                    "primaryActionType",
+                    "secondaryActionType"
+                ),
+                ["properties"] = new JsonObject
+                {
+                    ["text"] = new JsonObject { ["type"] = "string" },
+                    ["primaryActionType"] = CatalogActionTypeOrNull(),
+                    ["secondaryActionType"] = CatalogActionTypeOrNull(),
+                },
+            };
+
+        private static JsonObject CatalogActionTypeOrNull()
+            => new()
+            {
+                ["anyOf"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JsonArray(
+                            AssistantActionCatalog.CatalogOrder
+                                .Select(type => (JsonNode)type)
+                                .ToArray()
+                        ),
+                    },
+                    new JsonObject { ["type"] = "null" },
+                },
             };
 
         private static readonly string[] OfferTypeWireValues =
@@ -346,15 +446,33 @@ namespace TummlyBackend.Helpers
                 ask Campaign name, catalogues, extra questions, or Location when
                 the ask plus Analysis scope already name one Owned location.
 
+                Answer first. Prefer short answers: simple asks get 1–3 sentences
+                in body; performance asks get key metrics and a short
+                interpretation. Deeper analysis only when the operator asks for
+                it. Put the main finding in title (plain text, no Markdown). Keep
+                body short — no repeated scope, period, headings, or technical
+                explanations already visible in chrome. Use digits for numbers
+                (6, 1,121, 20%, £5, 7 PM), never spelled-out counts.
+
+                chart: when feedbackByHour in the user payload has any count > 0
+                and a Feedback summary chart helps, emit a bar chart whose series
+                labels and values match feedbackByHour exactly. Otherwise chart
+                must be null. Never invent hour buckets.
+
+                recommendedNextStep: optional short next-step card text with
+                primaryActionType / secondaryActionType from the Action catalog
+                (or null). Prefer View Feedback / Prepare recovery when those
+                Actions fit. Put navigation in actions and recommendedNextStep,
+                not as prose-only suggestions.
+
                 Grounded body formatting uses this Markdown allow-list only:
                 short level 2 or level 3 headings (## or ###), bold (**text**),
                 top-level unordered lists (- item), and top-level ordered lists
-                (1. item). Use headings for distinct sections and bold for short
-                labels or important values so the answer is easy to scan. Keep
-                ordinary prose muted by using plain text. Do not use links, images,
-                tables, blockquotes, code, raw HTML, nested lists, or level 1
-                headings. Do not put Markdown in title. Refusal, failure, and
-                clarify bodies must be plain text without Markdown.
+                (1. item). Prefer plain short paragraphs over long nested lists.
+                Do not use links, images, tables, blockquotes, code, raw HTML,
+                nested lists, or level 1 headings. Do not put Markdown in title.
+                Refusal, failure, and clarify bodies must be plain text without
+                Markdown.
 
                 Allow-list domains: Feedback (including AI classification), offers
                 (catalog, Offers Performance, per-offer metrics, linked Campaigns,
@@ -409,8 +527,11 @@ namespace TummlyBackend.Helpers
 
                 Name Location Guests or Feedback only when the operator asks to
                 show or list them. Cap 5 named rows, then "and N more", plus a
-                Guest or Feedback Action. Summarise and needs-attention stay
-                counts and themes: at most 3 quoted excerpts and no Name list.
+                Guest or Feedback Action. Format each Feedback row as guest name,
+                channel, and the exact excerpt in straight double quotes
+                ("…") — never FDB- codes or feedbackReference. Summarise and
+                needs-attention stay counts and themes: at most 3 quoted excerpts
+                and no Name list.
                 Windowed Feedback facts use Analysis scope. Marketing eligible,
                 Guest tags, and Marketing status are not limited to the Reporting
                 period: do not say those facts are inside the Reporting period.
@@ -544,9 +665,11 @@ namespace TummlyBackend.Helpers
                 totals are every item in the Reporting period; do not say themes
                 came from the excerpt sample. When a venue's feedback total is
                 greater than the sample count, say comment samples are a
-                sample of the total at the venue name. Use plain words for
-                every count. Never write a field name or a camelCase identifier
-                in the title or body. Do not add an Actions heading. Do not
+                sample of the total at the venue name. Use digits for counts
+                (4, 1,121). Never write a field name or a camelCase identifier
+                in the title or body. Never write FeedbackReference codes such as
+                FDB-000003 — list guest name, channel, and the exact excerpt in
+                straight double quotes ("…"). Do not add an Actions heading. Do not
                 write action type names or tab values. The server shows Actions.
                 Name failedLocationNames as
                 Could not load data for that name. Name notStartedLocationNames with
@@ -950,6 +1073,20 @@ namespace TummlyBackend.Helpers
                 }
 
                 var offerTerms = ReadOfferTerms(root);
+                var chart = answerClass == AssistantMessageClass.Grounded
+                    ? AssistantAnswerChartGrounding.AutoAttachForFeedbackAsk(
+                        AssistantAnswerChartGrounding.Ground(
+                            ReadChart(root),
+                            evidence
+                        ),
+                        evidence,
+                        userMessage
+                    )
+                    : null;
+                var recommendedNextStep =
+                    answerClass == AssistantMessageClass.Grounded
+                        ? ReadRecommendedNextStep(root, evidence)
+                        : null;
 
                 result = new AssistantLiveAnswerResult.Succeeded(
                     answerClass,
@@ -958,10 +1095,154 @@ namespace TummlyBackend.Helpers
                     actions,
                     assistantTask,
                     conversationTitle,
-                    offerTerms
+                    offerTerms,
+                    chart,
+                    recommendedNextStep
                 );
                 return true;
             }
+        }
+
+        private static AssistantAnswerChart? ReadChart(JsonElement root)
+        {
+            if (!root.TryGetProperty("chart", out var chartElement)
+                || chartElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (!chartElement.TryGetProperty("title", out var titleElement)
+                || titleElement.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            var title = titleElement.GetString()?.Trim();
+            if (string.IsNullOrEmpty(title))
+            {
+                return null;
+            }
+
+            string? xLabel = null;
+            if (chartElement.TryGetProperty("xLabel", out var xLabelElement)
+                && xLabelElement.ValueKind == JsonValueKind.String)
+            {
+                xLabel = xLabelElement.GetString();
+            }
+
+            var series = new List<AssistantAnswerChartPoint>();
+            if (chartElement.TryGetProperty("series", out var seriesElement)
+                && seriesElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var point in seriesElement.EnumerateArray())
+                {
+                    if (point.ValueKind != JsonValueKind.Object
+                        || !point.TryGetProperty("label", out var labelElement)
+                        || labelElement.ValueKind != JsonValueKind.String
+                        || !point.TryGetProperty("value", out var valueElement)
+                        || valueElement.ValueKind != JsonValueKind.Number
+                        || !valueElement.TryGetInt32(out var value))
+                    {
+                        continue;
+                    }
+
+                    var label = labelElement.GetString()?.Trim();
+                    if (string.IsNullOrEmpty(label))
+                    {
+                        continue;
+                    }
+
+                    series.Add(new AssistantAnswerChartPoint(label, value));
+                }
+            }
+
+            return new AssistantAnswerChart(
+                title,
+                AssistantAnswerChartGrounding.BarKind,
+                xLabel,
+                series
+            );
+        }
+
+        private static AssistantRecommendedNextStep? ReadRecommendedNextStep(
+            JsonElement root,
+            AssistantRetrievedEvidence evidence
+        )
+        {
+            if (!root.TryGetProperty("recommendedNextStep", out var stepElement)
+                || stepElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (!stepElement.TryGetProperty("text", out var textElement)
+                || textElement.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            var text = AssistantOperatorProse.Scrub(textElement.GetString()).Trim();
+            if (text.Length == 0)
+            {
+                return null;
+            }
+
+            var primary = ResolveCatalogActionType(
+                stepElement,
+                "primaryActionType",
+                evidence
+            );
+            var secondary = ResolveCatalogActionType(
+                stepElement,
+                "secondaryActionType",
+                evidence
+            );
+            if (primary is null && secondary is null)
+            {
+                return null;
+            }
+
+            if (secondary is not null
+                && primary is not null
+                && string.Equals(primary.Type, secondary.Type, StringComparison.Ordinal))
+            {
+                secondary = null;
+            }
+
+            return new AssistantRecommendedNextStep(text, primary, secondary);
+        }
+
+        private static AssistantActionDto? ResolveCatalogActionType(
+            JsonElement stepElement,
+            string propertyName,
+            AssistantRetrievedEvidence evidence
+        )
+        {
+            if (!stepElement.TryGetProperty(propertyName, out var typeElement)
+                || typeElement.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            var type = typeElement.GetString()?.Trim();
+            if (string.IsNullOrEmpty(type)
+                || !AssistantActionCatalog.CatalogOrder.Contains(type))
+            {
+                return null;
+            }
+
+            var validated = AssistantActionCatalog.ValidateForLiveAsk(
+                [
+                    new AssistantActionDto { Type = type },
+                ],
+                AssistantMessageClass.Grounded,
+                evidence,
+                userMessage: string.Empty,
+                AssistantAskIntent.ClassifyGrounded(string.Empty)
+            );
+            return validated.FirstOrDefault(action =>
+                string.Equals(action.Type, type, StringComparison.Ordinal)
+            );
         }
 
 
@@ -1003,6 +1284,16 @@ namespace TummlyBackend.Helpers
                         {
                             ["tag"] = tag.Tag,
                             ["count"] = tag.Count,
+                        })
+                        .ToArray<JsonNode?>()
+                ),
+                ["feedbackByHour"] = new JsonArray(
+                    AssistantAnswerChartGrounding
+                        .BuildFeedbackByHour(feedback)
+                        .Select(point => new JsonObject
+                        {
+                            ["label"] = point.Label,
+                            ["value"] = point.Value,
                         })
                         .ToArray<JsonNode?>()
                 ),
@@ -1184,7 +1475,8 @@ namespace TummlyBackend.Helpers
                 ["qrSource"] = row.QrSource,
                 ["contactType"] = row.ContactType,
                 ["excerpt"] = row.Excerpt,
-                ["feedbackReference"] = row.FeedbackReference,
+                // Do not send FeedbackReference (FDB-…) — operators open the
+                // set via View Feedback; listing codes clutters the side panel.
                 ["marketingStatus"] = row.MarketingStatus,
                 ["guestTags"] = new JsonArray(
                     row.GuestTags.Select(tag => (JsonNode)tag).ToArray()

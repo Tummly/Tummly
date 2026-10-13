@@ -140,11 +140,13 @@ namespace TummlyBackend.DTOs.Assistant
 
         public string Body { get; set; } = string.Empty;
 
-                public AssistantAnalysisScopeDto? AnalysisScope { get; set; }
+        public AssistantAnalysisScopeDto? AnalysisScope { get; set; }
 
         public IReadOnlyList<AssistantActionDto> Actions { get; set; }
             = Array.Empty<AssistantActionDto>();
 
         public AssistantScopeChangeNoticeDto? ScopeChange { get; set; }
+
+        public AssistantMessagePresentationDto? Presentation { get; set; }
     }
 }

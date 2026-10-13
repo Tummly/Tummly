@@ -45,7 +45,9 @@ namespace TummlyBackend.Models
             IReadOnlyList<AssistantActionDto> Actions,
             string AssistantTask = Helpers.AssistantTask.Retrieve,
             string? ConversationTitle = null,
-            Helpers.AssistantOfferPathTermsState? OfferTerms = null
+            Helpers.AssistantOfferPathTermsState? OfferTerms = null,
+            AssistantAnswerChart? Chart = null,
+            AssistantRecommendedNextStep? RecommendedNextStep = null
         ) : AssistantLiveAnswerResult;
 
         public sealed record Failed(bool Retryable) : AssistantLiveAnswerResult;

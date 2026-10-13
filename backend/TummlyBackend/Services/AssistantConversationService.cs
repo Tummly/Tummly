@@ -1830,15 +1830,51 @@ namespace TummlyBackend.Services
                     // contacts stay redacted, and empty retrieve evidence above
                     // still cannot invent counts. Campaign, offer, and recovery
                     // persist paths own their confirmation copy.
-                    assistantMessage = new AssistantMessage
+                    // Shape grounded answers into presentation slots (metrics,
+                    // short note, chart, CTAs) and strip action prose from body.
+                    if (succeeded.Class == AssistantMessageClass.Grounded)
                     {
-                        Role = AssistantMessageRole.Assistant,
-                        Class = succeeded.Class,
-                        Title = title,
-                        Body = body,
-                        ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
-                        CreatedAt = assistantNow,
-                    };
+                        var shaped = AssistantAnswerPresentationShape.ShapeLiveAnswer(
+                            userMessage,
+                            title,
+                            body,
+                            actions,
+                            succeeded.Chart,
+                            succeeded.RecommendedNextStep,
+                            savedEvidence
+                        );
+                        body = shaped.Body;
+                        actions = shaped.Actions.ToList();
+                        assistantMessage = new AssistantMessage
+                        {
+                            Role = AssistantMessageRole.Assistant,
+                            Class = succeeded.Class,
+                            Title = title,
+                            Body = body,
+                            ActionsJson =
+                                AssistantAnalysisScope.SerializeActions(actions),
+                            PresentationJson =
+                                AssistantMessagePresentationJson.Serialize(
+                                    shaped.Presentation
+                                ),
+                            CreatedAt = assistantNow,
+                        };
+                    }
+                    else
+                    {
+                        assistantMessage = new AssistantMessage
+                        {
+                            Role = AssistantMessageRole.Assistant,
+                            Class = succeeded.Class,
+                            Title = title,
+                            Body = body,
+                            ActionsJson =
+                                AssistantAnalysisScope.SerializeActions(actions),
+                            PresentationJson = null,
+                            CreatedAt = assistantNow,
+                        };
+                    }
+
                     conversation.LastCompareLocationIdsJson =
                         !AssistantAnalysisScope.IsAll(conversation)
                         && compareOutcome is AssistantCompareOutcome.Compare compareOk
@@ -6946,13 +6982,22 @@ namespace TummlyBackend.Services
                 conversation.Id
             );
             conversation.LastCompareLocationIdsJson = null;
+            var advisoryChart = AssistantAdvisoryReasonValidate.BuildOverviewChart(
+                clear.Snapshot
+            );
+            var shaped = AssistantAnswerPresentationShape.ShapeAdvisoryAnswer(
+                AssistantAdvisoryReasonValidate.RenderBody(valid.Output),
+                advisoryChart,
+                clear.Snapshot
+            );
             return await PersistAssistantAsync(
                 conversation,
                 GroundedMessage(
                     DateTime.UtcNow,
-                    "Advisory",
-                    AssistantAdvisoryReasonValidate.RenderBody(valid.Output),
-                    []
+                    AssistantAdvisoryReasonValidate.AnswerTitle(clear.SubType),
+                    shaped.Body,
+                    shaped.Actions,
+                    shaped.Presentation
                 ),
                 replaceFailure,
                 cancellationToken,
@@ -8606,7 +8651,8 @@ namespace TummlyBackend.Services
             DateTime createdAt,
             string title,
             string body,
-            IReadOnlyList<AssistantActionDto> actions
+            IReadOnlyList<AssistantActionDto> actions,
+            AssistantMessagePresentation? presentation = null
         )
             => new()
             {
@@ -8615,6 +8661,8 @@ namespace TummlyBackend.Services
                 Title = title,
                 Body = body,
                 ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
+                PresentationJson =
+                    AssistantMessagePresentationJson.Serialize(presentation),
                 CreatedAt = createdAt,
             };
 
