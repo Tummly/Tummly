@@ -6,7 +6,6 @@ import type {
 import { MANAGE_PLAN_IDS } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import { MARKETING_FAQS_PATH } from "@/constants/marketingNav"
-import { MARKETING_QR_EXPAND_STRIP } from "@/content/marketing/qrMaterialsExpandStrip"
 
 export type PricingPlanId = ManagePlanId
 
@@ -529,10 +528,6 @@ export const PRICING_QR_MATERIALS = {
   ],
   ctaLabel: "See QR materials",
   ctaTo: MARKETING_FAQS_PATH,
-  /** Shared overlay + slides — see `MARKETING_QR_EXPAND_STRIP`. */
-  cardTitle: MARKETING_QR_EXPAND_STRIP.cardTitle,
-  cardDescription: MARKETING_QR_EXPAND_STRIP.cardDescription,
-  slides: MARKETING_QR_EXPAND_STRIP.slides,
 } as const
 
 /** Figma Pricing Sign up CTA (`5661:14510` / `4151:3811`). */

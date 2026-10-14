@@ -4,41 +4,44 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type RefObject,
 } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { ChevronRight } from "lucide-react"
 
-import {
-  PRODUCT_CAPTURE_MATERIALS,
-  type ProductCaptureMaterial,
-} from "@/content/marketing/productPage"
-import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
+import { PRODUCT_CAPTURE_MATERIALS } from "@/content/marketing/productPage"
+import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
 
-const PANEL_HEIGHT_PX = 661
 const MATERIAL_COUNT = PRODUCT_CAPTURE_MATERIALS.length
-/** Desktop scroll track — one panel-height step per material. */
-const TRACK_HEIGHT_PX = PANEL_HEIGHT_PX * MATERIAL_COUNT
 const CROSSFADE_MS = 0.25
 /** List row: 32px type + 22px gap (Figma). */
 const LIST_ROW_STRIDE_PX = 54
-/** Minimum clearance under sticky marketing header chrome. */
-const HEADER_CLEARANCE_PX = 100
+/** Wheel distance (px) before advancing one material while the list is hovered. */
+const WHEEL_STEP_PX = 40
+/** Ignore further wheel steps briefly so trackpad inertia cannot skip items. */
+const WHEEL_STEP_COOLDOWN_MS = 320
 const LG_MQ = "(min-width: 1024px)"
 
-/** Vertically centre the panel in the viewport; never sit under the nav. */
-function stickyTopForViewport(viewportHeight: number) {
-  const centered = (viewportHeight - PANEL_HEIGHT_PX) / 2
-  return Math.max(HEADER_CLEARANCE_PX, centered)
+function normalizeWheelDeltaY(event: WheelEvent) {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    return event.deltaY * 16
+  }
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    return event.deltaY * WHEEL_STEP_PX
+  }
+  return event.deltaY
 }
 
 const materialImages = Object.fromEntries(
   PRODUCT_CAPTURE_MATERIALS.map((material) => [
     material.id,
-    remoteSimpleUrl(material.mediaId),
+    remoteSimpleImg(material.mediaId),
   ]),
-) as Record<(typeof PRODUCT_CAPTURE_MATERIALS)[number]["id"], string>
-
+) as Record<
+  (typeof PRODUCT_CAPTURE_MATERIALS)[number]["id"],
+  ReturnType<typeof remoteSimpleImg>
+>
 function clampIndex(index: number) {
   return Math.max(0, Math.min(MATERIAL_COUNT - 1, index))
 }
@@ -63,12 +66,14 @@ function useIsLgUp() {
   return isLgUp
 }
 
+type CaptureMaterial = (typeof PRODUCT_CAPTURE_MATERIALS)[number]
+
 function MaterialListItem({
   material,
   active,
   onSelect,
 }: {
-  material: ProductCaptureMaterial
+  material: CaptureMaterial
   active: boolean
   onSelect: () => void
 }) {
@@ -107,12 +112,18 @@ function MaterialsList({
   activeIndex,
   onSelect,
   translateY,
+  listRef,
+  onListPointerEnter,
+  onListPointerLeave,
   className,
   style,
 }: {
   activeIndex: number
   onSelect: (index: number) => void
   translateY: number
+  listRef?: RefObject<HTMLDivElement | null>
+  onListPointerEnter?: () => void
+  onListPointerLeave?: () => void
   className?: string
   style?: CSSProperties
 }) {
@@ -123,6 +134,9 @@ function MaterialsList({
 
   return (
     <div
+      ref={listRef}
+      onPointerEnter={onListPointerEnter}
+      onPointerLeave={onListPointerLeave}
       className={cn("relative flex min-h-0 flex-1 flex-col overflow-hidden", className)}
       style={style}
     >
@@ -245,10 +259,10 @@ function MediaPane({
   material,
   reduceMotion,
 }: {
-  material: ProductCaptureMaterial
+  material: CaptureMaterial
   reduceMotion: boolean | null
 }) {
-  const imageSrc = materialImages[material.id]
+  const image = materialImages[material.id]
   const objectPosition =
     MEDIA_OBJECT_POSITION[material.id] ?? "object-center"
 
@@ -275,10 +289,12 @@ function MediaPane({
             crop top/bottom; landscape sources crop the sides.
           */}
           <img
-            src={imageSrc}
+            src={image.src}
+            srcSet={image.srcSet}
+            sizes="(min-width: 1024px) 50vw, 100vw"
             alt={material.imageAlt}
-            width={750}
-            height={661}
+            width={image.width}
+            height={image.height}
             className={cn(
               "absolute inset-0 size-full object-cover",
               objectPosition,
@@ -333,6 +349,9 @@ function PanelChrome({
   listTranslateY,
   reduceMotion,
   listScrollable,
+  listRef,
+  onListPointerEnter,
+  onListPointerLeave,
   intro,
 }: {
   activeIndex: number
@@ -340,6 +359,9 @@ function PanelChrome({
   listTranslateY: number
   reduceMotion: boolean | null
   listScrollable?: boolean
+  listRef?: RefObject<HTMLDivElement | null>
+  onListPointerEnter?: () => void
+  onListPointerLeave?: () => void
   intro?: CaptureMaterialsIntro
 }) {
   const material =
@@ -366,6 +388,9 @@ function PanelChrome({
             activeIndex={activeIndex}
             onSelect={onSelect}
             translateY={listTranslateY}
+            listRef={listRef}
+            onListPointerEnter={onListPointerEnter}
+            onListPointerLeave={onListPointerLeave}
           />
         )}
       </div>
@@ -384,117 +409,106 @@ type ProductCaptureMaterialsPanelProps = {
 
 /**
  * Figma Capture materials panel `6106:17567` … `6106:18055`.
- * Desktop (lg+): sticky scroll-driven active material. Below lg: tap to select.
+ * Desktop: click selects immediately; wheel advances only while the left list
+ * is hovered (page scroll is normal otherwise). Below lg: tap to select.
  */
 export function ProductCaptureMaterialsPanel({
   intro,
 }: ProductCaptureMaterialsPanelProps = {}) {
   const isLgUp = useIsLgUp()
   const reduceMotion = useReducedMotion()
-  const trackRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [stickyTopPx, setStickyTopPx] = useState(() =>
-    typeof window !== "undefined"
-      ? stickyTopForViewport(window.innerHeight)
-      : HEADER_CLEARANCE_PX,
-  )
+  const [listHovered, setListHovered] = useState(false)
+  const activeIndexRef = useRef(activeIndex)
+  const wheelAccRef = useRef(0)
+  const lastWheelStepAtRef = useRef(0)
 
-  const syncFromScroll = useEffectEvent(() => {
-    const track = trackRef.current
-    if (track == null) {
-      return
-    }
-    const rect = track.getBoundingClientRect()
-    const scrollable = TRACK_HEIGHT_PX - PANEL_HEIGHT_PX
-    if (scrollable <= 0) {
-      return
-    }
-    // Progress starts when the track top reaches the sticky offset (panel
-    // centred in the viewport), not when it hits the nav.
-    const scrolled = Math.max(
-      0,
-      Math.min(scrollable, stickyTopPx - rect.top),
-    )
-    const next = clampIndex(Math.floor((scrolled / scrollable) * MATERIAL_COUNT))
-    setActiveIndex((prev) => (prev === next ? prev : next))
-  })
+  activeIndexRef.current = activeIndex
+
+  const selectIndex = (index: number) => {
+    setActiveIndex(clampIndex(index))
+  }
 
   useEffect(() => {
-    if (!isLgUp) {
+    if (!isLgUp || !listHovered) {
+      wheelAccRef.current = 0
       return
     }
-    const onResize = () => {
-      setStickyTopPx(stickyTopForViewport(window.innerHeight))
+
+    const list = listRef.current
+    if (list == null) {
+      return
     }
-    onResize()
-    syncFromScroll()
-    window.addEventListener("scroll", syncFromScroll, { passive: true })
-    window.addEventListener("resize", onResize)
+
+    const onWheel = (event: WheelEvent) => {
+      const index = activeIndexRef.current
+      const delta = normalizeWheelDeltaY(event)
+
+      if (delta > 0 && index >= MATERIAL_COUNT - 1) {
+        return
+      }
+      if (delta < 0 && index <= 0) {
+        return
+      }
+
+      event.preventDefault()
+
+      const now = performance.now()
+      if (now - lastWheelStepAtRef.current < WHEEL_STEP_COOLDOWN_MS) {
+        // Drop inertia leftovers so the next gesture starts clean.
+        wheelAccRef.current = 0
+        return
+      }
+
+      wheelAccRef.current += delta
+      if (Math.abs(wheelAccRef.current) < WHEEL_STEP_PX) {
+        return
+      }
+
+      // One material per gesture — large deltas must not skip the next item.
+      const direction = wheelAccRef.current > 0 ? 1 : -1
+      wheelAccRef.current = 0
+      lastWheelStepAtRef.current = now
+
+      const next = clampIndex(index + direction)
+      if (next !== index) {
+        activeIndexRef.current = next
+        setActiveIndex(next)
+      }
+    }
+
+    list.addEventListener("wheel", onWheel, { passive: false })
     return () => {
-      window.removeEventListener("scroll", syncFromScroll)
-      window.removeEventListener("resize", onResize)
+      list.removeEventListener("wheel", onWheel)
     }
-  }, [isLgUp])
+  }, [isLgUp, listHovered])
 
-  useEffect(() => {
-    if (!isLgUp) {
-      return
-    }
-    syncFromScroll()
-  }, [isLgUp, stickyTopPx])
-
-  const scrollToIndex = (index: number) => {
-    const next = clampIndex(index)
-    if (!isLgUp) {
-      setActiveIndex(next)
-      return
-    }
-    const track = trackRef.current
-    if (track == null) {
-      setActiveIndex(next)
-      return
-    }
-    const scrollable = TRACK_HEIGHT_PX - PANEL_HEIGHT_PX
-    const step = scrollable / MATERIAL_COUNT
-    const trackTop = window.scrollY + track.getBoundingClientRect().top
-    window.scrollTo({
-      top: trackTop - stickyTopPx + next * step,
-      behavior: reduceMotion ? "auto" : "smooth",
-    })
-  }
-
-  const listTranslateY = isLgUp
-    ? -activeIndex * LIST_ROW_STRIDE_PX
-    : 0
-
-  if (!isLgUp) {
-    return (
-      <PanelChrome
-        activeIndex={activeIndex}
-        onSelect={scrollToIndex}
-        listTranslateY={0}
-        reduceMotion={reduceMotion}
-        listScrollable
-        intro={intro}
-      />
-    )
-  }
+  const listTranslateY = isLgUp ? -activeIndex * LIST_ROW_STRIDE_PX : 0
 
   return (
-    <div
-      ref={trackRef}
-      className="relative w-full"
-      style={{ height: TRACK_HEIGHT_PX }}
-    >
-      <div className="sticky w-full" style={{ top: stickyTopPx }}>
-        <PanelChrome
-          activeIndex={activeIndex}
-          onSelect={scrollToIndex}
-          listTranslateY={listTranslateY}
-          reduceMotion={reduceMotion}
-          intro={intro}
-        />
-      </div>
-    </div>
+    <PanelChrome
+      activeIndex={activeIndex}
+      onSelect={selectIndex}
+      listTranslateY={listTranslateY}
+      reduceMotion={reduceMotion}
+      listScrollable={!isLgUp}
+      listRef={isLgUp ? listRef : undefined}
+      onListPointerEnter={
+        isLgUp
+          ? () => {
+              setListHovered(true)
+            }
+          : undefined
+      }
+      onListPointerLeave={
+        isLgUp
+          ? () => {
+              setListHovered(false)
+            }
+          : undefined
+      }
+      intro={intro}
+    />
   )
 }

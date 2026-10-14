@@ -1,8 +1,8 @@
 import { ProductSplitFeatureSection } from "@/components/marketing/product/ProductSplitFeatureSection"
 import { PRODUCT_AI_ASSISTANT } from "@/content/marketing/productPage"
-import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
+import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 
-const aiAssistantImage = remoteSimpleUrl("product/ai-assistant")
+const aiAssistantImage = remoteSimpleImg("product/ai-assistant")
 
 /** Figma Product AI Assistant `5661:23627`. */
 export function ProductAiAssistant() {
@@ -13,10 +13,11 @@ export function ProductAiAssistant() {
       title={PRODUCT_AI_ASSISTANT.title}
       body={PRODUCT_AI_ASSISTANT.body}
       points={PRODUCT_AI_ASSISTANT.points}
-      imageSrc={aiAssistantImage}
+      imageSrc={aiAssistantImage.src}
+      imageSrcSet={aiAssistantImage.srcSet}
       imageAlt={PRODUCT_AI_ASSISTANT.imageAlt}
-      imageWidth={766}
-      imageHeight={648}
+      imageWidth={aiAssistantImage.width}
+      imageHeight={aiAssistantImage.height}
       cta={{
         label: PRODUCT_AI_ASSISTANT.ctaLabel,
         to: PRODUCT_AI_ASSISTANT.ctaTo,

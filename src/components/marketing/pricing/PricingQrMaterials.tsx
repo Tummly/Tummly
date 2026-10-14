@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom"
 
 import { MarketingButton } from "@/components/marketing/MarketingButton"
-import { MarketingQrExpandStrip } from "@/components/marketing/MarketingQrExpandStrip"
+import { ProductCaptureMaterialsPanel } from "@/components/marketing/product/ProductCaptureMaterialsPanel"
 import {
   PRICING_QR_MATERIALS,
   PRICING_SECTION_BODY,
@@ -11,7 +11,7 @@ import {
 } from "@/content/marketing/pricingPage"
 import { cn } from "@/lib/utils"
 
-/** Figma Physical QR materials (`5661:14445`) — hover expand strip. */
+/** Figma Physical QR materials (`5661:14445`) — same list + media panel as Product Capture. */
 export function PricingQrMaterials() {
   return (
     <section className="w-full bg-white">
@@ -40,7 +40,7 @@ export function PricingQrMaterials() {
           </MarketingButton>
         </div>
 
-        <MarketingQrExpandStrip ariaLabel="Physical QR materials" />
+        <ProductCaptureMaterialsPanel />
       </div>
     </section>
   )

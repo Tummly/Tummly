@@ -75,8 +75,41 @@ export type HomeHowItWorksStep = {
   imageAlt: string
 }
 
+export type HomeHowItWorksPlaceMedia = {
+  id: "counter-card" | "guest-cards" | "window-sticker"
+  label: string
+  /** marketingMediaMeta / remoteSimpleUrl id — reuse Product Capture assets. */
+  mediaId: string
+  imageAlt: string
+}
+
 /**
- * Home How it works scroll-hijack steps —
+ * Place the Guest Loop media stack — Figma `5339:30041`.
+ * Reuses Product Capture Blob images; panels expand on label button click.
+ */
+export const HOME_HOW_IT_WORKS_PLACE_MEDIA = [
+  {
+    id: "counter-card",
+    label: "Counter card",
+    mediaId: "product/capture-counter-display",
+    imageAlt: "Freestanding QR counter display on a restaurant counter",
+  },
+  {
+    id: "guest-cards",
+    label: "QR Guest Cards",
+    mediaId: "product/capture-guest-cards",
+    imageAlt: "Hand holding a green Tummly QR guest card with an offer",
+  },
+  {
+    id: "window-sticker",
+    label: "Window sticker",
+    mediaId: "product/capture-window-sticker",
+    imageAlt: "Branded QR window sticker on a restaurant window",
+  },
+] as const satisfies readonly HomeHowItWorksPlaceMedia[]
+
+/**
+ * Home How it works steps —
  * Figma `5339:30041`, `4161:19285`, `4161:19284`, `4161:19283`.
  */
 export const HOME_HOW_IT_WORKS_STEPS = [
@@ -97,7 +130,7 @@ export const HOME_HOW_IT_WORKS_STEPS = [
     body: "Guests can quickly share private written Feedback about their experience through your Guest Form, in their own words.",
     ctaLabel: "See how it works",
     ctaTo: MARKETING_PRODUCT_PATH,
-    imageAlt: "Guest phone showing a private feedback form",
+    imageAlt: "Restaurant dining room with guests — Hear from guests video",
   },
   {
     id: "build",
@@ -120,7 +153,7 @@ export const HOME_HOW_IT_WORKS_STEPS = [
 ] as const satisfies readonly HomeHowItWorksStep[]
 
 /**
- * Home QR materials scroll-hijack — Figma `4902:19649`.
+ * Home QR materials — Figma `4902:19649`.
  * Same materials list as Product Capture; intro copy sits inside the panel.
  */
 export const HOME_QR_MATERIALS = {
@@ -137,7 +170,7 @@ export type HomeIndustry = {
 }
 
 /**
- * Home Built for restaurants scroll-hijack —
+ * Home Built for restaurants —
  * Figma `5088:12319`, `5088:12318`, `5088:12317`, `5088:12316`.
  */
 export const HOME_INDUSTRIES = {

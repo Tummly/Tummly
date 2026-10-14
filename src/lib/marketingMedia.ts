@@ -8,6 +8,9 @@
  *   npm run marketing-media:publish -- --only product     # id or prefix
  * Generate only (no upload):
  *   npm run marketing-media:generate
+ *
+ * 2× re-export checklist:
+ *   .scratch/marketing-media-sources/IMAGE-QUALITY-REEPORT.md
  */
 const DEFAULT_MARKETING_MEDIA_BASE =
   "https://sttummlyqavfavue.blob.core.windows.net/marketing"

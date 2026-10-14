@@ -1,8 +1,8 @@
 import { ProductSplitFeatureSection } from "@/components/marketing/product/ProductSplitFeatureSection"
 import { PRODUCT_GUESTS } from "@/content/marketing/productPage"
-import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
+import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 
-const guestsImage = remoteSimpleUrl("product/guests")
+const guestsImage = remoteSimpleImg("product/guests")
 
 /** Figma Product Guests section `5661:23456`. */
 export function ProductGuests() {
@@ -13,10 +13,11 @@ export function ProductGuests() {
       title={PRODUCT_GUESTS.title}
       body={PRODUCT_GUESTS.body}
       points={PRODUCT_GUESTS.points}
-      imageSrc={guestsImage}
+      imageSrc={guestsImage.src}
+      imageSrcSet={guestsImage.srcSet}
       imageAlt={PRODUCT_GUESTS.imageAlt}
-      imageWidth={766}
-      imageHeight={648}
+      imageWidth={guestsImage.width}
+      imageHeight={guestsImage.height}
     />
   )
 }

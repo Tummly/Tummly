@@ -13,8 +13,9 @@ type AiAssistantMutedVideoProps = {
   /** When true, show mute/unmute only (legacy Guest Loop). Prefer `withPlayerControls`. */
   withAudioToggle?: boolean
   /**
-   * Guest Loop player chrome: play/pause, scrubber + duration, and mute.
-   * Implies interactive controls (not autoplay-only).
+   * Guest Loop player chrome: center play/pause, scrubber + duration, and mute.
+   * Autoplay muted with center Play only; first click restarts with sound and
+   * unlocks bottom controls (hover / pause).
    */
   withPlayerControls?: boolean
   /** Eagerly mount/load media (hero). Playback still waits for viewport. Default false. */
@@ -39,6 +40,9 @@ function formatVideoTime(seconds: number): string {
 const controlButtonClass =
   "inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-transparent text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
 
+const chromeHiddenClass =
+  "pointer-events-none opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+
 /**
  * Looping marketing video. Starts muted. Plays only while in the viewport so
  * off-screen clips stay paused (AI Assistant + shared marketing CTAs).
@@ -62,6 +66,8 @@ export function AiAssistantMutedVideo({
   const [inView, setInView] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [userPaused, setUserPaused] = useState(false)
+  /** First center Play click: restart from 0 with sound, then normal player. */
+  const [hasEngaged, setHasEngaged] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
 
@@ -159,8 +165,34 @@ export function AiAssistantMutedVideo({
     }
   }
 
+  /** Center Play while muted autoplay: restart from the start with volume. */
+  const engageWithSound = () => {
+    const el = videoRef.current
+    if (el == null) {
+      return
+    }
+    setHasEngaged(true)
+    setMuted(false)
+    setUserPaused(false)
+    el.muted = false
+    el.currentTime = 0
+    setCurrentTime(0)
+    void el.play().catch(() => {})
+  }
+
+  const onCenterControlClick = () => {
+    if (withPlayerControls && !hasEngaged) {
+      engageWithSound()
+      return
+    }
+    togglePlay()
+  }
+
   const toggleMute = () => {
     setMuted((prev) => !prev)
+    if (!hasEngaged) {
+      setHasEngaged(true)
+    }
     const el = videoRef.current
     if (el != null && el.paused && !userPaused) {
       void el.play().catch(() => {})
@@ -186,8 +218,21 @@ export function AiAssistantMutedVideo({
     )
   }
 
+  /** Bottom chrome stays off until first engage; then hover / pause. */
+  const bottomChromeUnlocked = !withPlayerControls || hasEngaged
+  const forceBottomChrome = userPaused
+  /** Center Play stays visible during muted autoplay; after engage, hover / pause. */
+  const forceCenterControl = !hasEngaged || userPaused
+
   return (
-    <div ref={rootRef} className={cn("relative overflow-hidden", className)}>
+    <div
+      ref={rootRef}
+      className={cn(
+        "group relative overflow-hidden",
+        withPlayerControls && "cursor-pointer",
+        className,
+      )}
+    >
       {shouldLoad ? (
         <video
           key={src}
@@ -196,12 +241,22 @@ export function AiAssistantMutedVideo({
             "absolute inset-0 size-full object-cover",
             videoClassName,
           )}
-          muted
+          muted={muted}
           loop
           playsInline
           preload={eager || showPlayer ? "metadata" : "none"}
           onError={() => setFailed(true)}
-          onClick={showPlayer ? togglePlay : undefined}
+          onClick={
+            withPlayerControls
+              ? () => {
+                  if (!hasEngaged) {
+                    engageWithSound()
+                  } else {
+                    togglePlay()
+                  }
+                }
+              : undefined
+          }
           {...videoProps}
         >
           <source src={src} type="video/mp4" />
@@ -210,67 +265,122 @@ export function AiAssistantMutedVideo({
         <div className="absolute inset-0 bg-[#e8e8e8]" aria-hidden />
       )}
 
-      {showPlayer && shouldLoad ? (
+      {withPlayerControls && shouldLoad ? (
+        <button
+          type="button"
+          className={cn(
+            "absolute left-1/2 top-1/2 z-20 flex size-16 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-[#141414]/55 text-white shadow-sm backdrop-blur-[2px] transition-opacity duration-200 sm:size-20",
+            "hover:bg-[#141414]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+            forceCenterControl
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
+          )}
+          aria-label={
+            !hasEngaged
+              ? "Restart video with sound"
+              : playing
+                ? "Pause video"
+                : "Play video"
+          }
+          onClick={(event) => {
+            event.stopPropagation()
+            onCenterControlClick()
+          }}
+        >
+          {/*
+            Before engage: always Play triangle (muted autoplay CTA).
+            After engage: Pause while playing, Play while paused.
+          */}
+          {!hasEngaged || !playing ? (
+            <Play className="size-7 fill-current sm:size-8" strokeWidth={2.5} aria-hidden />
+          ) : (
+            <Pause className="size-7 fill-current sm:size-8" strokeWidth={2.5} aria-hidden />
+          )}
+        </button>
+      ) : null}
+
+      {showPlayer && shouldLoad && bottomChromeUnlocked ? (
         <div
           className={cn(
             "absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 px-3 py-3",
             "bg-gradient-to-t from-[#141414]/80 via-[#141414]/45 to-transparent",
             "sm:gap-3 sm:px-4 sm:py-4",
+            withPlayerControls && chromeHiddenClass,
+            withPlayerControls &&
+              forceBottomChrome &&
+              "pointer-events-auto opacity-100",
           )}
         >
-          <button
-            type="button"
-            className={controlButtonClass}
-            aria-label={playing ? "Pause video" : "Play video"}
-            onClick={(event) => {
-              event.stopPropagation()
-              togglePlay()
-            }}
-          >
-            {playing ? (
-              <Pause className="size-5 fill-current" aria-hidden />
-            ) : (
-              <Play className="size-5 fill-current" aria-hidden />
-            )}
-          </button>
-
-          <span className="hidden shrink-0 font-sans text-xs font-medium tabular-nums text-white sm:inline">
-            {formatVideoTime(currentTime)}
-          </span>
-
-          <label className="flex min-w-0 flex-1 items-center">
-            <span className="sr-only">Video progress</span>
-            <input
-              type="range"
-              min={0}
-              max={duration > 0 ? duration : 0}
-              step={0.1}
-              value={duration > 0 ? Math.min(currentTime, duration) : 0}
-              disabled={duration <= 0}
-              aria-valuetext={`${formatVideoTime(currentTime)} of ${formatVideoTime(duration)}`}
-              className={cn(
-                "h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/30",
-                "accent-white disabled:cursor-not-allowed",
-                "[&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:appearance-none",
-                "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white",
-                "[&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full",
-                "[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white",
-              )}
-              onClick={(event) => event.stopPropagation()}
-              onChange={(event) => {
-                onSeek(Number(event.target.value))
+          {withPlayerControls ? (
+            <button
+              type="button"
+              className={controlButtonClass}
+              aria-label={playing ? "Pause video" : "Play video"}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (!hasEngaged) {
+                  engageWithSound()
+                } else {
+                  togglePlay()
+                }
               }}
-            />
-          </label>
+            >
+              {playing ? (
+                <Pause className="size-5 fill-current" aria-hidden />
+              ) : (
+                <Play className="size-5 fill-current" aria-hidden />
+              )}
+            </button>
+          ) : null}
 
-          <span className="shrink-0 font-sans text-xs font-medium tabular-nums text-white">
-            <span className="sm:hidden">{formatVideoTime(currentTime)} / </span>
-            {formatVideoTime(duration)}
-          </span>
+          {withPlayerControls ? (
+            <span className="hidden shrink-0 font-sans text-xs font-medium tabular-nums text-white sm:inline">
+              {formatVideoTime(currentTime)}
+            </span>
+          ) : null}
+
+          {withPlayerControls ? (
+            <label className="flex min-w-0 flex-1 items-center">
+              <span className="sr-only">Video progress</span>
+              <input
+                type="range"
+                min={0}
+                max={duration > 0 ? duration : 0}
+                step={0.1}
+                value={duration > 0 ? Math.min(currentTime, duration) : 0}
+                disabled={duration <= 0}
+                aria-valuetext={`${formatVideoTime(currentTime)} of ${formatVideoTime(duration)}`}
+                className={cn(
+                  "h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/30",
+                  "accent-white disabled:cursor-not-allowed",
+                  "[&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:appearance-none",
+                  "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white",
+                  "[&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full",
+                  "[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white",
+                )}
+                onClick={(event) => event.stopPropagation()}
+                onChange={(event) => {
+                  onSeek(Number(event.target.value))
+                }}
+              />
+            </label>
+          ) : null}
+
+          {withPlayerControls ? (
+            <span className="shrink-0 font-sans text-xs font-medium tabular-nums text-white">
+              <span className="sm:hidden">{formatVideoTime(currentTime)} / </span>
+              {formatVideoTime(duration)}
+            </span>
+          ) : null}
 
           <button
             type="button"
-            className={controlButtonClass}
+            className={cn(
+              controlButtonClass,
+              withAudioToggle &&
+                !withPlayerControls &&
+                "absolute bottom-3 right-3 z-10 bg-[#141414]/40 backdrop-blur-[2px]",
+            )}
             aria-label={muted ? "Unmute video" : "Mute video"}
             aria-pressed={!muted}
             onClick={(event) => {

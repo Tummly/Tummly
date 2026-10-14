@@ -1,8 +1,8 @@
 import { ProductSplitFeatureSection } from "@/components/marketing/product/ProductSplitFeatureSection"
 import { PRODUCT_FEEDBACK_RECOVERY } from "@/content/marketing/productPage"
-import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
+import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 
-const feedbackRecoveryImage = remoteSimpleUrl("product/feedback-recovery")
+const feedbackRecoveryImage = remoteSimpleImg("product/feedback-recovery")
 
 /** Figma Product Feedback recovery `5661:23401`. */
 export function ProductFeedbackRecovery() {
@@ -13,10 +13,11 @@ export function ProductFeedbackRecovery() {
       title={PRODUCT_FEEDBACK_RECOVERY.title}
       body={PRODUCT_FEEDBACK_RECOVERY.body}
       points={PRODUCT_FEEDBACK_RECOVERY.points}
-      imageSrc={feedbackRecoveryImage}
+      imageSrc={feedbackRecoveryImage.src}
+      imageSrcSet={feedbackRecoveryImage.srcSet}
       imageAlt={PRODUCT_FEEDBACK_RECOVERY.imageAlt}
-      imageWidth={766}
-      imageHeight={647}
+      imageWidth={feedbackRecoveryImage.width}
+      imageHeight={feedbackRecoveryImage.height}
     />
   )
 }

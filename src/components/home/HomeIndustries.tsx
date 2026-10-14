@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-} from "react"
+import { useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 
 import industryCafesImage from "@/assets/images/marketing/home/industry-cafes.png"
@@ -18,14 +13,7 @@ import { marketingChromeContentInset } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
 const INDUSTRY_COUNT = HOME_INDUSTRIES.items.length
-/** Figma Industries panel height `5088:12319`. */
-const PANEL_HEIGHT_PX = 838
-/** Desktop scroll track — one panel-height step per industry. */
-const TRACK_HEIGHT_PX = PANEL_HEIGHT_PX * INDUSTRY_COUNT
 const CROSSFADE_MS = 0.25
-/** Minimum clearance under sticky marketing header chrome. */
-const HEADER_CLEARANCE_PX = 100
-const LG_MQ = "(min-width: 1024px)"
 
 const INDUSTRY_IMAGES = {
   takeaway: industryTakeawayImage,
@@ -34,33 +22,8 @@ const INDUSTRY_IMAGES = {
   groups: industryGroupsImage,
 } as const satisfies Record<HomeIndustry["id"], string>
 
-function stickyTopForViewport(viewportHeight: number) {
-  const centered = (viewportHeight - PANEL_HEIGHT_PX) / 2
-  return Math.max(HEADER_CLEARANCE_PX, centered)
-}
-
 function clampIndex(index: number) {
   return Math.max(0, Math.min(INDUSTRY_COUNT - 1, index))
-}
-
-function useIsLgUp() {
-  const [isLgUp, setIsLgUp] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia(LG_MQ).matches : false,
-  )
-
-  useEffect(() => {
-    const mq = window.matchMedia(LG_MQ)
-    const onChange = () => {
-      setIsLgUp(mq.matches)
-    }
-    onChange()
-    mq.addEventListener("change", onChange)
-    return () => {
-      mq.removeEventListener("change", onChange)
-    }
-  }, [])
-
-  return isLgUp
 }
 
 function IndustryVisual({
@@ -204,81 +167,14 @@ function PanelChrome({
 
 /**
  * Home Built for restaurants — Figma `5088:12319` … `5088:12316`.
- * Desktop (lg+): sticky scroll-driven active industry. Below lg: tap to select.
+ * Active industry changes only on click of the right-side list items.
  */
 export function HomeIndustries() {
-  const isLgUp = useIsLgUp()
   const reduceMotion = useReducedMotion()
-  const trackRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [stickyTopPx, setStickyTopPx] = useState(() =>
-    typeof window !== "undefined"
-      ? stickyTopForViewport(window.innerHeight)
-      : HEADER_CLEARANCE_PX,
-  )
 
-  const syncFromScroll = useEffectEvent(() => {
-    const track = trackRef.current
-    if (track == null) {
-      return
-    }
-    const rect = track.getBoundingClientRect()
-    const scrollable = TRACK_HEIGHT_PX - PANEL_HEIGHT_PX
-    if (scrollable <= 0) {
-      return
-    }
-    const scrolled = Math.max(
-      0,
-      Math.min(scrollable, stickyTopPx - rect.top),
-    )
-    const next = clampIndex(
-      Math.floor((scrolled / scrollable) * INDUSTRY_COUNT),
-    )
-    setActiveIndex((prev) => (prev === next ? prev : next))
-  })
-
-  useEffect(() => {
-    if (!isLgUp) {
-      return
-    }
-    const onResize = () => {
-      setStickyTopPx(stickyTopForViewport(window.innerHeight))
-    }
-    onResize()
-    syncFromScroll()
-    window.addEventListener("scroll", syncFromScroll, { passive: true })
-    window.addEventListener("resize", onResize)
-    return () => {
-      window.removeEventListener("scroll", syncFromScroll)
-      window.removeEventListener("resize", onResize)
-    }
-  }, [isLgUp])
-
-  useEffect(() => {
-    if (!isLgUp) {
-      return
-    }
-    syncFromScroll()
-  }, [isLgUp, stickyTopPx])
-
-  const scrollToIndex = (index: number) => {
-    const next = clampIndex(index)
-    if (!isLgUp) {
-      setActiveIndex(next)
-      return
-    }
-    const track = trackRef.current
-    if (track == null) {
-      setActiveIndex(next)
-      return
-    }
-    const scrollable = TRACK_HEIGHT_PX - PANEL_HEIGHT_PX
-    const step = scrollable / INDUSTRY_COUNT
-    const trackTop = window.scrollY + track.getBoundingClientRect().top
-    window.scrollTo({
-      top: trackTop - stickyTopPx + next * step,
-      behavior: reduceMotion ? "auto" : "smooth",
-    })
+  const selectIndex = (index: number) => {
+    setActiveIndex(clampIndex(index))
   }
 
   return (
@@ -289,27 +185,11 @@ export function HomeIndustries() {
           marketingChromeContentInset,
         )}
       >
-        {!isLgUp ? (
-          <PanelChrome
-            activeIndex={activeIndex}
-            onSelect={scrollToIndex}
-            reduceMotion={reduceMotion}
-          />
-        ) : (
-          <div
-            ref={trackRef}
-            className="relative w-full"
-            style={{ height: TRACK_HEIGHT_PX }}
-          >
-            <div className="sticky w-full" style={{ top: stickyTopPx }}>
-              <PanelChrome
-                activeIndex={activeIndex}
-                onSelect={scrollToIndex}
-                reduceMotion={reduceMotion}
-              />
-            </div>
-          </div>
-        )}
+        <PanelChrome
+          activeIndex={activeIndex}
+          onSelect={selectIndex}
+          reduceMotion={reduceMotion}
+        />
       </div>
     </section>
   )

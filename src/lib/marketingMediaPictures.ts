@@ -119,3 +119,37 @@ export function remoteSimpleUrl(id: string): string {
     entry.primaryFormat,
   )
 }
+
+/**
+ * Plain img fields for a simple Blob asset (primary src + optional srcset).
+ * Use when the layout CSS width is known so the browser can pick 1x / 2x.
+ */
+export function remoteSimpleImg(id: string): {
+  src: string
+  srcSet: string | undefined
+  width: number
+  height: number
+} {
+  const entry = asMeta(id)
+  if (entry.kind !== "simple") {
+    throw new Error(`Asset "${id}" is not a simple asset`)
+  }
+
+  const src = remoteSimpleUrl(id)
+  const srcSet =
+    entry.widths.length > 1
+      ? buildSrcset(
+          entry.blobDir,
+          entry.baseName,
+          entry.widths,
+          entry.primaryFormat,
+        )
+      : undefined
+
+  return {
+    src,
+    srcSet,
+    width: entry.w,
+    height: entry.h,
+  }
+}

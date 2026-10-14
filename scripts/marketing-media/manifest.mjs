@@ -92,14 +92,16 @@ export const SIMPLE_ASSETS = [
   // Product page UI mocks — sources live in gitignored scratch; runtime via Blob.
   // Hero collage (Figma `5838:27265`) — baseName distinct from retired
   // `hero-dashboard` so immutable blob URLs cache-bust after visual swaps.
+  // Product UI mocks display at max 766 CSS px → need ≥1532 master for 2×.
+  // Until masters are replaced, publish skips 1532 and keeps 766 (see checklist).
   {
     id: "product/hero-collage",
     source: ".scratch/marketing-media-sources/product/hero-dashboard.png",
     blobDir: "images/product",
     baseName: "hero-collage",
-    widths: [766],
+    widths: [766, 1532],
     formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 85,
+    quality: 90,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   },
   ...[
@@ -114,12 +116,13 @@ export const SIMPLE_ASSETS = [
     source: `.scratch/marketing-media-sources/product/${name}.png`,
     blobDir: "images/product",
     baseName: name,
-    widths: [766],
+    widths: [766, 1532],
     formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 85,
+    quality: 90,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   })),
   // Product Capture scroll-hijack media (Figma `6106:17567` … `6106:18055`)
+  // Sources are often ~1100–1448; request 1500 so publish emits native max.
   ...[
     "capture-guest-cards",
     "capture-counter-display",
@@ -138,7 +141,7 @@ export const SIMPLE_ASSETS = [
     source: `.scratch/marketing-media-sources/product/${name}.png`,
     blobDir: "images/product",
     baseName: name,
-    widths: [750],
+    widths: [750, 1500],
     formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
     quality: 85,
     primaryFormat: /** @type {"webp"} */ ("webp"),

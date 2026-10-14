@@ -92,8 +92,8 @@ export type ProductCaptureMaterial = {
 }
 
 /**
- * Figma Capture scroll states `6106:17567` … `6106:18055`.
- * Desktop sticky scroll advances activeIndex; mobile uses tap.
+ * Figma Capture materials `6106:17567` … `6106:18055`.
+ * Desktop: click or list-hover wheel; mobile uses tap.
  */
 export const PRODUCT_CAPTURE_MATERIALS = [
   {
