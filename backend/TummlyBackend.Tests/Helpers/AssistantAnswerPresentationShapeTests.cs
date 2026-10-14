@@ -1,5 +1,6 @@
 using TummlyBackend.Helpers;
 using TummlyBackend.Models;
+// AssistantDraftPreviewFactory + AssistantMessagePresentationJson in Helpers
 
 namespace TummlyBackend.Tests.Helpers
 {
@@ -78,11 +79,46 @@ namespace TummlyBackend.Tests.Helpers
                 shaped.Actions,
                 action => action.Type == "view-feedback-set"
             );
+            Assert.Contains(
+                shaped.Actions,
+                action => action.Type == "prepare-recovery"
+            );
+            Assert.NotNull(shaped.Presentation.RecommendedNextStep);
+            Assert.Equal(
+                "view-feedback-set",
+                shaped.Presentation.RecommendedNextStep!.PrimaryAction?.Type
+            );
+            Assert.Equal(
+                "prepare-recovery",
+                shaped.Presentation.RecommendedNextStep.SecondaryAction?.Type
+            );
             Assert.DoesNotContain(
                 "view feedback",
                 shaped.Body,
                 StringComparison.OrdinalIgnoreCase
             );
+        }
+
+        [Fact]
+        public void ForDraftPreview_SerializesCampaignCard()
+        {
+            var preview = AssistantDraftPreviewFactory.Campaign(
+                campaignId: 42,
+                name: "Thank recent guests",
+                audienceLabel: "New (30d)",
+                channel: "email",
+                subject: "Thanks for visiting",
+                messageBody: "We hope to see you again soon."
+            );
+            var presentation = AssistantAnswerPresentationShape.ForDraftPreview(preview);
+            var json = AssistantMessagePresentationJson.Serialize(presentation);
+            var dto = AssistantMessagePresentationJson.ParseDto(json);
+
+            Assert.NotNull(dto?.DraftPreview);
+            Assert.Equal("campaign", dto!.DraftPreview!.Kind);
+            Assert.Equal(42, dto.DraftPreview.CampaignId);
+            Assert.Equal("Draft · Not sent", dto.DraftPreview.StatusLabel);
+            Assert.Equal("Thanks for visiting", dto.DraftPreview.Subject);
         }
 
         [Fact]

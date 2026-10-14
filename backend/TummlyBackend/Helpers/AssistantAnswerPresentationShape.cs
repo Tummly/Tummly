@@ -220,13 +220,15 @@ namespace TummlyBackend.Helpers
             AssistantAnswerChart? chart,
             AssistantRecommendedNextStep? next,
             IReadOnlyList<AssistantAnswerMetric>? metrics,
-            string? shortNote
+            string? shortNote,
+            AssistantDraftPreview? draftPreview = null
         )
         {
             if (chart is null
                 && next is null
                 && (metrics is null || metrics.Count == 0)
-                && string.IsNullOrWhiteSpace(shortNote))
+                && string.IsNullOrWhiteSpace(shortNote)
+                && draftPreview is null)
             {
                 return null;
             }
@@ -235,9 +237,15 @@ namespace TummlyBackend.Helpers
                 chart,
                 next,
                 metrics is { Count: > 0 } ? metrics : null,
-                string.IsNullOrWhiteSpace(shortNote) ? null : shortNote.Trim()
+                string.IsNullOrWhiteSpace(shortNote) ? null : shortNote.Trim(),
+                draftPreview
             );
         }
+
+        public static AssistantMessagePresentation ForDraftPreview(
+            AssistantDraftPreview draftPreview
+        )
+            => new(null, null, null, null, draftPreview);
 
         private static IReadOnlyList<AssistantAnswerMetric> BuildFeedbackMetrics(
             AssistantFeedbackEvidence feedback
@@ -333,25 +341,48 @@ namespace TummlyBackend.Helpers
             string userMessage
         )
         {
-            if (actions.Count > 0)
-            {
-                return actions;
-            }
-
             if (!LooksLikeFeedbackSummarise(userMessage)
                 || evidence.Feedback.TotalCount <= 0)
             {
                 return actions;
             }
 
-            return
-            [
-                new AssistantActionDto
-                {
-                    Type = "view-feedback-set",
-                    Label = "View Feedback",
-                },
-            ];
+            var list = actions.ToList();
+            if (!list.Any(action =>
+                    string.Equals(
+                        action.Type,
+                        "view-feedback-set",
+                        StringComparison.Ordinal
+                    )))
+            {
+                list.Insert(
+                    0,
+                    new AssistantActionDto
+                    {
+                        Type = "view-feedback-set",
+                        Label = "View Feedback",
+                    }
+                );
+            }
+
+            if (evidence.Feedback.NeedsAttention > 0
+                && !list.Any(action =>
+                    string.Equals(
+                        action.Type,
+                        "prepare-recovery",
+                        StringComparison.Ordinal
+                    )))
+            {
+                list.Add(
+                    new AssistantActionDto
+                    {
+                        Type = "prepare-recovery",
+                        Label = "Prepare recovery responses",
+                    }
+                );
+            }
+
+            return list;
         }
 
         private static AssistantRecommendedNextStep? EnsureRecommendedNextStep(
@@ -381,11 +412,11 @@ namespace TummlyBackend.Helpers
                 return null;
             }
 
-            return new AssistantRecommendedNextStep(
-                "Review the Feedback set or prepare recovery responses.",
-                view,
-                prepare
-            );
+            var text = prepare is not null
+                ? "Review the affected Feedback and prepare recovery responses for the unresolved guests."
+                : "Review the Feedback set for this period.";
+
+            return new AssistantRecommendedNextStep(text, view, prepare);
         }
 
         private static bool LooksLikeFeedbackSummarise(string userMessage)

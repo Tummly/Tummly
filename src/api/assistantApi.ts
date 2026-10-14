@@ -83,11 +83,31 @@ type AssistantAnswerMetricDto = {
   value: string
 }
 
+type AssistantDraftPreviewDto = {
+  kind: string
+  statusLabel?: string | null
+  campaignId?: number | null
+  name?: string | null
+  audienceLabel?: string | null
+  channel?: string | null
+  subject?: string | null
+  messageBody?: string | null
+  timingLabel?: string | null
+  offerId?: number | null
+  title?: string | null
+  conditionsSummary?: string | null
+  validityLabel?: string | null
+  feedbackId?: number | null
+  intent?: string | null
+  purpose?: string | null
+}
+
 type AssistantMessagePresentationDto = {
   chart?: AssistantAnswerChartDto | null
   recommendedNextStep?: AssistantRecommendedNextStepDto | null
   metrics?: AssistantAnswerMetricDto[] | null
   shortNote?: string | null
+  draftPreview?: AssistantDraftPreviewDto | null
 }
 
 type AssistantMessageDto = {
@@ -296,11 +316,41 @@ function fromPresentationDto(
       ? presentation.shortNote.trim()
       : null
 
+  const rawDraft = presentation.draftPreview
+  const draftPreview =
+    rawDraft != null
+    && typeof rawDraft.kind === "string"
+    && rawDraft.kind.trim().length > 0
+      ? {
+          kind: rawDraft.kind.trim(),
+          statusLabel:
+            typeof rawDraft.statusLabel === "string"
+            && rawDraft.statusLabel.trim().length > 0
+              ? rawDraft.statusLabel.trim()
+              : "Draft · Not sent",
+          campaignId: rawDraft.campaignId ?? null,
+          name: rawDraft.name ?? null,
+          audienceLabel: rawDraft.audienceLabel ?? null,
+          channel: rawDraft.channel ?? null,
+          subject: rawDraft.subject ?? null,
+          messageBody: rawDraft.messageBody ?? null,
+          timingLabel: rawDraft.timingLabel ?? null,
+          offerId: rawDraft.offerId ?? null,
+          title: rawDraft.title ?? null,
+          conditionsSummary: rawDraft.conditionsSummary ?? null,
+          validityLabel: rawDraft.validityLabel ?? null,
+          feedbackId: rawDraft.feedbackId ?? null,
+          intent: rawDraft.intent ?? null,
+          purpose: rawDraft.purpose ?? null,
+        }
+      : null
+
   if (
     chart == null
     && recommendedNextStep == null
     && metrics.length === 0
     && shortNote == null
+    && draftPreview == null
   ) {
     return undefined
   }
@@ -310,6 +360,7 @@ function fromPresentationDto(
     recommendedNextStep,
     metrics: metrics.length > 0 ? metrics : null,
     shortNote,
+    draftPreview,
   }
 }
 

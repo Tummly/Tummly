@@ -23,7 +23,8 @@ namespace TummlyBackend.Helpers
             if (presentation.Chart is null
                 && presentation.RecommendedNextStep is null
                 && (presentation.Metrics is null || presentation.Metrics.Count == 0)
-                && string.IsNullOrWhiteSpace(presentation.ShortNote))
+                && string.IsNullOrWhiteSpace(presentation.ShortNote)
+                && presentation.DraftPreview is null)
             {
                 return null;
             }
@@ -93,6 +94,28 @@ namespace TummlyBackend.Helpers
                 ShortNote = string.IsNullOrWhiteSpace(presentation.ShortNote)
                     ? null
                     : presentation.ShortNote.Trim(),
+                DraftPreview = presentation.DraftPreview is null
+                    ? null
+                    : new AssistantDraftPreviewDto
+                    {
+                        Kind = presentation.DraftPreview.Kind,
+                        StatusLabel = presentation.DraftPreview.StatusLabel,
+                        CampaignId = presentation.DraftPreview.CampaignId,
+                        Name = presentation.DraftPreview.Name,
+                        AudienceLabel = presentation.DraftPreview.AudienceLabel,
+                        Channel = presentation.DraftPreview.Channel,
+                        Subject = presentation.DraftPreview.Subject,
+                        MessageBody = presentation.DraftPreview.MessageBody,
+                        TimingLabel = presentation.DraftPreview.TimingLabel,
+                        OfferId = presentation.DraftPreview.OfferId,
+                        Title = presentation.DraftPreview.Title,
+                        ConditionsSummary =
+                            presentation.DraftPreview.ConditionsSummary,
+                        ValidityLabel = presentation.DraftPreview.ValidityLabel,
+                        FeedbackId = presentation.DraftPreview.FeedbackId,
+                        Intent = presentation.DraftPreview.Intent,
+                        Purpose = presentation.DraftPreview.Purpose,
+                    },
             };
     }
 }

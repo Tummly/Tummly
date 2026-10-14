@@ -1072,7 +1072,8 @@ namespace TummlyBackend.Services
                             DateTime.UtcNow,
                             offerPersist.Title,
                             offerPersist.Body,
-                            offerPersist.Actions
+                            offerPersist.Actions,
+                            DraftPresentationOrNull(offerPersist.DraftPreview)
                         ),
                         replaceFailure,
                         cancellationToken,
@@ -1707,7 +1708,8 @@ namespace TummlyBackend.Services
                         assistantNow,
                         persist.Title,
                         persist.Body,
-                        persist.Actions
+                        persist.Actions,
+                        DraftPresentationOrNull(persist.DraftPreview)
                     );
                 }
                 else if (string.Equals(
@@ -1743,7 +1745,8 @@ namespace TummlyBackend.Services
                         assistantNow,
                         persist.Title,
                         persist.Body,
-                        persist.Actions
+                        persist.Actions,
+                        DraftPresentationOrNull(persist.DraftPreview)
                     );
                 }
                 else
@@ -1906,7 +1909,8 @@ namespace TummlyBackend.Services
             string Body,
             IReadOnlyList<AssistantActionDto> Actions,
             int? CreatedCampaignId,
-            AssistantGapState? GapState
+            AssistantGapState? GapState,
+            AssistantDraftPreview? DraftPreview = null
         );
 
         private async Task<CreateCampaignDraftTurn> PersistCreateCampaignDraftAsync(
@@ -2288,7 +2292,15 @@ namespace TummlyBackend.Services
                     patched.OfferId
                 ),
                 patched.Id,
-                null
+                null,
+                AssistantDraftPreviewFactory.Campaign(
+                    patched.Id,
+                    patched.Name,
+                    audienceLabel,
+                    channel,
+                    subject ?? patched.MessageSubject,
+                    patched.MessageBody
+                )
             );
         }
 
@@ -2441,7 +2453,15 @@ namespace TummlyBackend.Services
                     created.OfferId
                 ),
                 created.Id,
-                null
+                null,
+                AssistantDraftPreviewFactory.Campaign(
+                    created.Id,
+                    created.Name,
+                    fields.AudienceLabel,
+                    fields.Channel,
+                    messageSubject,
+                    messageBody
+                )
             );
         }
 
@@ -3659,7 +3679,8 @@ namespace TummlyBackend.Services
             int? CreatedOfferId,
             string ThankYouAttach = "none",
             string? ThankYouOfferTitle = null,
-            bool ThankYouOfferLive = false
+            bool ThankYouOfferLive = false,
+            AssistantDraftPreview? DraftPreview = null
         );
 
         private async Task<CreateOfferDraftPersistTurn> PersistCreateOfferDraftAsync(
@@ -3849,13 +3870,16 @@ namespace TummlyBackend.Services
                 }
             }
 
+            var validityLabel = AssistantOfferPathTerms.ValidityLabel(terms);
+            var conditionsSummary =
+                $"{AssistantOfferPathTerms.TypeLabel(terms.OfferType)} · {AssistantOfferPathTerms.ValueLabel(terms)}";
             return new CreateOfferDraftPersistTurn(
                 AssistantOfferPathPersistCopy.TitleFor(thankYouAttach),
                 AssistantOfferPathPersistCopy.SuccessBody(
                     locationName,
                     AssistantOfferPathTerms.TypeLabel(terms.OfferType),
                     AssistantOfferPathTerms.ValueLabel(terms),
-                    AssistantOfferPathTerms.ValidityLabel(terms),
+                    validityLabel,
                     created.Title,
                     terms.WantsActivate,
                     thankYouAttach,
@@ -3868,7 +3892,13 @@ namespace TummlyBackend.Services
                 created.Id,
                 thankYouAttach,
                 thankYouOfferTitle,
-                thankYouOfferLive
+                thankYouOfferLive,
+                AssistantDraftPreviewFactory.Offer(
+                    created.Id,
+                    created.Title,
+                    conditionsSummary,
+                    validityLabel
+                )
             );
         }
 
@@ -3926,20 +3956,29 @@ namespace TummlyBackend.Services
             }
 
             var updated = okUpdate.Offer;
+            var validityLabel = AssistantOfferPathTerms.ValidityLabel(terms);
+            var conditionsSummary =
+                $"{AssistantOfferPathTerms.TypeLabel(terms.OfferType)} · {AssistantOfferPathTerms.ValueLabel(terms)}";
             return new CreateOfferDraftPersistTurn(
                 AssistantOfferPathPersistCopy.UpdatedTitle,
                 AssistantOfferPathPersistCopy.UpdatedBody(
                     locationName,
                     AssistantOfferPathTerms.TypeLabel(terms.OfferType),
                     AssistantOfferPathTerms.ValueLabel(terms),
-                    AssistantOfferPathTerms.ValidityLabel(terms),
+                    validityLabel,
                     updated.Title
                 ),
                 AssistantActionCatalog.ValidateReviewOffer(
                     updated.Id,
                     AssistantMessageClass.Grounded
                 ),
-                updated.Id
+                updated.Id,
+                DraftPreview: AssistantDraftPreviewFactory.Offer(
+                    updated.Id,
+                    updated.Title,
+                    conditionsSummary,
+                    validityLabel
+                )
             );
         }
 
@@ -3948,7 +3987,8 @@ namespace TummlyBackend.Services
             string Body,
             IReadOnlyList<AssistantActionDto> Actions,
             AssistantRecoveryWorkState? Work,
-            AssistantGapState? Gap
+            AssistantGapState? Gap,
+            AssistantDraftPreview? DraftPreview = null
         );
 
         private async Task<AssistantTurnOutcome> ResumeFeedbackGapAsync(
@@ -4010,7 +4050,8 @@ namespace TummlyBackend.Services
                             DateTime.UtcNow,
                             persist.Title,
                             persist.Body,
-                            persist.Actions
+                            persist.Actions,
+                            DraftPresentationOrNull(persist.DraftPreview)
                         ),
                         replaceFailure,
                         cancellationToken
@@ -4339,7 +4380,15 @@ namespace TummlyBackend.Services
                 ),
                 ReviewRecoveryActions(row.Id, intent),
                 work,
-                null
+                null,
+                AssistantDraftPreviewFactory.Recovery(
+                    row.Id,
+                    channel,
+                    copy.Subject,
+                    copy.Body,
+                    intent,
+                    purpose
+                )
             );
         }
 
@@ -4426,7 +4475,8 @@ namespace TummlyBackend.Services
                         DateTime.UtcNow,
                         prepared.Title,
                         prepared.Body,
-                        prepared.Actions
+                        prepared.Actions,
+                        DraftPresentationOrNull(prepared.DraftPreview)
                     ),
                 replaceFailure,
                 cancellationToken,
@@ -5165,7 +5215,8 @@ namespace TummlyBackend.Services
                     createdAt,
                     persist.Title,
                     persist.Body,
-                    persist.Actions
+                    persist.Actions,
+                    DraftPresentationOrNull(persist.DraftPreview)
                 );
 
         private static int CreatePersistLocationId(
@@ -6644,7 +6695,8 @@ namespace TummlyBackend.Services
                         DateTime.UtcNow,
                         offerPersist.Title,
                         offerPersist.Body,
-                        offerPersist.Actions
+                        offerPersist.Actions,
+                        DraftPresentationOrNull(offerPersist.DraftPreview)
                     ),
                     replaceFailure,
                     cancellationToken,
@@ -8646,6 +8698,13 @@ namespace TummlyBackend.Services
                 ActionsJson = "[]",
                 CreatedAt = createdAt,
             };
+
+        private static AssistantMessagePresentation? DraftPresentationOrNull(
+            AssistantDraftPreview? draftPreview
+        )
+            => draftPreview is null
+                ? null
+                : AssistantAnswerPresentationShape.ForDraftPreview(draftPreview);
 
         private static AssistantMessage GroundedMessage(
             DateTime createdAt,

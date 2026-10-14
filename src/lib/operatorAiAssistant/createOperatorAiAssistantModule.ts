@@ -163,11 +163,31 @@ export type OperatorAiAssistantAnswerMetric = {
   value: string
 }
 
+export type OperatorAiAssistantDraftPreview = {
+  kind: "campaign" | "offer" | "recovery" | string
+  statusLabel: string
+  campaignId?: number | null
+  name?: string | null
+  audienceLabel?: string | null
+  channel?: string | null
+  subject?: string | null
+  messageBody?: string | null
+  timingLabel?: string | null
+  offerId?: number | null
+  title?: string | null
+  conditionsSummary?: string | null
+  validityLabel?: string | null
+  feedbackId?: number | null
+  intent?: string | null
+  purpose?: string | null
+}
+
 export type OperatorAiAssistantMessagePresentation = {
   chart?: OperatorAiAssistantAnswerChart | null
   recommendedNextStep?: OperatorAiAssistantRecommendedNextStep | null
   metrics?: OperatorAiAssistantAnswerMetric[] | null
   shortNote?: string | null
+  draftPreview?: OperatorAiAssistantDraftPreview | null
 }
 
 export type OperatorAiAssistantMessage = {
@@ -261,6 +281,11 @@ export type OperatorAiAssistantDraftLocation =
   | typeof ALL_OWNED_LOCATIONS_SELECT_VALUE
 export { ASSISTANT_WAIT_BODY }
 export const ASSISTANT_COMPOSER_PLACEHOLDER = "Ask AI Assistant..."
+
+/** In-thread prompt when the operator taps Prepare recovery responses. */
+export const ASSISTANT_PREPARE_RECOVERY_PROMPT =
+  "Prepare recovery responses for the guests that need attention in this Feedback set."
+
 export const ASSISTANT_FAILURE_BODY =
   `The answer could not be completed. Retry this send. ${ASSISTANT_NEXT_TRY_SCOPE_SENTENCE}`
 
@@ -2681,6 +2706,15 @@ export function createOperatorAiAssistantModule(
       }
       const analysisScope = state.analysisScope
       if (analysisScope == null) {
+        return
+      }
+      if (action.type === "prepare-recovery") {
+        if (state.bodyLoadError || mic.getSnapshot().submitLocked) {
+          return
+        }
+        state = { ...state, composerDraft: ASSISTANT_PREPARE_RECOVERY_PROMPT }
+        publish()
+        runTurn(ASSISTANT_PREPARE_RECOVERY_PROMPT, false)
         return
       }
       if (isCompletingCampaignAction(action.type)) {

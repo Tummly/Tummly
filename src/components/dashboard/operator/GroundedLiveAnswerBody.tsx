@@ -8,10 +8,10 @@ import {
 const BODY_TEXT_CLASS =
   "text-sm leading-5 text-[var(--op-color-gray-550)]"
 
-/** Collapse only for nested lists, or flat lists longer than 6 items. */
-const COLLAPSE_AFTER_ITEM_COUNT = 6
+/** Show "Show N more" only when the list has more than 8 items. */
+const COLLAPSE_AFTER_ITEM_COUNT = 8
 /** When collapsed, show this many items before "Show N more". */
-const COLLAPSED_VISIBLE_ITEMS = 3
+const COLLAPSED_VISIBLE_ITEMS = 8
 
 function InlineContent({
   children,
@@ -44,16 +44,9 @@ function InlineContent({
   })
 }
 
-function listItemLooksNested(item: GroundedLiveAnswerInline[]) {
-  return item.some((token) => token.type === "lineBreak")
-}
-
 function shouldCollapseList(
   block: Extract<GroundedLiveAnswerBlock, { type: "unorderedList" | "orderedList" }>
 ) {
-  if (block.items.some(listItemLooksNested)) {
-    return true
-  }
   return block.items.length > COLLAPSE_AFTER_ITEM_COUNT
 }
 

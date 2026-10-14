@@ -75,7 +75,7 @@ export function AssistantAnswerBarChart({ chart }: AssistantAnswerBarChartProps)
 
   return (
     <div
-      className="flex w-full flex-col gap-3 rounded-[12px] bg-op-assistant-list-row-active/60 px-4 py-4"
+      className="flex w-full flex-col gap-3"
       data-assistant-answer-chart=""
     >
       <p className="m-0 text-xs font-normal leading-4 tracking-normal text-op-assistant-list-subtitle">

@@ -18,7 +18,9 @@ import { AiAssistantCreditsBar } from "@/components/dashboard/operator/AiAssista
 import { AiAssistantDeleteDialog } from "@/components/dashboard/operator/AiAssistantDeleteDialog"
 import { AiAssistantLoadingBorder } from "@/components/dashboard/operator/AiAssistantLoadingBorder"
 import { AssistantAnswerBarChart } from "@/components/dashboard/operator/AssistantAnswerBarChart"
+import { AssistantDraftPreviewCard } from "@/components/dashboard/operator/AssistantDraftPreviewCard"
 import { AssistantPreparingAnswer } from "@/components/dashboard/operator/AssistantPreparingAnswer"
+import { AssistantRecommendedNextStepCard } from "@/components/dashboard/operator/AssistantRecommendedNextStepCard"
 import { GroundedLiveAnswerBody } from "@/components/dashboard/operator/GroundedLiveAnswerBody"
 import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
 import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
@@ -116,30 +118,6 @@ function readViewportAtLeastLg(): boolean {
   return window.matchMedia(LG_VIEWPORT_QUERY).matches
 }
 
-/** Body must be clearly longer than the short note before we offer "Show details". */
-function bodyNeedsShowDetails(body: string, shortNote: string): boolean {
-  const note = shortNote.trim()
-  const trimmed = body.trim()
-  if (trimmed.length === 0) {
-    return false
-  }
-
-  const withoutNote = trimmed
-    .replace(note, "")
-    .replace(/^#+\s+.+$/gm, "")
-    .trim()
-  if (withoutNote.length < 200) {
-    return false
-  }
-
-  const nonEmptyLines = withoutNote
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-
-  return withoutNote.length >= 320 || nonEmptyLines.length > 6
-}
-
 function ThreadMessage({
   message,
   retryVisible,
@@ -183,18 +161,18 @@ function ThreadMessage({
   const chart = message.presentation?.chart
   const recommended = message.presentation?.recommendedNextStep
   const metrics = message.presentation?.metrics ?? []
-  const shortNote = message.presentation?.shortNote
+  const draftPreview = message.presentation?.draftPreview
   const bodyTrimmed = message.body.trim()
-  /** Only collapse behind "Show details" when body is clearly longer than the short note. */
-  const showDetailsToggle =
-    message.class === "grounded"
-    && shortNote != null
-    && shortNote.trim().length > 0
-    && bodyNeedsShowDetails(bodyTrimmed, shortNote)
   const pillTypes = new Set([
     "view-feedback-set",
     "prepare-recovery",
     "review-campaign",
+    "open-recovery",
+    "review-offer",
+  ])
+  const draftEditTypes = new Set([
+    "review-campaign",
+    "review-offer",
     "open-recovery",
   ])
   const cardActionTypes = new Set(
@@ -202,13 +180,18 @@ function ThreadMessage({
       (type): type is NonNullable<typeof type> => type != null && type.length > 0
     )
   )
+  const hideDraftEditInCtas = draftPreview != null
   const pillActions = (message.actions ?? []).filter(
     (action) =>
-      pillTypes.has(action.type) && !cardActionTypes.has(action.type)
+      pillTypes.has(action.type)
+      && !cardActionTypes.has(action.type)
+      && !(hideDraftEditInCtas && draftEditTypes.has(action.type))
   )
   const listActions = (message.actions ?? []).filter(
     (action) =>
-      !cardActionTypes.has(action.type) && !pillTypes.has(action.type)
+      !cardActionTypes.has(action.type)
+      && !pillTypes.has(action.type)
+      && !(hideDraftEditInCtas && draftEditTypes.has(action.type))
   )
   const ctaPills = [
     recommended?.primaryAction,
@@ -257,24 +240,7 @@ function ThreadMessage({
                 ))}
               </div>
             ) : null}
-            {message.class === "grounded" && showDetailsToggle && shortNote ? (
-              <p className="m-0 text-sm leading-5 text-[var(--op-color-gray-550)]">
-                {shortNote}
-              </p>
-            ) : null}
-            {message.class === "grounded" && showDetailsToggle ? (
-              <details className="group">
-                <summary className="cursor-pointer list-none text-xs font-medium text-op-assistant-list-title underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
-                  Show details
-                </summary>
-                <div className="mt-2">
-                  <GroundedLiveAnswerBody body={message.body} />
-                </div>
-              </details>
-            ) : null}
-            {message.class === "grounded"
-            && !showDetailsToggle
-            && bodyTrimmed.length > 0 ? (
+            {message.class === "grounded" && bodyTrimmed.length > 0 ? (
               <GroundedLiveAnswerBody body={message.body} />
             ) : null}
             {message.class !== "grounded" ? (
@@ -283,41 +249,28 @@ function ThreadMessage({
               </p>
             ) : null}
             {message.class === "grounded" && chart ? (
-              <AssistantAnswerBarChart chart={chart} />
-            ) : null}
-            {message.class === "grounded" && uniqueCtas.length > 0 ? (
               <div
-                className="flex flex-wrap gap-2"
-                data-assistant-answer-ctas=""
+                className="flex w-full flex-col gap-3 rounded-[8px] bg-op-assistant-list-row-active/60 px-3 py-3"
+                data-assistant-answer-chart-card=""
               >
-                {uniqueCtas.map((action) => (
-                  <Button
-                    key={action.type}
-                    type="button"
-                    variant={
-                      action.type === "view-feedback-set"
-                      || action.type === "prepare-recovery"
-                        ? "op-secondary"
-                        : "op-secondary"
-                    }
-                    className="h-9 rounded-full px-3 text-sm"
-                    disabled={action.clickable === false}
-                    onClick={() => {
-                      onActivateAction(action)
-                    }}
-                  >
-                    {action.label}
-                  </Button>
-                ))}
+                <AssistantAnswerBarChart chart={chart} />
               </div>
             ) : null}
-            {message.class === "grounded" && recommended?.text ? (
-              <p
-                className="m-0 text-xs leading-4 text-op-assistant-list-subtitle"
-                data-assistant-recommended-next-step=""
-              >
-                {recommended.text}
-              </p>
+            {message.class === "grounded" && uniqueCtas.length > 0 ? (
+              <AssistantRecommendedNextStepCard
+                text={
+                  recommended?.text?.trim()
+                  || "Review the affected Feedback and prepare recovery responses for the unresolved guests."
+                }
+                actions={uniqueCtas}
+                onActivateAction={onActivateAction}
+              />
+            ) : null}
+            {message.class === "grounded" && draftPreview ? (
+              <AssistantDraftPreviewCard
+                draft={draftPreview}
+                onEditDraft={onActivateAction}
+              />
             ) : null}
             {scopeNotice ? (
               <button
