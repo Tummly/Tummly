@@ -181,5 +181,19 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
         }
+
+        [Fact]
+        public void FeedbackAsk_UsesMarkdownBullets()
+        {
+            var ask = AssistantGapAsk.FeedbackAsk(
+                ["Walk-in 61 (14 Oct 2026 11:55) — \"Food was excellent\"", "James Patel (13 Oct 2026)"]
+            );
+
+            Assert.StartsWith("Which Feedback should I recover:", ask, StringComparison.Ordinal);
+            Assert.Contains("\n- Walk-in 61", ask, StringComparison.Ordinal);
+            Assert.Contains("\n- James Patel", ask, StringComparison.Ordinal);
+            Assert.DoesNotContain("FDB-", ask, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(", James", ask, StringComparison.Ordinal);
+        }
     }
 }

@@ -240,10 +240,11 @@ function ThreadMessage({
                 ))}
               </div>
             ) : null}
-            {message.class === "grounded" && bodyTrimmed.length > 0 ? (
+            {(message.class === "grounded" || message.class === "gap")
+            && bodyTrimmed.length > 0 ? (
               <GroundedLiveAnswerBody body={message.body} />
             ) : null}
-            {message.class !== "grounded" ? (
+            {message.class !== "grounded" && message.class !== "gap" ? (
               <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
                 {message.body}
               </p>

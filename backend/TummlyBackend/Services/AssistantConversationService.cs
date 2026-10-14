@@ -1131,22 +1131,40 @@ namespace TummlyBackend.Services
                 scope.ReportingPeriod,
                 DateTime.UtcNow
             );
+            // Feedback Gap resume must load identity rows before Resolve — including
+            // single-location scope. Otherwise a bare guest name matches nothing and
+            // the turn repeats "I am not sure which of these you mean".
             var recoveryIdentityNeeded =
-                AssistantAnalysisScope.IsAll(conversation)
-                && (
-                    AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
-                    || gapState?.Kind == AssistantGapTurn.KindFeedback
+                gapState?.Kind == AssistantGapTurn.KindFeedback
+                || (
+                    AssistantAnalysisScope.IsAll(conversation)
+                    && AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
                 );
             AssistantFeedbackEvidence? recoveryIdentity = null;
             if (recoveryIdentityNeeded)
             {
-                recoveryIdentity = await RetrieveRecoveryIdentityUnionAsync(
-                    conversation.OwnerUserId,
-                    ownedLocations,
-                    window.FromUtc,
-                    window.ToUtc,
-                    cancellationToken
-                );
+                if (AssistantAnalysisScope.IsAll(conversation))
+                {
+                    recoveryIdentity = await RetrieveRecoveryIdentityUnionAsync(
+                        conversation.OwnerUserId,
+                        ownedLocations,
+                        window.FromUtc,
+                        window.ToUtc,
+                        cancellationToken
+                    );
+                }
+                else if (conversation.OwnedLocationId is int ownedLocationId)
+                {
+                    recoveryIdentity = await RetrieveRecoveryIdentityForLocationAsync(
+                        conversation.OwnerUserId,
+                        ownedLocationId,
+                        locationName,
+                        window.FromUtc,
+                        window.ToUtc,
+                        cancellationToken
+                    );
+                }
+
                 if (recoveryIdentity is null)
                 {
                     conversation.LastCompareLocationIdsJson = null;
@@ -4002,12 +4020,65 @@ namespace TummlyBackend.Services
         )
         {
             var includeVenue = AssistantAnalysisScope.IsAll(conversation);
-            var match = AssistantRecoveryIdentity.Resolve(
-                userMessage,
-                feedbackEvidence.Rows
+            var candidateRows = AssistantRecoveryIdentity.RowsForGapOptions(
+                feedbackEvidence.Rows,
+                gapState.Options,
+                includeVenue
             );
+            var match = AssistantRecoveryIdentity.Resolve(userMessage, candidateRows);
             switch (match)
             {
+                case AssistantRecoveryIdentity.Match.Many many
+                    when AssistantRecoveryIdentity.AsksForAll(userMessage):
+                {
+                    var ordered = many.Rows
+                        .OrderByDescending(row => row.CreatedAt)
+                        .ThenByDescending(row => row.Id)
+                        .ToList();
+                    var persistAll = await PersistPrepareRecoveryAsync(
+                        conversation,
+                        gapState.SourceUserMessage,
+                        feedbackEvidence,
+                        offersEvidence,
+                        cancellationToken,
+                        ordered[0]
+                    );
+                    if (persistAll.Work is not null)
+                    {
+                        persistAll.Work.PendingFeedbackIds = ordered
+                            .Skip(1)
+                            .Select(row => row.Id)
+                            .ToList();
+                    }
+
+                    if (ordered.Count > 1 && persistAll.Gap is null)
+                    {
+                        var remain = ordered.Count - 1;
+                        persistAll = persistAll with
+                        {
+                            Body = persistAll.Body
+                                + $"\n\n{remain} Feedback "
+                                + (remain == 1 ? "item remains" : "items remain")
+                                + ". Say yes to recover the next one.",
+                        };
+                    }
+
+                    ApplyRecoveryPersist(conversation, persistAll);
+                    return await PersistAssistantAsync(
+                        conversation,
+                        persistAll.Gap is not null
+                            ? GapMessage(DateTime.UtcNow, persistAll.Body)
+                            : GroundedMessage(
+                                DateTime.UtcNow,
+                                persistAll.Title,
+                                persistAll.Body,
+                                persistAll.Actions,
+                                DraftPresentationOrNull(persistAll.DraftPreview)
+                            ),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                }
                 case AssistantRecoveryIdentity.Match.Many many:
                     return await FinishGapTurnAsync(
                         conversation,
@@ -7283,6 +7354,63 @@ namespace TummlyBackend.Services
             }
 
             return new CompareAllRetrieve(landed, failedNames, notStartedNames);
+        }
+
+        private async Task<AssistantFeedbackEvidence?> RetrieveRecoveryIdentityForLocationAsync(
+            int ownerUserId,
+            int locationId,
+            string locationName,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            if (!await CanRetrieveAreaAsync(
+                ownerUserId,
+                OperatorAreaIds.Feedback,
+                locationId
+            ))
+            {
+                return new AssistantFeedbackEvidence(
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    [],
+                    [],
+                    [],
+                    [],
+                    []
+                );
+            }
+
+            var retrieved = await _feedbackRetrieve.RetrieveIdentityAsync(
+                locationId,
+                locationName,
+                fromUtc,
+                toUtc,
+                cancellationToken
+            );
+            return retrieved switch
+            {
+                AssistantFeedbackRetrieveResult.Failed => null,
+                AssistantFeedbackRetrieveResult.Ok ok => ok.Evidence,
+                _ => new AssistantFeedbackEvidence(
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    [],
+                    [],
+                    [],
+                    [],
+                    []
+                ),
+            };
         }
 
         private async Task<AssistantFeedbackEvidence?> RetrieveRecoveryIdentityUnionAsync(
