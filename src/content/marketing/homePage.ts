@@ -1,8 +1,10 @@
 import type { MarketingSignUpCtaContent } from "@/components/marketing/MarketingSignUpCta"
 import {
   MARKETING_DEMO_PATH,
+  MARKETING_HOW_IT_WORKS_PATH,
   MARKETING_PRICING_PATH,
   MARKETING_PRODUCT_PATH,
+  MARKETING_QR_MATERIALS_PATH,
   MARKETING_TRUST_PRIVACY_PATH,
 } from "@/constants/marketingNav"
 import { AI_ASSISTANT_PLANS } from "@/content/marketing/aiAssistantPage"
@@ -119,7 +121,7 @@ export const HOME_HOW_IT_WORKS_STEPS = [
     title: "Put Guest Loop where guests already look.",
     body: "Place a Guest Loop QR touchpoint where guests already interact at the counter, table, receipt, takeaway or delivery moment.",
     ctaLabel: "Explore QR Materials",
-    ctaTo: MARKETING_PRODUCT_PATH,
+    ctaTo: MARKETING_QR_MATERIALS_PATH,
     imageAlt:
       "Counter card, QR guest cards and window sticker Guest Loop materials",
   },
@@ -129,7 +131,7 @@ export const HOME_HOW_IT_WORKS_STEPS = [
     title: "Make private Feedback easy to share.",
     body: "Guests can quickly share private written Feedback about their experience through your Guest Form, in their own words.",
     ctaLabel: "See how it works",
-    ctaTo: MARKETING_PRODUCT_PATH,
+    ctaTo: MARKETING_HOW_IT_WORKS_PATH,
     imageAlt: "Restaurant dining room with guests — Hear from guests video",
   },
   {

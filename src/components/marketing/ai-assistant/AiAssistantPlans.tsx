@@ -31,8 +31,8 @@ type AiAssistantPlansProps = {
   /** Section surface. Default `bg-[#f0f0f0]`. */
   surfaceClassName?: string
   /**
-   * Compact header metrics for Home Pricing (`4902:19866`):
-   * 14px eyebrow, 36/48 title, no body.
+   * Compact header metrics for Home Pricing (`4902:19866` / mobile `6241:18264`):
+   * 12–14px eyebrow, 28/36 title, no body.
    */
   compactHeader?: boolean
 }
@@ -43,17 +43,20 @@ function PlanCard({
   showAiAllowance,
 }: {
   card: AiAssistantPlanStripCard
-  /** Right divider between adjacent non-highlighted cards (skip before Growth). */
+  /** Right divider between adjacent non-highlighted cards on desktop (skip before Growth). */
   showDivider: boolean
   showAiAllowance: boolean
 }) {
   return (
     <div
       className={cn(
-        "flex min-w-[280px] flex-1 flex-col gap-10 overflow-hidden py-6 lg:min-w-0",
+        "flex w-full min-w-0 flex-col gap-10 overflow-hidden py-6 lg:min-w-[280px] lg:flex-1",
         card.isHighlighted
           ? "rounded-[6px] border border-[#14a74a] bg-[rgba(20,167,74,0.05)] px-[26px]"
-          : cn("border-[#cacaca]", showDivider && "pr-[26px] lg:border-r"),
+          : cn(
+              "border-[#cacaca]",
+              showDivider && "border-b lg:border-b-0 lg:border-r lg:pr-[26px]",
+            ),
       )}
     >
       <div className="flex flex-col gap-3">
@@ -68,7 +71,7 @@ function PlanCard({
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
           <p className="m-0 text-[#141414]">
-            <span className="text-[36px] font-normal leading-none">
+            <span className="text-[26px] font-normal leading-none lg:text-[36px]">
               {card.priceAmount}
             </span>
             <span className="text-sm font-normal leading-none">
@@ -118,6 +121,7 @@ function PlanCard({
 
 /**
  * Shared plans strip — AI Assistant `5661:17526` / Home Pricing `4902:19866`.
+ * Mobile stacks cards (Figma `6241:18264`); desktop keeps the horizontal strip.
  */
 export function AiAssistantPlans({
   content = AI_ASSISTANT_PLANS,
@@ -147,7 +151,7 @@ export function AiAssistantPlans({
             className={cn(
               "m-0 font-medium text-[#141414]",
               compactHeader
-                ? "font-jakarta text-sm leading-4"
+                ? "font-jakarta text-xs leading-[14px] lg:text-sm lg:leading-4"
                 : "text-base uppercase leading-normal text-black",
             )}
           >
@@ -168,22 +172,20 @@ export function AiAssistantPlans({
           ) : null}
         </header>
 
-        <div className="-mx-5 w-[calc(100%+2.5rem)] overflow-x-auto px-5 lg:mx-0 lg:w-full lg:overflow-visible lg:px-0">
-          <div className="flex min-w-[960px] gap-[26px] lg:min-w-0">
-            {content.cards.map((card, index) => {
-              const next = content.cards[index + 1]
-              const showDivider =
-                !card.isHighlighted && next != null && !next.isHighlighted
-              return (
-                <PlanCard
-                  key={card.id}
-                  card={card}
-                  showDivider={showDivider}
-                  showAiAllowance={showAiAllowance}
-                />
-              )
-            })}
-          </div>
+        <div className="flex w-full flex-col gap-[26px] lg:flex-row lg:gap-[26px]">
+          {content.cards.map((card, index) => {
+            const next = content.cards[index + 1]
+            const showDivider =
+              !card.isHighlighted && next != null && !next.isHighlighted
+            return (
+              <PlanCard
+                key={card.id}
+                card={card}
+                showDivider={showDivider}
+                showAiAllowance={showAiAllowance}
+              />
+            )
+          })}
         </div>
 
         <MarketingButton asChild variant="secondary">

@@ -43,13 +43,13 @@ export function HeroSignupForm() {
 
   return (
     <div className="flex w-full max-w-[573px] flex-col items-center gap-[26px]">
-      <div className="inline-flex items-center gap-2 rounded-[40px] bg-[#ebebeb] px-2.5 py-2">
+      <div className="inline-flex items-center gap-2 rounded-[40px] bg-[#ebebeb] px-2.5 py-2 lg:px-2.5">
         <CircleCheckBig
           aria-hidden
-          className="size-4 shrink-0 text-[#727272]"
+          className="size-[13px] shrink-0 text-[#727272] lg:size-4"
           strokeWidth={2}
         />
-        <p className="m-0 text-xs font-medium leading-normal text-[#727272]">
+        <p className="m-0 text-[10px] font-medium leading-[12px] text-[#727272] lg:text-xs lg:leading-normal">
           {HOME_HERO.trustBadge}
         </p>
       </div>

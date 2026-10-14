@@ -36,7 +36,7 @@ const logInClass =
 /**
  * Figma marketing Header (`5700:25213`).
  * Desktop (xl+): nav | centred logo | CTAs.
- * Below xl: logo left | CTAs + hamburger (nav links live in the sheet).
+ * Below xl: logo left | Pilot CTA + hamburger (Log in / Try demo live in the sheet).
  */
 export default function MarketingHeader() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -74,7 +74,22 @@ export default function MarketingHeader() {
 
   const closeMobile = () => setMobileOpen(false)
 
-  const renderHeaderActions = (density: "default" | "compact") =>
+  const pilotCta = (density: "default" | "compact") => (
+    <MarketingButton
+      asChild
+      variant="primary"
+      showArrow={density === "default"}
+      density={density}
+      className="shrink-0"
+    >
+      <RequestTrialLink planIntent={{ plan: "Pilot" }}>
+        <span className="max-sm:hidden">Start 30-day Pilot</span>
+        <span className="sm:hidden">Start Pilot</span>
+      </RequestTrialLink>
+    </MarketingButton>
+  )
+
+  const desktopActions =
     isSignedIn ? (
       <>
         {role === "USER" ? (
@@ -85,7 +100,7 @@ export default function MarketingHeader() {
         <MarketingButton
           variant="secondary"
           showArrow={false}
-          density={density}
+          density="default"
           className="shrink-0"
           onClick={handleLogout}
         >
@@ -100,26 +115,30 @@ export default function MarketingHeader() {
         <MarketingButton
           asChild
           variant="secondary"
-          showArrow={density === "default"}
-          density={density}
+          showArrow
+          density="default"
           className="shrink-0"
         >
           <Link to={MARKETING_DEMO_PATH}>Try demo</Link>
         </MarketingButton>
-        <MarketingButton
-          asChild
-          variant="primary"
-          showArrow={density === "default"}
-          density={density}
-          className="shrink-0"
-        >
-          <RequestTrialLink planIntent={{ plan: "Pilot" }}>
-            <span className="max-sm:hidden">Start 30-day Pilot</span>
-            <span className="sm:hidden">Start Pilot</span>
-          </RequestTrialLink>
-        </MarketingButton>
+        {pilotCta("default")}
       </>
     )
+
+  /** Below xl: only the primary CTA stays in the bar. */
+  const mobileBarActions = isSignedIn ? (
+    <MarketingButton
+      variant="secondary"
+      showArrow={false}
+      density="compact"
+      className="shrink-0"
+      onClick={handleLogout}
+    >
+      Log out
+    </MarketingButton>
+  ) : (
+    pilotCta("compact")
+  )
 
   return (
     <header
@@ -163,10 +182,10 @@ export default function MarketingHeader() {
 
         <div className="flex min-w-0 items-center justify-end gap-1 justify-self-end sm:gap-2 xl:gap-3">
           <div className="flex min-w-0 items-center gap-1 xl:hidden sm:gap-2">
-            {renderHeaderActions("compact")}
+            {mobileBarActions}
           </div>
           <div className="hidden items-center gap-3 xl:flex">
-            {renderHeaderActions("default")}
+            {desktopActions}
           </div>
 
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -213,6 +232,55 @@ export default function MarketingHeader() {
                       onNavigate={closeMobile}
                     />
                   ))}
+                </div>
+
+                <div className="flex flex-col gap-3 border-t border-[#e7e7e7] pt-5">
+                  {isSignedIn ? (
+                    <>
+                      {role === "USER" ? (
+                        <Link
+                          to={HELP_CENTRE_URL}
+                          className={cn(logInClass, "px-0")}
+                          onClick={closeMobile}
+                        >
+                          Help
+                        </Link>
+                      ) : null}
+                      <MarketingButton
+                        variant="secondary"
+                        showArrow={false}
+                        density="compact"
+                        className="w-full justify-center"
+                        onClick={() => {
+                          closeMobile()
+                          handleLogout()
+                        }}
+                      >
+                        Log out
+                      </MarketingButton>
+                    </>
+                  ) : (
+                    <>
+                      <SignInLink
+                        to="/login"
+                        className={cn(logInClass, "px-0")}
+                        onClick={closeMobile}
+                      >
+                        Log in
+                      </SignInLink>
+                      <MarketingButton
+                        asChild
+                        variant="secondary"
+                        showArrow={false}
+                        density="compact"
+                        className="w-full justify-center"
+                      >
+                        <Link to={MARKETING_DEMO_PATH} onClick={closeMobile}>
+                          Try demo
+                        </Link>
+                      </MarketingButton>
+                    </>
+                  )}
                 </div>
               </div>
             </SheetContent>

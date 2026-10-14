@@ -589,5 +589,95 @@
     "primary": "hero-collage-1532.webp",
     "kind": "simple",
     "primaryFormat": "webp"
+  },
+  "how-it-works/guest-form-step-01": {
+    "w": 784,
+    "h": 1564,
+    "blobDir": "images/how-it-works",
+    "baseName": "guest-form-step-01",
+    "widths": [
+      392,
+      784
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "guest-form-step-01-784.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "how-it-works/guest-form-step-02": {
+    "w": 784,
+    "h": 1564,
+    "blobDir": "images/how-it-works",
+    "baseName": "guest-form-step-02",
+    "widths": [
+      392,
+      784
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "guest-form-step-02-784.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "how-it-works/guest-form-step-03": {
+    "w": 784,
+    "h": 1564,
+    "blobDir": "images/how-it-works",
+    "baseName": "guest-form-step-03",
+    "widths": [
+      392,
+      784
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "guest-form-step-03-784.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "how-it-works/guest-form-step-04": {
+    "w": 784,
+    "h": 1564,
+    "blobDir": "images/how-it-works",
+    "baseName": "guest-form-step-04",
+    "widths": [
+      392,
+      784
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "guest-form-step-04-784.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "how-it-works/guest-form-step-05": {
+    "w": 784,
+    "h": 1564,
+    "blobDir": "images/how-it-works",
+    "baseName": "guest-form-step-05",
+    "widths": [
+      392,
+      784
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "guest-form-step-05-784.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
   }
 }

@@ -21,9 +21,10 @@ export const marketingHeaderScrollMarginClass = "scroll-mt-[86px]";
 
 /**
  * Horizontal gutters for marketing page body (Home, legal, Help Centre, etc.).
- * Matches the header chrome side inset (Figma Header: 30px).
+ * Desktop matches the header chrome side inset (Figma Header: 30px).
+ * Mobile is full-bleed — sections own their own L/R inset.
  */
-export const marketingBodyChromePadding = "px-[30px]";
+export const marketingBodyChromePadding = "px-0 lg:px-[30px]";
 
 /**
  * Inner L/R padding for marketing page heroes and footer links (Figma: 60px).

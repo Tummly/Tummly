@@ -8,8 +8,11 @@ export const MARKETING_PRICING_PATH = "/pricing"
 /** Marketing Product page — Guest Loop product overview. */
 export const MARKETING_PRODUCT_PATH = "/product"
 
-/** Marketing How it works page — Contact CTA (page ships later). */
+/** Marketing How it works page. */
 export const MARKETING_HOW_IT_WORKS_PATH = "/how-it-works"
+
+/** Marketing QR materials page. */
+export const MARKETING_QR_MATERIALS_PATH = "/qr-materials"
 
 export type MarketingNavHref =
   | { kind: "route"; to: string }
@@ -43,13 +46,21 @@ export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
     label: "Product",
     href: { kind: "route", to: MARKETING_PRODUCT_PATH },
   },
-  { id: "how-it-works", label: "How it works", href: { kind: "placeholder" } },
+  {
+    id: "how-it-works",
+    label: "How it works",
+    href: { kind: "route", to: MARKETING_HOW_IT_WORKS_PATH },
+  },
   {
     id: "pricing",
     label: "Pricing",
     href: { kind: "route", to: MARKETING_PRICING_PATH },
   },
-  { id: "qr-materials", label: "QR materials", href: { kind: "placeholder" } },
+  {
+    id: "qr-materials",
+    label: "QR materials",
+    href: { kind: "route", to: MARKETING_QR_MATERIALS_PATH },
+  },
   {
     id: "for-groups",
     label: "For groups",
@@ -86,7 +97,16 @@ export const MARKETING_FOOTER_PRODUCT: MarketingNavItem[] = [
     label: "Guest Loop",
     href: { kind: "route", to: MARKETING_PRODUCT_PATH },
   },
-  { id: "how-it-works", label: "How it works", href: { kind: "placeholder" } },
+  {
+    id: "how-it-works",
+    label: "How it works",
+    href: { kind: "route", to: MARKETING_HOW_IT_WORKS_PATH },
+  },
+  {
+    id: "qr-materials",
+    label: "QR materials",
+    href: { kind: "route", to: MARKETING_QR_MATERIALS_PATH },
+  },
   {
     id: "pricing",
     label: "Pricing",

@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import {
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { Link } from "react-router-dom"
 
@@ -12,12 +18,16 @@ import {
   type HomeHowItWorksPlaceMedia,
   type HomeHowItWorksStep,
 } from "@/content/marketing/homePage"
-import { marketingChromeContentInset } from "@/lib/marketing-layout"
 import { signUpCtaVideoUrl } from "@/lib/marketingMedia"
 import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
 
+const STEP_COUNT = HOME_HOW_IT_WORKS_STEPS.length
+/** Fallback until measured (tabs + visual + padding). */
+const FALLBACK_PANEL_HEIGHT_PX = 834
 const CROSSFADE_MS = 0.25
+/** Minimum clearance under sticky marketing header chrome. */
+const HEADER_CLEARANCE_PX = 86
 /** Left copy + right visual share the same step reveal (fade up from bottom). */
 const STEP_REVEAL = {
   initial: { opacity: 0, y: 8 },
@@ -43,8 +53,16 @@ const placeMediaImages = Object.fromEntries(
   ]),
 ) as Record<HomeHowItWorksPlaceMedia["id"], string>
 
+function stickyTopForViewport(viewportHeight: number, panelHeight: number) {
+  const available = viewportHeight - HEADER_CLEARANCE_PX
+  if (panelHeight >= available) {
+    return HEADER_CLEARANCE_PX
+  }
+  return HEADER_CLEARANCE_PX + (available - panelHeight) / 2
+}
+
 function clampIndex(index: number) {
-  return Math.max(0, Math.min(HOME_HOW_IT_WORKS_STEPS.length - 1, index))
+  return Math.max(0, Math.min(STEP_COUNT - 1, index))
 }
 
 function StepTabs({
@@ -72,9 +90,6 @@ function StepTabs({
             aria-controls={`home-how-step-panel-${step.id}`}
             tabIndex={active ? 0 : -1}
             onClick={() => {
-              onSelect(index)
-            }}
-            onMouseEnter={() => {
               onSelect(index)
             }}
             className={cn(
@@ -343,19 +358,22 @@ function PanelChrome({
   activeIndex,
   onSelect,
   reduceMotion,
+  onPanelNode,
 }: {
   activeIndex: number
   onSelect: (index: number) => void
   reduceMotion: boolean | null
+  onPanelNode?: (node: HTMLDivElement | null) => void
 }) {
   const step =
     HOME_HOW_IT_WORKS_STEPS[activeIndex] ?? HOME_HOW_IT_WORKS_STEPS[0]
 
   return (
     <div
+      ref={onPanelNode}
       className={cn(
         "flex w-full flex-col gap-[30px] bg-white",
-        marketingChromeContentInset,
+        "px-5 lg:px-[60px]",
         "py-8 lg:py-10",
       )}
       role="region"
@@ -379,23 +397,147 @@ function PanelChrome({
 /**
  * Home How it works steps —
  * Figma `5339:30041`, `4161:19285`, `4161:19284`, `4161:19283`.
- * Tabs change on hover or click (no scroll hijack).
+ * Sticky scroll-driven active step on all viewports (same pattern as
+ * How it works page). Tabs also jump the track.
  */
 export function HomeHowItWorksSteps() {
   const reduceMotion = useReducedMotion()
+  const trackRef = useRef<HTMLDivElement>(null)
+  const panelNodeRef = useRef<HTMLDivElement | null>(null)
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
+
+  const [panelHeightPx, setPanelHeightPx] = useState(FALLBACK_PANEL_HEIGHT_PX)
+  const [stickyTopPx, setStickyTopPx] = useState(() =>
+    typeof window !== "undefined"
+      ? stickyTopForViewport(window.innerHeight, FALLBACK_PANEL_HEIGHT_PX)
+      : HEADER_CLEARANCE_PX,
+  )
   const [activeIndex, setActiveIndex] = useState(0)
 
-  const selectIndex = (index: number) => {
-    setActiveIndex(clampIndex(index))
+  const trackHeightPx = panelHeightPx * STEP_COUNT
+
+  const applyPanelHeight = useEffectEvent((height: number) => {
+    if (height > 0) {
+      setPanelHeightPx((prev) => {
+        const next = Math.ceil(height)
+        return prev === next ? prev : next
+      })
+    }
+  })
+
+  const onPanelNode = useEffectEvent((node: HTMLDivElement | null) => {
+    resizeObserverRef.current?.disconnect()
+    resizeObserverRef.current = null
+    panelNodeRef.current = node
+    if (node == null || typeof ResizeObserver === "undefined") {
+      return
+    }
+    applyPanelHeight(node.getBoundingClientRect().height)
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry == null) {
+        return
+      }
+      const borderBox = entry.borderBoxSize?.[0]?.blockSize
+      const height =
+        borderBox != null && borderBox > 0
+          ? borderBox
+          : entry.target instanceof HTMLElement
+            ? entry.target.getBoundingClientRect().height
+            : entry.contentRect.height
+      applyPanelHeight(height)
+    })
+    ro.observe(node)
+    resizeObserverRef.current = ro
+  })
+
+  const syncFromScroll = useEffectEvent(() => {
+    const track = trackRef.current
+    if (track == null) {
+      return
+    }
+    const stickyEl = track.firstElementChild
+    const panelEl = panelNodeRef.current
+    const panelH =
+      panelEl?.getBoundingClientRect().height ||
+      stickyEl?.getBoundingClientRect().height ||
+      panelHeightPx
+    const trackH = track.offsetHeight || trackHeightPx
+    const scrollable = trackH - panelH
+    if (scrollable <= 0) {
+      return
+    }
+    const stickyTop =
+      stickyEl instanceof HTMLElement
+        ? Number.parseFloat(getComputedStyle(stickyEl).top) || stickyTopPx
+        : stickyTopPx
+    const rect = track.getBoundingClientRect()
+    const scrolled = Math.max(
+      0,
+      Math.min(scrollable, stickyTop - rect.top),
+    )
+    const next = clampIndex(Math.floor((scrolled / scrollable) * STEP_COUNT))
+    setActiveIndex((prev) => (prev === next ? prev : next))
+  })
+
+  useEffect(() => {
+    return () => {
+      resizeObserverRef.current?.disconnect()
+      resizeObserverRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const onResize = () => {
+      const panelH =
+        panelNodeRef.current?.getBoundingClientRect().height || panelHeightPx
+      setStickyTopPx(stickyTopForViewport(window.innerHeight, panelH))
+    }
+    onResize()
+    syncFromScroll()
+    window.addEventListener("scroll", syncFromScroll, { passive: true })
+    window.addEventListener("resize", onResize)
+    return () => {
+      window.removeEventListener("scroll", syncFromScroll)
+      window.removeEventListener("resize", onResize)
+    }
+  }, [panelHeightPx, stickyTopPx, trackHeightPx])
+
+  const scrollToIndex = (index: number) => {
+    const next = clampIndex(index)
+    setActiveIndex(next)
+    const track = trackRef.current
+    if (track == null) {
+      return
+    }
+    const scrollable = trackHeightPx - panelHeightPx
+    if (scrollable <= 0) {
+      return
+    }
+    const step = scrollable / STEP_COUNT
+    const trackTop = window.scrollY + track.getBoundingClientRect().top
+    window.scrollTo({
+      top: trackTop - stickyTopPx + next * step,
+      behavior: reduceMotion ? "auto" : "smooth",
+    })
   }
 
   return (
     <section className="w-full bg-white">
-      <PanelChrome
-        activeIndex={activeIndex}
-        onSelect={selectIndex}
-        reduceMotion={reduceMotion}
-      />
+      <div
+        ref={trackRef}
+        className="relative w-full"
+        style={{ height: trackHeightPx }}
+      >
+        <div className="sticky w-full" style={{ top: stickyTopPx }}>
+          <PanelChrome
+            onPanelNode={onPanelNode}
+            activeIndex={activeIndex}
+            onSelect={scrollToIndex}
+            reduceMotion={reduceMotion}
+          />
+        </div>
+      </div>
     </section>
   )
 }

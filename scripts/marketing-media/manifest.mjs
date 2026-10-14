@@ -206,6 +206,35 @@ export const SIMPLE_ASSETS = [
     quality: 85,
     primaryFormat: "webp",
   },
+  // How it works Guest Form phone mockups (Figma `5887:20625` … `5880:19826`)
+  // Display ~392 CSS px → 784 master for 2×. quality 90 for UI chrome.
+  ...[
+    "guest-form-step-01",
+    "guest-form-step-02",
+    "guest-form-step-03",
+    "guest-form-step-04",
+    "guest-form-step-05",
+  ].map((name) => ({
+    id: `how-it-works/${name}`,
+    source: `.scratch/marketing-media-sources/how-it-works/${name}.png`,
+    blobDir: "images/how-it-works",
+    baseName: name,
+    widths: [392, 784],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 90,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  })),
+  // QR materials hero product frame (Figma `5661:19346`) — display 671 CSS px.
+  {
+    id: "qr-materials/hero-product",
+    source: "src/assets/images/marketing/qr-materials/hero-product.png",
+    blobDir: "images/qr-materials",
+    baseName: "hero-product",
+    widths: [671, 1342],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 90,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
   {
     id: "signup/signup-modal-backdrop",
     source: "src/assets/images/signup-modal-backdrop.png",

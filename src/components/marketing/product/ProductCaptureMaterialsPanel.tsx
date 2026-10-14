@@ -89,10 +89,11 @@ function MaterialListItem({
     >
       <span
         className={cn(
-          "font-jakarta text-[22px] leading-normal whitespace-nowrap sm:text-[28px] lg:text-[32px]",
+          /* Mobile Figma `6241:18095`: 24px / ~30px. Desktop keeps 32px. */
+          "font-jakarta text-2xl leading-[30px] whitespace-nowrap sm:text-[28px] sm:leading-normal lg:text-[32px]",
           active
             ? "font-semibold text-black"
-            : "font-medium text-[#9e9e9e]",
+            : "font-medium text-[#9d9d9d]",
         )}
       >
         {material.label}
@@ -117,6 +118,7 @@ function MaterialsList({
   onListPointerLeave,
   className,
   style,
+  showFades = true,
 }: {
   activeIndex: number
   onSelect: (index: number) => void
@@ -126,18 +128,24 @@ function MaterialsList({
   onListPointerLeave?: () => void
   className?: string
   style?: CSSProperties
+  /** Desktop windowed list only — Home mobile shows the full catalogue. */
+  showFades?: boolean
 }) {
   // Top fade only after the list has scrolled — otherwise the active first
   // row ("QR Guest Cards") sits under the gradient and looks washed out.
-  const showTopFade = activeIndex > 0
-  const showBottomFade = activeIndex < MATERIAL_COUNT - 1
+  const showTopFade = showFades && activeIndex > 0
+  const showBottomFade = showFades && activeIndex < MATERIAL_COUNT - 1
 
   return (
     <div
       ref={listRef}
       onPointerEnter={onListPointerEnter}
       onPointerLeave={onListPointerLeave}
-      className={cn("relative flex min-h-0 flex-1 flex-col overflow-hidden", className)}
+      className={cn(
+        "relative flex flex-col",
+        showFades && "min-h-0 flex-1 overflow-hidden",
+        className,
+      )}
       style={style}
     >
       {showTopFade ? (
@@ -212,7 +220,7 @@ function MobileMaterialsList({
   }, [activeIndex])
 
   return (
-    <div className="relative max-h-[280px]">
+    <div className="relative max-h-[min(612px,70vh)]">
       {showTopFade ? (
         <div
           aria-hidden
@@ -221,7 +229,7 @@ function MobileMaterialsList({
       ) : null}
       <div
         ref={scrollerRef}
-        className="max-h-[280px] overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="max-h-[min(612px,70vh)] overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <ul className="m-0 flex list-none flex-col gap-[22px] p-0">
           {PRODUCT_CAPTURE_MATERIALS.map((item, index) => (
@@ -258,16 +266,26 @@ const MEDIA_OBJECT_POSITION: Partial<
 function MediaPane({
   material,
   reduceMotion,
+  compact = false,
 }: {
   material: CaptureMaterial
   reduceMotion: boolean | null
+  /** Home mobile Figma `6241:18115`: 255×163 floating card. */
+  compact?: boolean
 }) {
   const image = materialImages[material.id]
   const objectPosition =
     MEDIA_OBJECT_POSITION[material.id] ?? "object-center"
 
   return (
-    <div className="relative h-[min(70vw,420px)] w-full overflow-hidden rounded-[12px] lg:h-full lg:min-h-0 lg:flex-1 lg:rounded-none">
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-[12px]",
+        compact
+          ? "size-full"
+          : "h-[min(70vw,420px)] w-full lg:h-full lg:min-h-0 lg:flex-1 lg:rounded-none",
+      )}
+    >
       <AnimatePresence initial={false} mode="sync">
         <motion.div
           key={material.id}
@@ -291,7 +309,11 @@ function MediaPane({
           <img
             src={image.src}
             srcSet={image.srcSet}
-            sizes="(min-width: 1024px) 50vw, 100vw"
+            sizes={
+              compact
+                ? "255px"
+                : "(min-width: 1024px) 50vw, 100vw"
+            }
             alt={material.imageAlt}
             width={image.width}
             height={image.height}
@@ -306,7 +328,14 @@ function MediaPane({
             aria-hidden
             className="absolute inset-0 bg-[linear-gradient(178.4deg,rgba(20,20,20,0)_43%,rgb(20,20,20)_98.5%),linear-gradient(90deg,rgba(0,0,0,0.2),rgba(0,0,0,0.2))]"
           />
-          <p className="absolute bottom-8 left-8 m-0 max-w-[307px] font-jakarta text-base font-semibold leading-[22px] text-white sm:bottom-10 sm:left-10 lg:bottom-[50px] lg:left-[50px]">
+          <p
+            className={cn(
+              "absolute m-0 font-jakarta font-semibold text-white",
+              compact
+                ? "bottom-5 left-5 max-w-[208px] text-xs leading-[18px]"
+                : "bottom-8 left-8 max-w-[307px] text-base leading-[22px] sm:bottom-10 sm:left-10 lg:bottom-[50px] lg:left-[50px]",
+            )}
+          >
             {material.caption}
           </p>
         </motion.div>
@@ -331,12 +360,12 @@ function MaterialsIntro({ intro }: { intro: CaptureMaterialsIntro }) {
         </p>
         <h2
           id={intro.titleId}
-          className="m-0 max-w-[565px] font-jakarta text-[28px] font-medium leading-9 lg:text-[36px] lg:leading-[48px]"
+          className="m-0 max-w-[565px] font-jakarta text-[28px] font-medium leading-[38px] lg:text-[36px] lg:leading-[48px]"
         >
           {intro.title}
         </h2>
       </div>
-      <p className="m-0 max-w-[588px] font-sans text-base font-normal leading-[22px] lg:text-[18px] lg:leading-6">
+      <p className="m-0 max-w-[588px] font-sans text-sm font-normal leading-5 lg:text-[18px] lg:leading-6">
         {intro.body}
       </p>
     </div>
@@ -366,17 +395,30 @@ function PanelChrome({
 }) {
   const material =
     PRODUCT_CAPTURE_MATERIALS[activeIndex] ?? PRODUCT_CAPTURE_MATERIALS[0]
+  /** Home catalogue: floating card on mobile (`6241:18115`). Product: stacked media. */
+  const homeFloatingMedia = intro != null
 
   return (
     <div
       className={cn(
-        "flex w-full flex-col overflow-hidden rounded-[12px] bg-[#f0f0f0] lg:h-[661px] lg:flex-row lg:items-stretch",
+        "relative flex w-full flex-col overflow-hidden bg-[#f0f0f0] lg:h-[661px] lg:flex-row lg:items-stretch lg:rounded-[12px]",
+        /* Home mobile Figma `6241:18094`: 12px radius on the grey card. */
+        "rounded-[12px]",
       )}
       role="region"
       aria-label="QR capture materials"
       aria-labelledby={intro?.titleId}
     >
-      <div className="flex min-h-0 w-full flex-col gap-8 overflow-hidden px-5 py-8 sm:px-8 lg:w-[min(100%,798px)] lg:flex-1 lg:gap-[50px] lg:px-[50px] lg:pt-[50px] lg:pb-0">
+      <div
+        className={cn(
+          "flex min-h-0 w-full flex-col overflow-hidden sm:px-8 lg:w-[min(100%,798px)] lg:flex-1 lg:gap-[50px] lg:px-[50px] lg:pt-[50px] lg:pb-0",
+          /* Home mobile Figma `6241:18095`: 30px sides, 50px top, 40px gap, no bottom pad
+           * (outer `6241:18093` supplies the 20px white pad below the card). */
+          intro != null
+            ? "gap-10 px-[30px] pt-[50px] pb-0 sm:px-8 lg:gap-[50px] lg:px-[50px] lg:pt-[50px]"
+            : "gap-8 px-5 py-8",
+        )}
+      >
         {intro != null ? <MaterialsIntro intro={intro} /> : null}
         {listScrollable ? (
           <MobileMaterialsList
@@ -391,10 +433,29 @@ function PanelChrome({
             listRef={listRef}
             onListPointerEnter={onListPointerEnter}
             onListPointerLeave={onListPointerLeave}
+            showFades={listRef != null}
           />
         )}
       </div>
-      <MediaPane material={material} reduceMotion={reduceMotion} />
+      {homeFloatingMedia ? (
+        <>
+          {/* Mobile Figma `6241:18115`: 255×163 floating card over the list. */}
+          <div className="pointer-events-none absolute top-[498px] right-2.5 z-10 h-[163px] w-[255px] overflow-hidden rounded-[12px] lg:hidden">
+            <MediaPane
+              material={material}
+              reduceMotion={reduceMotion}
+              compact
+            />
+          </div>
+          <div className="max-lg:hidden lg:min-h-0 lg:flex-1">
+            <MediaPane material={material} reduceMotion={reduceMotion} />
+          </div>
+        </>
+      ) : (
+        <div>
+          <MediaPane material={material} reduceMotion={reduceMotion} />
+        </div>
+      )}
     </div>
   )
 }
@@ -485,6 +546,8 @@ export function ProductCaptureMaterialsPanel({
   }, [isLgUp, listHovered])
 
   const listTranslateY = isLgUp ? -activeIndex * LIST_ROW_STRIDE_PX : 0
+  /** Home catalogue (`6241:18095`) shows the full list; Product keeps a max-height scroller. */
+  const listScrollable = !isLgUp && intro == null
 
   return (
     <PanelChrome
@@ -492,7 +555,7 @@ export function ProductCaptureMaterialsPanel({
       onSelect={selectIndex}
       listTranslateY={listTranslateY}
       reduceMotion={reduceMotion}
-      listScrollable={!isLgUp}
+      listScrollable={listScrollable}
       listRef={isLgUp ? listRef : undefined}
       onListPointerEnter={
         isLgUp

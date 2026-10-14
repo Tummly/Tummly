@@ -5,7 +5,10 @@ import type {
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { MANAGE_PLAN_IDS } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
-import { MARKETING_FAQS_PATH } from "@/constants/marketingNav"
+import {
+  MARKETING_FAQS_PATH,
+  MARKETING_QR_MATERIALS_PATH,
+} from "@/constants/marketingNav"
 
 export type PricingPlanId = ManagePlanId
 
@@ -527,7 +530,7 @@ export const PRICING_QR_MATERIALS = {
     "Need more QR guest cards, table tents, counter displays or replacement materials? Additional physical materials are ordered separately through the Tummly Shop after you sign in.",
   ],
   ctaLabel: "See QR materials",
-  ctaTo: MARKETING_FAQS_PATH,
+  ctaTo: MARKETING_QR_MATERIALS_PATH,
 } as const
 
 /** Figma Pricing Sign up CTA (`5661:14510` / `4151:3811`). */
