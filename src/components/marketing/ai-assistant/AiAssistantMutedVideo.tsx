@@ -14,7 +14,8 @@ type AiAssistantMutedVideoProps = {
   withAudioToggle?: boolean
   /**
    * Guest Loop player chrome: center play/pause, scrubber + duration, and mute.
-   * Autoplay muted; first center Pause click restarts with sound.
+   * Autoplay muted with center Play only; first click restarts with sound and
+   * unlocks bottom controls (hover / pause).
    */
   withPlayerControls?: boolean
   /** Eagerly mount/load media (hero). Playback still waits for viewport. Default false. */
@@ -65,7 +66,7 @@ export function AiAssistantMutedVideo({
   const [inView, setInView] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [userPaused, setUserPaused] = useState(false)
-  /** First center Pause click: restart from 0 with sound, then normal player. */
+  /** First center Play click: restart from 0 with sound, then normal player. */
   const [hasEngaged, setHasEngaged] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -164,7 +165,7 @@ export function AiAssistantMutedVideo({
     }
   }
 
-  /** Center Pause while muted autoplay: restart from the start with volume. */
+  /** Center Play while muted autoplay: restart from the start with volume. */
   const engageWithSound = () => {
     const el = videoRef.current
     if (el == null) {
@@ -217,9 +218,10 @@ export function AiAssistantMutedVideo({
     )
   }
 
-  /** Bottom scrubber stays until hover; keep it when paused so play is reachable. */
+  /** Bottom chrome stays off until first engage; then hover / pause. */
+  const bottomChromeUnlocked = !withPlayerControls || hasEngaged
   const forceBottomChrome = userPaused
-  /** Center Pause stays visible during muted autoplay; after engage, hover / pause only. */
+  /** Center Play stays visible during muted autoplay; after engage, hover / pause. */
   const forceCenterControl = !hasEngaged || userPaused
 
   return (
@@ -285,15 +287,19 @@ export function AiAssistantMutedVideo({
             onCenterControlClick()
           }}
         >
-          {!hasEngaged || playing ? (
-            <Pause className="size-7 fill-current sm:size-8" aria-hidden />
+          {/*
+            Before engage: always Play triangle (muted autoplay CTA).
+            After engage: Pause while playing, Play while paused.
+          */}
+          {!hasEngaged || !playing ? (
+            <Play className="size-7 fill-current sm:size-8" strokeWidth={2.5} aria-hidden />
           ) : (
-            <Play className="size-7 fill-current sm:size-8" aria-hidden />
+            <Pause className="size-7 fill-current sm:size-8" strokeWidth={2.5} aria-hidden />
           )}
         </button>
       ) : null}
 
-      {showPlayer && shouldLoad ? (
+      {showPlayer && shouldLoad && bottomChromeUnlocked ? (
         <div
           className={cn(
             "absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 px-3 py-3",
