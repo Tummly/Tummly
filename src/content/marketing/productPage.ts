@@ -2,8 +2,8 @@ import type { MarketingSignUpCtaContent } from "@/components/marketing/Marketing
 import {
   MARKETING_AI_ASSISTANT_PATH,
   MARKETING_FAQS_PATH,
+  MARKETING_FOR_GROUPS_PATH,
   MARKETING_HOW_IT_WORKS_PATH,
-  MARKETING_PRICING_PATH,
   MARKETING_QR_MATERIALS_PATH,
   MARKETING_TRUST_PRIVACY_PATH,
 } from "@/constants/marketingNav"
@@ -410,8 +410,7 @@ export const PRODUCT_GROUPS = {
   title: "Keep the Location context as you grow.",
   body: "Run Guest Loop across multiple Locations while keeping Feedback, guests, QR sources and reporting connected to the right place. Eligible plans can also provide consolidated reporting and group-level operating views.",
   ctaLabel: "See Tummly for groups",
-  /** Same interim target as primary nav “For groups”. */
-  ctaTo: MARKETING_PRICING_PATH,
+  ctaTo: MARKETING_FOR_GROUPS_PATH,
 } as const
 
 /** Figma Product “Built around restaurant control” `5661:24177`. */

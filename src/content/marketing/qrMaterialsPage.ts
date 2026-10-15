@@ -1,7 +1,7 @@
 import type { MarketingSignUpCtaContent } from "@/components/marketing/MarketingSignUpCta"
 import {
+  MARKETING_FOR_GROUPS_PATH,
   MARKETING_HOW_IT_WORKS_PATH,
-  MARKETING_PRICING_PATH,
   MARKETING_PRODUCT_PATH,
 } from "@/constants/marketingNav"
 
@@ -246,7 +246,7 @@ export const QR_MATERIALS_FOR_GROUPS = {
   title: "Keep every placement tied to the right Location as you grow.",
   body: "Use Guest Loop across multiple Locations while preserving the Location, QR placement and Guest Form context behind each interaction. Group reporting can then compare activity without losing where it came from.",
   ctaLabel: "See Tummly for groups",
-  ctaTo: MARKETING_PRICING_PATH,
+  ctaTo: MARKETING_FOR_GROUPS_PATH,
 } as const
 
 /** Shared bottom Sign-up CTA (Figma `5661:14510` / `4151:3811`). */

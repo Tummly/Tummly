@@ -73,7 +73,7 @@ describe("faqsPage content", () => {
     )
     expect(howToStart?.cta).toEqual({
       label: "Start 30-day Pilot →",
-      to: "/signup",
+      to: "/30-day-pilot",
     })
     expect(cost?.cta).toEqual({
       label: "Compare all plans →",

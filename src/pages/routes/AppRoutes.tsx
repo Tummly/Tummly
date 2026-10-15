@@ -48,7 +48,10 @@ import ProductPage from "../public/ProductPage";
 import HowItWorksPage from "../public/HowItWorksPage";
 import QrMaterialsPage from "../public/QrMaterialsPage";
 import AiAssistantPage from "../public/AiAssistantPage";
+import ForGroupsPage from "../public/ForGroupsPage";
+import PilotPage from "../public/PilotPage";
 import TrustPrivacyPage from "../public/TrustPrivacyPage";
+import AboutPage from "../public/AboutPage";
 import UnsubscribePage from "../public/UnsubscribePage";
 import NotFoundPage from "../public/NotFoundPage";
 import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
@@ -590,7 +593,10 @@ function AppRoutes() {
           <Route path="how-it-works" element={<HowItWorksPage />} />
           <Route path="qr-materials" element={<QrMaterialsPage />} />
           <Route path="ai-assistant" element={<AiAssistantPage />} />
+          <Route path="for-groups" element={<ForGroupsPage />} />
+          <Route path="30-day-pilot" element={<PilotPage />} />
           <Route path="trust-privacy" element={<TrustPrivacyPage />} />
+          <Route path="about" element={<AboutPage />} />
           <Route path="unsubscribe" element={<UnsubscribePage />} />
 
           <Route path={HELP_CENTRE_ROUTES.hub} element={<HelpCentreHubPage />} />
