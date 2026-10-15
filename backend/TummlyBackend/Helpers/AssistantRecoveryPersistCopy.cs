@@ -92,7 +92,13 @@ namespace TummlyBackend.Helpers
         public static string OfferRefusedBody()
             => "I cannot Respond with a recovery offer. Location Guest marketing "
                 + "preference does not allow it. A guest message is still allowed "
-                + "when contact exists. No recovery work was stored for the offer.";
+                + "when SMS contact exists. No recovery work was stored for the offer.";
+
+        public static string EmailMarketingRefusedBody()
+            => "I cannot prepare an Email guest response. Location Guest marketing "
+                + "preference does not allow Email contact (same rule as Start recovery). "
+                + "Use SMS when that channel is available, or Record an internal action only. "
+                + "No recovery work was stored.";
 
         public static string UnavailableBody()
             => "I could not check follow-up eligibility for this Feedback. "
