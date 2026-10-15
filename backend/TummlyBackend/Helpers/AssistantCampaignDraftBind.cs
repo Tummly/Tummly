@@ -27,7 +27,8 @@ namespace TummlyBackend.Helpers
         int? OfferId,
         string OfferLabel,
         string? OfferNote,
-        string? LimitNote = null
+        string? LimitNote = null,
+        string? AudienceRequest = null
     );
 
     public sealed record AssistantCampaignDraftBindChoice(
@@ -84,6 +85,9 @@ namespace TummlyBackend.Helpers
         public const string AudienceNewGuests = "new-guests";
         public const string AudiencePositive = "positive-feedback";
         public const string AudienceNegative = "negative-feedback";
+        public const string AudienceOfferNotRedeemed = "offer-not-redeemed";
+        public const string AudienceRecentRedeemers = "recent-redeemers";
+        public const string AudienceNoRecentActivity = "no-recent-tummly-activity";
         public const string AudienceDormant = "dormant-guests";
         public const string AudienceRecovery = "completed-recovery-follow-up";
 
@@ -94,6 +98,9 @@ namespace TummlyBackend.Helpers
                 [AudienceNewGuests] = "New guests",
                 [AudiencePositive] = "Positive feedback",
                 [AudienceNegative] = "Negative feedback",
+                [AudienceOfferNotRedeemed] = "Offer not redeemed",
+                [AudienceRecentRedeemers] = "Recent redeemers",
+                [AudienceNoRecentActivity] = "No recent Tummly activity",
                 [AudienceDormant] = "Dormant guests",
                 [AudienceRecovery] = "Completed recovery follow-up",
             };
@@ -110,6 +117,30 @@ namespace TummlyBackend.Helpers
                     "poor feedback",
                     "unhappy",
                     "submitted negative",
+                ],
+                [AudienceOfferNotRedeemed] =
+                [
+                    "offer not redeemed",
+                    "offer-not-redeemed",
+                    "unredeemed offer",
+                    "unredeemed",
+                    "haven't redeemed",
+                    "have not redeemed",
+                    "did not redeem",
+                    "not redeemed",
+                ],
+                [AudienceRecentRedeemers] =
+                [
+                    "recent redeemers",
+                    "recent-redeemers",
+                    "recently redeemed",
+                    "recent redeemer",
+                ],
+                [AudienceNoRecentActivity] =
+                [
+                    "no recent tummly activity",
+                    "no-recent-tummly-activity",
+                    "no recent activity",
                 ],
                 [AudienceDormant] =
                 [
@@ -131,6 +162,20 @@ namespace TummlyBackend.Helpers
                     "completed recovery",
                     "recovery follow-up",
                 ],
+            };
+
+        private static readonly HashSet<string> ReservedWords =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                "all", "eligible", "guests", "guest", "new", "positive", "negative",
+                "feedback", "dormant", "recent", "redeemers", "unhappy", "email", "sms",
+                "campaign", "draft", "recovery", "camden", "brixton", "shoreditch", "soho",
+                "clapham", "angel", "tummly", "offer", "offers", "not", "redeemed", "activity",
+                "everyone", "people", "diners", "customers", "most", "latest", "first",
+                "please", "edit", "change", "send", "to", "for", "only", "the", "and",
+                "with", "without", "excluding", "except", "bring", "back", "inactive", "boost",
+                "thank", "quiet", "time", "winback", "win-back", "update", "save",
+                "from", "since", "before", "after", "yesterday", "today"
             };
 
         public static AssistantCampaignDraftBindOutcome Resolve(
@@ -168,6 +213,61 @@ namespace TummlyBackend.Helpers
                 );
             }
 
+            // Specific named-guest selection: e.g. "Send to Mohamed and Sophie only"
+            if (TryExtractNamedGuests(text, out var namedGuests))
+            {
+                var channel = ResolveChannel(lower, bindChoice.ChannelLabel);
+                if (channel.Clash && bindChoice.ChannelLabel is null)
+                {
+                    return new AssistantCampaignDraftBindOutcome.Gap(
+                        AssistantGapTurn.KindChannel,
+                        ["Email", "SMS"],
+                        ChannelClashBody()
+                    );
+                }
+
+                var goalId = InferGoal(lower);
+                var templateId = ResolveTemplateId(text, templates);
+                var audienceLabel = $"Named guests: {string.Join(", ", namedGuests)}";
+                var limitNote = $"The audience is limited to specific named guests: {string.Join(", ", namedGuests)}.";
+                var name = AssistantCampaignDraftName.Compose(
+                    goalId,
+                    channel.Id,
+                    locationName,
+                    AudienceAllEligible
+                );
+
+                return new AssistantCampaignDraftBindOutcome.Bound(
+                    new AssistantCampaignDraftBindFields(
+                        Channel: channel.Id,
+                        ChannelLabel: channel.Label,
+                        AudienceKey: AudienceAllEligible,
+                        AudienceLabel: audienceLabel,
+                        GoalId: goalId,
+                        TemplateId: templateId,
+                        Name: name,
+                        OfferStance: offer.Stance,
+                        OfferId: offer.OfferId,
+                        OfferLabel: offer.Label,
+                        OfferNote: offer.Note,
+                        LimitNote: limitNote,
+                        AudienceRequest: text
+                    )
+                );
+            }
+
+            // A targeted multi-guest request must not become all eligible when
+            // the name parser cannot bind its complete selection.
+            if (bindChoice.AudienceLabel is null
+                && ResolveAudiences(lower, null).Count == 0
+                && Regex.IsMatch(text, @"\b(?:campaign|capaign|send)\b.*\b(?:for|to)\b.+(?:\band\b|&|,).+",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            {
+                return new AssistantCampaignDraftBindOutcome.Gap(
+                    AssistantGapTurn.KindAudience, [],
+                    "Which guests should receive this Campaign? Enter their exact names. I have not selected all eligible guests.");
+            }
+
             var audiences = ResolveAudiences(lower, bindChoice.AudienceLabel);
             if (audiences.Count >= 2 && bindChoice.AudienceLabel is null)
             {
@@ -181,8 +281,65 @@ namespace TummlyBackend.Helpers
                 );
             }
 
-            var channel = ResolveChannel(lower, bindChoice.ChannelLabel);
-            if (channel.Clash && bindChoice.ChannelLabel is null)
+            var guestCap = TryReadGuestCap(lower);
+            if (guestCap is int cap)
+            {
+                // Explicit selection rule specified (e.g. "10 most recent", "10 newest", or chosen from Gap)
+                if (TryResolveSelectionRule(lower, cap, bindChoice.AudienceLabel, out var ruleKey, out var ruleLabel))
+                {
+                    var channel = ResolveChannel(lower, bindChoice.ChannelLabel);
+                    if (channel.Clash && bindChoice.ChannelLabel is null)
+                    {
+                        return new AssistantCampaignDraftBindOutcome.Gap(
+                            AssistantGapTurn.KindChannel,
+                            ["Email", "SMS"],
+                            ChannelClashBody()
+                        );
+                    }
+
+                    var goalId = InferGoal(lower);
+                    var templateId = ResolveTemplateId(text, templates);
+                    var audienceKey = audiences.Count == 1 ? audiences[0] : AudienceAllEligible;
+                    var name = AssistantCampaignDraftName.Compose(
+                        goalId,
+                        channel.Id,
+                        locationName,
+                        audienceKey
+                    );
+                    var limitNote = $"The audience is limited to {ruleLabel.ToLowerInvariant()}.";
+
+                    return new AssistantCampaignDraftBindOutcome.Bound(
+                        new AssistantCampaignDraftBindFields(
+                            Channel: channel.Id,
+                            ChannelLabel: channel.Label,
+                            AudienceKey: audienceKey,
+                            AudienceLabel: ruleLabel,
+                            GoalId: goalId,
+                            TemplateId: templateId,
+                            Name: name,
+                            OfferStance: offer.Stance,
+                            OfferId: offer.OfferId,
+                            OfferLabel: offer.Label,
+                            OfferNote: offer.Note,
+                            LimitNote: limitNote,
+                        AudienceRequest: text
+                        )
+                    );
+                }
+
+                // Count is ambiguous without selection rule: ask user which selection rule to use
+                return new AssistantCampaignDraftBindOutcome.Gap(
+                    AssistantGapTurn.KindAudience,
+                    [
+                        $"The {cap} most recent eligible guests",
+                        $"The {cap} newest guests",
+                    ],
+                    $"Which {cap} guests should receive this Campaign? For example, the {cap} most recent eligible guests or the {cap} newest guests."
+                );
+            }
+
+            var channelNormal = ResolveChannel(lower, bindChoice.ChannelLabel);
+            if (channelNormal.Clash && bindChoice.ChannelLabel is null)
             {
                 return new AssistantCampaignDraftBindOutcome.Gap(
                     AssistantGapTurn.KindChannel,
@@ -191,46 +348,44 @@ namespace TummlyBackend.Helpers
                 );
             }
 
-            var guestCap = TryReadGuestCap(lower);
-            if (audiences.Count == 0
-                && guestCap is int blockedCap
-                && bindChoice.AudienceLabel is null
-                && !NamesAllEligiblePhrase(lower))
+            TryExtractExclusions(text, out var exclusions);
+
+            var normalGoalId = InferGoal(lower);
+            var normalAudienceKey = audiences.Count == 1
+                ? audiences[0]
+                : AudienceForUnnamedGoal(normalGoalId);
+            var normalAudienceLabel = AudienceLabels[normalAudienceKey];
+            string? normalLimitNote = null;
+
+            if (exclusions.Count > 0)
             {
-                return new AssistantCampaignDraftBindOutcome.UnevaluableAudience(
-                    GuestCountIsNotAudienceBody(blockedCap)
-                );
+                normalAudienceLabel = $"{normalAudienceLabel} (excluding {string.Join(", ", exclusions)})";
+                normalLimitNote = $"Excluding: {string.Join(", ", exclusions)}.";
             }
 
-            var goalId = InferGoal(lower);
-            var audienceKey = audiences.Count == 1
-                ? audiences[0]
-                : AudienceForUnnamedGoal(goalId);
-            var limitNote = guestCap is int appliedCap
-                ? GuestCountNotAppliedNote(appliedCap)
-                : null;
-            var templateId = ResolveTemplateId(text, templates);
-            var name = AssistantCampaignDraftName.Compose(
-                goalId,
-                channel.Id,
+            var normalTemplateId = ResolveTemplateId(text, templates);
+            var normalName = AssistantCampaignDraftName.Compose(
+                normalGoalId,
+                channelNormal.Id,
                 locationName,
-                audienceKey
+                normalAudienceKey
             );
 
             return new AssistantCampaignDraftBindOutcome.Bound(
                 new AssistantCampaignDraftBindFields(
-                    Channel: channel.Id,
-                    ChannelLabel: channel.Label,
-                    AudienceKey: audienceKey,
-                    AudienceLabel: AudienceLabels[audienceKey],
-                    GoalId: goalId,
-                    TemplateId: templateId,
-                    Name: name,
+                    Channel: channelNormal.Id,
+                    ChannelLabel: channelNormal.Label,
+                    AudienceKey: normalAudienceKey,
+                    AudienceLabel: normalAudienceLabel,
+                    GoalId: normalGoalId,
+                    TemplateId: normalTemplateId,
+                    Name: normalName,
                     OfferStance: offer.Stance,
                     OfferId: offer.OfferId,
                     OfferLabel: offer.Label,
                     OfferNote: offer.Note,
-                    LimitNote: limitNote
+                    LimitNote: normalLimitNote,
+                    AudienceRequest: text
                 )
             );
         }
@@ -261,7 +416,7 @@ namespace TummlyBackend.Helpers
             => AssistantGapAsk.ChannelAsk;
 
         public static string UnevaluableAudienceBody()
-            => "This audience cannot be evaluated yet. I did not save a Campaign Draft.";
+            => "Counts are unavailable for this audience. I did not create a Draft.";
 
         public static string GuestCountIsNotAudienceBody(int count)
             => $"A count of {count} guests is not a Campaign audience. "
@@ -281,7 +436,12 @@ namespace TummlyBackend.Helpers
         {
             var lower = message.Trim().ToLowerInvariant();
             return ResolveAudiences(lower, null).Count > 0
-                || NamesAllEligiblePhrase(lower);
+                || NamesAllEligiblePhrase(lower)
+                || TryExtractNamedGuests(message, out _)
+                || TryReadGuestCap(lower) is not null
+                || TryExtractExclusions(message, out _)
+                || lower.Contains("saved audience")
+                || lower.Contains("joined in the last");
         }
 
         public static bool NamesExplicitChannel(string message)
@@ -335,19 +495,200 @@ namespace TummlyBackend.Helpers
             }
 
             var match = GuestCapRegex().Match(message);
-            if (!match.Success
-                || !int.TryParse(
-                    match.Groups[1].Value,
-                    NumberStyles.Integer,
-                    CultureInfo.InvariantCulture,
-                    out var count
-                )
-                || count < 1)
+            if (!match.Success)
             {
                 return null;
             }
 
-            return count;
+            for (var i = 1; i < match.Groups.Count; i++)
+            {
+                if (match.Groups[i].Success
+                    && int.TryParse(
+                        match.Groups[i].Value,
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out var count
+                    )
+                    && count >= 1)
+                {
+                    return count;
+                }
+            }
+
+            return null;
+        }
+
+        public static bool TryResolveSelectionRule(
+            string lower,
+            int count,
+            string? chosenLabel,
+            out string ruleKey,
+            out string ruleLabel
+        )
+        {
+            ruleKey = "most-recent";
+            ruleLabel = $"The {count} most recent eligible guests";
+
+            if (!string.IsNullOrWhiteSpace(chosenLabel))
+            {
+                if (chosenLabel.Contains("newest", StringComparison.OrdinalIgnoreCase))
+                {
+                    ruleKey = "newest";
+                    ruleLabel = $"The {count} newest guests";
+                    return true;
+                }
+
+                if (chosenLabel.Contains("recent", StringComparison.OrdinalIgnoreCase))
+                {
+                    ruleKey = "most-recent";
+                    ruleLabel = $"The {count} most recent eligible guests";
+                    return true;
+                }
+
+                if (chosenLabel.Contains(count.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
+                {
+                    ruleKey = "most-recent";
+                    ruleLabel = chosenLabel.Trim();
+                    return true;
+                }
+            }
+
+            if (ContainsAny(lower, "newest", "recently joined", "new guests"))
+            {
+                ruleKey = "newest";
+                ruleLabel = $"The {count} newest guests";
+                return true;
+            }
+
+            if (ContainsAny(lower, "most recent", "recently visited", "latest", "recent"))
+            {
+                ruleKey = "most-recent";
+                ruleLabel = $"The {count} most recent eligible guests";
+                return true;
+            }
+
+            return false;
+        }
+
+        public static bool TryExtractNamedGuests(
+            string message,
+            out List<string> names
+        )
+        {
+            names = [];
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return false;
+            }
+
+            var patterns = new[]
+            {
+                @"^(?:please\s+)?(?:make|create|draft|prepare)\s+(?:me\s+)?(?:an?\s+)?(?:email\s+|sms\s+)?(?:campaign|capaign)(?:\s+draft)?\s+(?:to|for)\s+(?<who>[\p{L}\s,'\u2019&-]+?)(?:\s+only)?(?:\s+at\s+[\p{L}\s]+)?$",
+
+                @"^(?:send\s+to|draft\s+(?:an?\s+)?(?:email\s+|sms\s+)?campaign\s+(?:to|for)|audience\s+(?:to|is)|change\s+(?:the\s+)?audience\s+to|to)\s+(?<who>[\p{L}\s,'\u2019&-]+?)(?:\s+only)?(?:\s+at\s+[\p{L}\s]+)?$",
+                @"^(?<who>[\p{L}\s,'\u2019&-]+?)\s+only(?:\s+at\s+[\p{L}\s]+)?$",
+                @"\b(?:send\s+to|audience\s+(?:to|is))\s+(?<who>[\p{L}\s,'\u2019&-]+?)(?:\s+only)?(?:\s+at\s+[\p{L}\s]+)?$"
+            };
+
+            foreach (var pattern in patterns)
+            {
+                var match = Regex.Match(
+                    message.Trim().TrimEnd('.', '!', '?').TrimEnd(),
+                    pattern,
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+                );
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                var rawWho = match.Groups["who"].Value.Trim();
+                if (string.IsNullOrWhiteSpace(rawWho))
+                {
+                    continue;
+                }
+
+                var parts = Regex.Split(rawWho, @"\s+(?:and|&)\s+|,", RegexOptions.IgnoreCase)
+                    .Select(part => part.Trim()).Where(part => part.Length > 0).ToArray();
+
+                var candidateNames = new List<string>();
+                var allValid = parts.Length > 0;
+
+                foreach (var part in parts)
+                {
+                    var cleaned = part.Trim();
+                    if (cleaned.Length < 2 || cleaned.Length > 40)
+                    {
+                        allValid = false;
+                        break;
+                    }
+
+                    var words = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (words.Any(w => ReservedWords.Contains(w)))
+                    {
+                        allValid = false;
+                        break;
+                    }
+
+                    if (!words.All(w => w.All(c => char.IsLetter(c) || c == '\'' || c == '\u2019' || c == '-')))
+                    {
+                        allValid = false;
+                        break;
+                    }
+
+                    candidateNames.Add(cleaned);
+                }
+
+                if (allValid && candidateNames.Count > 0)
+                {
+                    names = candidateNames;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public static bool TryExtractExclusions(
+            string message,
+            out List<string> exclusions
+        )
+        {
+            exclusions = [];
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return false;
+            }
+
+            var match = Regex.Match(
+                message.Trim().TrimEnd('.', '!', '?').TrimEnd(),
+                @"\b(?:excluding|except|without)\s+(?<excluded>[\p{L}\s,'\u2019&-]+?)(?:\s+at\s+[\p{L}\s]+)?$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+            );
+            if (!match.Success)
+            {
+                return false;
+            }
+
+            var raw = match.Groups["excluded"].Value.Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return false;
+            }
+
+            var parts = Regex.Split(raw, @"\s+(?:and|&)\s+|,", RegexOptions.IgnoreCase)
+                .Select(part => part.Trim()).Where(part => part.Length > 0);
+
+            foreach (var part in parts)
+            {
+                var cleaned = part.Trim();
+                if (cleaned.Length >= 2 && !exclusions.Contains(cleaned, StringComparer.OrdinalIgnoreCase))
+                {
+                    exclusions.Add(cleaned);
+                }
+            }
+
+            return exclusions.Count > 0;
         }
 
         /// <summary>
@@ -538,6 +879,21 @@ namespace TummlyBackend.Helpers
             if (NamesAudience(lower, AudienceNegative))
             {
                 Add(AudienceNegative);
+            }
+
+            if (NamesAudience(lower, AudienceOfferNotRedeemed))
+            {
+                Add(AudienceOfferNotRedeemed);
+            }
+
+            if (NamesAudience(lower, AudienceRecentRedeemers))
+            {
+                Add(AudienceRecentRedeemers);
+            }
+
+            if (NamesAudience(lower, AudienceNoRecentActivity))
+            {
+                Add(AudienceNoRecentActivity);
             }
 
             var namedTighter = named
@@ -1005,7 +1361,7 @@ namespace TummlyBackend.Helpers
         private static partial Regex EmailEligibleRegex();
 
         [GeneratedRegex(
-            @"\b(\d+)\s+(?:email\s+|sms\s+)?guests?\b",
+            @"\b(?:audience\s+to\s+|limit\s+(?:to\s+)?|cap\s+(?:at\s+)?|only\s+)?(\d+)\s+(?:email\s+|sms\s+)?(?:(?:positive|negative)\s+feedback\s+)?guests?\b|\baudience\s+to\s+(\d+)(?:\s+only)?\b|\b(?:only\s+|to\s+)(\d+)\s+only\b|\b(\d+)\s+(?:most\s+recent|newest)\b|\bonly\s+(\d+)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
         )]
         private static partial Regex GuestCapRegex();

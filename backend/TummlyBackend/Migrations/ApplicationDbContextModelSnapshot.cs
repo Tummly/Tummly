@@ -663,6 +663,35 @@ namespace TummlyBackend.Migrations
                     b.ToTable("Campaigns");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.CampaignAudience", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DefinitionJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantLocationId", "Name")
+                        .IsUnique()
+                        .HasFilter("[Name] IS NOT NULL");
+
+                    b.ToTable("CampaignAudiences");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.CampaignFrozenRecipient", b =>
                 {
                     b.Property<int>("Id")
@@ -4860,6 +4889,15 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Offer");
 
                     b.Navigation("RestaurantLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.CampaignAudience", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", null)
+                        .WithMany()
+                        .HasForeignKey("RestaurantLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.CampaignFrozenRecipient", b =>

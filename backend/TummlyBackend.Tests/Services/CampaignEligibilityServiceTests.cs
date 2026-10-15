@@ -322,6 +322,113 @@ namespace TummlyBackend.Tests.Services
             _context.Dispose();
         }
 
+        [Fact]
+        public async Task CustomAudience_NamesAndExclusions_RestrictActualRecipients()
+        {
+            var location = await SeedLocationAsync();
+            var mohamed = await AddGuestAsync(location, "Mohamed", "m@example.com", null, false);
+            var sophie = await AddGuestAsync(location, "Sophie", "s@example.com", null, false);
+            await AddGuestAsync(location, "Other", "o@example.com", null, false);
+            var key = await CampaignAudienceStore.CreateAsync(_context, location.LocationId,
+                new CampaignAudienceDefinition { GuestNames = ["Mohamed", "Sophie"], ExcludedNames = ["Sophie"] }, null, default);
+            var ids = await _eligibility.ListChannelEligibleLocationGuestIdsAsync(location.LocationId, key, "email");
+            Assert.Equal(new[] { mohamed.LocationGuestId }, ids);
+            Assert.DoesNotContain(sophie.LocationGuestId, ids);
+        }
+
+        [Fact]
+        public async Task CustomAudience_LimitIsAppliedAfterConsent_AndRevalidated()
+        {
+            var location = await SeedLocationAsync();
+            await AddGuestAsync(location, "Withdrawn", "w@example.com", null, true);
+            var one = await AddGuestAsync(location, "First", "f@example.com", null, false, DateTime.UtcNow.AddDays(-1));
+            await AddGuestAsync(location, "Second", "s@example.com", null, false, DateTime.UtcNow.AddDays(-2));
+            var key = await CampaignAudienceStore.CreateAsync(_context, location.LocationId,
+                new CampaignAudienceDefinition { Limit = 1 }, "Recent eligible", default);
+            Assert.Equal(new[] { one.LocationGuestId }, await _eligibility.ListChannelEligibleLocationGuestIdsAsync(location.LocationId, key, "email"));
+            var preview = await _eligibility.EvaluateAsync(location.LocationId, key);
+            Assert.Equal(3, preview.Matched);
+            Assert.Equal(1, preview.EmailEligible);
+            var first = await _context.LocationGuests.FindAsync(one.LocationGuestId);
+            first!.MarketingPreference = LocationGuestMarketingPreference.OptedOut;
+            await _context.SaveChangesAsync();
+            Assert.DoesNotContain(one.LocationGuestId, await _eligibility.ListChannelEligibleLocationGuestIdsAsync(location.LocationId, key, "email"));
+        }
+
+        [Fact]
+        public async Task CustomAudience_CannotReadOrSelectAnotherLocationsGuests()
+        {
+            var first = await SeedLocationAsync();
+            var second = await SeedLocationAsync();
+            var guest = await AddGuestAsync(second, "Other venue", "o@example.com", null, false);
+            await Assert.ThrowsAsync<ArgumentException>(() => CampaignAudienceStore.CreateAsync(_context, first.LocationId,
+                new CampaignAudienceDefinition { GuestIds = [guest.LocationGuestId] }, null, default));
+            var key = await CampaignAudienceStore.CreateAsync(_context, first.LocationId, new CampaignAudienceDefinition(), "Mine", default);
+            await Assert.ThrowsAsync<ArgumentException>(() => _eligibility.EvaluateAsync(second.LocationId, key));
+        }
+
+        [Fact]
+        public async Task CustomAudience_AmbiguousAndMissingNames_DoNotBecomeAllGuests()
+        {
+            var location = await SeedLocationAsync();
+            await AddGuestAsync(location, "Sophie", "s1@example.com", null, false);
+            await AddGuestAsync(location, "Sophie", "s2@example.com", null, false);
+            foreach (var name in new[] { "Sophie", "Missing" })
+                await Assert.ThrowsAsync<ArgumentException>(() => CampaignAudienceStore.CreateAsync(_context, location.LocationId,
+                    new CampaignAudienceDefinition { GuestNames = [name] }, null, default));
+        }
+
+        [Fact]
+        public async Task SavedAudience_CustomDateFilter_IsReusedFromStoredDefinition()
+        {
+            var location = await SeedLocationAsync();
+            var recent = await AddGuestAsync(location, "Recent", "r@example.com", null, false);
+            await AddGuestAsync(location, "Old", "o@example.com", null, false, DateTime.UtcNow.AddDays(-60));
+            var key = await CampaignAudienceStore.CreateAsync(_context, location.LocationId,
+                new CampaignAudienceDefinition { JoinedFromUtc = DateTime.UtcNow.AddDays(-30) }, "Last month", default);
+            Assert.Equal(new[] { recent.LocationGuestId }, await _eligibility.ListChannelEligibleLocationGuestIdsAsync(location.LocationId, key, "email"));
+            Assert.Equal(DateTime.UtcNow.AddDays(-30).Date,
+                CampaignAudienceStore.Load(_context, location.LocationId, key).JoinedFromUtc!.Value.Date);
+            Assert.Equal("Last month", (await _context.CampaignAudiences.SingleAsync()).Name);
+        }
+
+        [Theory]
+        [InlineData("Draft an Email Campaign to Mohamed and Sophie only", 2)]
+        [InlineData("make capaign for Mohamed and Sophie", 2)]
+        [InlineData("Please create an Email Campaign for Mohamed and Sophie only.", 2)]
+        [InlineData("Change the audience to Mohamed and Sophie only", 2)]
+        [InlineData("Change the audience to Mohamed and Sophie only.", 2)]
+        [InlineData("Draft an Email Campaign to the 1 most recent eligible guests", 1)]
+        [InlineData("Draft an Email Campaign to all eligible guests excluding Sophie", 1)]
+        [InlineData("Draft an Email Campaign to all eligible guests except Sophie.", 1)]
+        public async Task AssistantAudience_ResolvedFieldsRestrictActualRecipients(string message, int count)
+        {
+            var location = await SeedLocationAsync();
+            await AddGuestAsync(location, "Mohamed", "m@example.com", null, false);
+            await AddGuestAsync(location, "Sophie", "s@example.com", null, false);
+            var bound = Assert.IsType<TummlyBackend.Helpers.AssistantCampaignDraftBindOutcome.Bound>(
+                TummlyBackend.Helpers.AssistantCampaignDraftBind.Resolve(message, "Main", [], []));
+            var fields = await CampaignAudienceStore.BindAsync(_context, location.LocationId, bound.Fields, default);
+            Assert.StartsWith("audience:", fields.AudienceKey);
+            Assert.Equal(count, (await _eligibility.ListChannelEligibleLocationGuestIdsAsync(location.LocationId, fields.AudienceKey, "email")).Count);
+        }
+
+        [Theory]
+        [InlineData("Create a campaign for Mary O’Brien")]
+        [InlineData("Change the audience to Mary O’Brien only.")]
+        [InlineData("Create a campaign for all eligible guests except Mohamed.")]
+        public async Task PunctuatedAudience_UsesOnlyTheRequestedRecipient(string request)
+        {
+            var location = await SeedLocationAsync();
+            var mary = await AddGuestAsync(location, "Mary O’Brien", "mary@example.com", null, false);
+            await AddGuestAsync(location, "Mohamed", "m@example.com", null, false);
+            var bound = Assert.IsType<TummlyBackend.Helpers.AssistantCampaignDraftBindOutcome.Bound>(
+                TummlyBackend.Helpers.AssistantCampaignDraftBind.Resolve(request, "Main", [], []));
+            var fields = await CampaignAudienceStore.BindAsync(_context, location.LocationId, bound.Fields, default);
+            Assert.Equal(new[] { mary.LocationGuestId },
+                await _eligibility.ListChannelEligibleLocationGuestIdsAsync(location.LocationId, fields.AudienceKey, "email"));
+        }
+
         private async Task<SeededLocation> SeedLocationAsync()
         {
             var user = new User

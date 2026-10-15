@@ -70,6 +70,8 @@ namespace TummlyBackend.Services
 
             CampaignProductAllowLists.EnsureOptionalGoalId(goalId);
             CampaignProductAllowLists.EnsureOptionalAudienceKey(audienceKey);
+            if (audienceKey != null && CampaignAudienceStore.IsKey(audienceKey))
+                CampaignAudienceStore.Load(_context, request.LocationId, audienceKey);
             CampaignProductAllowLists.EnsureOptionalChannel(channel);
             CampaignProductAllowLists.EnsureOptionalOfferStance(offerStance);
 
@@ -301,6 +303,8 @@ namespace TummlyBackend.Services
             {
                 var audienceKey = NormalizeOptional(request.AudienceKey);
                 CampaignProductAllowLists.EnsureOptionalAudienceKey(audienceKey);
+                if (audienceKey != null && CampaignAudienceStore.IsKey(audienceKey))
+                    CampaignAudienceStore.Load(_context, entity.RestaurantLocationId, audienceKey);
                 entity.AudienceKey = audienceKey;
             }
 

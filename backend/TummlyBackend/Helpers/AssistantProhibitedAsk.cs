@@ -53,8 +53,8 @@ namespace TummlyBackend.Helpers
                 && (
                     lower.Contains("another", StringComparison.Ordinal)
                     || lower.Contains("changed owner", StringComparison.Ordinal)
-                    || lower.Contains("new owner", StringComparison.Ordinal)
-                ))
+                    || lower.Contains("new owner", StringComparison.Ordinal))
+                )
             {
                 return "A second free Starter Kit waits until a new owner relationship is verified. Guest data is not copied.";
             }
@@ -134,7 +134,21 @@ namespace TummlyBackend.Helpers
             var place = match.Groups["place"].Value.Trim();
             if (place.Length == 0
                 || place.Equals("sms", StringComparison.OrdinalIgnoreCase)
-                || place.Equals("email", StringComparison.OrdinalIgnoreCase))
+                || place.Equals("email", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("sms", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("email", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("audience", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("channel", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("guest", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("eligible", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("draft", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("campaign", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("offer", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("feedback", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("send", StringComparison.OrdinalIgnoreCase)
+                || place.Contains("change", StringComparison.OrdinalIgnoreCase)
+                || place.Contains(" and ", StringComparison.OrdinalIgnoreCase)
+                || place.Contains(" & ", StringComparison.OrdinalIgnoreCase))
             {
                 return null;
             }

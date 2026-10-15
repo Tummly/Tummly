@@ -218,7 +218,7 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.Contains(
-                "cannot be evaluated yet",
+                "Counts are unavailable",
                 unevaluable.Body,
                 StringComparison.OrdinalIgnoreCase
             );
@@ -431,44 +431,89 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void EditForTenEmailGuestsWithNegativeFeedback_BindsThatAudience()
+        public void EditForTenEmailGuestsWithNegativeFeedback_AsksBeforeSelecting()
         {
-            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
-                AssistantCampaignDraftBind.Resolve(
-                    "Please, edit the campaign to be for 10 Email guests only that submitted negative feedback",
-                    "Camden street",
-                    [],
-                    []
-                )
-            );
-
-            Assert.Equal("email", bound.Fields.Channel);
-            Assert.Equal("negative-feedback", bound.Fields.AudienceKey);
-            Assert.Equal("Negative feedback", bound.Fields.AudienceLabel);
-            Assert.Equal("no-offer", bound.Fields.OfferStance);
-            Assert.Contains("10", bound.Fields.LimitNote, StringComparison.Ordinal);
-            Assert.Equal(
-                AssistantTask.CreateCampaignDraft,
-                AssistantTaskClassification.Classify(
-                    "Please, edit the campaign to be for 10 Email guests only that submitted negative feedback"
-                )
-            );
+            const string request = "Please, edit the campaign to be for 10 Email guests only that submitted negative feedback";
+            var gap = Assert.IsType<AssistantCampaignDraftBindOutcome.Gap>(
+                AssistantCampaignDraftBind.Resolve(request, "Camden street", [], []));
+            Assert.Equal(AssistantGapTurn.KindAudience, gap.Kind);
+            foreach (var option in gap.Options)
+            {
+                var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
+                    AssistantCampaignDraftBind.Resolve(request, "Camden street", [], [],
+                        new AssistantCampaignDraftBindChoice(AudienceLabel: option)));
+                Assert.Equal("email", bound.Fields.Channel);
+                Assert.Equal("negative-feedback", bound.Fields.AudienceKey);
+                Assert.Contains("10", bound.Fields.LimitNote);
+                Assert.Equal(request, bound.Fields.AudienceRequest);
+            }
         }
 
         [Fact]
-        public void OnlyTenGuests_IsNotAllEligible()
+        public void OnlyTenGuests_AsksWhichSelectionRuleToUse()
         {
-            var blocked = Assert.IsType<AssistantCampaignDraftBindOutcome.UnevaluableAudience>(
+            var outcome = AssistantCampaignDraftBind.Resolve(
+                "I want only 10 guests",
+                "Camden street",
+                [],
+                []
+            );
+
+            var gap = Assert.IsType<AssistantCampaignDraftBindOutcome.Gap>(outcome);
+            Assert.Equal(AssistantGapTurn.KindAudience, gap.Kind);
+            Assert.Contains("10", gap.Body, StringComparison.Ordinal);
+            Assert.Contains(gap.Options, opt => opt.Contains("most recent", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public void SelectTenMostRecentEligibleGuests_BindsDraftWithDisclosedRule()
+        {
+            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
                 AssistantCampaignDraftBind.Resolve(
-                    "I want only 10 guests",
-                    "Camden street",
+                    "Select the 10 most recent eligible guests at Camden",
+                    "Camden",
                     [],
                     []
                 )
             );
 
-            Assert.Contains("10", blocked.Body, StringComparison.Ordinal);
-            Assert.Contains("did not save", blocked.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("all-eligible-guests", bound.Fields.AudienceKey);
+            Assert.Equal("The 10 most recent eligible guests", bound.Fields.AudienceLabel);
+            Assert.Contains("10 most recent", bound.Fields.LimitNote, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void SendToMohamedAndSophieOnly_BindsSpecificNamedGuests()
+        {
+            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
+                AssistantCampaignDraftBind.Resolve(
+                    "Send to Mohamed and Sophie only at Camden",
+                    "Camden",
+                    [],
+                    []
+                )
+            );
+
+            Assert.Equal("all-eligible-guests", bound.Fields.AudienceKey);
+            Assert.Equal("Named guests: Mohamed, Sophie", bound.Fields.AudienceLabel);
+            Assert.Contains("Mohamed, Sophie", bound.Fields.LimitNote, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void AudienceWithExclusion_AttachesExclusionToAudienceAndNote()
+        {
+            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
+                AssistantCampaignDraftBind.Resolve(
+                    "Draft an Email campaign to all eligible guests excluding Mohamed at Camden",
+                    "Camden",
+                    [],
+                    []
+                )
+            );
+
+            Assert.Equal("all-eligible-guests", bound.Fields.AudienceKey);
+            Assert.Contains("excluding Mohamed", bound.Fields.AudienceLabel, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Mohamed", bound.Fields.LimitNote, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
