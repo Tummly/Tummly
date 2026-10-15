@@ -1,27 +1,7 @@
-import {
-  ASSISTANT_WAIT_ICON_CLASS,
-  ASSISTANT_WAIT_TEXT_CLASS,
-} from "@/lib/operatorAiAssistant/assistantWaitPresentation"
+import { useEffect, useRef, useState } from "react"
+import { ThoughtLine } from "@/components/ui/thought-line"
 
-function DaisySpinner({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <rect x="10.9" y="1.5" width="2.2" height="5" rx="1.1" transform="rotate(0 12 12)" />
-      <rect x="10.9" y="1.5" width="2.2" height="5" rx="1.1" transform="rotate(45 12 12)" />
-      <rect x="10.9" y="1.5" width="2.2" height="5" rx="1.1" transform="rotate(90 12 12)" />
-      <rect x="10.9" y="1.5" width="2.2" height="5" rx="1.1" transform="rotate(135 12 12)" />
-      <rect x="10.9" y="1.5" width="2.2" height="5" rx="1.1" transform="rotate(180 12 12)" />
-      <rect x="10.9" y="1.5" width="2.2" height="5" rx="1.1" transform="rotate(225 12 12)" />
-      <rect x="10.9" y="1.5" width="2.2" height="5" rx="1.1" transform="rotate(270 12 12)" />
-      <rect x="10.9" y="1.5" width="2.2" height="5" rx="1.1" transform="rotate(315 12 12)" />
-    </svg>
-  )
-}
+const MAX_TRACE_STEPS = 3
 
 type AssistantPreparingAnswerProps = {
   /** Live wait phrase from the turn pipeline (gerund / Retrieving / Preparing). */
@@ -32,20 +12,40 @@ export function AssistantPreparingAnswer({
   phrase,
 }: AssistantPreparingAnswerProps) {
   const label = phrase.trim() || "Preparing answer…"
+  /** Prior wait phrases only — current line stays on `label`. */
+  const [steps, setSteps] = useState<string[]>([])
+  const prevLabelRef = useRef(label)
+
+  useEffect(() => {
+    const prev = prevLabelRef.current
+    if (prev === label) return
+    setSteps((history) => {
+      const next = [...history, prev]
+      return next.length > MAX_TRACE_STEPS
+        ? next.slice(-MAX_TRACE_STEPS)
+        : next
+    })
+    prevLabelRef.current = label
+  }, [label])
 
   return (
-    <div
-      className="flex items-center gap-2.5"
-      role="status"
-      aria-live="polite"
-      aria-label={label}
-    >
-      <DaisySpinner className={ASSISTANT_WAIT_ICON_CLASS} />
-      <p className={ASSISTANT_WAIT_TEXT_CLASS}>
-        <span key={label} data-assistant-wait-phrase>
-          {label}
-        </span>
-      </p>
-    </div>
+    <ThoughtLine
+      working
+      label={label}
+      steps={steps}
+      doneLabel="Thought for"
+      glyph="sparkle"
+      fontSize={14}
+      breathPeriod={1.6}
+      breathDepth={0.45}
+      settleDuration={350}
+      settleBlur={2}
+      collapsible
+      collapseOnSettle
+      showTimer
+      color="var(--op-color-gray-550)"
+      glyphColor="var(--op-text-primary)"
+      className="text-op-assistant-list-title"
+    />
   )
 }
