@@ -1625,11 +1625,34 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync();
 
+            var sessionId = Guid.NewGuid();
+            var expiresAt = DateTime.UtcNow.Add(Helpers.DemoSessionClaims.DefaultTtl);
+            _context.DemoSessionRegistries.Add(
+                new Models.DemoSessionRegistry
+                {
+                    SessionId = sessionId,
+                    OwnerUserId = user.Id,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    ExpiresAtUtc = expiresAt,
+                }
+            );
+            await _context.SaveChangesAsync();
+
             var token =
                 _jwtService.GenerateToken(
                     user.Id.ToString(),
                     user.Email,
-                    user.Role
+                    user.Role,
+                    [
+                        new System.Security.Claims.Claim(
+                            Helpers.DemoSessionClaims.ClaimType,
+                            Helpers.DemoSessionClaims.ClaimValue
+                        ),
+                        new System.Security.Claims.Claim(
+                            Helpers.DemoSessionClaims.SessionIdClaimType,
+                            sessionId.ToString("D")
+                        ),
+                    ]
                 );
 
             return await BuildUserSessionPayloadAsync(

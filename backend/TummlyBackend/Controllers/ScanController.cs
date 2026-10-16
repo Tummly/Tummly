@@ -101,14 +101,23 @@ namespace TummlyBackend.Controllers
                 {
                     var location = live.Location;
 
-                    // First-party scan event for Performance overview QR scans KPI
+                    // First-party scan + form-open events for Capture / Reports KPIs
                     // (QR, shared Smart Guest Link, and operator Preview form).
+                    var openedAt = DateTime.UtcNow;
                     _context.QrScanEvents.Add(
                         new QrScanEvent
                         {
                             RestaurantLocationId = location.LocationId,
                             QrCodeId = location.QrCodeId,
-                            CreatedAt = DateTime.UtcNow
+                            CreatedAt = openedAt
+                        }
+                    );
+                    _context.QrFormOpenEvents.Add(
+                        new QrFormOpenEvent
+                        {
+                            RestaurantLocationId = location.LocationId,
+                            QrCodeId = location.QrCodeId,
+                            CreatedAt = openedAt
                         }
                     );
                     await _context.SaveChangesAsync();

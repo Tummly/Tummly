@@ -8,9 +8,19 @@ namespace TummlyBackend.Interfaces
             Admin admin
         );
         string GenerateToken(
-    string userId,
-    string email,
-    string role
-);
+            string userId,
+            string email,
+            string role
+        );
+
+        /// <summary>
+        /// Operator JWT with optional extra claims (e.g. product-demo session).
+        /// </summary>
+        string GenerateToken(
+            string userId,
+            string email,
+            string role,
+            IEnumerable<System.Security.Claims.Claim> extraClaims
+        );
     }
 }

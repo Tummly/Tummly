@@ -34,6 +34,7 @@ if (!string.IsNullOrWhiteSpace(port))
  =========================================
 */
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -141,6 +142,9 @@ builder.Services.Configure<ExternalAuthOptions>(
 builder.Services.Configure<DemoSessionOptions>(
     builder.Configuration.GetSection(DemoSessionOptions.SectionName)
 );
+builder.Services.AddSingleton<DemoSideEffectGuard>();
+builder.Services.AddScoped<DemoSessionOverlayService>();
+builder.Services.AddHostedService<DemoSessionOverlayCleanupBackgroundService>();
 
 builder.Services.Configure<IdealPostcodesSettings>(
     builder.Configuration.GetSection("IdealPostcodes")
@@ -580,7 +584,8 @@ builder.Services.AddScoped<CampaignOutboundEmailSender>();
 builder.Services.AddScoped<ICampaignOutboundSender>(sp =>
     new CampaignOutboundChannelSender(
         sp.GetRequiredService<CampaignOutboundEmailSender>(),
-        sp.GetRequiredService<IRecoveryGuestSmsDelivery>()
+        sp.GetRequiredService<IRecoveryGuestSmsDelivery>(),
+        sp.GetRequiredService<DemoSideEffectGuard>()
     )
 );
 builder.Services.AddScoped<
@@ -1260,6 +1265,7 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 
 app.UseMiddleware<ActivationGateMiddleware>();
+app.UseMiddleware<DemoSessionSideEffectMiddleware>();
 
 app.UseAuthorization();
 

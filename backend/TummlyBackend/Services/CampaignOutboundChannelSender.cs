@@ -1,3 +1,4 @@
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Services
@@ -10,14 +11,17 @@ namespace TummlyBackend.Services
     {
         private readonly ICampaignOutboundSender _email;
         private readonly IRecoveryGuestSmsDelivery _smsDelivery;
+        private readonly DemoSideEffectGuard _demoSideEffects;
 
         public CampaignOutboundChannelSender(
             ICampaignOutboundSender email,
-            IRecoveryGuestSmsDelivery smsDelivery
+            IRecoveryGuestSmsDelivery smsDelivery,
+            DemoSideEffectGuard demoSideEffects
         )
         {
             _email = email;
             _smsDelivery = smsDelivery;
+            _demoSideEffects = demoSideEffects;
         }
 
         public async Task<CampaignOutboundSendResult> SendAsync(
@@ -25,6 +29,15 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            if (_demoSideEffects.ShouldSuppressDestination(request.ToAddress))
+            {
+                return new CampaignOutboundSendResult.Accepted
+                {
+                    AcceptedUnits = 1,
+                    ProviderMessageId = "demo-suppressed",
+                };
+            }
+
             var channel = (request.Channel ?? string.Empty).Trim().ToLowerInvariant();
             if (channel == "email")
             {

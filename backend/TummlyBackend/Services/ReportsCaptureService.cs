@@ -217,6 +217,22 @@ namespace TummlyBackend.Services
                 )
             ).ToDictionary(r => r.QrCodeId, r => r.Count);
 
+            var formOpensByQr = await _context.QrFormOpenEvents
+                .AsNoTracking()
+                .Where(e =>
+                    e.QrCodeId != null
+                    && placementQrIds.Contains(e.QrCodeId.Value)
+                    && e.CreatedAt >= fromUtc
+                    && e.CreatedAt < toUtc
+                )
+                .GroupBy(e => e.QrCodeId!.Value)
+                .Select(g => new { QrCodeId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(
+                    row => row.QrCodeId,
+                    row => row.Count,
+                    cancellationToken
+                );
+
             var feedbackByQr = (
                 await _capture.GroupFeedbackByQrCodeAsync(
                     placementQrIds,
@@ -253,6 +269,7 @@ namespace TummlyBackend.Services
                 .Select(q =>
                 {
                     scansByQr.TryGetValue(q.Id, out var scans);
+                    formOpensByQr.TryGetValue(q.Id, out var formOpens);
                     feedbackByQr.TryGetValue(q.Id, out var feedback);
                     claimsByQr.TryGetValue(q.Id, out var claims);
                     double? conversion =
@@ -268,7 +285,7 @@ namespace TummlyBackend.Services
                         Name = PlacementName(q.QrType),
                         Status = q.Status.ToString(),
                         Scans = scans,
-                        FormOpens = null,
+                        FormOpens = formOpens,
                         Feedback = feedback.FeedbackSubmitted,
                         Contactable = feedback.MarketingOptIns,
                         Claims = claims,

@@ -99,6 +99,13 @@ namespace TummlyBackend.Services
             string userId,
             string email,
             string role
+        ) => GenerateToken(userId, email, role, Array.Empty<Claim>());
+
+        public string GenerateToken(
+            string userId,
+            string email,
+            string role,
+            IEnumerable<Claim> extraClaims
         )
         {
             var tokenHandler =
@@ -108,23 +115,26 @@ namespace TummlyBackend.Services
                 _jwtSettings.Secret
             );
 
-            var claims = new[]
+            var claims = new List<Claim>
             {
                 new Claim(
                     ClaimTypes.NameIdentifier,
                     userId
                 ),
-
                 new Claim(
                     ClaimTypes.Email,
                     email
                 ),
-
                 new Claim(
                     ClaimTypes.Role,
                     role
-                )
+                ),
             };
+
+            if (extraClaims != null)
+            {
+                claims.AddRange(extraClaims);
+            }
 
             var tokenDescriptor =
                 new SecurityTokenDescriptor

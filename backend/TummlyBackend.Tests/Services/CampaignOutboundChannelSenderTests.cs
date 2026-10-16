@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Services;
 
@@ -5,6 +8,17 @@ namespace TummlyBackend.Tests.Services
 {
     public class CampaignOutboundChannelSenderTests
     {
+        private static DemoSideEffectGuard NoSuppressGuard() =>
+            new(
+                Options.Create(
+                    new DemoSessionOptions
+                    {
+                        Enabled = false,
+                        SuppressSideEffects = false,
+                    }
+                )
+            );
+
         [Fact]
         public async Task SendAsync_Sms_Accepted_MapsTwilioSegmentsToAcceptedUnits()
         {
@@ -17,7 +31,8 @@ namespace TummlyBackend.Tests.Services
             };
             var sender = new CampaignOutboundChannelSender(
                 email: new RejectingEmailOutbound(),
-                smsDelivery: sms
+                smsDelivery: sms,
+                demoSideEffects: NoSuppressGuard()
             );
 
             var result = await sender.SendAsync(
@@ -51,7 +66,8 @@ namespace TummlyBackend.Tests.Services
             };
             var sender = new CampaignOutboundChannelSender(
                 email: new RejectingEmailOutbound(),
-                smsDelivery: sms
+                smsDelivery: sms,
+                demoSideEffects: NoSuppressGuard()
             );
 
             var result = await sender.SendAsync(
@@ -80,7 +96,8 @@ namespace TummlyBackend.Tests.Services
             var sms = new RecordingSmsDelivery();
             var sender = new CampaignOutboundChannelSender(
                 email: email,
-                smsDelivery: sms
+                smsDelivery: sms,
+                demoSideEffects: NoSuppressGuard()
             );
 
             var result = await sender.SendAsync(

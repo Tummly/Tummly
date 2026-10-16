@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using TummlyBackend.Configurations;
@@ -19,18 +20,28 @@ namespace TummlyBackend.Services
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
         private readonly IWebHostEnvironment _environment;
+        private readonly DemoSideEffectGuard _demoSideEffects;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ILogger<EmailService> _logger;
 
         public EmailService(
             IOptions<EmailSettings> emailSettings,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
-            IWebHostEnvironment environment
+            IWebHostEnvironment environment,
+            DemoSideEffectGuard demoSideEffects,
+            IHttpContextAccessor httpContextAccessor,
+            ILogger<EmailService>? logger = null
         )
         {
             _emailSettings = emailSettings.Value;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
             _environment = environment;
+            _demoSideEffects = demoSideEffects;
+            _httpContextAccessor = httpContextAccessor;
+            _logger = logger
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<EmailService>.Instance;
         }
 
         private bool UsesResend =>
@@ -88,6 +99,21 @@ namespace TummlyBackend.Services
             IReadOnlyDictionary<string, string>? tags = null
         )
         {
+            if (
+                DemoSessionClaims.IsDemoSession(
+                    _httpContextAccessor.HttpContext?.User
+                )
+                || _demoSideEffects.ShouldSuppressDestination(toEmail)
+            )
+            {
+                _logger.LogInformation(
+                    "Demo side-effect suppression: skipped Email to {ToEmail} subject={Subject}",
+                    toEmail,
+                    subject
+                );
+                return "demo-suppressed";
+            }
+
             var (html, images) = EmbedLoopbackChromeImages(
                 htmlBody,
                 inlineImages

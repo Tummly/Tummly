@@ -9,6 +9,9 @@ The public walkthrough uses `POST /api/auth/demo-session`, which signs in the fi
 - `DemoSession:Enabled`
 - `DemoSession:OwnerEmail`
 
+For the public Mavero Kitchen product demo, prefer
+`backend/tools/ProductDemoSeed` (owner `mavero.demo@qa-seed.tummly.invalid`).
+
 Development `DemoSession:OwnerEmail` must match an **existing** Single Pilot owner in the local DB (see `appsettings.Development.json`).
 
 ### One-time setup
