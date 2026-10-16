@@ -181,8 +181,10 @@ namespace TummlyBackend.Shop.MaterialsCatalog
         }
 
         /// <summary>
-        /// Inserts missing launch SKUs, remaps Offer Card → QR Counter Display,
-        /// and aligns titles / availability / tags for the five core products.
+        /// Inserts missing launch SKUs and remaps Offer Card → QR Counter Display.
+        /// Full commercial / availability seed runs on insert and on the one-time
+        /// upgrade to five products. Later startups only re-bind recipes so Admin
+        /// packs and AvailableInShop stay authoritative.
         /// </summary>
         private static async Task EnsureCoreSkusAsync(
             ApplicationDbContext context,
@@ -211,6 +213,9 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             );
             var now = DateTime.UtcNow;
             var changed = false;
+            var remappedOfferCard = false;
+            var hadTalker = bySkuId.ContainsKey("table-talker");
+            var hadGuestCards = bySkuId.ContainsKey("qr-guest-cards");
 
             if (
                 bySkuId.TryGetValue(LegacyOfferCardSkuId, out var legacyOfferSku)
@@ -220,6 +225,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 legacyOfferSku.SkuId = CounterDisplaySkuId;
                 bySkuId.Remove(LegacyOfferCardSkuId);
                 bySkuId[CounterDisplaySkuId] = legacyOfferSku;
+                remappedOfferCard = true;
                 changed = true;
             }
             else if (
@@ -242,7 +248,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 var commercial = ResolveCommercial(seed.SkuId, seed.UnitNetPence);
                 if (bySkuId.TryGetValue(seed.SkuId, out var existing))
                 {
-                    if (ApplySeedToSku(existing, seed, recipe, commercial, now, tagBySlug))
+                    if (SyncRecipeBinding(existing, recipe, now))
                     {
                         changed = true;
                     }
@@ -272,10 +278,77 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 changed = true;
             }
 
+            // One-time align when leaving the legacy three-SKU kit.
+            // Inserts already received ApplySeedToSku above; do not re-apply on
+            // steady-state startups or when only a single missing SKU is restored.
+            var upgradeToFive =
+                remappedOfferCard || !hadTalker || !hadGuestCards;
+            if (upgradeToFive)
+            {
+                foreach (var seed in SeedSkus())
+                {
+                    if (
+                        !recipeBySlug.TryGetValue(seed.RecipeSlug, out var recipe)
+                        || !bySkuId.TryGetValue(seed.SkuId, out var sku)
+                    )
+                    {
+                        continue;
+                    }
+
+                    var commercial = ResolveCommercial(
+                        seed.SkuId,
+                        seed.UnitNetPence
+                    );
+                    if (
+                        ApplySeedToSku(
+                            sku,
+                            seed,
+                            recipe,
+                            commercial,
+                            now,
+                            tagBySlug
+                        )
+                    )
+                    {
+                        changed = true;
+                    }
+                }
+            }
+
             if (changed)
             {
                 await context.SaveChangesAsync(cancellationToken);
             }
+        }
+
+        /// <summary>
+        /// Keeps denormalized recipe binding in sync without touching commercial fields.
+        /// </summary>
+        private static bool SyncRecipeBinding(
+            ShopMaterialSku sku,
+            PlacementRecipe recipe,
+            DateTime now
+        )
+        {
+            var changed = false;
+            if (sku.PlacementRecipeId != recipe.Id)
+            {
+                sku.PlacementRecipeId = recipe.Id;
+                changed = true;
+            }
+
+            if (sku.QrType != recipe.PlacementKey)
+            {
+                sku.QrType = recipe.PlacementKey;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                sku.UpdatedAtUtc = now;
+            }
+
+            return changed;
         }
 
         private static bool ApplySeedToSku(

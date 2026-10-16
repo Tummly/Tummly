@@ -23,8 +23,10 @@ namespace TummlyBackend.Services
             new(StringComparer.Ordinal)
             {
                 ["table-tents"] = QrType.TableTent,
+                ["table-talker"] = QrType.TableTalker,
                 ["window-stickers"] = QrType.WindowSticker,
                 ["qr-counter-display"] = QrType.OfferCard,
+                ["qr-guest-cards"] = QrType.GuestCard,
             };
 
         private readonly ApplicationDbContext _context;
@@ -355,6 +357,8 @@ namespace TummlyBackend.Services
                 QrType.TableTent => "table tent",
                 QrType.OfferCard => "offer card",
                 QrType.WindowSticker => "window sticker",
+                QrType.TableTalker => "table talker",
+                QrType.GuestCard => "guest card",
                 QrType.SmartGuest => "Smart Guest",
                 QrType.CounterCard => "counter card",
                 QrType.PackagingSticker => "packaging sticker",

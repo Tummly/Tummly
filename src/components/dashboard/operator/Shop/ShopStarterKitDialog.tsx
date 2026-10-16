@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 export const SHOP_MATERIALS_PACK_LINES = [
   { skuId: "table-tents", quantity: 10 },
   { skuId: "window-stickers", quantity: 5 },
-  { skuId: "offer-card", quantity: 5 },
+  { skuId: "qr-counter-display", quantity: 5 },
 ] as const
 
 type ShopMaterialsPackDialogProps = {
@@ -41,7 +41,7 @@ export function ShopMaterialsPackDialog({
       desc: "UV-resistant vinyl clings for entrances and front windows.",
     },
     {
-      title: "5× Offer Card",
+      title: "5× QR Counter Display",
       desc: "Compact cards for ordering, payment, or collection counters.",
     },
   ]

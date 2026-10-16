@@ -1022,16 +1022,20 @@ namespace TummlyBackend.Services
             qrType = catalogSkuId.Trim().ToLowerInvariant() switch
             {
                 "table-tents" => QrType.TableTent,
+                "table-talker" => QrType.TableTalker,
                 "window-stickers" => QrType.WindowSticker,
                 "offer-card" => QrType.OfferCard,
                 "qr-counter-display" => QrType.OfferCard,
+                "qr-guest-cards" => QrType.GuestCard,
                 _ => default,
             };
             return catalogSkuId.Trim().ToLowerInvariant()
                 is "table-tents"
+                    or "table-talker"
                     or "window-stickers"
                     or "offer-card"
-                    or "qr-counter-display";
+                    or "qr-counter-display"
+                    or "qr-guest-cards";
         }
 
         private async Task<bool> CanOpenStoredObjectAsync(
@@ -1190,8 +1194,10 @@ namespace TummlyBackend.Services
             qrType switch
             {
                 QrType.TableTent => "table-tent",
+                QrType.TableTalker => "table-talker",
                 QrType.WindowSticker => "window-sticker",
                 QrType.OfferCard => "offer-card",
+                QrType.GuestCard => "guest-card",
                 _ => qrType.ToString().ToLowerInvariant(),
             };
 
