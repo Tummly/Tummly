@@ -58,13 +58,13 @@ namespace TummlyBackend.Tests.Integration
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
                 "table-tents",
-                2
+                5
             );
             var second = await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
                 "table-tents",
-                5
+                10
             );
 
             Assert.Equal(HttpStatusCode.OK, second.StatusCode);
@@ -73,11 +73,11 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(1, lines.GetArrayLength());
             var line = lines[0];
             Assert.Equal("table-tents", line.GetProperty("skuId").GetString());
-            Assert.Equal(5, line.GetProperty("quantity").GetInt32());
+            Assert.Equal(10, line.GetProperty("quantity").GetInt32());
             Assert.Equal("Table Tent QR", line.GetProperty("title").GetString());
-            Assert.Equal(2400, line.GetProperty("unitNetPence").GetInt32());
-            Assert.Equal(12000, line.GetProperty("lineNetPence").GetInt32());
-            Assert.Equal(12000, body.GetProperty("materialsNetPence").GetInt32());
+            Assert.Equal(1699, line.GetProperty("unitNetPence").GetInt32());
+            Assert.Equal(1699, line.GetProperty("lineNetPence").GetInt32());
+            Assert.Equal(1699, body.GetProperty("materialsNetPence").GetInt32());
         }
 
         [Fact]
@@ -92,7 +92,7 @@ namespace TummlyBackend.Tests.Integration
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
                 "offer-card",
-                3
+                2
             );
 
             using var delete = AuthorizedDelete(
@@ -126,6 +126,25 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PutCartLine_Returns400_WhenPackQtyInvalid()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+
+            // Table Tent launch packs are 5 / 10 / 20 — 3 is not a pack.
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "table-tents",
+                3
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
         public async Task PutCartLine_Returns403_WhenAdminHasViewOnly()
         {
             var seeded = await SeedAdminWithShopViewAsync();
@@ -134,7 +153,7 @@ namespace TummlyBackend.Tests.Integration
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
                 "table-tents",
-                1
+                5
             );
 
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -152,13 +171,13 @@ namespace TummlyBackend.Tests.Integration
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
                 "table-tents",
-                2
+                5
             );
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.OutOfScopeLocationId,
                 "window-stickers",
-                4
+                2
             );
 
             using var firstRequest = AuthorizedGet(
@@ -178,14 +197,14 @@ namespace TummlyBackend.Tests.Integration
                 "table-tents",
                 first.GetProperty("lines")[0].GetProperty("skuId").GetString()
             );
-            Assert.Equal(2, first.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
+            Assert.Equal(5, first.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
 
             Assert.Equal(1, second.GetProperty("lines").GetArrayLength());
             Assert.Equal(
                 "window-stickers",
                 second.GetProperty("lines")[0].GetProperty("skuId").GetString()
             );
-            Assert.Equal(4, second.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
+            Assert.Equal(2, second.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
         }
 
         private async Task<HttpResponseMessage> PutLineAsync(

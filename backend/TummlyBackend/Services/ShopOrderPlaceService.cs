@@ -192,15 +192,17 @@ namespace TummlyBackend.Services
                 return priced.Error;
             }
 
+            var pricedLines = priced.Lines!;
+            var materialsNetPence = pricedLines.Sum(line => line.LineNetPence);
+            var standardDeliveryNetPence = pricedLines.Max(line => line.DeliveryNetPence);
             var deliveryNetPence = string.Equals(
                 request.DeliveryMethod,
                 ShopDeliveryMethods.Express,
                 StringComparison.Ordinal
             )
-                ? ExpressDeliveryNetPence
-                : 0;
+                ? checked(standardDeliveryNetPence + ExpressDeliveryNetPence)
+                : standardDeliveryNetPence;
 
-            var materialsNetPence = priced.Lines!.Sum(line => line.LineNetPence);
             var vatPence = TummlyVatMath.VatPenceFromNetPence(
                 materialsNetPence,
                 _sellerVat.EffectiveVatRateBps
@@ -440,25 +442,32 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                if (raw.Quantity < detail.MinOrderQty)
+                if (
+                    !ShopMaterialPacks.TryResolve(
+                        detail.Packs,
+                        raw.Quantity,
+                        out var pack
+                    )
+                    || pack == null
+                )
                 {
                     return (
                         null,
                         ShopOrderPlaceResult.Fail(
                             "invalid_quantity",
-                            $"Quantity for '{raw.SkuId}' is below minOrderQty."
+                            $"Quantity for '{raw.SkuId}' is not a valid pack size."
                         )
                     );
                 }
 
-                var lineNet = checked(detail.UnitNetPence * raw.Quantity);
                 priced.Add(new PricedLine(
                     detail.SkuId,
                     detail.Title,
                     MapMaterialType(detail.SkuId, detail.Category),
                     raw.Quantity,
-                    detail.UnitNetPence,
-                    lineNet
+                    pack.NetPence,
+                    pack.NetPence,
+                    detail.DeliveryNetPence
                 ));
             }
 
@@ -498,7 +507,8 @@ namespace TummlyBackend.Services
             string MaterialType,
             int Quantity,
             int UnitNetPence,
-            int LineNetPence
+            int LineNetPence,
+            int DeliveryNetPence
         );
     }
 }

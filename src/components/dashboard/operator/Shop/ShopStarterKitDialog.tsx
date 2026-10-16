@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button"
 /** Named paid materials-pack SKU quantities (not lifetime Starter kit). */
 export const SHOP_MATERIALS_PACK_LINES = [
   { skuId: "table-tents", quantity: 10 },
-  { skuId: "window-stickers", quantity: 4 },
-  { skuId: "offer-card", quantity: 50 },
+  { skuId: "window-stickers", quantity: 5 },
+  { skuId: "offer-card", quantity: 5 },
 ] as const
 
 type ShopMaterialsPackDialogProps = {
@@ -37,11 +37,11 @@ export function ShopMaterialsPackDialog({
       desc: "Double-sided matte acrylic tents with your custom location QR code.",
     },
     {
-      title: "4× Window Sticker QR",
+      title: "5× Window Sticker QR",
       desc: "UV-resistant vinyl clings for entrances and front windows.",
     },
     {
-      title: "50× Offer Card",
+      title: "5× Offer Card",
       desc: "Compact cards for ordering, payment, or collection counters.",
     },
   ]

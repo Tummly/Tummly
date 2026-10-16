@@ -68,6 +68,16 @@ namespace TummlyBackend.DTOs.Admin
 
         public int MinOrderQty { get; init; }
 
+        public IReadOnlyList<ShopMaterialPackRow> Packs { get; init; } = [];
+
+        public int DeliveryNetPence { get; init; }
+
+        /// <summary>Admin-only.</summary>
+        public string? SupplierName { get; init; }
+
+        /// <summary>Admin-only internal cost in pence.</summary>
+        public int? InternalCostNetPence { get; init; }
+
         public required string Currency { get; init; }
 
         public bool MintOnShopFulfilment { get; init; }
@@ -109,9 +119,20 @@ namespace TummlyBackend.DTOs.Admin
         /// <summary>Required on create. Ignored on update (recipe cannot change).</summary>
         public int? PlacementRecipeId { get; init; }
 
+        /// <summary>
+        /// Optional when <see cref="Packs"/> is set (derived as lowest pack).
+        /// </summary>
         public int? UnitNetPence { get; init; }
 
         public int? MinOrderQty { get; init; }
+
+        public List<ShopMaterialPackRow>? Packs { get; init; }
+
+        public int? DeliveryNetPence { get; init; }
+
+        public string? SupplierName { get; init; }
+
+        public int? InternalCostNetPence { get; init; }
 
         public string? Currency { get; init; }
 

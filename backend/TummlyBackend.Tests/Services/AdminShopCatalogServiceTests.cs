@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
+using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Shop.MaterialsCatalog;
@@ -178,6 +179,48 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Null(publishOkError);
             Assert.Equal("Published", published!.Status);
+        }
+
+        [Fact]
+        public async Task Update_RoundTripsPacksDeliveryAndAdminOnlyCost()
+        {
+            var (updated, error) = await _service.UpdateSkuAsync(
+                "table-tents",
+                new AdminShopCatalogSkuWriteRequest
+                {
+                    Packs =
+                    [
+                        new ShopMaterialPackRow { Qty = 5, NetPence = 999 },
+                        new ShopMaterialPackRow { Qty = 10, NetPence = 1699 },
+                        new ShopMaterialPackRow { Qty = 20, NetPence = 2999 },
+                    ],
+                    DeliveryNetPence = 399,
+                    SupplierName = "PrintCo UK",
+                    InternalCostNetPence = 450,
+                }
+            );
+
+            Assert.Null(error);
+            Assert.NotNull(updated);
+            Assert.Equal(3, updated!.Packs.Count);
+            Assert.Equal(5, updated.Packs[0].Qty);
+            Assert.Equal(999, updated.Packs[0].NetPence);
+            Assert.Equal(999, updated.UnitNetPence);
+            Assert.Equal(5, updated.MinOrderQty);
+            Assert.Equal(399, updated.DeliveryNetPence);
+            Assert.Equal("PrintCo UK", updated.SupplierName);
+            Assert.Equal(450, updated.InternalCostNetPence);
+
+            var catalog = new DbMaterialsCatalog(_context);
+            var detail = catalog.TryBuildDetail("table-tents");
+            Assert.NotNull(detail);
+            Assert.Equal(999, detail!.UnitNetPence);
+            Assert.Equal(399, detail.DeliveryNetPence);
+            Assert.Equal(3, detail.Packs.Count);
+            // Operator catalog must not expose admin-only cost fields.
+            var json = System.Text.Json.JsonSerializer.Serialize(detail);
+            Assert.DoesNotContain("supplier", json, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("internalCost", json, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]

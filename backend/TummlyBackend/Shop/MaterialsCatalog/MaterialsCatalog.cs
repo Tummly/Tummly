@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using TummlyBackend.DTOs.Shop;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Shop.MaterialsCatalog
@@ -218,6 +219,10 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 tags.Add(sku.PopularBadge);
             }
 
+            var packs = ShopMaterialPacks.SinglePack(
+                Math.Max(1, sku.MinOrderQty),
+                sku.UnitNetPence
+            );
             return new ShopCatalogListItemDto
             {
                 SkuId = sku.SkuId,
@@ -225,6 +230,8 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 Category = sku.Category,
                 Description = sku.Description,
                 UnitNetPence = sku.UnitNetPence,
+                Packs = packs,
+                DeliveryNetPence = 0,
                 Currency = sku.Currency,
                 ImageUrl = sku.ImageUrl,
                 ImageUrls = string.IsNullOrWhiteSpace(sku.ImageUrl)
@@ -260,6 +267,8 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 Material = sku.Material,
                 Dimensions = sku.Dimensions,
                 MinOrderQty = sku.MinOrderQty,
+                Packs = list.Packs,
+                DeliveryNetPence = list.DeliveryNetPence,
                 CatalogVersion = catalogId,
                 MintOnShopFulfilment = sku.MintOnShopFulfilment,
                 AboutBody = string.Empty,

@@ -14,6 +14,10 @@ namespace TummlyBackend.DTOs.Shop
 
         public int UnitNetPence { get; init; }
 
+        public IReadOnlyList<ShopMaterialPackRow> Packs { get; init; } = [];
+
+        public int DeliveryNetPence { get; init; }
+
         public required string Currency { get; init; }
 
         public required string ImageUrl { get; init; }
@@ -60,6 +64,10 @@ namespace TummlyBackend.DTOs.Shop
         public required string Dimensions { get; init; }
 
         public int MinOrderQty { get; init; }
+
+        public IReadOnlyList<ShopMaterialPackRow> Packs { get; init; } = [];
+
+        public int DeliveryNetPence { get; init; }
 
         public required string CatalogVersion { get; init; }
 

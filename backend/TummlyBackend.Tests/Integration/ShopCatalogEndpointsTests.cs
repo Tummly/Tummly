@@ -59,7 +59,9 @@ namespace TummlyBackend.Tests.Integration
                     row.GetProperty("skuId").GetString() == "table-tents"
                 );
             Assert.Equal("Table Tent QR", tableTents.GetProperty("title").GetString());
-            Assert.Equal(2400, tableTents.GetProperty("unitNetPence").GetInt32());
+            Assert.Equal(999, tableTents.GetProperty("unitNetPence").GetInt32());
+            Assert.Equal(3, tableTents.GetProperty("packs").GetArrayLength());
+            Assert.Equal(399, tableTents.GetProperty("deliveryNetPence").GetInt32());
             Assert.Equal("TableTent", tableTents.GetProperty("qrType").GetString());
 
             // All three launch SKUs ship in the complimentary Guest Loop kit.

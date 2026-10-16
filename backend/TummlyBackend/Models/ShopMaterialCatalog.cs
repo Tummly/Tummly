@@ -119,9 +119,36 @@ namespace TummlyBackend.Models
 
         public PlacementRecipe PlacementRecipe { get; set; } = null!;
 
+        /// <summary>
+        /// Denormalized catalog "From" price = lowest pack <c>netPence</c>.
+        /// </summary>
         public int UnitNetPence { get; set; }
 
+        /// <summary>
+        /// Back-compat minimum; kept as <c>min(pack.qty)</c>. Cart validates pack tiers only.
+        /// </summary>
         public int MinOrderQty { get; set; } = 1;
+
+        /// <summary>
+        /// JSON array of { "qty", "netPence" } pack tiers (pack shop price, not per-unit).
+        /// </summary>
+        public string PacksJson { get; set; } = "[]";
+
+        /// <summary>
+        /// Standard delivery net for this SKU (pence).
+        /// </summary>
+        public int DeliveryNetPence { get; set; }
+
+        /// <summary>
+        /// Admin-only supplier label. Never exposed on operator catalog DTOs.
+        /// </summary>
+        [MaxLength(200)]
+        public string? SupplierName { get; set; }
+
+        /// <summary>
+        /// Admin-only internal cost (pence). Never exposed on operator catalog DTOs.
+        /// </summary>
+        public int? InternalCostNetPence { get; set; }
 
         [Required]
         [MaxLength(8)]

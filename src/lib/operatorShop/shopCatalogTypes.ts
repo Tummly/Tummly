@@ -12,6 +12,11 @@ export type ShopProductSpecification = {
   value: string
 }
 
+export type ShopProductPack = {
+  qty: number
+  netPence: number
+}
+
 export type ShopProduct = {
   id: string
   title: string
@@ -25,6 +30,8 @@ export type ShopProduct = {
   qrType: CapturePlacementQrType
   catalogVersion: string
   minOrderQty: number
+  packs: ShopProductPack[]
+  deliveryNetPence: number
   mintOnShopFulfilment: boolean
   isPlanIncluded?: boolean
   popularBadge?: string
@@ -41,6 +48,8 @@ export type ShopCatalogListItemWire = {
   category: ShopCatalogCategory
   description: string
   unitNetPence: number
+  packs?: ShopProductPack[] | null
+  deliveryNetPence?: number | null
   currency: string
   imageUrl: string
   imageUrls?: string[] | null
@@ -54,6 +63,8 @@ export type ShopCatalogDetailWire = ShopCatalogListItemWire & {
   material: string
   dimensions: string
   minOrderQty: number
+  packs?: ShopProductPack[] | null
+  deliveryNetPence?: number | null
   catalogVersion: string
   mintOnShopFulfilment: boolean
   aboutBody?: string | null

@@ -3843,6 +3843,9 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("nvarchar(8)");
 
+                    b.Property<int>("DeliveryNetPence")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -3852,6 +3855,9 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
+
+                    b.Property<int?>("InternalCostNetPence")
+                        .HasColumnType("int");
 
                     b.Property<string>("Material")
                         .IsRequired()
@@ -3863,6 +3869,10 @@ namespace TummlyBackend.Migrations
 
                     b.Property<bool>("MintOnShopFulfilment")
                         .HasColumnType("bit");
+
+                    b.Property<string>("PacksJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("PlacementRecipeId")
                         .HasColumnType("int");
@@ -3888,6 +3898,10 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("SupplierName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Title")
                         .IsRequired()

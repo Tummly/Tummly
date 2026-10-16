@@ -16,6 +16,7 @@ import {
   updateAdminShopCatalogSku,
   uploadAdminShopCatalogImage,
   type AdminPlacementRecipe,
+  type AdminShopCatalogPack,
   type AdminShopCatalogSku,
   type AdminShopCatalogSpecification,
   type AdminShopCatalogTag,
@@ -76,6 +77,11 @@ const CATEGORY_BY_PLACEMENT_KEY: Record<string, string> = {
   OfferCard: "payment",
 }
 
+type EditorPackRow = {
+  qty: string
+  netPence: string
+}
+
 type EditorState = {
   skuId: string
   title: string
@@ -85,8 +91,10 @@ type EditorState = {
   dimensions: string
   placementRecipeId: number
   placementRecipeLabel: string
-  unitNetPence: string
-  minOrderQty: string
+  packs: EditorPackRow[]
+  deliveryNetPence: string
+  supplierName: string
+  internalCostNetPence: string
   aboutBody: string
   specifications: AdminShopCatalogSpecification[]
   tagIds: number[]
@@ -106,8 +114,10 @@ function emptyEditor(recipe: AdminPlacementRecipe): EditorState {
     dimensions: "",
     placementRecipeId: recipe.id,
     placementRecipeLabel: recipe.label,
-    unitNetPence: "1800",
-    minOrderQty: "1",
+    packs: [{ qty: "1", netPence: "999" }],
+    deliveryNetPence: "299",
+    supplierName: "",
+    internalCostNetPence: "",
     aboutBody: "",
     specifications: [{ label: "", value: "" }],
     tagIds: [],
@@ -119,6 +129,13 @@ function emptyEditor(recipe: AdminPlacementRecipe): EditorState {
 }
 
 function editorFromSku(sku: AdminShopCatalogSku): EditorState {
+  const packs: EditorPackRow[] =
+    sku.packs.length > 0
+      ? sku.packs.map((pack) => ({
+          qty: String(pack.qty),
+          netPence: String(pack.netPence),
+        }))
+      : [{ qty: String(sku.minOrderQty), netPence: String(sku.unitNetPence) }]
   return {
     skuId: sku.skuId,
     title: sku.title,
@@ -128,8 +145,11 @@ function editorFromSku(sku: AdminShopCatalogSku): EditorState {
     dimensions: sku.dimensions,
     placementRecipeId: sku.placementRecipeId,
     placementRecipeLabel: sku.placementRecipeLabel,
-    unitNetPence: String(sku.unitNetPence),
-    minOrderQty: String(sku.minOrderQty),
+    packs,
+    deliveryNetPence: String(sku.deliveryNetPence),
+    supplierName: sku.supplierName ?? "",
+    internalCostNetPence:
+      sku.internalCostNetPence == null ? "" : String(sku.internalCostNetPence),
     aboutBody: sku.aboutBody,
     specifications:
       sku.specifications.length > 0
@@ -141,6 +161,23 @@ function editorFromSku(sku: AdminShopCatalogSku): EditorState {
     images: sku.images,
     status: sku.status,
   }
+}
+
+function parseEditorPacks(
+  rows: EditorPackRow[]
+): AdminShopCatalogPack[] | null {
+  const packs: AdminShopCatalogPack[] = []
+  for (const row of rows) {
+    const qty = Number(row.qty)
+    const netPence = Number(row.netPence)
+    if (!Number.isFinite(qty) || qty < 1) return null
+    if (!Number.isFinite(netPence) || netPence < 0) return null
+    packs.push({ qty, netPence })
+  }
+  if (packs.length === 0) return null
+  const unique = new Set(packs.map((pack) => pack.qty))
+  if (unique.size !== packs.length) return null
+  return packs
 }
 
 function apiErrorMessage(error: unknown, fallback: string) {
@@ -187,14 +224,24 @@ export function AdminShopCatalogPanel() {
 
   const saveEditor = async () => {
     if (!editor) return
-    const unitNetPence = Number(editor.unitNetPence)
-    const minOrderQty = Number(editor.minOrderQty)
-    if (!Number.isFinite(unitNetPence) || unitNetPence < 0) {
-      toast.error("Enter a valid unit price in pence.")
+    const packs = parseEditorPacks(editor.packs)
+    if (!packs) {
+      toast.error("Enter valid unique pack quantities and prices in pence.")
       return
     }
-    if (!Number.isFinite(minOrderQty) || minOrderQty < 1) {
-      toast.error("Minimum order quantity must be at least 1.")
+    const deliveryNetPence = Number(editor.deliveryNetPence)
+    if (!Number.isFinite(deliveryNetPence) || deliveryNetPence < 0) {
+      toast.error("Enter a valid delivery price in pence.")
+      return
+    }
+    const internalCostRaw = editor.internalCostNetPence.trim()
+    const internalCostNetPence =
+      internalCostRaw.length === 0 ? null : Number(internalCostRaw)
+    if (
+      internalCostNetPence != null &&
+      (!Number.isFinite(internalCostNetPence) || internalCostNetPence < 0)
+    ) {
+      toast.error("Enter a valid internal cost in pence.")
       return
     }
 
@@ -206,8 +253,10 @@ export function AdminShopCatalogPanel() {
         description: editor.description,
         material: editor.material,
         dimensions: editor.dimensions,
-        unitNetPence,
-        minOrderQty,
+        packs,
+        deliveryNetPence,
+        supplierName: editor.supplierName.trim() || null,
+        internalCostNetPence,
         aboutBody: editor.aboutBody,
         specifications: editor.specifications.filter(
           (row) => row.label.trim() || row.value.trim()
@@ -587,30 +636,104 @@ export function AdminShopCatalogPanel() {
                     </p>
                   </div>
                 </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Pack tiers (qty + pack price in pence)</Label>
+                  {editor.packs.map((row, index) => (
+                    <div key={index} className="flex gap-2">
+                      <FloatingLabelInput
+                        label="Pack qty"
+                        inputMode="numeric"
+                        className="min-w-0 flex-1"
+                        value={row.qty}
+                        onChange={(event) => {
+                          const next = [...editor.packs]
+                          next[index] = { ...row, qty: event.target.value }
+                          setEditor({ ...editor, packs: next })
+                        }}
+                      />
+                      <FloatingLabelInput
+                        label="Pack price (pence)"
+                        inputMode="numeric"
+                        className="min-w-0 flex-1"
+                        value={row.netPence}
+                        onChange={(event) => {
+                          const next = [...editor.packs]
+                          next[index] = {
+                            ...row,
+                            netPence: event.target.value,
+                          }
+                          setEditor({ ...editor, packs: next })
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="mt-1 shrink-0"
+                        onClick={() =>
+                          setEditor({
+                            ...editor,
+                            packs: editor.packs.filter((_, i) => i !== index),
+                          })
+                        }
+                      >
+                        <Trash2Icon className="size-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="op-secondary"
+                    size="sm"
+                    className="w-fit"
+                    onClick={() =>
+                      setEditor({
+                        ...editor,
+                        packs: [...editor.packs, { qty: "", netPence: "" }],
+                      })
+                    }
+                  >
+                    Add pack tier
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Catalog “From £” uses the lowest pack price. Min order qty
+                    syncs to the smallest pack qty.
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <FloatingLabelInput
-                    label="Unit price (pence)"
+                    label="Delivery (pence)"
                     inputMode="numeric"
-                    value={editor.unitNetPence}
+                    value={editor.deliveryNetPence}
                     onChange={(event) =>
                       setEditor({
                         ...editor,
-                        unitNetPence: event.target.value,
+                        deliveryNetPence: event.target.value,
                       })
                     }
                   />
                   <FloatingLabelInput
-                    label="Min order qty"
-                    inputMode="numeric"
-                    value={editor.minOrderQty}
+                    label="Supplier (admin only)"
+                    value={editor.supplierName}
                     onChange={(event) =>
                       setEditor({
                         ...editor,
-                        minOrderQty: event.target.value,
+                        supplierName: event.target.value,
                       })
                     }
                   />
                 </div>
+                <FloatingLabelInput
+                  label="Internal cost (pence, admin only)"
+                  inputMode="numeric"
+                  value={editor.internalCostNetPence}
+                  onChange={(event) =>
+                    setEditor({
+                      ...editor,
+                      internalCostNetPence: event.target.value,
+                    })
+                  }
+                />
                 <FloatingLabelTextarea
                   label="About (product page)"
                   value={editor.aboutBody}

@@ -61,6 +61,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             await BackfillSkuRecipesAsync(context, cancellationToken);
             if (await context.ShopMaterialSkus.AnyAsync(cancellationToken))
             {
+                await BackfillPacksAndDeliveryAsync(context, cancellationToken);
                 return;
             }
 
@@ -85,6 +86,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                     continue;
                 }
 
+                var commercial = ResolveCommercial(seed.SkuId, seed.UnitNetPence);
                 var sku = new ShopMaterialSku
                 {
                     SkuId = seed.SkuId,
@@ -95,8 +97,10 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                     Dimensions = seed.Dimensions,
                     PlacementRecipeId = recipe.Id,
                     QrType = recipe.PlacementKey,
-                    UnitNetPence = seed.UnitNetPence,
-                    MinOrderQty = seed.MinOrderQty,
+                    PacksJson = ShopMaterialPacks.Serialize(commercial.Packs),
+                    DeliveryNetPence = commercial.DeliveryNetPence,
+                    UnitNetPence = ShopMaterialPacks.LowestNetPence(commercial.Packs),
+                    MinOrderQty = ShopMaterialPacks.LowestQty(commercial.Packs),
                     Currency = seed.Currency,
                     MintOnShopFulfilment = seed.MintOnShopFulfilment
                         ?? recipe.MintOnFulfilmentDefault,
@@ -193,6 +197,56 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             {
                 await context.SaveChangesAsync(cancellationToken);
             }
+        }
+
+        /// <summary>
+        /// Fills empty PacksJson from launch PRD defaults (or a single UnitNetPence pack).
+        /// </summary>
+        private static async Task BackfillPacksAndDeliveryAsync(
+            ApplicationDbContext context,
+            CancellationToken cancellationToken
+        )
+        {
+            var skus = await context.ShopMaterialSkus.ToListAsync(cancellationToken);
+            var changed = false;
+            foreach (var sku in skus)
+            {
+                var packs = ShopMaterialPacks.Parse(sku.PacksJson);
+                if (packs.Count > 0)
+                {
+                    continue;
+                }
+
+                var commercial = ResolveCommercial(sku.SkuId, sku.UnitNetPence);
+                sku.PacksJson = ShopMaterialPacks.Serialize(commercial.Packs);
+                sku.DeliveryNetPence = commercial.DeliveryNetPence;
+                sku.UnitNetPence = ShopMaterialPacks.LowestNetPence(commercial.Packs);
+                sku.MinOrderQty = ShopMaterialPacks.LowestQty(commercial.Packs);
+                sku.UpdatedAtUtc = DateTime.UtcNow;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        private static ShopLaunchCommercialDefaults.LaunchCommercial ResolveCommercial(
+            string skuId,
+            int fallbackUnitNetPence
+        )
+        {
+            if (ShopLaunchCommercialDefaults.TryForSkuId(skuId, out var commercial))
+            {
+                return commercial;
+            }
+
+            return new ShopLaunchCommercialDefaults.LaunchCommercial(
+                skuId,
+                ShopMaterialPacks.SinglePack(1, Math.Max(0, fallbackUnitNetPence)),
+                DeliveryNetPence: 0
+            );
         }
 
         /// <summary>

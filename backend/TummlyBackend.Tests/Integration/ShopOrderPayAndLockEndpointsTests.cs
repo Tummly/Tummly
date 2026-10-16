@@ -450,7 +450,7 @@ namespace TummlyBackend.Tests.Integration
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
                 "table-tents",
-                2
+                 5
             );
             Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
             var body = await ReadJsonAsync(put);
@@ -472,9 +472,9 @@ namespace TummlyBackend.Tests.Integration
                 new
                 {
                     locationId = seeded.InScopeLocationId,
-                    lines = new[] { new { skuId = "table-tents", quantity = 2 } },
+                    lines = new[] { new { skuId = "table-tents", quantity = 5 } },
                     deliveryMethod = "standard",
-                    expectedGrossPence = 5760,
+                    expectedGrossPence = 1598,
                     shipTo = ValidShipTo(),
                 }
             );
@@ -518,7 +518,7 @@ namespace TummlyBackend.Tests.Integration
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
                 "table-tents",
-                2
+                 5
             );
             Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
             var body = await ReadJsonAsync(put);
@@ -535,7 +535,7 @@ namespace TummlyBackend.Tests.Integration
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
                 "table-tents",
-                2
+                 5
             );
             Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
             var putBody = await ReadJsonAsync(put);
@@ -578,9 +578,9 @@ namespace TummlyBackend.Tests.Integration
                 new
                 {
                     locationId = seeded.InScopeLocationId,
-                    lines = new[] { new { skuId = "table-tents", quantity = 2 } },
+                    lines = new[] { new { skuId = "table-tents", quantity = 5 } },
                     deliveryMethod = "standard",
-                    expectedGrossPence = 5760,
+                    expectedGrossPence = 1598,
                     shipTo = ValidShipTo(),
                 }
             );
@@ -619,9 +619,9 @@ namespace TummlyBackend.Tests.Integration
                 new
                 {
                     locationId,
-                    lines = new[] { new { skuId = "table-tents", quantity = 2 } },
+                    lines = new[] { new { skuId = "table-tents", quantity = 5 } },
                     deliveryMethod = "standard",
-                    expectedGrossPence = 5760,
+                    expectedGrossPence = 1598,
                     shipTo = ValidShipTo(),
                 }
             );

@@ -35,16 +35,16 @@ namespace TummlyBackend.Tests.Integration
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
                 "table-tents",
-                2
+                5
             );
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
                 "window-stickers",
-                4
+                2
             );
 
-            // materials: 2*2400 + 4*1400 = 10400; vat 2080; delivery 0; gross 12480
+            // packs: tents 5@999 + window 2@799 = 1798; vat 360; delivery max 399; gross 2557
             var place = await PlaceOrderAsync(
                 seeded.MemberJwt,
                 new
@@ -52,7 +52,7 @@ namespace TummlyBackend.Tests.Integration
                     locationId = seeded.InScopeLocationId,
                     fromCart = true,
                     deliveryMethod = "standard",
-                    expectedGrossPence = 12480,
+                    expectedGrossPence = 2557,
                     shipTo = ValidShipTo(),
                 }
             );
@@ -62,10 +62,10 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("awaiting_payment", body.GetProperty("paymentStatus").GetString());
             Assert.Equal(JsonValueKind.Null, body.GetProperty("fulfilmentStatus").ValueKind);
             Assert.Equal("ORD-1", body.GetProperty("orderNumber").GetString());
-            Assert.Equal(10400, body.GetProperty("materialsNetPence").GetInt32());
-            Assert.Equal(2080, body.GetProperty("vatPence").GetInt32());
-            Assert.Equal(0, body.GetProperty("deliveryNetPence").GetInt32());
-            Assert.Equal(12480, body.GetProperty("grossPence").GetInt32());
+            Assert.Equal(1798, body.GetProperty("materialsNetPence").GetInt32());
+            Assert.Equal(360, body.GetProperty("vatPence").GetInt32());
+            Assert.Equal(399, body.GetProperty("deliveryNetPence").GetInt32());
+            Assert.Equal(2557, body.GetProperty("grossPence").GetInt32());
             Assert.Equal(2, body.GetProperty("lines").GetArrayLength());
 
             using var cartRequest = AuthorizedGet(
@@ -91,7 +91,7 @@ namespace TummlyBackend.Tests.Integration
                 5
             );
 
-            // express line: 3*2400 = 7200; vat 1440; delivery 2000; gross 10640
+            // express pack 5@999; vat 200; delivery 399+2000; gross 3598
             var place = await PlaceOrderAsync(
                 seeded.MemberJwt,
                 new
@@ -99,10 +99,10 @@ namespace TummlyBackend.Tests.Integration
                     locationId = seeded.InScopeLocationId,
                     lines = new[]
                     {
-                        new { skuId = "table-tents", quantity = 3 },
+                        new { skuId = "table-tents", quantity = 5 },
                     },
                     deliveryMethod = "express",
-                    expectedGrossPence = 10640,
+                    expectedGrossPence = 3598,
                     shipTo = ValidShipTo(),
                 }
             );
@@ -111,7 +111,7 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(place);
             Assert.Equal("ORD-1", body.GetProperty("orderNumber").GetString());
             Assert.Equal(1, body.GetProperty("lines").GetArrayLength());
-            Assert.Equal(2000, body.GetProperty("deliveryNetPence").GetInt32());
+            Assert.Equal(2399, body.GetProperty("deliveryNetPence").GetInt32());
 
             using var cartRequest = AuthorizedGet(
                 $"/api/shop/cart?locationId={seeded.InScopeLocationId}",
@@ -137,10 +137,10 @@ namespace TummlyBackend.Tests.Integration
                     locationId = seeded.InScopeLocationId,
                     lines = new[]
                     {
-                        new { skuId = "table-tents", quantity = 1 },
+                        new { skuId = "table-tents", quantity = 5 },
                     },
                     deliveryMethod = "standard",
-                    expectedGrossPence = 2880,
+                    expectedGrossPence = 1598,
                     shipTo = new
                     {
                         contactName = "Ada Lovelace",
@@ -172,7 +172,7 @@ namespace TummlyBackend.Tests.Integration
                     locationId = seeded.InScopeLocationId,
                     lines = new[]
                     {
-                        new { skuId = "table-tents", quantity = 1 },
+                        new { skuId = "table-tents", quantity = 5 },
                     },
                     deliveryMethod = "standard",
                     expectedGrossPence = 1,

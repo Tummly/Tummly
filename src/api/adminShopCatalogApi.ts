@@ -19,6 +19,11 @@ export type AdminShopCatalogSpecification = {
   value: string
 }
 
+export type AdminShopCatalogPack = {
+  qty: number
+  netPence: number
+}
+
 export type AdminPlacementRecipe = {
   id: number
   slug: string
@@ -43,6 +48,10 @@ export type AdminShopCatalogSku = {
   printRoute: string
   unitNetPence: number
   minOrderQty: number
+  packs: AdminShopCatalogPack[]
+  deliveryNetPence: number
+  supplierName?: string | null
+  internalCostNetPence?: number | null
   currency: string
   mintOnShopFulfilment: boolean
   status: AdminShopCatalogStatus
@@ -64,6 +73,10 @@ export type AdminShopCatalogSkuWrite = {
   placementRecipeId?: number
   unitNetPence?: number
   minOrderQty?: number
+  packs?: AdminShopCatalogPack[]
+  deliveryNetPence?: number
+  supplierName?: string | null
+  internalCostNetPence?: number | null
   currency?: string
   mintOnShopFulfilment?: boolean
   aboutBody?: string

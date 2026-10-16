@@ -81,15 +81,18 @@ type ExpressCheckoutState = {
 }
 
 function toCheckoutLine(product: ShopProduct, quantity: number): CheckoutLine {
-  const unitNetPence =
-    product.unitNetPence ?? Math.round(product.price * 100)
+  const pack = product.packs.find((row) => row.qty === quantity)
+  const packNetPence =
+    pack?.netPence ?? product.unitNetPence ?? Math.round(product.price * 100)
   return {
     skuId: product.id,
     title: product.title,
     quantity,
-    unitNetPence,
-    lineNetPence: unitNetPence * quantity,
+    unitNetPence: packNetPence,
+    lineNetPence: packNetPence,
     specification: `${product.material} · ${product.dimensions}`,
+    packs: product.packs,
+    deliveryNetPence: product.deliveryNetPence,
   }
 }
 
@@ -429,7 +432,7 @@ export function ShopPage({
 
   const handleAddToCart = async (
     product: ShopProduct,
-    quantity: number = 1
+    quantity?: number
   ) => {
     if (paidWriteChrome.purchaseDisabled) {
       return
@@ -442,10 +445,14 @@ export function ShopPage({
       return
     }
 
-    const existing = cartItems.find((item) => item.product.id === product.id)
-    const nextQuantity = (existing?.quantity ?? 0) + quantity
+    const packQty =
+      quantity ??
+      product.packs[0]?.qty ??
+      product.minOrderQty ??
+      1
     try {
-      await putAbsoluteQuantity(product.id, nextQuantity)
+      // One line per SKU: selected pack qty replaces any prior pack on the line.
+      await putAbsoluteQuantity(product.id, packQty)
       toast.success(`Added ${product.title} to cart`)
     } catch {
       toast.error("Could not update cart.")

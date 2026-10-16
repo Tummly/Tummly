@@ -23,7 +23,11 @@ function mapListItemToProduct(
     currency: item.currency,
     qrType: item.qrType,
     catalogVersion,
-    minOrderQty: 1,
+    minOrderQty: item.packs?.length
+      ? Math.min(...item.packs.map((pack) => pack.qty))
+      : 1,
+    packs: item.packs ?? [],
+    deliveryNetPence: item.deliveryNetPence ?? 0,
     mintOnShopFulfilment: false,
     isPlanIncluded: item.isPlanIncluded === true ? true : undefined,
     popularBadge: item.popularBadge ?? undefined,
@@ -57,6 +61,8 @@ export function mapShopCatalogDetail(item: ShopCatalogDetailWire): ShopProduct {
     qrType: item.qrType,
     catalogVersion: item.catalogVersion,
     minOrderQty: item.minOrderQty,
+    packs: item.packs ?? [],
+    deliveryNetPence: item.deliveryNetPence ?? 0,
     mintOnShopFulfilment: item.mintOnShopFulfilment,
     isPlanIncluded: item.isPlanIncluded === true ? true : undefined,
     popularBadge: item.popularBadge ?? undefined,
