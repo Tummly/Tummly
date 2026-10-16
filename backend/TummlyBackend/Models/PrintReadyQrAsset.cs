@@ -42,6 +42,14 @@ namespace TummlyBackend.Models
         /// <summary>Null for Starter QR materials; set for Shop print assets (ticket 03).</summary>
         public Guid? ShopOrderId { get; set; }
 
+        /// <summary>
+        /// When set, Admin has approved the production preview for Shop download.
+        /// Starter / operator downloads ignore this gate.
+        /// </summary>
+        public DateTime? ApprovedAtUtc { get; set; }
+
+        public int? ApprovedByAdminUserId { get; set; }
+
         [MaxLength(1000)]
         public string? LastError { get; set; }
 

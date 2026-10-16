@@ -300,10 +300,91 @@ namespace TummlyBackend.Controllers
                 return Conflict(new
                 {
                     success = false,
+                    code = "print_asset_not_ready",
                     message = ex.Message,
                     status = ex.Status.ToString(),
                 });
             }
+            catch (PrintReadyQrNotApprovedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = "print_asset_not_approved",
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("{id:guid}/print-assets/{qrType}/preview")]
+        public async Task<IActionResult> PreviewPrintAsset(
+            Guid id,
+            string qrType,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!TryParsePhysicalQrType(qrType, out var parsed))
+            {
+                return NotFound();
+            }
+
+            var preview =
+                await _printReadyQrMaterials.GetShopOrderPreviewAsync(
+                    id,
+                    parsed,
+                    cancellationToken
+                );
+            return preview == null ? NotFound() : Ok(preview);
+        }
+
+        [HttpPost("{id:guid}/print-assets/{qrType}/approve")]
+        public async Task<IActionResult> ApprovePrintAsset(
+            Guid id,
+            string qrType,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!TryParsePhysicalQrType(qrType, out var parsed))
+            {
+                return NotFound();
+            }
+
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(
+                    new
+                    {
+                        success = false,
+                        message = "Invalid token.",
+                    }
+                );
+            }
+
+            var adminIdentity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+
+            if (string.IsNullOrWhiteSpace(adminIdentity))
+            {
+                return BadRequest(
+                    new
+                    {
+                        success = false,
+                        message =
+                            "Admin identity could not be resolved from the current session.",
+                    }
+                );
+            }
+
+            var asset = await _printReadyQrMaterials.ApproveShopOrderAsync(
+                id,
+                parsed,
+                staffId.Value,
+                adminIdentity,
+                cancellationToken
+            );
+            return asset == null ? NotFound() : Ok(asset);
         }
 
         [HttpPost("{id:guid}/print-assets/{qrType}/retry")]
@@ -363,7 +444,8 @@ namespace TummlyBackend.Controllers
         {
             return Enum.TryParse(value, ignoreCase: true, out qrType)
                 && qrType
-                    is QrType.TableTent
+                    is QrType.CounterCard
+                    or QrType.TableTent
                     or QrType.WindowSticker
                     or QrType.OfferCard;
         }

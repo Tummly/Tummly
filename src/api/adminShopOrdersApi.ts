@@ -14,12 +14,32 @@ export type AdminShopOrderLineSummary = {
   lineNetPence: number
 }
 
+export type AdminShopPrintAssetQrType =
+  | "CounterCard"
+  | "TableTent"
+  | "WindowSticker"
+  | "OfferCard"
+
 export type AdminShopPrintAsset = {
-  qrType: "TableTent" | "WindowSticker" | "OfferCard"
+  qrType: AdminShopPrintAssetQrType
   quantity: number
   status: "Preparing" | "Ready" | "Failed"
   fileName: string | null
   lastError: string | null
+  approved: boolean
+  printRoute?: string | null
+}
+
+export type AdminShopPrintAssetPreview = {
+  productTitle: string
+  locationId: number
+  locationName: string
+  placement: string
+  quantity: number
+  qrDestinationUrl: string
+  offerHeadline: string | null
+  printRoute: string
+  approvedAtUtc: string | null
 }
 
 export type AdminShopOrderListItem = {
@@ -140,6 +160,26 @@ export async function downloadAdminShopOrderPrintAsset(
   const response = await axiosInstance.get<Blob>(
     `/admin/shop-orders/${orderId}/print-assets/${qrType}/download`,
     { responseType: "blob" }
+  )
+  return response.data
+}
+
+export async function previewAdminShopOrderPrintAsset(
+  orderId: string,
+  qrType: AdminShopPrintAsset["qrType"]
+): Promise<AdminShopPrintAssetPreview> {
+  const response = await axiosInstance.get<AdminShopPrintAssetPreview>(
+    `/admin/shop-orders/${orderId}/print-assets/${qrType}/preview`
+  )
+  return response.data
+}
+
+export async function approveAdminShopOrderPrintAsset(
+  orderId: string,
+  qrType: AdminShopPrintAsset["qrType"]
+): Promise<AdminShopPrintAsset> {
+  const response = await axiosInstance.post<AdminShopPrintAsset>(
+    `/admin/shop-orders/${orderId}/print-assets/${qrType}/approve`
   )
   return response.data
 }

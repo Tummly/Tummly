@@ -47,12 +47,15 @@ namespace TummlyBackend.Tests.Services
                 new QrCoderRasterizer(),
                 guestLinks,
                 new NoOpPrintReadyQrMaterialsWork(),
+                new AdminAuditService(_context, TimeProvider.System),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
 
             await service.EnsureStarterMaterialsAsync(location.Id);
 
-            var asset = await _context.PrintReadyQrAssets.SingleAsync();
+            var asset = await _context.PrintReadyQrAssets.SingleAsync(row =>
+                row.QrType == QrType.TableTent
+            );
             Assert.Equal(2, storage.UploadAttempts);
             Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
             Assert.Null(asset.LastError);
@@ -107,13 +110,16 @@ namespace TummlyBackend.Tests.Services
                     new NoOpBillingAccountLifecycle()
                 ),
                 new NoOpPrintReadyQrMaterialsWork(),
+                new AdminAuditService(_context, TimeProvider.System),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
 
             await service.EnsureStarterMaterialsAsync(location.Id);
             await service.EnsureStarterMaterialsAsync(location.Id);
 
-            var asset = await _context.PrintReadyQrAssets.SingleAsync();
+            var asset = await _context.PrintReadyQrAssets.SingleAsync(row =>
+                row.QrType == QrType.TableTent
+            );
             Assert.Equal(0, storage.UploadAttempts);
             Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
             Assert.Equal(originalUpdatedAt, asset.UpdatedAtUtc);
@@ -152,7 +158,9 @@ namespace TummlyBackend.Tests.Services
 
             await service.EnsureStarterMaterialsAsync(location.Id);
 
-            var asset = await _context.PrintReadyQrAssets.SingleAsync();
+            var asset = await _context.PrintReadyQrAssets.SingleAsync(row =>
+                row.QrType == QrType.TableTent
+            );
             Assert.Equal(1, storage.UploadAttempts);
             Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
             Assert.NotEqual("missing/table-tent.pdf", asset.StorageKey);
@@ -218,6 +226,7 @@ namespace TummlyBackend.Tests.Services
                     new NoOpBillingAccountLifecycle()
                 ),
                 new NoOpPrintReadyQrMaterialsWork(),
+                new AdminAuditService(_context, TimeProvider.System),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
 
@@ -311,7 +320,9 @@ namespace TummlyBackend.Tests.Services
             await service.EnsureStarterMaterialsAsync(location.Id);
 
             var assets = await _context.PrintReadyQrAssets.ToListAsync();
-            Assert.Equal(3, assets.Count);
+            // Offer Card waits for an attached print offer and does not persist
+            // Failed when no QR exists yet.
+            Assert.Equal(2, assets.Count);
             Assert.All(
                 assets,
                 asset =>
@@ -352,6 +363,7 @@ namespace TummlyBackend.Tests.Services
                     new NoOpBillingAccountLifecycle()
                 ),
                 new NoOpPrintReadyQrMaterialsWork(),
+                new AdminAuditService(_context, TimeProvider.System),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
             var orderId = await SeedPaidOrderAsync(location, quantity: 1);
@@ -607,6 +619,7 @@ namespace TummlyBackend.Tests.Services
                     new NoOpBillingAccountLifecycle()
                 ),
                 work,
+                new AdminAuditService(_context, TimeProvider.System),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
         }

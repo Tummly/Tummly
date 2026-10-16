@@ -979,6 +979,20 @@ namespace TummlyBackend.Tests.Services
                 QrType qrType,
                 CancellationToken cancellationToken = default
             ) => throw new NotSupportedException();
+
+            public Task<ShopPrintAssetPreviewDto?> GetShopOrderPreviewAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<ShopPrintAssetReadinessDto?> ApproveShopOrderAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                int actorAdminUserId,
+                string actorIdentity,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
         }
     }
 }

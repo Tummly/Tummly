@@ -28,6 +28,11 @@ namespace TummlyBackend.PrintReadyQrMaterials
             string? offerHeadline
         )
         {
+            if (qrType == QrType.CounterCard)
+            {
+                return ComposeCounterCard(qrImage);
+            }
+
             var plan = PlanCompose(pack, qrType, offerHeadline);
             return RenderTemplatePdf(
                 plan.SvgPath,
@@ -39,6 +44,36 @@ namespace TummlyBackend.PrintReadyQrMaterials
                 plan.Headline,
                 plan.HeadlineBox
             );
+        }
+
+        /// <summary>
+        /// A5 (148×210 mm) white page with a centred production QR.
+        /// Used when no Counter SVG artwork is available yet.
+        /// </summary>
+        public static byte[] ComposeCounterCard(QrRasterImage qrImage)
+        {
+            const double widthMm = 148;
+            const double heightMm = 210;
+            const double qrMm = 50;
+            var widthPt = (float)(widthMm * MmToPt);
+            var heightPt = (float)(heightMm * MmToPt);
+            var qrPt = (float)(qrMm * MmToPt);
+            var qrX = (widthPt - qrPt) / 2f;
+            var qrY = (heightPt - qrPt) / 2f;
+
+            using var output = new MemoryStream();
+            var metadata = SKDocumentPdfMetadata.Default;
+            metadata.Title = "Tummly Counter Display";
+            using (var document = SKDocument.CreatePdf(output, metadata))
+            {
+                var canvas = document.BeginPage(widthPt, heightPt);
+                canvas.Clear(SKColors.White);
+                DrawQr(canvas, qrImage, qrX, qrY, qrPt, qrPt);
+                document.EndPage();
+                document.Close();
+            }
+
+            return output.ToArray();
         }
 
         /// <summary>

@@ -154,6 +154,18 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                         changed = true;
                     }
 
+                    if (
+                        !string.Equals(
+                            row.PrintRoute,
+                            recipe.PrintRoute,
+                            StringComparison.Ordinal
+                        )
+                    )
+                    {
+                        row.PrintRoute = recipe.PrintRoute;
+                        changed = true;
+                    }
+
                     continue;
                 }
 

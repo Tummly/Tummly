@@ -38,6 +38,7 @@ namespace TummlyBackend.Models
         public const string ShopForceCancel = "shop.force_cancel";
         public const string ShopCatalogAvailableInShop =
             "shop.catalog_available_in_shop";
+        public const string ShopPrintAssetApproved = "shop.print_asset_approved";
         public const string RetentionGuestPurge = "retention.guest_purge";
     }
 
