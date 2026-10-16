@@ -89,7 +89,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 return true;
             }
 
-            // Offer Card seed is the interim counter / card SKU until ticket 04 remaps.
+            // Legacy offer-card skuId still maps to Counter commercial for old rows.
             if (string.Equals(skuId, "offer-card", StringComparison.Ordinal)
                 || string.Equals(skuId, QrCounterDisplay.ProductKey, StringComparison.Ordinal))
             {

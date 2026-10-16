@@ -39,7 +39,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task EnsureForLocationAsync_CreatesPaidZeroOrderWithThreeLines()
+        public async Task EnsureForLocationAsync_CreatesPaidZeroOrderWithCounterDisplayLine()
         {
             var result = await _service.EnsureForLocationAsync(
                 _restaurantId,
@@ -61,10 +61,15 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, order.VatPence);
             Assert.Null(order.RevolutOrderId);
             Assert.Equal("ORD-1", order.OrderNumber);
-            Assert.Equal(3, order.Lines.Count);
-            Assert.Contains(order.Lines, line => line.MaterialType == "table-tent");
-            Assert.Contains(order.Lines, line => line.MaterialType == "window-sticker");
-            Assert.Contains(order.Lines, line => line.MaterialType == "offer-card");
+            var line = Assert.Single(order.Lines);
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                line.CatalogSkuId
+            );
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplayRecipeSlug,
+                line.MaterialType
+            );
 
             var billing = await _context.BillingAccounts.SingleAsync();
             Assert.Equal(
@@ -76,27 +81,30 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task EnsureForLocationAsync_UsesReplacedPublishedSkuOnRecipe()
         {
-            var offer = await _context.ShopMaterialSkus
+            var counter = await _context.ShopMaterialSkus
                 .Include(row => row.PlacementRecipe)
-                .SingleAsync(row => row.SkuId == "offer-card");
-            offer.Status = ShopMaterialSkuStatuses.Deleted;
+                .SingleAsync(row =>
+                    row.SkuId == ShopMaterialsCatalogSeed.CounterDisplaySkuId
+                );
+            counter.Status = ShopMaterialSkuStatuses.Deleted;
             await _context.SaveChangesAsync();
 
             _context.ShopMaterialSkus.Add(
                 new ShopMaterialSku
                 {
-                    SkuId = "offer-card-v2",
-                    Title = "Offer Card V2",
+                    SkuId = "qr-counter-display-v2",
+                    Title = "QR Counter Display V2",
                     Category = "payment",
                     Description = "Replacement",
                     Material = "Card",
-                    Dimensions = "85mm",
-                    PlacementRecipeId = offer.PlacementRecipeId,
+                    Dimensions = "A5",
+                    PlacementRecipeId = counter.PlacementRecipeId,
                     QrType = "OfferCard",
-                    UnitNetPence = 1800,
+                    UnitNetPence = 999,
                     MinOrderQty = 1,
                     Currency = "GBP",
                     Status = ShopMaterialSkuStatuses.Published,
+                    AvailableInShop = true,
                     AboutBody = "",
                     SpecificationsJson = "[]",
                     PublishedAtUtc = DateTime.UtcNow,
@@ -119,11 +127,13 @@ namespace TummlyBackend.Tests.Services
                 .SingleAsync(row => row.Id == result.ShopOrderId);
             Assert.Contains(
                 order.Lines,
-                line => line.CatalogSkuId == "offer-card-v2"
+                line => line.CatalogSkuId == "qr-counter-display-v2"
             );
             Assert.DoesNotContain(
                 order.Lines,
-                line => line.CatalogSkuId == "offer-card"
+                line =>
+                    line.CatalogSkuId
+                    == ShopMaterialsCatalogSeed.CounterDisplaySkuId
             );
         }
 

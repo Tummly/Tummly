@@ -113,7 +113,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.NotNull(tableLine);
             Assert.Equal(20, tableLine.Value.GetProperty("quantity").GetInt32());
 
-            var counterLine = FindLine(lines, "offer-card");
+            var counterLine = FindLine(lines, "qr-counter-display");
             Assert.NotNull(counterLine);
             Assert.Equal(3, counterLine.Value.GetProperty("quantity").GetInt32());
 

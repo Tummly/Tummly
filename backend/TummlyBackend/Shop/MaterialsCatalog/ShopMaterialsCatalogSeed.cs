@@ -7,6 +7,11 @@ namespace TummlyBackend.Shop.MaterialsCatalog
 {
     public static class ShopMaterialsCatalogSeed
     {
+        public const string CounterDisplaySkuId = "qr-counter-display";
+        public const string LegacyOfferCardSkuId = "offer-card";
+        public const string CounterDisplayRecipeSlug = "counter-display";
+        public const string LegacyOfferCardRecipeSlug = "offer-card";
+
         public static readonly (string Slug, string Label)[] DefaultTags =
         [
             (
@@ -26,28 +31,44 @@ namespace TummlyBackend.Shop.MaterialsCatalog
         )[] DefaultRecipes =
         [
             (
-                "table-tent",
-                "Table Tent",
-                "TableTent",
+                CounterDisplayRecipeSlug,
+                "QR Counter Display",
+                "OfferCard",
                 PlacementPrintRoutes.EmbeddedPdf,
                 false,
                 true
+            ),
+            (
+                "table-tent",
+                "Table Tent",
+                "TableTent",
+                PlacementPrintRoutes.PatchCsv60,
+                false,
+                false
+            ),
+            (
+                "table-talker",
+                "Table Talker",
+                "TableTalker",
+                PlacementPrintRoutes.PatchCsv60,
+                false,
+                false
             ),
             (
                 "window-sticker",
                 "Window Sticker",
                 "WindowSticker",
-                PlacementPrintRoutes.EmbeddedPdf,
+                PlacementPrintRoutes.PatchCsv60,
                 false,
-                true
+                false
             ),
             (
-                "offer-card",
-                "Offer Card",
-                "OfferCard",
-                PlacementPrintRoutes.EmbeddedPdf,
+                "qr-guest-cards",
+                "QR Guest Cards",
+                "GuestCard",
+                PlacementPrintRoutes.GuestCardCsv,
                 false,
-                true
+                false
             ),
         ];
 
@@ -59,93 +80,8 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             await EnsureRecipesAsync(context, cancellationToken);
             await EnsureTagsAsync(context, cancellationToken);
             await BackfillSkuRecipesAsync(context, cancellationToken);
-            if (await context.ShopMaterialSkus.AnyAsync(cancellationToken))
-            {
-                await BackfillPacksAndDeliveryAsync(context, cancellationToken);
-                return;
-            }
-
-            var tagBySlug = await context.ShopMaterialTags
-                .ToDictionaryAsync(
-                    row => row.Slug,
-                    StringComparer.Ordinal,
-                    cancellationToken
-                );
-            var recipeBySlug = await context.PlacementRecipes
-                .ToDictionaryAsync(
-                    row => row.Slug,
-                    StringComparer.Ordinal,
-                    cancellationToken
-                );
-
-            var now = DateTime.UtcNow;
-            foreach (var seed in SeedSkus())
-            {
-                if (!recipeBySlug.TryGetValue(seed.RecipeSlug, out var recipe))
-                {
-                    continue;
-                }
-
-                var commercial = ResolveCommercial(seed.SkuId, seed.UnitNetPence);
-                var sku = new ShopMaterialSku
-                {
-                    SkuId = seed.SkuId,
-                    Title = seed.Title,
-                    Category = seed.Category,
-                    Description = seed.Description,
-                    Material = seed.Material,
-                    Dimensions = seed.Dimensions,
-                    PlacementRecipeId = recipe.Id,
-                    QrType = recipe.PlacementKey,
-                    PacksJson = ShopMaterialPacks.Serialize(commercial.Packs),
-                    DeliveryNetPence = commercial.DeliveryNetPence,
-                    UnitNetPence = ShopMaterialPacks.LowestNetPence(commercial.Packs),
-                    MinOrderQty = ShopMaterialPacks.LowestQty(commercial.Packs),
-                    Currency = seed.Currency,
-                    MintOnShopFulfilment = seed.MintOnShopFulfilment
-                        ?? recipe.MintOnFulfilmentDefault,
-                    Status = ShopMaterialSkuStatuses.Published,
-                    // Pre-ticket-04 seed stays orderable; ticket 04 sets launch
-                    // Counter ON / others OFF when five core products land.
-                    AvailableInShop = true,
-                    AboutBody = seed.AboutBody,
-                    SpecificationsJson = ShopMaterialSpecifications.Serialize(
-                        seed.Specifications
-                    ),
-                    PublishedAtUtc = now,
-                    CreatedAtUtc = now,
-                    UpdatedAtUtc = now,
-                };
-
-                foreach (var slug in seed.TagSlugs)
-                {
-                    if (!tagBySlug.TryGetValue(slug, out var tag))
-                    {
-                        continue;
-                    }
-
-                    sku.SkuTags.Add(
-                        new ShopMaterialSkuTag { Tag = tag, TagId = tag.Id }
-                    );
-                }
-
-                sku.Images.Add(
-                    new ShopMaterialSkuImage
-                    {
-                        StorageKey =
-                            ShopCatalogImageRules.BuildLegacyStorageKey(
-                                seed.LegacyImagePath
-                            ),
-                        ContentType = "image/png",
-                        SortOrder = 0,
-                        CreatedAtUtc = now,
-                    }
-                );
-
-                context.ShopMaterialSkus.Add(sku);
-            }
-
-            await context.SaveChangesAsync(cancellationToken);
+            await EnsureCoreSkusAsync(context, cancellationToken);
+            await BackfillPacksAndDeliveryAsync(context, cancellationToken);
         }
 
         private static async Task EnsureRecipesAsync(
@@ -160,19 +96,61 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 row => row.Slug,
                 StringComparer.Ordinal
             );
+            var byPlacement = existing.ToDictionary(
+                row => row.PlacementKey,
+                StringComparer.Ordinal
+            );
             var now = DateTime.UtcNow;
             var changed = false;
+
+            // Remap legacy Offer Card recipe onto Counter Display (same OfferCard placement).
+            if (
+                bySlug.TryGetValue(LegacyOfferCardRecipeSlug, out var legacyOffer)
+                && !bySlug.ContainsKey(CounterDisplayRecipeSlug)
+            )
+            {
+                legacyOffer.Slug = CounterDisplayRecipeSlug;
+                legacyOffer.Label = "QR Counter Display";
+                legacyOffer.PrintRoute = PlacementPrintRoutes.EmbeddedPdf;
+                legacyOffer.IncludeInComplimentaryStarter = true;
+                bySlug.Remove(LegacyOfferCardRecipeSlug);
+                bySlug[CounterDisplayRecipeSlug] = legacyOffer;
+                changed = true;
+            }
+
             foreach (var recipe in DefaultRecipes)
             {
-                if (bySlug.TryGetValue(recipe.Slug, out var row))
+                PlacementRecipe? row = null;
+                if (bySlug.TryGetValue(recipe.Slug, out var bySlugRow))
+                {
+                    row = bySlugRow;
+                }
+                else if (
+                    byPlacement.TryGetValue(recipe.PlacementKey, out var byKeyRow)
+                )
+                {
+                    row = byKeyRow;
+                }
+
+                if (row != null)
                 {
                     if (
-                        row.IncludeInComplimentaryStarter
-                        != recipe.IncludeInComplimentaryStarter
+                        row.Slug != recipe.Slug
+                        || row.Label != recipe.Label
+                        || row.PrintRoute != recipe.PrintRoute
+                        || row.IncludeInComplimentaryStarter
+                            != recipe.IncludeInComplimentaryStarter
+                        || row.MintOnFulfilmentDefault != recipe.MintDefault
+                        || !row.IsActive
                     )
                     {
+                        row.Slug = recipe.Slug;
+                        row.Label = recipe.Label;
+                        row.PrintRoute = recipe.PrintRoute;
                         row.IncludeInComplimentaryStarter =
                             recipe.IncludeInComplimentaryStarter;
+                        row.MintOnFulfilmentDefault = recipe.MintDefault;
+                        row.IsActive = true;
                         changed = true;
                     }
 
@@ -203,6 +181,258 @@ namespace TummlyBackend.Shop.MaterialsCatalog
         }
 
         /// <summary>
+        /// Inserts missing launch SKUs, remaps Offer Card → QR Counter Display,
+        /// and aligns titles / availability / tags for the five core products.
+        /// </summary>
+        private static async Task EnsureCoreSkusAsync(
+            ApplicationDbContext context,
+            CancellationToken cancellationToken
+        )
+        {
+            var tagBySlug = await context.ShopMaterialTags
+                .ToDictionaryAsync(
+                    row => row.Slug,
+                    StringComparer.Ordinal,
+                    cancellationToken
+                );
+            var recipeBySlug = await context.PlacementRecipes
+                .ToDictionaryAsync(
+                    row => row.Slug,
+                    StringComparer.Ordinal,
+                    cancellationToken
+                );
+            var skus = await context.ShopMaterialSkus
+                .Include(row => row.SkuTags)
+                .Include(row => row.Images)
+                .ToListAsync(cancellationToken);
+            var bySkuId = skus.ToDictionary(
+                row => row.SkuId,
+                StringComparer.Ordinal
+            );
+            var now = DateTime.UtcNow;
+            var changed = false;
+
+            if (
+                bySkuId.TryGetValue(LegacyOfferCardSkuId, out var legacyOfferSku)
+                && !bySkuId.ContainsKey(CounterDisplaySkuId)
+            )
+            {
+                legacyOfferSku.SkuId = CounterDisplaySkuId;
+                bySkuId.Remove(LegacyOfferCardSkuId);
+                bySkuId[CounterDisplaySkuId] = legacyOfferSku;
+                changed = true;
+            }
+            else if (
+                bySkuId.TryGetValue(LegacyOfferCardSkuId, out var duplicateOffer)
+                && bySkuId.ContainsKey(CounterDisplaySkuId)
+            )
+            {
+                duplicateOffer.Status = ShopMaterialSkuStatuses.Deleted;
+                duplicateOffer.UpdatedAtUtc = now;
+                changed = true;
+            }
+
+            foreach (var seed in SeedSkus())
+            {
+                if (!recipeBySlug.TryGetValue(seed.RecipeSlug, out var recipe))
+                {
+                    continue;
+                }
+
+                var commercial = ResolveCommercial(seed.SkuId, seed.UnitNetPence);
+                if (bySkuId.TryGetValue(seed.SkuId, out var existing))
+                {
+                    if (ApplySeedToSku(existing, seed, recipe, commercial, now, tagBySlug))
+                    {
+                        changed = true;
+                    }
+
+                    continue;
+                }
+
+                var sku = new ShopMaterialSku
+                {
+                    SkuId = seed.SkuId,
+                    CreatedAtUtc = now,
+                };
+                ApplySeedToSku(sku, seed, recipe, commercial, now, tagBySlug);
+                sku.Images.Add(
+                    new ShopMaterialSkuImage
+                    {
+                        StorageKey = ShopCatalogImageRules.BuildLegacyStorageKey(
+                            seed.LegacyImagePath
+                        ),
+                        ContentType = "image/png",
+                        SortOrder = 0,
+                        CreatedAtUtc = now,
+                    }
+                );
+                context.ShopMaterialSkus.Add(sku);
+                bySkuId[seed.SkuId] = sku;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        private static bool ApplySeedToSku(
+            ShopMaterialSku sku,
+            SeedSku seed,
+            PlacementRecipe recipe,
+            ShopLaunchCommercialDefaults.LaunchCommercial commercial,
+            DateTime now,
+            Dictionary<string, ShopMaterialTag> tagBySlug
+        )
+        {
+            var changed = false;
+            if (sku.Title != seed.Title)
+            {
+                sku.Title = seed.Title;
+                changed = true;
+            }
+
+            if (sku.Category != seed.Category)
+            {
+                sku.Category = seed.Category;
+                changed = true;
+            }
+
+            if (sku.Description != seed.Description)
+            {
+                sku.Description = seed.Description;
+                changed = true;
+            }
+
+            if (sku.Material != seed.Material)
+            {
+                sku.Material = seed.Material;
+                changed = true;
+            }
+
+            if (sku.Dimensions != seed.Dimensions)
+            {
+                sku.Dimensions = seed.Dimensions;
+                changed = true;
+            }
+
+            if (sku.PlacementRecipeId != recipe.Id)
+            {
+                sku.PlacementRecipeId = recipe.Id;
+                changed = true;
+            }
+
+            if (sku.QrType != recipe.PlacementKey)
+            {
+                sku.QrType = recipe.PlacementKey;
+                changed = true;
+            }
+
+            var packsJson = ShopMaterialPacks.Serialize(commercial.Packs);
+            if (sku.PacksJson != packsJson)
+            {
+                sku.PacksJson = packsJson;
+                changed = true;
+            }
+
+            if (sku.DeliveryNetPence != commercial.DeliveryNetPence)
+            {
+                sku.DeliveryNetPence = commercial.DeliveryNetPence;
+                changed = true;
+            }
+
+            var unitNet = ShopMaterialPacks.LowestNetPence(commercial.Packs);
+            if (sku.UnitNetPence != unitNet)
+            {
+                sku.UnitNetPence = unitNet;
+                changed = true;
+            }
+
+            var minQty = ShopMaterialPacks.LowestQty(commercial.Packs);
+            if (sku.MinOrderQty != minQty)
+            {
+                sku.MinOrderQty = minQty;
+                changed = true;
+            }
+
+            if (sku.Currency != seed.Currency)
+            {
+                sku.Currency = seed.Currency;
+                changed = true;
+            }
+
+            var mint =
+                seed.MintOnShopFulfilment ?? recipe.MintOnFulfilmentDefault;
+            if (sku.MintOnShopFulfilment != mint)
+            {
+                sku.MintOnShopFulfilment = mint;
+                changed = true;
+            }
+
+            if (sku.Status != ShopMaterialSkuStatuses.Published)
+            {
+                sku.Status = ShopMaterialSkuStatuses.Published;
+                sku.PublishedAtUtc ??= now;
+                changed = true;
+            }
+
+            if (sku.AvailableInShop != seed.AvailableInShop)
+            {
+                sku.AvailableInShop = seed.AvailableInShop;
+                changed = true;
+            }
+
+            if (sku.AboutBody != seed.AboutBody)
+            {
+                sku.AboutBody = seed.AboutBody;
+                changed = true;
+            }
+
+            var specsJson = ShopMaterialSpecifications.Serialize(seed.Specifications);
+            if (sku.SpecificationsJson != specsJson)
+            {
+                sku.SpecificationsJson = specsJson;
+                changed = true;
+            }
+
+            var desiredTags = seed.TagSlugs
+                .Where(tagBySlug.ContainsKey)
+                .Select(slug => tagBySlug[slug].Id)
+                .OrderBy(id => id)
+                .ToArray();
+            var currentTags = sku.SkuTags
+                .Select(row => row.TagId)
+                .OrderBy(id => id)
+                .ToArray();
+            if (!desiredTags.SequenceEqual(currentTags))
+            {
+                sku.SkuTags.Clear();
+                foreach (var slug in seed.TagSlugs)
+                {
+                    if (!tagBySlug.TryGetValue(slug, out var tag))
+                    {
+                        continue;
+                    }
+
+                    sku.SkuTags.Add(
+                        new ShopMaterialSkuTag { Tag = tag, TagId = tag.Id }
+                    );
+                }
+
+                changed = true;
+            }
+
+            if (changed)
+            {
+                sku.UpdatedAtUtc = now;
+            }
+
+            return changed;
+        }
+
+        /// <summary>
         /// Fills empty PacksJson from launch PRD defaults (or a single UnitNetPence pack).
         /// </summary>
         private static async Task BackfillPacksAndDeliveryAsync(
@@ -214,6 +444,11 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             var changed = false;
             foreach (var sku in skus)
             {
+                if (sku.Status == ShopMaterialSkuStatuses.Deleted)
+                {
+                    continue;
+                }
+
                 var packs = ShopMaterialPacks.Parse(sku.PacksJson);
                 if (packs.Count > 0)
                 {
@@ -324,159 +559,37 @@ namespace TummlyBackend.Shop.MaterialsCatalog
 
         private static IEnumerable<SeedSku> SeedSkus()
         {
-            var defaultSpecs = new[]
+            var qrConnection = new ShopMaterialSpecificationRow
             {
-                new ShopMaterialSpecificationRow
-                {
-                    Label = "Finished size",
-                    Value = "A5",
-                },
-                new ShopMaterialSpecificationRow
-                {
-                    Label = "Construction",
-                    Value = "Folded A-frame",
-                },
-                new ShopMaterialSpecificationRow
-                {
-                    Label = "Print",
-                    Value = "Double-sided",
-                },
-                new ShopMaterialSpecificationRow
-                {
-                    Label = "Finish",
-                    Value = "Matte",
-                },
-                new ShopMaterialSpecificationRow
-                {
-                    Label = "QR connection",
-                    Value = "Location and placement-specific",
-                },
-                new ShopMaterialSpecificationRow
-                {
-                    Label = "Recommended use",
-                    Value = "Dine-in tables",
-                },
-                new ShopMaterialSpecificationRow
-                {
-                    Label = "Minimum quantity",
-                    Value = "Pack of 5",
-                },
-                new ShopMaterialSpecificationRow
-                {
-                    Label = "Production",
-                    Value = "Made to order",
-                },
+                Label = "QR connection",
+                Value = "Location and placement-specific",
+            };
+            var madeToOrder = new ShopMaterialSpecificationRow
+            {
+                Label = "Production",
+                Value = "Made to order",
             };
 
             yield return new SeedSku(
-                "table-tents",
-                "Table Tent QR",
-                "tabletop",
-                "Place a branded QR prompt on guest tables to collect private feedback after a dine-in visit.",
-                "3mm Matte Frosted Acrylic",
-                "105mm x 148mm (A6)",
-                "table-tent",
-                2400,
-                1,
-                "GBP",
-                false,
-                "/assets/images/shop/tummly-sticker.png",
-                "The Tummly table tent qr gives dine-in guests a clear opportunity to share private feedback while their experience is still recent. Each order uses a location-specific QR placement, allowing Tummly to measure scans, form starts and completed feedback submissions from table-based prompts.",
-                [
-                    .. defaultSpecs,
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "Material",
-                        Value = "3mm Matte Frosted Acrylic",
-                    },
-                ],
-                [
-                    ShopMaterialCatalogMapper.IncludedWithPlanSlug,
-                    ShopMaterialCatalogMapper.EssentialSlug,
-                ]
-            );
-
-            yield return new SeedSku(
-                "window-stickers",
-                "Window Sticker QR",
-                "window",
-                "Invite guests to share feedback using a branded QR prompt at an entrance or front windows.",
-                "UV-resistant Clear Vinyl Cling",
-                "150mm x 150mm",
-                "window-sticker",
-                1400,
-                1,
-                "GBP",
-                false,
-                "/assets/images/shop/tummly-sticker.png",
-                "The Tummly window sticker qr invites guests to share private feedback at an entrance or front window. Each order uses a location-specific QR placement so Tummly can measure scans, form starts and completed submissions.",
-                [
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "Finished size",
-                        Value = "150mm x 150mm",
-                    },
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "Material",
-                        Value = "UV-resistant Clear Vinyl Cling",
-                    },
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "Print",
-                        Value = "Single-sided",
-                    },
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "Finish",
-                        Value = "Clear cling",
-                    },
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "QR connection",
-                        Value = "Location and placement-specific",
-                    },
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "Recommended use",
-                        Value = "Entrance and front windows",
-                    },
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "Minimum quantity",
-                        Value = "Pack of 5",
-                    },
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "Production",
-                        Value = "Made to order",
-                    },
-                ],
-                [
-                    ShopMaterialCatalogMapper.IncludedWithPlanSlug,
-                    ShopMaterialCatalogMapper.EssentialSlug,
-                ]
-            );
-
-            yield return new SeedSku(
-                "offer-card",
-                "Offer Card",
+                CounterDisplaySkuId,
+                "QR Counter Display",
                 "payment",
-                "Place a compact QR prompt on ordering, payment or collection counter for offers and feedback.",
+                "Place a branded QR counter display where guests order, pay or collect — capture feedback and offers at the counter.",
                 "350gsm Soft-touch Recycled Card",
-                "85mm x 55mm (Card size)",
-                "offer-card",
-                1800,
+                "A5",
+                CounterDisplayRecipeSlug,
+                999,
                 1,
                 "GBP",
                 false,
+                true,
                 "/assets/images/shop/tummly-sticker.png",
-                "The Tummly offer card places a compact QR prompt on ordering, payment or collection counters for offers and feedback. Each card uses a location-specific QR placement.",
+                "The Tummly QR Counter Display puts a clear feedback and offer prompt on the counter. Each unit uses a location-specific QR placement so Tummly can measure scans and completed feedback.",
                 [
                     new ShopMaterialSpecificationRow
                     {
                         Label = "Finished size",
-                        Value = "85mm x 55mm",
+                        Value = "A5",
                     },
                     new ShopMaterialSpecificationRow
                     {
@@ -490,34 +603,184 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                     },
                     new ShopMaterialSpecificationRow
                     {
-                        Label = "Finish",
-                        Value = "Soft-touch",
+                        Label = "Print route",
+                        Value = "Embedded A5 PDF",
                     },
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "QR connection",
-                        Value = "Location and placement-specific",
-                    },
+                    qrConnection,
                     new ShopMaterialSpecificationRow
                     {
                         Label = "Recommended use",
                         Value = "Counters and payment points",
                     },
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "Minimum quantity",
-                        Value = "Pack of 5",
-                    },
-                    new ShopMaterialSpecificationRow
-                    {
-                        Label = "Production",
-                        Value = "Made to order",
-                    },
+                    madeToOrder,
                 ],
                 [
                     ShopMaterialCatalogMapper.IncludedWithPlanSlug,
                     ShopMaterialCatalogMapper.EssentialSlug,
                 ]
+            );
+
+            yield return new SeedSku(
+                "table-tents",
+                "Table Tent",
+                "tabletop",
+                "Place a branded QR prompt on guest tables to collect private feedback after a dine-in visit.",
+                "3mm Matte Frosted Acrylic",
+                "105mm x 148mm (A6)",
+                "table-tent",
+                999,
+                5,
+                "GBP",
+                false,
+                false,
+                "/assets/images/shop/tummly-sticker.png",
+                "The Tummly Table Tent gives dine-in guests a clear opportunity to share private feedback while their experience is still recent. Each order uses a location-specific QR placement.",
+                [
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Finished size",
+                        Value = "105mm x 148mm (A6)",
+                    },
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Construction",
+                        Value = "Folded A-frame",
+                    },
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Material",
+                        Value = "3mm Matte Frosted Acrylic",
+                    },
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Print patch",
+                        Value = "60×60 mm",
+                    },
+                    qrConnection,
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Recommended use",
+                        Value = "Dine-in tables",
+                    },
+                    madeToOrder,
+                ],
+                [ShopMaterialCatalogMapper.EssentialSlug]
+            );
+
+            yield return new SeedSku(
+                "table-talker",
+                "Table Talker",
+                "tabletop",
+                "A larger table prompt for promotions and private feedback on dine-in tables.",
+                "350gsm Soft-touch Recycled Card",
+                "Table talker",
+                "table-talker",
+                999,
+                10,
+                "GBP",
+                false,
+                false,
+                "/assets/images/shop/tummly-sticker.png",
+                "The Tummly Table Talker is a larger tabletop prompt for promotions and private feedback. Each order uses a location-specific QR placement.",
+                [
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Print patch",
+                        Value = "60×60 mm",
+                    },
+                    qrConnection,
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Recommended use",
+                        Value = "Dine-in tables",
+                    },
+                    madeToOrder,
+                ],
+                [ShopMaterialCatalogMapper.EssentialSlug]
+            );
+
+            yield return new SeedSku(
+                "window-stickers",
+                "Window Sticker",
+                "window",
+                "Invite guests to share feedback using a branded QR prompt at an entrance or front window.",
+                "UV-resistant Clear Vinyl Cling",
+                "150mm x 150mm",
+                "window-sticker",
+                499,
+                1,
+                "GBP",
+                false,
+                false,
+                "/assets/images/shop/tummly-sticker.png",
+                "The Tummly Window Sticker invites guests to share private feedback at an entrance or front window. Each order uses a location-specific QR placement.",
+                [
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Finished size",
+                        Value = "150mm x 150mm",
+                    },
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Material",
+                        Value = "UV-resistant Clear Vinyl Cling",
+                    },
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Print patch",
+                        Value = "60×60 mm",
+                    },
+                    qrConnection,
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Recommended use",
+                        Value = "Entrance and front windows",
+                    },
+                    madeToOrder,
+                ],
+                [ShopMaterialCatalogMapper.EssentialSlug]
+            );
+
+            yield return new SeedSku(
+                "qr-guest-cards",
+                "QR Guest Cards",
+                "payment",
+                "Hand guests a branded card with a location-specific QR and offer headline for feedback and redemption.",
+                "350gsm Soft-touch Recycled Card",
+                "80mm x 50.8mm",
+                "qr-guest-cards",
+                1499,
+                250,
+                "GBP",
+                false,
+                false,
+                "/assets/images/shop/tummly-sticker.png",
+                "Tummly QR Guest Cards carry a location-specific QR and offer headline for feedback and redemption. Print uses the Guest Card CSV route.",
+                [
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Finished size",
+                        Value = "80mm x 50.8mm",
+                    },
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Material",
+                        Value = "350gsm Soft-touch Recycled Card",
+                    },
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Print route",
+                        Value = "Guest Card CSV",
+                    },
+                    qrConnection,
+                    new ShopMaterialSpecificationRow
+                    {
+                        Label = "Recommended use",
+                        Value = "Hand-out guest cards",
+                    },
+                    madeToOrder,
+                ],
+                [ShopMaterialCatalogMapper.EssentialSlug]
             );
         }
 
@@ -533,6 +796,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             int MinOrderQty,
             string Currency,
             bool? MintOnShopFulfilment,
+            bool AvailableInShop,
             string LegacyImagePath,
             string AboutBody,
             ShopMaterialSpecificationRow[] Specifications,

@@ -27,7 +27,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetCatalog_Returns200_WithThreeSkus_WhenViewInScope()
+        public async Task GetCatalog_Returns200_WithFiveCoreSkus_WhenViewInScope()
         {
             var seeded = await SeedOwnerAndMemberAsync(
                 PermissionRoles.LocationManager,
@@ -52,30 +52,36 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(2000, body.GetProperty("vatRateBps").GetInt32());
 
             var items = body.GetProperty("items");
-            Assert.Equal(3, items.GetArrayLength());
+            Assert.Equal(5, items.GetArrayLength());
+            Assert.DoesNotContain(
+                items.EnumerateArray(),
+                row => row.GetProperty("skuId").GetString() == "offer-card"
+            );
 
             var tableTents = items.EnumerateArray()
                 .First(row =>
                     row.GetProperty("skuId").GetString() == "table-tents"
                 );
-            Assert.Equal("Table Tent QR", tableTents.GetProperty("title").GetString());
+            Assert.Equal("Table Tent", tableTents.GetProperty("title").GetString());
             Assert.Equal(999, tableTents.GetProperty("unitNetPence").GetInt32());
             Assert.Equal(3, tableTents.GetProperty("packs").GetArrayLength());
             Assert.Equal(399, tableTents.GetProperty("deliveryNetPence").GetInt32());
             Assert.Equal("TableTent", tableTents.GetProperty("qrType").GetString());
+            Assert.False(tableTents.GetProperty("availableInShop").GetBoolean());
+            Assert.Equal(
+                "Coming soon",
+                tableTents.GetProperty("popularBadge").GetString()
+            );
 
-            // All three launch SKUs ship in the complimentary Guest Loop kit.
-            foreach (var item in items.EnumerateArray())
-            {
-                Assert.True(
-                    item.GetProperty("isPlanIncluded").GetBoolean(),
-                    $"{item.GetProperty("skuId").GetString()} should be plan-included."
+            var counter = items.EnumerateArray()
+                .First(row =>
+                    row.GetProperty("skuId").GetString()
+                    == ShopMaterialsCatalogSeed.CounterDisplaySkuId
                 );
-                Assert.Equal(
-                    "Essential",
-                    item.GetProperty("popularBadge").GetString()
-                );
-            }
+            Assert.Equal("QR Counter Display", counter.GetProperty("title").GetString());
+            Assert.True(counter.GetProperty("availableInShop").GetBoolean());
+            Assert.True(counter.GetProperty("isPlanIncluded").GetBoolean());
+            Assert.Equal("Essential", counter.GetProperty("popularBadge").GetString());
         }
 
         [Fact]
@@ -190,7 +196,7 @@ namespace TummlyBackend.Tests.Integration
             );
 
             using var request = AuthorizedGet(
-                $"/api/shop/catalog/offer-card?locationId={seeded.InScopeLocationId}",
+                $"/api/shop/catalog/{ShopMaterialsCatalogSeed.CounterDisplaySkuId}?locationId={seeded.InScopeLocationId}",
                 seeded.MemberJwt
             );
 
@@ -199,9 +205,13 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             var item = body.GetProperty("item");
-            Assert.Equal("offer-card", item.GetProperty("skuId").GetString());
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                item.GetProperty("skuId").GetString()
+            );
             Assert.Equal("OfferCard", item.GetProperty("qrType").GetString());
             Assert.False(item.GetProperty("mintOnShopFulfilment").GetBoolean());
+            Assert.True(item.GetProperty("availableInShop").GetBoolean());
             Assert.Equal(
                 ShopMaterialCatalogMapper.CatalogVersionId,
                 item.GetProperty("catalogVersion").GetString()

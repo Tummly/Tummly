@@ -1024,10 +1024,14 @@ namespace TummlyBackend.Services
                 "table-tents" => QrType.TableTent,
                 "window-stickers" => QrType.WindowSticker,
                 "offer-card" => QrType.OfferCard,
+                "qr-counter-display" => QrType.OfferCard,
                 _ => default,
             };
             return catalogSkuId.Trim().ToLowerInvariant()
-                is "table-tents" or "window-stickers" or "offer-card";
+                is "table-tents"
+                    or "window-stickers"
+                    or "offer-card"
+                    or "qr-counter-display";
         }
 
         private async Task<bool> CanOpenStoredObjectAsync(

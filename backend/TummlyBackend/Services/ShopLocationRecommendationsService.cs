@@ -24,7 +24,7 @@ namespace TummlyBackend.Services
             {
                 ["table-tents"] = QrType.TableTent,
                 ["window-stickers"] = QrType.WindowSticker,
-                ["offer-card"] = QrType.OfferCard,
+                ["qr-counter-display"] = QrType.OfferCard,
             };
 
         private readonly ApplicationDbContext _context;
@@ -232,7 +232,7 @@ namespace TummlyBackend.Services
             return skuId switch
             {
                 "table-tents" => prompts.Contains("tables"),
-                "offer-card" => prompts.Contains("counters")
+                "qr-counter-display" => prompts.Contains("counters")
                     || prompts.Contains("collection"),
                 "window-stickers" => prompts.Contains("windows"),
                 _ => false,
@@ -250,7 +250,7 @@ namespace TummlyBackend.Services
                 "table-tents" => fromPrompts
                     ? details.TableCount + 2
                     : 12,
-                "offer-card" => fromPrompts
+                "qr-counter-display" => fromPrompts
                     ? details.CounterCount + 1
                     : 2,
                 "window-stickers" => fromPrompts
@@ -291,7 +291,7 @@ namespace TummlyBackend.Services
             {
                 "table-tents" when fromPrompts =>
                     $"{details.TableCount} for guest tables + {Math.Max(0, quantity - details.TableCount)} spare",
-                "offer-card" when fromPrompts =>
+                "qr-counter-display" when fromPrompts =>
                     $"{details.CounterCount} for counters + {Math.Max(0, quantity - details.CounterCount)} spare",
                 "window-stickers" when fromPrompts =>
                     $"{details.EntranceCount + details.SecondaryEntranceCount} for entrances + {Math.Max(0, quantity - (details.EntranceCount + details.SecondaryEntranceCount))} spare",
@@ -328,7 +328,7 @@ namespace TummlyBackend.Services
                 {
                     "table-tents" =>
                         $"Based on {details.TableCount} guest tables and how this location operates.",
-                    "offer-card" =>
+                    "qr-counter-display" =>
                         $"Based on {details.CounterCount} service counters and how this location operates.",
                     "window-stickers" =>
                         $"Based on {details.EntranceCount + details.SecondaryEntranceCount} entrances and how this location operates.",
@@ -340,7 +340,7 @@ namespace TummlyBackend.Services
             {
                 "table-tents" =>
                     $"Based on {details.TableCount} guest tables and {qrLabel} feedback in {windowLabel}.",
-                "offer-card" =>
+                "qr-counter-display" =>
                     $"Based on {details.CounterCount} service counters and {qrLabel} feedback in {windowLabel}.",
                 "window-stickers" =>
                     $"Based on {details.EntranceCount + details.SecondaryEntranceCount} entrances and {qrLabel} feedback in {windowLabel}.",

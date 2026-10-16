@@ -283,18 +283,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, complimentaryOrder.GrossPence);
             Assert.Null(complimentaryOrder.RevolutOrderId);
             Assert.Equal(location.Id, complimentaryOrder.LocationId);
-            Assert.Equal(3, complimentaryOrder.Lines.Count);
-            Assert.Contains(
-                complimentaryOrder.Lines,
-                line => line.CatalogSkuId == "table-tents"
-            );
-            Assert.Contains(
-                complimentaryOrder.Lines,
-                line => line.CatalogSkuId == "window-stickers"
-            );
-            Assert.Contains(
-                complimentaryOrder.Lines,
-                line => line.CatalogSkuId == "offer-card"
+            var complimentaryLine = Assert.Single(complimentaryOrder.Lines);
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                complimentaryLine.CatalogSkuId
             );
             Assert.Empty(_printWork.StarterLocationIds);
             Assert.Equal(

@@ -9,6 +9,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop.MaterialsCatalog;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
 
@@ -72,7 +73,7 @@ namespace TummlyBackend.Tests.Integration
                 Succeeded: true,
                 Id: revolutOrderId,
                 State: "completed",
-                AmountMinor: 12480,
+                AmountMinor: 1598,
                 CheckoutUrl: FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
                 PaymentMethodSummary: "Paid via Visa ending in 4242"
             );
@@ -449,7 +450,7 @@ namespace TummlyBackend.Tests.Integration
             var put = await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                  5
             );
             Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
@@ -472,7 +473,7 @@ namespace TummlyBackend.Tests.Integration
                 new
                 {
                     locationId = seeded.InScopeLocationId,
-                    lines = new[] { new { skuId = "table-tents", quantity = 5 } },
+                    lines = new[] { new { skuId = ShopMaterialsCatalogSeed.CounterDisplaySkuId, quantity = 5 } },
                     deliveryMethod = "standard",
                     expectedGrossPence = 1598,
                     shipTo = ValidShipTo(),
@@ -517,7 +518,7 @@ namespace TummlyBackend.Tests.Integration
             var put = await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                  5
             );
             Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
@@ -534,7 +535,7 @@ namespace TummlyBackend.Tests.Integration
             var put = await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                  5
             );
             Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
@@ -578,7 +579,7 @@ namespace TummlyBackend.Tests.Integration
                 new
                 {
                     locationId = seeded.InScopeLocationId,
-                    lines = new[] { new { skuId = "table-tents", quantity = 5 } },
+                    lines = new[] { new { skuId = ShopMaterialsCatalogSeed.CounterDisplaySkuId, quantity = 5 } },
                     deliveryMethod = "standard",
                     expectedGrossPence = 1598,
                     shipTo = ValidShipTo(),
@@ -598,22 +599,30 @@ namespace TummlyBackend.Tests.Integration
             bool bypassLock = false
         )
         {
-            if (bypassLock)
+            using (var scope = _factory.Services.CreateScope())
             {
-                using var scope = _factory.Services.CreateScope();
                 var context = scope.ServiceProvider
                     .GetRequiredService<ApplicationDbContext>();
-                var restaurantId = await context.RestaurantLocations
-                    .Where(row => row.Id == locationId)
-                    .Select(row => row.RestaurantId)
-                    .SingleAsync();
-                var account = await context.BillingAccounts
-                    .SingleAsync(row => row.RestaurantId == restaurantId);
-                account.BillingStatus = BillingStatuses.Active;
-                account.ChargebackRestricted = false;
+                // Print-asset tests need Table Tent (PDF without offer attach).
+                var tent = await context.ShopMaterialSkus
+                    .SingleAsync(row => row.SkuId == "table-tents");
+                tent.AvailableInShop = true;
+                if (bypassLock)
+                {
+                    var restaurantId = await context.RestaurantLocations
+                        .Where(row => row.Id == locationId)
+                        .Select(row => row.RestaurantId)
+                        .SingleAsync();
+                    var account = await context.BillingAccounts
+                        .SingleAsync(row => row.RestaurantId == restaurantId);
+                    account.BillingStatus = BillingStatuses.Active;
+                    account.ChargebackRestricted = false;
+                }
+
                 await context.SaveChangesAsync();
             }
 
+            // Tent pack 5@999 + vat 200 + delivery 399 = 1598
             var place = await PlaceOrderAsync(
                 jwt,
                 new
@@ -692,7 +701,7 @@ namespace TummlyBackend.Tests.Integration
                     Succeeded: true,
                     Id: revolutOrderId,
                     State: "completed",
-                    AmountMinor: 12480,
+                    AmountMinor: 1598,
                     CheckoutUrl:
                         FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
                     PaymentMethodSummary: "Paid"

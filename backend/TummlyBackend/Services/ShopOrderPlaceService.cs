@@ -492,6 +492,10 @@ namespace TummlyBackend.Services
                 "table-tents" => "table-tents",
                 "window-stickers" => "window-stickers",
                 "offer-card" => "offer-card",
+                // Counter Display keeps OfferCard placement / print material type.
+                "qr-counter-display" => "offer-card",
+                "table-talker" => "table-talker",
+                "qr-guest-cards" => "qr-guest-cards",
                 "counter-cards" => "counter-cards",
                 "packaging-stickers" => "packaging-stickers",
                 "receipt-stickers" => "receipt-stickers",

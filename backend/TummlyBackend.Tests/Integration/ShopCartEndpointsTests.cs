@@ -9,6 +9,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -58,14 +59,14 @@ namespace TummlyBackend.Tests.Integration
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
-                5
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                1
             );
             var second = await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
-                10
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                2
             );
 
             Assert.Equal(HttpStatusCode.OK, second.StatusCode);
@@ -73,12 +74,18 @@ namespace TummlyBackend.Tests.Integration
             var lines = body.GetProperty("lines");
             Assert.Equal(1, lines.GetArrayLength());
             var line = lines[0];
-            Assert.Equal("table-tents", line.GetProperty("skuId").GetString());
-            Assert.Equal(10, line.GetProperty("quantity").GetInt32());
-            Assert.Equal("Table Tent QR", line.GetProperty("title").GetString());
-            Assert.Equal(1699, line.GetProperty("unitNetPence").GetInt32());
-            Assert.Equal(1699, line.GetProperty("lineNetPence").GetInt32());
-            Assert.Equal(1699, body.GetProperty("materialsNetPence").GetInt32());
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                line.GetProperty("skuId").GetString()
+            );
+            Assert.Equal(2, line.GetProperty("quantity").GetInt32());
+            Assert.Equal(
+                "QR Counter Display",
+                line.GetProperty("title").GetString()
+            );
+            Assert.Equal(1899, line.GetProperty("unitNetPence").GetInt32());
+            Assert.Equal(1899, line.GetProperty("lineNetPence").GetInt32());
+            Assert.Equal(1899, body.GetProperty("materialsNetPence").GetInt32());
         }
 
         [Fact]
@@ -92,12 +99,12 @@ namespace TummlyBackend.Tests.Integration
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "offer-card",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                 2
             );
 
             using var delete = AuthorizedDelete(
-                $"/api/shop/cart/lines/offer-card?locationId={seeded.InScopeLocationId}",
+                $"/api/shop/cart/lines/{ShopMaterialsCatalogSeed.CounterDisplaySkuId}?locationId={seeded.InScopeLocationId}",
                 seeded.MemberJwt
             );
             var response = await _client.SendAsync(delete);
@@ -134,11 +141,11 @@ namespace TummlyBackend.Tests.Integration
                 namedInScopeOnly: false
             );
 
-            // Table Tent launch packs are 5 / 10 / 20 — 3 is not a pack.
+            // Counter Display launch packs are 1 / 2 / 5 — 3 is not a pack.
             var response = await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                 3
             );
 
@@ -153,16 +160,7 @@ namespace TummlyBackend.Tests.Integration
                 namedInScopeOnly: false
             );
 
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider
-                    .GetRequiredService<ApplicationDbContext>();
-                var sku = await context.ShopMaterialSkus
-                    .FirstAsync(row => row.SkuId == "table-tents");
-                sku.AvailableInShop = false;
-                await context.SaveChangesAsync();
-            }
-
+            // Table Tent is Published but Coming soon (AvailableInShop off).
             var response = await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
@@ -191,8 +189,8 @@ namespace TummlyBackend.Tests.Integration
             var response = await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
-                5
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                1
             );
 
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -209,13 +207,13 @@ namespace TummlyBackend.Tests.Integration
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
-                5
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                1
             );
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.OutOfScopeLocationId,
-                "window-stickers",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                 2
             );
 
@@ -233,14 +231,14 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal(1, first.GetProperty("lines").GetArrayLength());
             Assert.Equal(
-                "table-tents",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                 first.GetProperty("lines")[0].GetProperty("skuId").GetString()
             );
-            Assert.Equal(5, first.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
+            Assert.Equal(1, first.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
 
             Assert.Equal(1, second.GetProperty("lines").GetArrayLength());
             Assert.Equal(
-                "window-stickers",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                 second.GetProperty("lines")[0].GetProperty("skuId").GetString()
             );
             Assert.Equal(2, second.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
