@@ -57,6 +57,11 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            if (!detail.AvailableInShop)
+            {
+                throw new ShopSkuNotAvailableException();
+            }
+
             if (string.Equals(skuId, "offer-card", StringComparison.Ordinal))
             {
                 var hasOfferCardOffer = await _context.RestaurantLocations

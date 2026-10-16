@@ -55,6 +55,7 @@ export type AdminShopCatalogSku = {
   currency: string
   mintOnShopFulfilment: boolean
   status: AdminShopCatalogStatus
+  availableInShop: boolean
   aboutBody: string
   specifications: AdminShopCatalogSpecification[]
   tags: AdminShopCatalogTag[]
@@ -148,6 +149,17 @@ export async function unpublishAdminShopCatalogSku(
 ): Promise<AdminShopCatalogSku> {
   const response = await axiosInstance.post<ItemResponse>(
     `/admin/shop-catalog/skus/${encodeURIComponent(skuId)}/unpublish`
+  )
+  return response.data.item
+}
+
+export async function setAdminShopCatalogAvailableInShop(
+  skuId: string,
+  availableInShop: boolean
+): Promise<AdminShopCatalogSku> {
+  const response = await axiosInstance.post<ItemResponse>(
+    `/admin/shop-catalog/skus/${encodeURIComponent(skuId)}/available-in-shop`,
+    { availableInShop }
   )
   return response.data.item
 }

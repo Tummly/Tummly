@@ -80,8 +80,10 @@ export function ShopProductScreen({
   onSelectRelatedProduct,
   paidWriteChrome,
 }: ShopProductScreenProps) {
-  const purchaseBlocked = paidWriteChrome.purchaseDisabled
+  const purchaseBlocked =
+    paidWriteChrome.purchaseDisabled || !product.availableInShop
   const showVatChrome = vatRateBps > 0
+  const comingSoon = !product.availableInShop
   const packageOptions = useMemo<PackageOption[]>(() => {
     const packs =
       product.packs.length > 0
@@ -368,29 +370,37 @@ export function ShopProductScreen({
                 </span>
               </div>
 
-              <div className="flex items-center gap-2.5">
-                <Button
-                  type="button"
-                  variant="op-primary"
-                  disabled={purchaseBlocked}
-                  onClick={() => onOrderNow(product, selectedQuantity)}
-                >
-                  <ShoppingBag className="size-3.5" />
-                  Order now
-                </Button>
-                <Button
-                  type="button"
-                  variant="op-secondary"
-                  disabled={purchaseBlocked}
-                  onClick={() => onAddToCart(product, selectedQuantity)}
-                >
-                  Add to cart
-                </Button>
-              </div>
-              <ShopPaidWriteHelperNote
-                chrome={paidWriteChrome}
-                className="text-xs"
-              />
+              {comingSoon ? (
+                <p className="text-sm font-medium text-op-text-secondary">
+                  Coming soon — this material is not available to order yet.
+                </p>
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <Button
+                    type="button"
+                    variant="op-primary"
+                    disabled={purchaseBlocked}
+                    onClick={() => onOrderNow(product, selectedQuantity)}
+                  >
+                    <ShoppingBag className="size-3.5" />
+                    Order now
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="op-secondary"
+                    disabled={purchaseBlocked}
+                    onClick={() => onAddToCart(product, selectedQuantity)}
+                  >
+                    Add to cart
+                  </Button>
+                </div>
+              )}
+              {!comingSoon ? (
+                <ShopPaidWriteHelperNote
+                  chrome={paidWriteChrome}
+                  className="text-xs"
+                />
+              ) : null}
             </div>
           </div>
         </div>

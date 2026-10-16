@@ -36,6 +36,8 @@ namespace TummlyBackend.Models
         public const string PaymentRefund = "payment.refund";
         public const string ShopProductionStarted = "shop.production_started";
         public const string ShopForceCancel = "shop.force_cancel";
+        public const string ShopCatalogAvailableInShop =
+            "shop.catalog_available_in_shop";
         public const string RetentionGuestPurge = "retention.guest_purge";
     }
 
@@ -46,5 +48,6 @@ namespace TummlyBackend.Models
         public const string Restaurant = "restaurant";
         public const string PaymentOrder = "payment_order";
         public const string ShopOrder = "shop_order";
+        public const string ShopMaterialSku = "shop_material_sku";
     }
 }

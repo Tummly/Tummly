@@ -105,6 +105,9 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                     MintOnShopFulfilment = seed.MintOnShopFulfilment
                         ?? recipe.MintOnFulfilmentDefault,
                     Status = ShopMaterialSkuStatuses.Published,
+                    // Pre-ticket-04 seed stays orderable; ticket 04 sets launch
+                    // Counter ON / others OFF when five core products land.
+                    AvailableInShop = true,
                     AboutBody = seed.AboutBody,
                     SpecificationsJson = ShopMaterialSpecifications.Serialize(
                         seed.Specifications

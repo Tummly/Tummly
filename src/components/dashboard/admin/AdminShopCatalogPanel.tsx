@@ -12,6 +12,7 @@ import {
   fetchAdminShopCatalogSkus,
   fetchAdminShopCatalogTags,
   publishAdminShopCatalogSku,
+  setAdminShopCatalogAvailableInShop,
   unpublishAdminShopCatalogSku,
   updateAdminShopCatalogSku,
   uploadAdminShopCatalogImage,
@@ -24,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
+import { Switch } from "@/components/ui/switch"
 import {
   Drawer,
   DrawerClose,
@@ -99,6 +101,7 @@ type EditorState = {
   specifications: AdminShopCatalogSpecification[]
   tagIds: number[]
   mintOnShopFulfilment: boolean
+  availableInShop: boolean
   isNew: boolean
   images: AdminShopCatalogSku["images"]
   status: AdminShopCatalogSku["status"] | "new"
@@ -122,6 +125,7 @@ function emptyEditor(recipe: AdminPlacementRecipe): EditorState {
     specifications: [{ label: "", value: "" }],
     tagIds: [],
     mintOnShopFulfilment: recipe.mintOnFulfilmentDefault,
+    availableInShop: false,
     isNew: true,
     images: [],
     status: "new",
@@ -157,6 +161,7 @@ function editorFromSku(sku: AdminShopCatalogSku): EditorState {
         : [{ label: "", value: "" }],
     tagIds: sku.tags.map((tag) => tag.id),
     mintOnShopFulfilment: sku.mintOnShopFulfilment,
+    availableInShop: sku.availableInShop,
     isNew: false,
     images: sku.images,
     status: sku.status,
@@ -309,6 +314,31 @@ export function AdminShopCatalogPanel() {
     }
   }
 
+  const setAvailableInShop = async (
+    skuId: string,
+    availableInShop: boolean
+  ) => {
+    try {
+      const updated = await setAdminShopCatalogAvailableInShop(
+        skuId,
+        availableInShop
+      )
+      toast.success(
+        availableInShop
+          ? "Product is available in Shop."
+          : "Product set to Coming soon."
+      )
+      await reload()
+      if (editor && editor.skuId === skuId) {
+        setEditor(editorFromSku(updated))
+      }
+    } catch (error) {
+      toast.error(
+        apiErrorMessage(error, "Could not update Shop availability.")
+      )
+    }
+  }
+
   const addTag = async () => {
     const label = newTagLabel.trim()
     if (!label) return
@@ -397,6 +427,9 @@ export function AdminShopCatalogPanel() {
                   Status
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Available
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Tags
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
@@ -409,7 +442,7 @@ export function AdminShopCatalogPanel() {
                 Array.from({ length: 3 }).map((_, index) => (
                   <TableRow key={index} className={GUESTS_TABLE_BODY_ROW_CLASS}>
                     <TableCell
-                      colSpan={6}
+                      colSpan={7}
                       className={GUESTS_TABLE_BODY_CELL_CLASS}
                     >
                       <Skeleton className="h-8 w-full" />
@@ -419,7 +452,7 @@ export function AdminShopCatalogPanel() {
               ) : skus.length === 0 ? (
                 <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className={GUESTS_TABLE_BODY_CELL_CLASS}
                   >
                     No shop materials yet.
@@ -455,6 +488,24 @@ export function AdminShopCatalogPanel() {
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       <Badge variant="soft">{sku.status}</Badge>
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      {sku.status === "Published" ? (
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={sku.availableInShop}
+                            aria-label={`Available in Shop for ${sku.title}`}
+                            onCheckedChange={(checked) =>
+                              void setAvailableInShop(sku.skuId, checked)
+                            }
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {sku.availableInShop ? "ON" : "Coming soon"}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       <div className="flex flex-wrap gap-1">
@@ -901,6 +952,26 @@ export function AdminShopCatalogPanel() {
                     />
                   </label>
                 </div>
+
+                {!editor.isNew && editor.status === "Published" ? (
+                  <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                    <div className="flex flex-col gap-0.5">
+                      <Label htmlFor="available-in-shop">
+                        Available in Shop
+                      </Label>
+                      <span className="text-xs text-muted-foreground">
+                        OFF keeps the product listed as Coming soon.
+                      </span>
+                    </div>
+                    <Switch
+                      id="available-in-shop"
+                      checked={editor.availableInShop}
+                      onCheckedChange={(checked) =>
+                        void setAvailableInShop(editor.skuId, checked)
+                      }
+                    />
+                  </div>
+                ) : null}
 
                 <div className="mt-4 flex flex-wrap gap-2 border-t pt-4">
                   <Button

@@ -76,6 +76,7 @@ export function mapShopCartToItems(
       packs: [{ qty: line.quantity, netPence: line.unitNetPence }],
       deliveryNetPence: 0,
       mintOnShopFulfilment: false,
+      availableInShop: true,
       tags: [],
       imageSrc: "",
       imageSrcs: [],

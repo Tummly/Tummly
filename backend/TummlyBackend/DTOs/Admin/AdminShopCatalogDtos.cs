@@ -84,6 +84,8 @@ namespace TummlyBackend.DTOs.Admin
 
         public required string Status { get; init; }
 
+        public bool AvailableInShop { get; init; }
+
         public string AboutBody { get; init; } = string.Empty;
 
         public IReadOnlyList<ShopMaterialSpecificationRow> Specifications
@@ -143,6 +145,11 @@ namespace TummlyBackend.DTOs.Admin
         public List<ShopMaterialSpecificationRow>? Specifications { get; init; }
 
         public List<int>? TagIds { get; init; }
+    }
+
+    public sealed class AdminShopCatalogSetAvailableRequest
+    {
+        public bool AvailableInShop { get; init; }
     }
 
     public sealed class AdminShopCatalogCreateTagRequest

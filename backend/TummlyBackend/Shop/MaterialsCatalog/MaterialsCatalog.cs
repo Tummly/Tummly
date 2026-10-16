@@ -200,6 +200,11 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                     && badge.ValueKind != JsonValueKind.Null
                     ? badge.GetString()
                     : null,
+                AvailableInShop = !element.TryGetProperty(
+                        "availableInShop",
+                        out var available
+                    )
+                    || available.ValueKind != JsonValueKind.False,
                 MintOnShopFulfilment = element
                     .GetProperty("mintOnShopFulfilment")
                     .GetBoolean(),
@@ -239,7 +244,10 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                     : [sku.ImageUrl],
                 QrType = sku.QrType,
                 IsPlanIncluded = sku.IsPlanIncluded ? true : null,
-                PopularBadge = sku.PopularBadge,
+                PopularBadge = sku.AvailableInShop
+                    ? sku.PopularBadge
+                    : ShopMaterialCatalogMapper.ComingSoonBadgeLabel,
+                AvailableInShop = sku.AvailableInShop,
                 Tags = tags,
             };
         }
@@ -262,7 +270,8 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 ImageUrls = list.ImageUrls,
                 QrType = sku.QrType,
                 IsPlanIncluded = sku.IsPlanIncluded ? true : null,
-                PopularBadge = sku.PopularBadge,
+                PopularBadge = list.PopularBadge,
+                AvailableInShop = sku.AvailableInShop,
                 Tags = list.Tags,
                 Material = sku.Material,
                 Dimensions = sku.Dimensions,

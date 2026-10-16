@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
@@ -24,14 +25,17 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IShopCatalogImageStorage _imageStorage;
+        private readonly IAdminAuditService _audit;
 
         public AdminShopCatalogService(
             ApplicationDbContext context,
-            IShopCatalogImageStorage imageStorage
+            IShopCatalogImageStorage imageStorage,
+            IAdminAuditService audit
         )
         {
             _context = context;
             _imageStorage = imageStorage;
+            _audit = audit;
         }
 
         public async Task<IReadOnlyList<AdminPlacementRecipeDto>> ListPlacementRecipesAsync(
@@ -470,8 +474,56 @@ namespace TummlyBackend.Services
             }
 
             sku.Status = ShopMaterialSkuStatuses.Published;
+            sku.AvailableInShop = false;
             sku.PublishedAtUtc ??= DateTime.UtcNow;
             sku.UpdatedAtUtc = DateTime.UtcNow;
+            await _context.SaveChangesAsync(cancellationToken);
+            return (MapSku(sku), null);
+        }
+
+        public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> SetAvailableInShopAsync(
+            string skuId,
+            bool availableInShop,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var sku = await LoadSkuAsync(skuId, tracking: true, cancellationToken);
+            if (sku == null || sku.Status == ShopMaterialSkuStatuses.Deleted)
+            {
+                return (null, "Product was not found.");
+            }
+
+            if (sku.Status != ShopMaterialSkuStatuses.Published)
+            {
+                return (
+                    null,
+                    "Available in Shop can only change on Published products."
+                );
+            }
+
+            if (sku.AvailableInShop == availableInShop)
+            {
+                return (MapSku(sku), null);
+            }
+
+            sku.AvailableInShop = availableInShop;
+            sku.UpdatedAtUtc = DateTime.UtcNow;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopCatalogAvailableInShop,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopMaterialSku,
+                    sku.SkuId,
+                    ActorAdminUserId: actorAdminUserId,
+                    DetailJson: JsonSerializer.Serialize(
+                        new { availableInShop }
+                    )
+                )
+            );
+
             await _context.SaveChangesAsync(cancellationToken);
             return (MapSku(sku), null);
         }
@@ -970,6 +1022,7 @@ namespace TummlyBackend.Services
                 Currency = sku.Currency,
                 MintOnShopFulfilment = sku.MintOnShopFulfilment,
                 Status = sku.Status,
+                AvailableInShop = sku.AvailableInShop,
                 AboutBody = sku.AboutBody ?? string.Empty,
                 Specifications = ShopMaterialSpecifications.Parse(
                     sku.SpecificationsJson

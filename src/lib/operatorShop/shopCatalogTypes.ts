@@ -35,6 +35,7 @@ export type ShopProduct = {
   mintOnShopFulfilment: boolean
   isPlanIncluded?: boolean
   popularBadge?: string
+  availableInShop: boolean
   tags: string[]
   imageSrc: string
   imageSrcs: string[]
@@ -56,6 +57,7 @@ export type ShopCatalogListItemWire = {
   qrType: CapturePlacementQrType
   isPlanIncluded?: boolean | null
   popularBadge?: string | null
+  availableInShop?: boolean | null
   tags?: string[] | null
 }
 

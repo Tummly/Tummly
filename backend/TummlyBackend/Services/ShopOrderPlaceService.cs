@@ -442,6 +442,17 @@ namespace TummlyBackend.Services
                     );
                 }
 
+                if (!detail.AvailableInShop)
+                {
+                    return (
+                        null,
+                        ShopOrderPlaceResult.Fail(
+                            ShopSkuNotAvailableException.ErrorCode,
+                            "This product is not available for order."
+                        )
+                    );
+                }
+
                 if (
                     !ShopMaterialPacks.TryResolve(
                         detail.Packs,

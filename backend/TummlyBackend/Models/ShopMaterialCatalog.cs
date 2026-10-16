@@ -161,6 +161,13 @@ namespace TummlyBackend.Models
         public string Status { get; set; } = ShopMaterialSkuStatuses.Draft;
 
         /// <summary>
+        /// Commercial availability while <see cref="Status"/> is Published.
+        /// OFF products stay listed with Coming soon and cannot enter cart/checkout.
+        /// Ignored when Draft or Deleted. Publish defaults this to false.
+        /// </summary>
+        public bool AvailableInShop { get; set; }
+
+        /// <summary>
         /// Product-page "About" body. Empty until Admin sets it.
         /// </summary>
         public string AboutBody { get; set; } = string.Empty;

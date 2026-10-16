@@ -144,6 +144,36 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(result.Order);
         }
 
+        [Fact]
+        public async Task PlaceAsync_RejectsSku_WhenNotAvailableInShop()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedRestaurantAsync(context);
+            var service = CreateService(
+                context,
+                new TummlySellerVatSettings { IsActive = false },
+                new FixedCatalog(availableInShop: false)
+            );
+
+            var result = await service.PlaceAsync(
+                seeded.RestaurantId,
+                seeded.UserId,
+                "Place Owner",
+                BuildRequest(seeded.LocationId, expectedGrossPence: UnitNetPence)
+            );
+
+            Assert.Equal(
+                ShopSkuNotAvailableException.ErrorCode,
+                result.ErrorCode
+            );
+            Assert.Contains(
+                "not available",
+                result.ErrorMessage,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.Null(result.Order);
+        }
+
         private static PlaceShopOrderRequest BuildRequest(
             int locationId,
             int expectedGrossPence,
@@ -181,7 +211,7 @@ namespace TummlyBackend.Tests.Services
         {
             return new ShopOrderPlaceService(
                 context,
-                catalog ?? new FixedCatalog(),
+                catalog ?? new FixedCatalog(availableInShop: true),
                 new EmptyCarts(),
                 new ShopOrderNumberAllocator(context),
                 Options.Create(sellerVat)
@@ -247,6 +277,13 @@ namespace TummlyBackend.Tests.Services
 
         private sealed class FixedCatalog : IMaterialsCatalog
         {
+            private readonly bool _availableInShop;
+
+            public FixedCatalog(bool availableInShop)
+            {
+                _availableInShop = availableInShop;
+            }
+
             public string CurrentCatalogId => "test-catalog";
 
             public MaterialsCatalogSnapshot GetRequired(string catalogId)
@@ -283,6 +320,7 @@ namespace TummlyBackend.Tests.Services
                     DeliveryNetPence = 0,
                     CatalogVersion = CurrentCatalogId,
                     MintOnShopFulfilment = false,
+                    AvailableInShop = _availableInShop,
                 };
             }
         }
@@ -334,6 +372,7 @@ namespace TummlyBackend.Tests.Services
                     DeliveryNetPence = _deliveryNetPence,
                     CatalogVersion = CurrentCatalogId,
                     MintOnShopFulfilment = false,
+                    AvailableInShop = true,
                 };
             }
         }

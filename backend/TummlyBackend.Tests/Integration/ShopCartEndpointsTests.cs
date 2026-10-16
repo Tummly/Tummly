@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -142,6 +143,44 @@ namespace TummlyBackend.Tests.Integration
             );
 
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PutCartLine_Returns400_WhenSkuNotAvailableInShop()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var sku = await context.ShopMaterialSkus
+                    .FirstAsync(row => row.SkuId == "table-tents");
+                sku.AvailableInShop = false;
+                await context.SaveChangesAsync();
+            }
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "table-tents",
+                5
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                ShopSkuNotAvailableException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+            Assert.Contains(
+                "not available",
+                body.GetProperty("message").GetString(),
+                StringComparison.OrdinalIgnoreCase
+            );
         }
 
         [Fact]

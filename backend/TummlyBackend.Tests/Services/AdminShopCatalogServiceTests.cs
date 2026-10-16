@@ -25,7 +25,11 @@ namespace TummlyBackend.Tests.Services
                 .EnsureSeededAsync(_context)
                 .GetAwaiter()
                 .GetResult();
-            _service = new AdminShopCatalogService(_context, _images);
+            _service = new AdminShopCatalogService(
+                _context,
+                _images,
+                new AdminAuditService(_context, TimeProvider.System)
+            );
         }
 
         [Fact]
@@ -250,6 +254,111 @@ namespace TummlyBackend.Tests.Services
                 ShopMaterialCatalogMapper.CatalogVersionId,
                 catalog.CurrentCatalogId
             );
+        }
+
+        [Fact]
+        public async Task SetAvailableInShop_Off_KeepsPublishedVisible_WithComingSoonBadge()
+        {
+            var (sku, error) = await _service.SetAvailableInShopAsync(
+                "table-tents",
+                availableInShop: false,
+                actorAdminUserId: 1,
+                actorIdentity: "admin@example.com"
+            );
+
+            Assert.Null(error);
+            Assert.NotNull(sku);
+            Assert.Equal(ShopMaterialSkuStatuses.Published, sku!.Status);
+            Assert.False(sku.AvailableInShop);
+
+            var catalog = new DbMaterialsCatalog(_context);
+            var list = catalog.BuildList();
+            var item = Assert.Single(list, row => row.SkuId == "table-tents");
+            Assert.False(item.AvailableInShop);
+            Assert.Equal(
+                ShopMaterialCatalogMapper.ComingSoonBadgeLabel,
+                item.PopularBadge
+            );
+
+            var detail = catalog.TryBuildDetail("table-tents");
+            Assert.NotNull(detail);
+            Assert.False(detail!.AvailableInShop);
+            Assert.Equal(
+                ShopMaterialCatalogMapper.ComingSoonBadgeLabel,
+                detail.PopularBadge
+            );
+        }
+
+        [Fact]
+        public async Task SetAvailableInShop_WritesAdminAudit()
+        {
+            var before = await _context.AdminAuditEvents.CountAsync();
+
+            var (sku, error) = await _service.SetAvailableInShopAsync(
+                "window-stickers",
+                availableInShop: false,
+                actorAdminUserId: 42,
+                actorIdentity: "ops@tummly.test"
+            );
+
+            Assert.Null(error);
+            Assert.NotNull(sku);
+
+            var events = await _context.AdminAuditEvents.ToListAsync();
+            Assert.Equal(before + 1, events.Count);
+            var audit = Assert.Single(
+                events,
+                row =>
+                    row.Action == AdminAuditActions.ShopCatalogAvailableInShop
+            );
+            Assert.Equal("ops@tummly.test", audit.ActorIdentity);
+            Assert.Equal(42, audit.ActorAdminUserId);
+            Assert.Equal(
+                AdminAuditTargetTypes.ShopMaterialSku,
+                audit.TargetType
+            );
+            Assert.Equal("window-stickers", audit.TargetId);
+            Assert.Contains(
+                "\"availableInShop\":false",
+                audit.DetailJson,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public async Task Publish_DefaultsAvailableInShopToFalse()
+        {
+            await _service.DeleteAsync("table-tents");
+            var tentRecipe = await RecipeIdAsync("table-tent");
+
+            var (created, createError) = await _service.CreateSkuAsync(
+                new AdminShopCatalogSkuWriteRequest
+                {
+                    Title = "Extra Table Tent",
+                    Category = "tabletop",
+                    Description = "Extra stock listing",
+                    Material = "Acrylic",
+                    Dimensions = "A6",
+                    PlacementRecipeId = tentRecipe,
+                    UnitNetPence = 2000,
+                    AboutBody = "About extra tents",
+                }
+            );
+            Assert.Null(createError);
+
+            await using var stream = new MemoryStream([1, 2, 3, 4]);
+            var formFile = new FormFile(stream, 0, stream.Length, "file", "tent.png")
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = "image/png",
+            };
+            await _service.UploadImageAsync(created!.SkuId, formFile);
+
+            var (published, publishError) = await _service.PublishAsync(
+                created.SkuId
+            );
+            Assert.Null(publishError);
+            Assert.False(published!.AvailableInShop);
         }
 
         private async Task<int> RecipeIdAsync(string slug)

@@ -30,6 +30,8 @@ namespace TummlyBackend.DTOs.Shop
 
         public string? PopularBadge { get; init; }
 
+        public bool AvailableInShop { get; init; }
+
         public IReadOnlyList<string> Tags { get; init; } = [];
     }
 
@@ -56,6 +58,8 @@ namespace TummlyBackend.DTOs.Shop
         public bool? IsPlanIncluded { get; init; }
 
         public string? PopularBadge { get; init; }
+
+        public bool AvailableInShop { get; init; }
 
         public IReadOnlyList<string> Tags { get; init; } = [];
 
