@@ -123,6 +123,45 @@ namespace TummlyBackend.Tests.Shop
         }
 
         [Fact]
+        public async Task EnsureSeeded_RestoresSingleMissingSku_WithoutRewritingAdminPacks()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var tent = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            var adminPacks = ShopMaterialPacks.Serialize(
+                [new ShopMaterialPackRow { Qty = 3, NetPence = 999 }]
+            );
+            tent.PacksJson = adminPacks;
+            tent.DeliveryNetPence = 777;
+            tent.AvailableInShop = true;
+            tent.Title = "Admin Tent Title";
+
+            var talker = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-talker"
+            );
+            _context.ShopMaterialSkus.Remove(talker);
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            Assert.True(
+                await _context.ShopMaterialSkus.AnyAsync(row =>
+                    row.SkuId == "table-talker"
+                    && row.Status == ShopMaterialSkuStatuses.Published
+                )
+            );
+            var after = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            Assert.Equal(adminPacks, after.PacksJson);
+            Assert.Equal(777, after.DeliveryNetPence);
+            Assert.True(after.AvailableInShop);
+            Assert.Equal("Admin Tent Title", after.Title);
+        }
+
+        [Fact]
         public async Task EnsureSeeded_RetiresOfferCard_WhenLegacyThreeSkuCatalogExists()
         {
             await SeedLegacyThreeProductsAsync();

@@ -257,6 +257,8 @@ export type CapturePlacementQrType =
   | "ReceiptSticker"
   | "TableTent"
   | "OfferCard"
+  | "TableTalker"
+  | "GuestCard"
 
 /** Wire channel for Digital guest links (PascalCase enum names). */
 export type CaptureDigitalGuestLinkChannel =

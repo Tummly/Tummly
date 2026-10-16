@@ -86,8 +86,10 @@ export const CAPTURE_ARCHIVE_PLACEMENT_TYPE_OPTIONS: readonly {
   label: string
 }[] = [
   { id: "TableTent", label: "Table tent" },
+  { id: "TableTalker", label: "Table talker" },
   { id: "WindowSticker", label: "Window sticker" },
   { id: "OfferCard", label: "Offer card" },
+  { id: "GuestCard", label: "Guest card" },
   { id: "CounterCard", label: "Counter card" },
   { id: "PackagingSticker", label: "Packaging sticker" },
   { id: "DeliveryInsert", label: "Delivery insert" },
@@ -106,6 +108,8 @@ const QR_TYPE_LABELS: Record<CapturePlacementQrType, string> = {
   ReceiptSticker: "Receipt sticker",
   TableTent: "Table tent",
   OfferCard: "Offer card",
+  TableTalker: "Table talker",
+  GuestCard: "Guest card",
 }
 
 export const DEFAULT_CAPTURE_ARCHIVE_FILTERS: CaptureArchiveFilters = {

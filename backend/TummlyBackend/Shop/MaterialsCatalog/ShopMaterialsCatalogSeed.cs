@@ -282,7 +282,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             // Inserts already received ApplySeedToSku above; do not re-apply on
             // steady-state startups or when only a single missing SKU is restored.
             var upgradeToFive =
-                remappedOfferCard || !hadTalker || !hadGuestCards;
+                remappedOfferCard || (!hadTalker && !hadGuestCards);
             if (upgradeToFive)
             {
                 foreach (var seed in SeedSkus())
