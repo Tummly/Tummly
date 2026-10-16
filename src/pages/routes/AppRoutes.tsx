@@ -48,6 +48,7 @@ import ProductPage from "../public/ProductPage";
 import HowItWorksPage from "../public/HowItWorksPage";
 import QrMaterialsPage from "../public/QrMaterialsPage";
 import AiAssistantPage from "../public/AiAssistantPage";
+import ProductDemoPage from "../public/ProductDemoPage";
 import TrustPrivacyPage from "../public/TrustPrivacyPage";
 import UnsubscribePage from "../public/UnsubscribePage";
 import NotFoundPage from "../public/NotFoundPage";
@@ -590,6 +591,15 @@ function AppRoutes() {
           <Route path="how-it-works" element={<HowItWorksPage />} />
           <Route path="qr-materials" element={<QrMaterialsPage />} />
           <Route path="ai-assistant" element={<AiAssistantPage />} />
+          <Route
+            path="demo-product"
+            element={<Navigate to="/product-demo" replace />}
+          />
+          <Route path="product-demo" element={<ProductDemoPage />} />
+          <Route
+            path="product-demo/*"
+            element={<Navigate to="/product-demo" replace />}
+          />
           <Route path="trust-privacy" element={<TrustPrivacyPage />} />
           <Route path="unsubscribe" element={<UnsubscribePage />} />
 

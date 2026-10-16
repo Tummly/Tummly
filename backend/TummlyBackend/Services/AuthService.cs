@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Notifications;
@@ -35,6 +37,8 @@ namespace TummlyBackend.Services
 
         private readonly ICreditLedger _creditLedger;
 
+        private readonly DemoSessionOptions _demoSession;
+
         private const int MaxActivationVerifyAttempts = 5;
 
         private static readonly TimeSpan ActivationVerifyLockout =
@@ -52,7 +56,8 @@ namespace TummlyBackend.Services
     IActivationGate activationGate,
     IOperatorNotificationsService notifications,
     IBillingAccountLifecycle lifecycle,
-    ICreditLedger creditLedger
+    ICreditLedger creditLedger,
+    IOptions<DemoSessionOptions> demoSession
 )
         {
             _context = context;
@@ -67,6 +72,7 @@ namespace TummlyBackend.Services
             _notifications = notifications;
             _lifecycle = lifecycle;
             _creditLedger = creditLedger;
+            _demoSession = demoSession.Value;
         }
 
         /*
@@ -1528,6 +1534,108 @@ namespace TummlyBackend.Services
             return await CompleteOperatorSignInAfterCredentialsAsync(
                 user,
                 deviceToken
+            );
+        }
+
+        /*
+         =========================================
+         PUBLIC PRODUCT DEMO
+         =========================================
+        */
+        public async Task<object> CreateDemoSessionAsync()
+        {
+            if (!_demoSession.Enabled)
+            {
+                throw new DemoSessionDisabledException();
+            }
+
+            var ownerEmail = (_demoSession.OwnerEmail ?? string.Empty)
+                .Trim()
+                .ToLowerInvariant();
+
+            if (string.IsNullOrWhiteSpace(ownerEmail))
+            {
+                throw new DemoSessionUnavailableException();
+            }
+
+            var user =
+                await _context.Users
+                    .FirstOrDefaultAsync(x => x.Email == ownerEmail);
+
+            if (user == null)
+            {
+                throw new DemoSessionUnavailableException();
+            }
+
+            var restaurant =
+                await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.OwnerUserId == user.Id)
+                    .Where(row => row.AccountType == "Single")
+                    .OrderBy(row => row.Id)
+                    .Select(row => new { row.Id })
+                    .FirstOrDefaultAsync();
+
+            if (restaurant == null)
+            {
+                throw new DemoSessionUnavailableException();
+            }
+
+            var hasLocation =
+                await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .AnyAsync(row => row.RestaurantId == restaurant.Id);
+
+            if (!hasLocation)
+            {
+                throw new DemoSessionUnavailableException();
+            }
+
+            if (user.SelectedRestaurantId != restaurant.Id)
+            {
+                user.SelectedRestaurantId = restaurant.Id;
+            }
+
+            if (user.SelectedLocationId == null)
+            {
+                var locationId =
+                    await _context.RestaurantLocations
+                        .AsNoTracking()
+                        .Where(row => row.RestaurantId == restaurant.Id)
+                        .OrderBy(row => row.Id)
+                        .Select(row => (int?)row.Id)
+                        .FirstOrDefaultAsync();
+
+                user.SelectedLocationId = locationId;
+            }
+
+            if (user.AccountType != "Single")
+            {
+                user.AccountType = "Single";
+            }
+
+            EnsureOperatorCanSignIn(user);
+
+            await TickSelectedRestaurantAsync(user);
+
+            user.HasCompletedFirstSignIn = true;
+
+            var issuedRefreshToken =
+                await RefreshTokenHelper.IssueAsync(_context, user.Id);
+
+            await _context.SaveChangesAsync();
+
+            var token =
+                _jwtService.GenerateToken(
+                    user.Id.ToString(),
+                    user.Email,
+                    user.Role
+                );
+
+            return await BuildUserSessionPayloadAsync(
+                user,
+                token,
+                issuedRefreshToken
             );
         }
 

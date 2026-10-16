@@ -890,6 +890,9 @@ namespace TummlyBackend.Tests.Services
                 int userId,
                 string activationCode
             ) => throw new NotImplementedException();
+
+            public Task<object> CreateDemoSessionAsync() =>
+                throw new NotImplementedException();
         }
     }
 }

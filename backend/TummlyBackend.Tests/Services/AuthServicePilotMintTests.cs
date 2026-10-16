@@ -73,7 +73,10 @@ namespace TummlyBackend.Tests.Services
                 new ActivationGate(),
                 new TrackingOperatorNotificationsService(),
                 new NoOpBillingAccountLifecycle(),
-                ledger
+                ledger,
+                Microsoft.Extensions.Options.Options.Create(
+                    new TummlyBackend.Configurations.DemoSessionOptions()
+                )
             );
         }
 

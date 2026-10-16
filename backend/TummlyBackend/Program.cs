@@ -138,6 +138,10 @@ builder.Services.Configure<ExternalAuthOptions>(
     builder.Configuration.GetSection("ExternalAuth")
 );
 
+builder.Services.Configure<DemoSessionOptions>(
+    builder.Configuration.GetSection(DemoSessionOptions.SectionName)
+);
+
 builder.Services.Configure<IdealPostcodesSettings>(
     builder.Configuration.GetSection("IdealPostcodes")
 );

@@ -1,4 +1,4 @@
-import { useLayoutEffect, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react"
 import { ThemeProvider, useTheme } from "next-themes"
 import { useLocation } from "react-router-dom"
 
@@ -10,11 +10,30 @@ import {
   readSystemPrefersDark,
   resolveOperatorAppearanceDocumentTheme,
 } from "@/lib/operatorAppearance"
+import { isDemoTourActive } from "@/lib/productDemo/demoTourSession"
+
+function useDemoTourForceLight(): boolean {
+  const [forceLight, setForceLight] = useState(() => isDemoTourActive())
+
+  useEffect(() => {
+    const sync = () => setForceLight(isDemoTourActive())
+    window.addEventListener("tummly-demo-tour-change", sync)
+    window.addEventListener("storage", sync)
+    return () => {
+      window.removeEventListener("tummly-demo-tour-change", sync)
+      window.removeEventListener("storage", sync)
+    }
+  }, [])
+
+  return forceLight
+}
 
 function OperatorAppearanceDocumentSync({
   themeEnabled,
+  forceLight,
 }: {
   themeEnabled: boolean
+  forceLight: boolean
 }) {
   const { theme, systemTheme } = useTheme()
 
@@ -24,15 +43,19 @@ function OperatorAppearanceDocumentSync({
       systemTheme === "dark" ||
       (systemTheme === "light" ? false : readSystemPrefersDark())
 
+    const resolved = forceLight
+      ? "light"
+      : resolveOperatorAppearanceDocumentTheme({
+          themeEnabled,
+          preference,
+          systemPrefersDark,
+        })
+
     applyOperatorAppearanceDocumentTheme({
       applyOpScope: themeEnabled,
-      theme: resolveOperatorAppearanceDocumentTheme({
-        themeEnabled,
-        preference,
-        systemPrefersDark,
-      }),
+      theme: resolved,
     })
-  }, [theme, systemTheme, themeEnabled])
+  }, [theme, systemTheme, themeEnabled, forceLight])
 
   return null
 }
@@ -44,6 +67,9 @@ export function OperatorAppearanceProvider({
 }) {
   const { pathname } = useLocation()
   const themeEnabled = isThemedAppShellPath(pathname)
+  const forceLight = useDemoTourForceLight()
+  const forcedTheme =
+    !themeEnabled || forceLight ? "light" : undefined
 
   return (
     <ThemeProvider
@@ -51,10 +77,13 @@ export function OperatorAppearanceProvider({
       defaultTheme="system"
       enableSystem
       storageKey={OPERATOR_APPEARANCE_STORAGE_KEY}
-      forcedTheme={themeEnabled ? undefined : "light"}
+      forcedTheme={forcedTheme}
       disableTransitionOnChange
     >
-      <OperatorAppearanceDocumentSync themeEnabled={themeEnabled} />
+      <OperatorAppearanceDocumentSync
+        themeEnabled={themeEnabled}
+        forceLight={forceLight}
+      />
       {children}
     </ThemeProvider>
   )

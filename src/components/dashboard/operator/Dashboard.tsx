@@ -8,6 +8,7 @@ import {
 } from "react-router-dom"
 
 import { ActivateTummlyPilotDialogHost } from "@/components/dashboard/operator/ActivateTummlyPilotDialogHost"
+import { ProductDemoTourHost } from "@/components/marketing/demo/ProductDemoTourHost"
 import { PendingPaymentInterstitialHost } from "@/components/dashboard/operator/PendingPaymentInterstitialHost"
 import { DashboardShell } from "@/components/dashboard/operator/DashboardShell"
 import {
@@ -579,6 +580,7 @@ function DashboardContent({ mode }: DashboardProps) {
           }
           reloadWorkspace={() => workspace.load()}
         />
+        {mode === "single" ? <ProductDemoTourHost /> : null}
         <Outlet
           context={{
             activationPeriodBadge: presentation.activationPeriodBadge,
