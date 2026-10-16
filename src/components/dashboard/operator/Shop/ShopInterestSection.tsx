@@ -1,12 +1,13 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import {
   registerShopInterest,
+  unregisterShopInterest,
   type ShopInterestProduct,
 } from "@/api/shopInterestApi"
+import interestRegisteredCheck from "@/assets/images/shop/interest/interest-registered-check.svg"
 import { Button } from "@/components/ui/button"
-import { SHOP_INTEREST_THANKS_MESSAGE } from "@/lib/operatorShop/shopInterestPresentation"
 import {
   SHOP_PRODUCT_CARD_PRIMARY_CLASS,
   SHOP_PRODUCT_CARD_PRIMARY_IMAGE_CLASS,
@@ -21,6 +22,10 @@ export type ShopInterestSectionProps = {
     productKey: string
     locationId: number
   }) => Promise<string>
+  onUnregisterInterest?: (input: {
+    productKey: string
+    locationId: number
+  }) => Promise<void>
 }
 
 export function ShopInterestSection({
@@ -28,11 +33,26 @@ export function ShopInterestSection({
   locationId,
   searchQuery = "",
   onRegisterInterest = registerShopInterest,
+  onUnregisterInterest = unregisterShopInterest,
 }: ShopInterestSectionProps) {
-  const [confirmedKeys, setConfirmedKeys] = useState<Set<string>>(
-    () => new Set()
-  )
+  const [registeredKeys, setRegisteredKeys] = useState<Set<string>>(() => {
+    return new Set(
+      products
+        .filter((product) => product.interestRegistered)
+        .map((product) => product.productKey)
+    )
+  })
   const [busyKey, setBusyKey] = useState<string | null>(null)
+
+  useEffect(() => {
+    setRegisteredKeys(
+      new Set(
+        products
+          .filter((product) => product.interestRegistered)
+          .map((product) => product.productKey)
+      )
+    )
+  }, [products])
 
   const filtered = products.filter((product) => {
     const q = searchQuery.trim().toLowerCase()
@@ -51,14 +71,33 @@ export function ShopInterestSection({
     if (busyKey) return
     setBusyKey(product.productKey)
     try {
-      const message = await onRegisterInterest({
+      await onRegisterInterest({
         productKey: product.productKey,
         locationId,
       })
-      setConfirmedKeys((prev) => new Set(prev).add(product.productKey))
-      toast.success(message)
+      setRegisteredKeys((prev) => new Set(prev).add(product.productKey))
     } catch {
       toast.error("Could not register interest.")
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
+  const handleUnregister = async (product: ShopInterestProduct) => {
+    if (busyKey) return
+    setBusyKey(product.productKey)
+    try {
+      await onUnregisterInterest({
+        productKey: product.productKey,
+        locationId,
+      })
+      setRegisteredKeys((prev) => {
+        const next = new Set(prev)
+        next.delete(product.productKey)
+        return next
+      })
+    } catch {
+      toast.error("Could not remove interest.")
     } finally {
       setBusyKey(null)
     }
@@ -79,11 +118,11 @@ export function ShopInterestSection({
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {filtered.map((product) => {
-          const confirmed = confirmedKeys.has(product.productKey)
+          const registered = registeredKeys.has(product.productKey)
           return (
             <div
               key={product.productKey}
-              className={cn(SHOP_PRODUCT_CARD_PRIMARY_CLASS)}
+              className={cn(SHOP_PRODUCT_CARD_PRIMARY_CLASS, "cursor-default")}
               data-testid={`shop-interest-card-${product.productKey}`}
             >
               <div className={SHOP_PRODUCT_CARD_PRIMARY_IMAGE_CLASS}>
@@ -94,7 +133,7 @@ export function ShopInterestSection({
                     className="size-full object-contain"
                   />
                 ) : (
-                  <div className="flex size-full items-center justify-center bg-op-surface-secondary text-sm text-op-text-muted">
+                  <div className="flex size-full items-center justify-center bg-[var(--op-color-gray-985)] text-sm text-op-text-muted">
                     Coming later
                   </div>
                 )}
@@ -110,13 +149,31 @@ export function ShopInterestSection({
                   </p>
                 </div>
 
-                {confirmed ? (
-                  <p
-                    className="text-sm font-medium text-op-text-success"
-                    data-testid={`shop-interest-thanks-${product.productKey}`}
+                {registered ? (
+                  <div
+                    className="flex flex-col items-center gap-3"
+                    data-testid={`shop-interest-registered-${product.productKey}`}
                   >
-                    {SHOP_INTEREST_THANKS_MESSAGE}
-                  </p>
+                    <div className="flex items-center justify-center gap-2.5">
+                      <img
+                        src={interestRegisteredCheck}
+                        alt=""
+                        className="size-[18px]"
+                      />
+                      <span className="text-sm font-medium text-[#14a946]">
+                        Interest registered
+                      </span>
+                    </div>
+                    <div className="h-px w-full bg-op-border-default" />
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-[var(--op-color-gray-550)] hover:underline"
+                      disabled={busyKey === product.productKey}
+                      onClick={() => void handleUnregister(product)}
+                    >
+                      Remove interest
+                    </button>
+                  </div>
                 ) : (
                   <Button
                     type="button"

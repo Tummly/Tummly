@@ -9,6 +9,11 @@ namespace TummlyBackend.DTOs.Shop
         public string Description { get; set; } = string.Empty;
 
         public string? ImageUrl { get; set; }
+
+        /// <summary>
+        /// True when this operator already registered interest for the Shop Location.
+        /// </summary>
+        public bool InterestRegistered { get; set; }
     }
 
     public sealed class RegisterShopInterestRequest

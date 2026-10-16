@@ -1195,12 +1195,16 @@ namespace TummlyBackend.Services
             }
             else
             {
+                // EmbeddedPdf = Counter Display A5 with Location branding (logo/name/address).
                 var raster = _rasterizer.Render(guestUrl);
-                bytes = PrintReadyQrPdfComposer.Compose(
-                    _pack.Snapshot,
-                    asset.QrType,
+                var branding = await BuildCounterCardBrandingAsync(
+                    location,
+                    cancellationToken
+                );
+                bytes = PrintReadyQrPdfComposer.ComposeCounterCard(
                     raster,
-                    offerHeadline
+                    branding,
+                    ResolveCounterCardAssets()
                 );
                 contentType = PrintReadyQrPdfComposer.ContentType;
                 extension = "pdf";
@@ -1238,6 +1242,90 @@ namespace TummlyBackend.Services
             asset.LastError = null;
             asset.UpdatedAtUtc = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private CounterCardAssetPaths? ResolveCounterCardAssets()
+        {
+            var packDir = Path.GetDirectoryName(_pack.Snapshot.CardSvgPath);
+            if (string.IsNullOrWhiteSpace(packDir))
+            {
+                return null;
+            }
+
+            var counterDir = Path.Combine(packDir, "counter-card");
+            string? Pick(string fileName)
+            {
+                var path = Path.Combine(counterDir, fileName);
+                return File.Exists(path) ? path : null;
+            }
+
+            return new CounterCardAssetPaths(
+                PatternSvgPath: Pick("group6.svg"),
+                StripSvgPath: Pick("strip.svg"),
+                PoweredSvgPath: Pick("powered.svg")
+            );
+        }
+
+        private async Task<CounterCardBranding> BuildCounterCardBrandingAsync(
+            RestaurantLocation location,
+            CancellationToken cancellationToken
+        )
+        {
+            var restaurant = location.Restaurant;
+            if (restaurant == null)
+            {
+                restaurant = await _context.Restaurants
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        row => row.Id == location.RestaurantId,
+                        cancellationToken
+                    );
+            }
+
+            byte[]? logoBytes = null;
+            string? logoContentType = null;
+            var logoKey = restaurant?.BrandLogoObjectKey;
+            if (
+                !string.IsNullOrWhiteSpace(logoKey)
+                && _storage.IsConfigured
+            )
+            {
+                try
+                {
+                    await using var stream = await _storage.OpenReadAsync(
+                        logoKey,
+                        cancellationToken
+                    );
+                    using var memory = new MemoryStream();
+                    await stream.CopyToAsync(memory, cancellationToken);
+                    logoBytes = memory.ToArray();
+                    logoContentType = restaurant?.BrandLogoContentType;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Could not load brand logo for Counter Display at location {LocationId}",
+                        location.Id
+                    );
+                }
+            }
+
+            var addressParts = new[]
+            {
+                location.Address,
+                location.City,
+                location.Postcode,
+            }
+                .Where(part => !string.IsNullOrWhiteSpace(part))
+                .Select(part => part!.Trim());
+
+            return new CounterCardBranding(
+                LocationName: location.LocationName?.Trim() ?? string.Empty,
+                AddressLine: string.Join(", ", addressParts),
+                LogoBytes: logoBytes,
+                LogoContentType: logoContentType
+            );
         }
 
         private static PrintReadyPlacementCsvRow BuildCsvRow(

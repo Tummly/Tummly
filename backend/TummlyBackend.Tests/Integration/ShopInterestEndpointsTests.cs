@@ -153,6 +153,8 @@ namespace TummlyBackend.Tests.Integration
             await SeedInterestProductAsync("tray-liners", "Tray liners", "A");
             await SeedInterestProductAsync("stickers", "Stickers", "B");
 
+            // Register is idempotent per user+product+location — second tray post
+            // must not create a duplicate row.
             for (var i = 0; i < 2; i++)
             {
                 using var post = AuthorizedPostJson(
@@ -193,7 +195,7 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.True(body.GetProperty("success").GetBoolean());
-            Assert.Equal(3, body.GetProperty("items").GetArrayLength());
+            Assert.Equal(2, body.GetProperty("items").GetArrayLength());
 
             var counts = body.GetProperty("countsByProduct");
             Assert.Equal(2, counts.GetArrayLength());
@@ -201,7 +203,7 @@ namespace TummlyBackend.Tests.Integration
                 .First(row =>
                     row.GetProperty("productKey").GetString() == "tray-liners"
                 );
-            Assert.Equal(2, tray.GetProperty("count").GetInt32());
+            Assert.Equal(1, tray.GetProperty("count").GetInt32());
             Assert.Equal("Tray liners", tray.GetProperty("title").GetString());
             var stickers = counts.EnumerateArray()
                 .First(row =>

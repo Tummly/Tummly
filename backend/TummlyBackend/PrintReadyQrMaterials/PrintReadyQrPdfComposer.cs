@@ -25,12 +25,18 @@ namespace TummlyBackend.PrintReadyQrMaterials
             PrintTemplatePackSnapshot pack,
             QrType qrType,
             QrRasterImage qrImage,
-            string? offerHeadline
+            string? offerHeadline,
+            CounterCardBranding? counterBranding = null,
+            CounterCardAssetPaths? counterAssets = null
         )
         {
             if (qrType == QrType.CounterCard)
             {
-                return ComposeCounterCard(qrImage);
+                return ComposeCounterCard(
+                    qrImage,
+                    counterBranding ?? CounterCardBranding.Empty,
+                    counterAssets
+                );
             }
 
             var plan = PlanCompose(pack, qrType, offerHeadline);
@@ -47,19 +53,26 @@ namespace TummlyBackend.PrintReadyQrMaterials
         }
 
         /// <summary>
-        /// A5 (148×210 mm) white page with a centred production QR.
-        /// Used when no Counter SVG artwork is available yet.
+        /// A5 (148×210 mm) Counter Display PDF: Design green card with pattern,
+        /// restaurant logo, Location name/address, production QR, and powered strip.
         /// </summary>
-        public static byte[] ComposeCounterCard(QrRasterImage qrImage)
+        public static byte[] ComposeCounterCard(
+            QrRasterImage qrImage,
+            CounterCardBranding branding,
+            CounterCardAssetPaths? assets = null
+        )
         {
             const double widthMm = 148;
             const double heightMm = 210;
-            const double qrMm = 50;
+            const double qrMm = 52;
             var widthPt = (float)(widthMm * MmToPt);
             var heightPt = (float)(heightMm * MmToPt);
             var qrPt = (float)(qrMm * MmToPt);
             var qrX = (widthPt - qrPt) / 2f;
-            var qrY = (heightPt - qrPt) / 2f;
+            var qrY = (float)(88 * MmToPt);
+
+            // Design Counter Card green (approx from A5 reference PDF).
+            var pageGreen = new SKColor(0x3D, 0xC9, 0x6C);
 
             using var output = new MemoryStream();
             var metadata = SKDocumentPdfMetadata.Default;
@@ -67,13 +80,362 @@ namespace TummlyBackend.PrintReadyQrMaterials
             using (var document = SKDocument.CreatePdf(output, metadata))
             {
                 var canvas = document.BeginPage(widthPt, heightPt);
-                canvas.Clear(SKColors.White);
+                canvas.Clear(pageGreen);
+
+                DrawSvgFitted(
+                    canvas,
+                    assets?.PatternSvgPath,
+                    x: 0,
+                    y: 0,
+                    destWidth: widthPt,
+                    destHeight: (float)(78 * MmToPt)
+                );
+
+                DrawCounterLogo(
+                    canvas,
+                    branding,
+                    centerX: widthPt / 2f,
+                    topY: (float)(14 * MmToPt),
+                    sizePt: (float)(22 * MmToPt)
+                );
+
+                DrawCounterCenteredText(
+                    canvas,
+                    "HOW WAS YOUR VISIT?",
+                    centerX: widthPt / 2f,
+                    baselineY: (float)(48 * MmToPt),
+                    fontSizePt: 16f,
+                    bold: true,
+                    color: SKColors.Black,
+                    maxWidthPt: widthPt - (float)(16 * MmToPt)
+                );
+                DrawCounterCenteredText(
+                    canvas,
+                    "Share quick private feedback and get your thank-you offer.",
+                    centerX: widthPt / 2f,
+                    baselineY: (float)(58 * MmToPt),
+                    fontSizePt: 8f,
+                    bold: false,
+                    color: SKColors.Black,
+                    maxWidthPt: widthPt - (float)(20 * MmToPt)
+                );
+
+                // White QR well.
+                using (var wellPaint = new SKPaint
+                {
+                    IsAntialias = true,
+                    Color = SKColors.White,
+                    Style = SKPaintStyle.Fill,
+                })
+                {
+                    var pad = (float)(4 * MmToPt);
+                    canvas.DrawRoundRect(
+                        qrX - pad,
+                        qrY - pad,
+                        qrPt + pad * 2,
+                        qrPt + pad * 2,
+                        4,
+                        4,
+                        wellPaint
+                    );
+                }
+
                 DrawQr(canvas, qrImage, qrX, qrY, qrPt, qrPt);
+
+                DrawScanPill(
+                    canvas,
+                    centerX: widthPt / 2f,
+                    topY: qrY + qrPt + (float)(4 * MmToPt)
+                );
+
+                var name = string.IsNullOrWhiteSpace(branding.LocationName)
+                    ? "Your location"
+                    : branding.LocationName.Trim();
+                DrawCounterCenteredText(
+                    canvas,
+                    name,
+                    centerX: widthPt / 2f,
+                    baselineY: (float)(162 * MmToPt),
+                    fontSizePt: 12f,
+                    bold: true,
+                    color: SKColors.Black,
+                    maxWidthPt: widthPt - (float)(16 * MmToPt)
+                );
+
+                if (!string.IsNullOrWhiteSpace(branding.AddressLine))
+                {
+                    DrawCounterCenteredText(
+                        canvas,
+                        branding.AddressLine.Trim(),
+                        centerX: widthPt / 2f,
+                        baselineY: (float)(172 * MmToPt),
+                        fontSizePt: 8f,
+                        bold: false,
+                        color: SKColors.Black,
+                        maxWidthPt: widthPt - (float)(16 * MmToPt)
+                    );
+                }
+
+                var stripHeight = (float)(14 * MmToPt);
+                DrawSvgFitted(
+                    canvas,
+                    assets?.StripSvgPath,
+                    x: 0,
+                    y: heightPt - stripHeight,
+                    destWidth: widthPt,
+                    destHeight: stripHeight
+                );
+
+                var poweredHeight = (float)(4 * MmToPt);
+                var poweredWidth = (float)(28 * MmToPt);
+                DrawSvgFitted(
+                    canvas,
+                    assets?.PoweredSvgPath,
+                    x: (widthPt - poweredWidth) / 2f,
+                    y: heightPt - stripHeight - poweredHeight - (float)(4 * MmToPt),
+                    destWidth: poweredWidth,
+                    destHeight: poweredHeight
+                );
+
                 document.EndPage();
                 document.Close();
             }
 
             return output.ToArray();
+        }
+
+        private static void DrawScanPill(SKCanvas canvas, float centerX, float topY)
+        {
+            const string label = "SCAN QR CODE";
+            using var typeface = LoadHeadlineTypeface();
+            using var font = new SKFont(typeface, 7f);
+            using var textPaint = new SKPaint
+            {
+                IsAntialias = true,
+                Color = SKColors.White,
+            };
+            var textWidth = font.MeasureText(label, textPaint);
+            var padX = (float)(4 * MmToPt);
+            var padY = (float)(2 * MmToPt);
+            var metrics = font.Metrics;
+            var textHeight = metrics.Descent - metrics.Ascent;
+            var pillWidth = textWidth + padX * 2;
+            var pillHeight = textHeight + padY * 2;
+            var left = centerX - pillWidth / 2f;
+            using var pillPaint = new SKPaint
+            {
+                IsAntialias = true,
+                Color = SKColors.Black,
+                Style = SKPaintStyle.Fill,
+            };
+            canvas.DrawRoundRect(
+                left,
+                topY,
+                pillWidth,
+                pillHeight,
+                pillHeight / 2f,
+                pillHeight / 2f,
+                pillPaint
+            );
+            var baseline = topY + padY - metrics.Ascent;
+            using var textPath = font.GetTextPath(
+                label,
+                new SKPoint(centerX - textWidth / 2f, baseline)
+            );
+            canvas.DrawPath(textPath, textPaint);
+        }
+
+        private static void DrawCounterLogo(
+            SKCanvas canvas,
+            CounterCardBranding branding,
+            float centerX,
+            float topY,
+            float sizePt
+        )
+        {
+            var left = centerX - sizePt / 2f;
+            var dest = new SKRect(left, topY, left + sizePt, topY + sizePt);
+            if (
+                branding.LogoBytes is { Length: > 0 }
+                && TryDecodeBitmap(branding.LogoBytes, out var bitmap)
+            )
+            {
+                using (bitmap)
+                {
+                    using var image = SKImage.FromBitmap(bitmap);
+                    canvas.DrawImage(
+                        image,
+                        dest,
+                        new SKSamplingOptions(
+                            SKFilterMode.Linear,
+                            SKMipmapMode.Linear
+                        ),
+                        null
+                    );
+                }
+
+                return;
+            }
+
+            using var placeholder = new SKPaint
+            {
+                IsAntialias = true,
+                Color = new SKColor(0x8B, 0x1E, 0x1E),
+                Style = SKPaintStyle.Fill,
+            };
+            canvas.DrawRoundRect(dest, 6, 6, placeholder);
+        }
+
+        private static bool TryDecodeBitmap(byte[] bytes, out SKBitmap bitmap)
+        {
+            var decoded = SKBitmap.Decode(bytes);
+            if (decoded == null)
+            {
+                bitmap = null!;
+                return false;
+            }
+
+            bitmap = decoded;
+            return true;
+        }
+
+        private static void DrawCounterCenteredText(
+            SKCanvas canvas,
+            string text,
+            float centerX,
+            float baselineY,
+            float fontSizePt,
+            bool bold,
+            SKColor color,
+            float maxWidthPt
+        )
+        {
+            using var typeface = bold
+                ? LoadHeadlineTypeface()
+                : LoadRegularTypeface();
+            using var paint = new SKPaint { IsAntialias = true, Color = color };
+            using var font = new SKFont(typeface, fontSizePt);
+            var width = font.MeasureText(text, paint);
+            while (width > maxWidthPt && font.Size > 6f)
+            {
+                font.Size -= 0.5f;
+                width = font.MeasureText(text, paint);
+            }
+
+            using var textPath = font.GetTextPath(
+                text,
+                new SKPoint(centerX - width / 2f, baselineY)
+            );
+            canvas.DrawPath(textPath, paint);
+        }
+
+        private static void DrawSvgFitted(
+            SKCanvas canvas,
+            string? svgPath,
+            float x,
+            float y,
+            float destWidth,
+            float destHeight
+        )
+        {
+            if (
+                string.IsNullOrWhiteSpace(svgPath)
+                || !File.Exists(svgPath)
+                || destWidth <= 0
+                || destHeight <= 0
+            )
+            {
+                return;
+            }
+
+            try
+            {
+                using var loaded = LoadTemplatePicture(svgPath);
+                var bounds = loaded.Bounds;
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                {
+                    return;
+                }
+
+                var scale = Math.Min(
+                    destWidth / bounds.Width,
+                    destHeight / bounds.Height
+                );
+                canvas.Save();
+                canvas.Translate(x, y);
+                canvas.Scale(scale);
+                canvas.Translate(-bounds.Left, -bounds.Top);
+                canvas.DrawPicture(loaded.Picture);
+                canvas.Restore();
+            }
+            catch
+            {
+                // Optional artwork — page green + text still print without it.
+            }
+        }
+
+        private static SKTypeface LoadRegularTypeface()
+        {
+            var fontDirectory = Environment.GetFolderPath(
+                Environment.SpecialFolder.Fonts
+            );
+            var candidates = new[]
+            {
+                Path.Combine(fontDirectory, "arial.ttf"),
+                "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+            };
+
+            foreach (var path in candidates)
+            {
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                {
+                    var typeface = SKTypeface.FromFile(path);
+                    if (typeface != null)
+                    {
+                        return typeface;
+                    }
+                }
+            }
+
+            return LoadHeadlineTypeface();
+        }
+
+        /// <summary>
+        /// Resolves Counter Card SVG parts next to the print template pack.
+        /// </summary>
+        public static CounterCardAssetPaths? TryResolveCounterCardAssets(
+            string contentRootPath
+        )
+        {
+            try
+            {
+                var packDir = PrintTemplatePack.ResolvePackDirectory(
+                    contentRootPath
+                );
+                var counterDir = Path.Combine(packDir, "counter-card");
+                if (!Directory.Exists(counterDir))
+                {
+                    return null;
+                }
+
+                string? Pick(string fileName)
+                {
+                    var path = Path.Combine(counterDir, fileName);
+                    return File.Exists(path) ? path : null;
+                }
+
+                return new CounterCardAssetPaths(
+                    PatternSvgPath: Pick("group6.svg"),
+                    StripSvgPath: Pick("strip.svg"),
+                    PoweredSvgPath: Pick("powered.svg")
+                );
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>

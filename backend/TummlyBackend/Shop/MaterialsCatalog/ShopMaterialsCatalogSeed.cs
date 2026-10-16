@@ -82,6 +82,10 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             await BackfillSkuRecipesAsync(context, cancellationToken);
             await EnsureCoreSkusAsync(context, cancellationToken);
             await BackfillPacksAndDeliveryAsync(context, cancellationToken);
+            await ShopInterestCatalogSeed.EnsureSeededAsync(
+                context,
+                cancellationToken
+            );
         }
 
         private static async Task EnsureRecipesAsync(

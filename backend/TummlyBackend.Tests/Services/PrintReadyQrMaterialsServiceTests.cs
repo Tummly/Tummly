@@ -613,6 +613,48 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public void CounterCardPdf_IncludesLocationBrandingAndIsLargerThanQrOnly()
+        {
+            var pack = PrintTemplatePack.LoadFromContentRoot(
+                AppContext.BaseDirectory
+            );
+            var packDir = Path.GetDirectoryName(pack.Snapshot.CardSvgPath)!;
+            var assets = new CounterCardAssetPaths(
+                PatternSvgPath: Path.Combine(packDir, "counter-card", "group6.svg"),
+                StripSvgPath: Path.Combine(packDir, "counter-card", "strip.svg"),
+                PoweredSvgPath: Path.Combine(packDir, "counter-card", "powered.svg")
+            );
+            var rasterizer = new QrCoderRasterizer();
+            var qr = rasterizer.Render(
+                PrintReadyQrPdfComposer.PreviewQrPayload
+            );
+            var branding = new CounterCardBranding(
+                LocationName: "Mavero Kitchen",
+                AddressLine: "Camden High Street, London",
+                LogoBytes: null,
+                LogoContentType: null
+            );
+
+            var branded = PrintReadyQrPdfComposer.ComposeCounterCard(
+                qr,
+                branding,
+                assets
+            );
+            var bare = PrintReadyQrPdfComposer.ComposeCounterCard(
+                qr,
+                CounterCardBranding.Empty,
+                assets: null
+            );
+
+            Assert.True(branded.Length > 5_000);
+            Assert.True(branded.Length > bare.Length);
+            Assert.Equal((byte)'%', branded[0]);
+            Assert.Equal((byte)'P', branded[1]);
+            Assert.Equal((byte)'D', branded[2]);
+            Assert.Equal((byte)'F', branded[3]);
+        }
+
         public void Dispose()
         {
             _context.Dispose();

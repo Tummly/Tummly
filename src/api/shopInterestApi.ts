@@ -6,6 +6,7 @@ export type ShopInterestProduct = {
   title: string
   description: string
   imageUrl: string | null
+  interestRegistered: boolean
 }
 
 type ShopInterestProductsResponse = {
@@ -18,6 +19,22 @@ type RegisterShopInterestResponse = {
   message: string
 }
 
+function mapProduct(raw: {
+  productKey: string
+  title: string
+  description: string
+  imageUrl?: string | null
+  interestRegistered?: boolean
+}): ShopInterestProduct {
+  return {
+    productKey: raw.productKey,
+    title: raw.title,
+    description: raw.description,
+    imageUrl: raw.imageUrl ?? null,
+    interestRegistered: Boolean(raw.interestRegistered),
+  }
+}
+
 export async function fetchShopInterestProducts(
   locationId: number
 ): Promise<ShopInterestProduct[]> {
@@ -25,7 +42,7 @@ export async function fetchShopInterestProducts(
     "/shop/interest/products",
     { params: { locationId } }
   )
-  return response.data.items ?? []
+  return (response.data.items ?? []).map(mapProduct)
 }
 
 export async function registerShopInterest(input: {
@@ -40,4 +57,16 @@ export async function registerShopInterest(input: {
     }
   )
   return response.data.message ?? SHOP_INTEREST_THANKS_MESSAGE
+}
+
+export async function unregisterShopInterest(input: {
+  productKey: string
+  locationId: number
+}): Promise<void> {
+  await axiosInstance.delete("/shop/interest", {
+    data: {
+      productKey: input.productKey,
+      locationId: input.locationId,
+    },
+  })
 }

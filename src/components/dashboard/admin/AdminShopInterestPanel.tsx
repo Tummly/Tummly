@@ -6,7 +6,6 @@ import {
   type AdminShopInterestProductCount,
   type AdminShopInterestRegistration,
 } from "@/api/adminShopInterestApi"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -77,31 +76,7 @@ export function AdminShopInterestPanel() {
         <div className="mb-4">
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>Counts by product</h2>
           <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
-            Total registrations per interest product.
-          </p>
-        </div>
-        {loading ? (
-          <Skeleton className="h-10 w-full" />
-        ) : counts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No interest registrations yet.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {counts.map((row) => (
-              <Badge key={row.productKey} variant="soft">
-                {row.title}: {row.count}
-              </Badge>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className={GUESTS_SECTION_CLASS}>
-        <div className="mb-4">
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>Interest list</h2>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
-            Newest registrations first.
+            How many people registered interest per product.
           </p>
         </div>
         <div className={GUESTS_TABLE_FRAME_CLASS}>
@@ -112,13 +87,69 @@ export function AdminShopInterestPanel() {
                   Product
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Business
+                  Registered interest
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
+                  <TableCell colSpan={2} className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                    <Skeleton className="h-8 w-full" />
+                  </TableCell>
+                </TableRow>
+              ) : counts.length === 0 ? (
+                <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
+                  <TableCell colSpan={2} className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                    No interest registrations yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                counts.map((row) => (
+                  <TableRow key={row.productKey} className={GUESTS_TABLE_BODY_ROW_CLASS}>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <div className="font-medium">{row.title}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {row.productKey}
+                      </div>
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      {row.count}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      <section className={GUESTS_SECTION_CLASS}>
+        <div className="mb-4">
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>Interest list</h2>
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            Account email, restaurant name, and Location where available. Newest
+            first.
+          </p>
+        </div>
+        <div className={GUESTS_TABLE_FRAME_CLASS}>
+          <Table className={GUESTS_TABLE_CLASS}>
+            <TableHeader>
+              <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Product
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Restaurant
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Location
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  User
+                  Email
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Name
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   When (UTC)
@@ -130,7 +161,7 @@ export function AdminShopInterestPanel() {
                 Array.from({ length: 3 }).map((_, index) => (
                   <TableRow key={index} className={GUESTS_TABLE_BODY_ROW_CLASS}>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className={GUESTS_TABLE_BODY_CELL_CLASS}
                     >
                       <Skeleton className="h-8 w-full" />
@@ -140,7 +171,7 @@ export function AdminShopInterestPanel() {
               ) : items.length === 0 ? (
                 <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className={GUESTS_TABLE_BODY_CELL_CLASS}
                   >
                     No interest records yet.
@@ -162,10 +193,10 @@ export function AdminShopInterestPanel() {
                       {row.locationName ?? "—"}
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                      <div>{row.userFullName}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {row.userEmail}
-                      </div>
+                      {row.userEmail}
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      {row.userFullName}
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       {formatUtc(row.createdAtUtc)}

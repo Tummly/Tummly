@@ -66,6 +66,7 @@ import {
   SHOP_OFFER_CARD_SKU_ID,
 } from "@/lib/operatorShop/shopOfferCardSetupPresentation"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
+import { shouldShowShopRecommendations } from "@/lib/operatorShop/shouldShowShopRecommendations"
 import type { ShopLocationOption } from "@/components/dashboard/operator/Shop/ShopLocationPicker"
 
 type ShopPageProps = {
@@ -272,8 +273,19 @@ export function ShopPage({
     }
   }, [selectedLocationId, catalogProducts])
 
+  const showRecommendations = shouldShowShopRecommendations(catalogProducts)
+
   useEffect(() => {
     let cancelled = false
+
+    if (!showRecommendations) {
+      setRecommendations(null)
+      setLocationDetails(null)
+      setRecommendationsLoading(false)
+      return () => {
+        cancelled = true
+      }
+    }
 
     async function loadRecommendations() {
       setRecommendationsLoading(true)
@@ -302,7 +314,7 @@ export function ShopPage({
     return () => {
       cancelled = true
     }
-  }, [selectedLocationId])
+  }, [selectedLocationId, showRecommendations])
 
   useEffect(() => {
     let cancelled = false
@@ -803,22 +815,24 @@ export function ShopPage({
                 onSeeWhatsIncluded={() => setIsMaterialsPackOpen(true)}
               />
 
-              <ShopRecommendationSection
-                locationName={locationName}
-                recommendations={recommendations}
-                recommendationsLoading={recommendationsLoading}
-                catalogProducts={catalogProducts}
-                vatRateBps={catalogVatRateBps}
-                paidWriteChrome={paidWriteChrome}
-                onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
-                onAddRecommendedToCart={() => {
-                  void handleAddRecommendedKitToCart()
-                }}
-                onOrderRecommendedLine={(skuId, quantity) => {
-                  void handleOrderRecommendedLine(skuId, quantity)
-                }}
-                onSelectProduct={handleSelectProduct}
-              />
+              {showRecommendations ? (
+                <ShopRecommendationSection
+                  locationName={locationName}
+                  recommendations={recommendations}
+                  recommendationsLoading={recommendationsLoading}
+                  catalogProducts={catalogProducts}
+                  vatRateBps={catalogVatRateBps}
+                  paidWriteChrome={paidWriteChrome}
+                  onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
+                  onAddRecommendedToCart={() => {
+                    void handleAddRecommendedKitToCart()
+                  }}
+                  onOrderRecommendedLine={(skuId, quantity) => {
+                    void handleOrderRecommendedLine(skuId, quantity)
+                  }}
+                  onSelectProduct={handleSelectProduct}
+                />
+              ) : null}
             </>
           ) : null}
 

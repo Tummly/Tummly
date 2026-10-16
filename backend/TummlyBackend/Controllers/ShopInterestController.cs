@@ -40,8 +40,60 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            var items = await _interest.ListActiveProductsAsync(cancellationToken);
+            OperatorAuth.TryRequireUserId(User, out var userId);
+            var items = await _interest.ListActiveProductsAsync(
+                userId,
+                locationId,
+                cancellationToken
+            );
             return Ok(new { success = true, items });
+        }
+
+        [HttpDelete]
+        public async Task<IActionResult> Unregister(
+            [FromBody] RegisterShopInterestRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (request.LocationId is not > 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "locationId is required.",
+                });
+            }
+
+            var gate = await _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.TummlyShop,
+                PermissionLevel.View,
+                request.LocationId.Value
+            );
+            var gateResult = gate.ToHttpResult();
+            if (gateResult != null)
+            {
+                return gateResult;
+            }
+
+            var (ok, error) = await _interest.UnregisterAsync(
+                userId,
+                request.ProductKey,
+                request.LocationId.Value,
+                cancellationToken
+            );
+            if (!ok)
+            {
+                return BadRequest(new { success = false, message = error });
+            }
+
+            return Ok(new { success = true });
         }
 
         [HttpPost]
