@@ -202,7 +202,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProvisionAsync_CreatesEntitiesAndThreeDefaultQrCodes()
+        public async Task ProvisionAsync_CreatesEntitiesAndCounterDisplayQrCode()
         {
             await SeedTrialRequestAsync("provision-token");
 
@@ -248,13 +248,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("LS1 1AA", location.Postcode);
             Assert.Equal(LocationLifecycleStatus.Active, location.LifecycleStatus);
 
-            Assert.Equal(3, qrCodes.Count);
-            Assert.All(qrCodes, q => Assert.Equal(32, q.Token.Length));
-            Assert.All(qrCodes, q => Assert.Equal(QrCodeStatus.Active, q.Status));
-            Assert.Equal(3, qrCodes.Select(q => q.QrType).Distinct().Count());
-            Assert.Contains(qrCodes, q => q.QrType == QrType.TableTent);
-            Assert.Contains(qrCodes, q => q.QrType == QrType.WindowSticker);
-            Assert.Contains(qrCodes, q => q.QrType == QrType.OfferCard);
+            var qrCode = Assert.Single(qrCodes);
+            Assert.Equal(32, qrCode.Token.Length);
+            Assert.Equal(QrCodeStatus.Active, qrCode.Status);
+            Assert.Equal(QrType.OfferCard, qrCode.QrType);
 
             var membership = await _context.RestaurantMemberships.SingleAsync();
             Assert.Equal(user.Id, membership.UserId);
@@ -288,7 +285,7 @@ namespace TummlyBackend.Tests.Services
                 ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                 complimentaryLine.CatalogSkuId
             );
-            Assert.Empty(_printWork.StarterLocationIds);
+            Assert.Equal([location.Id], _printWork.StarterLocationIds);
             Assert.Equal(
                 [complimentaryOrder.Id],
                 _printWork.ShopOrderIds
@@ -410,7 +407,7 @@ namespace TummlyBackend.Tests.Services
                 .ToListAsync();
 
             Assert.Equal(2, locationIds.Count);
-            Assert.Equal(6, tokens.Count);
+            Assert.Equal(2, tokens.Count);
             Assert.Equal(tokens.Distinct().Count(), tokens.Count);
         }
 

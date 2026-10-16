@@ -88,6 +88,7 @@ namespace TummlyBackend.Tests.Services
             {
                 var context = scope.ServiceProvider
                     .GetRequiredService<ApplicationDbContext>();
+                await ShopMaterialsCatalogSeed.EnsureSeededAsync(context);
                 var owner = new User
                 {
                     FullName = "Restart owner",
@@ -109,7 +110,7 @@ namespace TummlyBackend.Tests.Services
                 context.QrCodes.Add(new QrCode
                 {
                     RestaurantLocation = location,
-                    QrType = QrType.TableTent,
+                    QrType = QrType.OfferCard,
                     Token = "restart-recovery-token",
                     Status = QrCodeStatus.Active,
                 });

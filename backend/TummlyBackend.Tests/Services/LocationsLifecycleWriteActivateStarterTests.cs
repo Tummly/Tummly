@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Locations;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Shop.MaterialsCatalog;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -38,8 +40,23 @@ namespace TummlyBackend.Tests.Services
                 new DbMaterialsCatalog(_context),
                 new ShopOrderNumberAllocator(_context)
             );
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Frontend:BaseUrl"] = "https://tummly.example",
+                })
+                .Build();
+            var qrProvisioning = new QrCodeProvisioningService(
+                _context,
+                new SmartGuestLinkService(
+                    _context,
+                    configuration,
+                    new NoOpBillingAccountLifecycle()
+                )
+            );
             _write = new LocationsLifecycleWriteService(
                 _context,
+                qrProvisioning,
                 _complimentary,
                 _printWork,
                 new RestaurantAccountTypePromotion(_context)

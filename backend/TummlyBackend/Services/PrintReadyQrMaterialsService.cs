@@ -24,6 +24,7 @@ namespace TummlyBackend.Services
         private readonly IQueryAttachmentStorage _storage;
         private readonly IQrCodeRasterizer _rasterizer;
         private readonly ISmartGuestLinkService _guestLinks;
+        private readonly IQrCodeProvisioningService _qrCodeProvisioning;
         private readonly IPrintReadyQrMaterialsWork _work;
         private readonly IAdminAuditService _audit;
         private readonly ILogger<PrintReadyQrMaterialsService> _logger;
@@ -35,6 +36,7 @@ namespace TummlyBackend.Services
             IQueryAttachmentStorage storage,
             IQrCodeRasterizer rasterizer,
             ISmartGuestLinkService guestLinks,
+            IQrCodeProvisioningService qrCodeProvisioning,
             IPrintReadyQrMaterialsWork work,
             IAdminAuditService audit,
             ILogger<PrintReadyQrMaterialsService> logger
@@ -46,6 +48,7 @@ namespace TummlyBackend.Services
             _storage = storage;
             _rasterizer = rasterizer;
             _guestLinks = guestLinks;
+            _qrCodeProvisioning = qrCodeProvisioning;
             _work = work;
             _audit = audit;
             _logger = logger;
@@ -57,7 +60,6 @@ namespace TummlyBackend.Services
         )
         {
             var location = await _context.RestaurantLocations
-                .AsNoTracking()
                 .Include(row => row.Restaurant)
                 .FirstOrDefaultAsync(
                     row => row.Id == locationId,
@@ -69,7 +71,42 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            foreach (var qrType in StarterQrMaterialTypes.All)
+            // Mint missing Capture placements for the current starter-kit set
+            // before print-ready ensure (idempotent).
+            await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            var ensureTypes = (
+                await StarterQrMaterialTypes.LoadAsync(
+                    _context,
+                    cancellationToken
+                )
+            ).ToHashSet();
+
+            // Also regenerate print assets for existing physical placements
+            // (legacy Tent/Window, shop-ordered types after rotate, etc.).
+            var existingTypes = await _context.QrCodes
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantLocationId == locationId
+                    && (
+                        row.Status == QrCodeStatus.Active
+                        || row.Status == QrCodeStatus.Paused
+                    )
+                )
+                .Select(row => row.QrType)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            foreach (
+                var qrType in existingTypes.Where(
+                    PhysicalShopPrintQrTypes.Contains
+                )
+            )
+            {
+                ensureTypes.Add(qrType);
+            }
+
+            foreach (var qrType in ensureTypes.OrderBy(row => row))
             {
                 await EnsureOneAsync(
                     location,
@@ -239,16 +276,16 @@ namespace TummlyBackend.Services
                 .ToListAsync(cancellationToken);
 
             var locationIds = locations.Select(row => row.Id).ToList();
+            var starterTypes = await StarterQrMaterialTypes.LoadAsync(
+                _context,
+                cancellationToken
+            );
             var assets = await _context.PrintReadyQrAssets
                 .AsNoTracking()
                 .Where(row =>
                     locationIds.Contains(row.RestaurantLocationId)
                     && row.ShopOrderId == null
-                    && (
-                        row.QrType == QrType.TableTent
-                        || row.QrType == QrType.WindowSticker
-                        || row.QrType == QrType.OfferCard
-                    )
+                    && starterTypes.Contains(row.QrType)
                 )
                 .ToListAsync(cancellationToken);
 
@@ -265,7 +302,7 @@ namespace TummlyBackend.Services
                     {
                         LocationId = location.Id,
                         LocationName = location.LocationName,
-                        Assets = StarterQrMaterialTypes.All
+                        Assets = starterTypes
                             .Select(qrType =>
                             {
                                 var match = rows.FirstOrDefault(row =>
@@ -342,7 +379,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterQrMaterialTypes.Contains(qrType))
+            if (!PhysicalShopPrintQrTypes.Contains(qrType))
             {
                 return null;
             }
@@ -459,7 +496,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterQrMaterialTypes.Contains(qrType))
+            if (!PhysicalShopPrintQrTypes.Contains(qrType))
             {
                 return null;
             }

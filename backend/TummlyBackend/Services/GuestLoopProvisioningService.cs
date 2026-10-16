@@ -725,6 +725,12 @@ namespace TummlyBackend.Services
                 await _lifecycle.TickAsync(restaurantId.Value, activatedAt.Value);
             }
 
+            // Capture / print-ready starter ensure mints missing starter QR types.
+            foreach (var location in provisionedLocations)
+            {
+                await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
+            }
+
             foreach (var shopOrderId in complimentaryOrderIds)
             {
                 await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(

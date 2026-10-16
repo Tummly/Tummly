@@ -1864,16 +1864,21 @@ namespace TummlyBackend.Tests.Integration
             context.Users.Add(user);
             await context.SaveChangesAsync();
 
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                0,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            BillingCreditsService.ApplyPilotSignupBilling(
+                billing,
+                DateTime.UtcNow
+            );
             var restaurant = new Restaurant
             {
                 Name = "Capture Location Pause Venue",
                 AccountType = "Multi",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
-                BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
-                    0,
-                    "TUMMLY-UK-GBP-2026-08-V3"
-                ),
+                BillingAccount = billing,
             };
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();

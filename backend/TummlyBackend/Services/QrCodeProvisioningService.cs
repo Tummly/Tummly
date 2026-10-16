@@ -1,20 +1,13 @@
+using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.PrintReadyQrMaterials;
 
 namespace TummlyBackend.Services
 {
     public class QrCodeProvisioningService : IQrCodeProvisioningService
     {
-        // Order mirrors CONTEXT.md "QR type": three supported placement types.
-        // Table Tent is the primary physical type behind Home Smart Guest Link.
-        private static readonly QrType[] DefaultQrTypes =
-        {
-            QrType.TableTent,
-            QrType.WindowSticker,
-            QrType.OfferCard,
-        };
-
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
 
@@ -31,10 +24,22 @@ namespace TummlyBackend.Services
             RestaurantLocation location
         )
         {
-            var qrCodes = new List<QrCode>(DefaultQrTypes.Length);
-
-            foreach (var qrType in DefaultQrTypes)
+            var starterTypes = await StarterQrMaterialTypes.LoadAsync(_context);
+            if (starterTypes.Count == 0)
             {
+                return Array.Empty<QrCode>();
+            }
+
+            var existingTypes = await LoadExistingPlacementTypesAsync(location);
+            var qrCodes = new List<QrCode>();
+
+            foreach (var qrType in starterTypes)
+            {
+                if (existingTypes.Contains(qrType))
+                {
+                    continue;
+                }
+
                 // Generated + added one at a time so each subsequent
                 // GenerateTokenAsync's change-tracker uniqueness check sees
                 // every token already minted in this batch.
@@ -51,9 +56,64 @@ namespace TummlyBackend.Services
 
                 _context.QrCodes.Add(qrCode);
                 qrCodes.Add(qrCode);
+                existingTypes.Add(qrType);
             }
 
             return qrCodes;
+        }
+
+        private async Task<HashSet<QrType>> LoadExistingPlacementTypesAsync(
+            RestaurantLocation location
+        )
+        {
+            var existing = new HashSet<QrType>();
+
+            foreach (var entry in _context.ChangeTracker.Entries<QrCode>())
+            {
+                if (
+                    entry.State is EntityState.Deleted or EntityState.Detached
+                )
+                {
+                    continue;
+                }
+
+                var row = entry.Entity;
+                var sameLocation =
+                    ReferenceEquals(row.RestaurantLocation, location)
+                    || (
+                        location.Id != 0
+                        && row.RestaurantLocationId == location.Id
+                    );
+                if (
+                    !sameLocation
+                    || row.Status == QrCodeStatus.Archived
+                )
+                {
+                    continue;
+                }
+
+                existing.Add(row.QrType);
+            }
+
+            if (location.Id == 0)
+            {
+                return existing;
+            }
+
+            var persisted = await _context.QrCodes
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantLocationId == location.Id
+                    && row.Status != QrCodeStatus.Archived
+                )
+                .Select(row => row.QrType)
+                .ToListAsync();
+            foreach (var qrType in persisted)
+            {
+                existing.Add(qrType);
+            }
+
+            return existing;
         }
     }
 }

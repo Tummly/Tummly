@@ -21,6 +21,28 @@ namespace TummlyBackend.Tests.Services
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
             _context = new ApplicationDbContext(options);
+            ShopMaterialsCatalogSeed
+                .EnsureSeededAsync(_context)
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        private QrCodeProvisioningService CreateQrProvisioning()
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Frontend:BaseUrl"] = "https://tummly.example",
+                })
+                .Build();
+            return new QrCodeProvisioningService(
+                _context,
+                new SmartGuestLinkService(
+                    _context,
+                    configuration,
+                    new NoOpBillingAccountLifecycle()
+                )
+            );
         }
 
         [Fact]
@@ -46,6 +68,7 @@ namespace TummlyBackend.Tests.Services
                 storage,
                 new QrCoderRasterizer(),
                 guestLinks,
+                CreateQrProvisioning(),
                 new NoOpPrintReadyQrMaterialsWork(),
                 new AdminAuditService(_context, TimeProvider.System),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
@@ -109,6 +132,7 @@ namespace TummlyBackend.Tests.Services
                     configuration,
                     new NoOpBillingAccountLifecycle()
                 ),
+                CreateQrProvisioning(),
                 new NoOpPrintReadyQrMaterialsWork(),
                 new AdminAuditService(_context, TimeProvider.System),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
@@ -225,6 +249,7 @@ namespace TummlyBackend.Tests.Services
                     configuration,
                     new NoOpBillingAccountLifecycle()
                 ),
+                CreateQrProvisioning(),
                 new NoOpPrintReadyQrMaterialsWork(),
                 new AdminAuditService(_context, TimeProvider.System),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
@@ -306,7 +331,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task EnsureStarterMaterials_MissingEligibleQr_MarksFailed()
+        public async Task EnsureStarterMaterials_MintsMissingStarterQrBeforePrintEnsure()
         {
             var location = await SeedLocationWithTableTentAsync();
             _context.QrCodes.RemoveRange(_context.QrCodes);
@@ -319,22 +344,18 @@ namespace TummlyBackend.Tests.Services
 
             await service.EnsureStarterMaterialsAsync(location.Id);
 
-            var assets = await _context.PrintReadyQrAssets.ToListAsync();
-            // Offer Card waits for an attached print offer and does not persist
-            // Failed when no QR exists yet.
-            Assert.Equal(2, assets.Count);
-            Assert.All(
-                assets,
-                asset =>
-                {
-                    Assert.Equal(PrintReadyQrAssetStatus.Failed, asset.Status);
-                    Assert.Contains(
-                        "No Active or Paused QR code",
-                        asset.LastError
-                    );
-                }
+            var qrTypes = await _context.QrCodes
+                .Where(row => row.RestaurantLocationId == location.Id)
+                .Select(row => row.QrType)
+                .ToListAsync();
+            Assert.Contains(QrType.OfferCard, qrTypes);
+            Assert.Contains(QrType.TableTent, qrTypes);
+
+            var tentAsset = await _context.PrintReadyQrAssets.SingleAsync(row =>
+                row.QrType == QrType.TableTent
             );
-            Assert.Equal(0, storage.UploadAttempts);
+            Assert.Equal(PrintReadyQrAssetStatus.Ready, tentAsset.Status);
+            Assert.True(storage.UploadAttempts >= 1);
         }
 
         [Fact]
@@ -362,6 +383,7 @@ namespace TummlyBackend.Tests.Services
                     configuration,
                     new NoOpBillingAccountLifecycle()
                 ),
+                CreateQrProvisioning(),
                 new NoOpPrintReadyQrMaterialsWork(),
                 new AdminAuditService(_context, TimeProvider.System),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
@@ -618,6 +640,7 @@ namespace TummlyBackend.Tests.Services
                     configuration,
                     new NoOpBillingAccountLifecycle()
                 ),
+                CreateQrProvisioning(),
                 work,
                 new AdminAuditService(_context, TimeProvider.System),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
@@ -626,6 +649,13 @@ namespace TummlyBackend.Tests.Services
 
         private async Task<RestaurantLocation> SeedLocationWithTableTentAsync()
         {
+            // Ensure Tent stays in the dynamic starter set for these PDF tests.
+            var tentRecipe = await _context.PlacementRecipes.SingleAsync(row =>
+                row.Slug == "table-tent"
+            );
+            tentRecipe.IncludeInComplimentaryStarter = true;
+            await _context.SaveChangesAsync();
+
             var owner = new User
             {
                 FullName = "Print owner",

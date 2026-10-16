@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.PrintReadyQrMaterials;
 
 namespace TummlyBackend.Services
 {
@@ -101,18 +102,17 @@ namespace TummlyBackend.Services
                 var catalog = scope.ServiceProvider
                     .GetRequiredService<IMaterialsCatalog>();
 
-                var starterQrScopes = await context.QrCodes
+                var starterTypes = (
+                    await StarterQrMaterialTypes.LoadAsync(
+                        context,
+                        cancellationToken
+                    )
+                ).ToHashSet();
+                var liveQrScopes = await context.QrCodes
                     .AsNoTracking()
                     .Where(row =>
-                        (
-                            row.QrType == QrType.TableTent
-                            || row.QrType == QrType.WindowSticker
-                            || row.QrType == QrType.OfferCard
-                        )
-                        && (
-                            row.Status == QrCodeStatus.Active
-                            || row.Status == QrCodeStatus.Paused
-                        )
+                        row.Status == QrCodeStatus.Active
+                        || row.Status == QrCodeStatus.Paused
                     )
                     .Select(row => new
                     {
@@ -120,6 +120,12 @@ namespace TummlyBackend.Services
                         row.QrType,
                     })
                     .ToListAsync(cancellationToken);
+                var starterQrScopes = liveQrScopes
+                    .Where(row =>
+                        starterTypes.Contains(row.QrType)
+                        || PhysicalShopPrintQrTypes.Contains(row.QrType)
+                    )
+                    .ToList();
                 var starterAssets = await context.PrintReadyQrAssets
                     .AsNoTracking()
                     .Where(row => row.ShopOrderId == null)

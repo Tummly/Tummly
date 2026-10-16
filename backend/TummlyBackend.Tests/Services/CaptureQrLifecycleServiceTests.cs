@@ -737,16 +737,21 @@ namespace TummlyBackend.Tests.Services
             _context.SaveChanges();
             _userId = user.Id;
 
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                0,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            BillingCreditsService.ApplyPilotSignupBilling(
+                billing,
+                DateTime.UtcNow
+            );
             var restaurant = new Restaurant
             {
                 Name = "Test Restaurant",
                 AccountType = "Single",
                 OwnerUserId = _userId,
                 CreatedAt = DateTime.UtcNow,
-                BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
-                    0,
-                    "TUMMLY-UK-GBP-2026-08-V3"
-                ),
+                BillingAccount = billing,
             };
             _context.Restaurants.Add(restaurant);
             _context.SaveChanges();

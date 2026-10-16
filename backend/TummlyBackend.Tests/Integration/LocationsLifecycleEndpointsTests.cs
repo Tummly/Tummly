@@ -437,6 +437,14 @@ namespace TummlyBackend.Tests.Integration
             context.Users.Add(owner);
             await context.SaveChangesAsync();
 
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                0,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            BillingCreditsService.ApplyPilotSignupBilling(
+                billing,
+                DateTime.UtcNow
+            );
             var restaurant = new Restaurant
             {
                 Name = "Lifecycle Venue",
@@ -444,10 +452,7 @@ namespace TummlyBackend.Tests.Integration
                 OwnerUserId = owner.Id,
                 PrivacyConsentReadyAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow,
-                BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
-                    0,
-                    "TUMMLY-UK-GBP-2026-08-V3"
-                ),
+                BillingAccount = billing,
             };
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();

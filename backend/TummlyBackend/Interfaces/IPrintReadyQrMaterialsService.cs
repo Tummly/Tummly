@@ -5,9 +5,10 @@ namespace TummlyBackend.Interfaces
     public interface IPrintReadyQrMaterialsService
     {
         /// <summary>
-        /// Ensure Starter QR materials for one Owned location (Table Tent,
-        /// Window Sticker, Offer Card). Idempotent when Ready versions match.
-        /// Never mints or mutates QR code tokens.
+        /// Ensure Starter QR materials for one Owned location for the current
+        /// complimentary-starter placement set. Mints missing Capture QR types
+        /// first (idempotent), then ensures print-ready assets. Idempotent when
+        /// Ready versions match. Does not rotate existing QR tokens.
         /// </summary>
         Task EnsureStarterMaterialsAsync(
             int locationId,
