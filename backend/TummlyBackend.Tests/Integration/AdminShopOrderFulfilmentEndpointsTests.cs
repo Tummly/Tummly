@@ -167,14 +167,86 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GuestCardCsv_IncludesOfferHeadline_AfterApprove()
+        public async Task CounterDisplay_EmbeddedPdf_DownloadsAfterApprove()
         {
+            // Ticket 04 binds QR Counter Display to OfferCard placement + EmbeddedPdf.
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
                 seeded,
                 ShopFulfilmentStatuses.Processing,
-                catalogSkuId: "offer-card",
-                titleSnapshot: "Offer cards",
+                catalogSkuId: "qr-counter-display",
+                titleSnapshot: "QR Counter Display",
+                quantity: 2
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                await scope.ServiceProvider
+                    .GetRequiredService<IPrintReadyQrMaterialsService>()
+                    .EnsureShopOrderMaterialsAsync(orderId);
+            }
+
+            using var beforeApprove = AuthorizedGet(
+                $"/api/admin/shop-orders/{orderId}/print-assets/OfferCard/download",
+                seeded.AdminJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.Conflict,
+                (await _client.SendAsync(beforeApprove)).StatusCode
+            );
+
+            using var approve = AuthorizedPost(
+                $"/api/admin/shop-orders/{orderId}/print-assets/OfferCard/approve",
+                seeded.AdminJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(approve)).StatusCode
+            );
+
+            using var download = AuthorizedGet(
+                $"/api/admin/shop-orders/{orderId}/print-assets/OfferCard/download",
+                seeded.AdminJwt
+            );
+            var downloadResponse = await _client.SendAsync(download);
+            Assert.Equal(HttpStatusCode.OK, downloadResponse.StatusCode);
+            Assert.Equal(
+                "application/pdf",
+                downloadResponse.Content.Headers.ContentType?.MediaType
+            );
+            var bytes = await downloadResponse.Content.ReadAsByteArrayAsync();
+            Assert.True(bytes.Length > 4);
+            Assert.Equal((byte)'%', bytes[0]);
+            Assert.Equal((byte)'P', bytes[1]);
+            Assert.Equal((byte)'D', bytes[2]);
+            Assert.Equal((byte)'F', bytes[3]);
+        }
+
+        [Fact]
+        public async Task GuestCardCsv_IncludesOfferHeadline_AfterApprove()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.QrCodes.Add(
+                    new QrCode
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        QrType = QrType.GuestCard,
+                        Token = $"admin-shop-guest-{Guid.NewGuid():N}",
+                        Status = QrCodeStatus.Active,
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-guest-cards",
+                titleSnapshot: "QR Guest Cards",
                 quantity: 12
             );
             using (var scope = _factory.Services.CreateScope())
@@ -206,7 +278,7 @@ namespace TummlyBackend.Tests.Integration
             }
 
             using var approve = AuthorizedPost(
-                $"/api/admin/shop-orders/{orderId}/print-assets/OfferCard/approve",
+                $"/api/admin/shop-orders/{orderId}/print-assets/GuestCard/approve",
                 seeded.AdminJwt
             );
             Assert.Equal(
@@ -215,7 +287,7 @@ namespace TummlyBackend.Tests.Integration
             );
 
             using var download = AuthorizedGet(
-                $"/api/admin/shop-orders/{orderId}/print-assets/OfferCard/download",
+                $"/api/admin/shop-orders/{orderId}/print-assets/GuestCard/download",
                 seeded.AdminJwt
             );
             var downloadResponse = await _client.SendAsync(download);

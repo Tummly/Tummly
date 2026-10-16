@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.PrintReadyQrMaterials;
 using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
@@ -443,11 +444,7 @@ namespace TummlyBackend.Controllers
         )
         {
             return Enum.TryParse(value, ignoreCase: true, out qrType)
-                && qrType
-                    is QrType.CounterCard
-                    or QrType.TableTent
-                    or QrType.WindowSticker
-                    or QrType.OfferCard;
+                && PhysicalShopPrintQrTypes.Contains(qrType);
         }
 
         private BadRequestObjectResult QueryBadRequest(ArgumentException ex)

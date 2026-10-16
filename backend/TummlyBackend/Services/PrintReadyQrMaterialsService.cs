@@ -1314,7 +1314,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (qrType != QrType.OfferCard)
+            if (qrType is not (QrType.OfferCard or QrType.GuestCard))
             {
                 return _pack.Snapshot.DefaultOfferHeadline;
             }
