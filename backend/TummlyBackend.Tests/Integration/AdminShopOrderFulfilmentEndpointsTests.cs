@@ -170,6 +170,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task CounterDisplay_EmbeddedPdf_DownloadsAfterApprove()
         {
             // Ticket 04 binds QR Counter Display to OfferCard placement + EmbeddedPdf.
+            // Offer Card print generation waits until a catalog offer is attached.
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
                 seeded,
@@ -180,6 +181,27 @@ namespace TummlyBackend.Tests.Integration
             );
             using (var scope = _factory.Services.CreateScope())
             {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .SingleAsync(row => row.Id == seeded.LocationId);
+                var offer = new CatalogOffer
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Title = "Counter launch offer",
+                    Description = "Counter print offer",
+                    Status = CatalogOfferStatus.Active,
+                    Validity = CatalogOfferValidity.Days30AfterIssue,
+                    OfferType = CatalogOfferType.FreeItem,
+                    FreeItemText = "Drink",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                context.CatalogOffers.Add(offer);
+                await context.SaveChangesAsync();
+                location.OfferCardCatalogOfferId = offer.Id;
+                await context.SaveChangesAsync();
+
                 await scope.ServiceProvider
                     .GetRequiredService<IPrintReadyQrMaterialsService>()
                     .EnsureShopOrderMaterialsAsync(orderId);
