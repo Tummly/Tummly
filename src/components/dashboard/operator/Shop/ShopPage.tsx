@@ -5,6 +5,10 @@ import { toast } from "sonner"
 import { createCatalogOffer } from "@/api/dashboardApi"
 import { fetchShopCatalog, fetchShopCatalogItem } from "@/api/shopCatalogApi"
 import {
+  fetchShopInterestProducts,
+  type ShopInterestProduct,
+} from "@/api/shopInterestApi"
+import {
   deleteShopCartLine,
   fetchShopCart,
   mapShopCartToItems,
@@ -25,6 +29,7 @@ import { ShopToolbar } from "@/components/dashboard/operator/Shop/ShopToolbar"
 import { ShopBanner } from "@/components/dashboard/operator/Shop/ShopBanner"
 import { ShopRecommendationSection } from "@/components/dashboard/operator/Shop/ShopRecommendationSection"
 import { ShopCatalogSection } from "@/components/dashboard/operator/Shop/ShopCatalogSection"
+import { ShopInterestSection } from "@/components/dashboard/operator/Shop/ShopInterestSection"
 import { ShopCartFloatingButton } from "@/components/dashboard/operator/Shop/ShopCartFloatingButton"
 import {
   ShopCartDrawer,
@@ -155,6 +160,9 @@ export function ShopPage({
   const [recommendations, setRecommendations] =
     useState<ShopLocationRecommendations | null>(null)
   const [recommendationsLoading, setRecommendationsLoading] = useState(true)
+  const [interestProducts, setInterestProducts] = useState<
+    ShopInterestProduct[]
+  >([])
 
   const offerCardSetupModule = useMemo(
     () =>
@@ -290,6 +298,29 @@ export function ShopPage({
     }
 
     void loadRecommendations()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedLocationId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInterestProducts() {
+      try {
+        const items = await fetchShopInterestProducts(selectedLocationId)
+        if (!cancelled) {
+          setInterestProducts(items)
+        }
+      } catch {
+        if (!cancelled) {
+          setInterestProducts([])
+        }
+      }
+    }
+
+    void loadInterestProducts()
 
     return () => {
       cancelled = true
@@ -803,6 +834,12 @@ export function ShopPage({
               onSelectProduct={handleSelectProduct}
             />
           )}
+
+          <ShopInterestSection
+            products={interestProducts}
+            locationId={selectedLocationId}
+            searchQuery={searchQuery}
+          />
         </>
       )}
 
