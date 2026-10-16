@@ -3,11 +3,17 @@ import { MarketingLogo } from "@/components/marketing/MarketingLogo"
 import { PRODUCT_DEMO } from "@/content/marketing/productDemoPage"
 
 type DemoWelcomeModalProps = {
+  hasGuestSubmission: boolean
   onStartTour: () => void
+  onExplore: () => void
 }
 
-/** Restaurant-view welcome — Figma Welcome to Tummly (user reference). */
-export function DemoWelcomeModal({ onStartTour }: DemoWelcomeModalProps) {
+/** Restaurant-view welcome (§6) — shown on the dashboard after demo JWT. */
+export function DemoWelcomeModal({
+  hasGuestSubmission,
+  onStartTour,
+  onExplore,
+}: DemoWelcomeModalProps) {
   const copy = PRODUCT_DEMO.welcome
 
   return (
@@ -35,21 +41,30 @@ export function DemoWelcomeModal({ onStartTour }: DemoWelcomeModalProps) {
           {copy.title}
         </h1>
         <p className="font-sans max-w-[420px] text-base leading-6 text-[#4e4e4e] sm:text-lg sm:leading-6">
-          {copy.body}
+          {hasGuestSubmission ? copy.bodyWithSubmission : copy.body}
         </p>
       </div>
 
-      <div className="flex w-full flex-col items-center gap-4">
+      <div className="flex w-full flex-col items-center gap-3">
         <MarketingButton
           type="button"
           variant="primary"
           showArrow={false}
-          className="w-full max-w-[320px]"
+          className="w-full max-w-[320px] min-h-11"
           onClick={onStartTour}
         >
           {copy.primaryLabel}
         </MarketingButton>
-        <p className="font-sans text-sm text-[#7c7c7c]">{copy.footNote}</p>
+        <MarketingButton
+          type="button"
+          variant="secondary"
+          showArrow={false}
+          className="w-full max-w-[320px] min-h-11"
+          onClick={onExplore}
+        >
+          {copy.secondaryLabel}
+        </MarketingButton>
+        <p className="font-sans text-sm text-[#7c7c7c]">{copy.safetyLine}</p>
       </div>
     </div>
   )

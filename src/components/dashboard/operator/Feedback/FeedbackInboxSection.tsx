@@ -330,6 +330,12 @@ export function FeedbackInboxSection({
                       <TableRow
                         key={row.id}
                         className={GUESTS_TABLE_BODY_ROW_CLASS}
+                        data-demo-tour={
+                          row.guestName === "Grace Turner"
+                            ? "feedback-needs-attention-row"
+                            : undefined
+                        }
+                        data-feedback-id={String(row.id)}
                       >
                         <TableCell
                           className={`${GUESTS_TABLE_BODY_CELL_CLASS} max-w-56`}

@@ -59,6 +59,14 @@ Asset: `Assets/mavero-kitchen-logo.jpg` (approved red Mavero mark). Seed sets `R
 - Overlay rows expire (default 8h); background purge every 15 minutes
 - Ops `--replace` refreshes the canonical baseline
 
+## Public E2E tour (frontend)
+
+- Entry: `/product-demo` → guest QR / Open Guest Form / restaurant skip
+- Stable Guest Form token: `demo-mavero-table-tent` → `/scan/demo-mavero-table-tent?productDemo=1`
+- Anonymous API: `GET /api/auth/demo-guest-entry`
+- Guest submit in product-demo mode stays in `sessionStorage` (does not write baseline Feedback)
+- Restaurant welcome + 17-step Tour Guide run on `/single-dashboard` after `POST /api/auth/demo-session`
+
 ## Acceptance smoke (§16)
 
 1. `POST /api/auth/demo-session` → Mavero owner JWT with `demo_session_id`

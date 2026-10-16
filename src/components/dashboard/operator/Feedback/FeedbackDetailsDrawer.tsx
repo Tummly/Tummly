@@ -946,6 +946,7 @@ function LoadedBody({
             size="op"
             disabled={!canRespond}
             aria-disabled={!canRespond}
+            data-demo-tour="feedback-start-recovery"
             aria-label={
               canRespond
                 ? copy.respondCta
@@ -1179,6 +1180,7 @@ export function FeedbackDetailsDrawer({
     >
       <DrawerContent
         overlayClassName="supports-backdrop-filter:backdrop-blur-none"
+        data-demo-tour="feedback-detail-panel"
         className={cn(
           OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
           "dark:bg-[#1b1b1b]"

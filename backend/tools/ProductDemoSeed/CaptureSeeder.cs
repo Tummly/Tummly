@@ -66,6 +66,7 @@ internal static class CaptureSeeder
             QrCodeStatus.Active,
             "table-tent"
         );
+        tableTent.Token = DemoSeedConstants.TableTentToken;
         tableTent.InternalDescription = "Table Tent - Main Dining";
 
         var offerCard = await EnsureAsync(

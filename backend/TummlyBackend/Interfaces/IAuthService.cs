@@ -85,5 +85,10 @@ namespace TummlyBackend.Interfaces
          =========================================
          */
         Task<object> CreateDemoSessionAsync();
+
+        /// <summary>
+        /// Anonymous guest-form entry for the public product demo (scan path).
+        /// </summary>
+        Task<object> GetDemoGuestEntryAsync();
     }
 }

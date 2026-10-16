@@ -75,7 +75,15 @@ export function OffersListTable({
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
+            <TableRow
+              key={row.id}
+              className={GUESTS_TABLE_BODY_ROW_CLASS}
+              data-demo-tour={
+                row.title.includes("14%")
+                  ? "offer-primary-row"
+                  : undefined
+              }
+            >
               <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                 <div className="flex flex-col gap-1.5">
                   <Button
@@ -103,7 +111,12 @@ export function OffersListTable({
                   {row.validityLabel}
                 </span>
               </TableCell>
-              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+              <TableCell
+                className={GUESTS_TABLE_BODY_CELL_CLASS}
+                data-demo-tour={
+                  row.title.includes("14%") ? "offer-metrics" : undefined
+                }
+              >
                 <span className="text-sm text-foreground">{row.claimsLabel}</span>
               </TableCell>
               <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>

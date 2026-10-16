@@ -26,6 +26,11 @@ internal static class DemoSeedConstants
     public const string BrandLogoContentType = "image/jpeg";
     public const string StaffEmail = "mavero.staff@qa-seed.tummly.invalid";
 
+    /// <summary>
+    /// Stable public scan token for the Mavero Table Tent (E2E guest entry / QR).
+    /// </summary>
+    public const string TableTentToken = "demo-mavero-table-tent";
+
     public static readonly DateTime AnchorWeekStartUtc =
         new(2026, 9, 28, 0, 0, 0, DateTimeKind.Utc);
 

@@ -616,6 +616,35 @@ namespace TummlyBackend.Controllers
         */
 
         [AllowAnonymous]
+        [HttpGet("demo-guest-entry")]
+        public async Task<IActionResult> GetDemoGuestEntry()
+        {
+            try
+            {
+                var result = await _authService.GetDemoGuestEntryAsync();
+                return Ok(
+                    new
+                    {
+                        success = true,
+                        message = "Demo guest entry ready.",
+                        data = result,
+                    }
+                );
+            }
+            catch (DemoSessionDisabledException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new { success = false, message = ex.Message }
+                );
+            }
+            catch (DemoSessionUnavailableException ex)
+            {
+                return NotFound(new { success = false, message = ex.Message });
+            }
+        }
+
+        [AllowAnonymous]
         [HttpPost("demo-session")]
         public async Task<IActionResult> CreateDemoSession()
         {

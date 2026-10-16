@@ -295,6 +295,7 @@ export function DashboardSidebar({
                   aria-current={item.active ? "page" : undefined}
                   aria-label={item.label}
                   title={collapsed ? item.label : undefined}
+                  data-demo-tour={`nav-${item.id}`}
                   className={rowClass}
                   onClick={(event) => {
                     const href = item.to ?? ""

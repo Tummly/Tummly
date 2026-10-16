@@ -145,6 +145,7 @@ function HubGuestLoopSection(props: {
               type="button"
               variant="op-primary"
               className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+              data-demo-tour="weekly-brief-panel"
               onClick={props.onViewWeeklyBrief}
             >
               {REPORTS_HUB_GUEST_LOOP_COPY.viewWeeklyBrief}

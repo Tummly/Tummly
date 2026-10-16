@@ -1069,6 +1069,7 @@ export function AiAssistantDrawer({
                 paintExpanded ? "flex-1 min-w-0 shrink" : "shrink-0"
               )}
               data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
+              data-demo-tour="ai-assistant-panel"
               aria-label="AI Assistant"
             >
               <AiAssistantLoadingBorder

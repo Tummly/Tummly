@@ -12,6 +12,11 @@ namespace TummlyBackend.Helpers
 
         public const string SessionIdClaimType = "demo_session_id";
 
+        /// <summary>
+        /// Stable ProductDemoSeed Table Tent token for public guest-entry QR.
+        /// </summary>
+        public const string MaveroTableTentToken = "demo-mavero-table-tent";
+
         public static readonly TimeSpan DefaultTtl = TimeSpan.FromHours(8);
 
         public static bool IsDemoSession(ClaimsPrincipal? user)

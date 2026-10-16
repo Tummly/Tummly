@@ -1662,5 +1662,88 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<object> GetDemoGuestEntryAsync()
+        {
+            if (!_demoSession.Enabled)
+            {
+                throw new DemoSessionDisabledException();
+            }
+
+            var ownerEmail = (_demoSession.OwnerEmail ?? string.Empty)
+                .Trim()
+                .ToLowerInvariant();
+
+            if (string.IsNullOrWhiteSpace(ownerEmail))
+            {
+                throw new DemoSessionUnavailableException();
+            }
+
+            var userId = await _context.Users
+                .AsNoTracking()
+                .Where(x => x.Email == ownerEmail)
+                .Select(x => (int?)x.Id)
+                .FirstOrDefaultAsync();
+
+            if (userId is null)
+            {
+                throw new DemoSessionUnavailableException();
+            }
+
+            var restaurantId = await _context.Restaurants
+                .AsNoTracking()
+                .Where(row => row.OwnerUserId == userId.Value)
+                .Where(row => row.AccountType == "Single")
+                .OrderBy(row => row.Id)
+                .Select(row => (int?)row.Id)
+                .FirstOrDefaultAsync();
+
+            if (restaurantId is null)
+            {
+                throw new DemoSessionUnavailableException();
+            }
+
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId.Value)
+                .OrderBy(row => row.Id)
+                .Select(row => new { row.Id, row.LocationName })
+                .FirstOrDefaultAsync();
+
+            if (location is null)
+            {
+                throw new DemoSessionUnavailableException();
+            }
+
+            var token = await _context.QrCodes
+                .AsNoTracking()
+                .Where(q =>
+                    q.RestaurantLocationId == location.Id
+                    && q.QrType == Models.QrType.TableTent
+                    && q.Status == Models.QrCodeStatus.Active
+                )
+                .OrderBy(q => q.Id)
+                .Select(q => q.Token)
+                .FirstOrDefaultAsync();
+
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                token = Helpers.DemoSessionClaims.MaveroTableTentToken;
+            }
+
+            var restaurantName = await _context.Restaurants
+                .AsNoTracking()
+                .Where(r => r.Id == restaurantId.Value)
+                .Select(r => r.Name)
+                .FirstOrDefaultAsync() ?? "Mavero Kitchen";
+
+            return new
+            {
+                restaurantName,
+                locationName = location.LocationName,
+                scanToken = token,
+                scanPath = $"/scan/{token}?productDemo=1",
+            };
+        }
+
     }
 }
