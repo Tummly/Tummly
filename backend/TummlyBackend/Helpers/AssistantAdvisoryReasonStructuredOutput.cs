@@ -15,7 +15,7 @@ namespace TummlyBackend.Helpers
 
         public const string HttpClientName = "AzureOpenAIAssistantAdvisoryReason";
 
-        public const string PromptSchemaRevision = "2026-09-05";
+        public const string PromptSchemaRevision = "2026-10-13-perf-format";
 
         public const string AdviceOnlyAction = "advice-only";
 
@@ -225,6 +225,14 @@ namespace TummlyBackend.Helpers
                 summaries only. Never invent metrics, counts, or guest facts that
                 are not in the snapshot. Do not include guest names, emails,
                 phones, or raw feedback text.
+
+                summary (operator-facing): 3–6 short sentences. Digits only
+                (24, 50, 12). Natural restaurant language. Never write snapshot
+                paths, camelCase, PascalCase field names, flag codes, or
+                parenthetical technical notes such as (IsNewAccount: true),
+                Account.Revenue, FunnelStartCount, or Campaigns.Flags. Put
+                evidence paths only in evidence_ref / evidence_used, never in
+                summary or recommendation headline/reason.
 
                 Return Structured Outputs only with answer_type one of:
                 direct, advisory, product_expert, clarify.

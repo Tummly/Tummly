@@ -196,6 +196,11 @@ namespace TummlyBackend.Helpers
                 ScopeChange = message.Role == AssistantMessageRole.Assistant
                     ? ParseScopeChange(message.ScopeChangeJson)
                     : null,
+                Presentation = message.Role == AssistantMessageRole.Assistant
+                    ? AssistantMessagePresentationJson.ParseDto(
+                        message.PresentationJson
+                    )
+                    : null,
             };
 
         public static AssistantConversationDto ToConversationDto(

@@ -186,6 +186,8 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackRecoveryCompletion> FeedbackRecoveryCompletions { get; set; }
 
+        public DbSet<CampaignAudience> CampaignAudiences { get; set; }
+
         public DbSet<Campaign> Campaigns { get; set; }
 
         public DbSet<CampaignFrozenRecipient> CampaignFrozenRecipients { get; set; }
@@ -223,6 +225,11 @@ namespace TummlyBackend.Data
         )
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<CampaignAudience>().HasOne<RestaurantLocation>()
+                .WithMany().HasForeignKey(a => a.RestaurantLocationId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<CampaignAudience>().HasIndex(a => new { a.RestaurantLocationId, a.Name })
+                .IsUnique().HasFilter("[Name] IS NOT NULL");
+
 
             /*
              =========================================

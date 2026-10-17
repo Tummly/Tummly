@@ -1203,7 +1203,8 @@ namespace TummlyBackend.Helpers
             }
 
             bits.Add(row.ContactType);
-            bits.Add(row.FeedbackReference);
+            // Do not append FeedbackReference (FDB-000123) — operators use
+            // name + excerpt; the View Feedback action opens the set.
             return string.Join(" — ", bits) + ".";
         }
 

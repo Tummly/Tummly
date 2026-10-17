@@ -6,6 +6,7 @@
 import type { OperatorGuestSmartGroupId } from "@/types/operatorGuests"
 
 export type CampaignAudienceId =
+  | `audience:${string}`
   | "all-eligible-guests"
   | "new-guests"
   | "positive-feedback"

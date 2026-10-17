@@ -4,9 +4,10 @@ namespace TummlyBackend.Helpers
 {
     /// <summary>
     /// Deterministic follow-up eligibility for Recovery path.
-    /// Guest-message recovery needs a reachable Email or SMS. Location Guest
-    /// marketing preference does not grant or deny that response. It still
-    /// gates Respond with a recovery offer.
+    /// Guest-message recovery needs a reachable Email or SMS. Email guest mail
+    /// also needs Location Guest marketing Allowed (matches Start recovery UI).
+    /// SMS guest messages stay allowed when marketing is opted out. Marketing
+    /// always gates Respond with a recovery offer.
     /// </summary>
     public static class AssistantRecoveryEligibility
     {
@@ -80,6 +81,17 @@ namespace TummlyBackend.Helpers
                 return new Outcome.Blocked(
                     "offer-refused",
                     AssistantRecoveryPersistCopy.OfferRefusedBody()
+                );
+            }
+
+            // Same gate as Start recovery / Edit Draft for Email — check early
+            // so chat does not store a draft the operator cannot open.
+            if (string.Equals(channel, "email", StringComparison.Ordinal)
+                && marketing != LocationGuestMarketingPreference.Allowed)
+            {
+                return new Outcome.Blocked(
+                    "email-marketing",
+                    AssistantRecoveryPersistCopy.EmailMarketingRefusedBody()
                 );
             }
 

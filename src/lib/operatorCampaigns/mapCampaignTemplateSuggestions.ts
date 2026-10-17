@@ -71,6 +71,7 @@ function resolveGoalId(raw: string): CampaignGoalId {
 }
 
 function resolveAudienceId(raw: string): CampaignAudienceId {
+  if (/^audience:[a-f0-9]{32}$/i.test(raw)) return raw as `audience:${string}`
   if (raw === "saved-group") {
     // Legacy Draft key — not an Audience card; Continue / Save blocked until reselect.
     return "saved-group"

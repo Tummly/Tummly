@@ -19,7 +19,7 @@ namespace TummlyBackend.Services
         /// <summary>
         /// Align Matched membership with Guests Smart Group windows.
         /// </summary>
-        public const int NewGuestDays = 13;
+        public const int NewGuestDays = 30;
 
         public const int DormantDays = 90;
 
@@ -59,7 +59,9 @@ namespace TummlyBackend.Services
 
             var evaluatedAt = DateTime.UtcNow;
 
-            if (UnevaluableAudienceKeys.Contains(key))
+            if (UnevaluableAudienceKeys.Contains(key)
+                || (CampaignAudienceStore.IsKey(key)
+                    && UnevaluableAudienceKeys.Contains(CampaignAudienceStore.Load(_context, locationId, key).BaseAudienceKey)))
             {
                 return Unavailable(key, evaluatedAt);
             }
@@ -81,7 +83,7 @@ namespace TummlyBackend.Services
                 [locationId]
             );
 
-            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt);
+            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt, locationId);
             var matchedRows = await matchedQuery
                 .Select(lg => new GuestEligibilityRow(
                     lg.Id,
@@ -101,7 +103,8 @@ namespace TummlyBackend.Services
                 matchedRows,
                 restaurant,
                 permissionStates,
-                evaluatedAt
+                evaluatedAt,
+                CampaignAudienceStore.IsKey(key) ? CampaignAudienceStore.Load(_context, locationId, key).Limit : null
             );
         }
 
@@ -124,7 +127,9 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("channel must be email or sms.");
             }
 
-            if (UnevaluableAudienceKeys.Contains(key))
+            if (UnevaluableAudienceKeys.Contains(key)
+                || (CampaignAudienceStore.IsKey(key)
+                    && UnevaluableAudienceKeys.Contains(CampaignAudienceStore.Load(_context, locationId, key).BaseAudienceKey)))
             {
                 return Array.Empty<int>();
             }
@@ -147,7 +152,7 @@ namespace TummlyBackend.Services
                 [locationId]
             );
 
-            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt);
+            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt, locationId);
             var matchedRows = await matchedQuery
                 .Select(lg => new GuestEligibilityRow(
                     lg.Id,
@@ -207,15 +212,35 @@ namespace TummlyBackend.Services
                 }
             }
 
-            return ids;
+            return CampaignAudienceStore.IsKey(key)
+                ? ids.Take(CampaignAudienceStore.Load(_context, locationId, key).Limit ?? int.MaxValue).ToList()
+                : ids;
         }
 
         private IQueryable<LocationGuest> ApplyAudienceMatch(
             IQueryable<LocationGuest> scoped,
             string audienceKey,
-            DateTime nowUtc
+            DateTime nowUtc,
+            int locationId
         )
         {
+            if (CampaignAudienceStore.IsKey(audienceKey))
+            {
+                var rule = CampaignAudienceStore.Load(_context, locationId, audienceKey);
+                var query = ApplyAudienceMatch(scoped, rule.BaseAudienceKey, nowUtc, locationId);
+                var includedIds = rule.GuestIds.ToList();
+                var excludedIds = rule.ExcludedGuestIds.ToList();
+                if (includedIds.Count > 0) query = query.Where(g => includedIds.Contains(g.Id));
+                query = query.Where(g => !excludedIds.Contains(g.Id));
+                if (rule.JoinedFromUtc is DateTime from) query = query.Where(g => g.CreatedAt >= from);
+                if (rule.JoinedToUtc is DateTime to) query = query.Where(g => g.CreatedAt < to);
+                if (!string.IsNullOrWhiteSpace(rule.NameContains)) query = query.Where(g => g.Name.Contains(rule.NameContains));
+                return rule.Order == "newest"
+                    ? query.OrderByDescending(g => g.CreatedAt).ThenByDescending(g => g.Id)
+                    : query.OrderByDescending(g => _context.LocationGuestActivityEvents
+                        .Where(e => e.LocationGuestId == g.Id).Select(e => (DateTime?)e.OccurredAt).Max() ?? g.CreatedAt)
+                        .ThenByDescending(g => g.Id);
+            }
             var newGuestCutoff = nowUtc.AddDays(-NewGuestDays);
             var dormantCutoff = nowUtc.AddDays(-DormantDays);
 
@@ -263,7 +288,8 @@ namespace TummlyBackend.Services
                     LocationGuestPermissionState
                 >
             > permissionStates,
-            DateTime evaluatedAt
+            DateTime evaluatedAt,
+            int? limit = null
         )
         {
             var matchedCount = matched.Count;
@@ -316,6 +342,11 @@ namespace TummlyBackend.Services
                 }
             }
 
+            if (limit is int cap && currentlyEligible > cap)
+            {
+                reasonCounts["audience-limit"] = currentlyEligible - cap;
+                currentlyEligible = cap;
+            }
             var excluded = matchedCount - currentlyEligible;
             var excludedReasons = reasonCounts
                 .OrderByDescending(pair => pair.Value)
@@ -332,10 +363,10 @@ namespace TummlyBackend.Services
                 AudienceKey = audienceKey,
                 Evaluable = true,
                 Matched = matchedCount,
-                CurrentlyEligible = currentlyEligible,
+                CurrentlyEligible = Math.Min(currentlyEligible, limit ?? int.MaxValue),
                 Excluded = excluded,
-                EmailEligible = emailEligible,
-                SmsEligible = smsEligible,
+                EmailEligible = Math.Min(emailEligible, limit ?? int.MaxValue),
+                SmsEligible = Math.Min(smsEligible, limit ?? int.MaxValue),
                 ExcludedReasons = excludedReasons,
                 CheckSetVersion = CheckSetVersion,
                 EvaluatedAt = evaluatedAt,
