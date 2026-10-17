@@ -58,4 +58,16 @@ describe("marketingMediaUrl", () => {
       "https://sttummlyqavfavue.blob.core.windows.net/marketing/home/hero-campaign.mp4",
     )
   })
+
+  it("builds For Groups product carousel video URLs", async () => {
+    const { forGroupsProductVideoUrl, FOR_GROUPS_PRODUCT_VIDEO_PATHS } =
+      await import("./marketingMedia")
+    expect(FOR_GROUPS_PRODUCT_VIDEO_PATHS.capture).toBe("for-groups/capture.mp4")
+    expect(forGroupsProductVideoUrl("capture")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/capture.mp4",
+    )
+    expect(forGroupsProductVideoUrl("weekly-brief")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/weekly-brief.mp4",
+    )
+  })
 })

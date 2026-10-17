@@ -561,7 +561,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task SetupAccount_MintsFiveActiveQrCodes_SixthActiveCreate_Returns409()
+        public async Task SetupAccount_MintsStarterActiveQrCodes_ExtraActiveCreateAtCap_Returns409()
         {
             var seeded = await SeedPilotViaSetupAccountAsync(
                 email: "qr-cap-setup@example.com",
@@ -576,7 +576,27 @@ namespace TummlyBackend.Tests.Integration
                     q.RestaurantLocationId == seeded.LocationId
                     && q.Status == QrCodeStatus.Active
                 );
-                Assert.Equal(5, activeCount);
+                // Launch seed: Counter Display (OfferCard) only.
+                Assert.Equal(1, activeCount);
+            }
+
+            // Fill Pilot active-QR cap (5) with digital guest links.
+            for (var i = 0; i < 4; i++)
+            {
+                using var fillRequest = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"/api/capture/placements/digital-guest-links?locationId={seeded.LocationId}"
+                );
+                fillRequest.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+                fillRequest.Content = JsonContent.Create(new
+                {
+                    linkName = $"Fill Link {i + 1}",
+                    channel = "Email",
+                    status = "Active",
+                });
+                var fillResponse = await _client.SendAsync(fillRequest);
+                Assert.Equal(HttpStatusCode.OK, fillResponse.StatusCode);
             }
 
             using var request = new HttpRequestMessage(
@@ -587,7 +607,7 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
             request.Content = JsonContent.Create(new
             {
-                linkName = "Sixth Active Link",
+                linkName = "Over Cap Link",
                 channel = "Email",
                 status = "Active",
             });
@@ -612,6 +632,25 @@ namespace TummlyBackend.Tests.Integration
                 email: "qr-cap-resume@example.com",
                 token: "qr-cap-resume-token"
             );
+
+            // Fill Pilot active-QR cap (5) so a paused extra cannot resume.
+            for (var i = 0; i < 4; i++)
+            {
+                using var fillRequest = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"/api/capture/placements/digital-guest-links?locationId={seeded.LocationId}"
+                );
+                fillRequest.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+                fillRequest.Content = JsonContent.Create(new
+                {
+                    linkName = $"Fill Resume {i + 1}",
+                    channel = "Email",
+                    status = "Active",
+                });
+                var fillResponse = await _client.SendAsync(fillRequest);
+                Assert.Equal(HttpStatusCode.OK, fillResponse.StatusCode);
+            }
 
             using var createRequest = new HttpRequestMessage(
                 HttpMethod.Post,
@@ -1792,16 +1831,21 @@ namespace TummlyBackend.Tests.Integration
             context.Users.Add(user);
             await context.SaveChangesAsync();
 
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                0,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            BillingCreditsService.ApplyPilotSignupBilling(
+                billing,
+                DateTime.UtcNow
+            );
             var restaurant = new Restaurant
             {
                 Name = "Capture Transition Venue",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
-                BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
-                    0,
-                    "TUMMLY-UK-GBP-2026-08-V3"
-                ),
+                BillingAccount = billing,
             };
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
@@ -1870,16 +1914,21 @@ namespace TummlyBackend.Tests.Integration
             context.Users.Add(user);
             await context.SaveChangesAsync();
 
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                0,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            BillingCreditsService.ApplyPilotSignupBilling(
+                billing,
+                DateTime.UtcNow
+            );
             var restaurant = new Restaurant
             {
                 Name = "Capture Digital Venue",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
-                BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
-                    0,
-                    "TUMMLY-UK-GBP-2026-08-V3"
-                ),
+                BillingAccount = billing,
             };
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();

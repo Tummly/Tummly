@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
@@ -24,14 +25,17 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IShopCatalogImageStorage _imageStorage;
+        private readonly IAdminAuditService _audit;
 
         public AdminShopCatalogService(
             ApplicationDbContext context,
-            IShopCatalogImageStorage imageStorage
+            IShopCatalogImageStorage imageStorage,
+            IAdminAuditService audit
         )
         {
             _context = context;
             _imageStorage = imageStorage;
+            _audit = audit;
         }
 
         public async Task<IReadOnlyList<AdminPlacementRecipeDto>> ListPlacementRecipesAsync(
@@ -185,8 +189,15 @@ namespace TummlyBackend.Services
             var description = request.Description!.Trim();
             var material = request.Material!.Trim();
             var dimensions = request.Dimensions!.Trim();
-            var unitNetPence = request.UnitNetPence!.Value;
-            var minOrderQty = request.MinOrderQty ?? 1;
+            if (!TryResolvePacksForWrite(request, isCreate: true, out var packs, out var packError))
+            {
+                return (null, packError);
+            }
+
+            var packsJson = ShopMaterialPacks.Serialize(packs);
+            var unitNetPence = ShopMaterialPacks.LowestNetPence(packs);
+            var minOrderQty = ShopMaterialPacks.LowestQty(packs);
+            var deliveryNetPence = Math.Max(0, request.DeliveryNetPence ?? 0);
             var currency = string.IsNullOrWhiteSpace(request.Currency)
                 ? "GBP"
                 : request.Currency.Trim().ToUpperInvariant();
@@ -197,6 +208,8 @@ namespace TummlyBackend.Services
             var specificationsJson = ShopMaterialSpecifications.Serialize(
                 request.Specifications ?? []
             );
+            var supplierName = NormalizeSupplierName(request.SupplierName);
+            var internalCost = NormalizeInternalCost(request.InternalCostNetPence);
 
             // Soft-deleted rows free the filtered unique index — revive that row
             // instead of inserting a second row with the same skuId.
@@ -223,6 +236,10 @@ namespace TummlyBackend.Services
                 sku.QrType = recipe.PlacementKey;
                 sku.UnitNetPence = unitNetPence;
                 sku.MinOrderQty = minOrderQty;
+                sku.PacksJson = packsJson;
+                sku.DeliveryNetPence = deliveryNetPence;
+                sku.SupplierName = supplierName;
+                sku.InternalCostNetPence = internalCost;
                 sku.Currency = currency;
                 sku.MintOnShopFulfilment = mintOnFulfilment;
                 sku.Status = ShopMaterialSkuStatuses.Draft;
@@ -257,6 +274,10 @@ namespace TummlyBackend.Services
                     QrType = recipe.PlacementKey,
                     UnitNetPence = unitNetPence,
                     MinOrderQty = minOrderQty,
+                    PacksJson = packsJson,
+                    DeliveryNetPence = deliveryNetPence,
+                    SupplierName = supplierName,
+                    InternalCostNetPence = internalCost,
                     Currency = currency,
                     MintOnShopFulfilment = mintOnFulfilment,
                     Status = ShopMaterialSkuStatuses.Draft,
@@ -354,14 +375,50 @@ namespace TummlyBackend.Services
                 sku.Dimensions = request.Dimensions.Trim();
             }
 
-            if (request.UnitNetPence != null)
+            if (
+                request.Packs != null
+                || request.UnitNetPence != null
+                || request.MinOrderQty != null
+            )
             {
-                sku.UnitNetPence = request.UnitNetPence.Value;
+                if (
+                    !TryResolvePacksForWrite(
+                        request,
+                        isCreate: false,
+                        out var packs,
+                        out var packError,
+                        existingPacksJson: sku.PacksJson
+                    )
+                )
+                {
+                    return (null, packError);
+                }
+
+                sku.PacksJson = ShopMaterialPacks.Serialize(packs);
+                sku.UnitNetPence = ShopMaterialPacks.LowestNetPence(packs);
+                sku.MinOrderQty = ShopMaterialPacks.LowestQty(packs);
             }
 
-            if (request.MinOrderQty != null)
+            if (request.DeliveryNetPence != null)
             {
-                sku.MinOrderQty = Math.Max(1, request.MinOrderQty.Value);
+                if (request.DeliveryNetPence < 0)
+                {
+                    return (null, "DeliveryNetPence must be zero or greater.");
+                }
+
+                sku.DeliveryNetPence = request.DeliveryNetPence.Value;
+            }
+
+            if (request.SupplierName != null)
+            {
+                sku.SupplierName = NormalizeSupplierName(request.SupplierName);
+            }
+
+            if (request.InternalCostNetPence != null)
+            {
+                sku.InternalCostNetPence = NormalizeInternalCost(
+                    request.InternalCostNetPence
+                );
             }
 
             if (request.Currency != null)
@@ -417,8 +474,56 @@ namespace TummlyBackend.Services
             }
 
             sku.Status = ShopMaterialSkuStatuses.Published;
+            sku.AvailableInShop = false;
             sku.PublishedAtUtc ??= DateTime.UtcNow;
             sku.UpdatedAtUtc = DateTime.UtcNow;
+            await _context.SaveChangesAsync(cancellationToken);
+            return (MapSku(sku), null);
+        }
+
+        public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> SetAvailableInShopAsync(
+            string skuId,
+            bool availableInShop,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var sku = await LoadSkuAsync(skuId, tracking: true, cancellationToken);
+            if (sku == null || sku.Status == ShopMaterialSkuStatuses.Deleted)
+            {
+                return (null, "Product was not found.");
+            }
+
+            if (sku.Status != ShopMaterialSkuStatuses.Published)
+            {
+                return (
+                    null,
+                    "Available in Shop can only change on Published products."
+                );
+            }
+
+            if (sku.AvailableInShop == availableInShop)
+            {
+                return (MapSku(sku), null);
+            }
+
+            sku.AvailableInShop = availableInShop;
+            sku.UpdatedAtUtc = DateTime.UtcNow;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopCatalogAvailableInShop,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopMaterialSku,
+                    sku.SkuId,
+                    ActorAdminUserId: actorAdminUserId,
+                    DetailJson: JsonSerializer.Serialize(
+                        new { availableInShop }
+                    )
+                )
+            );
+
             await _context.SaveChangesAsync(cancellationToken);
             return (MapSku(sku), null);
         }
@@ -780,9 +885,12 @@ namespace TummlyBackend.Services
                     return "Dimensions are required.";
                 }
 
-                if (request.UnitNetPence is null or < 0)
+                if (
+                    (request.Packs == null || request.Packs.Count == 0)
+                    && request.UnitNetPence is null or < 0
+                )
                 {
-                    return "UnitNetPence must be zero or greater.";
+                    return "Packs or UnitNetPence are required.";
                 }
             }
 
@@ -804,7 +912,89 @@ namespace TummlyBackend.Services
                 return "MinOrderQty must be at least 1.";
             }
 
+            if (request.DeliveryNetPence is < 0)
+            {
+                return "DeliveryNetPence must be zero or greater.";
+            }
+
+            if (request.InternalCostNetPence is < 0)
+            {
+                return "InternalCostNetPence must be zero or greater.";
+            }
+
+            if (request.Packs != null
+                && !ShopMaterialPacks.TryValidate(request.Packs, out var packError))
+            {
+                return packError;
+            }
+
             return null;
+        }
+
+        private static bool TryResolvePacksForWrite(
+            AdminShopCatalogSkuWriteRequest request,
+            bool isCreate,
+            out IReadOnlyList<ShopMaterialPackRow> packs,
+            out string? error,
+            string? existingPacksJson = null
+        )
+        {
+            if (request.Packs != null)
+            {
+                if (!ShopMaterialPacks.TryValidate(request.Packs, out error))
+                {
+                    packs = [];
+                    return false;
+                }
+
+                packs = ShopMaterialPacks.Parse(
+                    ShopMaterialPacks.Serialize(request.Packs)
+                );
+                error = null;
+                return true;
+            }
+
+            if (request.UnitNetPence is >= 0)
+            {
+                var qty = request.MinOrderQty is >= 1 ? request.MinOrderQty.Value : 1;
+                packs = ShopMaterialPacks.SinglePack(qty, request.UnitNetPence.Value);
+                error = null;
+                return true;
+            }
+
+            if (!isCreate)
+            {
+                packs = ShopMaterialPacks.Parse(existingPacksJson);
+                if (ShopMaterialPacks.TryValidate(packs, out error))
+                {
+                    return true;
+                }
+            }
+
+            packs = [];
+            error = "Packs or UnitNetPence are required.";
+            return false;
+        }
+
+        private static string? NormalizeSupplierName(string? value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            var trimmed = value.Trim();
+            return trimmed.Length == 0 ? null : trimmed;
+        }
+
+        private static int? NormalizeInternalCost(int? value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            return Math.Max(0, value.Value);
         }
 
         private static AdminShopCatalogSkuDto MapSku(ShopMaterialSku sku) =>
@@ -825,9 +1015,14 @@ namespace TummlyBackend.Services
                     ?? PlacementPrintRoutes.EmbeddedPdf,
                 UnitNetPence = sku.UnitNetPence,
                 MinOrderQty = sku.MinOrderQty,
+                Packs = ShopMaterialPacks.Parse(sku.PacksJson),
+                DeliveryNetPence = sku.DeliveryNetPence,
+                SupplierName = sku.SupplierName,
+                InternalCostNetPence = sku.InternalCostNetPence,
                 Currency = sku.Currency,
                 MintOnShopFulfilment = sku.MintOnShopFulfilment,
                 Status = sku.Status,
+                AvailableInShop = sku.AvailableInShop,
                 AboutBody = sku.AboutBody ?? string.Empty,
                 Specifications = ShopMaterialSpecifications.Parse(
                     sku.SpecificationsJson

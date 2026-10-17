@@ -1,9 +1,7 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   ChevronRight,
   ShoppingBag,
-  Minus,
-  Plus,
   MapPin,
   ChevronDown,
   X,
@@ -44,21 +42,9 @@ type PackageOption = {
   id: string
   label: string
   quantity: number
-  price: number
+  pricePounds: number
   isRecommended?: boolean
 }
-
-const PACKAGE_OPTIONS: PackageOption[] = [
-  { id: "pack-5", label: "Pack of 5", quantity: 5, price: 24.0 },
-  { id: "pack-10", label: "Pack of 10", quantity: 10, price: 39.0 },
-  {
-    id: "pack-20",
-    label: "Pack of 20",
-    quantity: 20,
-    price: 69.0,
-    isRecommended: true,
-  },
-]
 
 type ShopProductScreenProps = {
   product: ShopProduct
@@ -94,22 +80,39 @@ export function ShopProductScreen({
   onSelectRelatedProduct,
   paidWriteChrome,
 }: ShopProductScreenProps) {
-  const purchaseBlocked = paidWriteChrome.purchaseDisabled
+  const purchaseBlocked =
+    paidWriteChrome.purchaseDisabled || !product.availableInShop
   const showVatChrome = vatRateBps > 0
-  const [selectedPackId, setSelectedPackId] = useState<string>("pack-20")
-  const [customQuantity, setCustomQuantity] = useState<number>(20)
+  const comingSoon = !product.availableInShop
+  const packageOptions = useMemo<PackageOption[]>(() => {
+    const packs =
+      product.packs.length > 0
+        ? product.packs
+        : [{ qty: product.minOrderQty || 1, netPence: product.unitNetPence }]
+    const midIndex = Math.floor((packs.length - 1) / 2)
+    return packs.map((pack, index) => ({
+      id: `pack-${pack.qty}`,
+      label: `Pack of ${pack.qty.toLocaleString("en-GB")}`,
+      quantity: pack.qty,
+      pricePounds: pack.netPence / 100,
+      isRecommended: index === midIndex,
+    }))
+  }, [product.packs, product.minOrderQty, product.unitNetPence])
+
+  const defaultPackId = packageOptions[packageOptions.length - 1]?.id ?? ""
+  const [selectedPackId, setSelectedPackId] = useState<string>(defaultPackId)
   const [activeImageIdx, setActiveImageIdx] = useState<number>(0)
 
   // Scroll pane to top whenever a product is opened or changed
   useEffect(() => {
     scrollShopPaneToTop()
-    setSelectedPackId("pack-20")
-    setCustomQuantity(20)
+    setSelectedPackId(defaultPackId)
     setActiveImageIdx(0)
-  }, [product.id])
+  }, [product.id, defaultPackId])
 
   const selectedPack =
-    PACKAGE_OPTIONS.find((p) => p.id === selectedPackId) ?? PACKAGE_OPTIONS[2]
+    packageOptions.find((pack) => pack.id === selectedPackId) ??
+    packageOptions[0]
 
   const thumbnails =
     product.imageSrcs.length > 0
@@ -118,20 +121,13 @@ export function ShopProductScreen({
 
   const handleSelectPack = (pack: PackageOption) => {
     setSelectedPackId(pack.id)
-    setCustomQuantity(pack.quantity)
   }
 
-  const handleIncrease = () => {
-    setCustomQuantity((prev) => prev + 1)
-  }
-
-  const handleDecrease = () => {
-    setCustomQuantity((prev) => (prev > 1 ? prev - 1 : 1))
-  }
-
-  // Calculate price dynamically based on quantity
-  const unitPrice = selectedPack.price / selectedPack.quantity
-  const calculatedPrice = (unitPrice * customQuantity).toFixed(2)
+  const selectedQuantity = selectedPack?.quantity ?? product.minOrderQty
+  const calculatedPrice = (selectedPack?.pricePounds ?? product.price).toFixed(
+    2
+  )
+  const recommendedPack = packageOptions.find((pack) => pack.isRecommended)
 
   const relatedProducts = catalogProducts
     .filter((p) => p.id !== product.id)
@@ -272,16 +268,24 @@ export function ShopProductScreen({
           <div className={cn(SHOP_PRODUCT_DETAIL_CARD_CLASS, "flex flex-col gap-4 p-5")}>
             <div className="flex flex-col gap-1">
               <h3 className="text-base font-semibold text-op-text-primary">
-                Choose a quantity
+                Choose a pack
               </h3>
               <p className="text-xs text-op-text-secondary">
-                <strong className="text-op-text-primary">20 recommended</strong>{" "}
-                — This location has 18 guest tables. We recommend one table tent per table and two spare.
+                {recommendedPack ? (
+                  <>
+                    <strong className="text-op-text-primary">
+                      {recommendedPack.label} recommended
+                    </strong>{" "}
+                    — Prices come from the live shop catalog for this product.
+                  </>
+                ) : (
+                  "Prices come from the live shop catalog for this product."
+                )}
               </p>
             </div>
 
             <div className="flex flex-col gap-2.5">
-              {PACKAGE_OPTIONS.map((pack) => {
+              {packageOptions.map((pack) => {
                 const isSelected = selectedPackId === pack.id
                 return (
                   <button
@@ -306,34 +310,11 @@ export function ShopProductScreen({
                       )}
                     </div>
                     <span className="text-sm font-semibold text-op-text-primary">
-                      £{pack.price.toFixed(2)}
+                      £{pack.pricePounds.toFixed(2)}
                     </span>
                   </button>
                 )
               })}
-            </div>
-
-            {/* Stepper for custom adjustments */}
-            <div className="flex items-center gap-3 pt-1">
-              <button
-                type="button"
-                onClick={handleDecrease}
-                className="flex size-7 items-center justify-center rounded-[3px] border border-op-border-default bg-op-background-primary text-op-text-primary transition-colors hover:bg-op-surface-secondary"
-                aria-label="Decrease quantity"
-              >
-                <Minus className="size-3" />
-              </button>
-              <span className="min-w-6 text-center text-base font-semibold text-op-text-primary">
-                {customQuantity}
-              </span>
-              <button
-                type="button"
-                onClick={handleIncrease}
-                className="flex size-7 items-center justify-center rounded-[3px] border border-op-border-default bg-op-background-primary text-op-text-primary transition-colors hover:bg-op-surface-secondary"
-                aria-label="Increase quantity"
-              >
-                <Plus className="size-3" />
-              </button>
             </div>
           </div>
 
@@ -357,7 +338,7 @@ export function ShopProductScreen({
               <div className="flex justify-between">
                 <span>Quantity</span>
                 <span className="font-medium text-op-text-primary">
-                  {customQuantity} pieces
+                  {selectedQuantity.toLocaleString("en-GB")} pieces
                 </span>
               </div>
               <div className="h-px bg-op-border-default/60" />
@@ -389,29 +370,37 @@ export function ShopProductScreen({
                 </span>
               </div>
 
-              <div className="flex items-center gap-2.5">
-                <Button
-                  type="button"
-                  variant="op-primary"
-                  disabled={purchaseBlocked}
-                  onClick={() => onOrderNow(product, customQuantity)}
-                >
-                  <ShoppingBag className="size-3.5" />
-                  Order now
-                </Button>
-                <Button
-                  type="button"
-                  variant="op-secondary"
-                  disabled={purchaseBlocked}
-                  onClick={() => onAddToCart(product, customQuantity)}
-                >
-                  Add to cart
-                </Button>
-              </div>
-              <ShopPaidWriteHelperNote
-                chrome={paidWriteChrome}
-                className="text-xs"
-              />
+              {comingSoon ? (
+                <p className="text-sm font-medium text-op-text-secondary">
+                  Coming soon — this material is not available to order yet.
+                </p>
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <Button
+                    type="button"
+                    variant="op-primary"
+                    disabled={purchaseBlocked}
+                    onClick={() => onOrderNow(product, selectedQuantity)}
+                  >
+                    <ShoppingBag className="size-3.5" />
+                    Order now
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="op-secondary"
+                    disabled={purchaseBlocked}
+                    onClick={() => onAddToCart(product, selectedQuantity)}
+                  >
+                    Add to cart
+                  </Button>
+                </div>
+              )}
+              {!comingSoon ? (
+                <ShopPaidWriteHelperNote
+                  chrome={paidWriteChrome}
+                  className="text-xs"
+                />
+              ) : null}
             </div>
           </div>
         </div>

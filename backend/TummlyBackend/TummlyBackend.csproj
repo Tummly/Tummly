@@ -174,6 +174,15 @@
     <Content Include="..\..\docs\product\print-template-pack-v1\card-dev.svg" Link="Assets\print-template-pack\card-dev.svg">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\..\docs\product\print-template-pack-v1\counter-card\group6.svg" Link="Assets\print-template-pack\counter-card\group6.svg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\docs\product\print-template-pack-v1\counter-card\strip.svg" Link="Assets\print-template-pack\counter-card\strip.svg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\docs\product\print-template-pack-v1\counter-card\powered.svg" Link="Assets\print-template-pack\counter-card\powered.svg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

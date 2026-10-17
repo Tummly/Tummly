@@ -30,5 +30,15 @@ namespace TummlyBackend.Models
         TableTent = 7,
 
         OfferCard = 8,
+
+        /// <summary>
+        /// Table Talker placement — Shop core product (print PatchCsv60).
+        /// </summary>
+        TableTalker = 9,
+
+        /// <summary>
+        /// QR Guest Cards placement — Shop core product (print GuestCardCsv).
+        /// </summary>
+        GuestCard = 10,
     }
 }

@@ -1,4 +1,7 @@
-import { MARKETING_PRICING_PATH } from "@/constants/marketingNav"
+import {
+  MARKETING_PILOT_PATH,
+  MARKETING_PRICING_PATH,
+} from "@/constants/marketingNav"
 
 export type FaqsPageItem = {
   id: string
@@ -87,7 +90,7 @@ export const FAQS_PAGE_SECTIONS: FaqsPageSection[] = [
           "Choose the 30-day Pilot or a paid plan, create your account and verify your Email.\n\nWe'll then guide you through your restaurant and Location details, Guest Form and QR setup.",
         cta: {
           label: "Start 30-day Pilot →",
-          to: "/signup",
+          to: MARKETING_PILOT_PATH,
         },
       },
       {

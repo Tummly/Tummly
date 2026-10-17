@@ -107,6 +107,15 @@ namespace TummlyBackend.Controllers
 
                 return Ok(cart);
             }
+            catch (ShopSkuNotAvailableException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = ShopSkuNotAvailableException.ErrorCode,
+                    message = ex.Message,
+                });
+            }
             catch (OfferCardOfferRequiredException ex)
             {
                 return Conflict(new

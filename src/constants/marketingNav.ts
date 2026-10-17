@@ -1,15 +1,26 @@
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
-import { buildSignupPath } from "@/lib/signupPlanIntent"
 
-/** Marketing Pricing page — banner “For groups” CTA and related links. */
+/** Marketing Pricing page. */
 export const MARKETING_PRICING_PATH = "/pricing"
 
 /** Marketing Product page — Guest Loop product overview. */
 export const MARKETING_PRODUCT_PATH = "/product"
 
-/** Marketing How it works page — Contact CTA (page ships later). */
+/** Marketing How it works page. */
 export const MARKETING_HOW_IT_WORKS_PATH = "/how-it-works"
+
+/** Marketing QR materials page. */
+export const MARKETING_QR_MATERIALS_PATH = "/qr-materials"
+
+/** Marketing For Groups page — multi-location restaurant groups. */
+export const MARKETING_FOR_GROUPS_PATH = "/for-groups"
+
+/** Marketing 30-day Pilot page. */
+export const MARKETING_PILOT_PATH = "/30-day-pilot"
+
+/** Marketing About page. */
+export const MARKETING_ABOUT_PATH = "/about"
 
 export type MarketingNavHref =
   | { kind: "route"; to: string }
@@ -43,21 +54,34 @@ export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
     label: "Product",
     href: { kind: "route", to: MARKETING_PRODUCT_PATH },
   },
-  { id: "how-it-works", label: "How it works", href: { kind: "placeholder" } },
+  {
+    id: "how-it-works",
+    label: "How it works",
+    href: { kind: "route", to: MARKETING_HOW_IT_WORKS_PATH },
+  },
   {
     id: "pricing",
     label: "Pricing",
     href: { kind: "route", to: MARKETING_PRICING_PATH },
   },
-  { id: "qr-materials", label: "QR materials", href: { kind: "placeholder" } },
+  {
+    id: "qr-materials",
+    label: "QR materials",
+    href: { kind: "route", to: MARKETING_QR_MATERIALS_PATH },
+  },
   {
     id: "for-groups",
     label: "For groups",
-    href: { kind: "route", to: MARKETING_PRICING_PATH },
+    href: { kind: "route", to: MARKETING_FOR_GROUPS_PATH },
   },
 ]
 
 export const MARKETING_RESOURCES_NAV: MarketingNavItem[] = [
+  {
+    id: "about",
+    label: "About",
+    href: { kind: "route", to: MARKETING_ABOUT_PATH },
+  },
   {
     id: "ai-assistant",
     label: "AI Assistant",
@@ -86,7 +110,16 @@ export const MARKETING_FOOTER_PRODUCT: MarketingNavItem[] = [
     label: "Guest Loop",
     href: { kind: "route", to: MARKETING_PRODUCT_PATH },
   },
-  { id: "how-it-works", label: "How it works", href: { kind: "placeholder" } },
+  {
+    id: "how-it-works",
+    label: "How it works",
+    href: { kind: "route", to: MARKETING_HOW_IT_WORKS_PATH },
+  },
+  {
+    id: "qr-materials",
+    label: "QR materials",
+    href: { kind: "route", to: MARKETING_QR_MATERIALS_PATH },
+  },
   {
     id: "pricing",
     label: "Pricing",
@@ -104,12 +137,12 @@ export const MARKETING_FOOTER_RESTAURANTS: MarketingNavItem[] = [
   {
     id: "30-day-pilot",
     label: "30-day Pilot",
-    href: { kind: "route", to: buildSignupPath({ plan: "Pilot" }) },
+    href: { kind: "route", to: MARKETING_PILOT_PATH },
   },
   {
     id: "multi-location",
     label: "Multi-Location",
-    href: { kind: "route", to: MARKETING_PRICING_PATH },
+    href: { kind: "route", to: MARKETING_FOR_GROUPS_PATH },
   },
   {
     id: "faq",
@@ -153,7 +186,11 @@ export const MARKETING_FOOTER_TRUST: MarketingNavItem[] = [
 ]
 
 export const MARKETING_FOOTER_COMPANY: MarketingNavItem[] = [
-  { id: "about", label: "About", href: { kind: "placeholder" } },
+  {
+    id: "about",
+    label: "About",
+    href: { kind: "route", to: MARKETING_ABOUT_PATH },
+  },
   {
     id: "terms",
     label: "Terms",

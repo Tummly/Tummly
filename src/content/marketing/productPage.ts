@@ -2,7 +2,9 @@ import type { MarketingSignUpCtaContent } from "@/components/marketing/Marketing
 import {
   MARKETING_AI_ASSISTANT_PATH,
   MARKETING_FAQS_PATH,
-  MARKETING_PRICING_PATH,
+  MARKETING_FOR_GROUPS_PATH,
+  MARKETING_HOW_IT_WORKS_PATH,
+  MARKETING_QR_MATERIALS_PATH,
   MARKETING_TRUST_PRIVACY_PATH,
 } from "@/constants/marketingNav"
 
@@ -25,8 +27,7 @@ export const PRODUCT_HERO = {
   body: "Manage QR touchpoints, private Feedback, guest relationships, Offers, Campaigns and reporting from one restaurant-first workspace — with Tummly AI available to help you understand what is happening and prepare the next step.",
   primaryLabel: "Start 30-day Pilot",
   secondaryLabel: "See how it works",
-  /** In-page target for the How it works section (ships with later Product sections). */
-  secondaryHref: "#how-it-works",
+  secondaryTo: MARKETING_HOW_IT_WORKS_PATH,
   trustItems: ["£0 for 30 days", "No payment card required"] as const,
   dashboardImageAlt:
     "Restaurant operator at a laptop with a Campaign Draft ready for review, recent guests selected, and follow-up available.",
@@ -78,8 +79,7 @@ export const PRODUCT_CAPTURE = {
   title: "Capture starts with the right touchpoint.",
   body: "Create tracked QR placements for the moments that matter — counter, table, receipt, takeaway, delivery or window — and connect each one to the right Location and Guest Form.",
   ctaLabel: "Explore QR materials",
-  /** QR materials page ships later — same interim destination as Pricing. */
-  ctaTo: MARKETING_FAQS_PATH,
+  ctaTo: MARKETING_QR_MATERIALS_PATH,
 } as const
 
 export type ProductCaptureMaterial = {
@@ -410,8 +410,7 @@ export const PRODUCT_GROUPS = {
   title: "Keep the Location context as you grow.",
   body: "Run Guest Loop across multiple Locations while keeping Feedback, guests, QR sources and reporting connected to the right place. Eligible plans can also provide consolidated reporting and group-level operating views.",
   ctaLabel: "See Tummly for groups",
-  /** Same interim target as primary nav “For groups”. */
-  ctaTo: MARKETING_PRICING_PATH,
+  ctaTo: MARKETING_FOR_GROUPS_PATH,
 } as const
 
 /** Figma Product “Built around restaurant control” `5661:24177`. */

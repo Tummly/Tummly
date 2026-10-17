@@ -5,9 +5,10 @@ namespace TummlyBackend.Interfaces
     public interface IPrintReadyQrMaterialsService
     {
         /// <summary>
-        /// Ensure Starter QR materials for one Owned location (Table Tent,
-        /// Window Sticker, Offer Card). Idempotent when Ready versions match.
-        /// Never mints or mutates QR code tokens.
+        /// Ensure Starter QR materials for one Owned location for the current
+        /// complimentary-starter placement set. Mints missing Capture QR types
+        /// first (idempotent), then ensures print-ready assets. Idempotent when
+        /// Ready versions match. Does not rotate existing QR tokens.
         /// </summary>
         Task EnsureStarterMaterialsAsync(
             int locationId,
@@ -75,6 +76,20 @@ namespace TummlyBackend.Interfaces
             QrType qrType,
             CancellationToken cancellationToken = default
         );
+
+        Task<ShopPrintAssetPreviewDto?> GetShopOrderPreviewAsync(
+            Guid shopOrderId,
+            QrType qrType,
+            CancellationToken cancellationToken = default
+        );
+
+        Task<ShopPrintAssetReadinessDto?> ApproveShopOrderAsync(
+            Guid shopOrderId,
+            QrType qrType,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        );
     }
 
     public sealed record PrintReadyQrDownload(
@@ -115,5 +130,30 @@ namespace TummlyBackend.Interfaces
         public string? FileName { get; set; }
 
         public string? LastError { get; set; }
+
+        public bool Approved { get; set; }
+
+        public string? PrintRoute { get; set; }
+    }
+
+    public sealed class ShopPrintAssetPreviewDto
+    {
+        public string ProductTitle { get; set; } = string.Empty;
+
+        public int LocationId { get; set; }
+
+        public string LocationName { get; set; } = string.Empty;
+
+        public string Placement { get; set; } = string.Empty;
+
+        public int Quantity { get; set; }
+
+        public string QrDestinationUrl { get; set; } = string.Empty;
+
+        public string? OfferHeadline { get; set; }
+
+        public string PrintRoute { get; set; } = string.Empty;
+
+        public DateTime? ApprovedAtUtc { get; set; }
     }
 }

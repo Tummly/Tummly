@@ -2804,6 +2804,12 @@ namespace TummlyBackend.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("ApprovedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ApprovedByAdminUserId")
+                        .HasColumnType("int");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -3810,6 +3816,110 @@ namespace TummlyBackend.Migrations
                     b.ToTable("ShopCartLines");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.ShopInterestProduct", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ProductKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductKey")
+                        .IsUnique();
+
+                    b.ToTable("ShopInterestProducts");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopInterestRegistration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LocationNameSnapshot")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ProductKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("ProductTitleSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RestaurantNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ShopInterestProductId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserEmailSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("UserFullNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("ProductKey");
+
+                    b.HasIndex("ShopInterestProductId");
+
+                    b.ToTable("ShopInterestRegistrations");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.ShopLocationDetails", b =>
                 {
                     b.Property<int>("LocationId")
@@ -3862,6 +3972,9 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("AvailableInShop")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -3875,6 +3988,9 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("nvarchar(8)");
 
+                    b.Property<int>("DeliveryNetPence")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -3884,6 +4000,9 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
+
+                    b.Property<int?>("InternalCostNetPence")
+                        .HasColumnType("int");
 
                     b.Property<string>("Material")
                         .IsRequired()
@@ -3895,6 +4014,10 @@ namespace TummlyBackend.Migrations
 
                     b.Property<bool>("MintOnShopFulfilment")
                         .HasColumnType("bit");
+
+                    b.Property<string>("PacksJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("PlacementRecipeId")
                         .HasColumnType("int");
@@ -3920,6 +4043,10 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("SupplierName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -5858,6 +5985,17 @@ namespace TummlyBackend.Migrations
                     b.Navigation("ShopCart");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.ShopInterestRegistration", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.ShopInterestProduct", "Product")
+                        .WithMany("Registrations")
+                        .HasForeignKey("ShopInterestProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.ShopLocationDetails", b =>
                 {
                     b.HasOne("TummlyBackend.Models.RestaurantLocation", "Location")
@@ -6096,6 +6234,11 @@ namespace TummlyBackend.Migrations
             modelBuilder.Entity("TummlyBackend.Models.ShopCart", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopInterestProduct", b =>
+                {
+                    b.Navigation("Registrations");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.ShopMaterialSku", b =>

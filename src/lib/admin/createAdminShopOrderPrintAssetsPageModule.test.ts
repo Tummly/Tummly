@@ -24,8 +24,10 @@ function order(): AdminShopOrderListItem {
         qrType: "TableTent",
         quantity: 25,
         status: "Ready",
-        fileName: "table-tent.pdf",
+        fileName: "table-tent.csv",
         lastError: null,
+        approved: false,
+        printRoute: "PatchCsv60",
       },
       {
         qrType: "OfferCard",
@@ -33,6 +35,8 @@ function order(): AdminShopOrderListItem {
         status: "Failed",
         fileName: null,
         lastError: "storage unavailable",
+        approved: false,
+        printRoute: "GuestCardCsv",
       },
     ],
   }
@@ -43,6 +47,7 @@ describe("createAdminShopOrderPrintAssetsPageModule", () => {
     const module = createAdminShopOrderPrintAssetsPageModule({
       download: vi.fn(),
       retry: vi.fn(),
+      approve: vi.fn(),
     })
 
     expect(module.getSnapshot()).toBe(module.getSnapshot())
@@ -54,6 +59,7 @@ describe("createAdminShopOrderPrintAssetsPageModule", () => {
     const module = createAdminShopOrderPrintAssetsPageModule({
       download: vi.fn(),
       retry: vi.fn(),
+      approve: vi.fn(),
     })
 
     module.setOrder(order())
@@ -62,21 +68,46 @@ describe("createAdminShopOrderPrintAssetsPageModule", () => {
       expect.objectContaining({
         qrType: "TableTent",
         quantity: 25,
-        canDownload: true,
+        canDownload: false,
+        canApprove: true,
         canRetry: false,
       }),
       expect.objectContaining({
         qrType: "OfferCard",
         quantity: 50,
         canDownload: false,
+        canApprove: false,
         canRetry: true,
       }),
     ])
   })
 
-  it("downloads a Ready Admin Shop order PDF", async () => {
+  it("keeps canDownload false until approved", () => {
+    const module = createAdminShopOrderPrintAssetsPageModule({
+      download: vi.fn(),
+      retry: vi.fn(),
+      approve: vi.fn(),
+    })
+    module.setOrder(order())
+
+    expect(module.getSnapshot().rows[0]).toMatchObject({
+      canDownload: false,
+      canApprove: true,
+    })
+  })
+
+  it("approves then enables download with CSV filename", async () => {
+    const approve = vi.fn().mockResolvedValue({
+      qrType: "TableTent",
+      quantity: 25,
+      status: "Ready",
+      fileName: "table-tent.csv",
+      lastError: null,
+      approved: true,
+      printRoute: "PatchCsv60",
+    })
     const download = vi.fn().mockResolvedValue(
-      new Blob(["%PDF"], { type: "application/pdf" })
+      new Blob(["JobId,OrderId"], { type: "text/csv" })
     )
     const link = {
       href: "",
@@ -91,28 +122,38 @@ describe("createAdminShopOrderPrintAssetsPageModule", () => {
     const module = createAdminShopOrderPrintAssetsPageModule({
       download,
       retry: vi.fn(),
+      approve,
     })
     module.setOrder(order())
 
+    await expect(module.download("TableTent")).resolves.toBe(false)
+    await expect(module.approve("TableTent")).resolves.toBe(true)
+    expect(module.getSnapshot().rows[0]).toMatchObject({
+      approved: true,
+      canDownload: true,
+      canApprove: false,
+    })
     await expect(module.download("TableTent")).resolves.toBe(true)
-    await expect(module.download("OfferCard")).resolves.toBe(false)
-    expect(download).toHaveBeenCalledTimes(1)
     expect(download).toHaveBeenCalledWith("order-1", "TableTent")
+    expect(link.download).toBe("table-tent.csv")
     expect(link.click).toHaveBeenCalled()
     vi.unstubAllGlobals()
   })
 
-  it("retries a Failed Admin Shop order PDF and enables download", async () => {
+  it("retries a Failed Admin Shop order asset and enables approve", async () => {
     const retry = vi.fn().mockResolvedValue({
       qrType: "OfferCard",
       quantity: 50,
       status: "Ready",
-      fileName: "offer-card.pdf",
+      fileName: "offer-card.csv",
       lastError: null,
+      approved: false,
+      printRoute: "GuestCardCsv",
     })
     const module = createAdminShopOrderPrintAssetsPageModule({
       download: vi.fn(),
       retry,
+      approve: vi.fn(),
     })
     module.setOrder(order())
 
@@ -120,7 +161,8 @@ describe("createAdminShopOrderPrintAssetsPageModule", () => {
 
     expect(module.getSnapshot().rows[1]).toMatchObject({
       status: "Ready",
-      canDownload: true,
+      canDownload: false,
+      canApprove: true,
       canRetry: false,
     })
   })
@@ -132,10 +174,13 @@ describe("createAdminShopOrderPrintAssetsPageModule", () => {
       status: "Failed",
       fileName: null,
       lastError: "storage still unavailable",
+      approved: false,
+      printRoute: "GuestCardCsv",
     })
     const module = createAdminShopOrderPrintAssetsPageModule({
       download: vi.fn(),
       retry,
+      approve: vi.fn(),
     })
     module.setOrder(order())
 
@@ -145,6 +190,7 @@ describe("createAdminShopOrderPrintAssetsPageModule", () => {
       status: "Failed",
       lastError: "storage still unavailable",
       canDownload: false,
+      canApprove: false,
       canRetry: true,
     })
   })

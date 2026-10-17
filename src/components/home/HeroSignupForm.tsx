@@ -10,27 +10,43 @@ import { HOME_HERO } from "@/content/marketing/homePage"
 import {
   buildSignupPath,
   saveSignupPlanIntent,
+  type SignupPlanIntent,
 } from "@/lib/signupPlanIntent"
 
+export type HeroSignupFormProps = {
+  /** Figma trust chip above the email row. Default true. */
+  showTrustBadge?: boolean
+  trustBadge?: string
+  emailPlaceholder?: string
+  primaryLabel?: string
+  planIntent?: SignupPlanIntent
+}
+
 /**
- * Home hero signup strip — Figma `5569:32620`.
- * Email + OAuth continue into `/signup` with Pilot intent (light chrome).
+ * Marketing hero signup strip — Figma `5569:32620` / SignUp `6215:17664`.
+ * Email + OAuth continue into `/signup` with plan intent (light chrome).
  */
-export function HeroSignupForm() {
+export function HeroSignupForm({
+  showTrustBadge = true,
+  trustBadge = HOME_HERO.trustBadge,
+  emailPlaceholder = HOME_HERO.emailPlaceholder,
+  primaryLabel = HOME_HERO.primaryLabel,
+  planIntent = HOME_HERO.planIntent,
+}: HeroSignupFormProps) {
   const navigate = useNavigate()
   const emailFieldId = useId()
   const [email, setEmail] = useState("")
 
-  const signupReturnPath = buildSignupPath(HOME_HERO.planIntent)
+  const signupReturnPath = buildSignupPath(planIntent)
 
   const persistPlanIntent = () => {
-    saveSignupPlanIntent(HOME_HERO.planIntent)
+    saveSignupPlanIntent(planIntent)
   }
 
   const goToSignup = (nextEmail: string) => {
     persistPlanIntent()
     navigate(
-      buildSignupPath(HOME_HERO.planIntent, {
+      buildSignupPath(planIntent, {
         email: nextEmail,
       }),
     )
@@ -43,16 +59,18 @@ export function HeroSignupForm() {
 
   return (
     <div className="flex w-full max-w-[573px] flex-col items-center gap-[26px]">
-      <div className="inline-flex items-center gap-2 rounded-[40px] bg-[#ebebeb] px-2.5 py-2">
-        <CircleCheckBig
-          aria-hidden
-          className="size-4 shrink-0 text-[#727272]"
-          strokeWidth={2}
-        />
-        <p className="m-0 text-xs font-medium leading-normal text-[#727272]">
-          {HOME_HERO.trustBadge}
-        </p>
-      </div>
+      {showTrustBadge ? (
+        <div className="inline-flex items-center gap-2 rounded-[40px] bg-[#ebebeb] px-2.5 py-2 lg:px-2.5">
+          <CircleCheckBig
+            aria-hidden
+            className="size-[13px] shrink-0 text-[#727272] lg:size-4"
+            strokeWidth={2}
+          />
+          <p className="m-0 text-[10px] font-medium leading-[12px] text-[#727272] lg:text-xs lg:leading-normal">
+            {trustBadge}
+          </p>
+        </div>
+      ) : null}
 
       <div className="flex w-full flex-col gap-3">
         <form
@@ -60,7 +78,7 @@ export function HeroSignupForm() {
           className="flex w-full flex-col items-stretch gap-2.5 sm:flex-row sm:items-center"
         >
           <label className="sr-only" htmlFor={emailFieldId}>
-            {HOME_HERO.emailPlaceholder}
+            {emailPlaceholder}
           </label>
           <Input
             id={emailFieldId}
@@ -68,7 +86,7 @@ export function HeroSignupForm() {
             name="email"
             autoComplete="email"
             inputMode="email"
-            placeholder={HOME_HERO.emailPlaceholder}
+            placeholder={emailPlaceholder}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             className="h-[46px] min-h-[46px] flex-1 rounded-[8px] border-[#969696] bg-transparent px-[17px] py-[15px] text-base leading-5 text-[#141414] placeholder:text-[#7d7d7d] focus-visible:border-[#141414] focus-visible:ring-[#141414]/20 md:text-base"
@@ -78,7 +96,7 @@ export function HeroSignupForm() {
             variant="primary"
             className="h-[46px] min-h-[46px] w-full shrink-0 rounded-[8px] sm:w-[176px]"
           >
-            {HOME_HERO.primaryLabel}
+            {primaryLabel}
           </MarketingButton>
         </form>
 

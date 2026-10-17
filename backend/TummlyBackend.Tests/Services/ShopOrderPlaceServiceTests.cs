@@ -69,9 +69,115 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(expectedGross, result.Order.GrossPence);
         }
 
+        [Fact]
+        public async Task PlaceAsync_LocksPackPrice_NotUnitTimesQty()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedRestaurantAsync(context);
+            const int packNetPence = 1899;
+            const int deliveryNetPence = 299;
+            var service = CreateService(
+                context,
+                new TummlySellerVatSettings { IsActive = false },
+                new PackCatalog(
+                    packs:
+                    [
+                        new ShopMaterialPackRow { Qty = 1, NetPence = 999 },
+                        new ShopMaterialPackRow { Qty = 2, NetPence = packNetPence },
+                    ],
+                    deliveryNetPence: deliveryNetPence
+                )
+            );
+
+            var result = await service.PlaceAsync(
+                seeded.RestaurantId,
+                seeded.UserId,
+                "Place Owner",
+                BuildRequest(
+                    seeded.LocationId,
+                    expectedGrossPence: packNetPence + deliveryNetPence,
+                    quantity: 2
+                )
+            );
+
+            Assert.Null(result.ErrorCode);
+            Assert.NotNull(result.Order);
+            Assert.Equal(packNetPence, result.Order!.MaterialsNetPence);
+            Assert.Equal(deliveryNetPence, result.Order.DeliveryNetPence);
+            Assert.Equal(packNetPence + deliveryNetPence, result.Order.GrossPence);
+            var line = Assert.Single(result.Order.Lines);
+            Assert.Equal(2, line.Quantity);
+            Assert.Equal(packNetPence, line.UnitNetPence);
+            Assert.Equal(packNetPence, line.LineNetPence);
+        }
+
+        [Fact]
+        public async Task PlaceAsync_RejectsInvalidPackQty()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedRestaurantAsync(context);
+            var service = CreateService(
+                context,
+                new TummlySellerVatSettings { IsActive = false },
+                new PackCatalog(
+                    packs:
+                    [
+                        new ShopMaterialPackRow { Qty = 1, NetPence = 999 },
+                        new ShopMaterialPackRow { Qty = 5, NetPence = 4499 },
+                    ],
+                    deliveryNetPence: 299
+                )
+            );
+
+            var result = await service.PlaceAsync(
+                seeded.RestaurantId,
+                seeded.UserId,
+                "Place Owner",
+                BuildRequest(
+                    seeded.LocationId,
+                    expectedGrossPence: 999,
+                    quantity: 3
+                )
+            );
+
+            Assert.Equal("invalid_quantity", result.ErrorCode);
+            Assert.Null(result.Order);
+        }
+
+        [Fact]
+        public async Task PlaceAsync_RejectsSku_WhenNotAvailableInShop()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedRestaurantAsync(context);
+            var service = CreateService(
+                context,
+                new TummlySellerVatSettings { IsActive = false },
+                new FixedCatalog(availableInShop: false)
+            );
+
+            var result = await service.PlaceAsync(
+                seeded.RestaurantId,
+                seeded.UserId,
+                "Place Owner",
+                BuildRequest(seeded.LocationId, expectedGrossPence: UnitNetPence)
+            );
+
+            Assert.Equal(
+                ShopSkuNotAvailableException.ErrorCode,
+                result.ErrorCode
+            );
+            Assert.Contains(
+                "not available",
+                result.ErrorMessage,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.Null(result.Order);
+        }
+
         private static PlaceShopOrderRequest BuildRequest(
             int locationId,
-            int expectedGrossPence
+            int expectedGrossPence,
+            int quantity = 1
         )
         {
             return new PlaceShopOrderRequest
@@ -82,7 +188,7 @@ namespace TummlyBackend.Tests.Services
                     new PlaceShopOrderLineRequest
                     {
                         SkuId = "sku-a",
-                        Quantity = 1,
+                        Quantity = quantity,
                     },
                 ],
                 DeliveryMethod = ShopDeliveryMethods.Standard,
@@ -99,12 +205,13 @@ namespace TummlyBackend.Tests.Services
 
         private static ShopOrderPlaceService CreateService(
             ApplicationDbContext context,
-            TummlySellerVatSettings sellerVat
+            TummlySellerVatSettings sellerVat,
+            IMaterialsCatalog? catalog = null
         )
         {
             return new ShopOrderPlaceService(
                 context,
-                new FixedCatalog(),
+                catalog ?? new FixedCatalog(availableInShop: true),
                 new EmptyCarts(),
                 new ShopOrderNumberAllocator(context),
                 Options.Create(sellerVat)
@@ -170,6 +277,13 @@ namespace TummlyBackend.Tests.Services
 
         private sealed class FixedCatalog : IMaterialsCatalog
         {
+            private readonly bool _availableInShop;
+
+            public FixedCatalog(bool availableInShop)
+            {
+                _availableInShop = availableInShop;
+            }
+
             public string CurrentCatalogId => "test-catalog";
 
             public MaterialsCatalogSnapshot GetRequired(string catalogId)
@@ -202,8 +316,63 @@ namespace TummlyBackend.Tests.Services
                     Material = "card",
                     Dimensions = "A6",
                     MinOrderQty = 1,
+                    Packs = ShopMaterialPacks.SinglePack(1, UnitNetPence),
+                    DeliveryNetPence = 0,
                     CatalogVersion = CurrentCatalogId,
                     MintOnShopFulfilment = false,
+                    AvailableInShop = _availableInShop,
+                };
+            }
+        }
+
+        private sealed class PackCatalog : IMaterialsCatalog
+        {
+            private readonly IReadOnlyList<ShopMaterialPackRow> _packs;
+            private readonly int _deliveryNetPence;
+
+            public PackCatalog(
+                IReadOnlyList<ShopMaterialPackRow> packs,
+                int deliveryNetPence
+            )
+            {
+                _packs = packs;
+                _deliveryNetPence = deliveryNetPence;
+            }
+
+            public string CurrentCatalogId => "test-catalog";
+
+            public MaterialsCatalogSnapshot GetRequired(string catalogId)
+            {
+                throw new NotSupportedException();
+            }
+
+            public IReadOnlyList<ShopCatalogListItemDto> BuildList() => [];
+
+            public ShopCatalogDetailDto? TryBuildDetail(string skuId)
+            {
+                if (!string.Equals(skuId, "sku-a", StringComparison.Ordinal))
+                {
+                    return null;
+                }
+
+                return new ShopCatalogDetailDto
+                {
+                    SkuId = "sku-a",
+                    Title = "Pack SKU",
+                    Category = "print",
+                    Description = "desc",
+                    UnitNetPence = ShopMaterialPacks.LowestNetPence(_packs),
+                    Currency = "GBP",
+                    ImageUrl = "/img.png",
+                    QrType = "table",
+                    Material = "card",
+                    Dimensions = "A6",
+                    MinOrderQty = ShopMaterialPacks.LowestQty(_packs),
+                    Packs = _packs,
+                    DeliveryNetPence = _deliveryNetPence,
+                    CatalogVersion = CurrentCatalogId,
+                    MintOnShopFulfilment = false,
+                    AvailableInShop = true,
                 };
             }
         }

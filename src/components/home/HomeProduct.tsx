@@ -13,7 +13,6 @@ import {
   HOME_PRODUCT,
   type HomeProductFeature,
 } from "@/content/marketing/homePage"
-import { marketingChromeContentInset } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
 const FEATURE_ICONS = {
@@ -27,7 +26,7 @@ const FEATURE_ICONS = {
   "ai-assistant": iconAiAssistant,
 } as const satisfies Record<HomeProductFeature["id"], string>
 
-/** Left column then right column order matches Figma `4902:19791`. */
+/** Left column then right column order matches Figma desktop `4902:19791`. */
 const LEFT_IDS = ["capture", "feedback", "guests", "offers"] as const
 const RIGHT_IDS = [
   "campaigns",
@@ -40,12 +39,33 @@ function featureById(id: HomeProductFeature["id"]) {
   return HOME_PRODUCT.features.find((feature) => feature.id === id)!
 }
 
-function FeatureCard({ feature }: { feature: HomeProductFeature }) {
+function FeatureCard({
+  feature,
+  showDivider = true,
+  layout = "stack",
+}: {
+  feature: HomeProductFeature
+  showDivider?: boolean
+  /** `scroll` = mobile horizontal strip (Figma `6241:18118`). */
+  layout?: "stack" | "scroll"
+}) {
   const iconSrc = FEATURE_ICONS[feature.id]
   const rotateIcon = feature.id === "ai-assistant"
+  const isScroll = layout === "scroll"
 
   return (
-    <article className="flex w-full flex-col gap-[22px] border-b border-[#bebebe] pb-5">
+    <article
+      className={cn(
+        "flex flex-col gap-[22px] pb-5",
+        isScroll
+          ? "w-[190px] shrink-0"
+          : "w-full",
+        showDivider &&
+          (isScroll
+            ? "border-r border-[#bebebe]"
+            : "border-b border-[#bebebe]"),
+      )}
+    >
       <img
         src={iconSrc}
         alt=""
@@ -56,10 +76,24 @@ function FeatureCard({ feature }: { feature: HomeProductFeature }) {
         decoding="async"
       />
       <div className="flex w-full flex-col gap-[7px] text-[#141414]">
-        <h3 className="m-0 font-jakarta text-xl font-medium leading-normal">
+        <h3
+          className={cn(
+            "m-0 font-jakarta font-medium",
+            isScroll
+              ? "text-lg leading-[23px]"
+              : "text-lg leading-[23px] lg:text-xl lg:leading-normal",
+          )}
+        >
           {feature.title}
         </h3>
-        <p className="m-0 font-sans text-base font-normal leading-normal">
+        <p
+          className={cn(
+            "m-0 font-sans font-normal",
+            isScroll
+              ? "text-sm leading-[18px]"
+              : "text-sm leading-[18px] lg:text-base lg:leading-normal",
+          )}
+        >
           {feature.body}
         </p>
       </div>
@@ -68,10 +102,12 @@ function FeatureCard({ feature }: { feature: HomeProductFeature }) {
 }
 
 /**
- * Home Product features — Figma `4902:19791`.
- * Two-column feature grid with Figma icons; CTA to Product.
+ * Home Product features — desktop Figma `4902:19791`, mobile `6241:18118`.
+ * Mobile: horizontal scroll strip (24px inset). Desktop: two-column grid.
  */
 export function HomeProduct() {
+  const features = HOME_PRODUCT.features
+
   return (
     <section
       className="w-full bg-white"
@@ -79,8 +115,9 @@ export function HomeProduct() {
     >
       <div
         className={cn(
-          "mx-auto flex w-full flex-col items-start gap-[46px] py-12.5 lg:py-[70px]",
-          marketingChromeContentInset,
+          "mx-auto flex w-full flex-col items-start gap-10 py-[70px] lg:gap-[46px]",
+          // Figma mobile `6241:18118`: 24px. Desktop keep 60px chrome inset.
+          "px-6 lg:px-[60px]",
         )}
       >
         <header className="flex max-w-[548px] flex-col gap-3.5 text-[#141414]">
@@ -95,15 +132,38 @@ export function HomeProduct() {
           </h2>
         </header>
 
-        <div className="flex w-full flex-col gap-[26px] lg:flex-row lg:items-start">
+        {/* Mobile — horizontal scroll (Figma `6241:18118`). */}
+        <div className="-mx-6 w-[calc(100%+3rem)] overflow-x-auto px-6 lg:hidden">
+          <div className="flex w-max gap-[26px] pb-1">
+            {features.map((feature, index) => (
+              <FeatureCard
+                key={feature.id}
+                feature={feature}
+                layout="scroll"
+                showDivider={index < features.length - 1}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Desktop — two columns. */}
+        <div className="hidden w-full lg:flex lg:flex-row lg:items-start lg:gap-[26px]">
           <div className="flex min-w-0 flex-1 flex-col gap-[26px]">
-            {LEFT_IDS.map((id) => (
-              <FeatureCard key={id} feature={featureById(id)} />
+            {LEFT_IDS.map((id, index) => (
+              <FeatureCard
+                key={id}
+                feature={featureById(id)}
+                showDivider={index < LEFT_IDS.length - 1}
+              />
             ))}
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-[26px]">
-            {RIGHT_IDS.map((id) => (
-              <FeatureCard key={id} feature={featureById(id)} />
+            {RIGHT_IDS.map((id, index) => (
+              <FeatureCard
+                key={id}
+                feature={featureById(id)}
+                showDivider={index < RIGHT_IDS.length - 1}
+              />
             ))}
           </div>
         </div>

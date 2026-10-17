@@ -73,7 +73,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task ListShopOrders_ReturnsReadiness_AndDownloadsOnePdfPerOrderedType()
+        public async Task ListShopOrders_ReturnsReadiness_AndDownloadsPatchCsvAfterApprove()
         {
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
@@ -103,6 +103,47 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("TableTent", asset.GetProperty("qrType").GetString());
             Assert.Equal(40, asset.GetProperty("quantity").GetInt32());
             Assert.Equal("Ready", asset.GetProperty("status").GetString());
+            Assert.False(asset.GetProperty("approved").GetBoolean());
+
+            using var beforeApprove = AuthorizedGet(
+                $"/api/admin/shop-orders/{orderId}/print-assets/TableTent/download",
+                seeded.AdminJwt
+            );
+            var beforeResponse = await _client.SendAsync(beforeApprove);
+            Assert.Equal(HttpStatusCode.Conflict, beforeResponse.StatusCode);
+            var beforeBody = await ReadJsonAsync(beforeResponse);
+            Assert.Equal(
+                "print_asset_not_approved",
+                beforeBody.GetProperty("code").GetString()
+            );
+
+            using var approve = AuthorizedPost(
+                $"/api/admin/shop-orders/{orderId}/print-assets/TableTent/approve",
+                seeded.AdminJwt
+            );
+            var approveResponse = await _client.SendAsync(approve);
+            Assert.Equal(HttpStatusCode.OK, approveResponse.StatusCode);
+            var approveBody = await ReadJsonAsync(approveResponse);
+            Assert.True(approveBody.GetProperty("approved").GetBoolean());
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var audit = Assert.Single(
+                    await context.AdminAuditEvents
+                        .Where(row =>
+                            row.Action
+                                == AdminAuditActions.ShopPrintAssetApproved
+                            && row.TargetId == orderId.ToString("D")
+                        )
+                        .ToListAsync()
+                );
+                Assert.Equal(
+                    AdminAuditTargetTypes.ShopOrder,
+                    audit.TargetType
+                );
+            }
 
             using var download = AuthorizedGet(
                 $"/api/admin/shop-orders/{orderId}/print-assets/TableTent/download",
@@ -111,15 +152,178 @@ namespace TummlyBackend.Tests.Integration
             var downloadResponse = await _client.SendAsync(download);
             Assert.Equal(HttpStatusCode.OK, downloadResponse.StatusCode);
             Assert.Equal(
+                "text/csv",
+                downloadResponse.Content.Headers.ContentType?.MediaType
+            );
+            var csv = System.Text.Encoding.UTF8.GetString(
+                await downloadResponse.Content.ReadAsByteArrayAsync()
+            );
+            Assert.Contains(
+                "JobId,OrderId,LocationId,LocationName,PlacementId,PlacementType,QRURL,PrtQty",
+                csv
+            );
+            Assert.Contains(",40\r\n", csv);
+            Assert.DoesNotContain("OfferHeadline", csv);
+        }
+
+        [Fact]
+        public async Task CounterDisplay_EmbeddedPdf_DownloadsAfterApprove()
+        {
+            // Ticket 04 binds QR Counter Display to OfferCard placement + EmbeddedPdf.
+            // Offer Card print generation waits until a catalog offer is attached.
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-counter-display",
+                titleSnapshot: "QR Counter Display",
+                quantity: 2
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .SingleAsync(row => row.Id == seeded.LocationId);
+                var offer = new CatalogOffer
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Title = "Counter launch offer",
+                    Description = "Counter print offer",
+                    Status = CatalogOfferStatus.Active,
+                    Validity = CatalogOfferValidity.Days30AfterIssue,
+                    OfferType = CatalogOfferType.FreeItem,
+                    FreeItemText = "Drink",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                context.CatalogOffers.Add(offer);
+                await context.SaveChangesAsync();
+                location.OfferCardCatalogOfferId = offer.Id;
+                await context.SaveChangesAsync();
+
+                await scope.ServiceProvider
+                    .GetRequiredService<IPrintReadyQrMaterialsService>()
+                    .EnsureShopOrderMaterialsAsync(orderId);
+            }
+
+            using var beforeApprove = AuthorizedGet(
+                $"/api/admin/shop-orders/{orderId}/print-assets/OfferCard/download",
+                seeded.AdminJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.Conflict,
+                (await _client.SendAsync(beforeApprove)).StatusCode
+            );
+
+            using var approve = AuthorizedPost(
+                $"/api/admin/shop-orders/{orderId}/print-assets/OfferCard/approve",
+                seeded.AdminJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(approve)).StatusCode
+            );
+
+            using var download = AuthorizedGet(
+                $"/api/admin/shop-orders/{orderId}/print-assets/OfferCard/download",
+                seeded.AdminJwt
+            );
+            var downloadResponse = await _client.SendAsync(download);
+            Assert.Equal(HttpStatusCode.OK, downloadResponse.StatusCode);
+            Assert.Equal(
                 "application/pdf",
                 downloadResponse.Content.Headers.ContentType?.MediaType
             );
-            Assert.StartsWith(
-                "%PDF",
-                System.Text.Encoding.ASCII.GetString(
-                    (await downloadResponse.Content.ReadAsByteArrayAsync())[..4]
-                )
+            var bytes = await downloadResponse.Content.ReadAsByteArrayAsync();
+            Assert.True(bytes.Length > 4);
+            Assert.Equal((byte)'%', bytes[0]);
+            Assert.Equal((byte)'P', bytes[1]);
+            Assert.Equal((byte)'D', bytes[2]);
+            Assert.Equal((byte)'F', bytes[3]);
+        }
+
+        [Fact]
+        public async Task GuestCardCsv_IncludesOfferHeadline_AfterApprove()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.QrCodes.Add(
+                    new QrCode
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        QrType = QrType.GuestCard,
+                        Token = $"admin-shop-guest-{Guid.NewGuid():N}",
+                        Status = QrCodeStatus.Active,
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-guest-cards",
+                titleSnapshot: "QR Guest Cards",
+                quantity: 12
             );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .SingleAsync(row => row.Id == seeded.LocationId);
+                var offer = new CatalogOffer
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Title = "Free Dessert Friday",
+                    Description = "Guest card offer",
+                    Status = CatalogOfferStatus.Active,
+                    Validity = CatalogOfferValidity.Days30AfterIssue,
+                    OfferType = CatalogOfferType.FreeItem,
+                    FreeItemText = "Dessert",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                context.CatalogOffers.Add(offer);
+                await context.SaveChangesAsync();
+                location.OfferCardCatalogOfferId = offer.Id;
+                await context.SaveChangesAsync();
+
+                await scope.ServiceProvider
+                    .GetRequiredService<IPrintReadyQrMaterialsService>()
+                    .EnsureShopOrderMaterialsAsync(orderId);
+            }
+
+            using var approve = AuthorizedPost(
+                $"/api/admin/shop-orders/{orderId}/print-assets/GuestCard/approve",
+                seeded.AdminJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(approve)).StatusCode
+            );
+
+            using var download = AuthorizedGet(
+                $"/api/admin/shop-orders/{orderId}/print-assets/GuestCard/download",
+                seeded.AdminJwt
+            );
+            var downloadResponse = await _client.SendAsync(download);
+            Assert.Equal(HttpStatusCode.OK, downloadResponse.StatusCode);
+            Assert.Equal(
+                "text/csv",
+                downloadResponse.Content.Headers.ContentType?.MediaType
+            );
+            var csv = System.Text.Encoding.UTF8.GetString(
+                await downloadResponse.Content.ReadAsByteArrayAsync()
+            );
+            Assert.Contains("OfferHeadline", csv);
+            Assert.Contains("Free Dessert Friday", csv);
+            Assert.Contains(",12,", csv);
         }
 
         [Fact]
@@ -163,6 +367,15 @@ namespace TummlyBackend.Tests.Integration
                 (await ReadJsonAsync(retryResponse))
                     .GetProperty("status")
                     .GetString()
+            );
+
+            using var approve = AuthorizedPost(
+                $"/api/admin/shop-orders/{orderId}/print-assets/TableTent/approve",
+                seeded.AdminJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(approve)).StatusCode
             );
 
             using var download = AuthorizedGet(

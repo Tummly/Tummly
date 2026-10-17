@@ -14,6 +14,7 @@ import {
   markShopOrderProductionStarted,
   patchAdminShopOrderFulfilment,
   type AdminShopOrderListItem,
+  type AdminShopPrintAssetPreview,
 } from "@/api/adminShopOrdersApi"
 import {
   AlertDialog,
@@ -132,6 +133,14 @@ export function AdminShopOrderDetailDrawer({
     printAssetsModule.getSnapshot,
     printAssetsModule.getSnapshot
   )
+  const [printPreviews, setPrintPreviews] = useState<
+    Partial<
+      Record<
+        AdminShopOrderListItem["printAssets"][number]["qrType"],
+        AdminShopPrintAssetPreview
+      >
+    >
+  >({})
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -153,6 +162,37 @@ export function AdminShopOrderDetailDrawer({
   useEffect(() => {
     printAssetsModule.setOrder(order)
   }, [order, printAssetsModule])
+
+  useEffect(() => {
+    if (!order) {
+      setPrintPreviews({})
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const next: Partial<
+        Record<
+          AdminShopOrderListItem["printAssets"][number]["qrType"],
+          AdminShopPrintAssetPreview
+        >
+      > = {}
+      for (const row of printAssets.rows) {
+        if (row.status !== "Ready") {
+          continue
+        }
+        const preview = await printAssetsModule.preview(row.qrType)
+        if (preview) {
+          next[row.qrType] = preview
+        }
+      }
+      if (!cancelled) {
+        setPrintPreviews(next)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [order, printAssets.rows, printAssetsModule])
 
   if (!order) {
     return null
@@ -339,35 +379,92 @@ export function AdminShopOrderDetailDrawer({
     }
   }
 
-  const handlePrintDownload = async (
-    qrType: "TableTent" | "WindowSticker" | "OfferCard"
-  ) => {
-    const downloaded = await printAssetsModule.download(qrType)
-    if (!downloaded) {
-      toast.error("Could not download the print-ready PDF.")
-    }
-  }
-
-  const handlePrintRetry = async (
-    qrType: "TableTent" | "WindowSticker" | "OfferCard"
-  ) => {
-    const retried = await printAssetsModule.retry(qrType)
-    if (!retried) {
-      toast.error("Could not retry the print-ready PDF.")
-      return
-    }
-
+  const syncPrintAssetsToOrder = () => {
     const updatedPrintAssets = printAssetsModule.getSnapshot().rows.map(
-      ({ qrType, quantity, status, fileName, lastError }) => ({
+      ({
         qrType,
         quantity,
         status,
         fileName,
         lastError,
+        approved,
+        printRoute,
+      }) => ({
+        qrType,
+        quantity,
+        status,
+        fileName,
+        lastError,
+        approved,
+        printRoute,
       })
     )
     onOrderUpdated({ ...order, printAssets: updatedPrintAssets })
-    toast.success("Print-ready PDF is ready.")
+  }
+
+  const handlePrintDownload = async (
+    qrType: AdminShopOrderListItem["printAssets"][number]["qrType"]
+  ) => {
+    const downloaded = await printAssetsModule.download(qrType)
+    if (!downloaded) {
+      toast.error("Could not download the print asset.")
+    }
+  }
+
+  const handlePrintApprove = async (
+    qrType: AdminShopOrderListItem["printAssets"][number]["qrType"]
+  ) => {
+    const approved = await printAssetsModule.approve(qrType)
+    if (!approved) {
+      toast.error("Could not approve the print asset.")
+      return
+    }
+    syncPrintAssetsToOrder()
+    toast.success("Print asset approved.")
+  }
+
+  const handlePrintRetry = async (
+    qrType: AdminShopOrderListItem["printAssets"][number]["qrType"]
+  ) => {
+    const retried = await printAssetsModule.retry(qrType)
+    if (!retried) {
+      toast.error("Could not retry the print asset.")
+      return
+    }
+
+    syncPrintAssetsToOrder()
+    toast.success("Print asset is ready.")
+  }
+
+  const printAssetLabel = (
+    qrType: AdminShopOrderListItem["printAssets"][number]["qrType"]
+  ) => {
+    switch (qrType) {
+      case "CounterCard":
+        return "Counter Display"
+      case "TableTent":
+        return "Table Tent QR"
+      case "WindowSticker":
+        return "Window Sticker QR"
+      case "OfferCard":
+        return "QR Guest Cards"
+      default:
+        return qrType
+    }
+  }
+
+  const downloadLabel = (
+    fileName: string | null,
+    printRoute?: string | null
+  ) => {
+    if (
+      fileName?.toLowerCase().endsWith(".csv")
+      || printRoute === "PatchCsv60"
+      || printRoute === "GuestCardCsv"
+    ) {
+      return "Download CSV"
+    }
+    return "Download PDF"
   }
 
   return (
@@ -461,72 +558,133 @@ export function AdminShopOrderDetailDrawer({
 
             <section className="flex flex-col gap-3">
               <div>
-                <h3 className="text-sm font-semibold">Print-ready PDFs</h3>
+                <h3 className="text-sm font-semibold">Print assets</h3>
                 <p className="text-xs text-muted-foreground">
-                  One master PDF per ordered QR type. Quantity is the print-run
-                  instruction.
+                  Preview production details, approve, then download PDF or CSV
+                  per product route. Quantity is the print-run instruction.
                 </p>
               </div>
               <ul className="flex flex-col gap-2">
                 {printAssets.rows.map((asset) => {
                   const busy = printAssets.busyQrType === asset.qrType
+                  const preview = printPreviews[asset.qrType]
                   return (
                     <li
                       key={asset.qrType}
-                      className="flex flex-col gap-3 rounded-xl border px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-3 rounded-xl border px-3 py-3"
                     >
-                      <div>
-                        <p className="font-medium">
-                          {asset.qrType === "TableTent"
-                            ? "Table Tent QR"
-                            : asset.qrType === "WindowSticker"
-                              ? "Window Sticker QR"
-                              : "Offer Card"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Print quantity: {asset.quantity}
-                        </p>
-                        {asset.lastError && (
-                          <p className="mt-1 text-xs text-destructive">
-                            {asset.lastError}
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-medium">
+                            {printAssetLabel(asset.qrType)}
                           </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={
-                            asset.status === "Ready" ? "secondary" : "outline"
-                          }
-                        >
-                          {asset.status}
-                        </Badge>
-                        {asset.canDownload && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={busy}
-                            onClick={() =>
-                              void handlePrintDownload(asset.qrType)
+                          <p className="text-xs text-muted-foreground">
+                            Print quantity: {asset.quantity}
+                          </p>
+                          {asset.lastError && (
+                            <p className="mt-1 text-xs text-destructive">
+                              {asset.lastError}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant={
+                              asset.status === "Ready" ? "secondary" : "outline"
                             }
                           >
-                            <DownloadIcon />
-                            Download PDF
-                          </Button>
-                        )}
-                        {asset.canRetry && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={busy}
-                            onClick={() => void handlePrintRetry(asset.qrType)}
-                          >
-                            <RefreshCcwIcon />
-                            Retry
-                          </Button>
-                        )}
+                            {asset.status}
+                          </Badge>
+                          {asset.approved && (
+                            <Badge variant="secondary">Approved</Badge>
+                          )}
+                          {asset.canApprove && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={busy}
+                              onClick={() =>
+                                void handlePrintApprove(asset.qrType)
+                              }
+                            >
+                              Approve
+                            </Button>
+                          )}
+                          {asset.canDownload && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={busy}
+                              onClick={() =>
+                                void handlePrintDownload(asset.qrType)
+                              }
+                            >
+                              <DownloadIcon />
+                              {downloadLabel(asset.fileName, asset.printRoute)}
+                            </Button>
+                          )}
+                          {asset.canRetry && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={busy}
+                              onClick={() =>
+                                void handlePrintRetry(asset.qrType)
+                              }
+                            >
+                              <RefreshCcwIcon />
+                              Retry
+                            </Button>
+                          )}
+                        </div>
                       </div>
+                      {preview && (
+                        <dl className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                          <div>
+                            <dt className="font-medium text-foreground">
+                              Product
+                            </dt>
+                            <dd>{preview.productTitle}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-foreground">
+                              Location
+                            </dt>
+                            <dd>
+                              {preview.locationName} (#{preview.locationId})
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-foreground">
+                              Placement
+                            </dt>
+                            <dd>{preview.placement}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-foreground">Qty</dt>
+                            <dd>{preview.quantity}</dd>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <dt className="font-medium text-foreground">
+                              QR destination
+                            </dt>
+                            <dd className="break-all">
+                              {preview.qrDestinationUrl}
+                            </dd>
+                          </div>
+                          {preview.offerHeadline && (
+                            <div className="sm:col-span-2">
+                              <dt className="font-medium text-foreground">
+                                Offer
+                              </dt>
+                              <dd>{preview.offerHeadline}</dd>
+                            </div>
+                          )}
+                        </dl>
+                      )}
                     </li>
                   )
                 })}
