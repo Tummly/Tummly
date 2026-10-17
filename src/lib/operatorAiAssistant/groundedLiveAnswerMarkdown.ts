@@ -1,6 +1,7 @@
 export type GroundedLiveAnswerInline =
   | { type: "text"; value: string }
   | { type: "bold"; value: string }
+  | { type: "quote"; value: string }
   | { type: "lineBreak" }
 
 type GroundedLiveAnswerListBlock =
@@ -23,7 +24,33 @@ export type GroundedLiveAnswerBlock =
       type: "paragraph"
       children: GroundedLiveAnswerInline[]
     }
+  | {
+      type: "blockquote"
+      children: GroundedLiveAnswerInline[]
+    }
+  | {
+      type: "table"
+      headers: string[]
+      rows: string[][]
+    }
   | GroundedLiveAnswerListBlock
+
+function pushQuotedText(tokens: GroundedLiveAnswerInline[], value: string) {
+  // Straight or curly double quotes around guest excerpts → white quote spans.
+  const quotePattern = /(["“])([^"”]+)(["”])/g
+  let cursor = 0
+  for (const match of value.matchAll(quotePattern)) {
+    const index = match.index ?? 0
+    if (index > cursor) {
+      tokens.push({ type: "text", value: value.slice(cursor, index) })
+    }
+    tokens.push({ type: "quote", value: match[2]! })
+    cursor = index + match[0].length
+  }
+  if (cursor < value.length) {
+    tokens.push({ type: "text", value: value.slice(cursor) })
+  }
+}
 
 function parseInline(value: string): GroundedLiveAnswerInline[] {
   const tokens: GroundedLiveAnswerInline[] = []
@@ -33,17 +60,30 @@ function parseInline(value: string): GroundedLiveAnswerInline[] {
   for (const match of value.matchAll(pattern)) {
     const index = match.index
     if (index > cursor) {
-      tokens.push({ type: "text", value: value.slice(cursor, index) })
+      pushQuotedText(tokens, value.slice(cursor, index))
     }
-    tokens.push({ type: "bold", value: match[2] })
+    tokens.push({ type: "bold", value: match[2]! })
     cursor = index + match[0].length
   }
 
   if (cursor < value.length) {
-    tokens.push({ type: "text", value: value.slice(cursor) })
+    pushQuotedText(tokens, value.slice(cursor))
   }
 
   return tokens
+}
+
+function splitTableRow(line: string): string[] {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "")
+  return trimmed.split("|").map((cell) => cell.trim())
+}
+
+function isTableSeparator(line: string): boolean {
+  const cells = splitTableRow(line)
+  return (
+    cells.length > 0
+    && cells.every((cell) => /^:?-{3,}:?$/.test(cell))
+  )
 }
 
 export function parseGroundedLiveAnswerMarkdown(
@@ -54,6 +94,7 @@ export function parseGroundedLiveAnswerMarkdown(
   let listType: GroundedLiveAnswerListBlock["type"] | null = null
   let listItems: GroundedLiveAnswerInline[][] = []
   let fenceMarker: "`" | "~" | null = null
+  const lines = markdown.replace(/\r\n?/g, "\n").split("\n")
 
   const flushParagraph = () => {
     if (paragraph.length > 0) {
@@ -70,10 +111,11 @@ export function parseGroundedLiveAnswerMarkdown(
     }
   }
 
-  for (const line of markdown.replace(/\r\n?/g, "\n").split("\n")) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
     const fence = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
     if (fenceMarker) {
-      if (fence?.[1][0] === fenceMarker && fence[2].trim().length === 0) {
+      if (fence?.[1]![0] === fenceMarker && fence[2]!.trim().length === 0) {
         flushParagraph()
         fenceMarker = null
         continue
@@ -87,7 +129,7 @@ export function parseGroundedLiveAnswerMarkdown(
     if (fence) {
       flushParagraph()
       flushList()
-      fenceMarker = fence[1][0] as "`" | "~"
+      fenceMarker = fence[1]![0] as "`" | "~"
       continue
     }
 
@@ -97,14 +139,65 @@ export function parseGroundedLiveAnswerMarkdown(
       continue
     }
 
+    // GFM table: header + separator + rows
+    if (
+      line.includes("|")
+      && i + 1 < lines.length
+      && isTableSeparator(lines[i + 1]!)
+    ) {
+      flushParagraph()
+      flushList()
+      const headers = splitTableRow(line)
+      i += 1 // skip separator
+      const rows: string[][] = []
+      while (i + 1 < lines.length && lines[i + 1]!.includes("|")) {
+        const next = lines[i + 1]!
+        if (next.trim().length === 0 || isTableSeparator(next)) {
+          break
+        }
+        rows.push(splitTableRow(next))
+        i += 1
+      }
+      blocks.push({ type: "table", headers, rows })
+      continue
+    }
+
+    const blockquote = line.match(/^ {0,3}>\s?(.*)$/)
+    if (blockquote) {
+      flushParagraph()
+      flushList()
+      const quoteLines = [blockquote[1] ?? ""]
+      while (i + 1 < lines.length) {
+        const next = lines[i + 1]!
+        const nextQuote = next.match(/^ {0,3}>\s?(.*)$/)
+        if (!nextQuote) {
+          break
+        }
+        quoteLines.push(nextQuote[1] ?? "")
+        i += 1
+      }
+      const quoteChildren: GroundedLiveAnswerInline[] = []
+      quoteLines.forEach((quoteLine, quoteIndex) => {
+        if (quoteIndex > 0) {
+          quoteChildren.push({ type: "lineBreak" })
+        }
+        quoteChildren.push(...parseInline(quoteLine))
+      })
+      blocks.push({
+        type: "blockquote",
+        children: quoteChildren,
+      })
+      continue
+    }
+
     const heading = line.match(/^ {0,3}(#{1,3})\s+(.+?)\s*#*\s*$/)
     if (heading) {
       flushParagraph()
       flushList()
       blocks.push({
         type: "heading",
-        level: heading[1].length as 1 | 2 | 3,
-        children: parseInline(heading[2]),
+        level: heading[1]!.length as 1 | 2 | 3,
+        children: parseInline(heading[2]!),
       })
       continue
     }
@@ -118,7 +211,7 @@ export function parseGroundedLiveAnswerMarkdown(
         flushList()
         listType = type
       }
-      listItems.push(parseInline((unorderedItem ?? orderedItem)![1]))
+      listItems.push(parseInline((unorderedItem ?? orderedItem)![1]!))
       continue
     }
 

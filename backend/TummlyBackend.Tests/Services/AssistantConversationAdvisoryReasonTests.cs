@@ -53,10 +53,20 @@ namespace TummlyBackend.Tests.Services
                 StringComparison.Ordinal
             );
             Assert.Contains(
-                "Keep watching covers — Account.Covers is up.",
+                "## Summary",
                 body,
                 StringComparison.Ordinal
             );
+            Assert.Contains(
+                "- **Keep watching covers** — Account.Covers is up.",
+                body,
+                StringComparison.Ordinal
+            );
+            Assert.Equal(
+                "Performance overview",
+                outcome.Conversation.Messages[^1].Title
+            );
+            Assert.NotNull(outcome.Conversation.Messages[^1].Presentation?.Chart);
             Assert.Null(await StoredGapStateOrNullAsync(outcome.Conversation.Id));
         }
 

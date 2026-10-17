@@ -663,6 +663,7 @@ builder.Services.AddSingleton<IPricebookCatalog>(sp =>
 );
 builder.Services.AddScoped<IMaterialsCatalog, DbMaterialsCatalog>();
 builder.Services.AddScoped<IAdminShopCatalogService, AdminShopCatalogService>();
+builder.Services.AddScoped<IShopInterestService, ShopInterestService>();
 builder.Services.AddSingleton(sp =>
     PrintTemplatePack.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );

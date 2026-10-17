@@ -10,6 +10,7 @@ import {
   ALL_OWNED_LOCATIONS_PICKER_LABEL,
   ALL_OWNED_LOCATIONS_SELECT_VALUE,
   ASSISTANT_FAILURE_BODY,
+  ASSISTANT_PREPARE_RECOVERY_PROMPT,
   buildEmptyComposerPlaceholders,
   createInMemoryOperatorAiAssistantAdapters,
   createOperatorAiAssistantModule,
@@ -3962,6 +3963,74 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       type: "open-recovery",
       label: "Review recovery",
     })
+  })
+
+  it("Prepare recovery responses sends an in-thread prompt and keeps the drawer open", async () => {
+    const sent: string[] = []
+    let navigated = false
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        sent.push(input.message)
+        return {
+          id: "conv-prepare-recovery-cta",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          messages: [
+            {
+              id: `u-${sent.length}`,
+              role: "user",
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: `a-${sent.length}`,
+              role: "assistant",
+              class: "grounded",
+              title: "ok",
+              body: "Working on recovery.",
+              actions:
+                sent.length === 1
+                  ? [
+                      {
+                        type: "view-feedback-set",
+                        label: "View Feedback",
+                      },
+                      {
+                        type: "prepare-recovery",
+                        label: "Prepare recovery responses",
+                      },
+                    ]
+                  : [],
+            },
+          ],
+        }
+      },
+      navigateAction: () => {
+        navigated = true
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Summarise Feedback from the last 7 days")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    module.clickAction({
+      type: "prepare-recovery",
+      label: "Prepare recovery responses",
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(sent).toEqual([
+      "Summarise Feedback from the last 7 days",
+      ASSISTANT_PREPARE_RECOVERY_PROMPT,
+    ])
+    expect(navigated).toBe(false)
+    expect(module.getSnapshot().drawerOpen).toBe(true)
   })
 
   it("keeps Review recovery clickable after hydrate failure", async () => {

@@ -68,7 +68,7 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
             Assert.Contains(
-                "Use headings for distinct sections and bold for short",
+                "Prefer plain short paragraphs over long nested lists",
                 prompt,
                 StringComparison.Ordinal
             );
@@ -86,6 +86,410 @@ namespace TummlyBackend.Tests.Helpers
                 "Do not put Markdown in title",
                 prompt,
                 StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Answer first",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Use digits for numbers",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "feedbackByHour",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void BuildSchema_RequiresChartAndRecommendedNextStep()
+        {
+            var schema = AssistantLiveAnswerStructuredOutput.BuildSchema();
+            var required = schema["required"]!.AsArray()
+                .Select(node => node!.GetValue<string>())
+                .ToArray();
+
+            Assert.Contains("chart", required);
+            Assert.Contains("recommendedNextStep", required);
+        }
+
+        [Fact]
+        public void BuildEvidencePayload_IncludesFeedbackByHour()
+        {
+            var evidence = AssistantRetrievedEvidence.FromFeedback(
+                new AssistantFeedbackEvidence(
+                    TotalCount: 2,
+                    SampleCount: 2,
+                    SucceededPositive: 1,
+                    SucceededNeutral: 0,
+                    SucceededNegative: 1,
+                    NeedsAttention: 0,
+                    TagCounts: [],
+                    Rows:
+                    [
+                        new AssistantFeedbackEvidenceRow(
+                            Id: 1,
+                            CreatedAt: new DateTime(2026, 10, 13, 19, 0, 0, DateTimeKind.Utc),
+                            GuestName: "A",
+                            Sentiment: "negative",
+                            ClassificationStatus: "Succeeded",
+                            DetectedTags: ["Service"],
+                            WorkflowStatus: "Open",
+                            NeedsAttention: false,
+                            QrSource: null,
+                            ContactType: "Email",
+                            Excerpt: "Slow",
+                            FeedbackReference: "F1",
+                            MarketingStatus: null,
+                            GuestTags: [],
+                            LocationGuestId: null,
+                            IsLinked: false
+                        ),
+                        new AssistantFeedbackEvidenceRow(
+                            Id: 2,
+                            CreatedAt: new DateTime(2026, 10, 13, 19, 30, 0, DateTimeKind.Utc),
+                            GuestName: "B",
+                            Sentiment: "positive",
+                            ClassificationStatus: "Succeeded",
+                            DetectedTags: [],
+                            WorkflowStatus: "Open",
+                            NeedsAttention: false,
+                            QrSource: null,
+                            ContactType: "Email",
+                            Excerpt: "Good",
+                            FeedbackReference: "F2",
+                            MarketingStatus: null,
+                            GuestTags: [],
+                            LocationGuestId: null,
+                            IsLinked: false
+                        ),
+                    ],
+                    GuestRows: [],
+                    Placeholder4GuestRows: [],
+                    ContactRedactionTokens: []
+                )
+            );
+
+            var payload = AssistantLiveAnswerStructuredOutput.BuildEvidencePayload(
+                evidence
+            );
+            var byHour = payload["feedbackByHour"]!.AsArray();
+            Assert.Equal(24, byHour.Count);
+            var sevenPm = byHour.First(node =>
+                node!["label"]!.GetValue<string>() == "7 PM"
+            );
+            Assert.Equal(2, sevenPm!["value"]!.GetValue<int>());
+        }
+
+        [Fact]
+        public void TryParseModelContent_GroundsChartFromEvidence()
+        {
+            var evidence = AssistantRetrievedEvidence.FromFeedback(
+                new AssistantFeedbackEvidence(
+                    TotalCount: 1,
+                    SampleCount: 1,
+                    SucceededPositive: 0,
+                    SucceededNeutral: 0,
+                    SucceededNegative: 1,
+                    NeedsAttention: 0,
+                    TagCounts: [],
+                    Rows:
+                    [
+                        new AssistantFeedbackEvidenceRow(
+                            Id: 1,
+                            CreatedAt: new DateTime(2026, 10, 13, 20, 0, 0, DateTimeKind.Utc),
+                            GuestName: "A",
+                            Sentiment: "negative",
+                            ClassificationStatus: "Succeeded",
+                            DetectedTags: ["Service"],
+                            WorkflowStatus: "Open",
+                            NeedsAttention: false,
+                            QrSource: null,
+                            ContactType: "Email",
+                            Excerpt: "Slow",
+                            FeedbackReference: "F1",
+                            MarketingStatus: null,
+                            GuestTags: [],
+                            LocationGuestId: null,
+                            IsLinked: false
+                        ),
+                    ],
+                    GuestRows: [],
+                    Placeholder4GuestRows: [],
+                    ContactRedactionTokens: []
+                )
+            );
+
+            var allowed = AssistantAnswerChartGrounding.BuildFeedbackByHour(
+                evidence.Feedback
+            );
+            var seriesJson = string.Join(
+                ",",
+                allowed.Select(point =>
+                    $"{{\"label\":\"{point.Label}\",\"value\":{point.Value}}}"
+                )
+            );
+            var content = $$"""
+                {
+                  "answerClass": "grounded",
+                  "title": "Slow service is the main issue this week.",
+                  "body": "I found 1 Feedback submission after 8 PM.",
+                  "actions": [],
+                  "assistantTask": "retrieve",
+                  "conversationTitle": "Feedback summary",
+                  "offerTerms": null,
+                  "chart": {
+                    "title": "Feedback by hour",
+                    "kind": "bar",
+                    "xLabel": "Hour",
+                    "series": [{{seriesJson}}]
+                  },
+                  "recommendedNextStep": {
+                    "text": "Review the Feedback.",
+                    "primaryActionType": "view-feedback-set",
+                    "secondaryActionType": null
+                  }
+                }
+                """;
+
+            Assert.True(
+                AssistantLiveAnswerStructuredOutput.TryParseModelContent(
+                    content,
+                    evidence,
+                    "Summarise Feedback from the last 7 days",
+                    out var result,
+                    out var invalid
+                )
+            );
+            Assert.False(invalid);
+            var succeeded = Assert.IsType<AssistantLiveAnswerResult.Succeeded>(result);
+            Assert.NotNull(succeeded.Chart);
+            Assert.Equal(24, succeeded.Chart!.Series.Count);
+            Assert.Equal(
+                1,
+                succeeded.Chart.Series.Single(point => point.Label == "8 PM").Value
+            );
+            Assert.NotNull(succeeded.RecommendedNextStep);
+            Assert.Equal("view-feedback-set", succeeded.RecommendedNextStep!.PrimaryAction?.Type);
+        }
+
+        [Fact]
+        public void TryParseModelContent_RebuildsInventedChartSeries()
+        {
+            var evidence = AssistantRetrievedEvidence.FromFeedback(
+                new AssistantFeedbackEvidence(
+                    TotalCount: 1,
+                    SampleCount: 1,
+                    SucceededPositive: 0,
+                    SucceededNeutral: 0,
+                    SucceededNegative: 1,
+                    NeedsAttention: 0,
+                    TagCounts: [],
+                    Rows:
+                    [
+                        new AssistantFeedbackEvidenceRow(
+                            Id: 1,
+                            CreatedAt: new DateTime(2026, 10, 13, 21, 0, 0, DateTimeKind.Utc),
+                            GuestName: "A",
+                            Sentiment: "negative",
+                            ClassificationStatus: "Succeeded",
+                            DetectedTags: [],
+                            WorkflowStatus: "Open",
+                            NeedsAttention: false,
+                            QrSource: null,
+                            ContactType: "Email",
+                            Excerpt: "Wait",
+                            FeedbackReference: "F1",
+                            MarketingStatus: null,
+                            GuestTags: [],
+                            LocationGuestId: null,
+                            IsLinked: false
+                        ),
+                    ],
+                    GuestRows: [],
+                    Placeholder4GuestRows: [],
+                    ContactRedactionTokens: []
+                )
+            );
+
+            const string content = """
+                {
+                  "answerClass": "grounded",
+                  "title": "Evening waits.",
+                  "body": "One guest waited longer.",
+                  "actions": [],
+                  "assistantTask": "retrieve",
+                  "conversationTitle": "Feedback summary",
+                  "offerTerms": null,
+                  "chart": {
+                    "title": "Invented title",
+                    "kind": "bar",
+                    "xLabel": "Hour",
+                    "series": [{ "label": "fake", "value": 99 }]
+                  },
+                  "recommendedNextStep": null
+                }
+                """;
+
+            Assert.True(
+                AssistantLiveAnswerStructuredOutput.TryParseModelContent(
+                    content,
+                    evidence,
+                    "Summarise Feedback",
+                    out var result,
+                    out _
+                )
+            );
+            var succeeded = Assert.IsType<AssistantLiveAnswerResult.Succeeded>(result);
+            Assert.NotNull(succeeded.Chart);
+            Assert.Equal("Invented title", succeeded.Chart!.Title);
+            Assert.DoesNotContain(
+                succeeded.Chart.Series,
+                point => point.Label == "fake"
+            );
+            Assert.Equal(
+                1,
+                succeeded.Chart.Series.Single(point => point.Label == "9 PM").Value
+            );
+        }
+
+        [Fact]
+        public void Ground_ReturnsNull_WhenNoFeedbackCounts()
+        {
+            var chart = AssistantAnswerChartGrounding.Ground(
+                new AssistantAnswerChart(
+                    "Any",
+                    "bar",
+                    "Hour",
+                    [new AssistantAnswerChartPoint("1 AM", 3)]
+                ),
+                AssistantRetrievedEvidence.Empty
+            );
+            Assert.Null(chart);
+        }
+
+        [Fact]
+        public void AutoAttachForFeedbackAsk_FillsChartWhenModelOmitsIt()
+        {
+            var evidence = AssistantRetrievedEvidence.FromFeedback(
+                new AssistantFeedbackEvidence(
+                    TotalCount: 1,
+                    SampleCount: 1,
+                    SucceededPositive: 0,
+                    SucceededNeutral: 0,
+                    SucceededNegative: 1,
+                    NeedsAttention: 0,
+                    TagCounts: [],
+                    Rows:
+                    [
+                        new AssistantFeedbackEvidenceRow(
+                            Id: 1,
+                            CreatedAt: new DateTime(2026, 10, 13, 19, 0, 0, DateTimeKind.Utc),
+                            GuestName: "A",
+                            Sentiment: "negative",
+                            ClassificationStatus: "Succeeded",
+                            DetectedTags: [],
+                            WorkflowStatus: "Open",
+                            NeedsAttention: false,
+                            QrSource: null,
+                            ContactType: "Email",
+                            Excerpt: "Slow",
+                            FeedbackReference: "F1",
+                            MarketingStatus: null,
+                            GuestTags: [],
+                            LocationGuestId: null,
+                            IsLinked: false
+                        ),
+                    ],
+                    GuestRows: [],
+                    Placeholder4GuestRows: [],
+                    ContactRedactionTokens: []
+                )
+            );
+
+            var chart = AssistantAnswerChartGrounding.AutoAttachForFeedbackAsk(
+                groundedOrNull: null,
+                evidence,
+                "Summarise Feedback from the last 7 days"
+            );
+
+            Assert.NotNull(chart);
+            Assert.Equal(
+                1,
+                chart!.Series.Single(point => point.Label == "7 PM").Value
+            );
+        }
+
+        [Fact]
+        public void TryParseModelContent_AutoAttachesChartWhenModelSendsNull()
+        {
+            var evidence = AssistantRetrievedEvidence.FromFeedback(
+                new AssistantFeedbackEvidence(
+                    TotalCount: 1,
+                    SampleCount: 1,
+                    SucceededPositive: 0,
+                    SucceededNeutral: 0,
+                    SucceededNegative: 1,
+                    NeedsAttention: 0,
+                    TagCounts: [],
+                    Rows:
+                    [
+                        new AssistantFeedbackEvidenceRow(
+                            Id: 1,
+                            CreatedAt: new DateTime(2026, 10, 13, 18, 0, 0, DateTimeKind.Utc),
+                            GuestName: "A",
+                            Sentiment: "negative",
+                            ClassificationStatus: "Succeeded",
+                            DetectedTags: [],
+                            WorkflowStatus: "Open",
+                            NeedsAttention: false,
+                            QrSource: null,
+                            ContactType: "Email",
+                            Excerpt: "Slow",
+                            FeedbackReference: "F1",
+                            MarketingStatus: null,
+                            GuestTags: [],
+                            LocationGuestId: null,
+                            IsLinked: false
+                        ),
+                    ],
+                    GuestRows: [],
+                    Placeholder4GuestRows: [],
+                    ContactRedactionTokens: []
+                )
+            );
+
+            const string content = """
+                {
+                  "answerClass": "grounded",
+                  "title": "Feedback summary",
+                  "body": "One negative submission.",
+                  "actions": [],
+                  "assistantTask": "retrieve",
+                  "conversationTitle": "Feedback summary",
+                  "offerTerms": null,
+                  "chart": null,
+                  "recommendedNextStep": null
+                }
+                """;
+
+            Assert.True(
+                AssistantLiveAnswerStructuredOutput.TryParseModelContent(
+                    content,
+                    evidence,
+                    "Summarise Feedback from the last 7 days",
+                    out var result,
+                    out _
+                )
+            );
+            var succeeded = Assert.IsType<AssistantLiveAnswerResult.Succeeded>(result);
+            Assert.NotNull(succeeded.Chart);
+            Assert.Equal(
+                1,
+                succeeded.Chart!.Series.Single(point => point.Label == "6 PM").Value
             );
         }
 

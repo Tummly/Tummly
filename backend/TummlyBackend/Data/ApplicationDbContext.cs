@@ -105,6 +105,10 @@ namespace TummlyBackend.Data
 
         public DbSet<ShopMaterialSkuImage> ShopMaterialSkuImages { get; set; }
 
+        public DbSet<ShopInterestProduct> ShopInterestProducts { get; set; }
+
+        public DbSet<ShopInterestRegistration> ShopInterestRegistrations { get; set; }
+
         public DbSet<RevolutPendingPaySession> RevolutPendingPaySessions
         {
             get;
@@ -188,6 +192,8 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackRecoveryCompletion> FeedbackRecoveryCompletions { get; set; }
 
+        public DbSet<CampaignAudience> CampaignAudiences { get; set; }
+
         public DbSet<Campaign> Campaigns { get; set; }
 
         public DbSet<CampaignFrozenRecipient> CampaignFrozenRecipients { get; set; }
@@ -225,6 +231,11 @@ namespace TummlyBackend.Data
         )
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<CampaignAudience>().HasOne<RestaurantLocation>()
+                .WithMany().HasForeignKey(a => a.RestaurantLocationId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<CampaignAudience>().HasIndex(a => new { a.RestaurantLocationId, a.Name })
+                .IsUnique().HasFilter("[Name] IS NOT NULL");
+
 
             /*
              =========================================
@@ -2623,6 +2634,39 @@ namespace TummlyBackend.Data
                     .WithMany(row => row.Images)
                     .HasForeignKey(row => row.SkuId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ShopInterestProduct>(e =>
+            {
+                e.HasIndex(row => row.ProductKey).IsUnique();
+                e.Property(row => row.ProductKey).HasMaxLength(80).IsRequired();
+                e.Property(row => row.Title).HasMaxLength(200).IsRequired();
+                e.Property(row => row.Description).HasMaxLength(1000).IsRequired();
+                e.Property(row => row.ImageUrl).HasMaxLength(512);
+            });
+
+            modelBuilder.Entity<ShopInterestRegistration>(e =>
+            {
+                e.HasIndex(row => row.ProductKey);
+                e.HasIndex(row => row.CreatedAtUtc);
+                e.Property(row => row.ProductKey).HasMaxLength(80).IsRequired();
+                e.Property(row => row.ProductTitleSnapshot)
+                    .HasMaxLength(200)
+                    .IsRequired();
+                e.Property(row => row.RestaurantNameSnapshot)
+                    .HasMaxLength(200)
+                    .IsRequired();
+                e.Property(row => row.LocationNameSnapshot).HasMaxLength(200);
+                e.Property(row => row.UserFullNameSnapshot)
+                    .HasMaxLength(200)
+                    .IsRequired();
+                e.Property(row => row.UserEmailSnapshot)
+                    .HasMaxLength(256)
+                    .IsRequired();
+                e.HasOne(row => row.Product)
+                    .WithMany(row => row.Registrations)
+                    .HasForeignKey(row => row.ShopInterestProductId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<ShopLocationDetails>()

@@ -17,7 +17,10 @@ import { AiAssistantConversationList } from "@/components/dashboard/operator/AiA
 import { AiAssistantCreditsBar } from "@/components/dashboard/operator/AiAssistantCreditsBar"
 import { AiAssistantDeleteDialog } from "@/components/dashboard/operator/AiAssistantDeleteDialog"
 import { AiAssistantLoadingBorder } from "@/components/dashboard/operator/AiAssistantLoadingBorder"
+import { AssistantAnswerBarChart } from "@/components/dashboard/operator/AssistantAnswerBarChart"
+import { AssistantDraftPreviewCard } from "@/components/dashboard/operator/AssistantDraftPreviewCard"
 import { AssistantPreparingAnswer } from "@/components/dashboard/operator/AssistantPreparingAnswer"
+import { AssistantRecommendedNextStepCard } from "@/components/dashboard/operator/AssistantRecommendedNextStepCard"
 import { GroundedLiveAnswerBody } from "@/components/dashboard/operator/GroundedLiveAnswerBody"
 import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
 import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
@@ -155,6 +158,53 @@ function ThreadMessage({
   const scopeNotice = message.scopeChange
     ? formatScopeChangeNotice(message.scopeChange)
     : null
+  const chart = message.presentation?.chart
+  const recommended = message.presentation?.recommendedNextStep
+  const metrics = message.presentation?.metrics ?? []
+  const draftPreview = message.presentation?.draftPreview
+  const bodyTrimmed = message.body.trim()
+  const pillTypes = new Set([
+    "view-feedback-set",
+    "prepare-recovery",
+    "review-campaign",
+    "open-recovery",
+    "review-offer",
+  ])
+  const draftEditTypes = new Set([
+    "review-campaign",
+    "review-offer",
+    "open-recovery",
+  ])
+  const cardActionTypes = new Set(
+    [recommended?.primaryAction?.type, recommended?.secondaryAction?.type].filter(
+      (type): type is NonNullable<typeof type> => type != null && type.length > 0
+    )
+  )
+  const hideDraftEditInCtas = draftPreview != null
+  const pillActions = (message.actions ?? []).filter(
+    (action) =>
+      pillTypes.has(action.type)
+      && !cardActionTypes.has(action.type)
+      && !(hideDraftEditInCtas && draftEditTypes.has(action.type))
+  )
+  const listActions = (message.actions ?? []).filter(
+    (action) =>
+      !cardActionTypes.has(action.type)
+      && !pillTypes.has(action.type)
+      && !(hideDraftEditInCtas && draftEditTypes.has(action.type))
+  )
+  const ctaPills = [
+    recommended?.primaryAction,
+    recommended?.secondaryAction,
+    ...pillActions,
+  ].filter(
+    (action): action is NonNullable<typeof action> =>
+      action != null && action.type.length > 0
+  )
+  const uniqueCtas = ctaPills.filter(
+    (action, index, all) =>
+      all.findIndex((other) => other.type === action.type) === index
+  )
 
   return (
     <div
@@ -164,19 +214,65 @@ function ThreadMessage({
       <div className="flex flex-col gap-[12px]">
         <div className="flex gap-3 items-start">
           <AiIcon size={26} className="text-op-assistant-list-title" />
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
             {message.title ? (
-              <p className="text-sm leading-5 font-normal text-op-text-primary">
+              <p className="text-sm leading-5 font-semibold text-op-text-primary">
                 {message.title}
               </p>
             ) : null}
-            {message.class === "grounded" ? (
+            {message.class === "grounded" && metrics.length > 0 ? (
+              <div
+                className="flex flex-wrap gap-2"
+                data-assistant-answer-metrics=""
+              >
+                {metrics.map((metric) => (
+                  <div
+                    key={`${metric.label}-${metric.value}`}
+                    className="flex flex-col gap-0.5 rounded-[8px] border border-op-assistant-list-border bg-op-assistant-list-row-active/50 px-2.5 py-1.5"
+                  >
+                    <span className="text-[10px] leading-3 text-op-assistant-list-subtitle">
+                      {metric.label}
+                    </span>
+                    <span className="text-sm font-semibold leading-5 text-op-text-primary">
+                      {metric.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {(message.class === "grounded" || message.class === "gap")
+            && bodyTrimmed.length > 0 ? (
               <GroundedLiveAnswerBody body={message.body} />
-            ) : (
+            ) : null}
+            {message.class !== "grounded" && message.class !== "gap" ? (
               <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
                 {message.body}
               </p>
-            )}
+            ) : null}
+            {message.class === "grounded" && chart ? (
+              <div
+                className="flex w-full flex-col gap-3 rounded-[8px] bg-op-assistant-list-row-active/60 px-3 py-3"
+                data-assistant-answer-chart-card=""
+              >
+                <AssistantAnswerBarChart chart={chart} />
+              </div>
+            ) : null}
+            {message.class === "grounded" && uniqueCtas.length > 0 ? (
+              <AssistantRecommendedNextStepCard
+                text={
+                  recommended?.text?.trim()
+                  || "Review the affected Feedback and prepare recovery responses for the unresolved guests."
+                }
+                actions={uniqueCtas}
+                onActivateAction={onActivateAction}
+              />
+            ) : null}
+            {message.class === "grounded" && draftPreview ? (
+              <AssistantDraftPreviewCard
+                draft={draftPreview}
+                onEditDraft={onActivateAction}
+              />
+            ) : null}
             {scopeNotice ? (
               <button
                 type="button"
@@ -190,12 +286,12 @@ function ThreadMessage({
           </div>
         </div>
       </div>
-      {message.class === "grounded" && (message.actions?.length ?? 0) > 0 ? (
+      {message.class === "grounded" && listActions.length > 0 ? (
         <div className="flex flex-col gap-3.5">
           <p className="text-sm leading-5 font-medium text-op-assistant-list-title">
             Actions
           </p>
-          {message.actions?.map((action) => (
+          {listActions.map((action) => (
             <button
               key={action.type}
               type="button"

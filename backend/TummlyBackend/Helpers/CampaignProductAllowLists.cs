@@ -46,7 +46,7 @@ namespace TummlyBackend.Helpers
             => GoalIds.Contains(goalId);
 
         public static bool IsAllowedAudienceKey(string audienceKey)
-            => AudienceKeys.Contains(audienceKey);
+            => AudienceKeys.Contains(audienceKey) || Services.CampaignAudienceStore.IsKey(audienceKey);
 
         public static bool IsAllowedChannel(string channel)
             => Channels.Contains(channel);

@@ -4,6 +4,8 @@ import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import {
   MARKETING_HOW_IT_WORKS_PATH,
+  MARKETING_FOR_GROUPS_PATH,
+  MARKETING_PILOT_PATH,
   MARKETING_PRICING_PATH,
 } from "@/constants/marketingNav"
 import { cn } from "@/lib/utils"
@@ -30,7 +32,7 @@ const LINK_BLOCKS: ContactLinkBlock[] = [
     title: "Ready to get started?",
     body: "The 30-day Pilot is £0, requires no payment card and does not renew automatically.",
     linkLabel: "Start Pilot",
-    to: "/signup",
+    to: MARKETING_PILOT_PATH,
   },
   {
     title: "Plans and pricing",
@@ -42,7 +44,7 @@ const LINK_BLOCKS: ContactLinkBlock[] = [
     title: "Multi-Location",
     body: "Planning several Locations? See how Tummly supports restaurant groups.",
     linkLabel: "See Tummly for groups",
-    to: MARKETING_PRICING_PATH,
+    to: MARKETING_FOR_GROUPS_PATH,
   },
   {
     title: "Existing account",

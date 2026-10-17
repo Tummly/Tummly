@@ -28,7 +28,8 @@ export type ProductSplitFeatureSectionProps = {
   eyebrow?: string
   title: string
   body: string
-  points: readonly ProductFeaturePoint[]
+  /** Feature list under the intro. Omit or pass [] when the band has none. */
+  points?: readonly ProductFeaturePoint[]
   imageSrc: string
   imageAlt: string
   imageWidth: number
@@ -58,7 +59,7 @@ export function ProductSplitFeatureSection({
   eyebrow,
   title,
   body,
-  points,
+  points = [],
   imageSrc,
   imageAlt,
   imageWidth,
@@ -68,6 +69,9 @@ export function ProductSplitFeatureSection({
   cta,
   className,
 }: ProductSplitFeatureSectionProps) {
+  const hasPoints = points.length > 0
+  const hasFooter = hasPoints || cta != null
+
   const copyBlock = (
     <div
       className={cn(
@@ -95,24 +99,28 @@ export function ProductSplitFeatureSection({
         </p>
       </header>
 
-      <div className="flex w-full flex-col gap-[26px]">
-        <ul className="m-0 flex w-full list-none flex-col gap-4 p-0">
-          {points.map((point, index) => (
-            <li key={point.id} className="flex flex-col gap-4">
-              <FeaturePoint point={point} />
-              {index < points.length - 1 ? (
-                <hr className="m-0 w-full border-[#e0e0e0]" />
-              ) : null}
-            </li>
-          ))}
-        </ul>
+      {hasFooter ? (
+        <div className="flex w-full flex-col gap-[26px]">
+          {hasPoints ? (
+            <ul className="m-0 flex w-full list-none flex-col gap-4 p-0">
+              {points.map((point, index) => (
+                <li key={point.id} className="flex flex-col gap-4">
+                  <FeaturePoint point={point} />
+                  {index < points.length - 1 ? (
+                    <hr className="m-0 w-full border-[#e0e0e0]" />
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
-        {cta != null ? (
-          <MarketingButton asChild variant="secondary" className="w-fit">
-            <Link to={cta.to}>{cta.label}</Link>
-          </MarketingButton>
-        ) : null}
-      </div>
+          {cta != null ? (
+            <MarketingButton asChild variant="secondary" className="w-fit">
+              <Link to={cta.to}>{cta.label}</Link>
+            </MarketingButton>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 

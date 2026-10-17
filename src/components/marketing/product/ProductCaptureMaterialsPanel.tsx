@@ -452,7 +452,9 @@ function PanelChrome({
           </div>
         </>
       ) : (
-        <div>
+        /* Product / Pricing: MediaPane is absolute-fill — wrapper must take
+         * remaining flex width or the right pane collapses to 0 on lg+. */
+        <div className="min-h-0 w-full lg:flex-1">
           <MediaPane material={material} reduceMotion={reduceMotion} />
         </div>
       )}

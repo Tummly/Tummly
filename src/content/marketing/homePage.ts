@@ -1,8 +1,8 @@
 import type { MarketingSignUpCtaContent } from "@/components/marketing/MarketingSignUpCta"
 import {
   MARKETING_DEMO_PATH,
+  MARKETING_FOR_GROUPS_PATH,
   MARKETING_HOW_IT_WORKS_PATH,
-  MARKETING_PRICING_PATH,
   MARKETING_PRODUCT_PATH,
   MARKETING_QR_MATERIALS_PATH,
   MARKETING_TRUST_PRIVACY_PATH,
@@ -13,8 +13,7 @@ import { AI_ASSISTANT_PLANS } from "@/content/marketing/aiAssistantPage"
 export const HOME_HERO = {
   groupsPrompt: "Running more than one Location?",
   groupsCtaLabel: "See Tummly for groups",
-  /** Pricing “For groups” band. */
-  groupsCtaTo: `${MARKETING_PRICING_PATH}#for-groups`,
+  groupsCtaTo: MARKETING_FOR_GROUPS_PATH,
   title:
     "Turn everyday orders and visits into guest relationships you can build on.",
   body: "Tummly helps restaurants hear directly from guests, build their own guest list, strengthen relationships and bring more guests back with relevant Offers and Campaigns.",

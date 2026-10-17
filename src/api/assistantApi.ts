@@ -60,6 +60,56 @@ type AssistantScopeChangeDto = {
   kinds?: string[] | null
 }
 
+type AssistantAnswerChartPointDto = {
+  label: string
+  value: number
+}
+
+type AssistantAnswerChartDto = {
+  title: string
+  kind: string
+  xLabel?: string | null
+  series?: AssistantAnswerChartPointDto[] | null
+}
+
+type AssistantRecommendedNextStepDto = {
+  text: string
+  primaryAction?: AssistantActionDto | null
+  secondaryAction?: AssistantActionDto | null
+}
+
+type AssistantAnswerMetricDto = {
+  label: string
+  value: string
+}
+
+type AssistantDraftPreviewDto = {
+  kind: string
+  statusLabel?: string | null
+  campaignId?: number | null
+  name?: string | null
+  audienceLabel?: string | null
+  channel?: string | null
+  subject?: string | null
+  messageBody?: string | null
+  timingLabel?: string | null
+  offerId?: number | null
+  title?: string | null
+  conditionsSummary?: string | null
+  validityLabel?: string | null
+  feedbackId?: number | null
+  intent?: string | null
+  purpose?: string | null
+}
+
+type AssistantMessagePresentationDto = {
+  chart?: AssistantAnswerChartDto | null
+  recommendedNextStep?: AssistantRecommendedNextStepDto | null
+  metrics?: AssistantAnswerMetricDto[] | null
+  shortNote?: string | null
+  draftPreview?: AssistantDraftPreviewDto | null
+}
+
 type AssistantMessageDto = {
   id: number
   role: string
@@ -69,6 +119,7 @@ type AssistantMessageDto = {
   analysisScope?: AssistantAnalysisScopeDto | null
   actions?: AssistantActionDto[] | null
   scopeChange?: AssistantScopeChangeDto | null
+  presentation?: AssistantMessagePresentationDto | null
 }
 
 type AssistantConversationDto = {
@@ -207,6 +258,112 @@ function fromScopeChangeDto(
   }
 }
 
+function fromPresentationDto(
+  presentation: AssistantMessagePresentationDto | null | undefined
+): OperatorAiAssistantMessage["presentation"] {
+  if (presentation == null) {
+    return undefined
+  }
+
+  const chart =
+    presentation.chart != null
+    && typeof presentation.chart.title === "string"
+    && presentation.chart.title.trim().length > 0
+    && Array.isArray(presentation.chart.series)
+    && presentation.chart.series.length > 0
+      ? {
+          title: presentation.chart.title,
+          kind: presentation.chart.kind || "bar",
+          xLabel: presentation.chart.xLabel,
+          series: presentation.chart.series.map((point) => ({
+            label: point.label,
+            value: point.value,
+          })),
+        }
+      : null
+
+  const next = presentation.recommendedNextStep
+  const recommendedNextStep =
+    next != null && typeof next.text === "string" && next.text.trim().length > 0
+      ? {
+          text: next.text.trim(),
+          primaryAction: next.primaryAction
+            ? fromActionDto(next.primaryAction)
+            : null,
+          secondaryAction: next.secondaryAction
+            ? fromActionDto(next.secondaryAction)
+            : null,
+        }
+      : null
+
+  const metrics = Array.isArray(presentation.metrics)
+    ? presentation.metrics
+        .filter(
+          (metric) =>
+            typeof metric.label === "string"
+            && metric.label.trim().length > 0
+            && typeof metric.value === "string"
+            && metric.value.trim().length > 0
+        )
+        .map((metric) => ({
+          label: metric.label.trim(),
+          value: metric.value.trim(),
+        }))
+    : []
+
+  const shortNote =
+    typeof presentation.shortNote === "string" && presentation.shortNote.trim().length > 0
+      ? presentation.shortNote.trim()
+      : null
+
+  const rawDraft = presentation.draftPreview
+  const draftPreview =
+    rawDraft != null
+    && typeof rawDraft.kind === "string"
+    && rawDraft.kind.trim().length > 0
+      ? {
+          kind: rawDraft.kind.trim(),
+          statusLabel:
+            typeof rawDraft.statusLabel === "string"
+            && rawDraft.statusLabel.trim().length > 0
+              ? rawDraft.statusLabel.trim()
+              : "Draft · Not sent",
+          campaignId: rawDraft.campaignId ?? null,
+          name: rawDraft.name ?? null,
+          audienceLabel: rawDraft.audienceLabel ?? null,
+          channel: rawDraft.channel ?? null,
+          subject: rawDraft.subject ?? null,
+          messageBody: rawDraft.messageBody ?? null,
+          timingLabel: rawDraft.timingLabel ?? null,
+          offerId: rawDraft.offerId ?? null,
+          title: rawDraft.title ?? null,
+          conditionsSummary: rawDraft.conditionsSummary ?? null,
+          validityLabel: rawDraft.validityLabel ?? null,
+          feedbackId: rawDraft.feedbackId ?? null,
+          intent: rawDraft.intent ?? null,
+          purpose: rawDraft.purpose ?? null,
+        }
+      : null
+
+  if (
+    chart == null
+    && recommendedNextStep == null
+    && metrics.length === 0
+    && shortNote == null
+    && draftPreview == null
+  ) {
+    return undefined
+  }
+
+  return {
+    chart,
+    recommendedNextStep,
+    metrics: metrics.length > 0 ? metrics : null,
+    shortNote,
+    draftPreview,
+  }
+}
+
 function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessage {
   const classValue = message.class
   const answerClass =
@@ -230,6 +387,7 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
     actions: (message.actions ?? [])
       .map(fromActionDto)
       .filter((action): action is OperatorAiAssistantAction => action != null),
+    presentation: fromPresentationDto(message.presentation),
     scopeChange: fromScopeChangeDto(message.scopeChange),
   }
 }

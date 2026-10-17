@@ -27,6 +27,42 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SavedAudience_CreateListAndAttach_UsesStoredScopedRules()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("saved-audience-create");
+            using var request = AuthorizedJson(HttpMethod.Post, "/api/campaign-audiences", seeded.Jwt,
+                new { locationId = seeded.LocationId, name = "Recent ten", definition = new { limit = 10, order = "newest" } });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var key = body.GetProperty("audienceKey").GetString();
+            Assert.StartsWith("audience:", key);
+            using var listRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/campaign-audiences?locationId={seeded.LocationId}");
+            listRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var listResponse = await _client.SendAsync(listRequest);
+            Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+            var list = await ReadJsonAsync(listResponse);
+            Assert.Contains(list.EnumerateArray(), item => item.GetProperty("audienceKey").GetString() == key);
+            using var draftRequest = AuthorizedJson(HttpMethod.Post, "/api/campaigns", seeded.Jwt,
+                new { locationId = seeded.LocationId, audienceKey = key, channel = "email", goalId = "custom-campaign" });
+            var draftResponse = await _client.SendAsync(draftRequest);
+            Assert.Equal(HttpStatusCode.OK, draftResponse.StatusCode);
+            var draft = await ReadJsonAsync(draftResponse);
+            Assert.Equal(key, draft.GetProperty("campaign").GetProperty("audienceKey").GetString());
+        }
+
+        [Fact]
+        public async Task SavedAudience_OtherOwnerCannotListOrCreate()
+        {
+            var first = await SeedOwnerWithLocationAsync("saved-audience-owner");
+            var other = await SeedOwnerWithLocationAsync("saved-audience-intruder");
+            using var request = AuthorizedJson(HttpMethod.Post, "/api/campaign-audiences", other.Jwt,
+                new { locationId = first.LocationId, name = "Not mine", definition = new { limit = 10 } });
+            var response = await _client.SendAsync(request);
+            Assert.True(response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound);
+        }
+
+        [Fact]
         public async Task PostCampaign_CreatesDraft_ForOwnedLocation()
         {
             var seeded = await SeedOwnerWithLocationAsync("campaign-draft-create");

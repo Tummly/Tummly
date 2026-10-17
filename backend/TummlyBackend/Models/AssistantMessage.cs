@@ -54,6 +54,12 @@ namespace TummlyBackend.Models
         /// </summary>
         public string? TurnTraceJson { get; set; }
 
+        /// <summary>
+        /// JSON presentation blocks (chart, recommended next step) for grounded
+        /// live answers. Null when the turn has title/body/actions only.
+        /// </summary>
+        public string? PresentationJson { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

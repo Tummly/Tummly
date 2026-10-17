@@ -1,13 +1,17 @@
 import {
+  approveAdminShopOrderPrintAsset,
   downloadAdminShopOrderPrintAsset,
+  previewAdminShopOrderPrintAsset,
   retryAdminShopOrderPrintAsset,
   type AdminShopOrderListItem,
   type AdminShopPrintAsset,
+  type AdminShopPrintAssetPreview,
 } from "@/api/adminShopOrdersApi"
 
 export type AdminShopOrderPrintAssetRow = AdminShopPrintAsset & {
   canDownload: boolean
   canRetry: boolean
+  canApprove: boolean
 }
 
 export type AdminShopOrderPrintAssetsSnapshot = {
@@ -25,6 +29,14 @@ export type AdminShopOrderPrintAssetsAdapters = {
     orderId: string,
     qrType: AdminShopPrintAsset["qrType"]
   ) => Promise<AdminShopPrintAsset>
+  approve: (
+    orderId: string,
+    qrType: AdminShopPrintAsset["qrType"]
+  ) => Promise<AdminShopPrintAsset>
+  preview?: (
+    orderId: string,
+    qrType: AdminShopPrintAsset["qrType"]
+  ) => Promise<AdminShopPrintAssetPreview>
 }
 
 export type AdminShopOrderPrintAssetsPageModule = {
@@ -33,12 +45,18 @@ export type AdminShopOrderPrintAssetsPageModule = {
   setOrder: (order: AdminShopOrderListItem | null) => void
   download: (qrType: AdminShopPrintAsset["qrType"]) => Promise<boolean>
   retry: (qrType: AdminShopPrintAsset["qrType"]) => Promise<boolean>
+  approve: (qrType: AdminShopPrintAsset["qrType"]) => Promise<boolean>
+  preview: (
+    qrType: AdminShopPrintAsset["qrType"]
+  ) => Promise<AdminShopPrintAssetPreview | null>
 }
 
 export const httpAdminShopOrderPrintAssetsAdapters: AdminShopOrderPrintAssetsAdapters =
   {
     download: downloadAdminShopOrderPrintAsset,
     retry: retryAdminShopOrderPrintAsset,
+    approve: approveAdminShopOrderPrintAsset,
+    preview: previewAdminShopOrderPrintAsset,
   }
 
 const EMPTY_SNAPSHOT: AdminShopOrderPrintAssetsSnapshot = {
@@ -48,11 +66,25 @@ const EMPTY_SNAPSHOT: AdminShopOrderPrintAssetsSnapshot = {
 }
 
 function mapRow(asset: AdminShopPrintAsset): AdminShopOrderPrintAssetRow {
+  const ready = asset.status === "Ready"
+  const approved = asset.approved === true
   return {
     ...asset,
-    canDownload: asset.status === "Ready",
+    canDownload: ready && approved,
     canRetry: asset.status === "Failed",
+    canApprove: ready && !approved,
   }
+}
+
+function defaultDownloadName(
+  orderId: string,
+  qrType: AdminShopPrintAsset["qrType"],
+  fileName: string | null
+): string {
+  if (fileName && fileName.trim().length > 0) {
+    return fileName
+  }
+  return `tummly-${orderId}-${qrType.toLowerCase()}.pdf`
 }
 
 export function createAdminShopOrderPrintAssetsPageModule(
@@ -98,8 +130,7 @@ export function createAdminShopOrderPrintAssetsPageModule(
         const objectUrl = URL.createObjectURL(blob)
         const link = document.createElement("a")
         link.href = objectUrl
-        link.download =
-          row.fileName ?? `tummly-${orderId}-${qrType.toLowerCase()}.pdf`
+        link.download = defaultDownloadName(orderId, qrType, row.fileName)
         link.click()
         URL.revokeObjectURL(objectUrl)
         publish({ ...snapshot, busyQrType: null })
@@ -130,6 +161,39 @@ export function createAdminShopOrderPrintAssetsPageModule(
       } catch {
         publish({ ...snapshot, busyQrType: null })
         return false
+      }
+    },
+    approve: async (qrType) => {
+      const row = snapshot.rows.find((item) => item.qrType === qrType)
+      if (snapshot.orderId == null || !row?.canApprove) {
+        return false
+      }
+
+      const orderId = snapshot.orderId
+      publish({ ...snapshot, busyQrType: qrType })
+      try {
+        const updated = await adapters.approve(orderId, qrType)
+        publish({
+          ...snapshot,
+          busyQrType: null,
+          rows: snapshot.rows.map((item) =>
+            item.qrType === qrType ? mapRow(updated) : item
+          ),
+        })
+        return updated.approved === true
+      } catch {
+        publish({ ...snapshot, busyQrType: null })
+        return false
+      }
+    },
+    preview: async (qrType) => {
+      if (snapshot.orderId == null || adapters.preview == null) {
+        return null
+      }
+      try {
+        return await adapters.preview(snapshot.orderId, qrType)
+      } catch {
+        return null
       }
     },
   }

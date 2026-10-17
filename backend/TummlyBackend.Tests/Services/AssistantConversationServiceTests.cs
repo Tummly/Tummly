@@ -4682,7 +4682,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("grounded", answer.Class);
             Assert.Equal(0, await _context.Campaigns.CountAsync());
             Assert.Empty(answer.Actions);
-            Assert.Contains("cannot be evaluated yet", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Counts are unavailable", answer.Body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("catalogue", answer.Body, StringComparison.OrdinalIgnoreCase);
         }
 

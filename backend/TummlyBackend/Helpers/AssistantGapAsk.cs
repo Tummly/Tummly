@@ -257,10 +257,28 @@ namespace TummlyBackend.Helpers
                     $"Remove the attached Offer? Reply {OfferReplaceConfirmYes} or {OfferReplaceConfirmNo}.",
                 AssistantGapTurn.KindCreateTarget =>
                     AssistantGapTurn.CreateTargetBody(options),
-                AssistantGapTurn.KindFeedback =>
-                    $"{FeedbackAskPrefix} {AssistantCreateLocationGap.Join(options)}?",
+                AssistantGapTurn.KindFeedback => FeedbackAsk(options),
                 _ => ForLocation("Campaign Draft"),
             };
+
+        /// <summary>
+        /// Feedback picker as markdown bullets — no comma wall, no FDB codes.
+        /// </summary>
+        public static string FeedbackAsk(IReadOnlyList<string> options)
+        {
+            if (options.Count == 0)
+            {
+                return FeedbackAskPrefix.TrimEnd(':') + "?";
+            }
+
+            var bullets = string.Join(
+                "\n",
+                options
+                    .Where(option => !string.IsNullOrWhiteSpace(option))
+                    .Select(option => $"- {option.Trim()}")
+            );
+            return $"{FeedbackAskPrefix}\n\n{bullets}";
+        }
 
         public static string ExplainBind(string kind, IReadOnlyList<string> options)
         {
@@ -269,13 +287,20 @@ namespace TummlyBackend.Helpers
                 return "I still need Email or SMS. " + ChannelAsk;
             }
 
-            if (options.Count >= 2)
+            var ask = ForBind(kind, options);
+            if (kind == AssistantGapTurn.KindFeedback)
             {
-                return "I am not sure which of these you mean. "
-                    + ForBind(kind, options);
+                return options.Count >= 2
+                    ? "I am not sure which of these you mean.\n\n" + ask
+                    : "I still need one of these.\n\n" + ask;
             }
 
-            return "I still need one of these. " + ForBind(kind, options);
+            if (options.Count >= 2)
+            {
+                return "I am not sure which of these you mean. " + ask;
+            }
+
+            return "I still need one of these. " + ask;
         }
 
         public static bool LooksLikeConfusedPhrase(string message)

@@ -25,9 +25,10 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Ensure_ThenList_ReturnsReadyAssetsForThreeTypes()
+        public async Task Ensure_ThenList_ReturnsReadyAssetForCounterDisplayStarter()
         {
             var seeded = await SeedOperatorWithDefaultQrCodesAsync();
+            await AttachOfferCardOfferAsync(seeded.LocationId, seeded.RestaurantId);
 
             using var ensure = AuthorizedPost(
                 $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/ensure",
@@ -47,11 +48,9 @@ namespace TummlyBackend.Tests.Integration
             var locations = body.GetProperty("data");
             Assert.Equal(1, locations.GetArrayLength());
             var assets = locations[0].GetProperty("assets");
-            Assert.Equal(3, assets.GetArrayLength());
-            foreach (var asset in assets.EnumerateArray())
-            {
-                Assert.Equal("Ready", asset.GetProperty("status").GetString());
-            }
+            var asset = Assert.Single(assets.EnumerateArray());
+            Assert.Equal("OfferCard", asset.GetProperty("qrType").GetString());
+            Assert.Equal("Ready", asset.GetProperty("status").GetString());
 
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -59,18 +58,17 @@ namespace TummlyBackend.Tests.Integration
                 .AsNoTracking()
                 .Where(row => row.RestaurantLocationId == seeded.LocationId)
                 .ToListAsync();
-            Assert.Equal(3, stored.Count);
-            Assert.All(stored, row =>
-            {
-                Assert.Equal(PrintReadyQrAssetStatus.Ready, row.Status);
-                Assert.False(string.IsNullOrWhiteSpace(row.StorageKey));
-            });
+            var row = Assert.Single(stored);
+            Assert.Equal(QrType.OfferCard, row.QrType);
+            Assert.Equal(PrintReadyQrAssetStatus.Ready, row.Status);
+            Assert.False(string.IsNullOrWhiteSpace(row.StorageKey));
         }
 
         [Fact]
         public async Task ConcurrentEnsure_IsIdempotent()
         {
             var seeded = await SeedOperatorWithDefaultQrCodesAsync();
+            await AttachOfferCardOfferAsync(seeded.LocationId, seeded.RestaurantId);
             var url =
                 $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/ensure";
             using var firstRequest = AuthorizedPost(url, seeded.AdminJwt);
@@ -94,7 +92,7 @@ namespace TummlyBackend.Tests.Integration
                     row.RestaurantLocationId == seeded.LocationId
                 )
                 .ToListAsync();
-            Assert.Equal(3, assets.Count);
+            Assert.Single(assets);
             Assert.All(
                 assets,
                 asset => Assert.Equal(
@@ -105,38 +103,11 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Download_ReturnsPdf_WhenReady_WithDistinctTentAndStickerNames()
+        public async Task Download_ReturnsPdf_WhenCounterDisplayReady()
         {
             var seeded = await SeedOperatorWithDefaultQrCodesAsync();
+            await AttachOfferCardOfferAsync(seeded.LocationId, seeded.RestaurantId);
             await EnsureAsync(seeded);
-
-            using var tentRequest = AuthorizedGet(
-                $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/TableTent/download",
-                seeded.AdminJwt
-            );
-            var tentResponse = await _client.SendAsync(tentRequest);
-            Assert.Equal(HttpStatusCode.OK, tentResponse.StatusCode);
-            Assert.Equal(
-                "application/pdf",
-                tentResponse.Content.Headers.ContentType?.MediaType
-            );
-            var tentBytes = await tentResponse.Content.ReadAsByteArrayAsync();
-            Assert.True(tentBytes.Length > 100);
-            Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(tentBytes[..4]));
-            var tentName = tentResponse.Content.Headers.ContentDisposition?.FileName?.Trim('"');
-            Assert.Contains("table-tent", tentName, StringComparison.OrdinalIgnoreCase);
-
-            using var stickerRequest = AuthorizedGet(
-                $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/WindowSticker/download",
-                seeded.AdminJwt
-            );
-            var stickerResponse = await _client.SendAsync(stickerRequest);
-            Assert.Equal(HttpStatusCode.OK, stickerResponse.StatusCode);
-            var stickerBytes = await stickerResponse.Content.ReadAsByteArrayAsync();
-            var stickerName = stickerResponse.Content.Headers.ContentDisposition?.FileName?.Trim('"');
-            Assert.Contains("window-sticker", stickerName, StringComparison.OrdinalIgnoreCase);
-            Assert.NotEqual(tentName, stickerName);
-            Assert.True(stickerBytes.Length > 100);
 
             using var cardRequest = AuthorizedGet(
                 $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/OfferCard/download",
@@ -144,10 +115,16 @@ namespace TummlyBackend.Tests.Integration
             );
             var cardResponse = await _client.SendAsync(cardRequest);
             Assert.Equal(HttpStatusCode.OK, cardResponse.StatusCode);
+            Assert.Equal(
+                "application/pdf",
+                cardResponse.Content.Headers.ContentType?.MediaType
+            );
             var cardBytes = await cardResponse.Content.ReadAsByteArrayAsync();
             Assert.True(cardBytes.Length > 100);
+            Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(cardBytes[..4]));
+            var cardName = cardResponse.Content.Headers.ContentDisposition?.FileName?.Trim('"');
+            Assert.Contains("offer-card", cardName, StringComparison.OrdinalIgnoreCase);
             var cardText = System.Text.Encoding.ASCII.GetString(cardBytes);
-            Assert.Contains("A thank-you offer for your next visit", cardText);
             Assert.DoesNotContain("10%", cardText);
             Assert.DoesNotContain("20%", cardText);
             Assert.DoesNotContain("50% off", cardText);
@@ -205,6 +182,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task Retry_Failed_BecomesReady_AndDownloadWorks()
         {
             var seeded = await SeedOperatorWithDefaultQrCodesAsync();
+            await AttachOfferCardOfferAsync(seeded.LocationId, seeded.RestaurantId);
             await InsertAssetAsync(
                 seeded.LocationId,
                 QrType.OfferCard,
@@ -234,20 +212,21 @@ namespace TummlyBackend.Tests.Integration
             var seeded = await SeedOperatorWithDefaultQrCodesAsync(
                 billingStatus: BillingStatuses.SoftLock
             );
+            await AttachOfferCardOfferAsync(seeded.LocationId, seeded.RestaurantId);
             await InsertAssetAsync(
                 seeded.LocationId,
-                QrType.TableTent,
+                QrType.OfferCard,
                 PrintReadyQrAssetStatus.Failed
             );
 
             using var retry = AuthorizedPost(
-                $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/TableTent/retry",
+                $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/OfferCard/retry",
                 seeded.AdminJwt
             );
             Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(retry)).StatusCode);
 
             using var download = AuthorizedGet(
-                $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/TableTent/download",
+                $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/OfferCard/download",
                 seeded.AdminJwt
             );
             Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(download)).StatusCode);
@@ -281,6 +260,36 @@ namespace TummlyBackend.Tests.Integration
                 .AsNoTracking()
                 .Where(row => row.RestaurantLocationId == locationId)
                 .ToDictionaryAsync(row => row.QrType, row => row.Token);
+        }
+
+        private async Task AttachOfferCardOfferAsync(
+            int locationId,
+            int restaurantId
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = locationId,
+                Status = "active",
+                OfferType = CatalogOfferType.PercentageDiscount,
+                Title = "Print thank-you offer",
+                Description = "Printed on Counter Display",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountPercentage = 10m,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
+
+            var location = await context.RestaurantLocations.SingleAsync(row =>
+                row.Id == locationId
+            );
+            location.OfferCardCatalogOfferId = offer.Id;
+            await context.SaveChangesAsync();
         }
 
         private async Task InsertAssetAsync(
@@ -375,23 +384,7 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
 
-            context.QrCodes.AddRange(
-                new QrCode
-                {
-                    RestaurantLocationId = location.Id,
-                    QrType = QrType.TableTent,
-                    Token = $"tent{Guid.NewGuid():N}"[..32],
-                    Status = QrCodeStatus.Active,
-                    CreatedAt = DateTime.UtcNow,
-                },
-                new QrCode
-                {
-                    RestaurantLocationId = location.Id,
-                    QrType = QrType.WindowSticker,
-                    Token = $"sticker{Guid.NewGuid():N}"[..32],
-                    Status = QrCodeStatus.Active,
-                    CreatedAt = DateTime.UtcNow,
-                },
+            context.QrCodes.Add(
                 new QrCode
                 {
                     RestaurantLocationId = location.Id,

@@ -39,7 +39,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task EnsureForLocationAsync_CreatesPaidZeroOrderWithThreeLines()
+        public async Task EnsureForLocationAsync_CreatesPaidZeroOrderWithCounterDisplayLine()
         {
             var result = await _service.EnsureForLocationAsync(
                 _restaurantId,
@@ -59,12 +59,21 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, order.GrossPence);
             Assert.Equal(0, order.MaterialsNetPence);
             Assert.Equal(0, order.VatPence);
+            Assert.Equal(0, order.DeliveryNetPence);
             Assert.Null(order.RevolutOrderId);
             Assert.Equal("ORD-1", order.OrderNumber);
-            Assert.Equal(3, order.Lines.Count);
-            Assert.Contains(order.Lines, line => line.MaterialType == "table-tent");
-            Assert.Contains(order.Lines, line => line.MaterialType == "window-sticker");
-            Assert.Contains(order.Lines, line => line.MaterialType == "offer-card");
+            var line = Assert.Single(order.Lines);
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                line.CatalogSkuId
+            );
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplayRecipeSlug,
+                line.MaterialType
+            );
+            Assert.Equal(1, line.Quantity);
+            Assert.Equal(0, line.UnitNetPence);
+            Assert.Equal(0, line.LineNetPence);
 
             var billing = await _context.BillingAccounts.SingleAsync();
             Assert.Equal(
@@ -76,27 +85,30 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task EnsureForLocationAsync_UsesReplacedPublishedSkuOnRecipe()
         {
-            var offer = await _context.ShopMaterialSkus
+            var counter = await _context.ShopMaterialSkus
                 .Include(row => row.PlacementRecipe)
-                .SingleAsync(row => row.SkuId == "offer-card");
-            offer.Status = ShopMaterialSkuStatuses.Deleted;
+                .SingleAsync(row =>
+                    row.SkuId == ShopMaterialsCatalogSeed.CounterDisplaySkuId
+                );
+            counter.Status = ShopMaterialSkuStatuses.Deleted;
             await _context.SaveChangesAsync();
 
             _context.ShopMaterialSkus.Add(
                 new ShopMaterialSku
                 {
-                    SkuId = "offer-card-v2",
-                    Title = "Offer Card V2",
+                    SkuId = "qr-counter-display-v2",
+                    Title = "QR Counter Display V2",
                     Category = "payment",
                     Description = "Replacement",
                     Material = "Card",
-                    Dimensions = "85mm",
-                    PlacementRecipeId = offer.PlacementRecipeId,
+                    Dimensions = "A5",
+                    PlacementRecipeId = counter.PlacementRecipeId,
                     QrType = "OfferCard",
-                    UnitNetPence = 1800,
+                    UnitNetPence = 999,
                     MinOrderQty = 1,
                     Currency = "GBP",
                     Status = ShopMaterialSkuStatuses.Published,
+                    AvailableInShop = true,
                     AboutBody = "",
                     SpecificationsJson = "[]",
                     PublishedAtUtc = DateTime.UtcNow,
@@ -119,11 +131,13 @@ namespace TummlyBackend.Tests.Services
                 .SingleAsync(row => row.Id == result.ShopOrderId);
             Assert.Contains(
                 order.Lines,
-                line => line.CatalogSkuId == "offer-card-v2"
+                line => line.CatalogSkuId == "qr-counter-display-v2"
             );
             Assert.DoesNotContain(
                 order.Lines,
-                line => line.CatalogSkuId == "offer-card"
+                line =>
+                    line.CatalogSkuId
+                    == ShopMaterialsCatalogSeed.CounterDisplaySkuId
             );
         }
 
@@ -217,6 +231,142 @@ namespace TummlyBackend.Tests.Services
             Assert.False(second.Created);
             Assert.Equal(first.ShopOrderId, second.ShopOrderId);
             Assert.Equal(1, await _context.ShopOrders.CountAsync());
+        }
+
+        [Fact]
+        public async Task EnsureAllActiveLocationsAsync_DoesNotDuplicateExistingComplimentary()
+        {
+            var first = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+            Assert.True(first.Created);
+
+            // Paid conversion / Pilot mint re-runs Ensure for all Active locations.
+            var shopOrderIds = await _service.EnsureAllActiveLocationsAsync(
+                _restaurantId,
+                _userId,
+                "Alex Owner"
+            );
+
+            Assert.Equal([first.ShopOrderId], shopOrderIds);
+            Assert.Equal(
+                1,
+                await _context.ShopOrders.CountAsync(row => row.IsComplimentary)
+            );
+            var order = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .SingleAsync(row => row.IsComplimentary);
+            Assert.Equal(first.ShopOrderId, order.Id);
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                Assert.Single(order.Lines).CatalogSkuId
+            );
+        }
+
+        [Fact]
+        public async Task EnsureForLocationAsync_PaidShopOrderDoesNotAddAnotherComplimentary()
+        {
+            var complimentary = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+            Assert.True(complimentary.Created);
+
+            // Additional / replacement units use the paid Shop flow (not complimentary).
+            _context.ShopOrders.Add(
+                new ShopOrder
+                {
+                    Id = Guid.NewGuid(),
+                    OrderNumber = "ORD-2",
+                    RestaurantId = _restaurantId,
+                    LocationId = _locationId,
+                    LocationNameSnapshot = "Main",
+                    PlacedByUserId = _userId,
+                    PlacedByNameSnapshot = "Alex Owner",
+                    MaterialsNetPence = 1800,
+                    VatPence = 360,
+                    DeliveryNetPence = 0,
+                    GrossPence = 2160,
+                    DeliveryMethod = ShopDeliveryMethods.Standard,
+                    PaymentStatus = ShopPaymentStatuses.Paid,
+                    PaidAtUtc = DateTime.UtcNow,
+                    FulfilmentStatus = ShopFulfilmentStatuses.Processing,
+                    ProcessingStartedAtUtc = DateTime.UtcNow,
+                    ShipToContactName = "Alex Owner",
+                    ShipToAddressLine1 = "1 High Street",
+                    ShipToPostcode = "LS1 1AA",
+                    ShipToCountry = "United Kingdom",
+                    IsComplimentary = false,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UpdatedAtUtc = DateTime.UtcNow,
+                    Lines =
+                    {
+                        new ShopOrderLine
+                        {
+                            Id = Guid.NewGuid(),
+                            CatalogSkuId =
+                                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                            TitleSnapshot = "QR Counter Display",
+                            MaterialType =
+                                ShopMaterialsCatalogSeed.CounterDisplayRecipeSlug,
+                            Quantity = 1,
+                            UnitNetPence = 1800,
+                            LineNetPence = 1800,
+                        },
+                    },
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var again = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+
+            Assert.False(again.Created);
+            Assert.Equal(complimentary.ShopOrderId, again.ShopOrderId);
+            Assert.Equal(2, await _context.ShopOrders.CountAsync());
+            Assert.Equal(
+                1,
+                await _context.ShopOrders.CountAsync(row => row.IsComplimentary)
+            );
+        }
+
+        [Fact]
+        public async Task EnsureForLocationAsync_OmitsPublishedSkusOutsideStarterSet()
+        {
+            var result = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+
+            Assert.True(result.Created);
+            var order = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .SingleAsync(row => row.Id == result.ShopOrderId);
+            var line = Assert.Single(order.Lines);
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                line.CatalogSkuId
+            );
+            Assert.DoesNotContain(
+                order.Lines,
+                row =>
+                    row.CatalogSkuId
+                        is "table-tents"
+                            or "table-talker"
+                            or "window-stickers"
+                            or "qr-guest-cards"
+            );
         }
 
         public void Dispose()

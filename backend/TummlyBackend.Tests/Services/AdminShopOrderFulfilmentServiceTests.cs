@@ -706,6 +706,20 @@ namespace TummlyBackend.Tests.Services
                 QrType qrType,
                 CancellationToken cancellationToken = default
             ) => Task.FromResult<ShopPrintAssetReadinessDto?>(null);
+
+            public Task<ShopPrintAssetPreviewDto?> GetShopOrderPreviewAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult<ShopPrintAssetPreviewDto?>(null);
+
+            public Task<ShopPrintAssetReadinessDto?> ApproveShopOrderAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                int actorAdminUserId,
+                string actorIdentity,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult<ShopPrintAssetReadinessDto?>(null);
         }
 
         private sealed class EmptyCatalog : IMaterialsCatalog

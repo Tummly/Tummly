@@ -35,6 +35,14 @@ namespace TummlyBackend.Interfaces
             CancellationToken cancellationToken = default
         );
 
+        Task<(AdminShopCatalogSkuDto? Sku, string? Error)> SetAvailableInShopAsync(
+            string skuId,
+            bool availableInShop,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        );
+
         Task<(AdminShopCatalogSkuDto? Sku, string? Error)> UnpublishAsync(
             string skuId,
             CancellationToken cancellationToken = default

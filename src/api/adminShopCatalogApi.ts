@@ -19,6 +19,11 @@ export type AdminShopCatalogSpecification = {
   value: string
 }
 
+export type AdminShopCatalogPack = {
+  qty: number
+  netPence: number
+}
+
 export type AdminPlacementRecipe = {
   id: number
   slug: string
@@ -43,9 +48,14 @@ export type AdminShopCatalogSku = {
   printRoute: string
   unitNetPence: number
   minOrderQty: number
+  packs: AdminShopCatalogPack[]
+  deliveryNetPence: number
+  supplierName?: string | null
+  internalCostNetPence?: number | null
   currency: string
   mintOnShopFulfilment: boolean
   status: AdminShopCatalogStatus
+  availableInShop: boolean
   aboutBody: string
   specifications: AdminShopCatalogSpecification[]
   tags: AdminShopCatalogTag[]
@@ -64,6 +74,10 @@ export type AdminShopCatalogSkuWrite = {
   placementRecipeId?: number
   unitNetPence?: number
   minOrderQty?: number
+  packs?: AdminShopCatalogPack[]
+  deliveryNetPence?: number
+  supplierName?: string | null
+  internalCostNetPence?: number | null
   currency?: string
   mintOnShopFulfilment?: boolean
   aboutBody?: string
@@ -135,6 +149,17 @@ export async function unpublishAdminShopCatalogSku(
 ): Promise<AdminShopCatalogSku> {
   const response = await axiosInstance.post<ItemResponse>(
     `/admin/shop-catalog/skus/${encodeURIComponent(skuId)}/unpublish`
+  )
+  return response.data.item
+}
+
+export async function setAdminShopCatalogAvailableInShop(
+  skuId: string,
+  availableInShop: boolean
+): Promise<AdminShopCatalogSku> {
+  const response = await axiosInstance.post<ItemResponse>(
+    `/admin/shop-catalog/skus/${encodeURIComponent(skuId)}/available-in-shop`,
+    { availableInShop }
   )
   return response.data.item
 }

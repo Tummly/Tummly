@@ -749,6 +749,8 @@ namespace TummlyBackend.Services
                     Status = row.Status,
                     FileName = row.FileName,
                     LastError = row.LastError,
+                    Approved = row.Approved,
+                    PrintRoute = row.PrintRoute,
                 })
                 .ToList();
             return item;

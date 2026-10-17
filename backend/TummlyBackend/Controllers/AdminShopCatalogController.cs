@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Admin;
@@ -103,6 +104,57 @@ namespace TummlyBackend.Controllers
         )
         {
             var (sku, error) = await _catalog.PublishAsync(skuId, cancellationToken);
+            if (error != null)
+            {
+                if (error.Contains("not found", StringComparison.OrdinalIgnoreCase))
+                {
+                    return NotFound(new { success = false, message = error });
+                }
+
+                return BadRequest(new { success = false, message = error });
+            }
+
+            return Ok(new { success = true, item = sku });
+        }
+
+        [HttpPost("skus/{skuId}/available-in-shop")]
+        public async Task<IActionResult> SetAvailableInShop(
+            string skuId,
+            [FromBody] AdminShopCatalogSetAvailableRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(
+                    new { success = false, message = "Invalid token." }
+                );
+            }
+
+            var adminIdentity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+
+            if (string.IsNullOrWhiteSpace(adminIdentity))
+            {
+                return BadRequest(
+                    new
+                    {
+                        success = false,
+                        message =
+                            "Admin identity could not be resolved from the current session.",
+                    }
+                );
+            }
+
+            var (sku, error) = await _catalog.SetAvailableInShopAsync(
+                skuId,
+                request.AvailableInShop,
+                staffId.Value,
+                adminIdentity,
+                cancellationToken
+            );
             if (error != null)
             {
                 if (error.Contains("not found", StringComparison.OrdinalIgnoreCase))
@@ -273,6 +325,22 @@ namespace TummlyBackend.Controllers
             }
 
             return Ok(new { success = true });
+        }
+
+        private int? GetStaffId()
+        {
+            var staffIdClaim =
+                User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (
+                string.IsNullOrEmpty(staffIdClaim)
+                || !int.TryParse(staffIdClaim, out var staffId)
+            )
+            {
+                return null;
+            }
+
+            return staffId;
         }
     }
 }

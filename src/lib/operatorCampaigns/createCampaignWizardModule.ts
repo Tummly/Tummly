@@ -941,7 +941,17 @@ function buildAudienceViewModel(
   }
 
   const options: CampaignAudienceOptionViewModel[] =
-    CAMPAIGN_AUDIENCE_OPTIONS.map((option) => {
+    [
+      ...CAMPAIGN_AUDIENCE_OPTIONS,
+      ...(state.audienceId.startsWith("audience:") ? [{
+        id: state.audienceId as `audience:${string}`,
+        title: "Saved or custom audience",
+        description: "The stored guest selection, exclusions, and filters apply.",
+        recommended: false,
+        unevaluable: false,
+        liveSmartGroupId: null,
+      }] : []),
+    ].map((option) => {
       const counts = resolveAudienceCardCounts({
         option,
         liveCounts: state.liveCounts,
@@ -1340,7 +1350,7 @@ function buildScheduleViewModel(
 function audienceTitleForId(audienceId: CampaignAudienceId): string {
   return (
     CAMPAIGN_AUDIENCE_OPTIONS.find((option) => option.id === audienceId)
-      ?.title ?? CAMPAIGN_REVIEW_COPY.emptyValue
+      ?.title ?? (audienceId.startsWith("audience:") ? "Saved or custom audience" : CAMPAIGN_REVIEW_COPY.emptyValue)
   )
 }
 
@@ -2445,6 +2455,7 @@ export function createCampaignWizardModule(
 
     try {
       const evaluableIds = evaluableCampaignAudienceIds()
+      if (state.audienceId.startsWith("audience:")) evaluableIds.push(state.audienceId as `audience:${string}`)
       const smartGroupPromise =
         loadSmartGroupCounts != null
           ? loadSmartGroupCounts({ locationId })
