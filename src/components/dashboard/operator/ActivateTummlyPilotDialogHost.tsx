@@ -19,6 +19,10 @@ import {
 import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import { preloadImage } from "@/lib/operatorHome/preloadImage"
+import {
+  DEMO_TOUR_CHANGE_EVENT,
+  isDemoTourActive,
+} from "@/lib/productDemo/demoTourSession"
 
 type ActivateTummlyPilotDialogHostProps = {
   mode: OperatorDashboardMode
@@ -48,6 +52,17 @@ export function ActivateTummlyPilotDialogHost({
   const activateDialogNonce = useDashboardUiStore(
     (state) => state.activateDialogNonce
   )
+  const [demoTourActive, setDemoTourActive] = useState(() => isDemoTourActive())
+
+  useEffect(() => {
+    const sync = () => setDemoTourActive(isDemoTourActive())
+    window.addEventListener(DEMO_TOUR_CHANGE_EVENT, sync)
+    window.addEventListener("storage", sync)
+    return () => {
+      window.removeEventListener(DEMO_TOUR_CHANGE_EVENT, sync)
+      window.removeEventListener("storage", sync)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -72,16 +87,29 @@ export function ActivateTummlyPilotDialogHost({
       setOpen(false)
       return
     }
+    if (demoTourActive || isDemoTourActive()) {
+      setOpen(false)
+      return
+    }
     const eligible = shouldOpenActivateTummlyPilotDialog({
       status,
       subscriptionPlan,
       isDismissed: readActivateTummlyPilotDialogDismissed(),
     })
     setOpen(eligible)
-  }, [heroReady, status, subscriptionPlan, pendingPaymentCheckoutUrl])
+  }, [
+    heroReady,
+    status,
+    subscriptionPlan,
+    pendingPaymentCheckoutUrl,
+    demoTourActive,
+  ])
 
   useEffect(() => {
     if (activateDialogNonce === 0) {
+      return
+    }
+    if (demoTourActive || isDemoTourActive()) {
       return
     }
     if (
@@ -94,7 +122,12 @@ export function ActivateTummlyPilotDialogHost({
       return
     }
     setOpen(true)
-  }, [activateDialogNonce, subscriptionPlan, pendingPaymentCheckoutUrl])
+  }, [
+    activateDialogNonce,
+    subscriptionPlan,
+    pendingPaymentCheckoutUrl,
+    demoTourActive,
+  ])
 
   const dismiss = () => {
     markActivateTummlyPilotDialogDismissed()
@@ -135,6 +168,10 @@ export function ActivateTummlyPilotDialogHost({
     } finally {
       setConfirmBusy(false)
     }
+  }
+
+  if (demoTourActive || isDemoTourActive()) {
+    return null
   }
 
   return (

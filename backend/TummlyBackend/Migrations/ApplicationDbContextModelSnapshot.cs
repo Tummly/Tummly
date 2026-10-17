@@ -988,6 +988,69 @@ namespace TummlyBackend.Migrations
                     b.ToTable("DataMigrationMarkers");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.DemoSessionOverlay", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EntityKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("SessionId", "EntityType", "EntityKey")
+                        .IsUnique();
+
+                    b.ToTable("DemoSessionOverlays");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.DemoSessionRegistry", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("OwnerUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("SessionId");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.ToTable("DemoSessionRegistries");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.ExternalAuthTicket", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2953,6 +3016,32 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("RestaurantLocationId", "Status", "ArchivedAt");
 
                     b.ToTable("QrCodes");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.QrFormOpenEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("QrCodeId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QrCodeId");
+
+                    b.HasIndex("RestaurantLocationId", "CreatedAt");
+
+                    b.ToTable("QrFormOpenEvents");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.QrScanEvent", b =>
@@ -5730,6 +5819,24 @@ namespace TummlyBackend.Migrations
                         .HasForeignKey("RestaurantLocationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("RestaurantLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.QrFormOpenEvent", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.QrCode", "QrCode")
+                        .WithMany()
+                        .HasForeignKey("QrCodeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
+                        .WithMany()
+                        .HasForeignKey("RestaurantLocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("QrCode");
 
                     b.Navigation("RestaurantLocation");
                 });

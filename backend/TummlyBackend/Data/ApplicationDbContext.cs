@@ -164,6 +164,12 @@ namespace TummlyBackend.Data
 
         public DbSet<QrScanEvent> QrScanEvents { get; set; }
 
+        public DbSet<QrFormOpenEvent> QrFormOpenEvents { get; set; }
+
+        public DbSet<DemoSessionOverlay> DemoSessionOverlays { get; set; }
+
+        public DbSet<DemoSessionRegistry> DemoSessionRegistries { get; set; }
+
         public DbSet<LocationGuestNote> LocationGuestNotes { get; set; }
 
         public DbSet<FeedbackInternalNote> FeedbackInternalNotes { get; set; }
@@ -1526,6 +1532,32 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<QrScanEvent>()
                 .HasIndex(e => new { e.RestaurantLocationId, e.CreatedAt });
+
+            modelBuilder.Entity<QrFormOpenEvent>()
+                .HasOne(e => e.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(e => e.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<QrFormOpenEvent>()
+                .HasOne(e => e.QrCode)
+                .WithMany()
+                .HasForeignKey(e => e.QrCodeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<QrFormOpenEvent>()
+                .HasIndex(e => new { e.RestaurantLocationId, e.CreatedAt });
+
+            modelBuilder.Entity<DemoSessionOverlay>()
+                .HasIndex(e => new { e.SessionId, e.EntityType, e.EntityKey })
+                .IsUnique();
+
+            modelBuilder.Entity<DemoSessionOverlay>()
+                .HasIndex(e => e.ExpiresAtUtc);
+
+            modelBuilder.Entity<DemoSessionRegistry>()
+                .HasIndex(e => e.ExpiresAtUtc);
 
             /*
              =========================================

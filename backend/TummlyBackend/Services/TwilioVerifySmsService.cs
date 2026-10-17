@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Twilio;
 using Twilio.Exceptions;
@@ -12,18 +13,36 @@ namespace TummlyBackend.Services
     {
         private readonly TwilioSettings _settings;
         private readonly ILogger<TwilioVerifySmsService> _logger;
+        private readonly DemoSideEffectGuard _demoSideEffects;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
         public TwilioVerifySmsService(
             IOptions<TwilioSettings> settings,
-            ILogger<TwilioVerifySmsService> logger
+            ILogger<TwilioVerifySmsService> logger,
+            DemoSideEffectGuard demoSideEffects,
+            IHttpContextAccessor httpContextAccessor
         )
         {
             _settings = settings.Value;
             _logger = logger;
+            _demoSideEffects = demoSideEffects;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task SendOtpSmsAsync(string phoneNumber)
         {
+            if (
+                DemoSessionClaims.IsDemoSession(_httpContextAccessor.HttpContext?.User)
+                || _demoSideEffects.ShouldSuppressDestination(phoneNumber)
+            )
+            {
+                _logger.LogInformation(
+                    "Demo side-effect suppression: skipped Twilio Verify OTP to {Phone}",
+                    MaskForLogs(phoneNumber)
+                );
+                return;
+            }
+
             EnsureConfigured();
 
             var e164 = ToE164(phoneNumber);

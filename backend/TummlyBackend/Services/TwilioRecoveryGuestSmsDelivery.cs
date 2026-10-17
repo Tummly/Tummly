@@ -12,14 +12,17 @@ namespace TummlyBackend.Services
     {
         private readonly TwilioSettings _settings;
         private readonly ILogger<TwilioRecoveryGuestSmsDelivery> _logger;
+        private readonly DemoSideEffectGuard _demoSideEffects;
 
         public TwilioRecoveryGuestSmsDelivery(
             IOptions<TwilioSettings> settings,
-            ILogger<TwilioRecoveryGuestSmsDelivery> logger
+            ILogger<TwilioRecoveryGuestSmsDelivery> logger,
+            DemoSideEffectGuard demoSideEffects
         )
         {
             _settings = settings.Value;
             _logger = logger;
+            _demoSideEffects = demoSideEffects;
         }
 
         public async Task<RecoveryGuestSmsDeliveryResult> SendAsync(
@@ -28,6 +31,18 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            if (_demoSideEffects.ShouldSuppressDestination(phoneNumber))
+            {
+                _logger.LogInformation(
+                    "Demo side-effect suppression: skipped Recovery SMS to {Phone}",
+                    MaskForLogs(phoneNumber)
+                );
+                return new RecoveryGuestSmsDeliveryResult.Accepted
+                {
+                    AcceptedSegments = 1,
+                };
+            }
+
             if (!_settings.IsRecoverySmsConfigured)
             {
                 return new RecoveryGuestSmsDeliveryResult.Failed

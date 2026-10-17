@@ -19,6 +19,7 @@ import {
   type OperatorNotificationsSnapshot,
   type OperatorNotificationsTab,
 } from "@/lib/operatorNotifications/createOperatorNotificationsModule"
+import { isDemoTourActive } from "@/lib/productDemo/demoTourSession"
 
 export type OperatorNotificationsApi = {
   snapshot: OperatorNotificationsSnapshot
@@ -67,6 +68,8 @@ export function useNotificationsModule(): OperatorNotificationsApi {
       connectRealtime: connectNotificationsHub,
       ensureSeeds: ensureNotificationSeeds,
       showToast: (notification) => {
+        // Product demo: keep inbox data, suppress toast popups over the tour.
+        if (isDemoTourActive()) return
         toast(notification.title, {
           description: notification.body,
         })

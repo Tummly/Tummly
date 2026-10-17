@@ -174,7 +174,10 @@ export function GuestProfileOverviewPanel({
         />
       </section>
 
-      <section className={GUESTS_SECTION_CLASS}>
+      <section
+        className={GUESTS_SECTION_CLASS}
+        data-demo-tour="guest-permissions"
+      >
         <div className={GUESTS_SECTION_HEADER_ROW_CLASS}>
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>
             {GUEST_PROFILE_PERMISSION_COPY.sectionTitle}

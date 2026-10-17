@@ -78,5 +78,17 @@ namespace TummlyBackend.Interfaces
             bool rememberDevice,
             string? deviceToken
         );
+
+        /*
+         =========================================
+         PUBLIC PRODUCT DEMO
+         =========================================
+         */
+        Task<object> CreateDemoSessionAsync();
+
+        /// <summary>
+        /// Anonymous guest-form entry for the public product demo (scan path).
+        /// </summary>
+        Task<object> GetDemoGuestEntryAsync();
     }
 }

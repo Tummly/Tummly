@@ -137,7 +137,17 @@ namespace TummlyBackend.Tests.Services
                 new StubWebHostEnvironment
                 {
                     ContentRootPath = ".",
-                }
+                },
+                new TummlyBackend.Helpers.DemoSideEffectGuard(
+                    Microsoft.Extensions.Options.Options.Create(
+                        new TummlyBackend.Configurations.DemoSessionOptions
+                        {
+                            Enabled = false,
+                            SuppressSideEffects = false,
+                        }
+                    )
+                ),
+                new Microsoft.AspNetCore.Http.HttpContextAccessor()
             );
         }
 

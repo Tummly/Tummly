@@ -393,6 +393,11 @@ export function GuestsSmartGroupsSection({
                     <TableRow
                       key={row.id}
                       className={GUESTS_TABLE_BODY_ROW_CLASS}
+                      data-demo-tour={
+                        row.name === "Priya Shah" || row.name === "Maya Collins"
+                          ? "guest-high-engagement"
+                          : undefined
+                      }
                     >
                       <TableCell className={GUESTS_TABLE_CHECKBOX_CELL_CLASS}>
                         <div className={GUESTS_TABLE_CHECKBOX_CELL_INNER_CLASS}>

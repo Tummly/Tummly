@@ -40,8 +40,8 @@ export const MARKETING_FAQS_PATH = "/faqs"
 export const MARKETING_TRUST_PRIVACY_PATH = "/trust-privacy"
 export const MARKETING_AI_ASSISTANT_PATH = "/ai-assistant"
 
-/** Demo product page — page ships later. */
-export const MARKETING_DEMO_PATH = "/demo-product"
+/** Public product walkthrough — fixture UI + Figma tour chrome. */
+export const MARKETING_DEMO_PATH = "/product-demo"
 
 export const MARKETING_DEMO_HREF: MarketingNavHref = {
   kind: "route",

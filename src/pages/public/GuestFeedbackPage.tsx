@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
-import { useParams } from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 
+import { createDemoSession } from "@/api/demoSessionApi"
 import {
   fetchScanLocationMetadata,
   getScanApiErrorMessage,
@@ -16,20 +17,40 @@ import { GuestFeedbackNotFound } from "@/components/guest-feedback/GuestFeedback
 import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShell"
 import { GuestFeedbackSuccess } from "@/components/guest-feedback/GuestFeedbackSuccess"
 import { GuestFeedbackUnlockOffer } from "@/components/guest-feedback/GuestFeedbackUnlockOffer"
+import { DemoGuestThankYou } from "@/components/marketing/demo/DemoGuestThankYou"
+import { PRODUCT_DEMO } from "@/content/marketing/productDemoPage"
 import { executeGuestFeedbackRecaptcha } from "@/lib/guestFeedback/executeGuestFeedbackRecaptcha"
 import { guestFeedbackMajorStateTransition } from "@/lib/guestFeedback/guestFeedbackMotionTokens"
+import {
+  startDemoTourSession,
+  writeGuestSubmission,
+} from "@/lib/productDemo/demoTourSession"
+import { productDemoPath } from "@/lib/productDemo/productDemoPaths"
 import {
   toIssuedGuestOfferCoupon,
   type GuestPreviewOfferCouponView,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
+import {
+  completeUserSession,
+  persistSelectedLocation,
+} from "@/pages/utils/authHelpers"
 import type { GuestFeedbackFormValues } from "@/schemas/guestFeedback"
 
-type PagePhase = "loading" | "ready" | "not-found" | "unlock" | "success"
+type PagePhase =
+  | "loading"
+  | "ready"
+  | "not-found"
+  | "unlock"
+  | "success"
+  | "demo-thanks"
 
 const fadeTransition = guestFeedbackMajorStateTransition
 
 export default function GuestFeedbackPage() {
   const { token = "" } = useParams()
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const isProductDemo = searchParams.get("productDemo") === "1"
   const shouldReduceMotion = useReducedMotion()
   const [phase, setPhase] = useState<PagePhase>("loading")
   const [metadata, setMetadata] = useState<ScanLocationMetadata | null>(null)
@@ -43,6 +64,9 @@ export default function GuestFeedbackPage() {
   )
   const [isUnlocking, setIsUnlocking] = useState(false)
   const [unlockError, setUnlockError] = useState<string | null>(null)
+  const [demoTransitionError, setDemoTransitionError] = useState<string | null>(
+    null
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -89,12 +113,43 @@ export default function GuestFeedbackPage() {
     }
   }, [token])
 
+  const enterRestaurantFromGuest = useCallback(async () => {
+    setDemoTransitionError(null)
+    try {
+      const session = await createDemoSession()
+      completeUserSession(session)
+      if (session.selectedLocationId != null) {
+        persistSelectedLocation(session.selectedLocationId)
+      }
+      startDemoTourSession({
+        entryPath: "guest",
+        hasGuestSubmission: true,
+        phase: "welcome",
+      })
+      navigate(productDemoPath("feedback"), { replace: true })
+    } catch {
+      setDemoTransitionError(
+        "Unable to open the restaurant demo. Try again or start a Pilot."
+      )
+    }
+  }, [navigate])
+
   const handleSubmit = useCallback(
     async (values: GuestFeedbackFormValues) => {
       setIsSubmitting(true)
       setSubmitError(null)
 
       try {
+        if (isProductDemo) {
+          // Session-bound only — do not write visitor Feedback into the shared seed.
+          writeGuestSubmission({
+            commentPreview: values.comment.trim().slice(0, 160),
+            submittedAt: new Date().toISOString(),
+          })
+          setPhase("demo-thanks")
+          return
+        }
+
         const recaptchaToken = await executeGuestFeedbackRecaptcha()
         const result = await submitGuestFeedback(token, values, {
           recaptchaToken,
@@ -128,7 +183,7 @@ export default function GuestFeedbackPage() {
         setIsSubmitting(false)
       }
     },
-    [token]
+    [token, isProductDemo]
   )
 
   const handleRetry = useCallback(() => {
@@ -222,6 +277,11 @@ export default function GuestFeedbackPage() {
             transition={shouldReduceMotion ? { duration: 0 } : fadeTransition}
             className="w-full"
           >
+            {isProductDemo ? (
+              <p className="font-sans mb-4 text-center text-xs font-medium tracking-[0.06em] text-[#7c7c7c] uppercase">
+                Sample demo · No messages are sent
+              </p>
+            ) : null}
             <GuestFeedbackForm
               token={token}
               locationName={metadata.locationName}
@@ -234,6 +294,36 @@ export default function GuestFeedbackPage() {
               onSubmit={handleSubmit}
               onRetry={handleRetry}
             />
+          </motion.div>
+        ) : null}
+
+        {phase === "demo-thanks" && metadata ? (
+          <motion.div
+            key="demo-thanks"
+            initial={shouldReduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={shouldReduceMotion ? undefined : { opacity: 0 }}
+            transition={shouldReduceMotion ? { duration: 0 } : fadeTransition}
+            className="w-full"
+          >
+            <DemoGuestThankYou
+              restaurantName={metadata.restaurantName}
+              locationName={metadata.locationName}
+              onSeeInTummly={() => {
+                void enterRestaurantFromGuest()
+              }}
+              onStartPilot={() => {
+                window.location.assign(PRODUCT_DEMO.exit.primaryTo)
+              }}
+            />
+            {demoTransitionError ? (
+              <p
+                role="alert"
+                className="font-sans mt-3 text-center text-sm text-[#b42318]"
+              >
+                {demoTransitionError}
+              </p>
+            ) : null}
           </motion.div>
         ) : null}
 

@@ -609,6 +609,90 @@ namespace TummlyBackend.Controllers
             });
         }
 
+        /*
+         =========================================
+         PUBLIC PRODUCT DEMO SESSION
+         =========================================
+        */
+
+        [AllowAnonymous]
+        [HttpGet("demo-guest-entry")]
+        public async Task<IActionResult> GetDemoGuestEntry()
+        {
+            try
+            {
+                var result = await _authService.GetDemoGuestEntryAsync();
+                return Ok(
+                    new
+                    {
+                        success = true,
+                        message = "Demo guest entry ready.",
+                        data = result,
+                    }
+                );
+            }
+            catch (DemoSessionDisabledException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new { success = false, message = ex.Message }
+                );
+            }
+            catch (DemoSessionUnavailableException ex)
+            {
+                return NotFound(new { success = false, message = ex.Message });
+            }
+        }
+
+        [AllowAnonymous]
+        [HttpPost("demo-session")]
+        public async Task<IActionResult> CreateDemoSession()
+        {
+            try
+            {
+                var result =
+                    await _authService.CreateDemoSessionAsync();
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Demo session started.",
+                    data = result
+                });
+            }
+            catch (DemoSessionDisabledException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message
+                    }
+                );
+            }
+            catch (DemoSessionUnavailableException ex)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+            catch (ActivationExpiredException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        activationExpired = true,
+                        message = ex.Message
+                    }
+                );
+            }
+        }
+
         [Authorize]
         [HttpGet("workspaces")]
         public async Task<IActionResult> ListWorkspaces()

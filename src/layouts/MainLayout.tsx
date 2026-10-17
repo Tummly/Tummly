@@ -10,12 +10,14 @@ import {
   isOperatorDashboardPath,
   isStaffDashboardPath,
 } from "@/lib/operatorAppearance"
+import { isProductDemoPath } from "@/lib/productDemo/productDemoPaths"
 import { cn } from "@/lib/utils"
 
 function MainLayout() {
   const { pathname } = useLocation()
   const isOperatorDashboard = isOperatorDashboardPath(pathname)
   const isStaffDashboard = isStaffDashboardPath(pathname)
+  const isDemoWalkthrough = isProductDemoPath(pathname)
 
   if (isOperatorDashboard) {
     return (
@@ -33,6 +35,15 @@ function MainLayout() {
         <div className="flex min-h-0 flex-1 flex-col">
           <Outlet />
         </div>
+      </div>
+    )
+  }
+
+  // Full-bleed product demo — no marketing header chrome.
+  if (isDemoWalkthrough) {
+    return (
+      <div className="flex h-dvh flex-col overflow-hidden bg-[#f3f3f3]">
+        <Outlet />
       </div>
     )
   }

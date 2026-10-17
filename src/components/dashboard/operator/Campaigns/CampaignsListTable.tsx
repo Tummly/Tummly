@@ -46,7 +46,7 @@ export function CampaignsListTable({
   const copy = CAMPAIGNS_LIST_TABLE_COPY
 
   return (
-    <div className={GUESTS_TABLE_FRAME_CLASS}>
+    <div className={GUESTS_TABLE_FRAME_CLASS} data-demo-tour="campaign-list">
       <Table className={GUESTS_TABLE_CLASS}>
         <TableHeader className="[&_tr]:border-0">
           <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
@@ -84,7 +84,13 @@ export function CampaignsListTable({
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
+            <TableRow
+              key={row.id}
+              className={GUESTS_TABLE_BODY_ROW_CLASS}
+              data-demo-tour={
+                row.name.includes("Tuesday") ? "campaign-report" : undefined
+              }
+            >
               <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                 <div className="flex flex-col gap-1.5">
                   <Button

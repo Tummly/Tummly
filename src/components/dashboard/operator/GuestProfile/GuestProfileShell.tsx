@@ -528,7 +528,10 @@ export function GuestProfileShell({
   }, [location.state, navigate, onOpenFeedback])
 
   return (
-    <div className={GUESTS_PAGE_STACK_CLASS}>
+    <div
+      className={GUESTS_PAGE_STACK_CLASS}
+      data-demo-tour="guest-profile-panel"
+    >
       <nav
         aria-label="Breadcrumb"
         className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-muted-foreground"
