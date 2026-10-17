@@ -1,8 +1,8 @@
-
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ShopCatalogItemCard } from "@/components/dashboard/operator/Shop/ShopCatalogItemCard"
 import { GUESTS_PAGINATION_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
+import { shouldShowShopCatalogPagination } from "@/lib/operatorShop/shopCatalogPagination"
 import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 
 type ShopCatalogSectionProps = {
@@ -25,6 +25,8 @@ export function ShopCatalogSection({
       product.description.toLowerCase().includes(searchQuery.toLowerCase())
     )
   })
+
+  const showPagination = shouldShowShopCatalogPagination(filteredProducts.length)
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,29 +56,37 @@ export function ShopCatalogSection({
         ))}
       </div>
 
-      <div className="flex items-center justify-between border-t border-op-border-default/60 pt-4 text-xs text-muted-foreground">
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="op-secondary"
-            disabled
-            aria-disabled
-            aria-label="Previous page"
-            className={GUESTS_PAGINATION_BUTTON_CLASS}
-          >
-            <ChevronLeft className="size-3.5" />
-            Previous
-          </Button>
-          <Button
-            type="button"
-            variant="op-secondary"
-            aria-label="Next page"
-            className={GUESTS_PAGINATION_BUTTON_CLASS}
-          >
-            Next
-            <ChevronRight className="size-3.5" />
-          </Button>
-        </div>
+      <div
+        className={
+          showPagination
+            ? "flex items-center justify-between border-t border-op-border-default/60 pt-4 text-xs text-muted-foreground"
+            : "flex items-center justify-end border-t border-op-border-default/60 pt-4 text-xs text-muted-foreground"
+        }
+      >
+        {showPagination ? (
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="op-secondary"
+              disabled
+              aria-disabled
+              aria-label="Previous page"
+              className={GUESTS_PAGINATION_BUTTON_CLASS}
+            >
+              <ChevronLeft className="size-3.5" />
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="op-secondary"
+              aria-label="Next page"
+              className={GUESTS_PAGINATION_BUTTON_CLASS}
+            >
+              Next
+              <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        ) : null}
 
         <span>
           Showing 1–{filteredProducts.length} of {products.length} items

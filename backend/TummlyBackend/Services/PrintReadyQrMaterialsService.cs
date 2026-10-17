@@ -24,7 +24,9 @@ namespace TummlyBackend.Services
         private readonly IQueryAttachmentStorage _storage;
         private readonly IQrCodeRasterizer _rasterizer;
         private readonly ISmartGuestLinkService _guestLinks;
+        private readonly IQrCodeProvisioningService _qrCodeProvisioning;
         private readonly IPrintReadyQrMaterialsWork _work;
+        private readonly IAdminAuditService _audit;
         private readonly ILogger<PrintReadyQrMaterialsService> _logger;
 
         public PrintReadyQrMaterialsService(
@@ -34,7 +36,9 @@ namespace TummlyBackend.Services
             IQueryAttachmentStorage storage,
             IQrCodeRasterizer rasterizer,
             ISmartGuestLinkService guestLinks,
+            IQrCodeProvisioningService qrCodeProvisioning,
             IPrintReadyQrMaterialsWork work,
+            IAdminAuditService audit,
             ILogger<PrintReadyQrMaterialsService> logger
         )
         {
@@ -44,7 +48,9 @@ namespace TummlyBackend.Services
             _storage = storage;
             _rasterizer = rasterizer;
             _guestLinks = guestLinks;
+            _qrCodeProvisioning = qrCodeProvisioning;
             _work = work;
+            _audit = audit;
             _logger = logger;
         }
 
@@ -54,7 +60,6 @@ namespace TummlyBackend.Services
         )
         {
             var location = await _context.RestaurantLocations
-                .AsNoTracking()
                 .Include(row => row.Restaurant)
                 .FirstOrDefaultAsync(
                     row => row.Id == locationId,
@@ -66,7 +71,42 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            foreach (var qrType in StarterQrMaterialTypes.All)
+            // Mint missing Capture placements for the current starter-kit set
+            // before print-ready ensure (idempotent).
+            await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            var ensureTypes = (
+                await StarterQrMaterialTypes.LoadAsync(
+                    _context,
+                    cancellationToken
+                )
+            ).ToHashSet();
+
+            // Also regenerate print assets for existing physical placements
+            // (legacy Tent/Window, shop-ordered types after rotate, etc.).
+            var existingTypes = await _context.QrCodes
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantLocationId == locationId
+                    && (
+                        row.Status == QrCodeStatus.Active
+                        || row.Status == QrCodeStatus.Paused
+                    )
+                )
+                .Select(row => row.QrType)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            foreach (
+                var qrType in existingTypes.Where(
+                    PhysicalShopPrintQrTypes.Contains
+                )
+            )
+            {
+                ensureTypes.Add(qrType);
+            }
+
+            foreach (var qrType in ensureTypes.OrderBy(row => row))
             {
                 await EnsureOneAsync(
                     location,
@@ -124,7 +164,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterQrMaterialTypes.Contains(qrType))
+            if (!PhysicalShopPrintQrTypes.Contains(qrType))
             {
                 return false;
             }
@@ -143,6 +183,8 @@ namespace TummlyBackend.Services
                 asset.QrTokenFingerprint = null;
                 asset.TemplatePackVersion = null;
                 asset.OfferCopyVersion = null;
+                asset.ApprovedAtUtc = null;
+                asset.ApprovedByAdminUserId = null;
                 asset.LastError = null;
                 asset.UpdatedAtUtc = DateTime.UtcNow;
             }
@@ -234,16 +276,16 @@ namespace TummlyBackend.Services
                 .ToListAsync(cancellationToken);
 
             var locationIds = locations.Select(row => row.Id).ToList();
+            var starterTypes = await StarterQrMaterialTypes.LoadAsync(
+                _context,
+                cancellationToken
+            );
             var assets = await _context.PrintReadyQrAssets
                 .AsNoTracking()
                 .Where(row =>
                     locationIds.Contains(row.RestaurantLocationId)
                     && row.ShopOrderId == null
-                    && (
-                        row.QrType == QrType.TableTent
-                        || row.QrType == QrType.WindowSticker
-                        || row.QrType == QrType.OfferCard
-                    )
+                    && starterTypes.Contains(row.QrType)
                 )
                 .ToListAsync(cancellationToken);
 
@@ -260,7 +302,7 @@ namespace TummlyBackend.Services
                     {
                         LocationId = location.Id,
                         LocationName = location.LocationName,
-                        Assets = StarterQrMaterialTypes.All
+                        Assets = starterTypes
                             .Select(qrType =>
                             {
                                 var match = rows.FirstOrDefault(row =>
@@ -320,7 +362,12 @@ namespace TummlyBackend.Services
                     var asset = assets.FirstOrDefault(row =>
                         row.QrType == pair.Key
                     );
-                    return MapShopReadiness(pair.Key, pair.Value, asset);
+                    return MapShopReadiness(
+                        pair.Key,
+                        pair.Value,
+                        asset,
+                        shopOrderId
+                    );
                 })
                 .ToList();
         }
@@ -332,7 +379,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterQrMaterialTypes.Contains(qrType))
+            if (!PhysicalShopPrintQrTypes.Contains(qrType))
             {
                 return null;
             }
@@ -369,7 +416,7 @@ namespace TummlyBackend.Services
             }
 
             return new PrintReadyQrDownload(
-                await ReadStoredPdfAsync(asset, cancellationToken),
+                await ReadStoredBytesAsync(asset, cancellationToken),
                 asset.ContentType,
                 BuildDistinctFileName(asset.FileName, qrType)
             );
@@ -381,7 +428,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterQrMaterialTypes.Contains(qrType))
+            if (!PhysicalShopPrintQrTypes.Contains(qrType))
             {
                 return null;
             }
@@ -430,8 +477,13 @@ namespace TummlyBackend.Services
                 throw new PrintReadyQrNotReadyException(asset.Status);
             }
 
+            if (asset.ApprovedAtUtc == null)
+            {
+                throw new PrintReadyQrNotApprovedException();
+            }
+
             return new PrintReadyQrDownload(
-                await ReadStoredPdfAsync(asset, cancellationToken),
+                await ReadStoredBytesAsync(asset, cancellationToken),
                 asset.ContentType,
                 BuildDistinctFileName(asset.FileName, qrType)
             );
@@ -444,7 +496,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterQrMaterialTypes.Contains(qrType))
+            if (!PhysicalShopPrintQrTypes.Contains(qrType))
             {
                 return null;
             }
@@ -496,7 +548,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterQrMaterialTypes.Contains(qrType))
+            if (!PhysicalShopPrintQrTypes.Contains(qrType))
             {
                 return null;
             }
@@ -543,7 +595,197 @@ namespace TummlyBackend.Services
             }
 
             await GenerateAndStoreAsync(order.Location, asset, cancellationToken);
-            return MapShopReadiness(qrType, quantity, asset);
+            return MapShopReadiness(qrType, quantity, asset, shopOrderId);
+        }
+
+        public async Task<ShopPrintAssetPreviewDto?> GetShopOrderPreviewAsync(
+            Guid shopOrderId,
+            QrType qrType,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!PhysicalShopPrintQrTypes.Contains(qrType))
+            {
+                return null;
+            }
+
+            var order = await _context.ShopOrders
+                .AsNoTracking()
+                .Include(row => row.Lines)
+                .Include(row => row.Location)
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.Id == shopOrderId
+                        && (
+                            row.PaymentStatus == ShopPaymentStatuses.Paid
+                            || row.PaymentStatus == ShopPaymentStatuses.Refunded
+                        ),
+                    cancellationToken
+                );
+            if (
+                order?.Location == null
+                || !ResolveOrderedQrTypes(
+                    order.Lines,
+                    _materialsCatalog
+                ).TryGetValue(qrType, out var quantity)
+            )
+            {
+                return null;
+            }
+
+            var asset = await _context.PrintReadyQrAssets
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.ShopOrderId == shopOrderId
+                        && row.QrType == qrType,
+                    cancellationToken
+                );
+            if (
+                asset == null
+                || asset.Status != PrintReadyQrAssetStatus.Ready
+            )
+            {
+                return null;
+            }
+
+            var qrCode = await EligibleQrCodes(
+                    order.LocationId,
+                    qrType,
+                    shopOrderId
+                )
+                .FirstOrDefaultAsync(cancellationToken);
+            if (qrCode == null)
+            {
+                return null;
+            }
+
+            var printRoute = ResolvePrintRoute(qrType, shopOrderId);
+            var productTitle = order.Lines
+                .Where(line =>
+                {
+                    var catalog = _materialsCatalog.GetRequired(
+                        _materialsCatalog.CurrentCatalogId
+                    );
+                    var sku = catalog.Skus.FirstOrDefault(row =>
+                        string.Equals(
+                            row.SkuId,
+                            line.CatalogSkuId,
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    );
+                    return sku != null
+                        && string.Equals(
+                            sku.QrType,
+                            qrType.ToString(),
+                            StringComparison.Ordinal
+                        );
+                })
+                .Select(line => line.TitleSnapshot)
+                .FirstOrDefault()
+                ?? qrType.ToString();
+
+            string? offerHeadline = null;
+            if (
+                string.Equals(
+                    printRoute,
+                    PlacementPrintRoutes.GuestCardCsv,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                offerHeadline = await ResolveOfferCardHeadlineAsync(
+                    order.LocationId,
+                    qrType,
+                    cancellationToken
+                );
+            }
+
+            return new ShopPrintAssetPreviewDto
+            {
+                ProductTitle = productTitle,
+                LocationId = order.LocationId,
+                LocationName =
+                    order.LocationNameSnapshot
+                    ?? order.Location.LocationName,
+                Placement = qrType.ToString(),
+                Quantity = quantity,
+                QrDestinationUrl = _guestLinks.BuildGuestUrl(qrCode.Token),
+                OfferHeadline = offerHeadline,
+                PrintRoute = printRoute,
+                ApprovedAtUtc = asset.ApprovedAtUtc,
+            };
+        }
+
+        public async Task<ShopPrintAssetReadinessDto?> ApproveShopOrderAsync(
+            Guid shopOrderId,
+            QrType qrType,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!PhysicalShopPrintQrTypes.Contains(qrType))
+            {
+                return null;
+            }
+
+            var order = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.Id == shopOrderId
+                        && (
+                            row.PaymentStatus == ShopPaymentStatuses.Paid
+                            || row.PaymentStatus == ShopPaymentStatuses.Refunded
+                        ),
+                    cancellationToken
+                );
+            if (
+                order == null
+                || !ResolveOrderedQrTypes(
+                    order.Lines,
+                    _materialsCatalog
+                ).TryGetValue(qrType, out var quantity)
+            )
+            {
+                return null;
+            }
+
+            var asset = await _context.PrintReadyQrAssets
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.ShopOrderId == shopOrderId
+                        && row.QrType == qrType,
+                    cancellationToken
+                );
+            if (
+                asset == null
+                || asset.Status != PrintReadyQrAssetStatus.Ready
+            )
+            {
+                return null;
+            }
+
+            var now = DateTime.UtcNow;
+            asset.ApprovedAtUtc = now;
+            asset.ApprovedByAdminUserId = actorAdminUserId;
+            asset.UpdatedAtUtc = now;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopPrintAssetApproved,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopOrder,
+                    shopOrderId.ToString("D"),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: order.RestaurantId,
+                    DetailJson: $"{{\"qrType\":\"{qrType}\"}}"
+                )
+            );
+
+            await _context.SaveChangesAsync(cancellationToken);
+            return MapShopReadiness(qrType, quantity, asset, shopOrderId);
         }
 
         private async Task EnsureOneAsync(
@@ -663,6 +905,9 @@ namespace TummlyBackend.Services
                 : FingerprintToken(qrCode.Token);
             var packId = _pack.CurrentPackId;
             var offerCopyVersion = _pack.Snapshot.OfferCopyVersion;
+            var expectedContentType = ContentTypeForPrintRoute(
+                ResolvePrintRoute(qrType, shopOrderId)
+            );
 
             var matchesCurrentGeneration =
                 fingerprint != null
@@ -674,6 +919,11 @@ namespace TummlyBackend.Services
                     asset.OfferCopyVersion,
                     offerCopyVersion,
                     StringComparison.Ordinal
+                )
+                && string.Equals(
+                    asset.ContentType,
+                    expectedContentType,
+                    StringComparison.OrdinalIgnoreCase
                 )
                 && !string.IsNullOrWhiteSpace(asset.StorageKey);
             if (
@@ -699,6 +949,7 @@ namespace TummlyBackend.Services
                         && row.TemplatePackVersion == packId
                         && row.OfferCopyVersion == offerCopyVersion
                         && row.StorageKey != null
+                        && row.ContentType == expectedContentType
                     )
                     .OrderByDescending(row => row.UpdatedAtUtc)
                     .FirstOrDefaultAsync(cancellationToken);
@@ -718,13 +969,26 @@ namespace TummlyBackend.Services
                         ShopOrderId = shopOrderId,
                         CreatedAtUtc = DateTime.UtcNow,
                     };
+                    var reuseExtension = string.Equals(
+                        reusable.ContentType,
+                        PrintReadyPlacementCsvComposer.ContentType,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                        ? "csv"
+                        : "pdf";
                     asset.Status = PrintReadyQrAssetStatus.Ready;
                     asset.StorageKey = reusable.StorageKey;
                     asset.ContentType = reusable.ContentType;
-                    asset.FileName = BuildStorageFileName(location, qrType);
+                    asset.FileName = BuildStorageFileName(
+                        location,
+                        qrType,
+                        reuseExtension
+                    );
                     asset.QrTokenFingerprint = reusable.QrTokenFingerprint;
                     asset.TemplatePackVersion = reusable.TemplatePackVersion;
                     asset.OfferCopyVersion = reusable.OfferCopyVersion;
+                    asset.ApprovedAtUtc = null;
+                    asset.ApprovedByAdminUserId = null;
                     asset.LastError = null;
                     asset.UpdatedAtUtc = DateTime.UtcNow;
                     if (reusedIsNew)
@@ -872,45 +1136,301 @@ namespace TummlyBackend.Services
             }
 
             var guestUrl = _guestLinks.BuildGuestUrl(qrCode.Token);
-            var raster = _rasterizer.Render(guestUrl);
+            var printRoute = ResolvePrintRoute(asset.QrType, asset.ShopOrderId);
+            var prtQty = await ResolvePrintQuantityAsync(
+                asset.ShopOrderId,
+                asset.QrType,
+                cancellationToken
+            );
             var offerHeadline = await ResolveOfferCardHeadlineAsync(
                 location.Id,
                 asset.QrType,
                 cancellationToken
             );
-            var pdf = PrintReadyQrPdfComposer.Compose(
-                _pack.Snapshot,
-                asset.QrType,
-                raster,
-                offerHeadline
-            );
+
+            byte[] bytes;
+            string contentType;
+            string extension;
+            if (
+                string.Equals(
+                    printRoute,
+                    PlacementPrintRoutes.PatchCsv60,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                bytes = PrintReadyPlacementCsvComposer.ComposePatchCsv60(
+                    BuildCsvRow(
+                        asset,
+                        location,
+                        qrCode,
+                        guestUrl,
+                        prtQty,
+                        offerHeadline: null
+                    )
+                );
+                contentType = PrintReadyPlacementCsvComposer.ContentType;
+                extension = "csv";
+            }
+            else if (
+                string.Equals(
+                    printRoute,
+                    PlacementPrintRoutes.GuestCardCsv,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                bytes = PrintReadyPlacementCsvComposer.ComposeGuestCardCsv(
+                    BuildCsvRow(
+                        asset,
+                        location,
+                        qrCode,
+                        guestUrl,
+                        prtQty,
+                        offerHeadline
+                    )
+                );
+                contentType = PrintReadyPlacementCsvComposer.ContentType;
+                extension = "csv";
+            }
+            else
+            {
+                // EmbeddedPdf = Counter Display A5 with Location branding (logo/name/address).
+                var raster = _rasterizer.Render(guestUrl);
+                var branding = await BuildCounterCardBrandingAsync(
+                    location,
+                    cancellationToken
+                );
+                bytes = PrintReadyQrPdfComposer.ComposeCounterCard(
+                    raster,
+                    branding,
+                    ResolveCounterCardAssets()
+                );
+                contentType = PrintReadyQrPdfComposer.ContentType;
+                extension = "pdf";
+            }
 
             var fingerprint = FingerprintToken(qrCode.Token);
-            var fileName = BuildStorageFileName(location, asset.QrType);
+            var fileName = BuildStorageFileName(
+                location,
+                asset.QrType,
+                extension
+            );
             var storageKey =
                 $"print-ready-qr/{location.Id}/{asset.QrType}/{fingerprint}/"
                 + $"{Slug(_pack.CurrentPackId)}-"
-                + $"{Slug(_pack.Snapshot.OfferCopyVersion)}.pdf";
+                + $"{Slug(_pack.Snapshot.OfferCopyVersion)}.{extension}";
 
-            await using var upload = new MemoryStream(pdf);
+            await using var upload = new MemoryStream(bytes);
             await _storage.UploadAsync(
                 storageKey,
                 upload,
-                PrintReadyQrPdfComposer.ContentType,
-                pdf.Length,
+                contentType,
+                bytes.Length,
                 cancellationToken
             );
 
             asset.Status = PrintReadyQrAssetStatus.Ready;
             asset.StorageKey = storageKey;
-            asset.ContentType = PrintReadyQrPdfComposer.ContentType;
+            asset.ContentType = contentType;
             asset.FileName = fileName;
             asset.QrTokenFingerprint = fingerprint;
             asset.TemplatePackVersion = _pack.CurrentPackId;
             asset.OfferCopyVersion = _pack.Snapshot.OfferCopyVersion;
+            asset.ApprovedAtUtc = null;
+            asset.ApprovedByAdminUserId = null;
             asset.LastError = null;
             asset.UpdatedAtUtc = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private CounterCardAssetPaths? ResolveCounterCardAssets()
+        {
+            var packDir = Path.GetDirectoryName(_pack.Snapshot.CardSvgPath);
+            if (string.IsNullOrWhiteSpace(packDir))
+            {
+                return null;
+            }
+
+            var counterDir = Path.Combine(packDir, "counter-card");
+            string? Pick(string fileName)
+            {
+                var path = Path.Combine(counterDir, fileName);
+                return File.Exists(path) ? path : null;
+            }
+
+            return new CounterCardAssetPaths(
+                PatternSvgPath: Pick("group6.svg"),
+                StripSvgPath: Pick("strip.svg"),
+                PoweredSvgPath: Pick("powered.svg")
+            );
+        }
+
+        private async Task<CounterCardBranding> BuildCounterCardBrandingAsync(
+            RestaurantLocation location,
+            CancellationToken cancellationToken
+        )
+        {
+            var restaurant = location.Restaurant;
+            if (restaurant == null)
+            {
+                restaurant = await _context.Restaurants
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        row => row.Id == location.RestaurantId,
+                        cancellationToken
+                    );
+            }
+
+            byte[]? logoBytes = null;
+            string? logoContentType = null;
+            var logoKey = restaurant?.BrandLogoObjectKey;
+            if (
+                !string.IsNullOrWhiteSpace(logoKey)
+                && _storage.IsConfigured
+            )
+            {
+                try
+                {
+                    await using var stream = await _storage.OpenReadAsync(
+                        logoKey,
+                        cancellationToken
+                    );
+                    using var memory = new MemoryStream();
+                    await stream.CopyToAsync(memory, cancellationToken);
+                    logoBytes = memory.ToArray();
+                    logoContentType = restaurant?.BrandLogoContentType;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Could not load brand logo for Counter Display at location {LocationId}",
+                        location.Id
+                    );
+                }
+            }
+
+            var addressParts = new[]
+            {
+                location.Address,
+                location.City,
+                location.Postcode,
+            }
+                .Where(part => !string.IsNullOrWhiteSpace(part))
+                .Select(part => part!.Trim());
+
+            return new CounterCardBranding(
+                LocationName: location.LocationName?.Trim() ?? string.Empty,
+                AddressLine: string.Join(", ", addressParts),
+                LogoBytes: logoBytes,
+                LogoContentType: logoContentType
+            );
+        }
+
+        private static PrintReadyPlacementCsvRow BuildCsvRow(
+            PrintReadyQrAsset asset,
+            RestaurantLocation location,
+            QrCode qrCode,
+            string guestUrl,
+            int prtQty,
+            string? offerHeadline
+        )
+        {
+            var orderId = asset.ShopOrderId?.ToString("D") ?? "starter";
+            var jobId = asset.ShopOrderId is Guid shopOrderId
+                ? $"{shopOrderId:N}-{asset.QrType}"
+                : $"starter-{location.Id}-{asset.QrType}";
+
+            return new PrintReadyPlacementCsvRow(
+                JobId: jobId,
+                OrderId: orderId,
+                LocationId: location.Id.ToString(),
+                LocationName: location.LocationName,
+                PlacementId: qrCode.Id.ToString(),
+                PlacementType: asset.QrType.ToString(),
+                QrUrl: guestUrl,
+                PrtQty: prtQty,
+                OfferHeadline: offerHeadline
+            );
+        }
+
+        private string ResolvePrintRoute(QrType qrType, Guid? shopOrderId)
+        {
+            var catalog = _materialsCatalog.GetRequired(
+                _materialsCatalog.CurrentCatalogId
+            );
+
+            if (shopOrderId is Guid orderId)
+            {
+                var lineSkuIds = _context.ShopOrderLines
+                    .AsNoTracking()
+                    .Where(row => row.ShopOrderId == orderId)
+                    .Select(row => row.CatalogSkuId)
+                    .ToList();
+
+                foreach (var skuId in lineSkuIds)
+                {
+                    var sku = catalog.Skus.FirstOrDefault(row =>
+                        string.Equals(
+                            row.SkuId,
+                            skuId,
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    );
+                    if (
+                        sku != null
+                        && string.Equals(
+                            sku.QrType,
+                            qrType.ToString(),
+                            StringComparison.Ordinal
+                        )
+                    )
+                    {
+                        return string.IsNullOrWhiteSpace(sku.PrintRoute)
+                            ? PlacementPrintRoutes.EmbeddedPdf
+                            : sku.PrintRoute;
+                    }
+                }
+            }
+
+            var byType = catalog.Skus.FirstOrDefault(row =>
+                string.Equals(
+                    row.QrType,
+                    qrType.ToString(),
+                    StringComparison.Ordinal
+                )
+            );
+            return string.IsNullOrWhiteSpace(byType?.PrintRoute)
+                ? PlacementPrintRoutes.EmbeddedPdf
+                : byType!.PrintRoute;
+        }
+
+        private async Task<int> ResolvePrintQuantityAsync(
+            Guid? shopOrderId,
+            QrType qrType,
+            CancellationToken cancellationToken
+        )
+        {
+            if (shopOrderId == null)
+            {
+                return 1;
+            }
+
+            var order = await _context.ShopOrders
+                .AsNoTracking()
+                .Include(row => row.Lines)
+                .FirstOrDefaultAsync(
+                    row => row.Id == shopOrderId.Value,
+                    cancellationToken
+                );
+            if (order == null)
+            {
+                return 1;
+            }
+
+            return ResolveOrderedQrTypes(order.Lines, _materialsCatalog)
+                .GetValueOrDefault(qrType, 1);
         }
 
         private async Task<string> ResolveOfferCardHeadlineAsync(
@@ -919,7 +1439,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (qrType != QrType.OfferCard)
+            if (qrType is not (QrType.OfferCard or QrType.GuestCard))
             {
                 return _pack.Snapshot.DefaultOfferHeadline;
             }
@@ -999,7 +1519,7 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
-                if (!StarterQrMaterialTypes.Contains(qrType))
+                if (!PhysicalShopPrintQrTypes.Contains(qrType))
                 {
                     continue;
                 }
@@ -1022,12 +1542,20 @@ namespace TummlyBackend.Services
             qrType = catalogSkuId.Trim().ToLowerInvariant() switch
             {
                 "table-tents" => QrType.TableTent,
+                "table-talker" => QrType.TableTalker,
                 "window-stickers" => QrType.WindowSticker,
                 "offer-card" => QrType.OfferCard,
+                "qr-counter-display" => QrType.OfferCard,
+                "qr-guest-cards" => QrType.GuestCard,
                 _ => default,
             };
             return catalogSkuId.Trim().ToLowerInvariant()
-                is "table-tents" or "window-stickers" or "offer-card";
+                is "table-tents"
+                    or "table-talker"
+                    or "window-stickers"
+                    or "offer-card"
+                    or "qr-counter-display"
+                    or "qr-guest-cards";
         }
 
         private async Task<bool> CanOpenStoredObjectAsync(
@@ -1060,7 +1588,7 @@ namespace TummlyBackend.Services
             }
         }
 
-        private async Task<byte[]> ReadStoredPdfAsync(
+        private async Task<byte[]> ReadStoredBytesAsync(
             PrintReadyQrAsset asset,
             CancellationToken cancellationToken
         )
@@ -1090,7 +1618,7 @@ namespace TummlyBackend.Services
                 );
                 asset.Status = PrintReadyQrAssetStatus.Failed;
                 asset.LastError = TruncateError(
-                    $"Stored PDF is missing or unavailable: {ex.Message}"
+                    $"Stored print asset is missing or unavailable: {ex.Message}"
                 );
                 asset.UpdatedAtUtc = DateTime.UtcNow;
                 await _context.SaveChangesAsync(cancellationToken);
@@ -1100,10 +1628,11 @@ namespace TummlyBackend.Services
             }
         }
 
-        private static ShopPrintAssetReadinessDto MapShopReadiness(
+        private ShopPrintAssetReadinessDto MapShopReadiness(
             QrType qrType,
             int quantity,
-            PrintReadyQrAsset? asset
+            PrintReadyQrAsset? asset,
+            Guid? shopOrderId
         )
         {
             return new ShopPrintAssetReadinessDto
@@ -1114,6 +1643,11 @@ namespace TummlyBackend.Services
                     ?? PrintReadyQrAssetStatus.Preparing.ToString(),
                 FileName = asset?.FileName,
                 LastError = asset?.LastError,
+                Approved = asset?.ApprovedAtUtc != null,
+                PrintRoute = ResolvePrintRoute(
+                    qrType,
+                    shopOrderId ?? asset?.ShopOrderId
+                ),
             };
         }
 
@@ -1153,7 +1687,8 @@ namespace TummlyBackend.Services
 
         private static string BuildStorageFileName(
             RestaurantLocation location,
-            QrType qrType
+            QrType qrType,
+            string extension = "pdf"
         )
         {
             var restaurant = Slug(
@@ -1161,12 +1696,12 @@ namespace TummlyBackend.Services
             );
             var locationSlug = Slug(location.LocationName);
             var typeSlug = QrTypeSlug(qrType);
-            return $"tummly-{restaurant}-{locationSlug}-{typeSlug}.pdf";
+            return $"tummly-{restaurant}-{locationSlug}-{typeSlug}.{extension}";
         }
 
         /// <summary>
-        /// Tent and Sticker may share PDF bytes but must download under
-        /// distinct type-specific names.
+        /// Distinct type-specific download names when shared storage bytes
+        /// would otherwise collide (tent / sticker).
         /// </summary>
         private static string BuildDistinctFileName(string storedName, QrType qrType)
         {
@@ -1177,17 +1712,30 @@ namespace TummlyBackend.Services
                 return storedName;
             }
 
-            return storedName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
-                ? storedName[..^4] + $"-{typeSlug}.pdf"
-                : $"{storedName}-{typeSlug}.pdf";
+            var extension = storedName.EndsWith(
+                ".csv",
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? ".csv"
+                : ".pdf";
+            var stem = storedName.EndsWith(
+                extension,
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? storedName[..^extension.Length]
+                : storedName;
+            return $"{stem}-{typeSlug}{extension}";
         }
 
         private static string QrTypeSlug(QrType qrType) =>
             qrType switch
             {
+                QrType.CounterCard => "counter-card",
                 QrType.TableTent => "table-tent",
+                QrType.TableTalker => "table-talker",
                 QrType.WindowSticker => "window-sticker",
                 QrType.OfferCard => "offer-card",
+                QrType.GuestCard => "guest-card",
                 _ => qrType.ToString().ToLowerInvariant(),
             };
 
@@ -1211,6 +1759,17 @@ namespace TummlyBackend.Services
 
             var slug = sb.ToString().Trim('-');
             return string.IsNullOrWhiteSpace(slug) ? "item" : slug;
+        }
+
+        private static string ContentTypeForPrintRoute(string printRoute)
+        {
+            return string.Equals(
+                printRoute,
+                PlacementPrintRoutes.EmbeddedPdf,
+                StringComparison.Ordinal
+            )
+                ? PrintReadyQrPdfComposer.ContentType
+                : PrintReadyPlacementCsvComposer.ContentType;
         }
 
         private static string TruncateError(string message)
@@ -1243,5 +1802,13 @@ namespace TummlyBackend.Services
         }
 
         public PrintReadyQrAssetStatus Status { get; }
+    }
+
+    public sealed class PrintReadyQrNotApprovedException : Exception
+    {
+        public PrintReadyQrNotApprovedException()
+            : base("Print-ready QR asset is not approved for download.")
+        {
+        }
     }
 }

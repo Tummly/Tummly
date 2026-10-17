@@ -135,6 +135,10 @@ export type CheckoutLine = {
   unitNetPence: number
   lineNetPence: number
   specification?: string
+  /** Catalog pack tiers for express checkout quantity edits. */
+  packs?: Array<{ qty: number; netPence: number }>
+  /** Per-SKU standard delivery net (pence). */
+  deliveryNetPence?: number
 }
 
 export async function placeShopOrder(
@@ -268,19 +272,30 @@ export async function reorderShopOrder(input: {
   return response.data
 }
 
+const EXPRESS_DELIVERY_SURCHARGE_PENCE = 2000
+
 /** Matches backend TummlyVatMath (exclusive, half-up AwayFromZero). */
 export function computeShopCheckoutTotalsPence(input: {
   materialsNetPence: number
   deliveryMethod: "standard" | "express"
   /** Catalog / seller effective rate in basis points; 0 = net-only (launch OFF). */
   vatRateBps?: number
+  /** Max of per-SKU standard delivery nets on the order. */
+  standardDeliveryNetPence?: number
 }): {
   materialsNetPence: number
   vatPence: number
   deliveryNetPence: number
   grossPence: number
 } {
-  const deliveryNetPence = input.deliveryMethod === "express" ? 2000 : 0
+  const standardDeliveryNetPence = Math.max(
+    0,
+    input.standardDeliveryNetPence ?? 0
+  )
+  const deliveryNetPence =
+    input.deliveryMethod === "express"
+      ? standardDeliveryNetPence + EXPRESS_DELIVERY_SURCHARGE_PENCE
+      : standardDeliveryNetPence
   const vatRateBps = input.vatRateBps ?? 0
   const vatPence = Math.round(input.materialsNetPence * (vatRateBps / 10_000))
   return {

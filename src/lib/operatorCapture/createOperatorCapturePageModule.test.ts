@@ -494,6 +494,7 @@ describe("createOperatorCapturePageModule", () => {
     })
 
     expect(pageModule.getSnapshot().viewModel?.guestExperience).toEqual({
+      activeQrPlanUsageText: "",
       guestFormsText: "1 published form · Used by 2 of 2 active placements",
       qrPlacementsText: "2 of 3 placements active",
       connectedOffersText: "No active offers",

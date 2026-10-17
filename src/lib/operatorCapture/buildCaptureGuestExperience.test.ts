@@ -23,6 +23,7 @@ describe("buildCaptureGuestExperience", () => {
     })
 
     expect(result).toEqual({
+      activeQrPlanUsageText: "",
       guestFormsText:
         "1 published form · Used by 3 of 3 active placements",
       qrPlacementsText: "3 of 4 placements active",

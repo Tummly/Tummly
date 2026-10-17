@@ -11,18 +11,21 @@ namespace TummlyBackend.Services
         : ILocationsLifecycleWriteService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IQrCodeProvisioningService _qrCodeProvisioning;
         private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
         private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
         private readonly IRestaurantAccountTypePromotion _accountTypePromotion;
 
         public LocationsLifecycleWriteService(
             ApplicationDbContext context,
+            IQrCodeProvisioningService qrCodeProvisioning,
             IComplimentaryStarterShopOrderService complimentaryStarterShopOrders,
             IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
             IRestaurantAccountTypePromotion accountTypePromotion
         )
         {
             _context = context;
+            _qrCodeProvisioning = qrCodeProvisioning;
             _complimentaryStarterShopOrders = complimentaryStarterShopOrders;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
             _accountTypePromotion = accountTypePromotion;
@@ -70,6 +73,11 @@ namespace TummlyBackend.Services
                     restaurantId
                 );
 
+            // Mint any Capture placements added to the starter kit since Draft
+            // insert (missing types only).
+            await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
+            await _context.SaveChangesAsync();
+
             var actorDisplayName = await _context.Users
                 .AsNoTracking()
                 .Where(u => u.Id == actorUserId)
@@ -90,6 +98,9 @@ namespace TummlyBackend.Services
                     complimentary.ShopOrderId
                 );
             }
+
+            // Starter print-ready ensure also re-mints missing Capture types.
+            await _printReadyQrMaterialsWork.RequestEnsureAsync(locationId);
 
             return new LocationLifecycleWriteResult.Ok(accountType);
         }

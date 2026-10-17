@@ -33,7 +33,8 @@ namespace TummlyBackend.Tests.Integration
                 seeded,
                 seeded.InScopeLocationId,
                 ShopPaymentStatuses.Paid,
-                ShopFulfilmentStatuses.Processing
+                ShopFulfilmentStatuses.Processing,
+                revolutOrderId: "rev_cancel_processing_1"
             );
 
             using var request = AuthorizedPost(
@@ -56,7 +57,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.False(body.GetProperty("canCancel").GetBoolean());
             Assert.Equal(
-                refundCallsBefore,
+                refundCallsBefore + 1,
                 _factory.Merchant.RefundOrderCallCount
             );
 
@@ -310,14 +311,50 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("locationId").GetInt32()
             );
             Assert.Equal("ORD-1", body.GetProperty("sourceOrderNumber").GetString());
-            var line = body.GetProperty("lines")[0];
-            Assert.Equal("table-tents", line.GetProperty("skuId").GetString());
-            Assert.Equal(2400, line.GetProperty("unitNetPence").GetInt32());
-            Assert.Equal(4800, line.GetProperty("lineNetPence").GetInt32());
+            var prefillLine = body.GetProperty("lines")[0];
+            Assert.Equal("table-tents", prefillLine.GetProperty("skuId").GetString());
+            Assert.Equal(5, prefillLine.GetProperty("quantity").GetInt32());
+            Assert.Equal(999, prefillLine.GetProperty("unitNetPence").GetInt32());
+            Assert.Equal(999, prefillLine.GetProperty("lineNetPence").GetInt32());
             Assert.True(body.TryGetProperty("shipTo", out _));
             Assert.Equal(
                 "standard",
                 body.GetProperty("deliveryMethod").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task ReorderPrefill_InvalidPackQty_Returns409()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.Delivered
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var line = await context.ShopOrderLines
+                    .SingleAsync(row => row.ShopOrderId == orderId);
+                line.Quantity = 2;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedPost(
+                $"/api/shop/orders/{orderId}/reorder?locationId={seeded.InScopeLocationId}",
+                seeded.MemberJwt,
+                body: null
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "catalog_sku_unavailable",
+                body.GetProperty("code").GetString()
             );
         }
 
@@ -365,7 +402,8 @@ namespace TummlyBackend.Tests.Integration
                 seeded,
                 seeded.InScopeLocationId,
                 ShopPaymentStatuses.Paid,
-                ShopFulfilmentStatuses.Processing
+                ShopFulfilmentStatuses.Processing,
+                revolutOrderId: "rev_cancel_soft_lock_1"
             );
 
             using var request = AuthorizedPost(
@@ -419,9 +457,9 @@ namespace TummlyBackend.Tests.Integration
                 JsonSerializer.Serialize(new
                 {
                     locationId = seeded.InScopeLocationId,
-                    lines = new[] { new { skuId = "table-tents", quantity = 2 } },
+                    lines = new[] { new { skuId = "table-tents", quantity = 5 } },
                     deliveryMethod = "standard",
-                    expectedGrossPence = 5760,
+                    expectedGrossPence = 1598,
                     shipTo = ValidShipTo(),
                 }),
                 Encoding.UTF8,
@@ -497,8 +535,10 @@ namespace TummlyBackend.Tests.Integration
                 sequence.NextNumber = nextNumber + 1;
             }
 
-            var quantity = 2;
+            // Default 5 matches launch Table Tent pack tiers (5 / 10 / 20).
+            var quantity = 5;
             var materialsNet = unitNetPence * quantity;
+            var vatPence = materialsNet / 5;
             var order = new ShopOrder
             {
                 Id = Guid.NewGuid(),
@@ -509,9 +549,9 @@ namespace TummlyBackend.Tests.Integration
                 PlacedByUserId = seeded.MemberUserId,
                 PlacedByNameSnapshot = "Shop Member",
                 MaterialsNetPence = materialsNet,
-                VatPence = 480,
+                VatPence = vatPence,
                 DeliveryNetPence = 0,
-                GrossPence = materialsNet + 480,
+                GrossPence = materialsNet + vatPence,
                 DeliveryMethod = ShopDeliveryMethods.Standard,
                 PaymentStatus = paymentStatus,
                 RevolutOrderId = revolutOrderId,

@@ -3,6 +3,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.PrintReadyQrMaterials;
 
 namespace TummlyBackend.Services
 {
@@ -252,17 +253,9 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            return await _context.ShopMaterialSkus
-                .AsNoTracking()
+            return await StarterQrMaterialTypes
+                .QueryPublishedStarterSkus(_context)
                 .Include(row => row.PlacementRecipe)
-                .Where(row =>
-                    row.Status == ShopMaterialSkuStatuses.Published
-                    && row.PlacementRecipe != null
-                    && row.PlacementRecipe.IsActive
-                    && row.PlacementRecipe.IncludeInComplimentaryStarter
-                )
-                .OrderBy(row => row.PlacementRecipe!.Id)
-                .ThenBy(row => row.Id)
                 .ToListAsync(cancellationToken);
         }
     }

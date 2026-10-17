@@ -3,11 +3,13 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -57,14 +59,14 @@ namespace TummlyBackend.Tests.Integration
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
-                2
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                1
             );
             var second = await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
-                5
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                2
             );
 
             Assert.Equal(HttpStatusCode.OK, second.StatusCode);
@@ -72,12 +74,18 @@ namespace TummlyBackend.Tests.Integration
             var lines = body.GetProperty("lines");
             Assert.Equal(1, lines.GetArrayLength());
             var line = lines[0];
-            Assert.Equal("table-tents", line.GetProperty("skuId").GetString());
-            Assert.Equal(5, line.GetProperty("quantity").GetInt32());
-            Assert.Equal("Table Tent QR", line.GetProperty("title").GetString());
-            Assert.Equal(2400, line.GetProperty("unitNetPence").GetInt32());
-            Assert.Equal(12000, line.GetProperty("lineNetPence").GetInt32());
-            Assert.Equal(12000, body.GetProperty("materialsNetPence").GetInt32());
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                line.GetProperty("skuId").GetString()
+            );
+            Assert.Equal(2, line.GetProperty("quantity").GetInt32());
+            Assert.Equal(
+                "QR Counter Display",
+                line.GetProperty("title").GetString()
+            );
+            Assert.Equal(1899, line.GetProperty("unitNetPence").GetInt32());
+            Assert.Equal(1899, line.GetProperty("lineNetPence").GetInt32());
+            Assert.Equal(1899, body.GetProperty("materialsNetPence").GetInt32());
         }
 
         [Fact]
@@ -91,12 +99,12 @@ namespace TummlyBackend.Tests.Integration
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "offer-card",
-                3
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                2
             );
 
             using var delete = AuthorizedDelete(
-                $"/api/shop/cart/lines/offer-card?locationId={seeded.InScopeLocationId}",
+                $"/api/shop/cart/lines/{ShopMaterialsCatalogSeed.CounterDisplaySkuId}?locationId={seeded.InScopeLocationId}",
                 seeded.MemberJwt
             );
             var response = await _client.SendAsync(delete);
@@ -126,6 +134,54 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PutCartLine_Returns400_WhenPackQtyInvalid()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+
+            // Counter Display launch packs are 1 / 2 / 5 — 3 is not a pack.
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                3
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PutCartLine_Returns400_WhenSkuNotAvailableInShop()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+
+            // Table Tent is Published but Coming soon (AvailableInShop off).
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "table-tents",
+                5
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                ShopSkuNotAvailableException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+            Assert.Contains(
+                "not available",
+                body.GetProperty("message").GetString(),
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
         public async Task PutCartLine_Returns403_WhenAdminHasViewOnly()
         {
             var seeded = await SeedAdminWithShopViewAsync();
@@ -133,7 +189,7 @@ namespace TummlyBackend.Tests.Integration
             var response = await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                 1
             );
 
@@ -151,14 +207,14 @@ namespace TummlyBackend.Tests.Integration
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "table-tents",
-                2
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                1
             );
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.OutOfScopeLocationId,
-                "window-stickers",
-                4
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                2
             );
 
             using var firstRequest = AuthorizedGet(
@@ -175,17 +231,17 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal(1, first.GetProperty("lines").GetArrayLength());
             Assert.Equal(
-                "table-tents",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                 first.GetProperty("lines")[0].GetProperty("skuId").GetString()
             );
-            Assert.Equal(2, first.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
+            Assert.Equal(1, first.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
 
             Assert.Equal(1, second.GetProperty("lines").GetArrayLength());
             Assert.Equal(
-                "window-stickers",
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
                 second.GetProperty("lines")[0].GetProperty("skuId").GetString()
             );
-            Assert.Equal(4, second.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
+            Assert.Equal(2, second.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
         }
 
         private async Task<HttpResponseMessage> PutLineAsync(

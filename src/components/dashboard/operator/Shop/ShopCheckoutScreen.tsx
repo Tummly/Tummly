@@ -196,10 +196,15 @@ export function ShopCheckoutScreen({
     (sum, line) => sum + line.lineNetPence,
     0
   )
+  const standardDeliveryNetPence = checkoutLines.reduce(
+    (max, line) => Math.max(max, line.deliveryNetPence ?? 0),
+    0
+  )
   const totals = computeShopCheckoutTotalsPence({
     materialsNetPence,
     deliveryMethod,
     vatRateBps,
+    standardDeliveryNetPence,
   })
   const showVatChrome = vatRateBps > 0
   const formatLinePrice = (netPence: number) =>
@@ -1043,32 +1048,41 @@ export function ShopCheckoutScreen({
             </DialogHeader>
 
             <div className="flex flex-col gap-2">
-              {[5, 10, 20, 50].map((qty) => (
+              {(singleLine.packs?.length
+                ? singleLine.packs
+                : [
+                    {
+                      qty: singleLine.quantity,
+                      netPence: singleLine.lineNetPence,
+                    },
+                  ]
+              ).map((pack) => (
                 <button
-                  key={qty}
+                  key={pack.qty}
                   type="button"
                   onClick={() => {
                     setCheckoutLines([
                       {
                         ...singleLine,
-                        quantity: qty,
-                        lineNetPence: singleLine.unitNetPence * qty,
+                        quantity: pack.qty,
+                        unitNetPence: pack.netPence,
+                        lineNetPence: pack.netPence,
                       },
                     ])
                     setIsEditQuantityOpen(false)
-                    toast.success(`Quantity updated to Pack of ${qty}`)
+                    toast.success(
+                      `Quantity updated to Pack of ${pack.qty.toLocaleString("en-GB")}`
+                    )
                   }}
                   className={cn(
                     "flex items-center justify-between rounded-sm border p-3 text-sm transition-colors",
-                    singleLine.quantity === qty
+                    singleLine.quantity === pack.qty
                       ? "border-op-action-primary bg-op-surface-secondary font-semibold text-op-text-primary"
                       : "border-op-border-default bg-op-background-primary text-op-text-secondary hover:bg-op-surface-secondary/50"
                   )}
                 >
-                  <span>Pack of {qty}</span>
-                  <span>
-                    {penceToPounds(singleLine.unitNetPence * qty)}
-                  </span>
+                  <span>Pack of {pack.qty.toLocaleString("en-GB")}</span>
+                  <span>{penceToPounds(pack.netPence)}</span>
                 </button>
               ))}
             </div>

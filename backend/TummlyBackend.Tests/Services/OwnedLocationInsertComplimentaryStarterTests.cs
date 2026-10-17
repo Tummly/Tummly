@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Locations;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
@@ -46,7 +47,8 @@ namespace TummlyBackend.Tests.Services
             _insert = new OwnedLocationInsertService(
                 _context,
                 pricebook,
-                new QrCodeProvisioningService(_context, smartGuestLink)
+                new QrCodeProvisioningService(_context, smartGuestLink),
+                NoOpPrintReadyQrMaterialsWork.Instance
             );
 
             SeedRestaurantWithEntitledPlan();

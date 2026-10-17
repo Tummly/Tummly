@@ -74,7 +74,8 @@ namespace TummlyBackend.Tests.Services
             _insert = new OwnedLocationInsertService(
                 _context,
                 catalog,
-                new QrCodeProvisioningService(_context, smartGuestLink)
+                new QrCodeProvisioningService(_context, smartGuestLink),
+                NoOpPrintReadyQrMaterialsWork.Instance
             );
             _lifecycle = new CaptureQrLifecycleService(
                 _context,
@@ -193,6 +194,20 @@ namespace TummlyBackend.Tests.Services
                 QrType qrType,
                 CancellationToken cancellationToken = default
             ) => throw new NotSupportedException();
+
+            public Task<ShopPrintAssetPreviewDto?> GetShopOrderPreviewAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<ShopPrintAssetReadinessDto?> ApproveShopOrderAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                int actorAdminUserId,
+                string actorIdentity,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
         }
 
         private void SeedPilotAtCap()
@@ -219,12 +234,15 @@ namespace TummlyBackend.Tests.Services
             _context.SaveChanges();
             _restaurantId = restaurant.Id;
 
-            _context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(
-                    restaurant.Id,
-                    "TUMMLY-UK-GBP-2026-08-V3"
-                )
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
             );
+            BillingCreditsService.ApplyPilotSignupBilling(
+                billing,
+                DateTime.UtcNow
+            );
+            _context.BillingAccounts.Add(billing);
 
             var location = new RestaurantLocation
             {

@@ -233,12 +233,15 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
-            context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(
-                    restaurant.Id,
-                    CurrentPricebookId
-                )
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                CurrentPricebookId
             );
+            BillingCreditsService.ApplyPilotSignupBilling(
+                billing,
+                DateTime.UtcNow
+            );
+            context.BillingAccounts.Add(billing);
 
             owner.SelectedRestaurantId = restaurant.Id;
             context.RestaurantLocations.Add(

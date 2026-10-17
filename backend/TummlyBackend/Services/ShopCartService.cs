@@ -49,9 +49,17 @@ namespace TummlyBackend.Services
         )
         {
             var detail = _catalog.TryBuildDetail(skuId);
-            if (detail == null || quantity < detail.MinOrderQty)
+            if (
+                detail == null
+                || !ShopMaterialPacks.TryResolve(detail.Packs, quantity, out _)
+            )
             {
                 return null;
+            }
+
+            if (!detail.AvailableInShop)
+            {
+                throw new ShopSkuNotAvailableException();
             }
 
             if (string.Equals(skuId, "offer-card", StringComparison.Ordinal))
@@ -205,20 +213,27 @@ namespace TummlyBackend.Services
             foreach (var row in cart.Lines.OrderBy(line => line.SkuId))
             {
                 var detail = _catalog.TryBuildDetail(row.SkuId);
-                if (detail == null)
+                if (
+                    detail == null
+                    || !ShopMaterialPacks.TryResolve(
+                        detail.Packs,
+                        row.Quantity,
+                        out var pack
+                    )
+                    || pack == null
+                )
                 {
                     continue;
                 }
 
-                var lineNet = checked(detail.UnitNetPence * row.Quantity);
-                materialsNetPence = checked(materialsNetPence + lineNet);
+                materialsNetPence = checked(materialsNetPence + pack.NetPence);
                 lines.Add(new ShopCartLineDto
                 {
                     SkuId = row.SkuId,
                     Quantity = row.Quantity,
                     Title = detail.Title,
-                    UnitNetPence = detail.UnitNetPence,
-                    LineNetPence = lineNet,
+                    UnitNetPence = pack.NetPence,
+                    LineNetPence = pack.NetPence,
                 });
             }
 

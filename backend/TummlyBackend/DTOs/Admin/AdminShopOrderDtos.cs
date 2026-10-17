@@ -90,6 +90,10 @@ namespace TummlyBackend.DTOs.Admin
         public string? FileName { get; set; }
 
         public string? LastError { get; set; }
+
+        public bool Approved { get; set; }
+
+        public string? PrintRoute { get; set; }
     }
 
     public sealed class AdminShopOrderFulfilmentPatchDto

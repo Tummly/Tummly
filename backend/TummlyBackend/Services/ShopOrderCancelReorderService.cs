@@ -159,14 +159,26 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
-                var lineNetPence = checked(detail.UnitNetPence * line.Quantity);
+                if (
+                    !ShopMaterialPacks.TryResolve(
+                        detail.Packs,
+                        line.Quantity,
+                        out var pack
+                    )
+                    || pack == null
+                )
+                {
+                    unavailable.Add(line.CatalogSkuId);
+                    continue;
+                }
+
                 lines.Add(new ShopReorderPrefillLineDto
                 {
                     SkuId = detail.SkuId,
-                    Quantity = line.Quantity,
+                    Quantity = pack.Qty,
                     Title = detail.Title,
-                    UnitNetPence = detail.UnitNetPence,
-                    LineNetPence = lineNetPence,
+                    UnitNetPence = pack.NetPence,
+                    LineNetPence = pack.NetPence,
                 });
             }
 

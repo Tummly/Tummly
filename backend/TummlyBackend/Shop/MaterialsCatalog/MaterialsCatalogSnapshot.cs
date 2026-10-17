@@ -40,6 +40,8 @@ namespace TummlyBackend.Shop.MaterialsCatalog
 
         public string? PopularBadge { get; init; }
 
+        public bool AvailableInShop { get; init; }
+
         public bool MintOnShopFulfilment { get; init; }
     }
 }

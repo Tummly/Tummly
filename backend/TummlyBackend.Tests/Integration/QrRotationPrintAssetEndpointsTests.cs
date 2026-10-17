@@ -195,7 +195,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var download = AuthorizedRequest(
                 HttpMethod.Get,
-                $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/TableTent/download",
+                $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/OfferCard/download",
                 seeded.AdminJwt
             );
             var downloadResponse = await client.SendAsync(download);
@@ -217,9 +217,17 @@ namespace TummlyBackend.Tests.Integration
                 storage.GetRequired(seeded.OldStorageKey)
             );
 
+            using var approve = AuthorizedRequest(
+                HttpMethod.Post,
+                $"/api/admin/shop-orders/{seeded.ShopOrderId}/print-assets/OfferCard/approve",
+                seeded.AdminJwt
+            );
+            var approveResponse = await client.SendAsync(approve);
+            Assert.Equal(HttpStatusCode.OK, approveResponse.StatusCode);
+
             using var shopDownload = AuthorizedRequest(
                 HttpMethod.Get,
-                $"/api/admin/shop-orders/{seeded.ShopOrderId}/print-assets/TableTent/download",
+                $"/api/admin/shop-orders/{seeded.ShopOrderId}/print-assets/OfferCard/download",
                 seeded.AdminJwt
             );
             var shopDownloadResponse = await client.SendAsync(shopDownload);
@@ -296,11 +304,27 @@ namespace TummlyBackend.Tests.Integration
             context.RestaurantLocations.Add(location);
             await context.SaveChangesAsync();
 
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = location.Id,
+                Status = "active",
+                OfferType = CatalogOfferType.PercentageDiscount,
+                Title = "Rotate print offer",
+                Description = "Printed on Counter Display",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountPercentage = 10m,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
+            location.OfferCardCatalogOfferId = offer.Id;
+
             var oldToken = $"rotate-print-old-{Guid.NewGuid():N}"[..32];
             var qrCode = new QrCode
             {
                 RestaurantLocationId = location.Id,
-                QrType = QrType.TableTent,
+                QrType = QrType.OfferCard,
                 Token = oldToken,
                 Status = QrCodeStatus.Active,
                 CreatedAt = DateTime.UtcNow,
@@ -333,9 +357,9 @@ namespace TummlyBackend.Tests.Integration
                     new ShopOrderLine
                     {
                         Id = Guid.NewGuid(),
-                        CatalogSkuId = "table-tents",
-                        TitleSnapshot = "Table tents",
-                        MaterialType = "tabletop",
+                        CatalogSkuId = "qr-counter-display",
+                        TitleSnapshot = "Counter Display",
+                        MaterialType = "counter",
                         Quantity = 1,
                         UnitNetPence = 2400,
                         LineNetPence = 2400,
@@ -345,7 +369,7 @@ namespace TummlyBackend.Tests.Integration
             context.ShopOrders.Add(shopOrder);
 
             var oldStorageKey =
-                $"print-ready-qr/{location.Id}/TableTent/{Fingerprint(oldToken)}.pdf";
+                $"print-ready-qr/{location.Id}/OfferCard/{Fingerprint(oldToken)}.pdf";
             context.PrintReadyQrAssets.AddRange(
                 ReadyAsset(shopOrderId: null),
                 ReadyAsset(shopOrder.Id)
@@ -384,12 +408,12 @@ namespace TummlyBackend.Tests.Integration
                 new()
                 {
                     RestaurantLocationId = location.Id,
-                    QrType = QrType.TableTent,
+                    QrType = QrType.OfferCard,
                     ShopOrderId = shopOrderId,
                     Status = PrintReadyQrAssetStatus.Ready,
                     StorageKey = oldStorageKey,
                     ContentType = "application/pdf",
-                    FileName = "old-table-tent.pdf",
+                    FileName = "old-counter-display.pdf",
                     QrTokenFingerprint = Fingerprint(oldToken),
                     TemplatePackVersion = "old-pack",
                     OfferCopyVersion = "old-copy",
@@ -407,7 +431,7 @@ namespace TummlyBackend.Tests.Integration
                 .AsNoTracking()
                 .SingleAsync(row =>
                     row.RestaurantLocationId == locationId
-                    && row.QrType == QrType.TableTent
+                    && row.QrType == QrType.OfferCard
                     && row.ShopOrderId == shopOrderId
                 );
 
