@@ -893,6 +893,9 @@ namespace TummlyBackend.Tests.Services
 
             public Task<object> CreateDemoSessionAsync() =>
                 throw new NotImplementedException();
+
+            public Task<object> GetDemoGuestEntryAsync() =>
+                throw new NotImplementedException();
         }
     }
 }
