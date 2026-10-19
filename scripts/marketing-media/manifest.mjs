@@ -206,6 +206,54 @@ export const SIMPLE_ASSETS = [
     quality: 85,
     primaryFormat: "webp",
   },
+  // About hero band (Figma `5673:24165`) — full-bleed ~1668 CSS px.
+  // Master exported @3× (5004); emit through 3336 (2×) for reliable encode.
+  {
+    id: "about/hero-band",
+    source: ".scratch/marketing-media-sources/about/hero-band-master.png",
+    blobDir: "images/about",
+    baseName: "hero-band",
+    widths: [834, 1668, 3336],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 95,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // About Industries cards (Figma `5685:35427`) — display ~374 CSS px.
+  // Widths cover 1× / 2× / 3× (clamped to native master).
+  ...["cafes", "takeaway", "casual", "groups"].map((name) => ({
+    id: `about/industry-${name}`,
+    source: `.scratch/marketing-media-sources/about/industry-${name}.png`,
+    blobDir: "images/about",
+    baseName: `industry-${name}`,
+    widths: [374, 748, 1122],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 95,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  })),
+  // About Principles icons (Figma `5673:24211`) — display ~98 CSS px.
+  // Masters @4×; publish through ~4× for sharp DPR.
+  ...["heard", "listening", "trust", "return", "location"].map((name) => ({
+    id: `about/principle-${name}`,
+    source: `.scratch/marketing-media-sources/about/principle-${name}.png`,
+    blobDir: "images/about",
+    baseName: `principle-${name}`,
+    widths: [98, 196, 392],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 100,
+    primaryFormat: /** @type {"png"} */ ("png"),
+  })),
+  // About Reality illustrations (Figma `5673:24194`) — display ~250 CSS px.
+  // Masters @4× (~900); publish through native width for 3×+ DPR.
+  ...["return", "relationships", "together", "visibility"].map((name) => ({
+    id: `about/reality-${name}`,
+    source: `.scratch/marketing-media-sources/about/reality-${name}.png`,
+    blobDir: "images/about",
+    baseName: `reality-${name}`,
+    widths: [250, 500, 900],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 100,
+    primaryFormat: /** @type {"png"} */ ("png"),
+  })),
   // How it works Guest Form phone mockups (Figma `5887:20625` … `5880:19826`)
   // Display ~392 CSS px → 784 master for 2×. quality 90 for UI chrome.
   ...[
@@ -233,6 +281,198 @@ export const SIMPLE_ASSETS = [
     widths: [671, 1342],
     formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
     quality: 90,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // Pilot hero lifestyle + green glow (Figma `6426:17174` / page hero `5661:19874`).
+  // Display 739 CSS px → 1478 master for 2×.
+  {
+    id: "pilot/hero",
+    source: ".scratch/marketing-media-sources/pilot/hero.png",
+    blobDir: "images/pilot",
+    baseName: "hero",
+    widths: [739, 1478],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 90,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // Pilot “Why Tummly” card illustrations (Figma `6543:18855`).
+  {
+    id: "pilot/why-hear",
+    source: ".scratch/marketing-media-sources/pilot/why-hear.png",
+    blobDir: "images/pilot",
+    baseName: "why-hear",
+    widths: [300, 600],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 90,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  {
+    id: "pilot/why-relationships",
+    source: ".scratch/marketing-media-sources/pilot/why-relationships.png",
+    blobDir: "images/pilot",
+    baseName: "why-relationships",
+    widths: [326, 651],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 90,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  {
+    id: "pilot/why-return",
+    source: ".scratch/marketing-media-sources/pilot/why-return.png",
+    blobDir: "images/pilot",
+    baseName: "why-return",
+    widths: [266, 532],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 90,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // Pilot Getting Started composite (stairs + step copy) — Frame 5971 / Figma `6535:18445`.
+  // Display ~753 CSS px → 1506 master for 2×.
+  {
+    id: "pilot/getting-started-steps",
+    source: ".scratch/marketing-media-sources/pilot/getting-started-steps.png",
+    blobDir: "images/pilot",
+    baseName: "getting-started-steps",
+    widths: [753, 1506],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 90,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // Pilot bottom split CTA frame (Figma `6464:35739`) — lifestyle + smoke strip
+  // baked at 3× (2160×1950). Display 720×650 CSS → widths cover 1× / 2× / 3×.
+  {
+    id: "pilot/sign-up-cta",
+    source: ".scratch/marketing-media-sources/pilot/sign-up-cta.png",
+    blobDir: "images/pilot",
+    baseName: "sign-up-cta-frame",
+    widths: [720, 1440, 2160],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 95,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // Pilot “See Tummly in Action” tab mockups (Figma `6495:18145` … `6495:18254`).
+  // Display 750 CSS px → 1500 master for 2× (sources are 2160²).
+  ...[
+    "in-action-hear",
+    "in-action-connected",
+    "in-action-opportunity",
+    "in-action-working",
+  ].map((name) => ({
+    id: `pilot/${name}`,
+    source: `.scratch/marketing-media-sources/pilot/${name}.png`,
+    blobDir: "images/pilot",
+    baseName: name,
+    widths: [750, 1500],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 90,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  })),
+  // For Groups hero (Figma `5661:20525`) — editorial 1548×763 CSS; badges 172×152.
+  {
+    id: "for-groups/hero-editorial",
+    source: ".scratch/marketing-media-sources/for-groups/hero-editorial.png",
+    blobDir: "images/for-groups",
+    baseName: "hero-editorial",
+    // Master is 3840×1920. Include full width so wide retina layouts are not upscaled.
+    widths: [960, 1920, 3840],
+    formats: /** @type {Format[]} */ (["avif", "webp", "jpg"]),
+    quality: 100,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  {
+    id: "for-groups/eyebrow-sparkle",
+    source: ".scratch/marketing-media-sources/for-groups/eyebrow-sparkle.png",
+    blobDir: "images/for-groups",
+    baseName: "eyebrow-sparkle",
+    widths: [22, 44],
+    formats: /** @type {Format[]} */ (["png"]),
+    quality: 100,
+    primaryFormat: /** @type {"png"} */ ("png"),
+  },
+  ...[
+    "iso-27001",
+    "cyber-essentials-plus",
+    "ico-dpe",
+    "ico-data",
+    "cyber-essentials",
+    "iasme-level-1",
+    "good-business-charter",
+    "iso-27701",
+  ].map((name) => ({
+    id: `for-groups/trust-${name}`,
+    source: `.scratch/marketing-media-sources/for-groups/trust-badges/${name}.png`,
+    blobDir: "images/for-groups/trust-badges",
+    baseName: name,
+    widths: [172, 344],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 100,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  })),
+  // For Groups Group-wide visibility (Figma `5661:20731`) — display 720 CSS px; 4× master.
+  {
+    id: "for-groups/feature-reporting",
+    source: ".scratch/marketing-media-sources/for-groups/feature-reporting.png",
+    blobDir: "images/for-groups",
+    baseName: "feature-reporting",
+    widths: [720, 1440, 2880],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 100,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // For Groups Location management (Figma `5661:21096`) — display 720 CSS px; 4× master.
+  {
+    id: "for-groups/feature-location-management",
+    source:
+      ".scratch/marketing-media-sources/for-groups/feature-location-management.png",
+    blobDir: "images/for-groups",
+    baseName: "feature-location-management",
+    widths: [720, 1440, 2880],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 100,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // For Groups Team Access (Figma `5661:21425`) — display 720 CSS px; 4× master.
+  {
+    id: "for-groups/feature-teams",
+    source: ".scratch/marketing-media-sources/for-groups/feature-teams.png",
+    blobDir: "images/for-groups",
+    baseName: "feature-teams",
+    widths: [720, 1440, 2880],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 100,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // For Groups Offers & Campaigns (Figma `5661:21798`) — display 720 CSS px; 4× master.
+  {
+    id: "for-groups/feature-campaigns",
+    source: ".scratch/marketing-media-sources/for-groups/feature-campaigns.png",
+    blobDir: "images/for-groups",
+    baseName: "feature-campaigns",
+    widths: [720, 1440, 2880],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 100,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // For Groups AI Assistant (Figma `5661:22128`) — display 720 CSS px; 4× master.
+  {
+    id: "for-groups/feature-ai",
+    source: ".scratch/marketing-media-sources/for-groups/feature-ai.png",
+    blobDir: "images/for-groups",
+    baseName: "feature-ai",
+    widths: [720, 1440, 2880],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 100,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  },
+  // For Groups Sign up CTA background (Figma `6405:36178`) — display 1668 CSS px.
+  {
+    id: "for-groups/signup-cta-bg",
+    source: ".scratch/marketing-media-sources/for-groups/signup-cta-bg.png",
+    blobDir: "images/for-groups",
+    baseName: "signup-cta-bg",
+    widths: [834, 1668],
+    formats: /** @type {Format[]} */ (["avif", "webp", "jpg"]),
+    quality: 100,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   },
   {

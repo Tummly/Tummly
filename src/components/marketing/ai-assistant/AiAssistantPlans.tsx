@@ -18,6 +18,8 @@ export type MarketingPlansStripContent = {
   title: string
   /** Omit or leave empty to hide the body (Home Pricing). */
   body?: string
+  /** Optional note under the plan cards (Pilot `5679:34414`). */
+  footnote?: string
   compareLabel: string
   compareTo: string
   cards: readonly AiAssistantPlanStripCard[]
@@ -144,31 +146,37 @@ export function AiAssistantPlans({
         <header
           className={cn(
             "flex w-full flex-col",
-            compactHeader ? "max-w-[548px] gap-3.5" : "max-w-[580px] gap-[18px]",
+            compactHeader
+              ? "max-w-[548px] gap-3.5"
+              : "max-w-[651px] gap-[22px]",
           )}
         >
-          <p
-            className={cn(
-              "m-0 font-medium text-[#141414]",
-              compactHeader
-                ? "font-jakarta text-xs leading-[14px] lg:text-sm lg:leading-4"
-                : "text-base uppercase leading-normal text-black",
-            )}
-          >
-            {content.eyebrow}
-          </p>
-          <h2
-            className={cn(
-              "m-0",
-              compactHeader
-                ? "font-jakarta text-[28px] font-medium leading-9 text-[#141414] lg:text-[36px] lg:leading-[48px]"
-                : AI_ASSISTANT_SECTION_HEADING,
-            )}
-          >
-            {content.title}
-          </h2>
+          <div className="flex w-full flex-col gap-3.5">
+            <p
+              className={cn(
+                "m-0 font-medium text-[#141414]",
+                compactHeader
+                  ? "font-jakarta text-xs leading-[14px] lg:text-sm lg:leading-4"
+                  : "font-sans text-sm uppercase leading-normal tracking-[1.12px] text-black",
+              )}
+            >
+              {content.eyebrow}
+            </p>
+            <h2
+              className={cn(
+                "m-0",
+                compactHeader
+                  ? "font-jakarta text-[28px] font-medium leading-9 text-[#141414] lg:text-[36px] lg:leading-[48px]"
+                  : AI_ASSISTANT_SECTION_HEADING,
+              )}
+            >
+              {content.title}
+            </h2>
+          </div>
           {showBody ? (
-            <p className={cn("m-0", AI_ASSISTANT_SECTION_BODY)}>{body}</p>
+            <p className={cn("m-0 max-w-[592px]", AI_ASSISTANT_SECTION_BODY)}>
+              {body}
+            </p>
           ) : null}
         </header>
 
@@ -187,6 +195,12 @@ export function AiAssistantPlans({
             )
           })}
         </div>
+
+        {content.footnote != null && content.footnote.trim() !== "" ? (
+          <p className="m-0 max-w-[720px] font-sans text-sm font-normal leading-[18px] text-[#141414]">
+            {content.footnote}
+          </p>
+        ) : null}
 
         <MarketingButton asChild variant="secondary">
           <Link to={content.compareTo}>{content.compareLabel}</Link>

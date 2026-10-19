@@ -679,5 +679,744 @@
     "primary": "guest-form-step-05-784.webp",
     "kind": "simple",
     "primaryFormat": "webp"
+  },
+  "for-groups/hero-editorial": {
+    "w": 3840,
+    "h": 1920,
+    "blobDir": "images/for-groups",
+    "baseName": "hero-editorial",
+    "widths": [
+      960,
+      1920,
+      3840
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "jpg"
+    ],
+    "primary": "hero-editorial-3840.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/eyebrow-sparkle": {
+    "w": 44,
+    "h": 60,
+    "blobDir": "images/for-groups",
+    "baseName": "eyebrow-sparkle",
+    "widths": [
+      22,
+      44
+    ],
+    "formats": [
+      "png"
+    ],
+    "primary": "eyebrow-sparkle-44.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "for-groups/trust-iso-27001": {
+    "w": 344,
+    "h": 304,
+    "blobDir": "images/for-groups/trust-badges",
+    "baseName": "iso-27001",
+    "widths": [
+      172,
+      344
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "iso-27001-344.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/trust-cyber-essentials-plus": {
+    "w": 344,
+    "h": 304,
+    "blobDir": "images/for-groups/trust-badges",
+    "baseName": "cyber-essentials-plus",
+    "widths": [
+      172,
+      344
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "cyber-essentials-plus-344.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/trust-ico-dpe": {
+    "w": 344,
+    "h": 304,
+    "blobDir": "images/for-groups/trust-badges",
+    "baseName": "ico-dpe",
+    "widths": [
+      172,
+      344
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "ico-dpe-344.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/trust-ico-data": {
+    "w": 344,
+    "h": 304,
+    "blobDir": "images/for-groups/trust-badges",
+    "baseName": "ico-data",
+    "widths": [
+      172,
+      344
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "ico-data-344.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/trust-cyber-essentials": {
+    "w": 344,
+    "h": 304,
+    "blobDir": "images/for-groups/trust-badges",
+    "baseName": "cyber-essentials",
+    "widths": [
+      172,
+      344
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "cyber-essentials-344.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/trust-iasme-level-1": {
+    "w": 344,
+    "h": 304,
+    "blobDir": "images/for-groups/trust-badges",
+    "baseName": "iasme-level-1",
+    "widths": [
+      172,
+      344
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "iasme-level-1-344.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/trust-good-business-charter": {
+    "w": 344,
+    "h": 304,
+    "blobDir": "images/for-groups/trust-badges",
+    "baseName": "good-business-charter",
+    "widths": [
+      172,
+      344
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "good-business-charter-344.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/trust-iso-27701": {
+    "w": 344,
+    "h": 304,
+    "blobDir": "images/for-groups/trust-badges",
+    "baseName": "iso-27701",
+    "widths": [
+      172,
+      344
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "iso-27701-344.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "pilot/hero": {
+    "w": 1478,
+    "h": 1262,
+    "blobDir": "images/pilot",
+    "baseName": "hero",
+    "widths": [
+      739,
+      1478
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "hero-1478.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/hero-band": {
+    "w": 3336,
+    "h": 1540,
+    "blobDir": "images/about",
+    "baseName": "hero-band",
+    "widths": [
+      834,
+      1668,
+      3336
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "hero-band-3336.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "pilot/why-hear": {
+    "w": 600,
+    "h": 600,
+    "blobDir": "images/pilot",
+    "baseName": "why-hear",
+    "widths": [
+      300,
+      600
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "why-hear-600.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "pilot/why-relationships": {
+    "w": 651,
+    "h": 618,
+    "blobDir": "images/pilot",
+    "baseName": "why-relationships",
+    "widths": [
+      326,
+      651
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "why-relationships-651.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "pilot/why-return": {
+    "w": 532,
+    "h": 532,
+    "blobDir": "images/pilot",
+    "baseName": "why-return",
+    "widths": [
+      266,
+      532
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "why-return-532.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/industry-cafes": {
+    "w": 1122,
+    "h": 631,
+    "blobDir": "images/about",
+    "baseName": "industry-cafes",
+    "widths": [
+      374,
+      748,
+      1122
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "industry-cafes-1122.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/industry-takeaway": {
+    "w": 1122,
+    "h": 842,
+    "blobDir": "images/about",
+    "baseName": "industry-takeaway",
+    "widths": [
+      374,
+      748,
+      1122
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "industry-takeaway-1122.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/industry-casual": {
+    "w": 1122,
+    "h": 749,
+    "blobDir": "images/about",
+    "baseName": "industry-casual",
+    "widths": [
+      374,
+      748,
+      1122
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "industry-casual-1122.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/industry-groups": {
+    "w": 1122,
+    "h": 746,
+    "blobDir": "images/about",
+    "baseName": "industry-groups",
+    "widths": [
+      374,
+      748,
+      1122
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "industry-groups-1122.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "pilot/in-action-hear": {
+    "w": 1500,
+    "h": 1500,
+    "blobDir": "images/pilot",
+    "baseName": "in-action-hear",
+    "widths": [
+      750,
+      1500
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "in-action-hear-1500.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "pilot/in-action-connected": {
+    "w": 1500,
+    "h": 1500,
+    "blobDir": "images/pilot",
+    "baseName": "in-action-connected",
+    "widths": [
+      750,
+      1500
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "in-action-connected-1500.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "pilot/in-action-opportunity": {
+    "w": 1500,
+    "h": 1500,
+    "blobDir": "images/pilot",
+    "baseName": "in-action-opportunity",
+    "widths": [
+      750,
+      1500
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "in-action-opportunity-1500.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "pilot/in-action-working": {
+    "w": 1500,
+    "h": 1500,
+    "blobDir": "images/pilot",
+    "baseName": "in-action-working",
+    "widths": [
+      750,
+      1500
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "in-action-working-1500.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/feature-reporting": {
+    "w": 2880,
+    "h": 2600,
+    "blobDir": "images/for-groups",
+    "baseName": "feature-reporting",
+    "widths": [
+      720,
+      1440,
+      2880
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "feature-reporting-2880.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/principle-heard": {
+    "w": 334,
+    "h": 393,
+    "blobDir": "images/about",
+    "baseName": "principle-heard",
+    "widths": [
+      98,
+      196,
+      334
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "principle-heard-334.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "about/principle-listening": {
+    "w": 392,
+    "h": 392,
+    "blobDir": "images/about",
+    "baseName": "principle-listening",
+    "widths": [
+      98,
+      196,
+      392
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "principle-listening-392.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "about/principle-trust": {
+    "w": 392,
+    "h": 259,
+    "blobDir": "images/about",
+    "baseName": "principle-trust",
+    "widths": [
+      98,
+      196,
+      392
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "principle-trust-392.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "about/principle-return": {
+    "w": 392,
+    "h": 333,
+    "blobDir": "images/about",
+    "baseName": "principle-return",
+    "widths": [
+      98,
+      196,
+      392
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "principle-return-392.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "about/principle-location": {
+    "w": 392,
+    "h": 318,
+    "blobDir": "images/about",
+    "baseName": "principle-location",
+    "widths": [
+      98,
+      196,
+      392
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "principle-location-392.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "for-groups/feature-location-management": {
+    "w": 2880,
+    "h": 2600,
+    "blobDir": "images/for-groups",
+    "baseName": "feature-location-management",
+    "widths": [
+      720,
+      1440,
+      2880
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "feature-location-management-2880.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/reality-return": {
+    "w": 900,
+    "h": 769,
+    "blobDir": "images/about",
+    "baseName": "reality-return",
+    "widths": [
+      250,
+      500,
+      900
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "reality-return-900.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "about/reality-relationships": {
+    "w": 900,
+    "h": 806,
+    "blobDir": "images/about",
+    "baseName": "reality-relationships",
+    "widths": [
+      250,
+      500,
+      900
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "reality-relationships-900.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "about/reality-together": {
+    "w": 900,
+    "h": 900,
+    "blobDir": "images/about",
+    "baseName": "reality-together",
+    "widths": [
+      250,
+      500,
+      900
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "reality-together-900.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "about/reality-visibility": {
+    "w": 884,
+    "h": 788,
+    "blobDir": "images/about",
+    "baseName": "reality-visibility",
+    "widths": [
+      250,
+      500,
+      884
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "reality-visibility-884.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "for-groups/feature-teams": {
+    "w": 2880,
+    "h": 2600,
+    "blobDir": "images/for-groups",
+    "baseName": "feature-teams",
+    "widths": [
+      720,
+      1440,
+      2880
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "feature-teams-2880.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/feature-campaigns": {
+    "w": 2880,
+    "h": 2600,
+    "blobDir": "images/for-groups",
+    "baseName": "feature-campaigns",
+    "widths": [
+      720,
+      1440,
+      2880
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "feature-campaigns-2880.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/feature-ai": {
+    "w": 2880,
+    "h": 2600,
+    "blobDir": "images/for-groups",
+    "baseName": "feature-ai",
+    "widths": [
+      720,
+      1440,
+      2880
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "feature-ai-2880.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "pilot/sign-up-cta": {
+    "w": 2160,
+    "h": 1950,
+    "blobDir": "images/pilot",
+    "baseName": "sign-up-cta-frame",
+    "widths": [
+      720,
+      1440,
+      2160
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "sign-up-cta-frame-2160.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "for-groups/signup-cta-bg": {
+    "w": 1668,
+    "h": 565,
+    "blobDir": "images/for-groups",
+    "baseName": "signup-cta-bg",
+    "widths": [
+      834,
+      1668
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "jpg"
+    ],
+    "primary": "signup-cta-bg-1668.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "pilot/getting-started-steps": {
+    "w": 1506,
+    "h": 1019,
+    "blobDir": "images/pilot",
+    "baseName": "getting-started-steps",
+    "widths": [
+      753,
+      1506
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "getting-started-steps-1506.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
   }
 }

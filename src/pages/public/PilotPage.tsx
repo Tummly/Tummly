@@ -1,45 +1,38 @@
-import { useEffect } from "react"
-
 import Footer from "@/components/home/Footer"
 import { AiAssistantPlans } from "@/components/marketing/ai-assistant/AiAssistantPlans"
-import { MarketingSignUpCta } from "@/components/marketing/MarketingSignUpCta"
-import { PilotActivationJourney } from "@/components/marketing/pilot/PilotActivationJourney"
-import { PilotDay30 } from "@/components/marketing/pilot/PilotDay30"
-import { PilotEvidence } from "@/components/marketing/pilot/PilotEvidence"
 import { PilotFaqs } from "@/components/marketing/pilot/PilotFaqs"
+import { PilotFirstThirtyDays } from "@/components/marketing/pilot/PilotFirstThirtyDays"
+import { PilotGettingStarted } from "@/components/marketing/pilot/PilotGettingStarted"
 import { PilotHero } from "@/components/marketing/pilot/PilotHero"
-import { PilotPhysicalDeployment } from "@/components/marketing/pilot/PilotPhysicalDeployment"
-import { PilotPurpose } from "@/components/marketing/pilot/PilotPurpose"
-import { PilotSetup } from "@/components/marketing/pilot/PilotSetup"
-import { PilotTesting } from "@/components/marketing/pilot/PilotTesting"
+import { PilotInAction } from "@/components/marketing/pilot/PilotInAction"
+import { PilotSignUpCta } from "@/components/marketing/pilot/PilotSignUpCta"
+import { PilotWhyTummly } from "@/components/marketing/pilot/PilotWhyTummly"
 import { PilotWhyZero } from "@/components/marketing/pilot/PilotWhyZero"
-import { PILOT_PLANS, PILOT_SIGN_UP_CTA } from "@/content/marketing/pilotPage"
-import { scheduleWarmSignUpCtaMedia } from "@/lib/prefetchSignUpCtaMedia"
+import { PILOT_PLANS } from "@/content/marketing/pilotPage"
 
 /**
  * Figma marketing 30-day Pilot page —
- * hero `5661:19874`, purpose `5661:19885`, testing `5661:19910`,
- * setup `5661:19947`, activation `5681:46039`, physical `5681:46057`,
- * evidence `5661:20056`, day-30 `5661:20456`, plans `5679:34414`,
- * why-£0 `5681:46128`, FAQs `5661:20468`, Sign-up CTA (media/video).
+ * hero `5661:19874`, why Tummly `6543:18855`,
+ * in action `6495:18145`–`6495:18254`, getting started `6476:16855`,
+ * 30-day panel `5681:46128`, first 30 days `6476:16898`,
+ * plans `5679:34414`, FAQs `5661:20468`, split sign-up CTA `6464:35738`.
  */
 export default function PilotPage() {
-  useEffect(() => scheduleWarmSignUpCtaMedia(), [])
-
   return (
     <>
       <PilotHero />
-      <PilotPurpose />
-      <PilotTesting />
-      <PilotSetup />
-      <PilotActivationJourney />
-      <PilotPhysicalDeployment />
-      <PilotEvidence />
-      <PilotDay30 />
-      <AiAssistantPlans content={PILOT_PLANS} showAiAllowance={false} />
+      <PilotWhyTummly />
+      <PilotInAction />
+      <PilotGettingStarted />
       <PilotWhyZero />
+      <PilotFirstThirtyDays />
+      <AiAssistantPlans
+        content={PILOT_PLANS}
+        showAiAllowance={false}
+        surfaceClassName="bg-[#ffffff]"
+      />
       <PilotFaqs />
-      <MarketingSignUpCta content={PILOT_SIGN_UP_CTA} variant="media" />
+      <PilotSignUpCta />
       <Footer />
     </>
   )

@@ -62,22 +62,37 @@ export type MarketingSignUpCtaContent = {
   planIntent?: SignupPlanIntent | null
 }
 
-/** `media` = dark video CTA; `editorial` = green marble light CTA (About). */
+/** `media` = dark video CTA; `editorial` = light CTA on marble / photo (About, For Groups). */
 export type MarketingSignUpCtaVariant = "media" | "editorial"
 
 type MarketingSignUpCtaProps = {
   content: MarketingSignUpCtaContent
   variant?: MarketingSignUpCtaVariant
+  /**
+   * Editorial background image. Defaults to About green marble.
+   * For Groups uses neon lime marble (`6405:36178`).
+   */
+  editorialBackgroundSrc?: string
+  editorialBackgroundSrcSet?: string
+  editorialBackgroundWidth?: number
+  editorialBackgroundHeight?: number
+  /** Desktop aspect for editorial plate. Defaults to About `1668/525`. */
+  editorialAspectClass?: string
 }
 
 /**
  * Shared marketing bottom CTA.
  * - `media` — Figma `5661:14510` / `4151:3811` (dark + video)
- * - `editorial` — Figma About `5661:24424` (green marble, dark type)
+ * - `editorial` — light type on marble (About `5661:24424`, For Groups `6405:36178`)
  */
 export function MarketingSignUpCta({
   content,
   variant = "media",
+  editorialBackgroundSrc = signupEditorialBg,
+  editorialBackgroundSrcSet,
+  editorialBackgroundWidth = 1920,
+  editorialBackgroundHeight = 800,
+  editorialAspectClass = "lg:aspect-[1668/525]",
 }: MarketingSignUpCtaProps) {
   const navigate = useNavigate()
   const emailFieldId = useId()
@@ -174,16 +189,18 @@ export function MarketingSignUpCta({
         className={cn(
           "relative flex w-full flex-col overflow-hidden rounded-[8px]",
           isEditorial
-            ? "bg-[#eceae6] lg:aspect-[1668/525] lg:block"
+            ? cn("bg-[#eceae6] lg:block", editorialAspectClass)
             : "bg-[#141414] lg:aspect-[1668/615] lg:block",
         )}
       >
         {isEditorial ? (
           <img
-            src={signupEditorialBg}
+            src={editorialBackgroundSrc}
+            srcSet={editorialBackgroundSrcSet}
+            sizes="(min-width: 1024px) 1668px, 100vw"
             alt=""
-            width={1920}
-            height={800}
+            width={editorialBackgroundWidth}
+            height={editorialBackgroundHeight}
             className="pointer-events-none absolute inset-0 size-full max-w-none object-cover object-center"
             decoding="async"
             aria-hidden

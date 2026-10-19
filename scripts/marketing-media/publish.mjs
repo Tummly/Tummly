@@ -16,13 +16,16 @@
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs"
+import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -32,7 +35,10 @@ import { PICTURE_ASSETS, SIMPLE_ASSETS } from "./manifest.mjs"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, "../..")
-const OUT_DIR = path.join(ROOT, ".scratch/marketing-media-out")
+/** Override with MARKETING_MEDIA_OUT when running parallel --only publishes. */
+const OUT_DIR = process.env.MARKETING_MEDIA_OUT
+  ? path.resolve(process.env.MARKETING_MEDIA_OUT)
+  : path.join(ROOT, ".scratch/marketing-media-out")
 const META_PATH = path.join(ROOT, "src/lib/marketingMediaMeta.json")
 const ACCOUNT = "sttummlyqavfavue"
 const CONTAINER = "marketing"
@@ -248,7 +254,17 @@ async function generateAsset(asset, meta) {
         width,
         withoutEnlargement: true,
       })
-      await encode(pipeline, format, asset.quality).toFile(outPath)
+      // Encode to OS temp, then copy into OUT_DIR. Direct HEIF writes on some
+      // external mounts fail mid-encode; also re-ensure the out dir each file.
+      const bytes = await encode(pipeline, format, asset.quality).toBuffer()
+      const tmpPath = path.join(
+        tmpdir(),
+        `marketing-media-${process.pid}-${fileName}`,
+      )
+      writeFileSync(tmpPath, bytes)
+      ensureDir(outDir)
+      copyFileSync(tmpPath, outPath)
+      unlinkSync(tmpPath)
       process.stdout.write(`  wrote ${blobPath(asset.blobDir, fileName)}\n`)
     }
   }

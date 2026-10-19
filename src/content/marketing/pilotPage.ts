@@ -1,5 +1,5 @@
-import type { MarketingSignUpCtaContent } from "@/components/marketing/MarketingSignUpCta"
 import {
+  MARKETING_DEMO_PATH,
   MARKETING_FAQS_PATH,
   MARKETING_PRICING_PATH,
 } from "@/constants/marketingNav"
@@ -8,7 +8,7 @@ import { AI_ASSISTANT_PLANS } from "@/content/marketing/aiAssistantPage"
 /** Shared section inset — matches How it works / Product (20px mobile, 60px desktop). */
 export const PILOT_SECTION_INSET = "px-5 lg:px-[60px]"
 
-/** Shared vertical pad — 50px mobile, 70px desktop. Figma hero `5661:19874`. */
+/** Shared vertical pad — 50px mobile, 70px desktop. */
 export const PILOT_SECTION_Y = "py-12.5 lg:py-[70px]"
 
 export const PILOT_SECTION_BODY =
@@ -17,231 +17,196 @@ export const PILOT_SECTION_BODY =
 export const PILOT_SECTION_HEADING =
   "font-jakarta text-[28px] font-medium leading-9 text-[#141414] lg:text-[46px] lg:leading-[52px]"
 
-/** Figma 30-day Pilot hero `5661:19874`. */
+/** Figma 30-day Pilot hero `5661:19874` — split copy + lifestyle frame. */
 export const PILOT_HERO = {
-  eyebrow: "30-DAY PILOT",
-  title: "Put Guest Loop to work in one real Location for 30 days.",
-  body: "Set up your Location, get Guest Loop into real guest moments and decide from real activity whether Tummly is worth continuing with.",
-  trustBadge: "£0 / No payment card required",
-  primaryLabel: "Get started",
+  eyebrow: "FREE 30-DAY PILOT",
+  title: "Turn everyday visits into reasons to return.",
+  body: "Try Tummly free for 30 days. Collect private guest Feedback through a simple QR code, build a permission-based guest list and use relevant Offers and Campaigns to encourage repeat orders and visits.",
+  primaryLabel: "Start 30-day Pilot",
   emailPlaceholder: "Work email",
   planIntent: { plan: "Pilot" as const },
-  footnote:
-    "Your 30 days are for live Guest Loop use — not waiting for setup.",
-} as const
-
-export type PilotPurposeOption = {
-  id: "real-deployment" | "private-listening" | "guest-context" | "action-learning"
-  title: string
-  body: string
-}
-
-/**
- * Figma Pilot “What the Pilot is for” `5661:19885`.
- * Option clicks swap the visual; all options share one image for now.
- */
-export const PILOT_PURPOSE = {
-  eyebrow: "WHAT THE PILOT IS FOR",
-  title: "See Guest Loop working in a real restaurant.",
-  body: "Use one verified Location, put Guest Loop into real guest moments and use your own activity to decide whether the workflow fits your restaurant.",
-  footnote: "This is a real-location Pilot, not a pre-filled software demo.",
+  trustItems: [
+    "Free for 30 days · One Location",
+    "No payment card required",
+  ] as const,
+  /** marketingMediaMeta / remoteSimpleUrl id */
+  mediaId: "pilot/hero",
   imageAlt:
-    "Guests at a restaurant table while one person scans a Guest Loop QR table tent on their phone.",
-  options: [
-    {
-      id: "real-deployment",
-      title: "Real deployment",
-      body: "Put Guest Loop into suitable counter, table, receipt, takeaway or delivery moments.",
-    },
-    {
-      id: "private-listening",
-      title: "Private listening",
-      body: "Collect private Feedback through your restaurant’s Guest Form and keep it separate from public reviews.",
-    },
-    {
-      id: "guest-context",
-      title: "Useful guest context",
-      body: "See how guest details, interaction history and current contact/opt-in context begin to build around real activity.",
-    },
-    {
-      id: "action-learning",
-      title: "Action + learning",
-      body: "Review Feedback, use available Campaign and Offer tools where appropriate, and see what the resulting activity tells you.",
-    },
-  ] satisfies PilotPurposeOption[],
+    "Cafe host at a laptop beside a green Guest Loop QR table tent on the counter.",
 } as const
 
-export type PilotTestingCard = {
-  id: string
+export type PilotWhyCard = {
+  id: "hear" | "relationships" | "return"
+  title: string
+  body: string
+  /** marketingMediaMeta / remoteSimpleImg id */
+  mediaId: string
+  imageAlt: string
+  /** CSS display size of the illustration plate. */
+  imageWidth: number
+  imageHeight: number
+}
+
+/** Figma Pilot “Why Tummly” `6543:18855`. */
+export const PILOT_WHY_TUMMLY = {
+  eyebrow: "WHY TUMMLY",
+  title: "Feedback is the beginning. The next visit is the opportunity.",
+  body: "When a guest leaves your restaurant, the relationship doesn't have to end. Tummly helps you understand their experience, stay connected when they choose to hear from you and create more opportunities for repeat orders.",
+  cards: [
+    {
+      id: "hear",
+      title: "Hear what matters.",
+      body: "Understand what guests enjoyed, identify concerns and find opportunities to improve their experience.",
+      mediaId: "pilot/why-hear",
+      imageAlt: "Illustration of a megaphone with speech bubbles.",
+      imageWidth: 300,
+      imageHeight: 300,
+    },
+    {
+      id: "relationships",
+      title: "Build stronger guest relationships.",
+      body: "Create a guest list through everyday interactions and stay connected with guests who give permission to receive future updates.",
+      mediaId: "pilot/why-relationships",
+      imageAlt:
+        "Illustration of a restaurant and a guest profile tablet linked by hearts.",
+      imageWidth: 326,
+      imageHeight: 326,
+    },
+    {
+      id: "return",
+      title: "Give guests a reason to return.",
+      body: "Use relevant Offers and Campaigns to reconnect with eligible guests and encourage another order or visit.",
+      mediaId: "pilot/why-return",
+      imageAlt: "Illustration of an open gift box with a percent sprout inside.",
+      imageWidth: 266,
+      imageHeight: 266,
+    },
+  ] satisfies PilotWhyCard[],
+} as const
+
+export type PilotGettingStartedStep = {
+  id: "setup" | "prepare" | "place" | "hear"
   number: string
   title: string
   body: string
 }
 
-/** Figma Pilot “What you’re testing” `5661:19910`. */
-export const PILOT_TESTING = {
-  eyebrow: "WHAT YOU’RE TESTING",
-  title:
-    "By Day 30, you should know whether Guest Loop earns a place in your operation.",
-  cards: [
-    {
-      id: "deployment",
-      number: "01",
-      title: "Deployment",
-      body: "Can you place Guest Loop naturally into real guest moments?",
-    },
-    {
-      id: "participation",
-      number: "02",
-      title: "Participation",
-      body: "Do guests use the QR touchpoints when they encounter them?",
-    },
-    {
-      id: "listening",
-      number: "03",
-      title: "Listening",
-      body: "Does private Feedback give your team useful information?",
-    },
-    {
-      id: "relationship",
-      number: "04",
-      title: "Relationship",
-      body: "Does useful guest/contact context begin to build?",
-    },
-    {
-      id: "action",
-      number: "05",
-      title: "Action",
-      body: "Can you follow up, use an Offer or run an eligible Campaign without creating excessive work?",
-    },
-    {
-      id: "learning",
-      number: "06",
-      title: "Learning",
-      body: "Can you understand what happened and decide what to do next?",
-    },
-  ] satisfies PilotTestingCard[],
-} as const
-
-export type PilotSetupCard = {
-  id: "location" | "guest-loop" | "go-live"
-  number: string
-  title: string
-  body: string
-  imageAlt: string | null
-}
-
 /**
- * Figma Pilot “Set up first” `5661:19947`.
- * Cards 01–02 include product visuals; card 03 is copy-only in Figma.
+ * Figma Pilot “Getting Started” `6535:18445`.
+ * Right column is one composite (stairs + step copy). Steps stay for a11y.
  */
-export const PILOT_SETUP = {
-  body: "Create your workspace, verify your Location and prepare your Guest Form and QR placements before your live Pilot begins.",
-  title: "Set up first. Use your 30 days for live Guest Loop activity.",
-  cards: [
-    {
-      id: "location",
-      number: "01",
-      title: "Set up your Location",
-      body: "Create your Tummly account, add your first Location and complete verification.",
-      imageAlt:
-        "Location setup form with name, address, country, timezone and Set up your account.",
-    },
-    {
-      id: "guest-loop",
-      number: "02",
-      title: "Prepare Guest Loop",
-      body: "Review your Guest Form, create the QR placements you want to use and prepare the Location for production.",
-      imageAlt:
-        "Guest Feedback form on a phone for Mavero Kitchen, Camden High Street.",
-    },
-    {
-      id: "go-live",
-      number: "03",
-      title: "Go live",
-      body: "Place Guest Loop into real restaurant moments. Your live 30-day Pilot then starts under the Pilot activation rules.",
-      imageAlt: null,
-    },
-  ] satisfies PilotSetupCard[],
-} as const
-
-/**
- * Figma Pilot “From setup to live” `5681:46039`.
- * Centred copy inside the shared gradient panel.
- */
-export const PILOT_ACTIVATION_JOURNEY = {
-  eyebrow: "FROM SETUP TO LIVE",
-  title: "We help you get from setup to useful evidence.",
+export const PILOT_GETTING_STARTED = {
+  eyebrow: "GETTING STARTED",
+  title: "From setup to your first guest scan.",
+  body: "Getting started is straightforward. Set up your restaurant, prepare your Guest Form and place your included QR Counter Display where guests can easily see it.",
+  primaryLabel: "Start 30-day Pilot",
+  secondaryLabel: "Compare paid plans",
+  secondaryTo: `${MARKETING_PRICING_PATH}#compare-plans`,
+  planIntent: { plan: "Pilot" as const },
+  mediaId: "pilot/getting-started-steps",
+  imageAlt:
+    "Four steps from setup to first guest scan: set up your restaurant, prepare your Guest Loop, place your QR Counter Display, then start hearing from guests.",
   steps: [
-    "Set up — Account, Location and verification ready.",
-    "Prepare — Guest Form and QR placements ready.",
-    "Receive — Starter materials delivered where the qualifying entitlement applies.",
-    "Place — QR touchpoints deployed in the restaurant.",
-    "Go live — First valid production activity begins the real Pilot.",
-    "Learn — Use Feedback, guest context and available actions to judge the fit.",
-  ],
-  footnote:
-    "Your live 30-day Pilot starts at the earlier of your first valid production guest scan or 48 hours after confirmed delivery of your included Starter Kit. Preview/test activity does not start the Pilot.",
+    {
+      id: "setup",
+      number: "01",
+      title: "Set up your restaurant",
+      body: "Create your account, add your Location and complete verification.",
+    },
+    {
+      id: "prepare",
+      number: "02",
+      title: "Prepare your Guest Loop",
+      body: "Set up your Guest Form and QR placement. You can also configure an eligible Thank-You Offer.",
+    },
+    {
+      id: "place",
+      number: "03",
+      title: "Place your QR Counter Display",
+      body: "Position your included display at the till, service counter or collection point, ready for guests to scan.",
+    },
+    {
+      id: "hear",
+      number: "04",
+      title: "Start hearing from guests",
+      body: "Guests scan your QR code and share private Feedback directly with your restaurant.",
+    },
+  ] satisfies PilotGettingStartedStep[],
 } as const
 
+export type PilotFirstThirtyDaysCard = {
+  id: "qr" | "feedback" | "relationships" | "performance"
+  title: string
+  body: string
+}
+
 /**
- * Figma Pilot “Physical deployment” `5681:46057`.
- * Centred copy inside the shared gradient panel.
+ * Figma Pilot “Your first 30 days” `6476:16898`.
+ * Four insight cards + dual CTAs before the plans strip.
  */
-export const PILOT_PHYSICAL_DEPLOYMENT = {
-  eyebrow: "PHYSICAL DEPLOYMENT",
-  title: "Start online. Put Guest Loop into the restaurant when you’re ready.",
-  intro:
-    "Setup does not depend on the parcel arriving. Prepare your Location, Guest Form and QR placements online, then deploy the physical materials when they reach you.",
-  details: [
-    "Online setup — Location verified · Guest Form published · QR placements ready.",
-    "Physical deployment — Restaurant-ready QR guest cards / table tent or counter display / window sticker, based on the current Starter Kit configuration.",
-  ],
-  footnote:
-    "Restaurant-ready Starter Kit included for the qualifying Pilot Location. We provide the initial standard materials needed to help put Guest Loop into real restaurant moments. Exact contents follow the current Starter Kit configuration.",
+export const PILOT_FIRST_THIRTY_DAYS = {
+  eyebrow: "YOUR FIRST 30 DAYS",
+  title: "See what guests are saying and how they respond.",
+  body: "As guests start using Tummly, see which QR placements are getting attention, what guests think about their experience, how your guest list is growing and how people respond to your Campaigns and Offers.",
+  primaryLabel: "Start 30-day Pilot",
+  secondaryLabel: "Compare paid plans",
+  secondaryTo: `${MARKETING_PRICING_PATH}#compare-plans`,
+  planIntent: { plan: "Pilot" as const },
+  cards: [
+    {
+      id: "qr",
+      title: "QR activity",
+      body: "See which QR placements guests are scanning and how they're engaging with your Guest Form.",
+    },
+    {
+      id: "feedback",
+      title: "Guest Feedback",
+      body: "Understand what guests enjoyed and where their experience could improve.",
+    },
+    {
+      id: "relationships",
+      title: "Guest relationships",
+      body: "See how your guest list is growing and how many guests have chosen to receive future marketing updates.",
+    },
+    {
+      id: "performance",
+      title: "Campaign & Offer performance",
+      body: "Track Campaign engagement and see how guests respond to your Offers through recorded Claims and Redemptions.",
+    },
+  ] satisfies PilotFirstThirtyDaysCard[],
 } as const
 
 /**
- * Figma Pilot “What happens on Day 30” `5661:20456`.
- * Decision-point copy + compare-plans CTA.
- */
-export const PILOT_DAY_30 = {
-  eyebrow: "WHAT HAPPENS ON DAY 30",
-  title: "Day 30 is a decision point — not an automatic charge.",
-  body: "Your Pilot does not automatically become a paid subscription. When the live Pilot ends, choose a paid plan if you want to keep Guest Loop running. Your existing Location, QR placement history and supported setup remain part of the conversion path rather than requiring you to start again.",
-  ctaLabel: "Compare paid plans",
-  ctaTo: `${MARKETING_PRICING_PATH}#compare-plans`,
-} as const
-
-/**
- * Figma Pilot Paid Continuation plans strip `5679:34414`.
+ * Figma Pilot “Your next step” plans strip `5679:34414`.
  * Reuses shared plan cards; no AI allowance row.
  */
 export const PILOT_PLANS = {
-  eyebrow: "PAID CONTINUATION",
-  title: "If you want to continue, choose the plan that fits your operation.",
-  body: "Nothing converts automatically. At the end of the Pilot, you decide whether to continue.",
-  compareLabel: AI_ASSISTANT_PLANS.compareLabel,
-  compareTo: AI_ASSISTANT_PLANS.compareTo,
+  eyebrow: "YOUR NEXT STEP",
+  title: "Start free. Grow with Tummly.",
+  body: "Begin with a free 30-day Pilot at one restaurant Location. When you're ready to continue, choose a paid plan that fits your business. Already know what you need? You can start with a paid plan instead.",
+  footnote:
+    "All paid plans are available with monthly or annual billing. Your Pilot will never automatically turn into a paid subscription.",
+  compareLabel: "Compare all plans",
+  compareTo: `${MARKETING_PRICING_PATH}#compare-plans`,
   cards: AI_ASSISTANT_PLANS.cards,
 } as const
 
 /**
- * Figma Pilot “Why £0?” `5681:46128`.
- * Centred copy inside the shared gradient panel.
+ * Figma Pilot mid-page CTA panel `5681:46128`
+ * (“YOUR 30-DAY PILOT” / Everything you need to get started).
  */
 export const PILOT_WHY_ZERO = {
-  eyebrow: "WHY £0?",
-  title: "Why a £0 Pilot?",
-  intro:
-    "Because the useful question is whether Guest Loop works in your restaurant. Tummly is designed to let you test that with one verified Location before deciding whether to pay for ongoing use.",
-  points: [
-    "No payment card required to start.",
-    "No automatic paid renewal.",
-    "No requirement to choose a paid plan in advance.",
-    "One verified production Location.",
-    "Qualifying Starter Kit and setup support under the current Pilot rules.",
-  ],
+  eyebrow: "YOUR 30-DAY PILOT",
+  title: "Everything you need to get started.",
+  body: "Experience Tummly at one verified restaurant Location, with an included QR Counter Display and the tools to begin building stronger guest relationships.",
+  primaryLabel: "Start 30-day pilot",
+  secondaryLabel: "See full plan details",
+  secondaryTo: `${MARKETING_PRICING_PATH}#compare-plans`,
+  planIntent: { plan: "Pilot" as const },
+  trustItems: [
+    "Free for 30 days · One Location",
+    "No payment card required",
+  ] as const,
 } as const
 
 export type PilotFaqItem = {
@@ -250,9 +215,10 @@ export type PilotFaqItem = {
   answer: string
 }
 
-/** Figma Pilot FAQs `5661:20468`. */
+/** Figma Pilot FAQs `5661:20468` — warm surface `#f2f0ec` (not white). */
 export const PILOT_FAQS = {
   title: "Frequently asked questions",
+  body: "Everything you need to know before starting your 30-day Pilot.",
   moreTitle: "Have another question?",
   moreBody:
     "Find more answers about Tummly, pricing, QR materials and Guest Loop.",
@@ -260,169 +226,143 @@ export const PILOT_FAQS = {
   moreCtaTo: MARKETING_FAQS_PATH,
   items: [
     {
-      id: "really-zero",
-      question: "Is the Tummly 30-day Pilot really £0?",
+      id: "really-free",
+      question: "Is Tummly really free for 30 days?",
       answer:
-        "Yes. The Pilot is £0 for 30 live days at one qualifying verified Location. No payment card is required to start and there is no automatic paid renewal.",
-    },
-    {
-      id: "payment-card",
-      question: "Do I need a payment card to start?",
-      answer:
-        "No. You do not need to provide a payment card to start the 30-day Pilot.",
+        "Yes. The 30-day Pilot is free for one eligible, verified restaurant Location. No payment card is required, and there is no automatic paid renewal.",
     },
     {
       id: "when-begins",
-      question: "When does my 30-day Pilot begin?",
+      question: "When do my 30 days begin?",
       answer:
-        "Your account setup can begin immediately. Your live 30-day Pilot starts at the earlier of your first valid production guest scan or 48 hours after confirmed delivery of your included Starter Kit. Preview/test activity does not start the Pilot.",
+        "Your 30-day Pilot begins when you complete your Tummly account registration. You can start setting up your restaurant immediately.",
     },
     {
       id: "what-during",
-      question: "What can I do during the Pilot?",
+      question: "What can I do during my Pilot?",
       answer:
-        "You can set up one verified Location, prepare your Guest Form and QR placements, collect private Feedback, begin building guest context, use the Campaign/Offer capabilities available under the current Pilot entitlements and use the included AI, Email and SMS balances.",
+        "Explore Tummly's Guest Loop, collect private Feedback, build guest records, create Offers, run permission-based Campaigns and review available results, within your Pilot allowances.",
     },
     {
-      id: "qr-materials",
-      question: "Does the Pilot include QR materials?",
+      id: "website-printer",
+      question: "Do I need a website or printer?",
       answer:
-        "Yes, one qualifying standard Starter Kit is included for the verified Pilot Location under the current entitlement rules. Exact contents follow the current Starter Kit configuration.",
+        "No. Tummly provides your Guest Form and QR code, so you can start digitally. Eligible restaurants also receive an included QR Counter Display.",
     },
     {
-      id: "setup-before-materials",
-      question: "Can I start setting up before the materials arrive?",
+      id: "qr-counter-display",
+      question: "Is a QR Counter Display included?",
       answer:
-        "Yes. Software access and setup begin online. You can prepare your Location, Guest Form and QR placements before physical materials arrive.",
+        "Yes. One QR Counter Display is included for each eligible, newly activated and verified restaurant Location. It comes with your restaurant's QR code, ready for guests to scan.",
     },
     {
-      id: "multi-location",
-      question: "Can I run the Pilot across more than one Location?",
+      id: "existing-guest-list",
+      question: "Do I need an existing guest list?",
       answer:
-        "No. The standard Pilot is for one verified Location. If you operate multiple Locations, you can evaluate the Pilot at one Location and review Growth or Group options for broader rollout.",
+        "No. Tummly helps you build guest records as customers use your Guest Loop. Guests can separately choose whether to receive Email or SMS marketing.",
     },
     {
-      id: "campaigns-offers",
-      question: "Can I send Campaigns or use Offers during the Pilot?",
+      id: "repeat-visits",
+      question: "Can Tummly help encourage repeat visits and orders?",
       answer:
-        "Yes, subject to the Pilot’s current feature entitlements, remaining channel balances and guest eligibility/contactability rules. Tummly does not bypass those rules because the account is on Pilot.",
+        "Yes. Tummly helps you create Offers and Campaigns that give eligible guests reasons to return, while tracking supported engagement and recorded Offer Redemptions.",
     },
     {
-      id: "unlimited-usage",
-      question: "Are Email, SMS and AI usage unlimited?",
+      id: "auto-marketing",
+      question: "Will guests automatically receive marketing messages?",
       answer:
-        "No. The Pilot includes defined one-time balances. The website and application should show the current authoritative balances rather than implying unlimited usage.",
+        "No. Sharing contact details does not automatically give marketing permission. Guests must separately choose to receive Email or SMS marketing.",
     },
     {
-      id: "top-ups",
-      question: "Can I buy top-ups during the Pilot?",
+      id: "pilot-ends",
+      question: "What happens when my Pilot ends?",
       answer:
-        "No. Top-ups are not available on the Pilot. If a Pilot balance is exhausted, the relevant channel is limited according to the current product rules; other available Pilot capabilities can continue within their own limits.",
+        "You won't be charged automatically. You can choose a paid plan to continue using Tummly. If you don't subscribe, new activity is restricted, while your existing account data is handled according to Tummly's access and retention rules.",
     },
     {
-      id: "few-scans",
-      question: "What if I do not get many guest scans?",
+      id: "multi-restaurant",
+      question: "Can I use Tummly at more than one restaurant?",
       answer:
-        "The Pilot is intended to help you judge how Guest Loop fits your restaurant using real activity. Results vary by Location, footfall and deployment. Tummly does not guarantee a particular number of scans, guests, repeat visits or revenue outcome.",
-    },
-    {
-      id: "day-30",
-      question: "What happens on Day 30?",
-      answer:
-        "The Pilot ends and moves into the current post-Pilot account state. Tummly does not charge you automatically. If you want to continue, choose a paid plan. Your existing Location, QR history and supported setup remain part of the conversion path.",
-    },
-    {
-      id: "auto-charge",
-      question: "Will I be charged automatically?",
-      answer:
-        "No. There is no automatic Pilot-to-paid conversion and no automatic paid renewal.",
-    },
-    {
-      id: "paid-setup",
-      question: "What happens to my setup if I choose a paid plan?",
-      answer:
-        "Your existing Location, Guest Form, QR placement/token and supported history are preserved through Pilot-to-paid conversion. You do not need to rebuild the Location from scratch.",
-    },
-    {
-      id: "second-starter-kit",
-      question:
-        "Will I receive another Starter Kit if I become a paid customer?",
-      answer:
-        "No second complimentary Starter Kit is issued for the same Pilot Location simply because the account converts to paid. The Pilot kit already uses that Location’s one-time qualifying entitlement. Additional or replacement materials can be ordered separately through Tummly Shop.",
+        "Yes. The 30-day Pilot covers one restaurant Location. If you operate multiple restaurants, Tummly offers paid plans that let you manage your Locations together, with the flexibility to add more as your business grows.",
     },
   ] satisfies PilotFaqItem[],
 } as const
 
-/** Figma Pilot Sign up CTA — media (video) variant. */
-export const PILOT_SIGN_UP_CTA: MarketingSignUpCtaContent = {
-  title: "Ready to see Guest Loop in a real restaurant?",
-  body: "Start with one Location and see how Guest Loop works with real guests.",
-  primaryLabel: "Get started",
-  badge: "No payment card required",
-  planIntent: { plan: "Pilot" },
-}
+/**
+ * Figma Pilot bottom split CTA `6464:35738`.
+ * White surface + lifestyle frame (not dark video / About marble overlay).
+ */
+export const PILOT_SIGN_UP_CTA = {
+  title: "Ready to give guests a reason to return?",
+  body: "Start your free 30-day Pilot and put Tummly to work in your restaurant. Hear directly from guests, build stronger relationships and create more opportunities for repeat orders.",
+  primaryLabel: "Start 30-day Pilot",
+  emailPlaceholder: "Work email",
+  planIntent: { plan: "Pilot" as const },
+  mediaId: "pilot/sign-up-cta",
+  imageAlt:
+    "Friends and a child sharing plates and drinks at a sunlit restaurant table.",
+} as const
 
-export type PilotEvidenceRow = {
-  id: "feedback" | "guest-context" | "campaigns" | "results"
+export type PilotInActionTab = {
+  id: "hear" | "connected" | "opportunity" | "working"
+  tabLabel: string
   title: string
   body: string
-  /** Desktop: media on the left. Mobile always copy first. */
-  mediaFirst: boolean
-  media:
-    | { kind: "image"; imageAlt: string }
-    | { kind: "placeholder"; label: string }
+  /** marketingMediaMeta / remoteSimpleImg id */
+  mediaId: string
+  imageAlt: string
 }
 
 /**
- * Figma Pilot “Real activity” evidence strip `5661:20056`.
- * Campaigns & Results stay gray placeholders for now.
+ * Figma Pilot “See Tummly in Action” tabbed showcase —
+ * `6495:18145`, `6495:18183`, `6495:18223`, `6495:18254`.
  */
-export const PILOT_EVIDENCE = {
-  eyebrow: "REAL ACTIVITY. USEFUL EVIDENCE.",
-  title: "Use the Pilot to learn from real activity, not sample data.",
-  body: "As guests interact with Guest Loop, Tummly starts building the evidence you need to judge whether it fits your restaurant.",
-  rows: [
+export const PILOT_IN_ACTION = {
+  eyebrow: "SEE TUMMLY IN ACTION",
+  title: "One guest interaction. More opportunities to reconnect",
+  body: "See how Tummly connects private Feedback, guest relationships and relevant follow-up, helping you understand your guests and give them more reasons to return.",
+  primaryLabel: "Start 30-day Pilot",
+  secondaryLabel: "Try a demo",
+  secondaryTo: MARKETING_DEMO_PATH,
+  planIntent: { plan: "Pilot" as const },
+  /** Active tab fill — Figma Tab selected `#dfebe3`. */
+  activeTabColor: "#dfebe3",
+  tabs: [
     {
-      id: "feedback",
-      title: "Hear what real guests choose to tell you.",
-      body: "See private Feedback submitted through your restaurant’s Guest Form and understand what needs attention.",
-      mediaFirst: true,
-      media: {
-        kind: "image",
-        imageAlt:
-          "Feedback inbox showing private guest comments, sentiment tags and locations.",
-      },
+      id: "hear",
+      tabLabel: "Hear directly from guests",
+      title: "Know what your guests really think.",
+      body: "Give guests a simple way to share private Feedback after their visit. Understand what they enjoyed, spot concerns early and make improvements that give them more reasons to return.",
+      mediaId: "pilot/in-action-hear",
+      imageAlt:
+        "Feedback inbox with a guest detail card for Sophie H. and Respond actions.",
     },
     {
-      id: "guest-context",
-      title: "See useful guest context begin to build.",
-      body: "As guests choose to share details, see useful contact and interaction context building around real Guest Loop activity.",
-      mediaFirst: false,
-      media: {
-        kind: "image",
-        imageAlt:
-          "Guest context card for Daniel with contact details and recent activity.",
-      },
+      id: "connected",
+      tabLabel: "Stay connected beyond the visit",
+      title: "Turn one visit into an ongoing relationship.",
+      body: "Build a guest list through everyday interactions. Stay connected with guests who choose to receive updates from your restaurant, so the conversation doesn't have to end when they leave.",
+      mediaId: "pilot/in-action-connected",
+      imageAlt:
+        "Guests list with a Permissions panel for Charlotte W. showing email opt-in.",
     },
     {
-      id: "campaigns",
-      title: "Campaigns & Offers",
-      body: "Try appropriate re-engagement where your Pilot entitlements and guest eligibility allow.",
-      mediaFirst: false,
-      media: {
-        kind: "placeholder",
-        label: "Governed Draft / Offer state",
-      },
+      id: "opportunity",
+      tabLabel: "Create the next opportunity",
+      title: "Give guests a reason to order again.",
+      body: "Bring eligible guests back with relevant Offers and Campaigns. From thanking recent visitors to promoting something new, create more opportunities for repeat orders and visits.",
+      mediaId: "pilot/in-action-opportunity",
+      imageAlt:
+        "Email campaign setup beside a mobile preview of a free dessert offer.",
     },
     {
-      id: "results",
-      title: "Results",
-      body: "See the activity Tummly records so you can decide whether to continue.",
-      mediaFirst: false,
-      media: {
-        kind: "placeholder",
-        label: "Compact report / Pilot summary",
-      },
+      id: "working",
+      tabLabel: "See what is working",
+      title: "Understand your guests. See what’s working.",
+      body: "Track guest Feedback, Campaign engagement and Offer Redemptions in one place. Use AI to summarise Feedback, identify recurring issues and understand how guests are responding to your restaurant’s Offers and Campaigns.",
+      mediaId: "pilot/in-action-working",
+      imageAlt:
+        "Weekly report table with an AI Assistant chat summarising Feedback and Offers.",
     },
-  ] satisfies PilotEvidenceRow[],
+  ] satisfies PilotInActionTab[],
 } as const

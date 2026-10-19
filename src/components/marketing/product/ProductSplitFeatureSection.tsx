@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { MarketingButton } from "@/components/marketing/MarketingButton"
@@ -10,15 +11,36 @@ import {
 } from "@/content/marketing/productPage"
 import { cn } from "@/lib/utils"
 
-function FeaturePoint({ point }: { point: ProductFeaturePoint }) {
-  return (
-    <div className="flex flex-col gap-2 text-[#141414]">
+function FeaturePoint({
+  point,
+  Icon,
+}: {
+  point: ProductFeaturePoint
+  Icon?: LucideIcon
+}) {
+  const copy = (
+    <>
       <h3 className="m-0 font-jakarta text-base font-bold leading-normal">
         {point.title}
       </h3>
       <p className="m-0 max-w-[641px] font-sans text-sm font-normal leading-5">
         {point.body}
       </p>
+    </>
+  )
+
+  if (Icon == null) {
+    return <div className="flex flex-col gap-2 text-[#141414]">{copy}</div>
+  }
+
+  return (
+    <div className="flex items-start gap-3 text-[#141414]">
+      <Icon
+        className="mt-0.5 size-[18px] shrink-0 text-[#141414]"
+        strokeWidth={1.75}
+        aria-hidden
+      />
+      <div className="flex min-w-0 flex-col gap-1.5">{copy}</div>
     </div>
   )
 }
@@ -30,6 +52,8 @@ export type ProductSplitFeatureSectionProps = {
   body: string
   /** Feature list under the intro. Omit or pass [] when the band has none. */
   points?: readonly ProductFeaturePoint[]
+  /** Optional Lucide icon per point id (For Groups feature bands). */
+  pointIcons?: Partial<Record<string, LucideIcon>>
   imageSrc: string
   imageAlt: string
   imageWidth: number
@@ -41,6 +65,11 @@ export type ProductSplitFeatureSectionProps = {
    * Mobile still shows copy first.
    */
   mediaFirst?: boolean
+  /**
+   * For Groups bands (Figma 720×650 media, copy ≤560px): keep the text
+   * column from growing taller than the media plate.
+   */
+  balanceToMedia?: boolean
   /** Optional secondary CTA under the feature list. */
   cta?: {
     label: string
@@ -60,12 +89,14 @@ export function ProductSplitFeatureSection({
   title,
   body,
   points = [],
+  pointIcons,
   imageSrc,
   imageAlt,
   imageWidth,
   imageHeight,
   imageSrcSet,
   mediaFirst = false,
+  balanceToMedia = false,
   cta,
   className,
 }: ProductSplitFeatureSectionProps) {
@@ -75,37 +106,79 @@ export function ProductSplitFeatureSection({
   const copyBlock = (
     <div
       className={cn(
-        "flex w-full max-w-[712px] flex-col gap-10 lg:min-w-0 lg:flex-1 lg:self-stretch lg:justify-between lg:gap-[72px] xl:gap-[116px]",
+        "flex w-full flex-col gap-10 lg:min-w-0 lg:flex-1",
+        balanceToMedia
+          ? "max-w-[640px] lg:max-h-[560px] lg:justify-between lg:gap-8"
+          : "max-w-[712px] lg:self-stretch lg:justify-between lg:gap-[72px] xl:gap-[116px]",
         mediaFirst ? "order-1 lg:order-2" : null,
       )}
     >
-      <header className="flex w-full max-w-[692px] flex-col gap-[18px]">
-        {eyebrow != null && eyebrow !== "" ? (
-          <p className="m-0 font-sans text-base font-medium uppercase leading-normal text-black">
-            {eyebrow}
-          </p>
-        ) : null}
-        <h2
-          id={headingId}
+      <header
+        className={cn(
+          "flex w-full flex-col",
+          balanceToMedia
+            ? "max-w-[640px] gap-[22px]"
+            : "max-w-[692px] gap-[18px]",
+        )}
+      >
+        {balanceToMedia ? (
+          <div className="flex w-full flex-col gap-3.5">
+            {eyebrow != null && eyebrow !== "" ? (
+              <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px] text-black">
+                {eyebrow}
+              </p>
+            ) : null}
+            <h2
+              id={headingId}
+              className={cn(
+                "m-0 max-w-[567px] whitespace-pre-line",
+                PRODUCT_SECTION_HEADING,
+              )}
+            >
+              {title}
+            </h2>
+          </div>
+        ) : (
+          <>
+            {eyebrow != null && eyebrow !== "" ? (
+              <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px] text-black">
+                {eyebrow}
+              </p>
+            ) : null}
+            <h2
+              id={headingId}
+              className={cn(
+                "m-0 max-w-[710px] whitespace-pre-line",
+                PRODUCT_SECTION_HEADING,
+              )}
+            >
+              {title}
+            </h2>
+          </>
+        )}
+        <p
           className={cn(
-            "m-0 max-w-[710px] whitespace-pre-line",
-            PRODUCT_SECTION_HEADING,
+            "m-0",
+            balanceToMedia ? "max-w-[627px]" : "max-w-[692px]",
+            PRODUCT_SECTION_BODY,
           )}
         >
-          {title}
-        </h2>
-        <p className={cn("m-0 max-w-[692px]", PRODUCT_SECTION_BODY)}>
           {body}
         </p>
       </header>
 
       {hasFooter ? (
-        <div className="flex w-full flex-col gap-[26px]">
+        <div
+          className={cn(
+            "flex w-full flex-col",
+            balanceToMedia ? "gap-4" : "gap-[26px]",
+          )}
+        >
           {hasPoints ? (
             <ul className="m-0 flex w-full list-none flex-col gap-4 p-0">
               {points.map((point, index) => (
                 <li key={point.id} className="flex flex-col gap-4">
-                  <FeaturePoint point={point} />
+                  <FeaturePoint point={point} Icon={pointIcons?.[point.id]} />
                   {index < points.length - 1 ? (
                     <hr className="m-0 w-full border-[#e0e0e0]" />
                   ) : null}
@@ -128,19 +201,30 @@ export function ProductSplitFeatureSection({
     <div
       className={cn(
         "w-full shrink-0 overflow-hidden rounded-[12px]",
-        // Desktop: stretch to the copy column height so media matches text.
-        "lg:flex lg:w-[min(100%,766px)] lg:max-w-[766px] lg:self-stretch",
+        balanceToMedia
+          ? "lg:aspect-[720/650] lg:w-[min(100%,720px)] lg:max-w-[720px] lg:self-center"
+          : // Desktop: stretch to the copy column height so media matches text.
+            "lg:flex lg:w-[min(100%,766px)] lg:max-w-[766px] lg:self-stretch",
         mediaFirst ? "order-2 lg:order-1" : null,
       )}
     >
       <img
         src={imageSrc}
         srcSet={imageSrcSet}
-        sizes="(min-width: 1024px) 766px, 100vw"
+        sizes={
+          balanceToMedia
+            ? "(min-width: 1024px) 720px, 100vw"
+            : "(min-width: 1024px) 766px, 100vw"
+        }
         alt={imageAlt}
         width={imageWidth}
         height={imageHeight}
-        className="block h-auto w-full lg:h-full lg:min-h-full lg:w-full lg:object-cover lg:object-center"
+        className={cn(
+          "block h-auto w-full",
+          balanceToMedia
+            ? "lg:size-full lg:object-cover lg:object-center"
+            : "lg:h-full lg:min-h-full lg:w-full lg:object-cover lg:object-center",
+        )}
         decoding="async"
       />
     </div>
@@ -153,7 +237,10 @@ export function ProductSplitFeatureSection({
     >
       <div
         className={cn(
-          "flex w-full flex-col items-start gap-10 lg:flex-row lg:items-stretch lg:justify-between lg:gap-[70px]",
+          "flex w-full flex-col items-start gap-10 lg:flex-row lg:justify-between",
+          balanceToMedia
+            ? "lg:items-center lg:gap-[120px]"
+            : "lg:items-stretch lg:gap-[70px]",
           PRODUCT_SECTION_INSET,
           PRODUCT_SECTION_Y,
         )}

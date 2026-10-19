@@ -12,7 +12,7 @@ import {
 import { cn } from "@/lib/utils"
 
 const COLUMN_ICONS = {
-  challenge: Mountain,
+  opportunity: Mountain,
   ambition: Target,
 } as const satisfies Record<AboutAmbitionColumn["id"], LucideIcon>
 
@@ -28,18 +28,18 @@ function AmbitionColumn({
   const Icon = COLUMN_ICONS[column.id]
 
   return (
-    <div className="flex w-full max-w-133.75 flex-col items-center gap-3.5">
+    <div className="flex w-full max-w-[535px] flex-col items-center gap-3.5 lg:gap-[14px]">
       <div
-        className="flex size-11.5 shrink-0 items-center justify-center rounded-full bg-[#141414] text-white"
+        className="flex size-[46px] shrink-0 items-center justify-center rounded-full bg-[#141414] text-white"
         aria-hidden
       >
         <Icon className="size-5" strokeWidth={1.75} />
       </div>
-      <div className="flex w-full flex-col items-center gap-4 text-center text-[#4a4a4a]">
-        <h3 className="m-0 w-full font-jakarta text-xl font-bold leading-7.25">
+      <div className="flex w-full flex-col items-center gap-4 text-center text-[#141414]">
+        <h3 className="m-0 w-full font-jakarta text-xl font-bold leading-[29px]">
           {column.title}
         </h3>
-        <p className="m-0 w-full font-sans text-base font-normal leading-6">
+        <p className="m-0 w-full max-w-[479px] font-sans text-base font-normal leading-6">
           {column.body}
         </p>
       </div>
@@ -49,7 +49,7 @@ function AmbitionColumn({
 
 /**
  * Figma Our ambition `5673:24231`.
- * Centre intro, challenge / ambition columns, closing line.
+ * Centre intro, opportunity / ambition columns, closing line.
  * Bottom radii close the About white card before the footer.
  */
 export function AboutAmbition() {
@@ -61,8 +61,8 @@ export function AboutAmbition() {
         ABOUT_AMBITION_Y,
       )}
     >
-      <div className="flex w-full flex-col items-center gap-10 lg:gap-12.5">
-        <div className="flex w-full max-w-147.5 flex-col items-center gap-3.5 text-center">
+      <div className="flex w-full flex-col items-center gap-10 lg:gap-[70px]">
+        <div className="flex w-full max-w-[590px] flex-col items-center gap-3.5 text-center">
           <p className={cn("m-0 w-full", ABOUT_HERO_EYEBROW)}>
             {ABOUT_AMBITION.eyebrow}
           </p>
@@ -77,13 +77,18 @@ export function AboutAmbition() {
           </h2>
         </div>
 
-        <div className="flex w-full flex-col items-center gap-10 lg:flex-row lg:items-start lg:justify-center lg:gap-17.5">
+        <div className="flex w-full flex-col items-center gap-10 lg:flex-row lg:items-start lg:justify-center lg:gap-[70px]">
           {ABOUT_AMBITION.columns.map((column) => (
             <AmbitionColumn key={column.id} column={column} />
           ))}
         </div>
 
-        <p className={cn("m-0 w-full max-w-184.75 text-center", ambitionClosing)}>
+        <p
+          className={cn(
+            "m-0 w-full max-w-[512px] text-center",
+            ambitionClosing,
+          )}
+        >
           {ABOUT_AMBITION.closing}
         </p>
       </div>

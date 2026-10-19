@@ -1,7 +1,3 @@
-import industryCafesImage from "@/assets/images/marketing/about/industry-cafes.jpg"
-import industryCasualImage from "@/assets/images/marketing/about/industry-casual.jpg"
-import industryGroupsImage from "@/assets/images/marketing/about/industry-groups.jpg"
-import industryTakeawayImage from "@/assets/images/marketing/about/industry-takeaway.jpg"
 import {
   ABOUT_HERO_EYEBROW,
   ABOUT_INDUSTRIES,
@@ -11,16 +7,22 @@ import {
   ABOUT_SECTION_INSET,
   type AboutIndustry,
 } from "@/content/marketing/aboutPage"
+import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
 
 const INDUSTRY_IMAGES = {
-  takeaway: industryTakeawayImage,
-  cafes: industryCafesImage,
-  casual: industryCasualImage,
-  groups: industryGroupsImage,
-} as const satisfies Record<AboutIndustry["id"], string>
+  cafes: remoteSimpleImg("about/industry-cafes"),
+  takeaway: remoteSimpleImg("about/industry-takeaway"),
+  casual: remoteSimpleImg("about/industry-casual"),
+  groups: remoteSimpleImg("about/industry-groups"),
+} as const satisfies Record<
+  AboutIndustry["id"],
+  ReturnType<typeof remoteSimpleImg>
+>
 
 function IndustryCard({ industry }: { industry: AboutIndustry }) {
+  const image = INDUSTRY_IMAGES[industry.id]
+
   return (
     <article
       className={cn(
@@ -29,15 +31,17 @@ function IndustryCard({ industry }: { industry: AboutIndustry }) {
       )}
     >
       <img
-        src={INDUSTRY_IMAGES[industry.id]}
+        src={image.src}
+        srcSet={image.srcSet}
+        sizes="(min-width: 1024px) 25vw, 320px"
         alt={industry.imageAlt}
-        width={748}
-        height={852}
+        width={image.width}
+        height={image.height}
         className="pointer-events-none absolute inset-0 size-full object-cover"
         decoding="async"
       />
       <div
-        className="pointer-events-none absolute inset-0 rounded-[12px] bg-gradient-to-b from-[rgba(20,20,20,0)] to-[#141414]"
+        className="pointer-events-none absolute inset-0 rounded-[12px] bg-gradient-to-b from-[rgba(20,20,20,0)] from-[1%] to-[#141414] to-[73%]"
         aria-hidden
       />
       <div className="relative flex w-full flex-col items-start justify-center gap-[18px] text-white">
@@ -101,6 +105,11 @@ export function AboutIndustries() {
             ))}
           </div>
         </div>
+
+        <div
+          className="h-px w-full shrink-0 bg-[#e8e8e8]"
+          role="presentation"
+        />
       </div>
     </section>
   )

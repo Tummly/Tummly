@@ -59,23 +59,3 @@ export type AiAssistantVideoKey = keyof typeof AI_ASSISTANT_VIDEO_PATHS
 export function aiAssistantVideoUrl(key: AiAssistantVideoKey): string {
   return marketingMediaUrl(AI_ASSISTANT_VIDEO_PATHS[key])
 }
-
-/** For Groups product carousel videos (`marketing/for-groups/*`). */
-export const FOR_GROUPS_PRODUCT_VIDEO_PATHS = {
-  capture: "for-groups/capture.mp4",
-  feedback: "for-groups/feedback.mp4",
-  "ai-assistant": "for-groups/ai-assistant.mp4",
-  guests: "for-groups/guests.mp4",
-  offers: "for-groups/offers.mp4",
-  campaigns: "for-groups/campaigns.mp4",
-  reports: "for-groups/reports.mp4",
-  "weekly-brief": "for-groups/weekly-brief.mp4",
-} as const
-
-export type ForGroupsProductVideoKey = keyof typeof FOR_GROUPS_PRODUCT_VIDEO_PATHS
-
-export function forGroupsProductVideoUrl(
-  key: ForGroupsProductVideoKey,
-): string {
-  return marketingMediaUrl(FOR_GROUPS_PRODUCT_VIDEO_PATHS[key])
-}

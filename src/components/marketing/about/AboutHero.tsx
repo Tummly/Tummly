@@ -1,4 +1,8 @@
-import heroEditorialImage from "@/assets/images/marketing/about/hero-editorial.png"
+import { Link } from "react-router-dom"
+
+import { MarketingButton } from "@/components/marketing/MarketingButton"
+import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
+import { MARKETING_HOW_IT_WORKS_PATH } from "@/constants/marketingNav"
 import {
   ABOUT_HERO,
   ABOUT_HERO_BODY,
@@ -7,18 +11,21 @@ import {
   ABOUT_HERO_Y,
   ABOUT_SECTION_INSET,
 } from "@/content/marketing/aboutPage"
+import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
+
+const heroBandImage = remoteSimpleImg("about/hero-band")
 
 /**
  * Figma About Tummly hero `5673:24144`.
- * Centre copy (eyebrow → title → body) + full-width editorial image.
+ * Centre copy → CTAs → full-width hospitality band (`5673:24165`).
  */
 export function AboutHero() {
   return (
     <section className="w-full overflow-hidden rounded-tl-[12px] rounded-tr-[12px] bg-white">
       <div
         className={cn(
-          "flex w-full flex-col items-center gap-10 lg:gap-[70px]",
+          "flex w-full flex-col items-center gap-10 lg:gap-[50px]",
           ABOUT_SECTION_INSET,
           ABOUT_HERO_Y,
         )}
@@ -33,23 +40,38 @@ export function AboutHero() {
                 {ABOUT_HERO.title}
               </h1>
             </div>
-            <p className={cn("m-0 w-full max-w-[642px]", ABOUT_HERO_BODY)}>
+            <p className={cn("m-0 w-full max-w-[594px]", ABOUT_HERO_BODY)}>
               {ABOUT_HERO.body}
             </p>
           </div>
         </div>
 
-        <div className="aspect-[1548/712] w-full overflow-hidden rounded-[12px]">
-          <img
-            src={heroEditorialImage}
-            alt={ABOUT_HERO.imageAlt}
-            width={3096}
-            height={1424}
-            className="block size-full object-cover"
-            decoding="async"
-            fetchPriority="high"
-          />
+        <div className="flex flex-wrap items-center justify-center gap-[22px]">
+          <MarketingButton asChild variant="primary">
+            <RequestTrialLink planIntent={{ plan: "Pilot" }}>
+              {ABOUT_HERO.primaryLabel}
+            </RequestTrialLink>
+          </MarketingButton>
+          <MarketingButton asChild variant="secondary">
+            <Link to={MARKETING_HOW_IT_WORKS_PATH}>
+              {ABOUT_HERO.secondaryLabel}
+            </Link>
+          </MarketingButton>
         </div>
+      </div>
+
+      <div className="mt-10 w-full overflow-hidden lg:mt-[50px]">
+        <img
+          src={heroBandImage.src}
+          srcSet={heroBandImage.srcSet}
+          sizes="(min-width: 1024px) min(1860px, 100vw), 100vw"
+          alt={ABOUT_HERO.imageAlt}
+          width={heroBandImage.width}
+          height={heroBandImage.height}
+          className="block h-auto w-full"
+          decoding="async"
+          fetchPriority="high"
+        />
       </div>
     </section>
   )

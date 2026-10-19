@@ -16,8 +16,8 @@ type PilotGradientPanelProps = {
 }
 
 /**
- * Shared Figma Pilot panel chrome — pastel gradient frame + white inner card
- * (`5681:46039` / `5681:46057` / `5661:20456` / `5681:46128`).
+ * Shared Figma Pilot panel chrome — green smoke frame + white inner card
+ * (`5681:46128`).
  */
 export function PilotGradientPanel({
   headingId,
@@ -41,9 +41,9 @@ export function PilotGradientPanel({
           <img
             src={panelGradientImage}
             alt=""
-            width={1862}
-            height={845}
-            className="pointer-events-none absolute inset-0 size-full object-cover"
+            width={3840}
+            height={1600}
+            className="pointer-events-none absolute inset-0 size-full object-cover object-center"
             decoding="async"
             aria-hidden
           />

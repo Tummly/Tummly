@@ -12,6 +12,7 @@ import {
   saveSignupPlanIntent,
   type SignupPlanIntent,
 } from "@/lib/signupPlanIntent"
+import { cn } from "@/lib/utils"
 
 export type HeroSignupFormProps = {
   /** Figma trust chip above the email row. Default true. */
@@ -20,6 +21,9 @@ export type HeroSignupFormProps = {
   emailPlaceholder?: string
   primaryLabel?: string
   planIntent?: SignupPlanIntent
+  /** Centered (home / groups) or start-aligned (Pilot split hero). */
+  align?: "center" | "start"
+  className?: string
 }
 
 /**
@@ -32,6 +36,8 @@ export function HeroSignupForm({
   emailPlaceholder = HOME_HERO.emailPlaceholder,
   primaryLabel = HOME_HERO.primaryLabel,
   planIntent = HOME_HERO.planIntent,
+  align = "center",
+  className,
 }: HeroSignupFormProps) {
   const navigate = useNavigate()
   const emailFieldId = useId()
@@ -58,7 +64,13 @@ export function HeroSignupForm({
   }
 
   return (
-    <div className="flex w-full max-w-[573px] flex-col items-center gap-[26px]">
+    <div
+      className={cn(
+        "flex w-full max-w-[573px] flex-col gap-[26px]",
+        align === "center" ? "items-center" : "items-start",
+        className,
+      )}
+    >
       {showTrustBadge ? (
         <div className="inline-flex items-center gap-2 rounded-[40px] bg-[#ebebeb] px-2.5 py-2 lg:px-2.5">
           <CircleCheckBig
@@ -117,7 +129,12 @@ export function HeroSignupForm({
         />
       </div>
 
-      <p className="m-0 text-center text-xs leading-[18px] text-[#141414]">
+      <p
+        className={cn(
+          "m-0 w-full text-xs leading-4 text-[#141414]",
+          align === "center" ? "text-center leading-[18px]" : "text-left",
+        )}
+      >
         By signing up, I agree to Tummly&apos;s{" "}
         <Link to={LEGAL_ROUTES.terms} className="underline underline-offset-2">
           Terms of Service
