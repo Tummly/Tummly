@@ -134,7 +134,6 @@ function ThreadMessage({
   onActivateAction,
   onOpenChangeScope,
   latestUserPrompt,
-  pendingRecoveryDraft = null,
 }: {
   message: OperatorAiAssistantMessage
   retryVisible: boolean
@@ -142,7 +141,6 @@ function ThreadMessage({
   onActivateAction: (action: OperatorAiAssistantAction) => void
   onOpenChangeScope: () => void
   latestUserPrompt: string
-  pendingRecoveryDraft?: RecoveryDraftActionPayload | null
 }) {
   if (message.role === "user") {
     return (
@@ -929,6 +927,7 @@ export function AiAssistantDrawer({
                       onRetry={onRetry}
                       onActivateAction={onActivateAction}
                       onOpenChangeScope={onOpenChangeScope}
+                      latestUserPrompt={latestThreadUserPrompt}
                     />
                   ))}
                 </div>
