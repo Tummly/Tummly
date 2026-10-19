@@ -1,3 +1,4 @@
+import { AiAssistantMutedVideo } from "@/components/marketing/ai-assistant/AiAssistantMutedVideo"
 import {
   ABOUT_HERO_EYEBROW,
   ABOUT_PRINCIPLES_HEADING,
@@ -7,21 +8,21 @@ import {
   ABOUT_SECTION_INSET,
   type AboutRealityItem,
 } from "@/content/marketing/aboutPage"
-import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
+import {
+  aboutRealityVideoUrl,
+  type AboutRealityVideoKey,
+} from "@/lib/marketingMedia"
 import { cn } from "@/lib/utils"
 
-const REALITY_IMAGES = {
-  return: remoteSimpleImg("about/reality-return"),
-  relationships: remoteSimpleImg("about/reality-relationships"),
-  together: remoteSimpleImg("about/reality-together"),
-  visibility: remoteSimpleImg("about/reality-visibility"),
-} as const satisfies Record<
-  AboutRealityItem["id"],
-  ReturnType<typeof remoteSimpleImg>
->
+const REALITY_VIDEOS = {
+  return: aboutRealityVideoUrl("return"),
+  relationships: aboutRealityVideoUrl("relationships"),
+  together: aboutRealityVideoUrl("together"),
+  visibility: aboutRealityVideoUrl("visibility"),
+} as const satisfies Record<AboutRealityVideoKey, string>
 
 function RealityCard({ item }: { item: AboutRealityItem }) {
-  const image = REALITY_IMAGES[item.id]
+  const videoSrc = REALITY_VIDEOS[item.id]
 
   return (
     <article
@@ -33,15 +34,11 @@ function RealityCard({ item }: { item: AboutRealityItem }) {
       <h3 className="m-0 w-full max-w-[300px] text-center font-jakarta text-2xl font-semibold leading-normal text-[#0e0e0e]">
         {item.title}
       </h3>
-      <img
-        src={image.src}
-        srcSet={image.srcSet}
-        sizes="250px"
-        alt={item.imageAlt}
-        width={image.width}
-        height={image.height}
-        className="h-auto max-h-[227px] w-full max-w-[250px] shrink-0 object-contain"
-        decoding="async"
+      <AiAssistantMutedVideo
+        src={videoSrc}
+        aria-label={item.imageAlt}
+        className="relative aspect-square h-auto max-h-[227px] w-full max-w-[250px] shrink-0 bg-transparent"
+        videoClassName="object-contain"
       />
       <p className="m-0 w-full max-w-[328px] text-center font-sans text-base font-normal leading-[22px] text-[#141414]">
         {item.body}
@@ -52,7 +49,7 @@ function RealityCard({ item }: { item: AboutRealityItem }) {
 
 /**
  * Figma Restaurant reality as a design philosophy `5673:24194`.
- * Beige panel with centre intro + four bordered illustration cards.
+ * Beige panel with centre intro + four bordered motion cards.
  */
 export function AboutReality() {
   return (

@@ -59,4 +59,41 @@ describe("marketingMediaUrl", () => {
     )
   })
 
+  it("builds About restaurant-reality video URLs", async () => {
+    const { aboutRealityVideoUrl, ABOUT_REALITY_VIDEO_PATHS } =
+      await import("./marketingMedia")
+    expect(ABOUT_REALITY_VIDEO_PATHS.return).toBe("about/reality-return.mp4")
+    expect(aboutRealityVideoUrl("return")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/about/reality-return.mp4",
+    )
+    expect(aboutRealityVideoUrl("relationships")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/about/reality-relationships.mp4",
+    )
+    expect(aboutRealityVideoUrl("together")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/about/reality-together-on-white.mp4",
+    )
+    expect(aboutRealityVideoUrl("visibility")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/about/reality-visibility-on-white.mp4",
+    )
+  })
+
+  it("builds For Groups hero and product card video URLs", async () => {
+    const {
+      forGroupsHeroVideoUrl,
+      FOR_GROUPS_HERO_VIDEO_PATH,
+      forGroupsProductVideoUrl,
+      FOR_GROUPS_PRODUCT_VIDEO_PATHS,
+    } = await import("./marketingMedia")
+    expect(FOR_GROUPS_HERO_VIDEO_PATH).toBe("for-groups/hero.mp4")
+    expect(forGroupsHeroVideoUrl()).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/hero.mp4",
+    )
+    expect(FOR_GROUPS_PRODUCT_VIDEO_PATHS["hear-from-guests"]).toBe(
+      "for-groups/product-hear-from-guests.webm",
+    )
+    expect(forGroupsProductVideoUrl("whats-working")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/product-whats-working.webm",
+    )
+  })
+
 })

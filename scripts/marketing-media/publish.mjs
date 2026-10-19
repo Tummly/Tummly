@@ -52,6 +52,7 @@ const CONTENT_TYPE_BY_EXT = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".mp4": "video/mp4",
+  ".webm": "video/webm",
 }
 
 /**

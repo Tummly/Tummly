@@ -43,6 +43,30 @@ export function homeHeroVideoUrl(): string {
   return marketingMediaUrl(HOME_HERO_VIDEO_PATH)
 }
 
+/** For Groups hero visual (`marketing/for-groups/hero.mp4`). */
+export const FOR_GROUPS_HERO_VIDEO_PATH = "for-groups/hero.mp4"
+
+export function forGroupsHeroVideoUrl(): string {
+  return marketingMediaUrl(FOR_GROUPS_HERO_VIDEO_PATH)
+}
+
+/**
+ * For Groups “ONE CONNECTED GUEST LOOP” product card loops
+ * (`marketing/for-groups/product-*.webm` — VP9 masters as published, no re-encode).
+ */
+export const FOR_GROUPS_PRODUCT_VIDEO_PATHS = {
+  "hear-from-guests": "for-groups/product-hear-from-guests.webm",
+  "guest-relationships": "for-groups/product-guest-relationships.webm",
+  "reasons-to-return": "for-groups/product-reasons-to-return.webm",
+  "whats-working": "for-groups/product-whats-working.webm",
+} as const
+
+export type ForGroupsProductVideoKey = keyof typeof FOR_GROUPS_PRODUCT_VIDEO_PATHS
+
+export function forGroupsProductVideoUrl(key: ForGroupsProductVideoKey): string {
+  return marketingMediaUrl(FOR_GROUPS_PRODUCT_VIDEO_PATHS[key])
+}
+
 /** AI Assistant marketing page videos (`marketing/ai-assistant/*`). */
 export const AI_ASSISTANT_VIDEO_PATHS = {
   guestLoop: "ai-assistant/guest-loop.mp4",
@@ -58,4 +82,19 @@ export type AiAssistantVideoKey = keyof typeof AI_ASSISTANT_VIDEO_PATHS
 
 export function aiAssistantVideoUrl(key: AiAssistantVideoKey): string {
   return marketingMediaUrl(AI_ASSISTANT_VIDEO_PATHS[key])
+}
+
+/** About “restaurant reality” card motion (`marketing/about/reality-*.mp4`). */
+export const ABOUT_REALITY_VIDEO_PATHS = {
+  return: "about/reality-return.mp4",
+  relationships: "about/reality-relationships.mp4",
+  // Composited on white — source WebMs keep alpha; H.264 MP4 cannot.
+  together: "about/reality-together-on-white.mp4",
+  visibility: "about/reality-visibility-on-white.mp4",
+} as const
+
+export type AboutRealityVideoKey = keyof typeof ABOUT_REALITY_VIDEO_PATHS
+
+export function aboutRealityVideoUrl(key: AboutRealityVideoKey): string {
+  return marketingMediaUrl(ABOUT_REALITY_VIDEO_PATHS[key])
 }

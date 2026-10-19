@@ -680,25 +680,6 @@
     "kind": "simple",
     "primaryFormat": "webp"
   },
-  "for-groups/hero-editorial": {
-    "w": 3840,
-    "h": 1920,
-    "blobDir": "images/for-groups",
-    "baseName": "hero-editorial",
-    "widths": [
-      960,
-      1920,
-      3840
-    ],
-    "formats": [
-      "avif",
-      "webp",
-      "jpg"
-    ],
-    "primary": "hero-editorial-3840.webp",
-    "kind": "simple",
-    "primaryFormat": "webp"
-  },
   "for-groups/eyebrow-sparkle": {
     "w": 44,
     "h": 60,
@@ -951,78 +932,77 @@
     "primaryFormat": "webp"
   },
   "about/industry-cafes": {
-    "w": 1122,
-    "h": 631,
+    "w": 1672,
+    "h": 941,
     "blobDir": "images/about",
     "baseName": "industry-cafes",
     "widths": [
-      374,
-      748,
-      1122
+      640,
+      1280,
+      1672
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "industry-cafes-1122.webp",
+    "primary": "industry-cafes-1672.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "about/industry-takeaway": {
-    "w": 1122,
-    "h": 842,
+    "w": 1448,
+    "h": 1086,
     "blobDir": "images/about",
     "baseName": "industry-takeaway",
     "widths": [
-      374,
-      748,
-      1122
+      640,
+      1280,
+      1448
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "industry-takeaway-1122.webp",
+    "primary": "industry-takeaway-1448.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "about/industry-casual": {
-    "w": 1122,
-    "h": 749,
+    "w": 1535,
+    "h": 1025,
     "blobDir": "images/about",
     "baseName": "industry-casual",
     "widths": [
-      374,
-      748,
-      1122
+      640,
+      1280,
+      1535
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "industry-casual-1122.webp",
+    "primary": "industry-casual-1535.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },
   "about/industry-groups": {
-    "w": 1122,
-    "h": 746,
+    "w": 1209,
+    "h": 804,
     "blobDir": "images/about",
     "baseName": "industry-groups",
     "widths": [
-      374,
-      748,
-      1122
+      640,
+      1209
     ],
     "formats": [
       "avif",
       "webp",
       "png"
     ],
-    "primary": "industry-groups-1122.webp",
+    "primary": "industry-groups-1209.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },

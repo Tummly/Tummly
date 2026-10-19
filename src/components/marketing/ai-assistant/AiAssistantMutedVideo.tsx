@@ -37,6 +37,18 @@ function formatVideoTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`
 }
 
+/** MIME for `<source type>` from a marketing media URL path. */
+function videoSourceType(src: string): string | undefined {
+  const path = src.split("?")[0]?.toLowerCase() ?? ""
+  if (path.endsWith(".webm")) {
+    return "video/webm"
+  }
+  if (path.endsWith(".mp4")) {
+    return "video/mp4"
+  }
+  return undefined
+}
+
 const controlButtonClass =
   "inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-transparent text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
 
@@ -89,15 +101,17 @@ export function AiAssistantMutedVideo({
       },
       {
         root: null,
-        // Play only while the user can see the clip — no early rootMargin.
-        rootMargin: "0px",
-        threshold: 0.25,
+        // Hero (`eager`): play as soon as any strip is on screen — For Groups
+        // stacks copy above the clip so a 0.25 threshold never fires on laptop.
+        // Other loops keep a 25% gate so off-screen decode stays paused.
+        rootMargin: eager ? "120px 0px" : "0px",
+        threshold: eager ? 0 : 0.25,
       },
     )
 
     observer.observe(root)
     return () => observer.disconnect()
-  }, [])
+  }, [eager])
 
   useEffect(() => {
     const el = videoRef.current
@@ -108,15 +122,24 @@ export function AiAssistantMutedVideo({
     el.muted = muted
 
     if (inView && !userPaused) {
-      if (el.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-        el.load()
+      // Do not call el.load() here — it aborts the in-flight fetch (ERR_ABORTED)
+      // and can leave large hero MP4s stuck. `key={src}` remounts on URL change.
+      const tryPlay = () => {
+        void el.play().catch(() => {
+          /* Autoplay can still be blocked; unmute after a gesture may retry. */
+        })
       }
-      void el.play().catch(() => {
-        /* Autoplay can still be blocked; unmute after a gesture may retry. */
-      })
-    } else {
-      el.pause()
+      tryPlay()
+      if (el.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        el.addEventListener("canplay", tryPlay, { once: true })
+        return () => {
+          el.removeEventListener("canplay", tryPlay)
+        }
+      }
+      return
     }
+
+    el.pause()
   }, [inView, muted, shouldLoad, src, userPaused])
 
   useEffect(() => {
@@ -259,7 +282,7 @@ export function AiAssistantMutedVideo({
           }
           {...videoProps}
         >
-          <source src={src} type="video/mp4" />
+          <source src={src} type={videoSourceType(src)} />
         </video>
       ) : (
         <div className="absolute inset-0 bg-[#e8e8e8]" aria-hidden />

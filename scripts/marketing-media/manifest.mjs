@@ -218,14 +218,15 @@ export const SIMPLE_ASSETS = [
     quality: 95,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   },
-  // About Industries cards (Figma `5685:35427`) — display ~374 CSS px.
-  // Widths cover 1× / 2× / 3× (clamped to native master).
+  // About Industries cards (Figma `6367:30260`) — card ~374 CSS px, but the
+  // absolute photo frame is ~1.5–1.7× card width (~585–640 CSS px). Cover
+  // 1× / 2× of that frame (clamped to native master).
   ...["cafes", "takeaway", "casual", "groups"].map((name) => ({
     id: `about/industry-${name}`,
     source: `.scratch/marketing-media-sources/about/industry-${name}.png`,
     blobDir: "images/about",
     baseName: `industry-${name}`,
-    widths: [374, 748, 1122],
+    widths: [640, 1280, 1672],
     formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
     quality: 95,
     primaryFormat: /** @type {"webp"} */ ("webp"),
@@ -367,18 +368,8 @@ export const SIMPLE_ASSETS = [
     quality: 90,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   })),
-  // For Groups hero (Figma `5661:20525`) — editorial 1548×763 CSS; badges 172×152.
-  {
-    id: "for-groups/hero-editorial",
-    source: ".scratch/marketing-media-sources/for-groups/hero-editorial.png",
-    blobDir: "images/for-groups",
-    baseName: "hero-editorial",
-    // Master is 3840×1920. Include full width so wide retina layouts are not upscaled.
-    widths: [960, 1920, 3840],
-    formats: /** @type {Format[]} */ (["avif", "webp", "jpg"]),
-    quality: 100,
-    primaryFormat: /** @type {"webp"} */ ("webp"),
-  },
+  // For Groups hero visual is video (`for-groups/hero.mp4`) — see marketingMedia.ts.
+  // Trust badges 172×152 CSS.
   {
     id: "for-groups/eyebrow-sparkle",
     source: ".scratch/marketing-media-sources/for-groups/eyebrow-sparkle.png",

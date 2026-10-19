@@ -1,5 +1,6 @@
 import eyebrowSparkle from "@/assets/svg/marketing/for-groups-eyebrow-sparkle.svg"
 import { HeroSignupForm } from "@/components/home/HeroSignupForm"
+import { AiAssistantMutedVideo } from "@/components/marketing/ai-assistant/AiAssistantMutedVideo"
 import {
   FOR_GROUPS_HERO,
   FOR_GROUPS_HERO_TRUST,
@@ -7,10 +8,9 @@ import {
   FOR_GROUPS_SECTION_Y,
 } from "@/content/marketing/forGroupsPage"
 import { marketingHeroHeading } from "@/lib/marketing-layout"
+import { forGroupsHeroVideoUrl } from "@/lib/marketingMedia"
 import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
-
-const heroEditorialImage = remoteSimpleImg("for-groups/hero-editorial")
 
 const trustBadgeImages = Object.fromEntries(
   FOR_GROUPS_HERO_TRUST.badges.map((badge) => [
@@ -27,7 +27,7 @@ const heroBodyClass =
 
 /**
  * Figma For Groups hero `5661:20525`.
- * Eyebrow + sparkles + title + body + Pilot signup + editorial + trust badges.
+ * Eyebrow + sparkles + title + body + Pilot signup + hero video + trust badges.
  */
 export function ForGroupsHero() {
   return (
@@ -88,18 +88,12 @@ export function ForGroupsHero() {
           />
         </div>
 
-        {/* Image sizes: shell max 1920 − body 60 − section 120; retina uses 3840 master. */}
-        <div className="aspect-[1548/763] w-full overflow-hidden rounded-[12px]">
-          <img
-            src={heroEditorialImage.src}
-            srcSet={heroEditorialImage.srcSet}
-            sizes="(min-width: 1024px) calc(min(1920px, 100vw) - 180px), calc(100vw - 40px)"
-            alt={FOR_GROUPS_HERO.imageAlt}
-            width={heroEditorialImage.width}
-            height={heroEditorialImage.height}
-            className="block size-full object-cover"
-            decoding="async"
-            fetchPriority="high"
+        {/* Frame matches prior editorial 1548×763 CSS aspect. */}
+        <div className="aspect-[1548/763] w-full overflow-hidden rounded-[12px] bg-[#ebebeb]">
+          <AiAssistantMutedVideo
+            src={forGroupsHeroVideoUrl()}
+            eager
+            className="size-full bg-[#ebebeb]"
           />
         </div>
 

@@ -1,21 +1,22 @@
+import aiCampaignsIcon from "@/assets/svg/marketing/for-groups/ai-campaigns.svg"
+import aiCompareIcon from "@/assets/svg/marketing/for-groups/ai-compare.svg"
+import aiFeedbackIcon from "@/assets/svg/marketing/for-groups/ai-feedback.svg"
+import campaignsPromoteIcon from "@/assets/svg/marketing/for-groups/campaigns-promote.svg"
+import campaignsResponseIcon from "@/assets/svg/marketing/for-groups/campaigns-response.svg"
+import campaignsThankIcon from "@/assets/svg/marketing/for-groups/campaigns-thank.svg"
+import locationConnectedIcon from "@/assets/svg/marketing/for-groups/location-connected.svg"
+import locationExpandIcon from "@/assets/svg/marketing/for-groups/location-expand.svg"
+import locationSetupIcon from "@/assets/svg/marketing/for-groups/location-setup.svg"
+import reportingCompareIcon from "@/assets/svg/marketing/for-groups/reporting-compare.svg"
+import reportingEngagementIcon from "@/assets/svg/marketing/for-groups/reporting-engagement.svg"
+import reportingRecurringIcon from "@/assets/svg/marketing/for-groups/reporting-recurring.svg"
+import teamsAreaIcon from "@/assets/svg/marketing/for-groups/teams-area.svg"
+import teamsLocationIcon from "@/assets/svg/marketing/for-groups/teams-location.svg"
+import teamsOwnersIcon from "@/assets/svg/marketing/for-groups/teams-owners.svg"
 import {
-  ArrowLeftRightIcon,
-  Building2Icon,
-  EyeIcon,
-  GitBranchIcon,
-  Grid2x2PlusIcon,
-  LayoutGridIcon,
-  MailIcon,
-  MapPinPlusIcon,
-  MegaphoneIcon,
-  MessageCircleIcon,
-  RefreshCwIcon,
-  SlidersHorizontalIcon,
-  UsersIcon,
-} from "lucide-react"
-import type { LucideIcon } from "lucide-react"
-
-import { ProductSplitFeatureSection } from "@/components/marketing/product/ProductSplitFeatureSection"
+  ProductSplitFeatureSection,
+  type FeaturePointIconImg,
+} from "@/components/marketing/product/ProductSplitFeatureSection"
 import {
   FOR_GROUPS_AI,
   FOR_GROUPS_CAMPAIGNS,
@@ -33,35 +34,96 @@ const teamsImage = remoteSimpleImg("for-groups/feature-teams")
 const campaignsImage = remoteSimpleImg("for-groups/feature-campaigns")
 const aiImage = remoteSimpleImg("for-groups/feature-ai")
 
+/** Figma For Groups point glyphs — root width/height from export. */
 const REPORTING_POINT_ICONS = {
-  "compare-activity": ArrowLeftRightIcon,
-  "recurring-concerns": RefreshCwIcon,
-  "guest-engagement": LayoutGridIcon,
-} as const satisfies Record<string, LucideIcon>
+  "compare-activity": {
+    src: reportingCompareIcon,
+    width: 22,
+    height: 20,
+  },
+  "recurring-concerns": {
+    src: reportingRecurringIcon,
+    width: 18,
+    height: 18,
+  },
+  "guest-engagement": {
+    src: reportingEngagementIcon,
+    width: 20,
+    height: 20,
+  },
+} as const satisfies Record<string, FeaturePointIconImg>
 
 const LOCATION_MANAGEMENT_POINT_ICONS = {
-  "connected-group": MapPinPlusIcon,
-  "set-up-restaurant": GitBranchIcon,
-  "expand-control": Grid2x2PlusIcon,
-} as const satisfies Record<string, LucideIcon>
+  "connected-group": {
+    src: locationConnectedIcon,
+    width: 14,
+    height: 19,
+  },
+  "set-up-restaurant": {
+    src: locationSetupIcon,
+    width: 20,
+    height: 19,
+  },
+  "expand-control": {
+    src: locationExpandIcon,
+    width: 18,
+    height: 18,
+  },
+} as const satisfies Record<string, FeaturePointIconImg>
 
 const TEAMS_POINT_ICONS = {
-  "group-owners": UsersIcon,
-  "area-managers": GitBranchIcon,
-  "location-managers": Building2Icon,
-} as const satisfies Record<string, LucideIcon>
+  "group-owners": {
+    src: teamsOwnersIcon,
+    width: 19,
+    height: 15,
+  },
+  "area-managers": {
+    src: teamsAreaIcon,
+    width: 20,
+    height: 19,
+  },
+  "location-managers": {
+    src: teamsLocationIcon,
+    width: 18,
+    height: 18,
+  },
+} as const satisfies Record<string, FeaturePointIconImg>
 
 const CAMPAIGNS_POINT_ICONS = {
-  "thank-recent": SlidersHorizontalIcon,
-  "promote-new": MailIcon,
-  "understand-response": EyeIcon,
-} as const satisfies Record<string, LucideIcon>
+  "thank-recent": {
+    src: campaignsThankIcon,
+    width: 18,
+    height: 18,
+  },
+  "promote-new": {
+    src: campaignsPromoteIcon,
+    width: 18,
+    height: 16,
+  },
+  "understand-response": {
+    src: campaignsResponseIcon,
+    width: 21,
+    height: 15,
+  },
+} as const satisfies Record<string, FeaturePointIconImg>
 
 const AI_POINT_ICONS = {
-  "understand-feedback": MessageCircleIcon,
-  "compare-locations": ArrowLeftRightIcon,
-  "prepare-campaigns": MegaphoneIcon,
-} as const satisfies Record<string, LucideIcon>
+  "understand-feedback": {
+    src: aiFeedbackIcon,
+    width: 18,
+    height: 19,
+  },
+  "compare-locations": {
+    src: aiCompareIcon,
+    width: 18,
+    height: 18,
+  },
+  "prepare-campaigns": {
+    src: aiCampaignsIcon,
+    width: 18,
+    height: 16,
+  },
+} as const satisfies Record<string, FeaturePointIconImg>
 
 /** Figma For Groups Group-wide visibility `5661:20730` — media left. */
 export function ForGroupsReporting() {
@@ -72,7 +134,7 @@ export function ForGroupsReporting() {
       title={FOR_GROUPS_REPORTING.title}
       body={FOR_GROUPS_REPORTING.body}
       points={FOR_GROUPS_REPORTING.points}
-      pointIcons={REPORTING_POINT_ICONS}
+      pointIconImgs={REPORTING_POINT_ICONS}
       imageSrc={reportingImage.src}
       imageSrcSet={reportingImage.srcSet}
       imageAlt={FOR_GROUPS_REPORTING.imageAlt}
@@ -93,7 +155,7 @@ export function ForGroupsLocationManagement() {
       title={FOR_GROUPS_LOCATION_MANAGEMENT.title}
       body={FOR_GROUPS_LOCATION_MANAGEMENT.body}
       points={FOR_GROUPS_LOCATION_MANAGEMENT.points}
-      pointIcons={LOCATION_MANAGEMENT_POINT_ICONS}
+      pointIconImgs={LOCATION_MANAGEMENT_POINT_ICONS}
       imageSrc={locationManagementImage.src}
       imageSrcSet={locationManagementImage.srcSet}
       imageAlt={FOR_GROUPS_LOCATION_MANAGEMENT.imageAlt}
@@ -117,7 +179,7 @@ export function ForGroupsTeams() {
       title={FOR_GROUPS_TEAMS.title}
       body={FOR_GROUPS_TEAMS.body}
       points={FOR_GROUPS_TEAMS.points}
-      pointIcons={TEAMS_POINT_ICONS}
+      pointIconImgs={TEAMS_POINT_ICONS}
       imageSrc={teamsImage.src}
       imageSrcSet={teamsImage.srcSet}
       imageAlt={FOR_GROUPS_TEAMS.imageAlt}
@@ -138,7 +200,7 @@ export function ForGroupsCampaigns() {
       title={FOR_GROUPS_CAMPAIGNS.title}
       body={FOR_GROUPS_CAMPAIGNS.body}
       points={FOR_GROUPS_CAMPAIGNS.points}
-      pointIcons={CAMPAIGNS_POINT_ICONS}
+      pointIconImgs={CAMPAIGNS_POINT_ICONS}
       imageSrc={campaignsImage.src}
       imageSrcSet={campaignsImage.srcSet}
       imageAlt={FOR_GROUPS_CAMPAIGNS.imageAlt}
@@ -158,7 +220,7 @@ export function ForGroupsAi() {
       title={FOR_GROUPS_AI.title}
       body={FOR_GROUPS_AI.body}
       points={FOR_GROUPS_AI.points}
-      pointIcons={AI_POINT_ICONS}
+      pointIconImgs={AI_POINT_ICONS}
       imageSrc={aiImage.src}
       imageSrcSet={aiImage.srcSet}
       imageAlt={FOR_GROUPS_AI.imageAlt}

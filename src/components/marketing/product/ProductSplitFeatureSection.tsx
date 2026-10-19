@@ -11,12 +11,21 @@ import {
 } from "@/content/marketing/productPage"
 import { cn } from "@/lib/utils"
 
+/** Figma-exported point glyph (prefer over Lucide when the mark is custom). */
+export type FeaturePointIconImg = {
+  src: string
+  width: number
+  height: number
+}
+
 function FeaturePoint({
   point,
   Icon,
+  iconImg,
 }: {
   point: ProductFeaturePoint
   Icon?: LucideIcon
+  iconImg?: FeaturePointIconImg
 }) {
   const copy = (
     <>
@@ -28,6 +37,22 @@ function FeaturePoint({
       </p>
     </>
   )
+
+  if (iconImg != null) {
+    return (
+      <div className="flex items-start gap-3 text-[#141414]">
+        <img
+          src={iconImg.src}
+          alt=""
+          width={iconImg.width}
+          height={iconImg.height}
+          className="mt-0.5 shrink-0"
+          aria-hidden
+        />
+        <div className="flex min-w-0 flex-col gap-1.5">{copy}</div>
+      </div>
+    )
+  }
 
   if (Icon == null) {
     return <div className="flex flex-col gap-2 text-[#141414]">{copy}</div>
@@ -52,8 +77,10 @@ export type ProductSplitFeatureSectionProps = {
   body: string
   /** Feature list under the intro. Omit or pass [] when the band has none. */
   points?: readonly ProductFeaturePoint[]
-  /** Optional Lucide icon per point id (For Groups feature bands). */
+  /** Optional Lucide icon per point id. */
   pointIcons?: Partial<Record<string, LucideIcon>>
+  /** Optional Figma SVG per point id (wins over `pointIcons` when both set). */
+  pointIconImgs?: Partial<Record<string, FeaturePointIconImg>>
   imageSrc: string
   imageAlt: string
   imageWidth: number
@@ -66,8 +93,8 @@ export type ProductSplitFeatureSectionProps = {
    */
   mediaFirst?: boolean
   /**
-   * For Groups bands (Figma 720×650 media, copy ≤560px): keep the text
-   * column from growing taller than the media plate.
+   * For Groups bands (Figma 720×650 media, copy 640px, gap 120px): keep a
+   * fixed column gap — do not stretch with justify-between.
    */
   balanceToMedia?: boolean
   /** Optional secondary CTA under the feature list. */
@@ -90,6 +117,7 @@ export function ProductSplitFeatureSection({
   body,
   points = [],
   pointIcons,
+  pointIconImgs,
   imageSrc,
   imageAlt,
   imageWidth,
@@ -106,10 +134,11 @@ export function ProductSplitFeatureSection({
   const copyBlock = (
     <div
       className={cn(
-        "flex w-full flex-col gap-10 lg:min-w-0 lg:flex-1",
+        "flex w-full flex-col gap-10",
         balanceToMedia
-          ? "max-w-[640px] lg:max-h-[560px] lg:justify-between lg:gap-8"
-          : "max-w-[712px] lg:self-stretch lg:justify-between lg:gap-[72px] xl:gap-[116px]",
+          ? // For Groups: fixed 116px between intro and list (no justify-between stretch).
+            "max-w-[640px] lg:w-[640px] lg:shrink-0 lg:gap-[116px]"
+          : "max-w-[712px] lg:min-w-0 lg:flex-1 lg:self-stretch lg:justify-between lg:gap-[72px] xl:gap-[116px]",
         mediaFirst ? "order-1 lg:order-2" : null,
       )}
     >
@@ -167,18 +196,26 @@ export function ProductSplitFeatureSection({
         </p>
       </header>
 
-      {hasFooter ? (
+          {hasFooter ? (
         <div
           className={cn(
             "flex w-full flex-col",
-            balanceToMedia ? "gap-4" : "gap-[26px]",
+            balanceToMedia
+              ? cta != null
+                ? "gap-[54px]"
+                : "gap-4"
+              : "gap-[26px]",
           )}
         >
           {hasPoints ? (
             <ul className="m-0 flex w-full list-none flex-col gap-4 p-0">
               {points.map((point, index) => (
                 <li key={point.id} className="flex flex-col gap-4">
-                  <FeaturePoint point={point} Icon={pointIcons?.[point.id]} />
+                  <FeaturePoint
+                    point={point}
+                    Icon={pointIcons?.[point.id]}
+                    iconImg={pointIconImgs?.[point.id]}
+                  />
                   {index < points.length - 1 ? (
                     <hr className="m-0 w-full border-[#e0e0e0]" />
                   ) : null}
@@ -237,10 +274,15 @@ export function ProductSplitFeatureSection({
     >
       <div
         className={cn(
-          "flex w-full flex-col items-start gap-10 lg:flex-row lg:justify-between",
+          "flex w-full flex-col items-start gap-10 lg:flex-row",
           balanceToMedia
-            ? "lg:items-center lg:gap-[120px]"
-            : "lg:items-stretch lg:gap-[70px]",
+            ? // Figma For Groups: 720 media + 120 gap + 640 copy (fixed gap, no stretch).
+              // Copy-left bands pack to the right edge; media-left bands pack to the left.
+              cn(
+                "lg:items-center lg:gap-[120px]",
+                mediaFirst ? null : "lg:justify-end",
+              )
+            : "lg:items-stretch lg:justify-between lg:gap-[70px]",
           PRODUCT_SECTION_INSET,
           PRODUCT_SECTION_Y,
         )}

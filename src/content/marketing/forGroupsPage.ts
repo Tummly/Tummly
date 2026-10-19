@@ -21,13 +21,11 @@ export const FOR_GROUPS_SECTION_BODY =
 export const FOR_GROUPS_SECTION_HEADING =
   "font-jakarta text-[28px] font-medium leading-9 text-[#141414] lg:text-[46px] lg:leading-[52px]"
 
-/** Figma For Groups hero `5661:20525`. */
+/** Figma For Groups hero `5661:20525`. Hero visual is video on Blob. */
 export const FOR_GROUPS_HERO = {
   eyebrow: "FOR RESTAURANT GROUPS",
   title: "One Guest Loop across every Location.",
   body: "Bring your restaurants together with Tummly. Understand guest experiences across Locations, build stronger guest relationships and create more opportunities for repeat visits, with central visibility and local control.",
-  imageAlt:
-    "Hospitality team member working on a laptop in a restaurant setting",
   primaryLabel: "Get started",
   emailPlaceholder: "Work email",
   planIntent: { plan: "Pilot" as const },
@@ -111,7 +109,7 @@ export type ForGroupsProductCard = {
 
 /**
  * Figma For Groups Product `6405:36122`.
- * Four equal cards (media placeholders in Figma) + centred CTA.
+ * Four equal cards with Blob product-loop videos + centred CTA.
  */
 export const FOR_GROUPS_PRODUCT = {
   eyebrow: "ONE CONNECTED GUEST LOOP",
@@ -119,7 +117,7 @@ export const FOR_GROUPS_PRODUCT = {
   body: "From private Feedback to relevant guest engagement, Tummly connects the everyday interactions that help your restaurants build stronger relationships.",
   ctaLabel: "Explore product features",
   ctaTo: MARKETING_PRODUCT_PATH,
-  /** Card fill while Figma media is still a placeholder (`#e1dfdb`). */
+  /** Fallback fill under looping card videos. */
   cardBackground: "#e1dfdb",
   cards: [
     {
