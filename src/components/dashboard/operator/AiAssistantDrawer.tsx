@@ -132,12 +132,14 @@ function ThreadMessage({
   onRetry,
   onActivateAction,
   onOpenChangeScope,
+  latestUserPrompt,
 }: {
   message: OperatorAiAssistantMessage
   retryVisible: boolean
   onRetry: () => void
   onActivateAction: (action: OperatorAiAssistantAction) => void
   onOpenChangeScope: () => void
+  latestUserPrompt: string
 }) {
   if (message.role === "user") {
     return (
@@ -158,7 +160,10 @@ function ThreadMessage({
         className="flex flex-col gap-[30px]"
         data-assistant-thread-row={message.id}
       >
-        <AssistantPreparingAnswer phrase={message.body} />
+        <AssistantPreparingAnswer
+          phrase={message.body}
+          prompt={latestUserPrompt}
+        />
       </div>
     )
   }
@@ -421,6 +426,12 @@ export function AiAssistantDrawer({
   const showExpandedList = paintExpanded && expandedListOpen
   const showGreeting =
     !showList && !snapshot.messages.some((message) => message.role === "user")
+  const latestThreadUserPrompt =
+    [...snapshot.messages]
+      .reverse()
+      .find((row) => row.role === "user")
+      ?.body
+    ?? ""
 
   const handleOpenRecent = () => {
     if (paintExpanded) {
@@ -896,6 +907,7 @@ export function AiAssistantDrawer({
                       onRetry={onRetry}
                       onActivateAction={onActivateAction}
                       onOpenChangeScope={onOpenChangeScope}
+                      latestUserPrompt={latestThreadUserPrompt}
                     />
                   ))}
                 </div>

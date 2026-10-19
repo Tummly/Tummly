@@ -35,6 +35,8 @@ export const CAMPAIGN_DETAIL_PREVIEW_COPY = {
   emptyValue: "—",
   footerDisclaimer:
     "This is a summary of the selected campaign. It is not a performance report.",
+  /** Quick send from Draft preview — lands Review send-now confirm. */
+  sendCampaign: "Send a campaign",
   editCampaign: "Edit campaign",
   close: "Close",
   closeAriaLabel: "Close campaign preview",

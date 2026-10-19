@@ -1,8 +1,8 @@
 /**
  * Gate-specific wait copy for the Assistant turn spinner.
- * Phrases describe real pipeline work (match / load / draft / save), not
- * decorative gerunds. Client classify is best-effort for early UX; the
- * server still owns the real task.
+ * Phrases describe real pipeline work (match / read / draft / save), not
+ * decorative gerunds. Prefer Preparing / Reading / Checking — never Loading.
+ * Client classify is best-effort for early UX; the server still owns the real task.
  */
 
 export type AssistantWaitGate =
@@ -45,11 +45,11 @@ const CREATE_CAMPAIGN_CHECKING = [
 ] as const
 
 const CREATE_CAMPAIGN_RETRIEVING = [
-  "Loading guest audience sizes…",
-  "Loading attachable offers…",
-  "Loading campaign templates…",
+  "Reading guest audience sizes…",
+  "Reading attachable offers…",
+  "Reading campaign templates…",
   "Checking eligible guest counts…",
-  "Loading venue campaign options…",
+  "Reading venue campaign options…",
 ] as const
 
 const CREATE_CAMPAIGN_PREPARING = [
@@ -72,10 +72,10 @@ const CREATE_CAMPAIGN_WITH_OFFER_CHECKING = [
 ] as const
 
 const CREATE_CAMPAIGN_WITH_OFFER_RETRIEVING = [
-  "Loading guest audience sizes…",
-  "Loading offer catalog rules…",
-  "Loading attachable offers…",
-  "Loading campaign templates…",
+  "Reading guest audience sizes…",
+  "Reading offer catalog rules…",
+  "Reading attachable offers…",
+  "Reading campaign templates…",
   "Checking eligible guest counts…",
 ] as const
 
@@ -100,10 +100,10 @@ const OFFER_PATH_CHECKING = [
 ] as const
 
 const OFFER_PATH_RETRIEVING = [
-  "Loading offer catalog rules…",
-  "Loading venue offer settings…",
+  "Reading offer catalog rules…",
+  "Reading venue offer settings…",
   "Checking placement options…",
-  "Loading existing offers…",
+  "Reading existing offers…",
 ] as const
 
 const OFFER_PATH_PREPARING = [
@@ -123,10 +123,10 @@ const RECOVERY_CHECKING = [
 ] as const
 
 const RECOVERY_RETRIEVING = [
-  "Loading guest and offer details…",
-  "Loading feedback history…",
-  "Loading recovery-ready offers…",
-  "Loading venue recovery options…",
+  "Reading guest and offer details…",
+  "Reading feedback history…",
+  "Reading recovery-ready offers…",
+  "Reading venue recovery options…",
 ] as const
 
 const RECOVERY_PREPARING = [
@@ -153,16 +153,16 @@ const REFUSE_PREPARING = [
 
 const RETRIEVE_CHECKING_GENERIC = [
   "Matching your question to venue data…",
-  "Choosing which packs to load…",
+  "Choosing which venue packs to read…",
   "Matching the reporting period…",
   "Matching the owned location…",
   "Checking compare vs single venue…",
 ] as const
 
 const RETRIEVE_RETRIEVING_GENERIC = [
-  "Loading campaigns, feedback, and offers…",
-  "Loading venue performance packs…",
-  "Loading guest and capture stats…",
+  "Reading campaigns, feedback, and offers…",
+  "Reading venue performance packs…",
+  "Reading guest and capture stats…",
   "Gathering facts for this period…",
 ] as const
 
@@ -184,15 +184,15 @@ const RETRIEVE_BY_FOCUS: Record<
   campaigns: {
     checking: [
       "Matching your campaign question…",
-      "Choosing campaign metrics to load…",
+      "Choosing campaign metrics to read…",
       "Matching active vs all campaigns…",
       "Matching the reporting period…",
     ],
     retrieving: [
-      "Loading campaign results…",
-      "Loading send and open stats…",
-      "Loading campaign audiences…",
-      "Loading campaign offer attaches…",
+      "Reading campaign results…",
+      "Reading send and open stats…",
+      "Reading campaign audiences…",
+      "Reading campaign offer attaches…",
     ],
     preparing: [
       "Summarising campaign performance…",
@@ -207,9 +207,9 @@ const RETRIEVE_BY_FOCUS: Record<
       "Matching the reporting period…",
     ],
     retrieving: [
-      "Loading offer claims and redemptions…",
-      "Loading offer catalog activity…",
-      "Loading venue offer stats…",
+      "Reading offer claims and redemptions…",
+      "Reading offer catalog activity…",
+      "Reading venue offer stats…",
     ],
     preparing: [
       "Summarising offer performance…",
@@ -224,9 +224,9 @@ const RETRIEVE_BY_FOCUS: Record<
       "Matching the reporting period…",
     ],
     retrieving: [
-      "Loading feedback scores…",
-      "Loading recent guest comments…",
-      "Loading feedback themes…",
+      "Reading feedback scores…",
+      "Reading recent guest comments…",
+      "Reading feedback themes…",
     ],
     preparing: [
       "Summarising feedback…",
@@ -241,9 +241,9 @@ const RETRIEVE_BY_FOCUS: Record<
       "Matching the reporting period…",
     ],
     retrieving: [
-      "Loading guest activity…",
-      "Loading new and returning guests…",
-      "Loading guest contact eligibility…",
+      "Reading guest activity…",
+      "Reading new and returning guests…",
+      "Reading guest contact eligibility…",
     ],
     preparing: [
       "Summarising guest activity…",
@@ -258,9 +258,9 @@ const RETRIEVE_BY_FOCUS: Record<
       "Matching the reporting period…",
     ],
     retrieving: [
-      "Loading QR and capture stats…",
-      "Loading scan and form activity…",
-      "Loading capture placement data…",
+      "Reading QR and capture stats…",
+      "Reading scan and form activity…",
+      "Reading capture placement data…",
     ],
     preparing: [
       "Summarising capture activity…",
@@ -275,9 +275,9 @@ const RETRIEVE_BY_FOCUS: Record<
       "Matching the reporting period…",
     ],
     retrieving: [
-      "Loading items that need attention…",
-      "Loading recommended next steps…",
-      "Loading weekly brief signals…",
+      "Reading items that need attention…",
+      "Reading recommended next steps…",
+      "Reading weekly brief signals…",
     ],
     preparing: [
       "Listing what needs attention…",
@@ -287,19 +287,19 @@ const RETRIEVE_BY_FOCUS: Record<
   },
   performance: {
     checking: [
-      "Matching your performance question…",
-      "Choosing mixed venue packs…",
+      "Matching what changed this period…",
+      "Choosing Guest Loop packs…",
       "Matching the reporting period…",
     ],
     retrieving: [
-      "Loading venue performance packs…",
-      "Loading cross-area metrics…",
-      "Gathering facts for this period…",
+      "Reading feedback and capture this week…",
+      "Comparing with the prior period…",
+      "Gathering cross-area changes…",
     ],
     preparing: [
-      "Writing the performance summary…",
+      "Writing what changed…",
+      "Preparing the week summary…",
       "Grounding performance facts…",
-      "Drafting the reply…",
     ],
   },
   billing: {
@@ -309,9 +309,9 @@ const RETRIEVE_BY_FOCUS: Record<
       "Checking account billing access…",
     ],
     retrieving: [
-      "Loading plan and billing status…",
-      "Loading Email, SMS, and AI credit balances…",
-      "Loading current account plan facts…",
+      "Reading plan and billing status…",
+      "Reading Email, SMS, and AI credit balances…",
+      "Reading current account plan facts…",
     ],
     preparing: [
       "Writing the plan and credits answer…",
@@ -552,6 +552,17 @@ export function classifyAssistantWaitRetrieveFocus(
     ])
   ) {
     return "billing"
+  }
+  if (
+    containsAny(lower, [
+      "what changed",
+      "guest loop",
+      "across my guest",
+      "week over week",
+      "week-over-week",
+    ])
+  ) {
+    return "performance"
   }
   if (
     containsAny(lower, [

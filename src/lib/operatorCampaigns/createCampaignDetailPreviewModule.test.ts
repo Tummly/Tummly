@@ -84,10 +84,22 @@ describe("createCampaignDetailPreviewModule", () => {
       showOfferLogic: false,
       showAudienceEligibility: true,
       sendLogicLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.notScheduled,
+      sendCampaignLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.sendCampaign,
       editCampaignLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.editCampaign,
       closeLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.close,
     })
     expect(snapshot.viewModel).not.toHaveProperty("useThisTemplateLabel")
+  })
+
+  it("hides Send a campaign when the campaign is not a draft", async () => {
+    const module = createCampaignDetailPreviewModule({
+      loadCampaign: async () => sampleCampaign({ status: "sending" }),
+    })
+    await module.open(42)
+    expect(module.getSnapshot().viewModel?.sendCampaignLabel).toBeNull()
+    expect(module.getSnapshot().viewModel?.editCampaignLabel).toBe(
+      CAMPAIGN_DETAIL_PREVIEW_COPY.editCampaign
+    )
   })
 
   it("hides Offer logic and Audience eligibility when neither is configured", async () => {
