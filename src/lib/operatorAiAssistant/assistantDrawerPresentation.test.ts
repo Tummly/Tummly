@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  ASSISTANT_COLLAPSED_HEADER_CLASS,
   ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS,
   ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS,
+  ASSISTANT_EXPAND_HEADER_CLASS,
+  ASSISTANT_THREAD_BOTTOM_EDGE_FADE_CLASS,
+  ASSISTANT_THREAD_EDGE_SHELL_CLASS,
+  ASSISTANT_THREAD_NEAR_BOTTOM_PX,
+  ASSISTANT_THREAD_TOP_EDGE_FADE_CLASS,
   OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS,
   OPERATOR_SIDENAV_COLLAPSED_PX,
   assistantComposerDockClass,
@@ -12,7 +18,10 @@ import {
   assistantDrawerMountsOverlay,
   assistantDrawerOverlayClass,
   assistantThreadBodyClass,
+  assistantThreadEdgeFades,
+  assistantThreadIsNearBottom,
   assistantThreadRailClass,
+  assistantThreadShouldForceFollow,
   assistantThreadStickAnchor,
   paintsAssistantExpand,
   stickAssistantThreadToBottom,
@@ -127,14 +136,33 @@ describe("assistantDrawerPresentation", () => {
     expect(ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS).toContain("px-[30px]")
 
     const expandedStage = assistantConversationStageClass(true)
-    expect(expandedStage).toContain("gap-[30px]")
-    expect(expandedStage).toContain("pb-4")
+    expect(expandedStage).toContain("gap-1.5")
+    expect(expandedStage).toContain("pb-1.5")
     expect(expandedStage).not.toContain("px-[30px]")
     expect(expandedStage).not.toContain("pb-[50px]")
-    expect(assistantConversationStageClass(false)).toContain("gap-[30px]")
-    expect(assistantConversationStageClass(false)).not.toContain("pb-4")
+    expect(assistantConversationStageClass(false)).toContain("gap-1.5")
+    expect(assistantConversationStageClass(false)).not.toContain("pb-1.5")
+
+    expect(ASSISTANT_THREAD_EDGE_SHELL_CLASS).toContain("relative")
+    expect(ASSISTANT_THREAD_TOP_EDGE_FADE_CLASS).toContain("h-4")
+    expect(ASSISTANT_THREAD_TOP_EDGE_FADE_CLASS).toContain(
+      "from-op-assistant-list-background"
+    )
+    expect(ASSISTANT_THREAD_TOP_EDGE_FADE_CLASS).not.toContain("/55")
+    expect(ASSISTANT_THREAD_TOP_EDGE_FADE_CLASS).not.toContain("backdrop-blur")
+    expect(ASSISTANT_THREAD_BOTTOM_EDGE_FADE_CLASS).toContain("h-4")
+    expect(ASSISTANT_THREAD_BOTTOM_EDGE_FADE_CLASS).toContain(
+      "bg-gradient-to-t"
+    )
+    expect(ASSISTANT_THREAD_BOTTOM_EDGE_FADE_CLASS).not.toContain(
+      "backdrop-blur"
+    )
+    expect(ASSISTANT_EXPAND_HEADER_CLASS).toContain("pt-3")
+    expect(ASSISTANT_EXPAND_HEADER_CLASS).toContain("pb-1.5")
+    expect(ASSISTANT_COLLAPSED_HEADER_CLASS).toContain("pb-2")
 
     expect(assistantThreadBodyClass(true)).toContain("overflow-y-auto")
+    expect(assistantThreadBodyClass(true)).toContain("py-1.5")
     expect(assistantThreadBodyClass(true)).not.toContain("px-[30px]")
     expect(assistantThreadBodyClass(true)).not.toContain("max-w-[800px]")
     expect(assistantThreadBodyClass(false)).toContain("px-[30px]")
@@ -147,7 +175,7 @@ describe("assistantDrawerPresentation", () => {
 
     expect(assistantComposerDockClass(true)).not.toContain("px-[30px]")
     expect(assistantComposerDockClass(false)).toContain("px-[30px]")
-    expect(assistantComposerDockClass(false)).toContain("pb-4")
+    expect(assistantComposerDockClass(false)).toContain("pb-1.5")
     expect(assistantComposerDockClass(false)).not.toContain("pb-[30px]")
 
     expect(assistantComposerRailClass(true)).toContain("max-w-[800px]")
@@ -217,7 +245,83 @@ describe("assistantDrawerPresentation", () => {
 
   it("sets the thread scrollTop to the end of the body", () => {
     const body = { scrollTop: 120, scrollHeight: 960 }
-    stickAssistantThreadToBottom(body as HTMLElement)
+    stickAssistantThreadToBottom(body)
     expect(body.scrollTop).toBe(960)
+  })
+
+  it("treats the thread as near the bottom within the follow threshold", () => {
+    expect(
+      assistantThreadIsNearBottom({
+        scrollTop: 880,
+        scrollHeight: 960,
+        clientHeight: 80,
+      })
+    ).toBe(true)
+    expect(
+      assistantThreadIsNearBottom({
+        scrollTop: 700,
+        scrollHeight: 960,
+        clientHeight: 80,
+      })
+    ).toBe(false)
+    expect(ASSISTANT_THREAD_NEAR_BOTTOM_PX).toBe(80)
+  })
+
+  it("hides edge fades when the thread is parked at that edge", () => {
+    expect(
+      assistantThreadEdgeFades({
+        scrollTop: 400,
+        scrollHeight: 960,
+        clientHeight: 80,
+      })
+    ).toEqual({ top: true, bottom: true })
+    expect(
+      assistantThreadEdgeFades({
+        scrollTop: 0,
+        scrollHeight: 960,
+        clientHeight: 80,
+      })
+    ).toEqual({ top: false, bottom: true })
+    expect(
+      assistantThreadEdgeFades({
+        scrollTop: 880,
+        scrollHeight: 960,
+        clientHeight: 80,
+      })
+    ).toEqual({ top: true, bottom: false })
+    expect(
+      assistantThreadEdgeFades({
+        scrollTop: 0,
+        scrollHeight: 80,
+        clientHeight: 80,
+      })
+    ).toEqual({ top: false, bottom: false })
+  })
+
+  it("re-pins follow only when a new user turn starts", () => {
+    expect(
+      assistantThreadShouldForceFollow({
+        previousKey: null,
+        lastMessage: { id: "u1", role: "user" },
+      })
+    ).toBe(true)
+    expect(
+      assistantThreadShouldForceFollow({
+        previousKey: "1:u1:user:Hi",
+        lastMessage: { id: "u1", role: "user" },
+      })
+    ).toBe(false)
+    expect(
+      assistantThreadShouldForceFollow({
+        previousKey: "2:a1:assistant:Answer",
+        lastMessage: { id: "u2", role: "user" },
+      })
+    ).toBe(true)
+    expect(
+      assistantThreadShouldForceFollow({
+        previousKey: "1:u1:user:Hi",
+        lastMessage: { id: "a1", role: "assistant" },
+      })
+    ).toBe(false)
   })
 })
