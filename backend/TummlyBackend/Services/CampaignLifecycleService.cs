@@ -31,6 +31,7 @@ namespace TummlyBackend.Services
         private readonly ICampaignEligibilityService _eligibility;
         private readonly ICampaignBillingReserve _billingReserve;
         private readonly ICreditBalanceSnapshot _creditBalance;
+        private readonly IOffersCatalogService? _offers;
         private readonly Func<DateTime> _utcNow;
 
         public CampaignLifecycleService(
@@ -38,13 +39,15 @@ namespace TummlyBackend.Services
             ICampaignEligibilityService eligibility,
             ICampaignBillingReserve billingReserve,
             ICreditBalanceSnapshot creditBalance,
-            Func<DateTime>? utcNow = null
+            Func<DateTime>? utcNow = null,
+            IOffersCatalogService? offers = null
         )
         {
             _context = context;
             _eligibility = eligibility;
             _billingReserve = billingReserve;
             _creditBalance = creditBalance;
+            _offers = offers;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
@@ -916,6 +919,16 @@ namespace TummlyBackend.Services
             catch (DbUpdateConcurrencyException)
             {
                 return new CampaignLifecycleResult.Conflict();
+            }
+
+            // Unschedule / cancel drops live attach; resume / retry may promote.
+            // Cap deny for first leave-draft is enforced on schedule commit.
+            if (_offers != null && entity.OfferId is int attachedOfferId)
+            {
+                await _offers.SyncInFlightStoredStatusAsync(
+                    attachedOfferId,
+                    cancellationToken
+                );
             }
 
             var frozenCount = await _context.CampaignFrozenRecipients.CountAsync(

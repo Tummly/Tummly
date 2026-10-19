@@ -63,6 +63,23 @@ namespace TummlyBackend.Helpers
                     return CreateTaskStub(localTask);
                 }
 
+                // Attach / "add … offer to that campaign" must persist. Azure
+                // often plans with Retrieve; keep intentional Retrieve only for
+                // net-new combined create (not attach-only).
+                if (providerResult is AssistantLiveAnswerResult.Succeeded attachSucceeded
+                    && string.Equals(
+                        attachSucceeded.AssistantTask,
+                        AssistantTask.Retrieve,
+                        StringComparison.Ordinal
+                    )
+                    && localTask == AssistantTask.CreateCampaignWithOffer
+                    && AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                        userMessage
+                    ))
+                {
+                    return CreateTaskStub(localTask);
+                }
+
                 // Same for Offer path mutate follow-ups ("change the offer to 15%"):
                 // local Classify is OfferPath; Azure may still emit Retrieve.
                 if (providerResult is AssistantLiveAnswerResult.Succeeded offerSucceeded
@@ -104,15 +121,47 @@ namespace TummlyBackend.Helpers
                 // create-campaign-draft (QA: thanking guests + 10% off). Persist
                 // follows assistantTask, so upgrade to the local combined task
                 // while keeping the model title/body until persist overwrites.
+                // Also covers "add it to draft" / "add 20% discount" when Azure
+                // emits create-campaign-draft and would otherwise save No Offer.
                 if (providerResult is AssistantLiveAnswerResult.Succeeded draftLabeled
                     && string.Equals(
                         draftLabeled.AssistantTask,
                         AssistantTask.CreateCampaignDraft,
                         StringComparison.Ordinal
                     )
-                    && localTask == AssistantTask.CreateCampaignWithOffer)
+                    && (
+                        localTask == AssistantTask.CreateCampaignWithOffer
+                        || AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                            userMessage
+                        )
+                    ))
                 {
                     return draftLabeled with
+                    {
+                        AssistantTask = AssistantTask.CreateCampaignWithOffer,
+                    };
+                }
+
+                // Azure may label "add 20% off…" as offer-path after a prior
+                // Offer Draft id exists. That updates the Offer only and shows
+                // "Offers catalog Draft updated" — keep Campaign+Offer attach.
+                if (providerResult is AssistantLiveAnswerResult.Succeeded offerPathLabeled
+                    && string.Equals(
+                        offerPathLabeled.AssistantTask,
+                        AssistantTask.OfferPath,
+                        StringComparison.Ordinal
+                    )
+                    && (
+                        localTask == AssistantTask.CreateCampaignWithOffer
+                        || AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                            userMessage
+                        )
+                        || AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                            userMessage
+                        )
+                    ))
+                {
+                    return offerPathLabeled with
                     {
                         AssistantTask = AssistantTask.CreateCampaignWithOffer,
                     };

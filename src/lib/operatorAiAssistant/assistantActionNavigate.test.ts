@@ -79,7 +79,7 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
-  it("maps review-campaign to Campaigns with Campaign Detail id, not Drafts view", () => {
+  it("maps review-campaign to Campaigns detail preview drawer", () => {
     expect(
       planAssistantActionNavigate({
         action: {
@@ -93,7 +93,9 @@ describe("planAssistantActionNavigate", () => {
     ).toEqual({
       path: "/multi-dashboard/campaigns?location=11",
       selectLocationId: 11,
-      campaigns: { previewCampaignId: 41 },
+      campaigns: {
+        previewCampaignId: 41,
+      },
     })
   })
 

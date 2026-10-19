@@ -1105,7 +1105,15 @@ namespace TummlyBackend.Services
                 }
             }
 
+            // Commercial "add 20% off…" must attach to the Campaign, not mutate
+            // a prior CreatedOfferId as OfferPath-only.
             if (gapState is null
+                && !AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    userMessage
+                )
+                && !AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                    userMessage
+                )
                 && AssistantPriorDraftAuthority.ResolveOffer(
                     conversation.CreatedOfferId,
                     userMessage
@@ -1656,14 +1664,10 @@ namespace TummlyBackend.Services
                     {
                         conversation.CreatedOfferId = createdCombinedOfferId;
                     }
-                    assistantMessage = persist.Class == AssistantMessageClass.Gap
-                        ? GapMessage(assistantNow, persist.Body)
-                        : GroundedMessage(
-                            assistantNow,
-                            persist.Title,
-                            persist.Body,
-                            persist.Actions
-                        );
+                    assistantMessage = PersistCombinedTurnMessage(
+                        assistantNow,
+                        persist
+                    );
                 }
                 else if (string.Equals(
                         persistTask,
@@ -2580,7 +2584,8 @@ namespace TummlyBackend.Services
             IReadOnlyList<AssistantActionDto> Actions,
             int? CreatedCampaignId,
             int? CreatedOfferId,
-            AssistantGapState? GapState
+            AssistantGapState? GapState,
+            AssistantDraftPreview? DraftPreview = null
         );
 
         private async Task<CombinedCreateTurn> PersistCreateCampaignWithOfferAsync(
@@ -2761,15 +2766,24 @@ namespace TummlyBackend.Services
                 ).ToList();
             var parsedCreateTerms = AssistantOfferPathTerms.Parse(userMessage);
             if (matches.Count >= 1
-                && parsedCreateTerms.DiscountPercentage is not null
                 && !AssistantPriorDraftAuthority.LooksLikeUseExistingOffer(userMessage)
-                && !AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(userMessage)
-                && !AssistantTaskClassification.LooksLikeAttachExistingOfferOnly(
-                    userMessage
+                && (
+                    AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                        userMessage
+                    )
+                    || (
+                        parsedCreateTerms.DiscountPercentage is not null
+                        && !AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                            userMessage
+                        )
+                        && !AssistantTaskClassification.LooksLikeAttachExistingOfferOnly(
+                            userMessage
+                        )
+                    )
                 ))
             {
-                // "Create a 10% Campaign" states new terms. Do not attach the
-                // first existing 10% Offer (for example Happy Hour).
+                // "add 20 percent off…" / "Create a 10% Campaign" states new
+                // terms. Do not Gap or reuse duplicate "20% off" catalog rows.
                 matches = [];
             }
             if (matches.Count >= 2
@@ -3153,6 +3167,52 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Same as create-with-offer: regenerate guest copy with ConfirmedOffer
+            // so Email/SMS mentions the attached terms (e.g. 20% off).
+            string? messageSubject = null;
+            string? messageBody = null;
+            var channel = existing.Channel ?? "email";
+            try
+            {
+                var copy = await _campaignMessageDrafts.PrepareAsync(
+                    locationName,
+                    new PrepareCampaignMessageDraftRequest
+                    {
+                        LocationId = locationId,
+                        Channel = channel,
+                        GoalId = existing.GoalId ?? "re-engage-inactive",
+                        AudienceKey =
+                            existing.AudienceKey
+                            ?? AssistantCampaignDraftBind.AudienceAllEligible,
+                        OfferStance = offerStance,
+                        CampaignName = existing.Name,
+                        Tone = "friendly_and_clear",
+                        Mode = "prepare",
+                        ConfirmedOffer = ToCampaignMessageDraftOfferPayload(offer),
+                    },
+                    cancellationToken
+                );
+                if (copy is CampaignMessageDraftServiceResult.Ok okCopy)
+                {
+                    messageSubject = string.Equals(
+                        channel,
+                        "sms",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                        ? null
+                        : okCopy.Subject;
+                    messageBody = okCopy.Body;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // Soft-fail: still attach OfferId when copy generate fails.
+            }
+
             CampaignDraftWriteResult patchResult;
             try
             {
@@ -3163,6 +3223,8 @@ namespace TummlyBackend.Services
                         RowVersion = existing.RowVersion,
                         OfferStance = offerStance,
                         OfferId = offerId,
+                        MessageSubject = messageSubject,
+                        MessageBody = messageBody,
                     },
                     cancellationToken
                 );
@@ -3170,6 +3232,22 @@ namespace TummlyBackend.Services
             catch (OperationCanceledException)
             {
                 throw;
+            }
+            catch (PlanEntitlementCapException cap)
+            {
+                // Attach promotes Draft → Active; Active Offer plan cap blocks it.
+                return new CombinedCreateTurn(
+                    AssistantMessageClass.Grounded,
+                    AssistantCombinedCreatePersistCopy.FailureTitle,
+                    $"The Offer was saved. The Campaign was not updated because this plan already uses {cap.Current} of {cap.Cap} Active Offers. Pause or archive an Active Offer, then retry attach.",
+                    AssistantActionCatalog.ValidateReviewOffer(
+                        offerId,
+                        AssistantMessageClass.Grounded
+                    ),
+                    null,
+                    offerId,
+                    null
+                );
             }
             catch
             {
@@ -3652,7 +3730,23 @@ namespace TummlyBackend.Services
                 ),
                 campaign.Id,
                 offerId,
-                null
+                null,
+                // Campaign Draft card — Edit Draft opens the Campaign wizard,
+                // not Offer Details (offer is secondary via review-offer).
+                AssistantDraftPreviewFactory.Campaign(
+                    campaign.Id,
+                    campaign.Name,
+                    resolvedAudienceLabel,
+                    campaign.Channel,
+                    campaign.MessageSubject,
+                    campaign.MessageBody,
+                    offerId: offerId,
+                    conditionsSummary:
+                        $"{AssistantCombinedCreatePersistCopy.TypeLabel(attached)} · {AssistantCombinedCreatePersistCopy.ValueLabel(attached)}",
+                    validityLabel: AssistantCombinedCreatePersistCopy.ValidityLabel(
+                        attached
+                    )
+                )
             );
         }
 
@@ -3673,6 +3767,16 @@ namespace TummlyBackend.Services
                 return providerTask;
             }
 
+            // "add 20% off…" must stay Campaign+Offer even when Azure returns
+            // OfferPath or a prior CreatedOfferId would mutate Offer only.
+            if (AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(userMessage)
+                || AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                    userMessage
+                ))
+            {
+                return AssistantTask.CreateCampaignWithOffer;
+            }
+
             if (AssistantPriorDraftAuthority.ResolveOffer(
                     conversation.CreatedOfferId,
                     userMessage
@@ -3688,6 +3792,12 @@ namespace TummlyBackend.Services
                         AssistantTask.CreateCampaignDraft,
                         StringComparison.Ordinal
                     )
+                )
+                && !AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    userMessage
+                )
+                && !AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                    userMessage
                 ))
             {
                 return AssistantTask.OfferPath;
@@ -3722,6 +3832,26 @@ namespace TummlyBackend.Services
                 ))
             {
                 return AssistantTask.OfferPath;
+            }
+
+            if (localTask == AssistantTask.CreateCampaignWithOffer
+                && (
+                    string.Equals(
+                        providerTask,
+                        AssistantTask.OfferPath,
+                        StringComparison.Ordinal
+                    )
+                    || string.Equals(
+                        providerTask,
+                        AssistantTask.Retrieve,
+                        StringComparison.Ordinal
+                    )
+                )
+                && AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    userMessage
+                ))
+            {
+                return AssistantTask.CreateCampaignWithOffer;
             }
 
             if (localTask == AssistantTask.RecoveryPath
@@ -3772,10 +3902,26 @@ namespace TummlyBackend.Services
         )
         {
             if (AssistantTaskClassification.LooksLikeAttachExistingOfferOnly(userMessage)
-                || AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(userMessage)
                 || AssistantTaskClassification.LooksLikeRemoveOfferFromCampaign(
                     userMessage
                 ))
+            {
+                return false;
+            }
+
+            // "add 20 percent off…" — create a new Offer even when terms are
+            // incomplete (typo week) or two catalog rows share "20% off".
+            if (AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(userMessage))
+            {
+                var commercial = priorTerms
+                    ?? AssistantOfferPathTerms.Parse(userMessage);
+                return commercial.DiscountPercentage is not null
+                    || commercial.DiscountAmount is not null
+                    || commercial.OfferType is not null
+                    || AssistantOfferPathTerms.IsComplete(commercial);
+            }
+
+            if (AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(userMessage))
             {
                 return false;
             }
@@ -4710,6 +4856,9 @@ namespace TummlyBackend.Services
                     && !PreferCreateNewOfferWhenAttachAmbiguous(
                         sourceUserMessage,
                         priorTerms
+                    )
+                    && !AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                        sourceUserMessage
                     ))
                 {
                     var titles = offerMatches.Select(offer => offer.Title).ToList();
@@ -5384,6 +5533,20 @@ namespace TummlyBackend.Services
                     DraftPresentationOrNull(persist.DraftPreview)
                 );
 
+        private static AssistantMessage PersistCombinedTurnMessage(
+            DateTime createdAt,
+            CombinedCreateTurn persist
+        )
+            => persist.Class == AssistantMessageClass.Gap
+                ? GapMessage(createdAt, persist.Body)
+                : GroundedMessage(
+                    createdAt,
+                    persist.Title,
+                    persist.Body,
+                    persist.Actions,
+                    DraftPresentationOrNull(persist.DraftPreview)
+                );
+
         private static int CreatePersistLocationId(
             int? boundLocationId,
             AssistantConversation conversation
@@ -5599,6 +5762,35 @@ namespace TummlyBackend.Services
                             .Select(message => message.Body)
                     );
                     choice = AssistantCampaignDraftBind.ResolveSingleChannelLabel(earlier);
+                }
+
+                if (choice is null
+                    && gapState.Kind == AssistantGapTurn.KindOffer
+                    && AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                        gapState.SourceUserMessage
+                    )
+                    && string.Equals(
+                        gapState.AssistantTask,
+                        AssistantTask.CreateCampaignWithOffer,
+                        StringComparison.Ordinal
+                    ))
+                {
+                    // Duplicate "20% off, 20% off" cannot be named apart. Create
+                    // a new Offer from the source ask instead of re-asking.
+                    return await ResumeCombinedCreateAsync(
+                        conversation,
+                        gapState.SourceUserMessage,
+                        userMessage,
+                        analysisScopeLocationName,
+                        ownedLocations,
+                        new AssistantCampaignDraftBindChoice(
+                            ChannelLabel: gapState.ChannelLabel
+                        ),
+                        updateScope: false,
+                        replaceFailure,
+                        cancellationToken,
+                        allowEmptyAudience: gapState.AllowEmptyChannelAudience
+                    );
                 }
 
                 if (choice is null)
@@ -6259,12 +6451,7 @@ namespace TummlyBackend.Services
             return new GapResume(
                 await PersistAssistantAsync(
                     conversation,
-                    GroundedMessage(
-                        DateTime.UtcNow,
-                        persist.Title,
-                        persist.Body,
-                        persist.Actions
-                    ),
+                    PersistCombinedTurnMessage(DateTime.UtcNow, persist),
                     replaceFailure,
                     cancellationToken
                 ),
@@ -6355,12 +6542,7 @@ namespace TummlyBackend.Services
             return new GapResume(
                 await PersistAssistantAsync(
                     conversation,
-                    GroundedMessage(
-                        DateTime.UtcNow,
-                        persist.Title,
-                        persist.Body,
-                        persist.Actions
-                    ),
+                    PersistCombinedTurnMessage(DateTime.UtcNow, persist),
                     replaceFailure,
                     cancellationToken
                 ),
@@ -6728,17 +6910,9 @@ namespace TummlyBackend.Services
                 conversation.CreatedOfferId = createdOfferId;
             }
 
-            var assistantMessage = persist.Class == AssistantMessageClass.Gap
-                ? GapMessage(DateTime.UtcNow, persist.Body)
-                : GroundedMessage(
-                    DateTime.UtcNow,
-                    persist.Title,
-                    persist.Body,
-                    persist.Actions
-                );
             var turn = await PersistAssistantAsync(
                 conversation,
-                assistantMessage,
+                PersistCombinedTurnMessage(DateTime.UtcNow, persist),
                 replaceFailure,
                 cancellationToken,
                 liveAnswerAlreadyCompleted: true

@@ -981,10 +981,16 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            // Campaign Draft attach is prep work — do not promote Offer → Active
+            // (or burn Active Offer cap) until schedule / send. Cancelled rows
+            // also do not keep an Offer live.
             var campaignCount = await _context.Campaigns
                 .AsNoTracking()
                 .CountAsync(
-                    campaign => campaign.OfferId == offerId,
+                    campaign =>
+                        campaign.OfferId == offerId
+                        && campaign.Status != CampaignDraftService.DraftStatus
+                        && campaign.Status != CampaignsListService.CancelledStatus,
                     cancellationToken
                 );
             var recoveryCount = await _context.Feedbacks

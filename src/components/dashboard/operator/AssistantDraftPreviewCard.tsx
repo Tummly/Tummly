@@ -55,6 +55,12 @@ export function AssistantDraftPreviewCard({
           {draft.timingLabel ? (
             <MetaRow label="Timing" value={draft.timingLabel} />
           ) : null}
+          {draft.conditionsSummary ? (
+            <MetaRow label="Offer" value={draft.conditionsSummary} />
+          ) : null}
+          {draft.validityLabel ? (
+            <MetaRow label="Validity" value={draft.validityLabel} />
+          ) : null}
           {draft.subject ? (
             <MetaRow label="Subject" value={draft.subject} />
           ) : null}

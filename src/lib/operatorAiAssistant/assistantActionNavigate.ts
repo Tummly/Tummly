@@ -121,6 +121,8 @@ export function planAssistantActionNavigate(input: {
 
   switch (action.type) {
     case "review-campaign":
+      // Edit Draft / Review campaign draft → Campaign Detail summary drawer
+      // (Send / Edit campaign / Close). Wizard opens from "Edit campaign".
       return {
         path: sectionNavPath(mode, "campaigns", locationId),
         selectLocationId: locationId,

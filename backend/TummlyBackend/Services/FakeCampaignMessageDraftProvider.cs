@@ -84,10 +84,11 @@ namespace TummlyBackend.Services
                     )
                         ? null
                         : succeeded.Subject;
+                var body = WithConfirmedOfferMention(succeeded.Body, input.ConfirmedOffer);
 
                 return Task.FromResult<CampaignMessageDraftProviderResult>(
                     new CampaignMessageDraftProviderResult.Succeeded(
-                        succeeded.Body,
+                        body,
                         subject,
                         input.Channel
                     )
@@ -95,6 +96,36 @@ namespace TummlyBackend.Services
             }
 
             return Task.FromResult(_nextResult);
+        }
+
+        private static string WithConfirmedOfferMention(
+            string body,
+            CampaignMessageDraftConfirmedOffer? offer
+        )
+        {
+            if (offer is null)
+            {
+                return body;
+            }
+
+            if (offer.DiscountPercentage is decimal percent && percent > 0)
+            {
+                var mention = $"{percent:0}% off";
+                if (body.Contains(mention, StringComparison.OrdinalIgnoreCase))
+                {
+                    return body;
+                }
+
+                return $"{body.TrimEnd()} Get {mention} on your next visit.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(offer.Title)
+                && !body.Contains(offer.Title, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"{body.TrimEnd()} Includes {offer.Title}.";
+            }
+
+            return body;
         }
     }
 }

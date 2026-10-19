@@ -33,7 +33,7 @@ namespace TummlyBackend.Helpers
                 + $"- **Type:** {typeLabel}\n"
                 + $"- **Value:** {valueLabel}\n"
                 + $"- **Validity:** {validityLabel}\n"
-                + $"- **Offer:** {offerTitle} — **Status:** Active (attached to this Campaign Draft)\n"
+                + $"- **Offer:** {offerTitle} — **Status:** Draft (attached to this Campaign Draft)\n"
                 + $"- **Name:** {campaignName}\n"
                 + "- **Status:** Draft\n\n"
                 + "Nothing was sent or scheduled.";

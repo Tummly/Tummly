@@ -182,17 +182,98 @@ namespace TummlyBackend.Helpers
         public static bool LooksLikeAttachToCampaignIntent(string message)
         {
             var lower = message.Trim().ToLowerInvariant();
-            if (!ContainsAny(
+
+            // Confirm after research: "add it to draft" (no campaign noun).
+            if (ContainsAny(
+                    lower,
+                    "add it to draft",
+                    "add to draft",
+                    "add it to the draft",
+                    "add to the draft"
+                ))
+            {
+                return true;
+            }
+
+            // "Add 20 percent discount for a week" — commercial add onto the
+            // prior Campaign Draft (CreatedCampaignId), no campaign noun.
+            if (LooksLikeAddCommercialOfferTerms(message))
+            {
+                return true;
+            }
+
+            if (!ContainsAny(lower, "campaign"))
+            {
+                return false;
+            }
+
+            if (ContainsAny(
                     lower,
                     "attach",
                     "attach it",
                     "attach to"
                 ))
             {
+                return true;
+            }
+
+            // "Add to that campaign a 20% offer…" / "Add a 20% offer to … campaign"
+            if (!ContainsAny(lower, "offer", "offers", "%", "discount", "percent"))
+            {
                 return false;
             }
 
-            return ContainsAny(lower, "campaign");
+            if (ContainsAny(
+                    lower,
+                    "add to",
+                    "add it to",
+                    "add an offer",
+                    "add a offer",
+                    "add the offer",
+                    "add offer"
+                ))
+            {
+                return true;
+            }
+
+            return lower.Contains("add ", StringComparison.Ordinal)
+                && lower.Contains(" to ", StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// "Add 20% / add 20 percent discount…" — create Offer terms and attach
+        /// to the prior Campaign Draft, without naming Campaign.
+        /// </summary>
+        public static bool LooksLikeAddCommercialOfferTerms(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            if (!ContainsAny(lower, "add ", "add a", "add an"))
+            {
+                return false;
+            }
+
+            // Standalone Offers catalog creates keep create/draft/make verbs.
+            if (ContainsAny(
+                    lower,
+                    "create an offer",
+                    "create a offer",
+                    "draft an offer",
+                    "draft a offer",
+                    "make an offer",
+                    "make a offer"
+                ))
+            {
+                return false;
+            }
+
+            return ContainsAny(
+                lower,
+                "offer",
+                "discount",
+                "percent",
+                "%",
+                " off"
+            );
         }
 
         /// <summary>

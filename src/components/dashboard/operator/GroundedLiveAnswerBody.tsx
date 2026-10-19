@@ -5,8 +5,14 @@ import {
   type GroundedLiveAnswerInline,
 } from "@/lib/operatorAiAssistant/groundedLiveAnswerMarkdown"
 
+/**
+ * Two-tone answer copy for contrast:
+ * - Emphasis (headings / bold / quotes) → primary (black / white by theme)
+ * - Body (paragraphs / lists) → gray-800 on light, gray-400 on dark
+ */
 const BODY_TEXT_CLASS =
-  "text-sm leading-5 text-[var(--op-color-gray-550)]"
+  "text-sm leading-5 text-[var(--op-color-gray-800)] dark:text-[var(--op-color-gray-400)]"
+const EMPHASIS_TEXT_CLASS = "text-op-text-primary"
 
 /** Show "Show N more" only when the list has more than 8 items. */
 const COLLAPSE_AFTER_ITEM_COUNT = 8
@@ -24,7 +30,7 @@ function InlineContent({
     }
     if (token.type === "bold") {
       return (
-        <span key={index} className="font-medium text-op-text-primary">
+        <span key={index} className={`font-medium ${EMPHASIS_TEXT_CLASS}`}>
           {token.value}
         </span>
       )
@@ -33,7 +39,7 @@ function InlineContent({
       return (
         <span
           key={index}
-          className="text-op-text-primary"
+          className={EMPHASIS_TEXT_CLASS}
           data-assistant-feedback-quote=""
         >
           &quot;{token.value}&quot;
@@ -104,7 +110,7 @@ export function GroundedLiveAnswerBody({ body }: { body: string }) {
           return (
             <p
               key={blockIndex}
-              className="text-sm leading-5 font-medium text-op-text-primary"
+              className={`text-sm leading-5 font-medium ${EMPHASIS_TEXT_CLASS}`}
             >
               <InlineContent>{block.children}</InlineContent>
             </p>
@@ -114,7 +120,7 @@ export function GroundedLiveAnswerBody({ body }: { body: string }) {
           return (
             <p
               key={blockIndex}
-              className="m-0 border-l-2 border-op-assistant-list-border pl-3 text-op-text-primary"
+              className={`m-0 border-l-2 border-op-assistant-list-border pl-3 ${EMPHASIS_TEXT_CLASS}`}
             >
               <InlineContent>{block.children}</InlineContent>
             </p>
@@ -132,7 +138,7 @@ export function GroundedLiveAnswerBody({ body }: { body: string }) {
                     {block.headers.map((header) => (
                       <th
                         key={header}
-                        className="px-2 py-1.5 font-medium text-op-text-primary"
+                        className={`px-2 py-1.5 font-medium ${EMPHASIS_TEXT_CLASS}`}
                       >
                         {header}
                       </th>

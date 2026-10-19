@@ -107,6 +107,56 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void Resolve_ProviderOfferPath_AddPercentOff_OverridesToCombinedCreate()
+        {
+            var resolved = AssistantLiveAnswerResolve.Resolve(
+                new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Offers catalog Draft",
+                    "Offer path.",
+                    [],
+                    AssistantTask.OfferPath
+                ),
+                "add 20 percent off for 1 week",
+                "Camden",
+                "the last 7 days",
+                AssistantRetrievedEvidence.Empty,
+                allowLocalRetrieveFallback: true
+            );
+
+            var succeeded = Assert.IsType<AssistantLiveAnswerResult.Succeeded>(resolved);
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                succeeded.AssistantTask
+            );
+        }
+
+        [Fact]
+        public void Resolve_ProviderRetrieve_AddOfferToThatCampaign_OverridesToCombinedCreate()
+        {
+            var resolved = AssistantLiveAnswerResolve.Resolve(
+                new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Plan",
+                    "I will create a new offer and attach it.",
+                    [],
+                    AssistantTask.Retrieve
+                ),
+                "Add to that campaign a 20% offer that is valid for a week",
+                "Camden",
+                "the last 7 days",
+                AssistantRetrievedEvidence.Empty,
+                allowLocalRetrieveFallback: true
+            );
+
+            var succeeded = Assert.IsType<AssistantLiveAnswerResult.Succeeded>(resolved);
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                succeeded.AssistantTask
+            );
+        }
+
+        [Fact]
         public void Resolve_ProviderCombinedCreate_OfferMutateAsk_OverridesToOfferPath()
         {
             var resolved = AssistantLiveAnswerResolve.Resolve(

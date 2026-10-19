@@ -147,7 +147,7 @@ function ThreadMessage({
         className="flex justify-end"
         data-assistant-thread-row={message.id}
       >
-        <div className="max-w-[85%] rounded-[8px] border border-op-assistant-list-border bg-op-assistant-list-row-active px-[18px] py-[14px] text-sm leading-5 text-op-assistant-list-subtitle">
+        <div className="max-w-[85%] rounded-[8px] border border-op-assistant-list-border bg-op-assistant-list-row-active px-[18px] py-[14px] text-sm leading-5 text-op-text-primary">
           {message.body}
         </div>
       </div>
@@ -258,7 +258,7 @@ function ThreadMessage({
               <GroundedLiveAnswerBody body={message.body} />
             ) : null}
             {message.class !== "grounded" && message.class !== "gap" ? (
-              <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
+              <p className="text-sm leading-5 text-[var(--op-color-gray-800)] dark:text-[var(--op-color-gray-400)]">
                 {message.body}
               </p>
             ) : null}
