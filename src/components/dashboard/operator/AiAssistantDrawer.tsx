@@ -929,8 +929,6 @@ export function AiAssistantDrawer({
                       onRetry={onRetry}
                       onActivateAction={onActivateAction}
                       onOpenChangeScope={onOpenChangeScope}
-                      latestUserPrompt={latestThreadUserPrompt}
-                      pendingRecoveryDraft={snapshot.pendingRecoveryDraft}
                     />
                   ))}
                 </div>
