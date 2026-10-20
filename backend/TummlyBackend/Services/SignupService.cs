@@ -225,6 +225,20 @@ namespace TummlyBackend.Services
                 pending.ChosenPlan,
                 dto.ChosenCadence
             );
+            if (
+                string.Equals(
+                    pending.ChosenPlan,
+                    BillingSubscriptionPlans.Custom,
+                    StringComparison.Ordinal
+                )
+                && !string.IsNullOrWhiteSpace(dto.CustomPlanConfigJson)
+            )
+            {
+                pending.CustomPlanConfigJson = NormalizeCustomPlanConfigJson(
+                    dto.CustomPlanConfigJson
+                );
+            }
+
             pending.Status = PendingSignupStatuses.Provisioning;
             pending.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -349,6 +363,38 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            if (
+                string.Equals(
+                    pending.ChosenPlan,
+                    BillingSubscriptionPlans.Custom,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                var customOpen = await _context.RevolutOrderIntents
+                    .OrderByDescending(row => row.CreatedAtUtc)
+                    .FirstOrDefaultAsync(row =>
+                        row.RestaurantId == restaurantId
+                        && row.Purpose == RevolutOrderIntentPurposes.CustomPlanCycle
+                        && row.IsOpen
+                    );
+                if (customOpen == null)
+                {
+                    return null;
+                }
+
+                if (DateTime.UtcNow - customOpen.CreatedAtUtc >= PaidSignupPaySessionTtl)
+                {
+                    customOpen.IsOpen = false;
+                    await _context.SaveChangesAsync();
+                    return null;
+                }
+
+                return string.IsNullOrWhiteSpace(customOpen.CheckoutUrl)
+                    ? null
+                    : customOpen.CheckoutUrl;
+            }
+
             var open = await _context.RevolutPendingPaySessions
                 .OrderByDescending(row => row.CreatedAtUtc)
                 .FirstOrDefaultAsync(row =>
@@ -464,8 +510,28 @@ namespace TummlyBackend.Services
                 "starter" => BillingSubscriptionPlans.Starter,
                 "growth" => BillingSubscriptionPlans.Growth,
                 "group" => BillingSubscriptionPlans.Group,
+                "custom" => BillingSubscriptionPlans.Custom,
                 _ => throw new Exception("Invalid plan selection."),
             };
+        }
+
+        private static string? NormalizeCustomPlanConfigJson(string raw)
+        {
+            var trimmed = raw.Trim();
+            if (trimmed.StartsWith('{'))
+            {
+                return trimmed;
+            }
+
+            try
+            {
+                var bytes = Convert.FromBase64String(trimmed);
+                return System.Text.Encoding.UTF8.GetString(bytes);
+            }
+            catch (FormatException)
+            {
+                return trimmed;
+            }
         }
 
         private static string ResolveChosenCadence(string plan, string? raw)

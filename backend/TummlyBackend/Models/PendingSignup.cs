@@ -49,13 +49,16 @@ namespace TummlyBackend.Models
         [MaxLength(16)]
         public string? AccountType { get; set; }
 
-        /// <summary>Pilot|Free|Starter|Growth|Group</summary>
+        /// <summary>Pilot|Free|Starter|Growth|Group|Custom</summary>
         [MaxLength(32)]
         public string? ChosenPlan { get; set; }
 
         /// <summary>monthly|annual</summary>
         [MaxLength(16)]
         public string? ChosenCadence { get; set; }
+
+        /// <summary>Custom à-la-carte config JSON from marketing custom-plan.</summary>
+        public string? CustomPlanConfigJson { get; set; }
 
         public string? OnboardingJson { get; set; }
 

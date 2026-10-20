@@ -231,6 +231,9 @@ export function toSignupOnboardingPayload(
             intent.plan === "Pilot"
               ? "monthly"
               : (intent.cadence ?? "monthly"),
+          ...(intent.plan === "Custom" && intent.customConfigJson != null
+            ? { customPlanConfigJson: intent.customConfigJson }
+            : {}),
         }
       : {}),
   }

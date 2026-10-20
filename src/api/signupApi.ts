@@ -47,6 +47,8 @@ export type SignupOnboardingPayload = {
   locations: SignupOnboardingLocation[]
   chosenPlan?: string | null
   chosenCadence?: string | null
+  /** Base64 or JSON custom plan snapshot from `/custom-plan`. */
+  customPlanConfigJson?: string | null
 }
 
 export type SignupProvisioningStatus = {

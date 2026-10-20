@@ -385,3 +385,21 @@ export async function cancelBillingPlan(
   )
   return { scheduledChangeLine: data.scheduledChangeLine }
 }
+
+type CustomPlanCyclePayResponse = {
+  checkoutUrl: string
+}
+
+export async function payCustomPlanCycle(): Promise<{ checkoutUrl: string }> {
+  const { data } = await axiosInstance.post<CustomPlanCyclePayResponse>(
+    "/billing-credits/custom-plan/cycle-pay"
+  )
+  return { checkoutUrl: data.checkoutUrl }
+}
+
+export async function retryPendingPayment(): Promise<{ checkoutUrl: string }> {
+  const { data } = await axiosInstance.post<CustomPlanCyclePayResponse>(
+    "/billing-credits/pending-payment/retry"
+  )
+  return { checkoutUrl: data.checkoutUrl }
+}

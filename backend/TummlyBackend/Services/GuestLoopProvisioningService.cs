@@ -1,6 +1,7 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Provisioning;
 using TummlyBackend.DTOs.Signup;
@@ -23,7 +24,9 @@ namespace TummlyBackend.Services
         private readonly ICreditLedger _creditLedger;
         private readonly IBillingAccountLifecycle _lifecycle;
         private readonly IFirstPaidConversionPaySession _firstPaidConversionPaySession;
+        private readonly CustomPlanCycleBillingService _customPlanCycleBilling;
         private readonly IEmailService _emailService;
+        private readonly ILogger<GuestLoopProvisioningService> _logger;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
@@ -35,9 +38,12 @@ namespace TummlyBackend.Services
             ICreditLedger creditLedger,
             IBillingAccountLifecycle lifecycle,
             IFirstPaidConversionPaySession firstPaidConversionPaySession,
-            IEmailService emailService
+            CustomPlanCycleBillingService customPlanCycleBilling,
+            IEmailService emailService,
+            ILogger<GuestLoopProvisioningService> logger
         )
         {
+            _logger = logger;
             _context = context;
             _qrCodeProvisioning = qrCodeProvisioning;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
@@ -47,6 +53,7 @@ namespace TummlyBackend.Services
             _creditLedger = creditLedger;
             _lifecycle = lifecycle;
             _firstPaidConversionPaySession = firstPaidConversionPaySession;
+            _customPlanCycleBilling = customPlanCycleBilling;
             _emailService = emailService;
         }
 
@@ -310,7 +317,8 @@ namespace TummlyBackend.Services
                     pending.Email,
                     pending.ChosenPlan!,
                     pending.ChosenCadence ?? "monthly",
-                    pending.Id
+                    pending.Id,
+                    pending.CustomPlanConfigJson
                 );
             }
         }
@@ -411,7 +419,8 @@ namespace TummlyBackend.Services
             string email,
             string chosenPlan,
             string chosenCadence,
-            Guid pendingSignupId
+            Guid pendingSignupId,
+            string? customPlanConfigJson
         )
         {
             var user = await _context.Users.FirstOrDefaultAsync(x =>
@@ -435,6 +444,59 @@ namespace TummlyBackend.Services
             );
             if (billing == null)
             {
+                return;
+            }
+
+            if (
+                string.Equals(
+                    chosenPlan,
+                    BillingSubscriptionPlans.Custom,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                billing.SubscriptionPlan = BillingSubscriptionPlans.Custom;
+                billing.CustomPlanConfigJson = customPlanConfigJson;
+                billing.BillingCycle = string.Equals(
+                    chosenCadence,
+                    "annual",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                    ? BillingCycles.Annual
+                    : BillingCycles.Monthly;
+                await _context.SaveChangesAsync();
+
+                string? checkoutError;
+                try
+                {
+                    var (checkoutUrl, error) =
+                        await _customPlanCycleBilling.StartCyclePayAsync(
+                            restaurant.Id,
+                            BuildLoginSetupCompleteRedirectUrl()
+                        );
+                    checkoutError = checkoutUrl == null
+                        ? error ?? "custom_checkout_missing"
+                        : null;
+                }
+                catch (RevolutMerchantNotReadyException ex)
+                {
+                    checkoutError = ex.Code;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    checkoutError = ex.Message;
+                }
+
+                if (checkoutError != null)
+                {
+                    await RevertUnpaidCustomSignupAsync(
+                        billing,
+                        chosenCadence,
+                        customPlanConfigJson,
+                        checkoutError
+                    );
+                }
+
                 return;
             }
 
@@ -462,10 +524,103 @@ namespace TummlyBackend.Services
                     successRedirectUrl: BuildLoginSetupCompleteRedirectUrl()
                 );
             }
-            catch (InvalidOperationException)
+            catch (RevolutMerchantNotReadyException ex)
             {
-                // Leave Free; operator can convert from Manage Plan later.
+                // Stay Free; the owner retries payment from Manage Plan.
+                await RecordPendingPaymentAsync(
+                    billing,
+                    chosenPlan,
+                    chosenCadence,
+                    customConfigJson: null,
+                    ex.Code,
+                    AdminAuditActions.BillingPaidSignupCheckoutFailed
+                );
             }
+            catch (InvalidOperationException ex)
+            {
+                // Stay Free; the owner retries payment from Manage Plan.
+                await RecordPendingPaymentAsync(
+                    billing,
+                    chosenPlan,
+                    chosenCadence,
+                    customConfigJson: null,
+                    ex.Message,
+                    AdminAuditActions.BillingPaidSignupCheckoutFailed
+                );
+            }
+        }
+
+        /// <summary>
+        /// Custom checkout did not start at signup. Keep the account on Free and
+        /// keep the quote as a pending payment so the owner can retry from Manage Plan.
+        /// </summary>
+        private async Task RevertUnpaidCustomSignupAsync(
+            BillingAccount billing,
+            string cadence,
+            string? customConfigJson,
+            string checkoutError
+        )
+        {
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Free;
+            billing.BillingCycle = null;
+            billing.CustomPlanConfigJson = null;
+            await RecordPendingPaymentAsync(
+                billing,
+                BillingSubscriptionPlans.Custom,
+                cadence,
+                customConfigJson,
+                checkoutError,
+                AdminAuditActions.BillingCustomSignupCheckoutFailed
+            );
+        }
+
+        /// <summary>
+        /// Checkout did not start. The account stays on Free. Save the chosen plan
+        /// as a pending payment, log the Revolut code, and audit it for Admin.
+        /// </summary>
+        private async Task RecordPendingPaymentAsync(
+            BillingAccount billing,
+            string plan,
+            string cadence,
+            string? customConfigJson,
+            string checkoutError,
+            string auditAction
+        )
+        {
+            var code = checkoutError.Length > 64
+                ? checkoutError[..64]
+                : checkoutError;
+            billing.PendingPaymentPlan = plan;
+            billing.PendingPaymentCadence = cadence;
+            billing.PendingPaymentCustomConfigJson = customConfigJson;
+            billing.PendingPaymentFailedAtUtc = DateTime.UtcNow;
+            billing.PendingPaymentFailureCode = code;
+
+            _logger.LogWarning(
+                "Paid signup checkout did not start. RestaurantId={RestaurantId} Plan={Plan} Code={Code}",
+                billing.RestaurantId,
+                plan,
+                code
+            );
+            _context.AdminAuditEvents.Add(
+                new AdminAuditEvent
+                {
+                    Id = Guid.NewGuid(),
+                    OccurredAtUtc = DateTime.UtcNow,
+                    Action = auditAction,
+                    ActorIdentity = "system:signup",
+                    TargetType = AdminAuditTargetTypes.Restaurant,
+                    TargetId = billing.RestaurantId.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture
+                    ),
+                    RestaurantId = billing.RestaurantId,
+                    DetailJson = JsonSerializer.Serialize(
+                        new { plan, code }
+                    ),
+                    Succeeded = false,
+                }
+            );
+            await _context.SaveChangesAsync();
         }
 
         private string BuildLoginSetupCompleteRedirectUrl()

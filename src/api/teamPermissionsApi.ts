@@ -19,8 +19,15 @@ function readApiError(error: unknown, fallback: string): string {
           code?: unknown
           cap?: unknown
           current?: unknown
+          scheduledChangeMessage?: unknown
         }
       | undefined
+    if (
+      payload?.code === "team_member_cap_reached"
+      && typeof payload.scheduledChangeMessage === "string"
+    ) {
+      return payload.scheduledChangeMessage
+    }
     if (
       payload?.code === "team_member_cap_reached"
       && typeof payload.cap === "number"

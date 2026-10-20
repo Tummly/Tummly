@@ -1,7 +1,9 @@
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Signup;
@@ -76,7 +78,16 @@ namespace TummlyBackend.Tests.Services
                 _mintLedger,
                 new NoOpBillingAccountLifecycle(),
                 _firstPaid,
-                new EmailServiceStubBase()
+                new CustomPlanCycleBillingService(
+                    _db,
+                    new NoOpRevolutMerchantForCustomPlan(),
+                    TimeProvider.System,
+                    Microsoft.Extensions.Options.Options.Create(
+                        new TummlyBackend.Configurations.TummlySellerVatSettings()
+                    )
+                ),
+                new EmailServiceStubBase(),
+                NullLogger<GuestLoopProvisioningService>.Instance
             );
 
             _signup = new SignupService(
@@ -84,6 +95,40 @@ namespace TummlyBackend.Tests.Services
                 new TrackingEmailService(),
                 _provisioning
             );
+        }
+
+        [Fact]
+        public async Task SaveOnboarding_CustomPlan_CheckoutFails_StaysFreeAndAudits()
+        {
+            await SeedVerifiedPendingAsync();
+            var dto = BuildValidOnboardingDto();
+            dto.ChosenPlan = BillingSubscriptionPlans.Custom;
+            dto.ChosenCadence = "monthly";
+            dto.CustomPlanConfigJson = new CustomPlanConfig
+            {
+                Cadence = "monthly",
+                MonthlyNetPence = 12120,
+                PeriodNetPence = 12120,
+                Quantities = new CustomPlanQuantities
+                {
+                    Locations = 2,
+                    EmailCredits = 20000,
+                },
+            }.ToJson();
+
+            var result = await _signup.SaveOnboardingAsync(_sessionToken, dto);
+
+            Assert.Equal(PendingSignupStatuses.Complete, result.Status);
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Free, billing.SubscriptionPlan);
+            Assert.Null(billing.CustomPlanConfigJson);
+            Assert.Null(billing.BillingCycle);
+            Assert.Equal(BillingSubscriptionPlans.Custom, billing.PendingPaymentPlan);
+            Assert.NotNull(billing.PendingPaymentCustomConfigJson);
+            var audit = await _db.AdminAuditEvents.SingleAsync();
+            Assert.Equal(AdminAuditActions.BillingCustomSignupCheckoutFailed, audit.Action);
+            Assert.False(audit.Succeeded);
+            Assert.Equal(billing.RestaurantId, audit.RestaurantId);
         }
 
         [Fact]
@@ -214,6 +259,29 @@ namespace TummlyBackend.Tests.Services
                 1,
                 await _db.ShopOrders.CountAsync(o => o.IsComplimentary)
             );
+        }
+
+        [Fact]
+        public async Task RetryProvision_ChosenPlanGrowth_CheckoutFails_StaysFree_AndAudits()
+        {
+            await SeedOnboardingCompletePendingWithPlanAsync(
+                BillingSubscriptionPlans.Growth
+            );
+            _firstPaid.FailWithCode = "revolut_http_error";
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Free, billing.SubscriptionPlan);
+            Assert.Empty(await _db.RevolutPendingPaySessions.ToListAsync());
+            Assert.Equal(BillingSubscriptionPlans.Growth, billing.PendingPaymentPlan);
+            Assert.Equal("revolut_http_error", billing.PendingPaymentFailureCode);
+
+            var audit = await _db.AdminAuditEvents.SingleAsync();
+            Assert.Equal(AdminAuditActions.BillingPaidSignupCheckoutFailed, audit.Action);
+            Assert.False(audit.Succeeded);
+            Assert.Equal(billing.RestaurantId, audit.RestaurantId);
+            Assert.Contains("revolut_http_error", audit.DetailJson);
         }
 
         [Fact]

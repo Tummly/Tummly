@@ -4,13 +4,15 @@ import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPres
 export const SIGNUP_PATH = "/signup"
 
 export type SignupPlanIntent = {
-  plan: "Pilot" | "Starter" | "Growth" | "Group"
+  plan: "Pilot" | "Starter" | "Growth" | "Group" | "Custom"
   cadence?: BillingCadence
+  /** Base64 or JSON from `/custom-plan` continue CTA (`customIntent` query). */
+  customConfigJson?: string
 }
 
 const SIGNUP_PLAN_INTENT_KEY = "tummly.signupPlanIntent"
 
-const PAID_PLANS = new Set(["Starter", "Growth", "Group"])
+const PAID_PLANS = new Set(["Starter", "Growth", "Group", "Custom"])
 
 export type BuildSignupPathOptions = {
   /** Prefills Work email on `/signup` so the visitor does not type it again. */
@@ -55,7 +57,14 @@ export function parseSignupPlanIntent(
   const cadenceRaw = searchParams.get("cadence")?.trim().toLowerCase()
   const cadence: BillingCadence =
     cadenceRaw === "annual" ? "annual" : "monthly"
-  return { plan: plan as "Starter" | "Growth" | "Group", cadence }
+  const customIntent = searchParams.get("customIntent")?.trim()
+  return {
+    plan: plan as "Starter" | "Growth" | "Group" | "Custom",
+    cadence,
+    ...(plan === "Custom" && customIntent != null && customIntent !== ""
+      ? { customConfigJson: customIntent }
+      : {}),
+  }
 }
 
 export function saveSignupPlanIntent(intent: SignupPlanIntent): void {
@@ -73,9 +82,17 @@ export function readSignupPlanIntent(): SignupPlanIntent | null {
       return { plan: "Pilot" }
     }
     if (PAID_PLANS.has(parsed.plan)) {
+      const customConfigJson =
+        typeof parsed.customConfigJson === "string" &&
+        parsed.customConfigJson.trim() !== ""
+          ? parsed.customConfigJson
+          : undefined
       return {
         plan: parsed.plan,
         cadence: parsed.cadence === "annual" ? "annual" : "monthly",
+        ...(parsed.plan === "Custom" && customConfigJson != null
+          ? { customConfigJson }
+          : {}),
       }
     }
   } catch {

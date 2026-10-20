@@ -4,8 +4,8 @@ import type {
   PlanFeatureIcon,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { MANAGE_PLAN_IDS } from "@/lib/operatorBillingCredits/managePlanPresentation"
-import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import {
+  MARKETING_CUSTOM_PLAN_PATH,
   MARKETING_FAQS_PATH,
   MARKETING_QR_MATERIALS_PATH,
 } from "@/constants/marketingNav"
@@ -196,16 +196,35 @@ export const PRICING_PLAN_CARDS: PricingPlanCard[] = [
   },
 ]
 
-export const PRICING_GROUP_BANNER = {
+/**
+ * Figma customise CTA `6618:17381` — below plan cards.
+ * Heading uses “Need more than 5 Locations?” (replaces the old Group banner).
+ */
+export const PRICING_CUSTOMISE_PLAN = {
+  eyebrow: "Customise your plan",
   title: "Need more than 5 Locations?",
-  body: "Group includes up to 5 Locations. Add more Locations up to 30 for £39/month each, or £398/year each.",
-  /** Mobile frame (`4974:29922`) — Contact-only CTA copy. */
-  bodyMobile:
-    "Add Locations to Group for £39/month. Self-serve Group accounts support up to 30 Locations. Need something different? Talk to us.",
-  primaryLabel: "Start with Group",
-  secondaryLabel: "Contact us",
-  secondaryTo: HELP_CENTRE_CONTACT_URL,
+  body: "Choose your Locations, add extra team users, QR placements, Offers and monthly credits, and see your estimated subscription price.",
+  ctaLabel: "Build your own plan",
+  ctaTo: MARKETING_CUSTOM_PLAN_PATH,
 } as const
+
+/** Figma UK restaurant sectors strip `6731:14319`. */
+export const PRICING_SECTORS = {
+  title: "Built for the way UK restaurants work",
+  items: [
+    { id: "fish-and-chip", label: "Fish-and-chip shops" },
+    { id: "kebab", label: "Kebab shops" },
+    { id: "sushi", label: "Sushi bars" },
+    { id: "noodle", label: "Noodle bars" },
+    { id: "burrito", label: "Burrito bars" },
+    { id: "dessert", label: "Dessert parlours" },
+    { id: "bubble-tea", label: "Bubble-tea shops" },
+    { id: "juice", label: "Juice bars" },
+    { id: "casual-dining", label: "Casual-dining restaurants" },
+  ],
+} as const
+
+export type PricingSectorId = (typeof PRICING_SECTORS.items)[number]["id"]
 
 /** Shared Pricing section inset — 20px mobile, 60px desktop (Figma `5139:4326`). */
 export const PRICING_SECTION_INSET = "px-5 lg:px-[60px]"
@@ -269,32 +288,40 @@ export const PRICING_PLAN_FEATURE_LABEL_CLASS = "shrink-0 font-medium"
 
 export const PRICING_PLAN_FEATURE_VALUE_CLASS = "shrink-0 text-right font-normal"
 
+/** Figma Guest Loop cards `5661:14067`. */
 export const PRICING_GUEST_LOOP = {
   title: "Every plan starts with the same Guest Loop.",
-  body: "Capture real guest interactions, hear private Feedback, build permission-aware guest relationships and use Tummly to prepare the next appropriate action.",
-  steps: [
+  body: "From a guest's first scan to future engagement, Tummly connects the key parts of your restaurant's guest experience. Plans differ in Locations, allowances and additional capabilities.",
+  cards: [
     {
       id: "capture",
-      label: "01 Capture",
-      detail: "QR placements\nGuest Forms",
+      title: "Capture",
+      body: "Invite guests through QR touchpoints",
+      imageAlt: "Isometric QR stand illustration",
     },
     {
       id: "listen",
-      label: "02 Listen",
-      detail: "Private Feedback\nAppropriate recovery",
-    },
-    {
-      id: "build",
-      label: "03 Build",
-      detail: "Permission-aware\nguest list",
+      title: "Listen",
+      body: "Receive private guest Feedback",
+      imageAlt: "Isometric speech bubble with sound-wave illustration",
     },
     {
       id: "engage",
-      label: "04 Engage & learn",
-      detail: "Offers, Campaigns, reporting\nand AI-supported next steps",
+      title: "Engage",
+      body: "Create Offers and eligible Campaigns",
+      imageAlt: "Isometric envelope with offer card illustration",
+    },
+    {
+      id: "understand",
+      title: "Understand",
+      body: "Review supported performance data",
+      imageAlt: "Isometric laptop with chart and magnifying glass illustration",
     },
   ],
 } as const
+
+export type PricingGuestLoopCardId =
+  (typeof PRICING_GUEST_LOOP.cards)[number]["id"]
 
 export const PRICING_COMPARE_HEADING = "Compare plans"
 
@@ -467,71 +494,88 @@ export const PRICING_COMPARISON_GROUPS: PricingComparisonGroup[] = [
   },
 ]
 
-export const PRICING_USAGE = {
-  title: "Usage stays predictable",
-  body: "Included AI, Email and SMS allowances reset monthly. If one allowance is exhausted, only that channel stops until more allowance is available. Tummly does not create a negative balance or automatically bill postpaid overage. Other channels continue to work.",
+/**
+ * Figma How usage works `5661:14315` — after Compare plans.
+ * Email body uses recipient wording (Figma paste still had SMS segment copy).
+ */
+export const PRICING_HOW_USAGE_WORKS = {
+  eyebrow: "Usage and credits",
+  title: "Understand your credits before you send.",
+  body: "Every paid plan includes Email, SMS and AI allowances. See how they're used, estimate what your restaurant may need and review extra credit options.",
+  ctaLabel: "Calculate my Usage and credits",
+  ctaTo: MARKETING_CUSTOM_PLAN_PATH,
   channels: [
     {
-      id: "ai",
+      id: "ai" as const,
       title: "AI actions",
-      definition: "1 action = 1 usable AI result",
-      note: "Used when Tummly returns one usable operator-triggered AI result. Automatic Feedback classification and the standard Weekly Brief do not use AI actions.",
-      tone: "ai" as const,
-      icon: "ai" as const,
+      badge: "1 action = 1 successful AI result",
+      body: "1 action for each completed, usable operator-triggered AI output.",
     },
     {
-      id: "email",
+      id: "email" as const,
       title: "Email credits",
-      definition: "1 credit = 1 eligible Campaign recipient",
-      note: "System Emails and private Feedback recovery Emails do not use Campaign credits.",
-      tone: "neutral" as const,
-      icon: "email" as const,
+      badge: "1 credit = 1 email recipient",
+      body: "1 credit for each Campaign email recipient.",
     },
     {
-      id: "sms",
+      id: "sms" as const,
       title: "SMS credits",
-      definition: "1 credit = 1 billable SMS segment",
-      note: "Longer messages may use more than one segment. Tummly shows the estimated credits before sending.",
-      tone: "sms" as const,
-      icon: "sms" as const,
+      badge: "1 credit = 1 SMS segment",
+      body: "1 credit per provider-billable SMS segment. Longer messages may use more.",
     },
   ],
-  topUps: {
-    title: "Need more? Add prepaid credits when you need them.",
-    body: "Top-ups are available on active paid plans only and expire 12 months after purchase. Pilot does not support top-ups.",
-    footnote: "*5,000 SMS requires Group or manual approval.",
-    rows: [
-      {
-        id: "ai",
-        label: "AI actions",
-        icon: "ai" as const,
-        packs: ["100 = £5", "500 = £15", "2,000 = £39"],
-      },
-      {
-        id: "email",
-        label: "Email credits",
-        icon: "email" as const,
-        packs: ["5,000 = £10", "20,000 = £30", "50,000 = £60"],
-      },
-      {
-        id: "sms",
-        label: "SMS credits",
-        icon: "sms" as const,
-        packs: ["100 = £12", "500 = £55", "1,000 = £100"],
-      },
-    ],
-  },
 } as const
 
+export type PricingHowUsageChannelId =
+  (typeof PRICING_HOW_USAGE_WORKS.channels)[number]["id"]
+
+/** Figma Pricing QR materials `5661:14445` — below How usage works. */
 export const PRICING_QR_MATERIALS = {
-  title: "Physical QR deployment is included from the start.",
+  eyebrow: "QR materials",
+  title: "Put Tummly where guests already are.",
   paragraphs: [
-    "Each qualifying newly activated production Location can receive one complimentary standard Starter Kit.",
-    "Need more QR guest cards, table tents, counter displays or replacement materials? Additional physical materials are ordered separately through the Tummly Shop after you sign in.",
+    "Each eligible, newly activated and verified restaurant Location receives one included QR Counter Display, ready to invite guests to your Guest Loop.",
+    "You can also use supported downloadable QR assets and explore additional materials for your restaurant.",
   ],
-  ctaLabel: "See QR materials",
+  ctaLabel: "Explore QR materials",
   ctaTo: MARKETING_QR_MATERIALS_PATH,
+  imageAlt:
+    "Cafe counter with a Tummly QR Counter Display while a staff member works on a laptop",
 } as const
+
+/**
+ * Figma Built for better guest relationships `6728:13979` —
+ * after QR materials on Pricing.
+ */
+export const PRICING_GUEST_RELATIONSHIPS = {
+  title: "Built for better guest relationships",
+  body: "From QR touchpoints and private Feedback to permission-aware guest engagement and useful weekly insight.",
+  cards: [
+    {
+      id: "qr-guest-links",
+      title: "QR & Guest Links",
+      body: "Make it easy for guests to share Feedback through QR touchpoints and Guest Links across your restaurant.",
+    },
+    {
+      id: "private-feedback",
+      title: "Private Feedback",
+      body: "Hear directly from guests, understand their experiences and identify what needs attention.",
+    },
+    {
+      id: "guest-relationships",
+      title: "Guest Relationships",
+      body: "Build stronger guest connections through permission-aware Campaigns, Offers and thoughtful follow-ups.",
+    },
+    {
+      id: "reports-briefs",
+      title: "Reports & Briefs",
+      body: "Track your Guest Loop performance, understand what guests are saying and identify where improvements are needed.",
+    },
+  ],
+} as const
+
+export type PricingGuestRelationshipsCardId =
+  (typeof PRICING_GUEST_RELATIONSHIPS.cards)[number]["id"]
 
 /** Figma Pricing Sign up CTA (`5661:14510` / `4151:3811`). */
 export const PRICING_SIGN_UP_CTA = {

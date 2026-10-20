@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -69,7 +70,16 @@ namespace TummlyBackend.Tests.Services
                 new NoOpCreditLedger(),
                 new NoOpBillingAccountLifecycle(),
                 new NoOpFirstPaidConversionPaySession(),
-                new EmailServiceStubBase()
+                new CustomPlanCycleBillingService(
+                    _db,
+                    new NoOpRevolutMerchantForCustomPlan(),
+                    TimeProvider.System,
+                    Microsoft.Extensions.Options.Options.Create(
+                        new TummlyBackend.Configurations.TummlySellerVatSettings()
+                    )
+                ),
+                new EmailServiceStubBase(),
+                NullLogger<GuestLoopProvisioningService>.Instance
             );
 
             _signup = new SignupService(

@@ -1,12 +1,10 @@
 import { CheckIcon, ChevronDownIcon, CoinsIcon, MailIcon, MessageSquareIcon } from "lucide-react"
 import type { MouseEvent } from "react"
-import { Link } from "react-router-dom"
 
 import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import {
   PRICING_CADENCE_COPY,
-  PRICING_GROUP_BANNER,
   PRICING_HERO_HEADING,
   PRICING_PAGE_HERO,
   PRICING_PLAN_CARDS,
@@ -48,9 +46,6 @@ const pricingCadenceItemActiveClass =
 
 const pricingCadenceSaveBadgeClass =
   "rounded-full bg-[#14a74a] px-2.5 py-2 text-[10px] font-medium leading-none text-white"
-
-const groupSecondaryClass =
-  "rounded-sm text-sm font-medium text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"
 
 function FeatureIcon({ icon }: { icon: PlanFeatureIcon }) {
   switch (icon) {
@@ -277,56 +272,13 @@ export function PricingHeroPlans({
           </div>
         </div>
 
-        <div className={cn(PRICING_PLAN_CARDS_GRID_CLASS, "order-1")}>
+        <div className={PRICING_PLAN_CARDS_GRID_CLASS}>
           {PRICING_PLAN_CARDS.map((card) => (
             <PricingPlanCardView key={card.id} card={card} cadence={cadence} />
           ))}
         </div>
 
-        <div
-          id="for-groups"
-          className="order-2 flex scroll-mt-[180px] flex-col gap-8 rounded-[6px] bg-[#dfebe3] px-8 py-7 lg:order-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:rounded-[8px] lg:px-10 lg:py-8"
-        >
-          <div className="flex max-w-[720px] flex-col gap-[18px] lg:gap-3">
-            <h2 className="m-0 font-jakarta text-[28px] font-medium leading-none text-[#141414]">
-              {PRICING_GROUP_BANNER.title}
-            </h2>
-            <p className="m-0 text-base font-normal leading-6 text-[#141414] lg:hidden">
-              {PRICING_GROUP_BANNER.bodyMobile}
-            </p>
-            <p className="m-0 hidden text-base font-normal leading-6 text-[#141414] lg:block">
-              {PRICING_GROUP_BANNER.body}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <MarketingButton
-              asChild
-              variant="secondary"
-              className="w-[203px] shrink-0 lg:hidden"
-            >
-              <Link to={PRICING_GROUP_BANNER.secondaryTo}>
-                {PRICING_GROUP_BANNER.secondaryLabel}
-              </Link>
-            </MarketingButton>
-            <MarketingButton
-              asChild
-              variant="primary"
-              className="hidden lg:inline-flex"
-            >
-              <RequestTrialLink planIntent={{ plan: "Group", cadence }}>
-                {PRICING_GROUP_BANNER.primaryLabel}
-              </RequestTrialLink>
-            </MarketingButton>
-            <Link
-              to={PRICING_GROUP_BANNER.secondaryTo}
-              className={cn(groupSecondaryClass, "hidden lg:inline")}
-            >
-              {PRICING_GROUP_BANNER.secondaryLabel}
-            </Link>
-          </div>
-        </div>
-
-        <div className="order-3 flex justify-center pt-2 lg:order-2">
+        <div className="flex justify-center pt-2">
           <a
             href="#compare-plans"
             className={MANAGE_PLAN_COMPLETE_LIST_TRIGGER_CLASS}

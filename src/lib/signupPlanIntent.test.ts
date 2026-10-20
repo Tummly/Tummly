@@ -51,6 +51,18 @@ describe("parseSignupPlanIntent", () => {
       parseSignupPlanIntent(new URLSearchParams("plan=Growth"))
     ).toEqual({ plan: "Growth", cadence: "monthly" })
   })
+
+  it("captures Custom plan customIntent payload", () => {
+    expect(
+      parseSignupPlanIntent(
+        new URLSearchParams("plan=Custom&cadence=monthly&customIntent=abc123")
+      )
+    ).toEqual({
+      plan: "Custom",
+      cadence: "monthly",
+      customConfigJson: "abc123",
+    })
+  })
 })
 
 describe("signupPlanIntent session", () => {
@@ -63,6 +75,19 @@ describe("signupPlanIntent session", () => {
     expect(readSignupPlanIntent()).toEqual({
       plan: "Group",
       cadence: "annual",
+    })
+  })
+
+  it("round-trips Custom config through sessionStorage", () => {
+    saveSignupPlanIntent({
+      plan: "Custom",
+      cadence: "monthly",
+      customConfigJson: "eyJ0ZXN0IjoxfQ==",
+    })
+    expect(readSignupPlanIntent()).toEqual({
+      plan: "Custom",
+      cadence: "monthly",
+      customConfigJson: "eyJ0ZXN0IjoxfQ==",
     })
   })
 

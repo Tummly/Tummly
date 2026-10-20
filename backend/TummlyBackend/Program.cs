@@ -658,12 +658,24 @@ builder.Services.AddScoped<IAccountWorkspaceService, AccountWorkspaceService>();
 builder.Services.AddScoped<ITeamPermissionsService, TeamPermissionsService>();
 builder.Services.AddScoped<ITeamMemberCapGate, TeamMemberCapGate>();
 builder.Services.AddScoped<IPlanEntitlementsSnapshot, PlanEntitlementsSnapshotService>();
+builder.Services.AddSingleton<DbPricebookCatalog>();
 builder.Services.AddSingleton<IPricebookCatalog>(sp =>
-    PricebookCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
+    sp.GetRequiredService<DbPricebookCatalog>()
 );
 builder.Services.AddScoped<IMaterialsCatalog, DbMaterialsCatalog>();
 builder.Services.AddScoped<IAdminShopCatalogService, AdminShopCatalogService>();
+builder.Services.AddScoped<
+    IAdminCommercialCatalogService,
+    AdminCommercialCatalogService
+>();
+builder.Services.AddScoped<CustomPlanCycleBillingService>();
+builder.Services.AddScoped<ICustomPlanCycleRenewalJob, CustomPlanCycleRenewalJob>();
+builder.Services.AddHostedService<CustomPlanCycleRenewalBackgroundService>();
 builder.Services.AddScoped<IShopInterestService, ShopInterestService>();
+builder.Services.AddScoped<
+    IAdminShopInterestProductService,
+    AdminShopInterestProductService
+>();
 builder.Services.AddSingleton(sp =>
     PrintTemplatePack.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
@@ -728,7 +740,6 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<ICreditTopUpPaySession, CreditTopUpPaySessionService>();
 builder.Services.AddScoped<ICycleEndPlanChange, CycleEndPlanChangeService>();
-builder.Services.AddScoped<ICycleEndPlanCancel, CycleEndPlanCancelService>();
 builder.Services.AddScoped<
     IRevolutOrderCompletedApplier,
     RevolutOrderCompletedApplier
@@ -1520,6 +1531,10 @@ static async Task InitializeDatabaseAsync(
     try
     {
         await ShopMaterialsCatalogSeed.EnsureSeededAsync(context);
+        await CommercialCatalogSeeder.EnsureSeededAsync(
+            context,
+            services.GetRequiredService<IHostEnvironment>()
+        );
 
         if (!await context.Admins.AnyAsync())
         {
