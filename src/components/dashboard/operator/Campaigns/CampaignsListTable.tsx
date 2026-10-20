@@ -88,7 +88,7 @@ export function CampaignsListTable({
               key={row.id}
               className={GUESTS_TABLE_BODY_ROW_CLASS}
               data-demo-tour={
-                row.name.includes("Tuesday") ? "campaign-report" : undefined
+                row.name.includes("Tuesday") ? "campaign-tour-row" : undefined
               }
             >
               <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>

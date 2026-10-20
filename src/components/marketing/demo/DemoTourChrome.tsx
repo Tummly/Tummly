@@ -1,5 +1,6 @@
 import { Check, Sparkles, X } from "lucide-react"
 
+import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { DemoTourGuideFab } from "@/components/marketing/demo/DemoTourGuideFab"
 import { PRODUCT_DEMO, productDemoChapterProgressPercent } from "@/content/marketing/productDemoPage"
 import { cn } from "@/lib/utils"
@@ -12,6 +13,8 @@ type DemoTourChromeProps = {
   showFab: boolean
   onToggleExplore: () => void
   onSelectChapter: (chapterIndex: number) => void
+  /** Resumes the current chapter. Hidden when every chapter is complete. */
+  onContinue?: () => void
 }
 
 /**
@@ -25,10 +28,19 @@ export function DemoTourChrome({
   showFab,
   onToggleExplore,
   onSelectChapter,
+  onContinue,
 }: DemoTourChromeProps) {
-  const { chapters, fabLabel, fabBadgeTotal, exploreTitle, exploreBody } =
-    PRODUCT_DEMO.tour
+  const {
+    chapters,
+    fabLabel,
+    fabBadgeTotal,
+    exploreTitle,
+    exploreBody,
+    continueLabel,
+    completeBody,
+  } = PRODUCT_DEMO.tour
   const progress = productDemoChapterProgressPercent(completedChapterIds)
+  const tourComplete = progress >= 100
 
   return (
     <>
@@ -56,7 +68,7 @@ export function DemoTourChrome({
                   {exploreTitle}
                 </p>
                 <p className="font-sans text-xs leading-4 text-[#4e4e4e]">
-                  {exploreBody}
+                  {tourComplete ? completeBody : exploreBody}
                 </p>
               </div>
               <button
@@ -122,6 +134,17 @@ export function DemoTourChrome({
                 )
               })}
             </ol>
+            {!tourComplete && onContinue ? (
+              <MarketingButton
+                type="button"
+                variant="primary"
+                showArrow={false}
+                className="mt-5 w-full min-h-11"
+                onClick={onContinue}
+              >
+                {continueLabel}
+              </MarketingButton>
+            ) : null}
           </div>
         ) : null}
 

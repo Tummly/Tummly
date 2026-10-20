@@ -75,7 +75,10 @@ function HubGuestLoopSection(props: {
 }) {
   const { weeklyBrief } = props
   return (
-    <ReportsSection title={REPORTS_HUB_GUEST_LOOP_COPY.sectionTitle}>
+    <ReportsSection
+      title={REPORTS_HUB_GUEST_LOOP_COPY.sectionTitle}
+      demoTourTarget="reports-weekly-brief"
+    >
       {weeklyBrief.status === "loading" ? (
         <div
           className="flex min-h-20 items-center justify-center"
@@ -145,7 +148,6 @@ function HubGuestLoopSection(props: {
               type="button"
               variant="op-primary"
               className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-              data-demo-tour="weekly-brief-panel"
               onClick={props.onViewWeeklyBrief}
             >
               {REPORTS_HUB_GUEST_LOOP_COPY.viewWeeklyBrief}
