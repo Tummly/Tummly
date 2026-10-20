@@ -50,6 +50,32 @@ namespace TummlyBackend.Configurations
         public int AssistantHistoryMessageCap { get; set; } = 20;
 
         /// <summary>
+        /// Time limit for the live answer and its retrieve tools in one
+        /// Assistant turn. When it ends, the turn saves the failure message and
+        /// uses no credit. 0 or less turns the limit off.
+        /// </summary>
+        public int AssistantTurnDeadlineSeconds { get; set; } = 45;
+
+        /// <summary>
+        /// Transient (408 / 429 / 5xx) retries for one Assistant model call.
+        /// Background workers keep their own retry policy.
+        /// </summary>
+        public int AssistantLiveMaxTransientRetries { get; set; } = 1;
+
+        /// <summary>
+        /// Longest wait before an Assistant model retry, even when
+        /// <c>Retry-After</c> asks for longer.
+        /// </summary>
+        public int AssistantLiveMaxRetryWaitSeconds { get; set; } = 3;
+
+        /// <summary>
+        /// Time limit for the model conversation-title call on first turns
+        /// that do not use the live answer. On timeout the title stays the
+        /// first user message. 0 or less turns the limit off.
+        /// </summary>
+        public int AssistantTitleTimeoutSeconds { get; set; } = 5;
+
+        /// <summary>
         /// Per-row soft-claim budget for durable Pending work (ADR-0010).
         /// Exhaustion marks the same generic Failed as other terminal failures.
         /// </summary>

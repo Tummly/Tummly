@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
@@ -91,6 +88,7 @@ namespace TummlyBackend.Services
                 client,
                 requestUri,
                 round1Json,
+                AssistantTurnTimings.RoundOne,
                 cancellationToken
             );
             if (round1Response.Kind != AttemptKind.Succeeded
@@ -270,6 +268,7 @@ namespace TummlyBackend.Services
                         client,
                         requestUri,
                         finalOnlyJson,
+                        AssistantTurnTimings.RoundFinal,
                         cancellationToken
                     );
                     if (finalOnly.Kind != AttemptKind.Succeeded
@@ -353,6 +352,7 @@ namespace TummlyBackend.Services
                 client,
                 requestUri,
                 round2Json,
+                AssistantTurnTimings.RoundFinal,
                 cancellationToken
             );
             if (round2Response.Kind != AttemptKind.Succeeded
@@ -420,6 +420,7 @@ namespace TummlyBackend.Services
                 client,
                 requestUri,
                 json,
+                AssistantTurnTimings.RoundHistoryOnly,
                 cancellationToken
             );
             if (response.Kind != AttemptKind.Succeeded
@@ -482,6 +483,7 @@ namespace TummlyBackend.Services
                 client,
                 requestUri,
                 roundJson,
+                AssistantTurnTimings.RoundCorrective,
                 cancellationToken
             );
             if (response.Kind != AttemptKind.Succeeded
@@ -578,69 +580,82 @@ namespace TummlyBackend.Services
             HttpClient client,
             Uri requestUri,
             string body,
+            string round,
             CancellationToken cancellationToken
         )
         {
-            const int maxWaits = 3;
-            for (var attempt = 0; ; attempt++)
+            var timings = AssistantTurnTimings.Current;
+            var startMs = timings?.MarkModelCallStart() ?? 0;
+            var stats = new AzureOpenAIChatSendStats();
+            AzureOpenAIChatSendResult sent;
+            try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-                request.Headers.TryAddWithoutValidation("api-key", _settings.ApiKey);
-                request.Headers.Accept.Add(
-                    new MediaTypeWithQualityHeaderValue("application/json")
-                );
-                request.Content = new StringContent(
+                sent = await AzureOpenAIChatCompletions.SendAsync(
+                    client,
+                    requestUri,
+                    _settings.ApiKey,
                     body,
-                    Encoding.UTF8,
-                    "application/json"
+                    cancellationToken,
+                    LiveRetryOptions(),
+                    stats
                 );
-
-                using var response = await client.SendAsync(
-                    request,
-                    cancellationToken
+            }
+            catch (Exception ex) when (
+                AzureOpenAIChatCompletions.IsTransientException(ex)
+                && !cancellationToken.IsCancellationRequested)
+            {
+                // HTTP timeout or connection fault, not a caller cancel.
+                _logger.LogWarning(
+                    "Azure OpenAI Assistant live answer {Round} call failed with {ExceptionType}",
+                    round,
+                    ex.GetType().Name
                 );
+                timings?.RecordModelCall(round, startMs, stats.StatusCode, stats.Retries, null);
+                return AttemptResult.Transient();
+            }
 
-                if (IsTransientStatusCode(response.StatusCode) && attempt < maxWaits)
-                {
-                    var wait = AzureOpenAIChatCompletions.WaitAfterTransient(
-                        response,
-                        attempt
+            switch (sent)
+            {
+                case AzureOpenAIChatSendResult.Succeeded succeeded:
+                    timings?.RecordModelCall(
+                        round,
+                        startMs,
+                        stats.StatusCode,
+                        stats.Retries,
+                        succeeded.ResponseJson
                     );
-                    _logger.LogWarning(
-                        "Azure OpenAI returned {StatusCode} for Assistant live answer. Waiting {Seconds} seconds.",
-                        (int)response.StatusCode,
-                        wait.TotalSeconds
-                    );
-                    await Task.Delay(wait, cancellationToken);
-                    continue;
-                }
-
-                if (IsTransientStatusCode(response.StatusCode))
-                {
+                    return AttemptResult.SucceededJson(succeeded.ResponseJson);
+                case AzureOpenAIChatSendResult.Transient transient:
+                    timings?.RecordModelCall(round, startMs, transient.StatusCode, stats.Retries, null);
                     _logger.LogWarning(
                         "Azure OpenAI returned {StatusCode} for Assistant live answer",
-                        (int)response.StatusCode
+                        transient.StatusCode
                     );
                     return AttemptResult.Transient();
-                }
-
-                if (!response.IsSuccessStatusCode)
-                {
+                case AzureOpenAIChatSendResult.Failed failed:
+                    timings?.RecordModelCall(round, startMs, failed.StatusCode, stats.Retries, null);
                     _logger.LogError(
                         "Azure OpenAI Assistant live answer failed with {StatusCode}",
-                        (int)response.StatusCode
+                        failed.StatusCode
                     );
                     return AttemptResult.Failed(
                         new AssistantLiveAnswerResult.Failed(Retryable: true)
                     );
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync(
-                    cancellationToken
-                );
-                return AttemptResult.SucceededJson(responseJson);
+                default:
+                    return AttemptResult.Transient();
             }
         }
+
+        private AzureOpenAIRetryOptions LiveRetryOptions()
+            => new(
+                Math.Max(0, _settings.AssistantLiveMaxTransientRetries),
+                TimeSpan.FromSeconds(Math.Max(0, _settings.AssistantLiveMaxRetryWaitSeconds)),
+                (statusCode, wait) => _logger.LogWarning(
+                    "Azure OpenAI returned {StatusCode} for Assistant live answer. Waiting {Seconds} seconds.",
+                    statusCode,
+                    wait.TotalSeconds
+                )
+            );
 
         private Uri BuildChatCompletionsUri(string deploymentName)
         {
@@ -651,12 +666,6 @@ namespace TummlyBackend.Services
 
             return new Uri(new Uri(endpoint), relative);
         }
-
-
-        private static bool IsTransientStatusCode(HttpStatusCode statusCode)
-            => statusCode == HttpStatusCode.RequestTimeout
-                || statusCode == HttpStatusCode.TooManyRequests
-                || (int)statusCode >= 500;
 
 
         private enum AttemptKind

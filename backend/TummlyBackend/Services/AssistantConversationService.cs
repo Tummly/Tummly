@@ -654,6 +654,8 @@ namespace TummlyBackend.Services
             _skipLiveAnswerBilling = false;
             _pendingToolOwnedLocationId = null;
             _pendingToolOwnedLocationName = null;
+            // Flows to the singleton live-answer provider and to persist.
+            AssistantTurnTimings.Begin();
             var ownedLocations = await LoadOwnedLocationsAsync(
                 conversation.OwnedLocationId,
                 conversation.OwnerUserId,
@@ -1459,6 +1461,18 @@ namespace TummlyBackend.Services
             }
 
             AssistantLiveAnswerResult answer;
+            // Deadline covers the live answer and its retrieve tools only.
+            // Failure persist below keeps the request token or None.
+            using var turnDeadline = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken
+            );
+            if (_liveAnswerSettings.AssistantTurnDeadlineSeconds > 0)
+            {
+                turnDeadline.CancelAfter(
+                    TimeSpan.FromSeconds(_liveAnswerSettings.AssistantTurnDeadlineSeconds)
+                );
+            }
+
             try
             {
                 await TryPublishProgressAsync(
@@ -1514,7 +1528,7 @@ namespace TummlyBackend.Services
                             )
                             : null
                     ),
-                    cancellationToken
+                    turnDeadline.Token
                 );
                 if (useRetrieveTools && retrieveToolContext is not null)
                 {
@@ -1540,6 +1554,26 @@ namespace TummlyBackend.Services
                         );
                     }
                 }
+            }
+            catch (OperationCanceledException)
+                when (turnDeadline.IsCancellationRequested
+                    && !cancellationToken.IsCancellationRequested)
+            {
+                // Turn deadline, not a client cancel: save the failure message
+                // and use no credit (no turnBilling).
+                _logger.LogWarning(
+                    "Assistant turn hit the {DeadlineSeconds} second deadline for conversation {ConversationId}",
+                    _liveAnswerSettings.AssistantTurnDeadlineSeconds,
+                    conversation.Id
+                );
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    FailureMessage(DateTime.UtcNow),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
             }
             catch (OperationCanceledException)
             {
@@ -8821,6 +8855,8 @@ namespace TummlyBackend.Services
             var domainCalls = calls
                 .Where(call => statusCalls.All(status => status.Id != call.Id))
                 .ToList();
+            var timings = AssistantTurnTimings.Current;
+            var phaseStartMs = timings?.ElapsedMs ?? 0;
             var results = new List<AssistantToolCallResult>();
             if (domainCalls.Count > 0)
             {
@@ -8835,6 +8871,7 @@ namespace TummlyBackend.Services
 
             foreach (var call in statusCalls)
             {
+                var callStartMs = timings?.ElapsedMs ?? 0;
                 results.Add(
                     new AssistantToolCallResult(
                         call.Id,
@@ -8842,8 +8879,14 @@ namespace TummlyBackend.Services
                         await ReadStatusToolAsync(context, call.Name, cancellationToken)
                     )
                 );
+                timings?.RecordToolCall(
+                    call.Name,
+                    timings.ElapsedMs - callStartMs,
+                    "success"
+                );
             }
 
+            timings?.AddToolPhase(timings.ElapsedMs - phaseStartMs);
             return results;
         }
 
@@ -8913,15 +8956,6 @@ namespace TummlyBackend.Services
                 _pendingScopeChange = null;
             }
 
-            if (assistantMessage.Role == AssistantMessageRole.Assistant)
-            {
-                assistantMessage.TurnTraceJson = AssistantTurnTrace.Serialize(
-                    _liveAnswerSettings,
-                    _turnToolNames
-                );
-                _turnToolNames.Clear();
-            }
-
             if (!liveAnswerAlreadyCompleted)
             {
                 proposedConversationTitle = await TryReadModelConversationTitleAsync(
@@ -8930,6 +8964,19 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
             }
+
+            var timings = AssistantTurnTimings.Current;
+            if (assistantMessage.Role == AssistantMessageRole.Assistant)
+            {
+                assistantMessage.TurnTraceJson = AssistantTurnTrace.Serialize(
+                    _liveAnswerSettings,
+                    _turnToolNames,
+                    timings
+                );
+                _turnToolNames.Clear();
+            }
+
+            var persistStartMs = timings?.ElapsedMs ?? 0;
 
             if (turnBilling is not null && turnBilling.ShouldConsume(assistantMessage))
             {
@@ -8976,6 +9023,16 @@ namespace TummlyBackend.Services
                 conversation.Messages.Add(assistantMessage);
                 conversation.LastActivityAt = assistantMessage.CreatedAt;
                 await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            if (timings is not null)
+            {
+                LogTurnTimings(
+                    conversation.Id,
+                    assistantMessage,
+                    timings,
+                    timings.ElapsedMs - persistStartMs
+                );
             }
 
             var dto = AssistantAnalysisScope.ToConversationDto(conversation);
@@ -9152,6 +9209,20 @@ namespace TummlyBackend.Services
                 .ThenBy(message => message.Id)
                 .Last();
             var scope = AssistantAnalysisScope.FromConversation(conversation);
+            var timings = AssistantTurnTimings.Current;
+            var firstTitleCall = timings?.ModelCallCount ?? 0;
+            // The title is not worth a slow turn: on timeout keep the
+            // first-message title.
+            using var titleLimit = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken
+            );
+            if (_liveAnswerSettings.AssistantTitleTimeoutSeconds > 0)
+            {
+                titleLimit.CancelAfter(
+                    TimeSpan.FromSeconds(_liveAnswerSettings.AssistantTitleTimeoutSeconds)
+                );
+            }
+
             try
             {
                 var answer = await _liveAnswer.CompleteAsync(
@@ -9161,11 +9232,20 @@ namespace TummlyBackend.Services
                         AssistantAnalysisScope.PeriodPhrase(scope.ReportingPeriod),
                         EmptyEvidence
                     ),
-                    cancellationToken
+                    titleLimit.Token
                 );
                 return answer is AssistantLiveAnswerResult.Succeeded succeeded
                     ? succeeded.ConversationTitle
                     : null;
+            }
+            catch (OperationCanceledException)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(
+                    "Assistant conversation title call passed {TimeoutSeconds} seconds; kept the first-message title",
+                    _liveAnswerSettings.AssistantTitleTimeoutSeconds
+                );
+                return null;
             }
             catch (OperationCanceledException)
             {
@@ -9175,6 +9255,45 @@ namespace TummlyBackend.Services
             {
                 return null;
             }
+            finally
+            {
+                timings?.RelabelModelCallsFrom(
+                    firstTitleCall,
+                    AssistantTurnTimings.RoundTitle
+                );
+            }
+        }
+
+        private void LogTurnTimings(
+            int conversationId,
+            AssistantMessage assistantMessage,
+            AssistantTurnTimings timings,
+            long persistMs
+        )
+        {
+            var summary = timings.Summarize();
+            _logger.LogInformation(
+                "Assistant turn timings: conversation {ConversationId}, class {AnswerClass}, "
+                    + "total {TotalMs} ms, before first model call {MsBeforeFirstModelCall} ms, "
+                    + "model calls {ModelCallCount} ({ModelRounds}) {ModelMs} ms with {ModelRetries} retries, "
+                    + "tool calls {ToolCallCount} in {ToolPhaseMs} ms, persist {PersistMs} ms, "
+                    + "tokens prompt {PromptTokens} cached {CachedTokens} completion {CompletionTokens} reasoning {ReasoningTokens}",
+                conversationId,
+                assistantMessage.Class.ToString(),
+                summary.TotalMs,
+                summary.MsBeforeFirstModelCall,
+                summary.ModelCallCount,
+                summary.ModelRounds,
+                summary.ModelMs,
+                summary.ModelRetries,
+                summary.ToolCallCount,
+                summary.ToolPhaseMs,
+                persistMs,
+                summary.PromptTokens,
+                summary.CachedTokens,
+                summary.CompletionTokens,
+                summary.ReasoningTokens
+            );
         }
 
         private async Task<AssistantConversation?> LoadOwnedConversationAsync(
