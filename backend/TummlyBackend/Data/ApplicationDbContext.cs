@@ -184,6 +184,10 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackGuestResponse> FeedbackGuestResponses { get; set; }
 
+        public DbSet<BulkRecoveryBatch> BulkRecoveryBatches { get; set; }
+
+        public DbSet<BulkRecoveryBatchMember> BulkRecoveryBatchMembers { get; set; }
+
         public DbSet<RecoverySmsSendIdempotency> RecoverySmsSendIdempotencies { get; set; }
 
         public DbSet<FeedbackInternalAction> FeedbackInternalActions { get; set; }
@@ -1817,6 +1821,61 @@ namespace TummlyBackend.Data
                     row.CompletedGuestResponseId,
                     row.HoldExpiresAtUtc,
                 });
+
+            /*
+             =========================================
+             BULK RECOVERY BATCHES
+             =========================================
+            */
+
+            modelBuilder.Entity<BulkRecoveryBatch>()
+                .HasOne(b => b.Restaurant)
+                .WithMany()
+                .HasForeignKey(b => b.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<BulkRecoveryBatch>()
+                .HasOne(b => b.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(b => b.RestaurantLocationId)
+                // NoAction: SQL Server rejects Location CASCADE alongside
+                // Restaurant CASCADE (error 1785, multiple cascade paths).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<BulkRecoveryBatch>()
+                .HasOne(b => b.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(b => b.CreatedByUserId)
+                // NoAction: SQL Server rejects User CASCADE alongside
+                // Restaurant CASCADE (error 1785, multiple cascade paths).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<BulkRecoveryBatch>()
+                .HasIndex(b => new { b.RestaurantLocationId, b.CreatedAt });
+
+            modelBuilder.Entity<BulkRecoveryBatchMember>()
+                .HasOne(m => m.Batch)
+                .WithMany(b => b.Members)
+                .HasForeignKey(m => m.BatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<BulkRecoveryBatchMember>()
+                .HasOne(m => m.Feedback)
+                .WithMany()
+                .HasForeignKey(m => m.FeedbackId)
+                // NoAction: avoid multiple cascade paths through Feedback.
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<BulkRecoveryBatchMember>()
+                .HasOne(m => m.FeedbackGuestResponse)
+                .WithMany()
+                .HasForeignKey(m => m.FeedbackGuestResponseId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<BulkRecoveryBatchMember>()
+                .HasIndex(m => new { m.BatchId, m.FeedbackId })
+                .IsUnique();
 
             /*
              =========================================

@@ -48,6 +48,7 @@ type AssistantActionDto = {
   smartGroup?: string | null
   marketingEligible?: boolean | null
   feedbackId?: number | null
+  batchId?: number | null
   intent?: string | null
   campaignId?: number | null
 }
@@ -145,6 +146,9 @@ type AssistantConversationDto = {
     offerId?: number | null
     locationId?: number | null
     useConfirmedActionForGuestResponse?: boolean
+    bulkShared?: boolean
+    feedbackIds?: number[]
+    batchId?: number | null
   } | null
   draftInterviewActive?: boolean
   sendScheduleRoute?: {
@@ -398,6 +402,8 @@ const KNOWN_ASSISTANT_ACTION_TYPES = new Set<OperatorAiAssistantActionType>([
   "add-offer",
   "review-offer",
   "open-recovery",
+  "open-bulk-recovery",
+  "send-bulk-recovery",
   "view-feedback-set",
   "prepare-recovery",
   "view-campaigns",
@@ -426,6 +432,7 @@ function fromActionDto(
     smartGroup: action.smartGroup,
     marketingEligible: action.marketingEligible,
     feedbackId: action.feedbackId,
+    batchId: action.batchId,
     intent: action.intent,
     campaignId: action.campaignId,
   }

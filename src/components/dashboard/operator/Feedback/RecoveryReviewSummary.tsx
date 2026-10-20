@@ -10,6 +10,10 @@ import {
   FEEDBACK_TEXTAREA_CLASS,
 } from "@/lib/operatorFeedback/feedbackPresentation"
 import {
+  BULK_REVIEW_ORIGINAL_FEEDBACK_COPY,
+  formatBulkReviewDestinationLabel,
+  formatBulkReviewFeedbackReference,
+  formatBulkReviewGuestLabel,
   formatReviewAiUsage,
   formatReviewDeliveryUsage,
   formatReviewFeedbackReference,
@@ -67,6 +71,8 @@ export type RecoveryReviewSummaryProps = {
   subject: string
   message: string
   aiActionCount: number
+  /** When set (≥2), Review shows bulk recipient chrome. */
+  bulkMemberCount?: number | null
 }
 
 /**
@@ -84,28 +90,37 @@ export function RecoveryReviewSummary({
   subject,
   message,
   aiActionCount,
+  bulkMemberCount = null,
 }: RecoveryReviewSummaryProps) {
-  const destination =
-    maskedDestination != null && maskedDestination.trim() !== ""
+  const isBulk =
+    bulkMemberCount != null && Number.isFinite(bulkMemberCount) && bulkMemberCount >= 2
+  const guestLabel = isBulk
+    ? formatBulkReviewGuestLabel(bulkMemberCount)
+    : guestName
+  const destination = isBulk
+    ? formatBulkReviewDestinationLabel(channel, bulkMemberCount)
+    : maskedDestination != null && maskedDestination.trim() !== ""
       ? maskedDestination.trim()
+      : REVIEW_RESPONSE_EMPTY_VALUE
+  const originalFeedback = isBulk
+    ? BULK_REVIEW_ORIGINAL_FEEDBACK_COPY
+    : `“${feedbackComment}”`
+  const feedbackReference = isBulk
+    ? formatBulkReviewFeedbackReference(bulkMemberCount)
+    : feedbackId != null
+      ? formatReviewFeedbackReference(feedbackId)
       : REVIEW_RESPONSE_EMPTY_VALUE
 
   return (
     <div className="flex w-full flex-col gap-6">
       <dl className="flex flex-col gap-6">
-        <ReviewRow label="Guest">{guestName}</ReviewRow>
+        <ReviewRow label="Guest">{guestLabel}</ReviewRow>
         <ReviewRow label="Channel">{labelForReviewChannel(channel)}</ReviewRow>
         <ReviewRow label="Destination">{destination}</ReviewRow>
-        <ReviewRow label="Original feedback">
-          “{feedbackComment}”
-        </ReviewRow>
-        <ReviewRow label="Feedback reference">
-          {feedbackId != null
-            ? formatReviewFeedbackReference(feedbackId)
-            : REVIEW_RESPONSE_EMPTY_VALUE}
-        </ReviewRow>
+        <ReviewRow label="Original feedback">{originalFeedback}</ReviewRow>
+        <ReviewRow label="Feedback reference">{feedbackReference}</ReviewRow>
         <ReviewRow label="Issue tags">
-          <IssueTagsValue labels={issueTagLabels} />
+          <IssueTagsValue labels={isBulk ? null : issueTagLabels} />
         </ReviewRow>
       </dl>
 
@@ -174,7 +189,10 @@ export function RecoveryReviewSummary({
             {formatReviewAiUsage(aiActionCount)}
           </ReviewRow>
           <ReviewRow label="Delivery usage">
-            {formatReviewDeliveryUsage(channel)}
+            {formatReviewDeliveryUsage(
+              channel,
+              isBulk ? bulkMemberCount : 1
+            )}
           </ReviewRow>
         </dl>
       </section>

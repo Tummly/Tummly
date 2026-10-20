@@ -317,6 +317,54 @@ static class Program
                 )
             )
             .ToListAsync();
+        var feedbackIds = seedFeedback.Select(f => f.Id).ToList();
+
+        if (feedbackIds.Count > 0)
+        {
+            await db.FeedbackRecoveryCompletions
+                .Where(c => feedbackIds.Contains(c.FeedbackId))
+                .ExecuteDeleteAsync();
+            await db.FeedbackRecoveryOffers
+                .Where(o => feedbackIds.Contains(o.FeedbackId))
+                .ExecuteDeleteAsync();
+            await db.FeedbackWorkflowStatusChanges
+                .Where(c => feedbackIds.Contains(c.FeedbackId))
+                .ExecuteDeleteAsync();
+            await db.FeedbackGuestResponses
+                .Where(r => feedbackIds.Contains(r.FeedbackId))
+                .ExecuteDeleteAsync();
+            await db.FeedbackInternalNotes
+                .Where(n => feedbackIds.Contains(n.FeedbackId))
+                .ExecuteDeleteAsync();
+            await db.FeedbackInternalActions
+                .Where(a => feedbackIds.Contains(a.FeedbackId))
+                .ExecuteDeleteAsync();
+            await db.FeedbackClassificationCorrections
+                .Where(c => feedbackIds.Contains(c.FeedbackId))
+                .ExecuteDeleteAsync();
+            await db.FeedbackDetectedTagsChanges
+                .Where(c => feedbackIds.Contains(c.FeedbackId))
+                .ExecuteDeleteAsync();
+        }
+
+        if (locationGuestIds.Count > 0)
+        {
+            await db.LocationGuestActivityEvents
+                .Where(e =>
+                    e.LocationGuestId != null
+                    && locationGuestIds.Contains(e.LocationGuestId.Value)
+                )
+                .ExecuteDeleteAsync();
+            await db.LocationGuestNotes
+                .Where(n => locationGuestIds.Contains(n.LocationGuestId))
+                .ExecuteDeleteAsync();
+            await db.LocationGuestTags
+                .Where(t => locationGuestIds.Contains(t.LocationGuestId))
+                .ExecuteDeleteAsync();
+            await db.LocationGuestPermissionLedgerEntries
+                .Where(e => locationGuestIds.Contains(e.LocationGuestId))
+                .ExecuteDeleteAsync();
+        }
 
         db.Feedbacks.RemoveRange(seedFeedback);
         db.LocationGuests.RemoveRange(seedLocationGuests);

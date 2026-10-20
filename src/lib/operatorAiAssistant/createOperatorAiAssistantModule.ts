@@ -114,6 +114,8 @@ export type OperatorAiAssistantActionType =
   | "draft-campaign"
   | "draft-offer"
   | "open-recovery"
+  | "open-bulk-recovery"
+  | "send-bulk-recovery"
   | "view-feedback-set"
   | "prepare-recovery"
   | "view-campaigns"
@@ -135,6 +137,7 @@ export type OperatorAiAssistantAction = {
   smartGroup?: string | null
   marketingEligible?: boolean | null
   feedbackId?: number | null
+  batchId?: number | null
   intent?: string | null
   campaignId?: number | null
   clickable?: boolean
@@ -405,6 +408,8 @@ export type OperatorAiAssistantSnapshot = {
   shellAiCredits: OperatorShellAiCreditsViewModel
   restorationHelper: AssistantCreditsRestorationHelper | null
   deleteConfirm: OperatorAiAssistantDeleteConfirmSnapshot
+  /** Active recovery draft for Edit Draft / Review recovery (null after send). */
+  pendingRecoveryDraft: RecoveryDraftActionPayload | null
 }
 
 export type OperatorAiAssistantCreditsChrome = {
@@ -1363,6 +1368,12 @@ function visibleActionsForMessage(
     isCompletingOfferAction(action.type)
   )
   const hasOpenRecovery = raw.some((action) => action.type === "open-recovery")
+  const hasOpenBulkRecovery = raw.some(
+    (action) => action.type === "open-bulk-recovery"
+  )
+  const hasSendBulkRecovery = raw.some(
+    (action) => action.type === "send-bulk-recovery"
+  )
   const combinedCreate =
     hasCompletingCampaign && hasCompletingOffer
   const filtered = combinedCreate
@@ -1374,9 +1385,23 @@ function visibleActionsForMessage(
       ? raw.filter((action) => isCompletingCampaignAction(action.type)).slice(0, 3)
       : hasCompletingOffer
         ? raw.filter((action) => isCompletingOfferAction(action.type)).slice(0, 1)
-        : hasOpenRecovery
-          ? raw.filter((action) => action.type === "open-recovery").slice(0, 1)
-          : raw.slice(0, 3)
+        : hasOpenBulkRecovery
+          ? (["open-bulk-recovery", "send-bulk-recovery"] as const)
+              .map((type) => raw.find((action) => action.type === type))
+              .filter(
+                (action): action is OperatorAiAssistantAction => action != null
+              )
+              .slice(0, 2)
+          : hasSendBulkRecovery
+            ? (["send-bulk-recovery", "open-recovery"] as const)
+                .map((type) => raw.find((action) => action.type === type))
+                .filter(
+                  (action): action is OperatorAiAssistantAction => action != null
+                )
+                .slice(0, 2)
+            : hasOpenRecovery
+              ? raw.filter((action) => action.type === "open-recovery").slice(0, 1)
+              : raw.slice(0, 3)
 
   return filtered.map((action) => ({
     ...action,
@@ -1395,12 +1420,23 @@ function visibleActionsForMessage(
               && action.offerId === state.completingOfferNavigateId)
           )
           : action.type === "open-recovery"
+            || action.type === "open-bulk-recovery"
             ? !(
                 state.turnInFlight
                 || state.actionInFlight
                 || state.pendingRecoveryDraft == null
+                || (action.type === "open-bulk-recovery"
+                  && (state.pendingRecoveryDraft.batchId == null
+                    || state.pendingRecoveryDraft.batchId <= 0))
               )
-            : true,
+            : action.type === "send-bulk-recovery"
+              ? !(
+                  state.turnInFlight
+                  || state.actionInFlight
+                  || state.pendingRecoveryDraft?.bulkShared !== true
+                  || state.pendingRecoveryDraft.batchId == null
+                )
+              : true,
   }))
 }
 
@@ -1494,6 +1530,7 @@ function toSnapshot(
       : "",
     showSuggestionChips: suggestionChips.length > 0,
     messages: displayMessages,
+    pendingRecoveryDraft: state.pendingRecoveryDraft,
     turnInFlight: state.turnInFlight,
     sendLocked: state.turnInFlight || mic.submitLocked,
     chipsLocked: state.turnInFlight || mic.submitLocked,
@@ -2806,6 +2843,25 @@ export function createOperatorAiAssistantModule(
         runTurn(ASSISTANT_PREPARE_RECOVERY_PROMPT, false)
         return
       }
+      if (action.type === "send-bulk-recovery") {
+        if (
+          state.bodyLoadError
+          || mic.getSnapshot().submitLocked
+          || state.turnInFlight
+          || state.pendingRecoveryDraft?.bulkShared !== true
+        ) {
+          return
+        }
+        const count = action.count ?? state.pendingRecoveryDraft.feedbackIds?.length ?? 0
+        const prompt =
+          count > 0
+            ? `Send this recovery to all ${count}`
+            : "Send this recovery to all of them"
+        state = { ...state, composerDraft: prompt }
+        publish()
+        runTurn(prompt, false)
+        return
+      }
       if (isCompletingCampaignAction(action.type)) {
         const campaignId = action.campaignId
         if (campaignId == null || state.actionInFlight) {
@@ -2889,26 +2945,60 @@ export function createOperatorAiAssistantModule(
       if (isRetiredDraftActionType(action.type)) {
         return
       }
-      if (action.type === "open-recovery") {
+      if (
+        action.type === "open-recovery"
+        || action.type === "open-bulk-recovery"
+      ) {
         const payload = state.pendingRecoveryDraft
         const latest = state.messages.at(-1)
-        if (
-          payload == null
-          || state.actionInFlight
-          || latest?.role !== "assistant"
-          || !latest.actions?.some((item) => item.type === "open-recovery")
-        ) {
+        const openAsBulk =
+          action.type === "open-bulk-recovery"
+          || (
+            payload?.bulkShared === true
+            && payload.batchId != null
+            && payload.batchId > 0
+          )
+        const latestHasOpenRecovery =
+          latest?.role === "assistant"
+          && latest.actions?.some(
+            (item) =>
+              item.type === "open-recovery"
+              || item.type === "open-bulk-recovery"
+          )
+        // Edit Draft may sit on an older prepare card while the latest turn
+        // is a confirm reply — still allow open when pending draft exists.
+        if (payload == null || state.actionInFlight) {
           return
         }
+        if (!latestHasOpenRecovery && action.label !== "Edit Draft") {
+          return
+        }
+        if (openAsBulk && (payload.batchId == null || payload.batchId <= 0)) {
+          return
+        }
+        const navigateAction: OperatorAiAssistantAction = openAsBulk
+          ? {
+              ...action,
+              type: "open-bulk-recovery",
+              batchId: payload.batchId,
+              count:
+                action.count
+                ?? payload.feedbackIds?.length
+                ?? undefined,
+            }
+          : action
         state = { ...state, actionInFlight: true }
         publish()
-        void adapters
-          .prepareOpenRecovery({
-            feedbackId: payload.feedbackId,
-            intent: payload.intent,
-            offerId: payload.offerId ?? null,
-          })
-          .then(() => adapters.openRecoveryFromDraftAction(payload))
+        const openPromise = openAsBulk
+          ? adapters.openRecoveryFromDraftAction(payload)
+          : adapters
+              .prepareOpenRecovery({
+                feedbackId: payload.feedbackId,
+                intent: payload.intent,
+                offerId: payload.offerId ?? null,
+              })
+              .then(() => adapters.openRecoveryFromDraftAction(payload))
+        void openPromise
           .then(() => {
             state = {
               ...state,
@@ -2917,7 +3007,7 @@ export function createOperatorAiAssistantModule(
             publish()
             closeDrawer()
             adapters.navigateAction({
-              action,
+              action: navigateAction,
               analysisScope,
               recoveryDraft: payload,
             })

@@ -68,6 +68,7 @@ import type {
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import { formatScopeChangeNotice } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import { cn } from "@/lib/utils"
@@ -133,6 +134,7 @@ function ThreadMessage({
   onActivateAction,
   onOpenChangeScope,
   latestUserPrompt,
+  pendingRecoveryDraft = null,
 }: {
   message: OperatorAiAssistantMessage
   retryVisible: boolean
@@ -140,6 +142,7 @@ function ThreadMessage({
   onActivateAction: (action: OperatorAiAssistantAction) => void
   onOpenChangeScope: () => void
   latestUserPrompt: string
+  pendingRecoveryDraft?: RecoveryDraftActionPayload | null
 }) {
   if (message.role === "user") {
     return (
@@ -181,12 +184,15 @@ function ThreadMessage({
     "prepare-recovery",
     "review-campaign",
     "open-recovery",
+    "open-bulk-recovery",
+    "send-bulk-recovery",
     "review-offer",
   ])
   const draftEditTypes = new Set([
     "review-campaign",
     "review-offer",
     "open-recovery",
+    "open-bulk-recovery",
   ])
   const cardActionTypes = new Set(
     [recommended?.primaryAction?.type, recommended?.secondaryAction?.type].filter(
@@ -299,6 +305,7 @@ function ThreadMessage({
               <AssistantDraftPreviewCard
                 draft={draftPreview}
                 onEditDraft={onActivateAction}
+                pendingRecoveryDraft={pendingRecoveryDraft}
               />
             ) : null}
             {scopeNotice ? (
@@ -923,6 +930,7 @@ export function AiAssistantDrawer({
                       onActivateAction={onActivateAction}
                       onOpenChangeScope={onOpenChangeScope}
                       latestUserPrompt={latestThreadUserPrompt}
+                      pendingRecoveryDraft={snapshot.pendingRecoveryDraft}
                     />
                   ))}
                 </div>

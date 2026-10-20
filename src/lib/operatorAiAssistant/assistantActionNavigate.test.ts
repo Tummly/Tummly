@@ -298,6 +298,40 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
+  it("maps open-bulk-recovery to Feedback with batchId on the draft payload", () => {
+    const recoveryDraft = {
+      feedbackId: 42,
+      batchId: 9,
+      bulkShared: true as const,
+      intent: "respond-to-guest" as const,
+      channel: "email" as const,
+      purpose: "acknowledge_feedback" as const,
+      tone: "warm_and_apologetic" as const,
+      includeNotes: "",
+      subject: "Hi",
+      message: "Hi {{guest_first_name}}, thanks",
+    }
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "open-bulk-recovery",
+          label: "Review recovery",
+          feedbackId: 42,
+          batchId: 9,
+          intent: "respond-to-guest",
+          count: 12,
+        },
+        analysisScope: SCOPE,
+        mode: "multi",
+        recoveryDraft,
+      })
+    ).toEqual({
+      path: "/multi-dashboard/feedback?location=11",
+      selectLocationId: 11,
+      recoveryDraft,
+    })
+  })
+
   it("maps open-recovery under All to the bound Feedback venue", () => {
     const recoveryDraft = {
       feedbackId: 42,

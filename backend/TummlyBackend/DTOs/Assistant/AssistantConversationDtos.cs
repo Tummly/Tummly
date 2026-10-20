@@ -113,6 +113,9 @@ namespace TummlyBackend.DTOs.Assistant
         public string? Note { get; set; }
         public int? OfferId { get; set; }
         public bool UseConfirmedActionForGuestResponse { get; set; }
+        public bool BulkShared { get; set; }
+        public List<int> FeedbackIds { get; set; } = [];
+        public int? BatchId { get; set; }
     }
 
     public class AssistantConversationListItemDto

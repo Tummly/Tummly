@@ -435,6 +435,66 @@ namespace TummlyBackend.Helpers
         public static bool AsksForAll(string userMessage)
             => LooksLikeAll(userMessage);
 
+        /// <summary>
+        /// CTA / plural prepare for the needs-attention set — enter bulk shared
+        /// draft instead of listing guests in a Gap.
+        /// </summary>
+        public static bool AsksForSetPrepare(string userMessage)
+        {
+            var lower = userMessage.Trim().ToLowerInvariant();
+            if (lower.Length == 0)
+            {
+                return false;
+            }
+
+            return lower.Contains("feedback set", StringComparison.Ordinal)
+                || lower.Contains("need attention", StringComparison.Ordinal)
+                || lower.Contains("needs attention", StringComparison.Ordinal)
+                || lower.Contains("guests that", StringComparison.Ordinal)
+                || Regex.IsMatch(
+                    lower,
+                    @"prepare\s+recovery\s+responses",
+                    RegexOptions.CultureInvariant
+                )
+                || Regex.IsMatch(
+                    lower,
+                    @"respond\s+to\s+(these|those|the)\s+guests",
+                    RegexOptions.CultureInvariant
+                );
+        }
+
+        /// <summary>
+        /// Operator accepts the shared bulk draft (send to all eligible).
+        /// </summary>
+        public static bool AsksToSendBulk(string userMessage)
+        {
+            if (IsShortConfirm(userMessage) || LooksLikeAll(userMessage))
+            {
+                return true;
+            }
+
+            var lower = userMessage.Trim().ToLowerInvariant();
+            return lower.Contains("send to all", StringComparison.Ordinal)
+                || lower.Contains("send them", StringComparison.Ordinal)
+                || lower.Contains("send it to all", StringComparison.Ordinal)
+                || lower.Contains("send this to all", StringComparison.Ordinal)
+                || lower.Contains("send this recovery to all", StringComparison.Ordinal)
+                || lower.Contains("send the recovery to all", StringComparison.Ordinal)
+                || lower.Contains("no changes", StringComparison.Ordinal)
+                || lower.Contains("looks good", StringComparison.Ordinal)
+                || lower.Contains("send the recovery", StringComparison.Ordinal)
+                || Regex.IsMatch(
+                    lower,
+                    @"send\b.+\bto\s+all\b",
+                    RegexOptions.CultureInvariant
+                )
+                || Regex.IsMatch(
+                    lower,
+                    @"^send(\s+it|\s+now|\s+please)?$",
+                    RegexOptions.CultureInvariant
+                );
+        }
+
         public static bool IsShortConfirm(string userMessage)
             => LooksLikeConfirm(userMessage) || LooksLikeProceedRecovery(userMessage);
 

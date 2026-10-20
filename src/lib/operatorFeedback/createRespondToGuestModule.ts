@@ -52,6 +52,11 @@ import {
   type RecoveryComposerMarketingChannel,
   type RecoveryComposerStatusBanner,
 } from "@/lib/operatorFeedback/recoveryComposerPresentation"
+import {
+  BULK_REVIEW_ORIGINAL_FEEDBACK_COPY,
+  formatBulkReviewDestinationLabel,
+  formatBulkReviewGuestLabel,
+} from "@/lib/operatorFeedback/reviewResponsePresentation"
 
 const COMPLETE_ERROR_MESSAGE =
   "Could not mark this recovery resolved. Please try again."
@@ -174,6 +179,37 @@ export type RespondToGuestAdapters = {
   ) => Promise<PrepareRecoveryDraftResult>
   /** Billing usage + lock chrome for recovery burn gates (ticket 24). */
   getCreditChrome?: () => Promise<RecoveryCreditChromeContext | null>
+  getBulkRecoveryBatch?: (
+    batchId: number
+  ) => Promise<{
+    id: number
+    locationId: number
+    channel: string
+    subject: string | null
+    bodyTemplate: string
+    purpose: string | null
+    tone: string | null
+    includeNotes: string | null
+    memberCount: number
+    members: Array<{
+      feedbackId: number
+      guestName: string
+      maskedDestination: string
+    }>
+  }>
+  sendBulkRecoveryBatch?: (batchId: number) => Promise<{
+    sent: number
+    skipped: number
+    failed: number
+    total: number
+  }>
+  updateBulkRecoveryBatchDraft?: (
+    batchId: number,
+    body: {
+      subject?: string | null
+      bodyTemplate?: string | null
+    }
+  ) => Promise<void>
 }
 
 export type RespondToGuestSummary = {
@@ -235,6 +271,9 @@ export type RespondToGuestSnapshot = {
   successReceipt: GuestResponseSentActivityEvent | null
   /** Draft Action open — Back must not reopen Start recovery. */
   openedFromDraftAction: boolean
+  /** Bulk Review and send — durable batch id when set. */
+  batchId: number | null
+  bulkMemberCount: number | null
   smsShortfall: RecoverySmsShortfallChrome
   aiActionChip: RecoveryAiActionChipChrome
   paidWrite: RecoveryPaidWriteChrome
@@ -257,6 +296,16 @@ export type RespondToGuestModule = {
     preloadedDetails?: FeedbackDetailsResponse
   ) => Promise<void>
   openFromDraftAction: (input: {
+    feedbackId: number
+    channel: RespondToGuestChannel
+    purpose: RespondToGuestPurposeId
+    tone: RespondToGuestToneId
+    includeNotes: string
+    subject: string
+    message: string
+  }) => Promise<void>
+  openFromBulkDraftAction: (input: {
+    batchId: number
     feedbackId: number
     channel: RespondToGuestChannel
     purpose: RespondToGuestPurposeId
@@ -335,6 +384,8 @@ type SessionState = {
   workflowStatus: FeedbackWorkflowStatus | null
   successReceipt: GuestResponseSentActivityEvent | null
   openedFromDraftAction: boolean
+  batchId: number | null
+  bulkMemberCount: number | null
   creditChrome: RecoveryCreditChromeContext | null
   marketingChannel: RecoveryComposerMarketingChannel | null
 }
@@ -374,6 +425,8 @@ function emptySession(): SessionState {
     workflowStatus: null,
     successReceipt: null,
     openedFromDraftAction: false,
+    batchId: null,
+    bulkMemberCount: null,
     creditChrome: null,
     marketingChannel: null,
   }
@@ -476,6 +529,8 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     sendConfirmOpen: state.sendConfirmOpen,
     sendStatus: state.sendStatus,
     sendError: state.sendError,
+    batchId: state.batchId,
+    bulkMemberCount: state.bulkMemberCount,
     sendTestStatus: state.sendTestStatus,
     sendTestError: state.sendTestError,
     sendTest: buildGuestPreviewSendTestDialog({
@@ -887,12 +942,104 @@ export function createRespondToGuestModule(
           ...state,
           step: "review",
           openedFromDraftAction: true,
+          batchId: null,
+          bulkMemberCount: null,
           draft: {
             ...state.draft,
             setupComplete: true,
             messageComplete: true,
             writeEntry: "editor",
           },
+        }
+        publish()
+      }
+    },
+    async openFromBulkDraftAction(input) {
+      if (adapters.getBulkRecoveryBatch == null) {
+        state = {
+          ...emptySession(),
+          isOpen: true,
+          loadStatus: "error",
+          loadError: "Could not load recovery. Please try again.",
+        }
+        publish()
+        return
+      }
+
+      const fetchGeneration = state.loadGeneration + 1
+      state = {
+        ...emptySession(),
+        isOpen: true,
+        loadStatus: "loading",
+        loadGeneration: fetchGeneration,
+      }
+      publish()
+
+      try {
+        const batch = await adapters.getBulkRecoveryBatch(input.batchId)
+        if (fetchGeneration !== state.loadGeneration) {
+          return
+        }
+        const memberCount = batch.memberCount
+        const anchorId =
+          batch.members[0]?.feedbackId ?? input.feedbackId
+        draftsByFeedbackId.set(anchorId, {
+          channel: input.channel,
+          purpose: input.purpose,
+          tone: input.tone,
+          includeNotes: input.includeNotes,
+          subject: batch.subject ?? input.subject,
+          message: batch.bodyTemplate || input.message,
+          setupComplete: true,
+          messageComplete: true,
+          writeEntry: "editor",
+        })
+        // open() owns loadGeneration; do not compare the pre-open fetch guard after it.
+        await api.open(anchorId)
+        if (
+          state.feedbackId !== anchorId
+          || state.loadStatus !== "loaded"
+        ) {
+          return
+        }
+        state = {
+          ...state,
+          step: "review",
+          openedFromDraftAction: true,
+          batchId: batch.id,
+          bulkMemberCount: memberCount,
+          draft: {
+            ...state.draft,
+            channel: input.channel,
+            purpose: input.purpose,
+            tone: input.tone,
+            includeNotes: input.includeNotes,
+            subject: batch.subject ?? input.subject,
+            message: batch.bodyTemplate || input.message,
+            setupComplete: true,
+            messageComplete: true,
+            writeEntry: "editor",
+          },
+          maskedDestination:
+            formatBulkReviewDestinationLabel(input.channel, memberCount),
+          summary:
+            state.summary == null
+              ? null
+              : {
+                  ...state.summary,
+                  guestName: formatBulkReviewGuestLabel(memberCount),
+                  feedbackComment: BULK_REVIEW_ORIGINAL_FEEDBACK_COPY,
+                },
+        }
+        publish()
+      } catch {
+        if (fetchGeneration !== state.loadGeneration) {
+          return
+        }
+        state = {
+          ...state,
+          loadStatus: "error",
+          loadError: "Could not load recovery. Please try again.",
         }
         publish()
       }
@@ -1328,6 +1475,8 @@ export function createRespondToGuestModule(
         state.draft.includeNotes.trim() === ""
           ? null
           : state.draft.includeNotes.trim()
+      const batchId = state.batchId
+      const bulkMemberCount = state.bulkMemberCount
 
       // Allow retry from confirm after failure without re-opening.
       if (state.step === "review" && !state.sendConfirmOpen) {
@@ -1341,6 +1490,59 @@ export function createRespondToGuestModule(
         sendError: null,
       }
       publish()
+
+      if (
+        batchId != null
+        && bulkMemberCount != null
+        && bulkMemberCount >= 2
+        && adapters.sendBulkRecoveryBatch != null
+      ) {
+        try {
+          if (adapters.updateBulkRecoveryBatchDraft != null) {
+            await adapters.updateBulkRecoveryBatchDraft(batchId, {
+              subject,
+              bodyTemplate: body,
+            })
+          }
+          const result = await adapters.sendBulkRecoveryBatch(batchId)
+          draftsByFeedbackId.delete(feedbackId)
+          state = {
+            ...state,
+            step: "success",
+            guestPreviewOpen: false,
+            sendConfirmOpen: false,
+            sendStatus: "idle",
+            sendError: null,
+            successReceipt: {
+              kind: "guest_response_sent",
+              at: new Date().toISOString(),
+              actorDisplayName: null,
+              channel,
+              maskedDestination: formatBulkReviewDestinationLabel(
+                channel,
+                result.sent
+              ),
+            },
+            maskedDestination: formatBulkReviewDestinationLabel(
+              channel,
+              result.sent
+            ),
+            draft: emptyRespondToGuestDraft(),
+            batchId: null,
+          }
+          publish()
+        } catch (error) {
+          state = {
+            ...state,
+            step: "review",
+            sendConfirmOpen: true,
+            sendStatus: "error",
+            sendError: mapRecoveryComposerSendFailure(error).message,
+          }
+          publish()
+        }
+        return
+      }
 
       const request: SendGuestResponseRequest = {
         feedbackId,
@@ -1390,6 +1592,10 @@ export function createRespondToGuestModule(
     },
     async markResolved() {
       if (state.step !== "success" || state.feedbackId == null) {
+        return
+      }
+      if (state.bulkMemberCount != null && state.bulkMemberCount >= 2) {
+        closeSession()
         return
       }
       const feedbackId = state.feedbackId

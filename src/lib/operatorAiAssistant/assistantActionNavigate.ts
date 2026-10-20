@@ -161,7 +161,14 @@ export function planAssistantActionNavigate(input: {
             : sectionNavPath(mode, "offers", locationId),
         selectLocationId: locationId,
       }
+    case "send-bulk-recovery":
+      // Handled in-module via a confirm turn; no route change.
+      return {
+        path: operatorDashboardRootPath(mode),
+        selectLocationId: null,
+      }
     case "open-recovery":
+    case "open-bulk-recovery":
       return {
         path: sectionNavPath(mode, "feedback", locationId),
         selectLocationId: locationId,

@@ -36,6 +36,8 @@ namespace TummlyBackend.Services
         private readonly ICampaignMessageDraftService _campaignMessageDrafts;
         private readonly IOffersCatalogService _offersCatalog;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
+        private readonly IFeedbackGuestResponsesService? _guestResponses;
+        private readonly IBulkRecoveryBatchService? _bulkRecoveryBatches;
         private readonly ICaptureThankYouOfferService _thankYouOffers;
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IAssistantAiBilling _aiBilling;
@@ -72,6 +74,8 @@ namespace TummlyBackend.Services
             ICaptureThankYouOfferService thankYouOffers,
             IRestaurantPermissionHelper permissions,
             IAssistantAiBilling aiBilling,
+            IFeedbackGuestResponsesService? guestResponses = null,
+            IBulkRecoveryBatchService? bulkRecoveryBatches = null,
             TimeProvider? timeProvider = null,
             IOptions<FeedbackClassificationSettings>? liveAnswerSettings = null,
             IRestaurantContextSnapshotService? restaurantContextSnapshot = null,
@@ -96,6 +100,8 @@ namespace TummlyBackend.Services
             _campaignMessageDrafts = campaignMessageDrafts;
             _offersCatalog = offersCatalog;
             _recoveryDrafts = recoveryDrafts;
+            _guestResponses = guestResponses;
+            _bulkRecoveryBatches = bulkRecoveryBatches;
             _thankYouOffers = thankYouOffers;
             _permissions = permissions;
             _aiBilling = aiBilling;
@@ -1361,12 +1367,27 @@ namespace TummlyBackend.Services
 
             var askKind = AssistantAskIntent.Classify(userMessage);
 
+            var bulkSent = await TrySendBulkRecoveryAsync(
+                conversation,
+                userMessage,
+                replaceFailure,
+                cancellationToken
+            );
+            if (bulkSent is not null)
+            {
+                return bulkSent;
+            }
+
+            var pendingRecoveryWork = AssistantRecoveryWork.Parse(
+                conversation.RecoveryWorkJson
+            );
             if (gapState is null
                 && AssistantAskIntent.LooksLikeBareAcknowledge(userMessage)
+                && pendingRecoveryWork is not { BulkShared: true }
                 && (
                     conversation.CreatedCampaignId is int
                     || conversation.CreatedOfferId is int
-                    || !string.IsNullOrWhiteSpace(conversation.RecoveryWorkJson)
+                    || pendingRecoveryWork is not null
                 )
                 && !AssistantTaskClassification.LooksLikeCreateTurn(userMessage)
                 && !AssistantAskIntent.HasRetrieveAsk(userMessage)
@@ -4269,40 +4290,19 @@ namespace TummlyBackend.Services
             switch (match)
             {
                 case AssistantRecoveryIdentity.Match.Many many
-                    when AssistantRecoveryIdentity.AsksForAll(userMessage):
+                    when AssistantRecoveryIdentity.AsksForAll(userMessage)
+                        || AssistantRecoveryIdentity.AsksForSetPrepare(
+                            gapState.SourceUserMessage
+                        ):
                 {
-                    var ordered = many.Rows
-                        .OrderByDescending(row => row.CreatedAt)
-                        .ThenByDescending(row => row.Id)
-                        .ToList();
-                    var persistAll = await PersistPrepareRecoveryAsync(
+                    var persistAll = await PersistBulkSharedPrepareAsync(
                         conversation,
                         gapState.SourceUserMessage,
                         feedbackEvidence,
                         offersEvidence,
-                        cancellationToken,
-                        ordered[0]
+                        many.Rows,
+                        cancellationToken
                     );
-                    if (persistAll.Work is not null)
-                    {
-                        persistAll.Work.PendingFeedbackIds = ordered
-                            .Skip(1)
-                            .Select(row => row.Id)
-                            .ToList();
-                    }
-
-                    if (ordered.Count > 1 && persistAll.Gap is null)
-                    {
-                        var remain = ordered.Count - 1;
-                        persistAll = persistAll with
-                        {
-                            Body = persistAll.Body
-                                + $"\n\n{remain} Feedback "
-                                + (remain == 1 ? "item remains" : "items remain")
-                                + ". Say yes to recover the next one.",
-                        };
-                    }
-
                     ApplyRecoveryPersist(conversation, persistAll);
                     return await PersistAssistantAsync(
                         conversation,
@@ -4378,6 +4378,215 @@ namespace TummlyBackend.Services
             }
         }
 
+        private async Task<RecoveryPersistTurn> PersistBulkSharedPrepareAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            AssistantFeedbackEvidence feedbackEvidence,
+            AssistantOffersEvidence offersEvidence,
+            IReadOnlyList<AssistantFeedbackEvidenceRow> candidateRows,
+            CancellationToken cancellationToken
+        )
+        {
+            IReadOnlyList<AssistantActionDto> none = [];
+            var intent = AssistantRecoveryIntent.Bind(userMessage);
+            var eligible = await FilterEligibleRecoveryRowsAsync(
+                candidateRows,
+                intent,
+                cancellationToken
+            );
+            if (eligible.Count == 0)
+            {
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.FailureTitle,
+                    AssistantRecoveryPersistCopy.BulkSharedNoneEligibleBody(),
+                    none,
+                    null,
+                    null
+                );
+            }
+
+            if (eligible.Count == 1)
+            {
+                return await PersistPrepareRecoveryAsync(
+                    conversation,
+                    userMessage,
+                    feedbackEvidence,
+                    offersEvidence,
+                    cancellationToken,
+                    eligible[0]
+                );
+            }
+
+            var capped = eligible
+                .Take(AssistantRecoveryWork.MaxBulkFeedbackIds)
+                .ToList();
+            var prepared = await PersistPrepareRecoveryAsync(
+                conversation,
+                userMessage,
+                feedbackEvidence,
+                offersEvidence,
+                cancellationToken,
+                capped[0]
+            );
+            if (prepared.Work is null || prepared.Gap is not null)
+            {
+                return prepared;
+            }
+
+            var channelLabel = AssistantRecoveryPersistCopy.ChannelLabel(
+                prepared.Work.Channel ?? "email"
+            );
+            prepared.Work.Message =
+                BulkRecoveryPersonalise.EnsureGuestFirstNameToken(
+                    prepared.Work.Message ?? string.Empty
+                );
+            prepared.Work.BulkShared = true;
+            prepared.Work.FeedbackIds = capped.Select(row => row.Id).ToList();
+            prepared.Work.PendingFeedbackIds = [];
+
+            if (_bulkRecoveryBatches is not null
+                && prepared.Work.LocationId is int locationId
+                && FeedbackGuestResponseMapping.TryParseChannel(
+                    prepared.Work.Channel,
+                    out var batchChannel
+                )
+                && prepared.Work.Intent
+                    == AssistantRecoveryEligibility.IntentRespondToGuest)
+            {
+                var location = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        item => item.Id == locationId,
+                        cancellationToken
+                    );
+                if (location is not null)
+                {
+                    try
+                    {
+                        var batch = await _bulkRecoveryBatches.CreateDraftAsync(
+                            location.RestaurantId,
+                            locationId,
+                            conversation.OwnerUserId,
+                            prepared.Work.FeedbackIds,
+                            batchChannel,
+                            FeedbackRecoveryIntent.RespondToGuest,
+                            prepared.Work.Subject,
+                            prepared.Work.Message ?? string.Empty,
+                            prepared.Work.Purpose,
+                            prepared.Work.Tone,
+                            prepared.Work.IncludeNotes,
+                            cancellationToken
+                        );
+                        if (batch is not null)
+                        {
+                            prepared.Work.BatchId = batch.Id;
+                            prepared.Work.Message = batch.BodyTemplate;
+                            prepared.Work.Subject = batch.Subject;
+                            prepared.Work.FeedbackIds = batch.Members
+                                .Select(m => m.FeedbackId)
+                                .ToList();
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch
+                    {
+                        // Fall through without BatchId — parse will reject bulk work.
+                    }
+                }
+            }
+
+            if (prepared.Work.BatchId is null or <= 0)
+            {
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.FailureTitle,
+                    AssistantRecoveryPersistCopy.FailureBody("bulk prepare"),
+                    none,
+                    null,
+                    null
+                );
+            }
+
+            return prepared with
+            {
+                Title = AssistantRecoveryPersistCopy.SuccessTitle,
+                Body = AssistantRecoveryPersistCopy.BulkSharedSuccessBody(
+                    prepared.Work.FeedbackIds.Count,
+                    channelLabel
+                ),
+                Actions = AssistantActionCatalog.ValidateBulkRecoveryActions(
+                    prepared.Work.FeedbackId,
+                    prepared.Work.BatchId.Value,
+                    prepared.Work.Intent,
+                    prepared.Work.FeedbackIds.Count,
+                    AssistantMessageClass.Grounded
+                ),
+                DraftPreview = AssistantDraftPreviewFactory.Recovery(
+                    prepared.Work.FeedbackId,
+                    prepared.Work.Channel ?? "email",
+                    prepared.Work.Subject,
+                    prepared.Work.Message,
+                    prepared.Work.Intent,
+                    prepared.Work.Purpose
+                ),
+            };
+        }
+
+        private async Task<List<AssistantFeedbackEvidenceRow>> FilterEligibleRecoveryRowsAsync(
+            IReadOnlyList<AssistantFeedbackEvidenceRow> rows,
+            string intent,
+            CancellationToken cancellationToken
+        )
+        {
+            var ordered = rows
+                .OrderByDescending(row => row.CreatedAt)
+                .ThenByDescending(row => row.Id)
+                .ToList();
+            if (ordered.Count == 0)
+            {
+                return [];
+            }
+
+            var ids = ordered.Select(row => row.Id).ToList();
+            List<Feedback> feedbacks;
+            try
+            {
+                feedbacks = await _context.Feedbacks
+                    .AsNoTracking()
+                    .Include(item => item.LocationGuest)
+                    .Where(item => ids.Contains(item.Id))
+                    .ToListAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return [];
+            }
+
+            var byId = feedbacks.ToDictionary(item => item.Id);
+            var eligible = new List<AssistantFeedbackEvidenceRow>();
+            foreach (var row in ordered)
+            {
+                if (!byId.TryGetValue(row.Id, out var feedback))
+                {
+                    continue;
+                }
+
+                if (AssistantRecoveryEligibility.Evaluate(feedback, intent)
+                    is AssistantRecoveryEligibility.Outcome.Allowed)
+                {
+                    eligible.Add(row);
+                }
+            }
+
+            return eligible;
+        }
+
         private async Task<RecoveryPersistTurn> PersistPrepareRecoveryAsync(
             AssistantConversation conversation,
             string userMessage,
@@ -4431,40 +4640,16 @@ namespace TummlyBackend.Services
                         null
                     );
                 case AssistantRecoveryIdentity.Match.Many many
-                    when AssistantRecoveryIdentity.AsksForAll(userMessage):
-                    var ordered = many.Rows
-                        .OrderByDescending(row => row.CreatedAt)
-                        .ThenByDescending(row => row.Id)
-                        .ToList();
-                    var prepared = await PersistPrepareRecoveryAsync(
+                    when AssistantRecoveryIdentity.AsksForAll(userMessage)
+                        || AssistantRecoveryIdentity.AsksForSetPrepare(userMessage):
+                    return await PersistBulkSharedPrepareAsync(
                         conversation,
                         userMessage,
                         feedbackEvidence,
                         offersEvidence,
-                        cancellationToken,
-                        ordered[0]
+                        many.Rows,
+                        cancellationToken
                     );
-                    if (prepared.Work is not null)
-                    {
-                        prepared.Work.PendingFeedbackIds = ordered
-                            .Skip(1)
-                            .Select(row => row.Id)
-                            .ToList();
-                    }
-
-                    if (ordered.Count > 1)
-                    {
-                        var remain = ordered.Count - 1;
-                        prepared = prepared with
-                        {
-                            Body = prepared.Body
-                                + $"\n\n{remain} negative Feedback "
-                                + (remain == 1 ? "item remains" : "items remain")
-                                + ". Say yes to recover the next one.",
-                        };
-                    }
-
-                    return prepared;
                 case AssistantRecoveryIdentity.Match.Many many:
                     return new RecoveryPersistTurn(
                         "",
@@ -4703,6 +4888,141 @@ namespace TummlyBackend.Services
             );
         }
 
+        private async Task<AssistantTurnOutcome?> TrySendBulkRecoveryAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            var current = AssistantRecoveryWork.Parse(conversation.RecoveryWorkJson);
+            if (current is not { BulkShared: true, FeedbackIds.Count: > 0 })
+            {
+                return null;
+            }
+
+            if (!AssistantRecoveryIdentity.AsksToSendBulk(userMessage))
+            {
+                return null;
+            }
+
+            if (current.Intent != AssistantRecoveryEligibility.IntentRespondToGuest
+                && current.Intent != AssistantRecoveryEligibility.IntentRespondAndRecord)
+            {
+                return await PersistAssistantAsync(
+                    conversation,
+                    GroundedMessage(
+                        DateTime.UtcNow,
+                        AssistantRecoveryPersistCopy.FailureTitle,
+                        "Bulk send is available for guest message recoveries. "
+                            + "Use Review recovery to finish other intents.",
+                        ReviewRecoveryActions(current.FeedbackId, current.Intent)
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
+            if (_bulkRecoveryBatches is null
+                || current.BatchId is null or <= 0)
+            {
+                return await PersistAssistantAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantRecoveryPersistCopy.FailureBody("bulk send")
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
+            if (!string.IsNullOrWhiteSpace(current.Message))
+            {
+                try
+                {
+                    await _bulkRecoveryBatches.UpdateDraftAsync(
+                        current.BatchId.Value,
+                        current.Subject,
+                        current.Message,
+                        current.Purpose,
+                        current.Tone,
+                        current.IncludeNotes,
+                        cancellationToken
+                    );
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch
+                {
+                    // Send still uses stored batch draft when update fails.
+                }
+            }
+
+            SendBulkRecoveryBatchResultDto? sendResult;
+            try
+            {
+                sendResult = await _bulkRecoveryBatches.SendAsync(
+                    current.BatchId.Value,
+                    conversation.OwnerUserId,
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return await PersistAssistantAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantRecoveryPersistCopy.FailureBody("bulk send")
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
+            if (sendResult is null)
+            {
+                return await PersistAssistantAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantRecoveryPersistCopy.FailureBody("bulk send")
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
+            conversation.RecoveryWorkJson = null;
+            return await PersistAssistantAsync(
+                conversation,
+                GroundedMessage(
+                    DateTime.UtcNow,
+                    "Recovery messages sent",
+                    AssistantRecoveryPersistCopy.BulkSendSummaryBody(
+                        sendResult.Sent,
+                        sendResult.Total,
+                        sendResult.Skipped + sendResult.Failed
+                    ),
+                    []
+                ),
+                replaceFailure,
+                cancellationToken,
+                liveAnswerAlreadyCompleted: true
+            );
+        }
+
         private async Task<AssistantTurnOutcome?> TryContinueRecoveryQueueAsync(
             AssistantConversation conversation,
             string userMessage,
@@ -4718,6 +5038,11 @@ namespace TummlyBackend.Services
             }
 
             var current = AssistantRecoveryWork.Parse(conversation.RecoveryWorkJson);
+            if (current is { BulkShared: true })
+            {
+                return null;
+            }
+
             if (current?.PendingFeedbackIds is not { Count: > 0 } pending)
             {
                 return null;

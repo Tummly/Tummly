@@ -22,6 +22,8 @@ namespace TummlyBackend.Helpers
             "add-offer",
             "review-offer",
             "open-recovery",
+            "open-bulk-recovery",
+            "send-bulk-recovery",
             "view-feedback-set",
             "prepare-recovery",
             "view-campaigns",
@@ -241,6 +243,53 @@ namespace TummlyBackend.Helpers
             ];
         }
 
+        public static IReadOnlyList<AssistantActionDto> ValidateBulkRecoveryActions(
+            int anchorFeedbackId,
+            int batchId,
+            string intent,
+            int eligibleCount,
+            AssistantMessageClass answerClass
+        )
+        {
+            if (answerClass != AssistantMessageClass.Grounded
+                || anchorFeedbackId <= 0
+                || batchId <= 0
+                || eligibleCount < 2
+                || intent is null
+                || !RecoveryIntents.Contains(intent))
+            {
+                return [];
+            }
+
+            return
+            [
+                new AssistantActionDto
+                {
+                    Type = "open-bulk-recovery",
+                    Label = LabelFor(new AssistantActionDto { Type = "open-bulk-recovery" }),
+                    FeedbackId = anchorFeedbackId,
+                    BatchId = batchId,
+                    Intent = intent,
+                    Count = eligibleCount,
+                },
+                new AssistantActionDto
+                {
+                    Type = "send-bulk-recovery",
+                    Label = LabelFor(
+                        new AssistantActionDto
+                        {
+                            Type = "send-bulk-recovery",
+                            Count = eligibleCount,
+                        }
+                    ),
+                    Count = eligibleCount,
+                    FeedbackId = anchorFeedbackId,
+                    BatchId = batchId,
+                    Intent = intent,
+                },
+            ];
+        }
+
         public static IReadOnlyList<AssistantActionDto> DefaultActions(
             string userMessage,
             AssistantRetrievedEvidence evidence
@@ -412,6 +461,10 @@ namespace TummlyBackend.Helpers
                 "add-offer" => "Add Offer",
                 "review-offer" => "Review offer draft",
                 "open-recovery" => "Review recovery",
+                "open-bulk-recovery" => "Review recovery",
+                "send-bulk-recovery" => action.Count is int n && n > 0
+                    ? $"Send to all {n}"
+                    : "Send to all",
                 "view-feedback-set" => action.Count == 1
                     ? "View 1 feedback item"
                     : $"View {action.Count ?? 0} feedback items",
@@ -437,7 +490,9 @@ namespace TummlyBackend.Helpers
                 or "change-audience"
                 or "add-offer"
                 or "review-offer"
-                or "open-recovery")
+                or "open-recovery"
+                or "open-bulk-recovery"
+                or "send-bulk-recovery")
             {
                 return null;
             }

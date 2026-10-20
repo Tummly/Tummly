@@ -171,6 +171,9 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   getOperatorAccountEmail?: RespondToGuestAdapters["getOperatorAccountEmail"]
   completeRecovery: RespondToGuestAdapters["completeRecovery"]
   prepareRecoveryDraft: RespondToGuestAdapters["prepareRecoveryDraft"]
+  getBulkRecoveryBatch?: RespondToGuestAdapters["getBulkRecoveryBatch"]
+  sendBulkRecoveryBatch?: RespondToGuestAdapters["sendBulkRecoveryBatch"]
+  updateBulkRecoveryBatchDraft?: RespondToGuestAdapters["updateBulkRecoveryBatchDraft"]
   recordInternalAction: RecordInternalActionAdapters["recordInternalAction"]
   sendAndRecord: RespondAndRecordAdapters["sendAndRecord"]
   sendAndIssueRecoveryOffer: RespondWithRecoveryOfferAdapters["sendAndIssueRecoveryOffer"]
@@ -625,6 +628,9 @@ export function createOperatorFeedbackPageModule(
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
     getCreditChrome: resolveCreditChrome,
+    getBulkRecoveryBatch: adapters.getBulkRecoveryBatch,
+    sendBulkRecoveryBatch: adapters.sendBulkRecoveryBatch,
+    updateBulkRecoveryBatchDraft: adapters.updateBulkRecoveryBatchDraft,
   })
 
   const recordInternalAction = createRecordInternalActionModule({
@@ -1799,6 +1805,23 @@ export function createOperatorFeedbackPageModule(
       feedbackDetails.close()
       startRecovery.close()
       if (payload.intent === "respond-to-guest") {
+        if (
+          payload.bulkShared === true
+          && payload.batchId != null
+          && payload.batchId > 0
+        ) {
+          await respondToGuest.openFromBulkDraftAction({
+            batchId: payload.batchId,
+            feedbackId: payload.feedbackId,
+            channel: payload.channel as RespondToGuestChannel,
+            purpose: payload.purpose as RespondToGuestPurposeId,
+            tone: payload.tone as RespondToGuestToneId,
+            includeNotes: payload.includeNotes ?? "",
+            subject: payload.subject ?? "",
+            message: payload.message ?? "",
+          })
+          return
+        }
         await respondToGuest.openFromDraftAction({
           feedbackId: payload.feedbackId,
           channel: payload.channel as RespondToGuestChannel,

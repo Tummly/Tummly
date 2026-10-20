@@ -33,6 +33,7 @@ namespace TummlyBackend.Tests.Services
         private readonly RecordingAssistantProgressPublisher _progress;
         private readonly FakeCampaignMessageDraftProvider _messageDrafts;
         private readonly FakeFeedbackRecoveryDraftProvider _recoveryDrafts;
+        private readonly FakeFeedbackGuestResponsesService _guestResponses;
         private readonly ControllableHomeRecommendation _homeRecommendation;
         private readonly ControllableWeeklyBriefGenerate _weeklyBriefGenerate;
         private readonly CreditLedgerService _creditLedger;
@@ -81,6 +82,7 @@ namespace TummlyBackend.Tests.Services
             _progress = new RecordingAssistantProgressPublisher();
             _messageDrafts = new FakeCampaignMessageDraftProvider();
             _recoveryDrafts = new FakeFeedbackRecoveryDraftProvider();
+            _guestResponses = new FakeFeedbackGuestResponsesService();
             _homeRecommendation = new ControllableHomeRecommendation();
             _weeklyBriefGenerate = new ControllableWeeklyBriefGenerate();
             _clock = new ManualTimeProvider(_now);
@@ -138,6 +140,12 @@ namespace TummlyBackend.Tests.Services
                 thankYouOffers ?? new CaptureThankYouOfferService(_context, catalog),
                 new RestaurantPermissionHelper(_context),
                 aiBilling ?? _aiBilling,
+                _guestResponses,
+                new BulkRecoveryBatchService(
+                    _context,
+                    _guestResponses,
+                    timeProvider ?? _clock
+                ),
                 timeProvider ?? _clock,
                 liveAnswerOptions
                     ?? Options.Create(
@@ -5265,6 +5273,129 @@ namespace TummlyBackend.Tests.Services
             Assert.DoesNotContain(answer.Actions, action => action.Type == "review-campaign");
             Assert.Null(ok.Conversation.PendingCampaignDraft);
             Assert.False(ok.Conversation.DraftInterviewActive);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoverySet_ManyEligible_BulkSharedDraftNotGap()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var guestA = await SeedLocationGuestAsync(locationId, DateTime.UtcNow.AddHours(-3));
+            var guestB = await SeedLocationGuestAsync(locationId, DateTime.UtcNow.AddHours(-2));
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-3),
+                locationGuestId: guestA,
+                guestName: "Alex One",
+                guestContact: "alex@example.com"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                locationGuestId: guestB,
+                guestName: "Blair Two",
+                guestContact: "blair@example.com"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Prepare recovery responses for the guests that need attention in this Feedback set."
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.DoesNotContain(
+                "Which Feedback should I recover",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("**2** Feedback that need recovery", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Would you like any changes?", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                answer.Actions,
+                action => action.Type == "send-bulk-recovery" && action.Count == 2
+            );
+            Assert.Contains(
+                answer.Actions,
+                action => action.Type == "open-bulk-recovery" && action.BatchId > 0
+            );
+            Assert.NotNull(ok.Conversation.PendingRecoveryDraft);
+            Assert.True(ok.Conversation.PendingRecoveryDraft!.BulkShared);
+            Assert.Equal(2, ok.Conversation.PendingRecoveryDraft.FeedbackIds.Count);
+            Assert.True(ok.Conversation.PendingRecoveryDraft.BatchId is > 0);
+            Assert.Contains(
+                BulkRecoveryPersonalise.GuestFirstNameToken,
+                ok.Conversation.PendingRecoveryDraft.Message ?? "",
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_BulkShared_SendToAll_LoopsGuestResponses()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var guestA = await SeedLocationGuestAsync(locationId, DateTime.UtcNow.AddHours(-3));
+            var guestB = await SeedLocationGuestAsync(locationId, DateTime.UtcNow.AddHours(-2));
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-3),
+                locationGuestId: guestA,
+                guestName: "Alex One",
+                guestContact: "alex@example.com"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                locationGuestId: guestB,
+                guestName: "Blair Two",
+                guestContact: "blair@example.com"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Hi Alex, Shared recovery body for all guests.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var prepared = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Prepare recovery responses for the guests that need attention in this Feedback set."
+                    )
+                )
+            );
+            var conversationId = prepared.Conversation.Id;
+            Assert.True(prepared.Conversation.PendingRecoveryDraft?.BatchId is > 0);
+
+            var sentOutcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Send to all 2", conversationId)
+            );
+            var sent = Assert.IsType<AssistantTurnOutcome.Ok>(sentOutcome);
+            Assert.Equal(2, _guestResponses.Sent.Count);
+            Assert.Contains(
+                _guestResponses.Sent,
+                item => item.Body.StartsWith("Hi Alex,", StringComparison.Ordinal)
+            );
+            Assert.Contains(
+                _guestResponses.Sent,
+                item => item.Body.StartsWith("Hi Blair,", StringComparison.Ordinal)
+            );
+            Assert.Contains(
+                "Sent to **2** of **2**",
+                sent.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.Null(sent.Conversation.PendingRecoveryDraft);
         }
 
         [Fact]

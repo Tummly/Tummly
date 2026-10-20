@@ -433,6 +433,10 @@ builder.Services.AddScoped<
     FeedbackGuestResponsesService
 >();
 builder.Services.AddScoped<
+    IBulkRecoveryBatchService,
+    BulkRecoveryBatchService
+>();
+builder.Services.AddScoped<
     IFeedbackGuestPreviewSendTestService,
     FeedbackGuestPreviewSendTestService
 >();
