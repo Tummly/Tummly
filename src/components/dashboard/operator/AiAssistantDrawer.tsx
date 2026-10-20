@@ -219,12 +219,27 @@ function ThreadMessage({
       all.findIndex((other) => other.type === action.type) === index
   )
 
+  const workedSeconds =
+    message.workedSeconds != null
+    && Number.isFinite(message.workedSeconds)
+    && message.workedSeconds >= 0
+      ? message.workedSeconds
+      : null
+
   return (
     <div
       className="flex flex-col gap-[30px]"
       data-assistant-thread-row={message.id}
     >
-      <div className="flex flex-col gap-[12px]">
+      <div className="flex flex-col gap-2">
+        {workedSeconds != null ? (
+          <AssistantPreparingAnswer
+            phrase=""
+            working={false}
+            elapsed={workedSeconds}
+            showGlyph={false}
+          />
+        ) : null}
         <div className="flex gap-3 items-start">
           <AiIcon size={26} className="text-op-assistant-list-title" />
           <div className="flex min-w-0 flex-1 flex-col gap-3">

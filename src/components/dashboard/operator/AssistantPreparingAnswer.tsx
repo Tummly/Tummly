@@ -21,13 +21,22 @@ type AssistantPreparingAnswerProps = {
   phrase: string
   /** Latest user prompt — drives which step lines belong to this ask. */
   prompt?: string
+  /** False when the turn is done — settles to “Worked for …”. */
+  working?: boolean
+  /** Frozen seconds when settled (from the turn clock). */
+  elapsed?: number
+  /**
+   * When false, omit the ThoughtLine glyph so a title-row AiIcon can own the mark.
+   * Defaults to true while working; settled answer chrome usually passes false.
+   */
+  showGlyph?: boolean
 }
 
 /** Slow spin with uneven pace — eases, then a short quicker stretch. */
-function PreparingAiGlyph() {
+function PreparingAiGlyph({ spinning }: { spinning: boolean }) {
   const reduceMotion = useReducedMotion()
 
-  if (reduceMotion) {
+  if (!spinning || reduceMotion) {
     return <AiIcon size={16} className="size-full text-op-text-primary" />
   }
 
@@ -67,10 +76,14 @@ function plannedStepLines(prompt: string): string[] {
 /**
  * Preparing chrome — AI Assistant logo + fixed “Preparing…” head.
  * Trace lines come from the prompt plan and advance with the live wait phrase.
+ * When settled, shows “Worked for” plus the frozen turn timer.
  */
 export function AssistantPreparingAnswer({
   phrase,
   prompt = "",
+  working = true,
+  elapsed,
+  showGlyph,
 }: AssistantPreparingAnswerProps) {
   const live = phrase.trim()
   const planned = useMemo(() => plannedStepLines(prompt), [prompt])
@@ -78,9 +91,10 @@ export function AssistantPreparingAnswer({
     live.length > 0 ? [live] : planned.slice(0, 1)
   )
   const prevLiveRef = useRef(live)
+  const glyphVisible = showGlyph ?? working
 
   useEffect(() => {
-    if (live.length === 0) {
+    if (!working || live.length === 0) {
       return
     }
     const prev = prevLiveRef.current
@@ -95,22 +109,24 @@ export function AssistantPreparingAnswer({
         ? next.slice(-MAX_TRACE_STEPS)
         : next
     })
-  }, [live])
+  }, [live, working])
 
   useEffect(() => {
-    if (live.length > 0 || planned.length === 0) {
+    if (!working || live.length > 0 || planned.length === 0) {
       return
     }
     setSteps(planned.slice(0, 1))
-  }, [live, planned])
+  }, [live, planned, working])
 
   return (
     <ThoughtLine
-      working
+      working={working}
       label="Preparing…"
-      steps={steps}
-      doneLabel="Prepared"
-      glyph={<PreparingAiGlyph />}
+      steps={working ? steps : []}
+      doneLabel="Worked for"
+      glyph={
+        glyphVisible ? <PreparingAiGlyph spinning={working} /> : "none"
+      }
       fontSize={14}
       breathPeriod={1.6}
       breathDepth={0.2}
@@ -118,7 +134,8 @@ export function AssistantPreparingAnswer({
       settleBlur={2}
       collapsible
       collapseOnSettle
-      showTimer={false}
+      showTimer
+      elapsed={elapsed}
       shimmer={false}
       color="var(--op-color-gray-550)"
       glyphColor="var(--op-text-primary)"

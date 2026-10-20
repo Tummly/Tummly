@@ -1269,6 +1269,61 @@ describe("first send creates a durable Assistant conversation", () => {
     ).toContain("2 guests")
   })
 
+  it("stamps workedSeconds on the assistant reply when the wait finishes", async () => {
+    let clock = 1_000_000
+    let release!: (
+      row: ReturnType<
+        typeof createInMemoryOperatorAiAssistantAdapters
+      >["conversations"][number]
+    ) => void
+    const pending = new Promise<
+      ReturnType<
+        typeof createInMemoryOperatorAiAssistantAdapters
+      >["conversations"][number]
+    >((resolve) => {
+      release = resolve
+    })
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      nowMs: () => clock,
+      sendTurn: () => pending,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("What are guests complaining about this week?")
+    module.send()
+    expect(module.getSnapshot().turnInFlight).toBe(true)
+
+    clock += 12_400
+    release({
+      id: "conv-worked",
+      title: "Guest complaints",
+      analysisScope: module.getSnapshot().analysisScope!,
+      lastActivityAt: new Date().toISOString(),
+      isArchived: false,
+      messages: [
+        {
+          id: "u1",
+          role: "user",
+          body: "What are guests complaining about this week?",
+        },
+        {
+          id: "a1",
+          role: "assistant",
+          class: "grounded",
+          body: "Slow service is the most common issue this week.",
+        },
+      ],
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const assistant = module
+      .getSnapshot()
+      .messages.find((message) => message.role === "assistant")
+    expect(assistant?.workedSeconds).toBe(12.4)
+  })
+
   it("replaces the wait text with live pipeline progress and ignores late events", async () => {
     let release!: (
       row: ReturnType<

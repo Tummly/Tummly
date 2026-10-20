@@ -201,6 +201,11 @@ export type OperatorAiAssistantMessage = {
   presentation?: OperatorAiAssistantMessagePresentation | null
   /** Server applied an NL Analysis scope override on this turn. */
   scopeChange?: OperatorAiAssistantScopeChangeNotice | null
+  /**
+   * Client-only: seconds the turn waited before this assistant reply.
+   * Drives the settled “Worked for …” ThoughtLine.
+   */
+  workedSeconds?: number | null
 }
 
 export type OperatorAiAssistantScopeChangeNotice = {
@@ -1041,6 +1046,8 @@ type AssistantState = {
   messages: OperatorAiAssistantMessage[]
   turnInFlight: boolean
   waitBody: string
+  /** Wall-clock start of the in-flight turn wait chrome. */
+  waitStartedAtMs: number | null
   turnConversationId: string | null
   helpfulFills: Record<string, OperatorAiAssistantHelpfulFill>
   searchQuery: string
@@ -1086,6 +1093,7 @@ const INITIAL_STATE: AssistantState = {
   messages: [],
   turnInFlight: false,
   waitBody: ASSISTANT_WAIT_BODY,
+  waitStartedAtMs: null,
   turnConversationId: null,
   helpfulFills: {},
   searchQuery: "",
@@ -1581,16 +1589,91 @@ function buildShellAiCreditsViewModel(
   }
 }
 
+function workedSecondsByMessageId(
+  messages: readonly OperatorAiAssistantMessage[]
+): Map<string, number> {
+  const byId = new Map<string, number>()
+  for (const message of messages) {
+    if (
+      message.role === "assistant"
+      && message.workedSeconds != null
+      && Number.isFinite(message.workedSeconds)
+      && message.workedSeconds >= 0
+    ) {
+      byId.set(message.id, message.workedSeconds)
+    }
+  }
+  return byId
+}
+
+function mergeClientWorkedSeconds(
+  messages: readonly OperatorAiAssistantMessage[],
+  previous: readonly OperatorAiAssistantMessage[]
+): OperatorAiAssistantMessage[] {
+  const byId = workedSecondsByMessageId(previous)
+  if (byId.size === 0) {
+    return [...messages]
+  }
+  return messages.map((message) => {
+    const workedSeconds = byId.get(message.id)
+    return workedSeconds == null ? message : { ...message, workedSeconds }
+  })
+}
+
+function stampLatestAssistantWorkedSeconds(
+  messages: readonly OperatorAiAssistantMessage[],
+  workedSeconds: number | null
+): OperatorAiAssistantMessage[] {
+  if (workedSeconds == null || !Number.isFinite(workedSeconds) || workedSeconds < 0) {
+    return [...messages]
+  }
+  const rounded = Math.round(workedSeconds * 10) / 10
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role !== "assistant") {
+      continue
+    }
+    return messages.map((message, messageIndex) =>
+      messageIndex === index ? { ...message, workedSeconds: rounded } : message
+    )
+  }
+  return [...messages]
+}
+
+function finishTurnMessages(
+  state: AssistantState,
+  row: OperatorAiAssistantConversationRow,
+  nowMs: number
+): OperatorAiAssistantMessage[] {
+  const startedAt = state.waitStartedAtMs
+  const workedSeconds =
+    state.turnInFlight && startedAt != null
+      ? Math.max(0, (nowMs - startedAt) / 1000)
+      : null
+  const merged = mergeClientWorkedSeconds(
+    row.messages.filter((message) => message.role !== "wait"),
+    state.messages
+  )
+  return stampLatestAssistantWorkedSeconds(merged, workedSeconds)
+}
+
 function applyConversation(
   state: AssistantState,
-  row: OperatorAiAssistantConversationRow
+  row: OperatorAiAssistantConversationRow,
+  nowMs?: number
 ): AssistantState {
+  const messages =
+    nowMs != null
+      ? finishTurnMessages(state, row, nowMs)
+      : mergeClientWorkedSeconds(
+          row.messages.filter((message) => message.role !== "wait"),
+          state.messages
+        )
   return {
     ...state,
     view: "thread",
     conversationId: row.id,
     analysisScope: row.analysisScope,
-    messages: row.messages.filter((message) => message.role !== "wait"),
+    messages,
     pendingCampaignDraft: row.pendingCampaignDraft ?? null,
     pendingOfferDraft: row.pendingOfferDraft ?? null,
     pendingRecoveryDraft: row.pendingRecoveryDraft ?? null,
@@ -1602,6 +1685,7 @@ function applyConversation(
     draftActionSpent: false,
     turnInFlight: false,
     waitBody: ASSISTANT_WAIT_BODY,
+    waitStartedAtMs: null,
     turnConversationId: null,
     listItems: upsertListItem(state.listItems, row, activeListPanel(state)),
   }
@@ -1670,6 +1754,7 @@ function emptyGreetingState(
     draftInterviewActive: false,
     turnInFlight: false,
     waitBody: ASSISTANT_WAIT_BODY,
+    waitStartedAtMs: null,
     turnConversationId: null,
     helpfulFills: {},
     bodyLoadError: false,
@@ -1928,6 +2013,7 @@ export function createOperatorAiAssistantModule(
       widthMode: "collapsed",
       composerDraft: "",
       turnInFlight: false,
+      waitStartedAtMs: null,
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     }
     publish()
@@ -2124,6 +2210,7 @@ export function createOperatorAiAssistantModule(
       messages: storedMessages,
       turnInFlight: true,
       waitBody,
+      waitStartedAtMs: adapters.nowMs(),
       turnConversationId: state.conversationId,
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     }
@@ -2150,7 +2237,7 @@ export function createOperatorAiAssistantModule(
         inflight = null
         stopWaitRotation()
         state = {
-          ...applyConversation(state, row),
+          ...applyConversation(state, row, adapters.nowMs()),
           composerDraft: "",
         }
         publish()
@@ -2169,6 +2256,7 @@ export function createOperatorAiAssistantModule(
             ...state,
             turnInFlight: false,
             waitBody: ASSISTANT_WAIT_BODY,
+            waitStartedAtMs: null,
             turnConversationId: null,
           }
           publish()
@@ -2178,6 +2266,7 @@ export function createOperatorAiAssistantModule(
           ...state,
           turnInFlight: false,
           waitBody: ASSISTANT_WAIT_BODY,
+          waitStartedAtMs: null,
           turnConversationId: null,
           messages: [...storedMessages, failureMessage()],
         }
