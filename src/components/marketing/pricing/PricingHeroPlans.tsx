@@ -128,7 +128,7 @@ function PricingPlanCardView({
         <div className="flex min-h-9 items-center justify-between gap-3">
           <h3 className={PRICING_PLAN_CARD_TITLE_CLASS}>{card.id}</h3>
           {card.isMostPopular ? (
-            <span className="shrink-0 rounded bg-[#14a74a]/18 px-3 py-2 font-sans text-xs font-medium text-[#14a74a]">
+            <span className="shrink-0 rounded bg-[#14a74a]/18 px-3 py-2 text-xs font-inter font-medium text-[#14a74a]">
               {MANAGE_PLAN_COPY.mostPopular}
             </span>
           ) : null}
@@ -228,7 +228,7 @@ export function PricingHeroPlans({
               {PRICING_PAGE_HERO.trustItems.map((item) => (
                 <p
                   key={item}
-                  className="m-0 flex items-center gap-2 text-xs font-medium leading-normal text-[#727272]"
+                  className="m-0 flex items-center gap-2 text-xs font-inter font-medium leading-normal text-[#727272]"
                 >
                   <CheckIcon className="size-3 shrink-0 text-[#727272]" aria-hidden />
                   {item}
