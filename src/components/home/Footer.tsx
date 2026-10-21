@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils"
 
 const footerLinkClass = "text-sm font-normal leading-normal text-[#141414]"
 const footerHeadingClass =
-  "m-0 font-jakarta text-base font-bold leading-none text-[#141414]"
+  "m-0 font-jakarta text-base font-bold leading-5 text-[#141414]"
 
 /** Mobile 2-col pairing: Product|Restaurants, Company|Trust, Social|Built. */
 const FOOTER_LINK_COLUMNS = [
@@ -92,10 +92,10 @@ export default function Footer() {
 
               <div className="flex max-w-[496px] flex-col gap-8">
                 <div className="flex flex-col gap-3.5 text-black">
-                  <p className="m-0 font-jakarta text-xl font-semibold leading-none">
+                  <p className="m-0 font-jakarta text-xl font-bold leading-[25px]">
                     Turn guest feedback into repeat visits.
                   </p>
-                  <p className="m-0 font-sans text-base font-normal leading-6">
+                  <p className="m-0 font-jakarta text-base font-normal leading-6">
                     Collect private feedback, recover guests, build stronger
                     guest relationships and understand what to do next.
                   </p>
@@ -114,7 +114,9 @@ export default function Footer() {
               </div>
 
               <div className="flex flex-col gap-5">
-                <p className={footerHeadingClass}>Ask AI about Tummly</p>
+                <p className={cn(footerHeadingClass, "text-lg leading-[23px]")}>
+                  Ask AI about Tummly
+                </p>
                 <MarketingAskAiIcons />
               </div>
             </div>
@@ -141,7 +143,7 @@ export default function Footer() {
                       key={credential.id}
                       className="flex flex-col items-start gap-2.5"
                     >
-                      <p className="m-0 font-jakarta text-sm font-bold leading-normal text-[#141414]">
+                      <p className="m-0 font-jakarta text-sm font-bold leading-[18px] text-[#141414]">
                         {credential.title}
                       </p>
                       <MarketingNavLink
