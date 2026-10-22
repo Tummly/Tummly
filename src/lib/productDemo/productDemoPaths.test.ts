@@ -16,9 +16,9 @@ describe("productDemoPaths", () => {
     expect(productDemoPathForChapter("offers")).toBe(
       "/single-dashboard/offers"
     )
-    // Chapter 1 starts on Home: step 1 points at the Feedback nav item.
-    expect(productDemoPathForChapter("feedback")).toBe("/single-dashboard")
-    expect(productDemoPathForTourStep("ch1-s1")).toBe("/single-dashboard")
+    expect(productDemoPathForTourStep("ch1-s1")).toBe(
+      "/single-dashboard/feedback"
+    )
     expect(productDemoPath("campaigns")).toBe("/single-dashboard/campaigns")
   })
 

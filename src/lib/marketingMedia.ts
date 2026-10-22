@@ -52,13 +52,13 @@ export function forGroupsHeroVideoUrl(): string {
 
 /**
  * For Groups “ONE CONNECTED GUEST LOOP” product card loops
- * (`marketing/for-groups/product-e1dfdb-*.mp4` — beige plate masters, no re-encode).
+ * (`marketing/for-groups/product-*.webm` — VP9 masters as published, no re-encode).
  */
 export const FOR_GROUPS_PRODUCT_VIDEO_PATHS = {
-  "hear-from-guests": "for-groups/product-e1dfdb-hear-from-guests.mp4",
-  "guest-relationships": "for-groups/product-e1dfdb-guest-relationships.mp4",
-  "reasons-to-return": "for-groups/product-e1dfdb-reasons-to-return.mp4",
-  "whats-working": "for-groups/product-e1dfdb-whats-working.mp4",
+  "hear-from-guests": "for-groups/product-hear-from-guests.webm",
+  "guest-relationships": "for-groups/product-guest-relationships.webm",
+  "reasons-to-return": "for-groups/product-reasons-to-return.webm",
+  "whats-working": "for-groups/product-whats-working.webm",
 } as const
 
 export type ForGroupsProductVideoKey = keyof typeof FOR_GROUPS_PRODUCT_VIDEO_PATHS

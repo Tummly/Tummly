@@ -1,8 +1,7 @@
 import { z } from "zod"
 
 import type { SignupOnboardingPayload } from "@/api/signupApi"
-import { toOnboardingCustomPlanConfigJson } from "@/lib/marketingCustomPlan/customPlanEstimate"
-import { activeCustomConfig, readSignupPlanIntent } from "@/lib/signupPlanIntent"
+import { readSignupPlanIntent, clearSignupPlanIntent } from "@/lib/signupPlanIntent"
 import { validationMessages } from "@/schemas/messages"
 import {
   emailSchema,
@@ -16,7 +15,7 @@ const ukPostcodeRegex = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/i
 
 const passwordMatchRefine = {
   message: validationMessages.password.mismatch,
-  path: ["confirmPassword"],
+  path: ["confirmPassword"] as const,
 }
 
 export function joinSignupFullName(firstName: string, lastName: string): string {
@@ -202,21 +201,9 @@ export function toSignupOnboardingPayload(
   const fullName = joinSignupFullName(parsed.firstName, parsed.lastName)
 
   const intent = readSignupPlanIntent()
-  if (intent == null) {
-    throw new Error("Choose a plan to continue.")
+  if (intent != null) {
+    clearSignupPlanIntent()
   }
-
-  const chosenCadence =
-    intent.plan === "Pilot" ? "monthly" : (intent.cadence ?? "monthly")
-
-  const config = activeCustomConfig(intent)
-  const customPlanConfigJson =
-    config != null
-      ? toOnboardingCustomPlanConfigJson({
-          ...config,
-          cadence: chosenCadence,
-        })
-      : undefined
 
   return {
     password: options?.isSocial ? "" : parsed.password,
@@ -237,8 +224,14 @@ export function toSignupOnboardingPayload(
         ...(parsed.addressOverridden ? { addressOverridden: true } : {}),
       },
     ],
-    chosenPlan: intent.plan,
-    chosenCadence,
-    ...(customPlanConfigJson != null ? { customPlanConfigJson } : {}),
+    ...(intent != null
+      ? {
+          chosenPlan: intent.plan,
+          chosenCadence:
+            intent.plan === "Pilot"
+              ? "monthly"
+              : (intent.cadence ?? "monthly"),
+        }
+      : {}),
   }
 }

@@ -98,32 +98,25 @@ namespace TummlyBackend.Tests.Helpers
             );
         }
 
-        /// <summary>
-        /// Null: subscription read fails. Otherwise the read succeeds with
-        /// this <c>scheduled_action</c> presence.
-        /// </summary>
-        public bool? SubscriptionHasScheduledAction { get; set; }
-
-        public Task<RevolutSubscriptionRetrieveResult> GetSubscriptionAsync(
-            string subscriptionId,
-            CancellationToken cancellationToken = default
-        ) => Task.FromResult(
-            SubscriptionHasScheduledAction == null
-                ? new RevolutSubscriptionRetrieveResult(
-                    Succeeded: false,
-                    ErrorCode: "not_implemented"
-                )
-                : new RevolutSubscriptionRetrieveResult(
-                    Succeeded: true,
-                    Id: subscriptionId,
-                    State: "active",
-                    HasScheduledAction: SubscriptionHasScheduledAction
-                )
-        );
-
         public int CancelSubscriptionCallCount { get; private set; }
 
         public string? LastCancelledSubscriptionId { get; private set; }
+
+        public int ScheduleSubscriptionCancelCallCount { get; private set; }
+
+        public string? LastScheduledCancelSubscriptionId { get; private set; }
+
+        public Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
+            string subscriptionId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            ScheduleSubscriptionCancelCallCount++;
+            LastScheduledCancelSubscriptionId = subscriptionId;
+            return Task.FromResult(
+                new RevolutMerchantCreateResult(Succeeded: true, Id: subscriptionId)
+            );
+        }
 
 
 public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(

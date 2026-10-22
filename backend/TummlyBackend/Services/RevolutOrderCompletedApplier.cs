@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
@@ -154,19 +154,6 @@ namespace TummlyBackend.Services
                     request.PaymentMethodSummary,
                     cancellationToken
                 );
-                return;
-            }
-
-            if (
-                intent != null
-                && string.Equals(
-                    intent.Purpose,
-                    RevolutOrderIntentPurposes.CustomPlanCycle,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                await ApplyCustomPlanCycleAsync(intent, cancellationToken);
                 return;
             }
 
@@ -499,7 +486,6 @@ namespace TummlyBackend.Services
                 billingAccount.BillingCycle = CadenceToBillingCycle(
                     pending.TargetCadence
                 );
-                ClearPendingPayment(billingAccount);
             }
 
             // Pilot→paid / renewal dates only. Dunning episode clears stay on
@@ -512,141 +498,6 @@ namespace TummlyBackend.Services
             billingAccount.GuestRetentionPurgedAtUtc = null;
             billingAccount.PilotSoftLockNotified = false;
             billingAccount.PilotDormantNotified = false;
-        }
-
-        /// <summary>
-        /// Payment confirmed. Drop the pending upgrade that the owner was asked to pay.
-        /// </summary>
-        private static void ClearPendingPayment(BillingAccount billingAccount)
-        {
-            billingAccount.PendingPaymentPlan = null;
-            billingAccount.PendingPaymentCadence = null;
-            billingAccount.PendingPaymentCustomConfigJson = null;
-            billingAccount.PendingPaymentFailedAtUtc = null;
-            billingAccount.PendingPaymentFailureCode = null;
-        }
-
-        private async Task ApplyCustomPlanCycleAsync(
-            RevolutOrderIntent intent,
-            CancellationToken cancellationToken
-        )
-        {
-            if (!intent.IsOpen)
-            {
-                return;
-            }
-
-            var restaurantId = RequireRestaurantId(intent);
-            var nowUtc = _clock.GetUtcNow().UtcDateTime;
-            var billingAccount = await _context.BillingAccounts
-                .FirstOrDefaultAsync(
-                    row => row.RestaurantId == restaurantId,
-                    cancellationToken
-                );
-            if (billingAccount == null)
-            {
-                throw new InvalidOperationException("billing_account_missing");
-            }
-
-            // Acquire sets SubscriptionPlan=Custom before first pay; RenewalDateUtc
-            // stays null until this apply. Renewals already have a renewal date.
-            var isFirstPaid = billingAccount.RenewalDateUtc == null;
-
-            billingAccount.SubscriptionPlan = BillingSubscriptionPlans.Custom;
-            billingAccount.BillingStatus = BillingStatuses.Active;
-            ClearPendingPayment(billingAccount);
-            billingAccount.BillingCycle = CadenceToBillingCycle(
-                intent.TargetCadence
-            );
-            var periodDays = string.Equals(
-                billingAccount.BillingCycle,
-                BillingCycles.Annual,
-                StringComparison.Ordinal
-            )
-                ? 365
-                : 30;
-            billingAccount.RenewalDateUtc = nowUtc.AddDays(periodDays);
-            billingAccount.PilotPeriodEnd = null;
-            billingAccount.SoftLockEnteredAt = null;
-            billingAccount.DormantEnteredAt = null;
-            billingAccount.GuestRetentionPurgedAtUtc = null;
-            billingAccount.PilotSoftLockNotified = false;
-            billingAccount.PilotDormantNotified = false;
-            billingAccount.DunningEpisodeStartedAt = null;
-            billingAccount.DunningFiredSteps = null;
-            billingAccount.DunningOutstandingOrderId = null;
-            intent.IsOpen = false;
-
-            await _context.SaveChangesAsync(cancellationToken);
-
-            await _mint.MintOnOrderCompletedAsync(
-                new IncludedPeriodOrderCompletedRequest
-                {
-                    RestaurantId = restaurantId,
-                    PaymentCompleted = true,
-                    CycleStartUtc = nowUtc,
-                    NextCycleStartUtc = billingAccount.RenewalDateUtc,
-                    CycleEndUtc = billingAccount.RenewalDateUtc,
-                },
-                cancellationToken
-            );
-
-            var invoice = await MintInvoiceAndDeliverEmailAsync(
-                new TummlyVatInvoiceMintRequest(
-                    RevolutOrderId: intent.OrderId,
-                    RevolutSubscriptionId: string.IsNullOrWhiteSpace(
-                        intent.RevolutSubscriptionId
-                    )
-                        ? null
-                        : intent.RevolutSubscriptionId,
-                    RestaurantId: restaurantId,
-                    Plan: BillingSubscriptionPlans.Custom,
-                    BillingCycle: billingAccount.BillingCycle
-                        ?? BillingCycles.Monthly,
-                    PaymentSuccessUtc: nowUtc,
-                    NetPenceOverride: intent.NetAmountMinor > 0
-                        ? intent.NetAmountMinor
-                        : null,
-                    LineDescriptionOverride: "Tummly Custom plan"
-                ),
-                cancellationToken
-            );
-
-            var actorName = await ResolveOwnerDisplayNameAsync(
-                restaurantId,
-                cancellationToken
-            );
-            BillingActivityWriter.TryAppend(
-                _context,
-                new BillingActivityAppendRequest
-                {
-                    RestaurantId = restaurantId,
-                    Kind = isFirstPaid
-                        ? BillingActivityKinds.SubscriptionCreated
-                        : BillingActivityKinds.SubscriptionRenewed,
-                    OccurredAtUtc = nowUtc,
-                    ActorDisplayName = isFirstPaid ? actorName : null,
-                    Plan = BillingSubscriptionPlans.Custom,
-                    Cadence = isFirstPaid
-                        ? billingAccount.BillingCycle ?? BillingCycles.Monthly
-                        : null,
-                }
-            );
-            if (invoice != null)
-            {
-                BillingActivityWriter.TryAppend(
-                    _context,
-                    new BillingActivityAppendRequest
-                    {
-                        RestaurantId = restaurantId,
-                        Kind = BillingActivityKinds.InvoicePaid,
-                        OccurredAtUtc = nowUtc,
-                        InvoiceNo = invoice.DocumentNumber,
-                    }
-                );
-            }
-
-            await _context.SaveChangesAsync(cancellationToken);
         }
 
         private async Task ApplyExtraLocationAsync(

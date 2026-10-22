@@ -39,7 +39,6 @@ Each feature block includes: user flow, states, backend actions, edge cases, scr
 | [support-playbooks.md](./support-playbooks.md) | Support topic index (SOPs TBD) | 2 |
 | [channel-credits-questionnaire.md](./channel-credits-questionnaire.md) | Points at pack v3.0 completed answers (not a commercial source) | Completed |
 | [billing-pack-v3.0/](./billing-pack-v3.0/) | Approved UK pricing and billing pack; pricebook JSON `tummly_uk_billing_config_v3.0.json` | Approved |
-| [group-custom-plan-support.md](./group-custom-plan-support.md) | Group extras vs Custom à-la-carte (Admin catalog, 500 locs, cycle renew/VAT/cancel) | Shipped (lifecycle); mid-contract edit Planned |
 | [channel-cost-analysis.md](./channel-cost-analysis.md) | Resend / Twilio / Azure COGS for Email, SMS, AI (pre-Campaigns) | Planned |
 
 ## Status summary

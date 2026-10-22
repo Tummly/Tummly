@@ -86,11 +86,6 @@ namespace TummlyBackend.DTOs.Admin
 
         public bool AvailableInShop { get; init; }
 
-        /// <summary>
-        /// When set, this SKU was promoted from a Register Interest product.
-        /// </summary>
-        public string? LinkedInterestProductKey { get; init; }
-
         public string AboutBody { get; init; } = string.Empty;
 
         public IReadOnlyList<ShopMaterialSpecificationRow> Specifications

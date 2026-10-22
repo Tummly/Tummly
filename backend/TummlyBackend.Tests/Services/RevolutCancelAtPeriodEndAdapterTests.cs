@@ -152,83 +152,6 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProcessJob_InLeadWindow_CancelsRevolut_KeepsPlanUntilRenewal()
-        {
-            var renewal = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
-            var inLeadWindow = renewal.AddHours(-2);
-            var merchant = new RecordingCancelMerchant();
-            var harness = await SeedPaidWithSubscriptionAsync(
-                merchant,
-                utcNow: inLeadWindow,
-                subscriptionId: "sub_lead_window"
-            );
-            var account = await harness.Context.BillingAccounts.SingleAsync();
-            account.ScheduledCancelPlan = true;
-            account.HasScheduledChange = true;
-            account.RenewalDateUtc = renewal;
-            await harness.Context.SaveChangesAsync();
-            var statusBefore = account.BillingStatus;
-
-            var yearStart = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            await InsertIncludedGrantAsync(
-                harness.Context,
-                harness.RestaurantId,
-                yearStart,
-                yearStart.AddMonths(1)
-            );
-
-            var result = await harness.Mint.ProcessJobForRestaurantAsync(
-                harness.RestaurantId,
-                nowUtc: inLeadWindow
-            );
-
-            Assert.True(result.Succeeded);
-            Assert.Equal(1, merchant.CancelCallCount);
-            Assert.Equal("sub_lead_window", merchant.LastCancelledSubscriptionId);
-
-            await harness.Context.Entry(account).ReloadAsync();
-            Assert.True(account.ScheduledCancelPlan);
-            Assert.Equal(statusBefore, account.BillingStatus);
-        }
-
-        [Fact]
-        public async Task Adapter_CancelNative_SkipsCancel_WhenRevolutAlreadyCancelled()
-        {
-            var merchant = new RecordingCancelMerchant { SubscriptionState = "cancelled" };
-            var context = CreateContext();
-            var restaurant = new Restaurant
-            {
-                Name = "Already Cancelled Cafe",
-                AccountType = "Single",
-                OwnerUserId = 1,
-                CreatedAt = _now,
-            };
-            context.Restaurants.Add(restaurant);
-            await context.SaveChangesAsync();
-            context.RevolutPendingPaySessions.Add(
-                new RevolutPendingPaySession
-                {
-                    Id = Guid.NewGuid(),
-                    RestaurantId = restaurant.Id,
-                    TargetPlan = BillingSubscriptionPlans.Growth,
-                    TargetCadence = "monthly",
-                    RevolutSubscriptionId = "sub_done",
-                    SetupOrderId = "ord_done",
-                    CheckoutUrl = "https://checkout.revolut.com/done",
-                    IdempotencyKey = "k-done",
-                    IsOpen = false,
-                    CreatedAtUtc = _now,
-                }
-            );
-            await context.SaveChangesAsync();
-
-            var adapter = new RevolutCancelAtPeriodEndAdapter(context, merchant);
-            await adapter.CancelNativeSubscriptionAsync(restaurant.Id);
-
-            Assert.Equal(0, merchant.CancelCallCount);
-        }
-
-        [Fact]
         public async Task Adapter_CancelNative_CallsMerchant_WhenSubscriptionCorrelated()
         {
             var merchant = new RecordingCancelMerchant();
@@ -510,22 +433,6 @@ namespace TummlyBackend.Tests.Services
         {
             public int CancelCallCount { get; private set; }
 
-            /// <summary>Null: subscription read fails (falls through).</summary>
-            public string? SubscriptionState { get; set; }
-
-            public Task<RevolutSubscriptionRetrieveResult> GetSubscriptionAsync(
-                string subscriptionId,
-                CancellationToken cancellationToken = default
-            ) => Task.FromResult(
-                SubscriptionState == null
-                    ? new RevolutSubscriptionRetrieveResult(Succeeded: false)
-                    : new RevolutSubscriptionRetrieveResult(
-                        Succeeded: true,
-                        Id: subscriptionId,
-                        State: SubscriptionState
-                    )
-            );
-
             public string? LastCancelledSubscriptionId { get; private set; }
 
             public void EnsureReadyForCreate(string? planVariationLookupKey = null)
@@ -558,6 +465,14 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             ) => throw new NotImplementedException();
 
+
+public Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
+
+                string subscriptionId,
+
+                CancellationToken cancellationToken = default
+
+            ) => throw new NotImplementedException();
 
             public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
                 string subscriptionId,

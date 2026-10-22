@@ -162,33 +162,6 @@ export function ManagePlanCardsSection({
 
   return (
     <div className={MANAGE_PLAN_BODY_STACK_CLASS}>
-      {snap.showRetryPendingPayment ? (
-        <section className={MANAGE_PLAN_CURRENT_PLAN_CARD_CLASS}>
-          <div className="flex flex-col gap-2">
-            <h2 className={MANAGE_PLAN_CURRENT_PLAN_NAME_CLASS}>
-              {MANAGE_PLAN_COPY.pendingPaymentHeading}
-            </h2>
-            <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
-              {MANAGE_PLAN_COPY.pendingPaymentBody(
-                snap.planSubscription?.pendingPayment?.plan ?? ""
-              )}
-            </p>
-            <div className="pt-2">
-              <Button
-                type="button"
-                variant="op-primary"
-                className="h-11"
-                disabled={snap.retryPendingPaymentBusy}
-                onClick={() => {
-                  void pageModule.retryPendingPayment()
-                }}
-              >
-                {MANAGE_PLAN_COPY.retryPendingPayment}
-              </Button>
-            </div>
-          </div>
-        </section>
-      ) : null}
       {snap.currentPlanSummary != null ? (
         <section className={MANAGE_PLAN_CURRENT_PLAN_CARD_CLASS}>
           <div className="flex flex-col gap-2">
@@ -201,27 +174,6 @@ export function ManagePlanCardsSection({
             <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
               {snap.currentPlanSummary}
             </p>
-            {snap.planSubscription?.subscriptionPlan === "Custom" &&
-            snap.showCancelPlan ? (
-              <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
-                {MANAGE_PLAN_COPY.customCancelFirstHint}
-              </p>
-            ) : null}
-            {snap.showResumeCustomCyclePay ? (
-              <div className="pt-2">
-                <Button
-                  type="button"
-                  variant="op-primary"
-                  className="h-11"
-                  disabled={snap.resumeCustomCycleBusy}
-                  onClick={() => {
-                    void pageModule.resumeCustomPlanCycle()
-                  }}
-                >
-                  {MANAGE_PLAN_COPY.resumeCustomCyclePay}
-                </Button>
-              </div>
-            ) : null}
           </div>
         </section>
       ) : null}

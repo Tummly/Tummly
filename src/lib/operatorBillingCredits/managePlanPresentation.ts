@@ -4,8 +4,8 @@ export const MANAGE_PLAN_IDS = ["Pilot", "Starter", "Growth", "Group"] as const
 
 export type ManagePlanId = (typeof MANAGE_PLAN_IDS)[number]
 
-/** Catalog cards plus Free / Custom (not shown as purchasable cards). */
-export type ManagePlanCurrentId = ManagePlanId | "Free" | "Custom"
+/** Catalog cards plus Free (not shown as a card; current-plan only). */
+export type ManagePlanCurrentId = ManagePlanId | "Free"
 
 export type BillingCadence = "monthly" | "annual"
 
@@ -472,14 +472,6 @@ export const MANAGE_PLAN_COPY = {
   cadenceMonthly: "Monthly",
   cadenceAnnual: "Annual",
   cadenceAnnualSave: "SAVE 15%",
-  cancelCustomFirst: "Cancel Custom first",
-  customCancelFirstHint:
-    "Your Custom plan is active. To move to another plan, cancel the Custom plan first.",
-  resumeCustomCyclePay: "Pay now / Resume checkout",
-  pendingPaymentHeading: "Payment failed",
-  pendingPaymentBody: (plan: string) =>
-    `Your ${plan} plan is not active yet. Your account stays on Free until payment is complete. Retry payment to activate it.`,
-  retryPendingPayment: "Retry payment",
   vatNotice:
     "Prices shown exclude VAT. VAT is added at checkout when applicable.",
   comparisonFeature: "Feature",
@@ -579,9 +571,6 @@ export function normalizeCurrentPlanId(plan: string): ManagePlanCurrentId {
   if (plan === "Free") {
     return "Free"
   }
-  if (plan === "Custom") {
-    return "Custom"
-  }
   return normalizePlanId(plan)
 }
 
@@ -616,10 +605,6 @@ export function resolvePlanChangeKind(options: {
     return "convert"
   }
 
-  if (currentPlanId === "Custom") {
-    return "convert"
-  }
-
   if (liveCadence != null && previewCadence !== liveCadence) {
     return "plan-and-cadence"
   }
@@ -651,14 +636,6 @@ export function resolvePlanCardCta(options: {
     previewCadence,
     lockMode = "none",
   } = options
-
-  if (currentPlanId === "Custom") {
-    return {
-      kind: "disabled",
-      label: MANAGE_PLAN_COPY.cancelCustomFirst,
-      disabled: true,
-    }
-  }
 
   if (cardPlanId === "Pilot" && !isPilot) {
     if (currentPlanId === "Free") {
@@ -932,10 +909,6 @@ export function formatCurrentPlanSummary(plan: PlanSubscriptionSnapshot): string
   const cadence =
     plan.billingCycle?.toLowerCase() === "annual" ? "year" : "month"
   const renewal = plan.renewalDateLabel ?? "—"
-  if (plan.subscriptionPlan === "Custom" && plan.customPlan != null) {
-    const q = plan.customPlan
-    return `${plan.planPriceNet}/${cadence} · ${renewal} · ${q.locations} locations · ${q.emailCredits} email / ${q.smsCredits} SMS / ${q.aiCredits} AI`
-  }
   return `${plan.planPriceNet}/${cadence} · ${renewal}`
 }
 

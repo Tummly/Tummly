@@ -10,9 +10,6 @@ namespace TummlyBackend.Billing
 
         public int Current { get; init; }
 
-        /// <summary>Set when a scheduled downgrade sets the cap.</summary>
-        public string? Message { get; init; }
-
         public static TeamMemberCapDecision Allow(int cap, int current) => new()
         {
             AllowIncrement = true,
@@ -20,16 +17,11 @@ namespace TummlyBackend.Billing
             Current = current,
         };
 
-        public static TeamMemberCapDecision AtCap(
-            int cap,
-            int current,
-            string? message = null
-        ) => new()
+        public static TeamMemberCapDecision AtCap(int cap, int current) => new()
         {
             AllowIncrement = false,
             Cap = cap,
             Current = current,
-            Message = message,
         };
 
         public static TeamMemberCapDecision UnavailableNow() => new()

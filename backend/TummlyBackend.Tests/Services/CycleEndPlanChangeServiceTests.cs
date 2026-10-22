@@ -49,88 +49,6 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
-        [Theory]
-        [InlineData(false, 0, null)]
-        [InlineData(true, 1, RevolutPlanVariationKeys.GrowthMonthly)]
-        [InlineData(null, 1, RevolutPlanVariationKeys.GrowthMonthly)]
-        public async Task Restore_ChecksRevolutScheduledAction_BeforeChangePlan(
-            bool? hasScheduledAction,
-            int expectedCalls,
-            string? expectedKey
-        )
-        {
-            await using var context = CreateContext();
-            var restaurantId = await SeedRestaurantAsync(context);
-            AddSubscription(context, restaurantId, "sub_restore");
-            await context.SaveChangesAsync();
-
-            var merchant = new FakeFirstPaidRevolutMerchantClient
-            {
-                SubscriptionHasScheduledAction = hasScheduledAction,
-            };
-            var service = new CycleEndPlanChangeService(context, merchant);
-
-            await service.RestoreLiveRevolutPlanIfNeededAsync(
-                restaurantId,
-                BillingSubscriptionPlans.Growth,
-                "monthly",
-                paidExtraLocationCount: 0
-            );
-
-            Assert.Equal(expectedCalls, merchant.ChangeSubscriptionPlanCallCount);
-            Assert.Equal(expectedKey, merchant.LastChangePlanLookupKey);
-        }
-
-        [Fact]
-        public async Task Restore_GroupWithExtras_UsesGroupLocationVariation()
-        {
-            await using var context = CreateContext();
-            var restaurantId = await SeedRestaurantAsync(context);
-            AddSubscription(context, restaurantId, "sub_group");
-            await context.SaveChangesAsync();
-
-            var merchant = new FakeFirstPaidRevolutMerchantClient
-            {
-                SubscriptionHasScheduledAction = true,
-            };
-            var service = new CycleEndPlanChangeService(context, merchant);
-
-            await service.RestoreLiveRevolutPlanIfNeededAsync(
-                restaurantId,
-                BillingSubscriptionPlans.Group,
-                "annual",
-                paidExtraLocationCount: 2
-            );
-
-            Assert.Equal(
-                RevolutPlanVariationKeys.GroupLocationAnnual,
-                merchant.LastChangePlanLookupKey
-            );
-        }
-
-        private static void AddSubscription(
-            ApplicationDbContext context,
-            int restaurantId,
-            string subscriptionId
-        )
-        {
-            context.RevolutPendingPaySessions.Add(
-                new RevolutPendingPaySession
-                {
-                    Id = Guid.NewGuid(),
-                    RestaurantId = restaurantId,
-                    TargetPlan = "Growth",
-                    TargetCadence = "monthly",
-                    RevolutSubscriptionId = subscriptionId,
-                    SetupOrderId = $"ord_{subscriptionId}",
-                    CheckoutUrl = "https://checkout.example/x",
-                    IdempotencyKey = $"key-{subscriptionId}",
-                    IsOpen = false,
-                    CreatedAtUtc = DateTime.UtcNow.AddDays(-10),
-                }
-            );
-        }
-
         [Fact]
         public async Task Apply_FailsClosed_WhenMerchantReportsVariationMissing()
         {
@@ -263,6 +181,14 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             ) => throw new NotImplementedException();
 
+
+public Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
+
+                string subscriptionId,
+
+                CancellationToken cancellationToken = default
+
+            ) => throw new NotImplementedException();
 
             public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
                 string subscriptionId,

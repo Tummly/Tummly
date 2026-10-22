@@ -6,31 +6,12 @@ namespace TummlyBackend.Billing.PlanEntitlements
     {
         public const int GroupSelfServeMax = 30;
 
-        public const int CustomMax = 500;
-
         public const string CapReachedCode = "location_cap_reached";
 
         public static bool TryResolve(
             PricebookSnapshot book,
             string subscriptionPlan,
             int paidExtraLocationCount,
-            out int entitled
-        )
-        {
-            return TryResolve(
-                book,
-                subscriptionPlan,
-                paidExtraLocationCount,
-                customConfiguredLocations: null,
-                out entitled
-            );
-        }
-
-        public static bool TryResolve(
-            PricebookSnapshot book,
-            string subscriptionPlan,
-            int paidExtraLocationCount,
-            int? customConfiguredLocations,
             out int entitled
         )
         {
@@ -41,13 +22,6 @@ namespace TummlyBackend.Billing.PlanEntitlements
             }
 
             var key = subscriptionPlan.Trim().ToLowerInvariant();
-            if (key == "custom")
-            {
-                var locs = Math.Max(0, customConfiguredLocations ?? 0);
-                entitled = Math.Min(locs, CustomMax);
-                return true;
-            }
-
             if (!book.Plans.TryGetValue(key, out var plan))
             {
                 return false;

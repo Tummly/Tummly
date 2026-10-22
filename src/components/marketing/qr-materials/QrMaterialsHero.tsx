@@ -61,7 +61,7 @@ export function QrMaterialsHero() {
               </MarketingButton>
             </div>
 
-            <p className="m-0 max-w-[560px] text-xs font-inter font-medium leading-normal text-[#727272]">
+            <p className="m-0 max-w-[560px] font-sans text-xs font-medium leading-normal text-[#727272]">
               {QR_MATERIALS_HERO.note}
             </p>
           </div>

@@ -96,8 +96,7 @@ namespace TummlyBackend.Services
             var skus = await query
                 .OrderBy(row => row.Title)
                 .ToListAsync(cancellationToken);
-            var linkedBySku = await LoadLinkedInterestKeysAsync(cancellationToken);
-            return skus.Select(row => MapSku(row, linkedBySku)).ToList();
+            return skus.Select(MapSku).ToList();
         }
 
         public async Task<AdminShopCatalogSkuDto?> GetSkuAsync(
@@ -106,13 +105,9 @@ namespace TummlyBackend.Services
         )
         {
             var sku = await LoadSkuAsync(skuId, tracking: false, cancellationToken);
-            if (sku == null || sku.Status == ShopMaterialSkuStatuses.Deleted)
-            {
-                return null;
-            }
-
-            var linkedBySku = await LoadLinkedInterestKeysAsync(cancellationToken);
-            return MapSku(sku, linkedBySku);
+            return sku == null || sku.Status == ShopMaterialSkuStatuses.Deleted
+                ? null
+                : MapSku(sku);
         }
 
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> CreateSkuAsync(
@@ -298,7 +293,7 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync(cancellationToken);
 
             var loaded = await LoadSkuAsync(skuId, tracking: false, cancellationToken);
-            return (await MapSkuAsync(loaded!, cancellationToken), null);
+            return (MapSku(loaded!), null);
         }
 
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> UpdateSkuAsync(
@@ -459,7 +454,7 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync(cancellationToken);
 
             var loaded = await LoadSkuAsync(skuId, tracking: false, cancellationToken);
-            return (await MapSkuAsync(loaded!, cancellationToken), null);
+            return (MapSku(loaded!), null);
         }
 
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> PublishAsync(
@@ -483,7 +478,7 @@ namespace TummlyBackend.Services
             sku.PublishedAtUtc ??= DateTime.UtcNow;
             sku.UpdatedAtUtc = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
-            return (await MapSkuAsync(sku, cancellationToken), null);
+            return (MapSku(sku), null);
         }
 
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> SetAvailableInShopAsync(
@@ -510,7 +505,7 @@ namespace TummlyBackend.Services
 
             if (sku.AvailableInShop == availableInShop)
             {
-                return (await MapSkuAsync(sku, cancellationToken), null);
+                return (MapSku(sku), null);
             }
 
             sku.AvailableInShop = availableInShop;
@@ -530,7 +525,7 @@ namespace TummlyBackend.Services
             );
 
             await _context.SaveChangesAsync(cancellationToken);
-            return (await MapSkuAsync(sku, cancellationToken), null);
+            return (MapSku(sku), null);
         }
 
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> UnpublishAsync(
@@ -547,7 +542,7 @@ namespace TummlyBackend.Services
             sku.Status = ShopMaterialSkuStatuses.Draft;
             sku.UpdatedAtUtc = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
-            return (await MapSkuAsync(sku, cancellationToken), null);
+            return (MapSku(sku), null);
         }
 
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> DeleteAsync(
@@ -563,13 +558,13 @@ namespace TummlyBackend.Services
 
             if (sku.Status == ShopMaterialSkuStatuses.Deleted)
             {
-                return (await MapSkuAsync(sku, cancellationToken), null);
+                return (MapSku(sku), null);
             }
 
             sku.Status = ShopMaterialSkuStatuses.Deleted;
             sku.UpdatedAtUtc = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
-            return (await MapSkuAsync(sku, cancellationToken), null);
+            return (MapSku(sku), null);
         }
 
         public async Task<IReadOnlyList<AdminShopCatalogTagDto>> ListTagsAsync(
@@ -743,7 +738,7 @@ namespace TummlyBackend.Services
 
             sku.UpdatedAtUtc = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
-            return (await MapSkuAsync(sku, cancellationToken), null);
+            return (MapSku(sku), null);
         }
 
         public async Task<(bool Ok, string? Error)> DeleteImageAsync(
@@ -1002,35 +997,7 @@ namespace TummlyBackend.Services
             return Math.Max(0, value.Value);
         }
 
-        private async Task<Dictionary<string, string>> LoadLinkedInterestKeysAsync(
-            CancellationToken cancellationToken
-        )
-        {
-            var rows = await _context.ShopInterestProducts
-                .AsNoTracking()
-                .Where(row => row.LinkedSkuId != null && row.LinkedSkuId != "")
-                .Select(row => new { row.LinkedSkuId, row.ProductKey })
-                .ToListAsync(cancellationToken);
-            return rows.ToDictionary(
-                row => row.LinkedSkuId!,
-                row => row.ProductKey,
-                StringComparer.Ordinal
-            );
-        }
-
-        private async Task<AdminShopCatalogSkuDto> MapSkuAsync(
-            ShopMaterialSku sku,
-            CancellationToken cancellationToken
-        )
-        {
-            var linkedBySku = await LoadLinkedInterestKeysAsync(cancellationToken);
-            return MapSku(sku, linkedBySku);
-        }
-
-        private static AdminShopCatalogSkuDto MapSku(
-            ShopMaterialSku sku,
-            IReadOnlyDictionary<string, string>? linkedBySku = null
-        ) =>
+        private static AdminShopCatalogSkuDto MapSku(ShopMaterialSku sku) =>
             new()
             {
                 SkuId = sku.SkuId,
@@ -1056,11 +1023,6 @@ namespace TummlyBackend.Services
                 MintOnShopFulfilment = sku.MintOnShopFulfilment,
                 Status = sku.Status,
                 AvailableInShop = sku.AvailableInShop,
-                LinkedInterestProductKey =
-                    linkedBySku != null
-                    && linkedBySku.TryGetValue(sku.SkuId, out var interestKey)
-                        ? interestKey
-                        : null,
                 AboutBody = sku.AboutBody ?? string.Empty,
                 Specifications = ShopMaterialSpecifications.Parse(
                     sku.SpecificationsJson

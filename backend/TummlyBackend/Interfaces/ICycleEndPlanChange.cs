@@ -18,19 +18,5 @@ namespace TummlyBackend.Interfaces
             string targetCadenceApi,
             CancellationToken cancellationToken = default
         );
-
-        /// <summary>
-        /// Clear of a scheduled change: call <c>change-plan</c> with
-        /// <c>at_cycle_end</c> for the live plan variation (Group with paid
-        /// extras maps to the Group Location variation). Missing map fails
-        /// closed. No-op when no subscription id.
-        /// </summary>
-        Task RestoreLiveRevolutPlanIfNeededAsync(
-            int restaurantId,
-            string livePlan,
-            string liveCadenceApi,
-            int paidExtraLocationCount,
-            CancellationToken cancellationToken = default
-        );
     }
 }

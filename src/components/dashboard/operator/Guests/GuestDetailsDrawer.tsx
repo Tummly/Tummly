@@ -58,20 +58,14 @@ function Section({
   children,
   className,
   headerAction,
-  demoTourTarget,
 }: {
   title: string
   children: ReactNode
   className?: string
   headerAction?: ReactNode
-  /** Product demo tour anchor (`data-demo-tour`). */
-  demoTourTarget?: string
 }) {
   return (
-    <section
-      className={cn(DRAWER_SECTION_CLASS, className)}
-      data-demo-tour={demoTourTarget}
-    >
+    <section className={cn(DRAWER_SECTION_CLASS, className)}>
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-lg font-bold text-foreground">{title}</h3>
         {headerAction}
@@ -301,10 +295,7 @@ function LoadedBody({
 
   return (
     <>
-      <Section
-        title="Contact and permissions"
-        demoTourTarget="guest-permissions"
-      >
+      <Section title="Contact and permissions">
         <DetailRow
           label="Email:"
           value={details.emailDisplay}
@@ -324,10 +315,7 @@ function LoadedBody({
         />
       </Section>
 
-      <Section
-        title="Relationship summary"
-        demoTourTarget="guest-profile-panel"
-      >
+      <Section title="Relationship summary">
         <DetailRow
           label="First captured:"
           value={details.firstCapturedDisplay}

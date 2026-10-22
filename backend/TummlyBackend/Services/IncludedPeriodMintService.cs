@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -14,12 +13,6 @@ namespace TummlyBackend.Services
     {
         private static readonly ConcurrentDictionary<int, SemaphoreSlim> AccountLocks
             = new();
-
-        /// <summary>
-        /// How long before renewal the job cancels the Revolut subscription
-        /// for a scheduled Cancel plan. The job runs hourly.
-        /// </summary>
-        public static readonly TimeSpan RevolutCancelLead = TimeSpan.FromHours(24);
 
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebook;
@@ -93,11 +86,13 @@ namespace TummlyBackend.Services
                         );
                     if (scheduleResult == ScheduledChangeApplyResult.GateFailed)
                     {
-                        // Usage is over the scheduled target, but Revolut already
-                        // bills it. Keep the live plan and its credits so the
-                        // account is not left with no credits, keep the slot so
-                        // the next renewal tries again, and flag it for Admin.
-                        AppendScheduledChangeGateFailedAudit(billingAccount, nowUtc);
+                        return await AbortOwnedAsync(
+                            session,
+                            IncludedPeriodMintResult.Skipped(
+                                "scheduled_change_gate_failed"
+                            ),
+                            cancellationToken
+                        );
                     }
 
                     var period = ResolveOrderCompletedPeriod(
@@ -155,23 +150,6 @@ namespace TummlyBackend.Services
                         effectiveNow
                     );
 
-                    // Native Revolut cancel runs from RevolutCancelLead before
-                    // renewal so Revolut cannot bill the next cycle first. The
-                    // paid period still runs to renewal on Tummly clocks.
-                    if (
-                        billingAccount.ScheduledCancelPlan
-                        && billingAccount.RenewalDateUtc != null
-                        && effectiveNow
-                            >= billingAccount.RenewalDateUtc.Value - RevolutCancelLead
-                        && effectiveNow < billingAccount.RenewalDateUtc.Value
-                    )
-                    {
-                        await _revolutCancel.CancelNativeSubscriptionAsync(
-                            billingAccount.RestaurantId,
-                            cancellationToken
-                        );
-                    }
-
                     if (
                         billingAccount.ScheduledCancelPlan
                         && billingAccount.RenewalDateUtc != null
@@ -181,7 +159,6 @@ namespace TummlyBackend.Services
                         var renewalEnd = billingAccount.RenewalDateUtc!.Value;
                         billingAccount.ClearScheduledChangeSlot();
 
-                        // Idempotent: no-op when the lead-window call already ran.
                         await _revolutCancel.CancelNativeSubscriptionAsync(
                             billingAccount.RestaurantId,
                             cancellationToken
@@ -421,56 +398,29 @@ namespace TummlyBackend.Services
             var pricebookId = ResolveMintPricebookId(billingAccount, entries);
             var pricebook = _pricebook.GetRequired(pricebookId);
             var planKey = SubscriptionPlanKey(billingAccount.SubscriptionPlan);
-
-            IEnumerable<(string Channel, int Quantity)> quantities;
-            if (
-                string.Equals(
-                    billingAccount.SubscriptionPlan,
-                    BillingSubscriptionPlans.Custom,
-                    StringComparison.Ordinal
-                )
-            )
+            if (!pricebook.Plans.TryGetValue(planKey, out var plan))
             {
-                var custom = CustomPlanConfig.TryParse(
-                    billingAccount.CustomPlanConfigJson
-                );
-                if (custom == null)
-                {
-                    return await AbortOwnedAsync(
-                        session,
-                        IncludedPeriodMintResult.Skipped("custom_plan_config_missing"),
-                        cancellationToken
-                    );
-                }
-
-                quantities = ResolveCustomChannelQuantities(custom);
-            }
-            else
-            {
-                if (!pricebook.Plans.TryGetValue(planKey, out var plan))
-                {
-                    return await AbortOwnedAsync(
-                        session,
-                        IncludedPeriodMintResult.Skipped("plan_not_in_pricebook"),
-                        cancellationToken
-                    );
-                }
-
-                if (plan.CreditsMonthly == null)
-                {
-                    return await AbortOwnedAsync(
-                        session,
-                        IncludedPeriodMintResult.Skipped("plan_has_no_monthly_credits"),
-                        cancellationToken
-                    );
-                }
-
-                quantities = ResolveChannelQuantities(
-                    plan.CreditsMonthly,
-                    pricebook.ExtraLocationCreditsMonthly,
-                    billingAccount.PaidExtraLocationCount
+                return await AbortOwnedAsync(
+                    session,
+                    IncludedPeriodMintResult.Skipped("plan_not_in_pricebook"),
+                    cancellationToken
                 );
             }
+
+            if (plan.CreditsMonthly == null)
+            {
+                return await AbortOwnedAsync(
+                    session,
+                    IncludedPeriodMintResult.Skipped("plan_has_no_monthly_credits"),
+                    cancellationToken
+                );
+            }
+
+            var quantities = ResolveChannelQuantities(
+                plan.CreditsMonthly,
+                pricebook.ExtraLocationCreditsMonthly,
+                billingAccount.PaidExtraLocationCount
+            );
 
             var insertedIds = new List<Guid>();
             foreach (var (channel, quantity) in quantities)
@@ -710,15 +660,6 @@ namespace TummlyBackend.Services
             );
         }
 
-        private static IEnumerable<(string Channel, int Quantity)> ResolveCustomChannelQuantities(
-            CustomPlanConfig custom
-        )
-        {
-            yield return (CreditChannels.Ai, Math.Max(0, custom.Quantities.AiCredits));
-            yield return (CreditChannels.Email, Math.Max(0, custom.Quantities.EmailCredits));
-            yield return (CreditChannels.Sms, Math.Max(0, custom.Quantities.SmsCredits));
-        }
-
         private static string SubscriptionPlanKey(string subscriptionPlan)
         {
             return subscriptionPlan.Trim().ToLowerInvariant() switch
@@ -726,7 +667,6 @@ namespace TummlyBackend.Services
                 BillingSubscriptionPlans.Pilot => "pilot",
                 BillingSubscriptionPlans.Starter => "starter",
                 BillingSubscriptionPlans.Growth => "growth",
-                BillingSubscriptionPlans.Custom => "custom",
                 BillingSubscriptionPlans.Group => "group",
                 _ => subscriptionPlan.Trim().ToLowerInvariant(),
             };
@@ -789,41 +729,6 @@ namespace TummlyBackend.Services
             }
 
             return IncludedPeriodMintResult.Skipped("cancel_applied");
-        }
-
-        private void AppendScheduledChangeGateFailedAudit(
-            BillingAccount billingAccount,
-            DateTime nowUtc
-        )
-        {
-            _context.AdminAuditEvents.Add(
-                new AdminAuditEvent
-                {
-                    Id = Guid.NewGuid(),
-                    OccurredAtUtc = nowUtc,
-                    Action = AdminAuditActions.BillingScheduledChangeGateFailed,
-                    ActorIdentity = "system:renewal",
-                    TargetType = AdminAuditTargetTypes.Restaurant,
-                    TargetId = billingAccount.RestaurantId.ToString(
-                        System.Globalization.CultureInfo.InvariantCulture
-                    ),
-                    RestaurantId = billingAccount.RestaurantId,
-                    DetailJson = System.Text.Json.JsonSerializer.Serialize(
-                        new
-                        {
-                            livePlan = billingAccount.SubscriptionPlan,
-                            liveBillingCycle = billingAccount.BillingCycle,
-                            livePaidExtraLocationCount =
-                                billingAccount.PaidExtraLocationCount,
-                            targetPlan = billingAccount.ScheduledTargetSubscriptionPlan,
-                            targetBillingCycle = billingAccount.ScheduledTargetBillingCycle,
-                            targetPaidExtraLocationCount =
-                                billingAccount.ScheduledTargetExtraLocationCount,
-                        }
-                    ),
-                    Succeeded = false,
-                }
-            );
         }
 
         private static async Task<IncludedPeriodMintResult> AbortOwnedAsync(

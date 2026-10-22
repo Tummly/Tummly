@@ -8,7 +8,6 @@ import {
 } from "@/api/shopInterestApi"
 import interestRegisteredCheck from "@/assets/images/shop/interest/interest-registered-check.svg"
 import { Button } from "@/components/ui/button"
-import { resolveShopCatalogImageSrc } from "@/lib/operatorShop/resolveShopCatalogImageSrc"
 import {
   SHOP_PRODUCT_CARD_PRIMARY_CLASS,
   SHOP_PRODUCT_CARD_PRIMARY_IMAGE_CLASS,
@@ -129,7 +128,7 @@ export function ShopInterestSection({
               <div className={SHOP_PRODUCT_CARD_PRIMARY_IMAGE_CLASS}>
                 {product.imageUrl ? (
                   <img
-                    src={resolveShopCatalogImageSrc(product.imageUrl)}
+                    src={product.imageUrl}
                     alt={product.title}
                     className="size-full object-contain"
                   />

@@ -1,8 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Data;
-using TummlyBackend.DTOs.Admin;
 using TummlyBackend.DTOs.Signup;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -12,29 +10,19 @@ namespace TummlyBackend.Services
 {
     public class SignupService : ISignupService
     {
-        public const string ChoosePlanMessage = "Choose a plan to continue.";
-
-        private static readonly TimeSpan SessionLoginWindow = TimeSpan.FromHours(24);
-
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
         private readonly IProvisioningService _provisioningService;
-        private readonly ICustomPlanQuoteService _customPlanQuote;
-        private readonly IJwtService _jwt;
 
         public SignupService(
             ApplicationDbContext context,
             IEmailService emailService,
-            IProvisioningService provisioningService,
-            ICustomPlanQuoteService customPlanQuote,
-            IJwtService jwt
+            IProvisioningService provisioningService
         )
         {
             _context = context;
             _emailService = emailService;
             _provisioningService = provisioningService;
-            _customPlanQuote = customPlanQuote;
-            _jwt = jwt;
         }
 
         public async Task<SignupSessionResponse> StartAsync(StartSignupDto dto)
@@ -220,8 +208,6 @@ namespace TummlyBackend.Services
             }
 
             pending.FullName = dto.FullName.Trim();
-            // One Location before payment. Multi promotion runs when more Locations
-            // become Active/Paused (RestaurantAccountTypePromotion) — same as Group.
             pending.AccountType = "Single";
             pending.OnboardingJson = JsonSerializer.Serialize(
                 new SignupOnboardingPayload
@@ -234,8 +220,11 @@ namespace TummlyBackend.Services
                     Locations = dto.Locations,
                 }
             );
-            await ApplyChosenPlanAsync(pending, dto);
-
+            pending.ChosenPlan = ResolveChosenPlan(dto.ChosenPlan);
+            pending.ChosenCadence = ResolveChosenCadence(
+                pending.ChosenPlan,
+                dto.ChosenCadence
+            );
             pending.Status = PendingSignupStatuses.Provisioning;
             pending.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -286,17 +275,6 @@ namespace TummlyBackend.Services
 
             if (pending.Status == PendingSignupStatuses.Complete)
             {
-                // Provisioned, but the paid checkout did not open: open it again.
-                if (
-                    IsPaidChosenPlan(pending.ChosenPlan)
-                    && await ResolvePaidCheckoutFailureAsync(pending) != null
-                )
-                {
-                    await _provisioningService.RetryPaidSignupCheckoutAsync(
-                        pending.Id
-                    );
-                }
-
                 return;
             }
 
@@ -315,230 +293,14 @@ namespace TummlyBackend.Services
 
             if (string.IsNullOrWhiteSpace(pending.ChosenPlan))
             {
-                throw new Exception(ChoosePlanMessage);
+                pending.ChosenPlan = BillingSubscriptionPlans.Free;
+                pending.ChosenCadence = "monthly";
             }
             pending.Status = PendingSignupStatuses.Provisioning;
             pending.UpdatedAtUtc = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
             await _provisioningService.ProvisionFromPendingAsync(pending.Id);
-        }
-
-        public async Task<object> SessionLoginAsync(
-            Guid sessionToken,
-            bool continueOnFree = false
-        )
-        {
-            var pending = await FindBySessionTokenAsync(sessionToken);
-
-            if (pending.Status != PendingSignupStatuses.Complete)
-            {
-                throw new SignupConflictException(
-                    "payment_pending",
-                    "Payment or provisioning is not complete yet."
-                );
-            }
-
-            if (pending.SessionLoginConsumedAtUtc != null)
-            {
-                throw new SignupConflictException(
-                    "session_login_used",
-                    "This signup login link was already used."
-                );
-            }
-
-            var completedAt = pending.UpdatedAtUtc;
-            if (DateTime.UtcNow - completedAt > SessionLoginWindow)
-            {
-                throw new Exception("Signup session login has expired.");
-            }
-
-            var user = await _context.Users.FirstOrDefaultAsync(row =>
-                row.Email == pending.Email
-            );
-            if (user == null)
-            {
-                throw new SignupConflictException(
-                    "payment_pending",
-                    "Payment or provisioning is not complete yet."
-                );
-            }
-
-            if (user.SelectedRestaurantId is not int restaurantId || restaurantId == 0)
-            {
-                throw new SignupConflictException(
-                    "payment_pending",
-                    "Payment or provisioning is not complete yet."
-                );
-            }
-
-            var billing = await _context.BillingAccounts
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
-            if (
-                billing == null
-                || !(
-                    IsSessionLoginBillingReady(billing)
-                    || (continueOnFree && IsFreeAfterFailedCheckout(billing))
-                )
-            )
-            {
-                throw new SignupConflictException(
-                    "payment_pending",
-                    "Payment or provisioning is not complete yet."
-                );
-            }
-
-            await ClaimSessionLoginAsync(pending);
-
-            var owner = user;
-            if (user.SelectedRestaurantId is int rid)
-            {
-                var ownerId = await _context.Restaurants
-                    .AsNoTracking()
-                    .Where(row => row.Id == rid)
-                    .Select(row => row.OwnerUserId)
-                    .FirstOrDefaultAsync();
-                if (ownerId != 0 && ownerId != user.Id)
-                {
-                    owner =
-                        await _context.Users.FirstOrDefaultAsync(row =>
-                            row.Id == ownerId
-                        ) ?? user;
-                }
-            }
-
-            var session = await IssueSessionAsync(user, owner);
-            await _context.SaveChangesAsync();
-            return session;
-        }
-
-        /// <summary>
-        /// One-time claim. On SQL Server a conditional update makes two parallel
-        /// calls race-safe: only the first one sets the column.
-        /// </summary>
-        private async Task ClaimSessionLoginAsync(PendingSignup pending)
-        {
-            var now = DateTime.UtcNow;
-            if (_context.Database.IsRelational())
-            {
-                var updated = await _context.PendingSignups
-                    .Where(row =>
-                        row.Id == pending.Id
-                        && row.SessionLoginConsumedAtUtc == null
-                    )
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(row => row.SessionLoginConsumedAtUtc, now)
-                        .SetProperty(row => row.UpdatedAtUtc, now)
-                    );
-                if (updated == 0)
-                {
-                    throw new SignupConflictException(
-                        "session_login_used",
-                        "This signup login link was already used."
-                    );
-                }
-
-                pending.SessionLoginConsumedAtUtc = now;
-                pending.UpdatedAtUtc = now;
-                return;
-            }
-
-            pending.SessionLoginConsumedAtUtc = now;
-            pending.UpdatedAtUtc = now;
-        }
-
-        private static bool IsFreeAfterFailedCheckout(BillingAccount billing) =>
-            string.Equals(
-                billing.SubscriptionPlan,
-                BillingSubscriptionPlans.Free,
-                StringComparison.Ordinal
-            )
-            && !string.IsNullOrWhiteSpace(billing.PendingPaymentFailureCode);
-
-        private static bool IsSessionLoginBillingReady(BillingAccount billing)
-        {
-            if (
-                string.Equals(
-                    billing.SubscriptionPlan,
-                    BillingSubscriptionPlans.Pilot,
-                    StringComparison.Ordinal
-                )
-                && string.Equals(
-                    billing.BillingStatus,
-                    BillingStatuses.Pilot,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                return true;
-            }
-
-            return string.Equals(
-                    billing.BillingStatus,
-                    BillingStatuses.Active,
-                    StringComparison.Ordinal
-                )
-                && !string.Equals(
-                    billing.SubscriptionPlan,
-                    BillingSubscriptionPlans.Free,
-                    StringComparison.Ordinal
-                );
-        }
-
-        private async Task<object> IssueSessionAsync(User user, User owner)
-        {
-            var refresh = await RefreshTokenHelper.IssueAsync(_context, user.Id);
-            var workspaceCount = await _context.RestaurantMemberships.CountAsync(
-                row =>
-                    row.UserId == user.Id && row.Status == MembershipStatus.Active
-            );
-            var token = _jwt.GenerateToken(
-                user.Id.ToString(),
-                user.Email,
-                user.Role
-            );
-            var accountType = user.AccountType;
-            if (user.SelectedRestaurantId is int restaurantId)
-            {
-                var restaurantAccountType = await _context.Restaurants
-                    .AsNoTracking()
-                    .Where(row => row.Id == restaurantId)
-                    .Select(row => row.AccountType)
-                    .FirstOrDefaultAsync();
-                if (!string.IsNullOrWhiteSpace(restaurantAccountType))
-                {
-                    accountType = restaurantAccountType;
-                }
-            }
-
-            return new
-            {
-                token,
-                refreshToken = refresh,
-                accountType,
-                workspaceCount,
-                restaurantId = user.SelectedRestaurantId,
-                selectedLocationId = user.SelectedLocationId,
-                activationRequired = false,
-                ownerActivation = OwnerActivationStatus(owner),
-            };
-        }
-
-        private static string OwnerActivationStatus(User owner)
-        {
-            var subject = ActivationSubject.FromUser(owner);
-            if (ActivationState.RequiresActivation(subject))
-            {
-                return "pending";
-            }
-
-            if (ActivationState.IsActivationExpired(subject))
-            {
-                return "expired";
-            }
-
-            return "ok";
         }
 
         public async Task<SignupProvisioningStatusResponse> GetProvisioningStatusAsync(
@@ -551,26 +313,13 @@ namespace TummlyBackend.Services
             );
 
             var status = pending.Status;
-            string? paymentFailureCode = null;
             if (
-                status == PendingSignupStatuses.Complete
+                paymentRedirectUrl != null
+                && status == PendingSignupStatuses.Complete
                 && IsPaidChosenPlan(pending.ChosenPlan)
             )
             {
-                if (paymentRedirectUrl != null)
-                {
-                    status = PendingSignupStatuses.AwaitingPayment;
-                }
-                else
-                {
-                    paymentFailureCode = await ResolvePaidCheckoutFailureAsync(
-                        pending
-                    );
-                    if (paymentFailureCode != null)
-                    {
-                        status = PendingSignupStatuses.PaymentFailed;
-                    }
-                }
+                status = PendingSignupStatuses.AwaitingPayment;
             }
 
             return new SignupProvisioningStatusResponse
@@ -578,43 +327,7 @@ namespace TummlyBackend.Services
                 Status = status,
                 Ready = pending.Status == PendingSignupStatuses.Complete,
                 PaymentRedirectUrl = paymentRedirectUrl,
-                PaymentFailureCode = paymentFailureCode,
             };
-        }
-
-        /// <summary>
-        /// Paid signup still on Free with a recorded checkout failure and no
-        /// open pay intent → the failure code; otherwise null.
-        /// </summary>
-        private async Task<string?> ResolvePaidCheckoutFailureAsync(
-            PendingSignup pending
-        )
-        {
-            var user = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Email == pending.Email);
-            if (user?.SelectedRestaurantId is not int restaurantId || restaurantId == 0)
-            {
-                return null;
-            }
-
-            var billing = await _context.BillingAccounts
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
-            if (
-                billing == null
-                || !string.Equals(
-                    billing.SubscriptionPlan,
-                    BillingSubscriptionPlans.Free,
-                    StringComparison.Ordinal
-                )
-                || string.IsNullOrWhiteSpace(billing.PendingPaymentFailureCode)
-            )
-            {
-                return null;
-            }
-
-            return billing.PendingPaymentFailureCode;
         }
 
         public static readonly TimeSpan PaidSignupPaySessionTtl = TimeSpan.FromHours(24);
@@ -634,38 +347,6 @@ namespace TummlyBackend.Services
             if (user?.SelectedRestaurantId is not int restaurantId || restaurantId == 0)
             {
                 return null;
-            }
-
-            if (
-                string.Equals(
-                    pending.ChosenPlan,
-                    BillingSubscriptionPlans.Custom,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                var customOpen = await _context.RevolutOrderIntents
-                    .OrderByDescending(row => row.CreatedAtUtc)
-                    .FirstOrDefaultAsync(row =>
-                        row.RestaurantId == restaurantId
-                        && row.Purpose == RevolutOrderIntentPurposes.CustomPlanCycle
-                        && row.IsOpen
-                    );
-                if (customOpen == null)
-                {
-                    return null;
-                }
-
-                if (DateTime.UtcNow - customOpen.CreatedAtUtc >= PaidSignupPaySessionTtl)
-                {
-                    customOpen.IsOpen = false;
-                    await _context.SaveChangesAsync();
-                    return null;
-                }
-
-                return string.IsNullOrWhiteSpace(customOpen.CheckoutUrl)
-                    ? null
-                    : customOpen.CheckoutUrl;
             }
 
             var open = await _context.RevolutPendingPaySessions
@@ -769,119 +450,22 @@ namespace TummlyBackend.Services
             }
         }
 
-        private async Task ApplyChosenPlanAsync(
-            PendingSignup pending,
-            SaveSignupOnboardingDto dto
-        )
-        {
-            var chosen = ResolveChosenPlan(dto.ChosenPlan);
-            var cadence = ResolveChosenCadence(chosen, dto.ChosenCadence);
-
-            if (
-                !string.IsNullOrWhiteSpace(dto.CustomPlanConfigJson)
-                && IsPaidOrCustomPlan(chosen)
-            )
-            {
-                var decoded = DecodeCustomPlanConfigJson(dto.CustomPlanConfigJson);
-                var parsed = CustomPlanConfig.TryParse(decoded);
-                if (parsed != null && parsed.IsV2)
-                {
-                    var quote = await _customPlanQuote.QuoteAsync(
-                        new CustomPlanQuoteRequest
-                        {
-                            Cadence = string.IsNullOrWhiteSpace(parsed.Cadence)
-                                ? cadence
-                                : parsed.Cadence,
-                            BasePlan = parsed.BasePlan,
-                            Locations = parsed.Locations
-                                ?? parsed.Quantities.Locations,
-                            Packs = parsed.Packs,
-                        }
-                    );
-                    pending.ChosenPlan = quote.StoredAsPlan;
-                    pending.ChosenCadence = quote.Cadence;
-                    pending.CustomPlanConfigJson = string.Equals(
-                        quote.StoredAsPlan,
-                        BillingSubscriptionPlans.Custom,
-                        StringComparison.Ordinal
-                    )
-                        ? quote.ToConfig().ToJson()
-                        : null;
-                    return;
-                }
-
-                if (
-                    string.Equals(
-                        chosen,
-                        BillingSubscriptionPlans.Custom,
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    throw new Exception(
-                        "Custom plan config must be version 2 (base plan + packs)."
-                    );
-                }
-            }
-
-            if (
-                string.Equals(
-                    chosen,
-                    BillingSubscriptionPlans.Custom,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                throw new Exception("Custom plan config is required.");
-            }
-
-            pending.ChosenPlan = chosen;
-            pending.ChosenCadence = cadence;
-            pending.CustomPlanConfigJson = null;
-        }
-
-        private static bool IsPaidOrCustomPlan(string plan) =>
-            string.Equals(plan, BillingSubscriptionPlans.Starter, StringComparison.Ordinal)
-            || string.Equals(plan, BillingSubscriptionPlans.Growth, StringComparison.Ordinal)
-            || string.Equals(plan, BillingSubscriptionPlans.Group, StringComparison.Ordinal)
-            || string.Equals(plan, BillingSubscriptionPlans.Custom, StringComparison.Ordinal);
-
         private static string ResolveChosenPlan(string? raw)
         {
             if (string.IsNullOrWhiteSpace(raw))
             {
-                throw new Exception(ChoosePlanMessage);
+                return BillingSubscriptionPlans.Free;
             }
 
             return raw.Trim().ToLowerInvariant() switch
             {
-                "free" => throw new Exception(ChoosePlanMessage),
+                "free" => BillingSubscriptionPlans.Free,
                 "pilot" => BillingSubscriptionPlans.Pilot,
                 "starter" => BillingSubscriptionPlans.Starter,
                 "growth" => BillingSubscriptionPlans.Growth,
                 "group" => BillingSubscriptionPlans.Group,
-                "custom" => BillingSubscriptionPlans.Custom,
                 _ => throw new Exception("Invalid plan selection."),
             };
-        }
-
-        private static string DecodeCustomPlanConfigJson(string raw)
-        {
-            var trimmed = raw.Trim();
-            if (trimmed.StartsWith('{'))
-            {
-                return trimmed;
-            }
-
-            try
-            {
-                var bytes = Convert.FromBase64String(trimmed);
-                return System.Text.Encoding.UTF8.GetString(bytes);
-            }
-            catch (FormatException)
-            {
-                return trimmed;
-            }
         }
 
         private static string ResolveChosenCadence(string plan, string? raw)

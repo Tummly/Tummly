@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.DTOs.BillingCredits;
@@ -470,40 +470,12 @@ namespace TummlyBackend.Controllers
                     );
                 }
 
-                if (cleared.Value.ErrorCode == "cancel_already_sent")
+                return BadRequest(new
                 {
-                    return Conflict(new
-                    {
-                        success = false,
-                        code = "cancel_already_sent",
-                        message = "Your plan ends in less than 24 hours and the cancel is already with the payment provider. Choose a plan again after it ends.",
-                    });
-                }
-
-                if (cleared.Value.ErrorCode == "scheduled_change_empty")
-                {
-                    return BadRequest(new
-                    {
-                        success = false,
-                        code = "scheduled_change_empty",
-                        message = "There is no scheduled change to clear.",
-                    });
-                }
-
-                if (IsRevolutMerchantNotReadyCode(cleared.Value.ErrorCode ?? string.Empty))
-                {
-                    return RevolutMerchantNotReady(cleared.Value.ErrorCode!);
-                }
-
-                return StatusCode(
-                    StatusCodes.Status502BadGateway,
-                    new
-                    {
-                        success = false,
-                        code = cleared.Value.ErrorCode ?? "revolut_http_error",
-                        message = "Could not update the payment provider. The scheduled change is still active. Try again.",
-                    }
-                );
+                    success = false,
+                    code = "scheduled_change_empty",
+                    message = "There is no scheduled change to clear.",
+                });
             }
 
             return Ok(new { success = true });
@@ -928,112 +900,6 @@ namespace TummlyBackend.Controllers
                     }
                 );
             }
-        }
-
-        [HttpPost("custom-plan/cycle-pay")]
-        public async Task<IActionResult> PayCustomPlanCycle()
-        {
-            var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            var manage = await _permissions.AuthorizeAsync(
-                User,
-                OperatorAreaIds.BillingCredits,
-                PermissionLevel.Manage
-            );
-            var forbidden = manage.ToForbiddenResult();
-            if (forbidden != null)
-            {
-                return forbidden;
-            }
-
-            var (response, statusCode, errorMessage) =
-                await _billingCredits.PayCustomPlanCycleAsync(
-                    userId,
-                    manage.RestaurantId,
-                    manage.Status == RestaurantPermissionStatus.Allowed
-                );
-
-            if (response == null)
-            {
-                if (
-                    statusCode == StatusCodes.Status403Forbidden
-                    && errorMessage != null
-                    && IsOperatorBillingLockCode(errorMessage)
-                )
-                {
-                    return OperatorBillingLockForbidden(errorMessage);
-                }
-
-                return StatusCode(
-                    statusCode,
-                    new
-                    {
-                        success = false,
-                        code = errorMessage,
-                        message = errorMessage ?? "Custom cycle pay failed.",
-                    }
-                );
-            }
-
-            return Ok(response);
-        }
-
-        [HttpPost("pending-payment/retry")]
-        public async Task<IActionResult> RetryPendingPayment()
-        {
-            var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            var manage = await _permissions.AuthorizeAsync(
-                User,
-                OperatorAreaIds.BillingCredits,
-                PermissionLevel.Manage
-            );
-            var forbidden = manage.ToForbiddenResult();
-            if (forbidden != null)
-            {
-                return forbidden;
-            }
-
-            var (response, statusCode, errorMessage) =
-                await _billingCredits.RetryPendingPaymentAsync(
-                    userId,
-                    manage.RestaurantId,
-                    manage.Status == RestaurantPermissionStatus.Allowed
-                );
-
-            if (response == null)
-            {
-                if (
-                    statusCode == StatusCodes.Status403Forbidden
-                    && errorMessage != null
-                    && IsOperatorBillingLockCode(errorMessage)
-                )
-                {
-                    return OperatorBillingLockForbidden(errorMessage);
-                }
-
-                return StatusCode(
-                    statusCode,
-                    new
-                    {
-                        success = false,
-                        code = errorMessage,
-                        message = errorMessage ?? "Payment retry failed.",
-                    }
-                );
-            }
-
-            return Ok(response);
         }
 
         [HttpPost("cancel-plan")]

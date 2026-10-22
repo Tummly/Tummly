@@ -88,7 +88,5 @@ namespace TummlyBackend.Models
         public const string Topup = "topup";
 
         public const string ShopMaterialsOrder = "shop_materials_order";
-
-        public const string CustomPlanCycle = "custom_plan_cycle";
     }
 }

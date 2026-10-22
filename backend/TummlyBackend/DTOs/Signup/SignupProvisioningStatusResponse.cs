@@ -10,8 +10,5 @@ namespace TummlyBackend.DTOs.Signup
         /// Open Revolut checkout for paid Pricing signup while billing stays Free.
         /// </summary>
         public string? PaymentRedirectUrl { get; set; }
-
-        /// <summary>Set with status PaymentFailed (e.g. revolut_http_error).</summary>
-        public string? PaymentFailureCode { get; set; }
     }
 }

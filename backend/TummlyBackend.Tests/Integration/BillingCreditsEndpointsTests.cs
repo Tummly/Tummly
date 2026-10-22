@@ -1268,24 +1268,25 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PostCancelPlan_DoesNotCallRevolut_OnConfirmDay_WhenSubscriptionCorrelated()
+        public async Task PostCancelPlan_SchedulesRevolutCancelAtCycleEnd_WhenSubscriptionCorrelated()
         {
             var seeded = await SeedPaidWorkspaceWithSubscriptionAsync("sub_cancel_confirm");
+            var scheduleBefore = _factory.Merchant.ScheduleSubscriptionCancelCallCount;
             var cancelBefore = _factory.Merchant.CancelSubscriptionCallCount;
-            var changeBefore = _factory.Merchant.ChangeSubscriptionPlanCallCount;
             using var request = AuthorizedCancelPlan(seeded.OwnerJwt);
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-            // Ticket 23: the included-period job cancels Revolut near renewal.
+            Assert.Equal(scheduleBefore + 1, _factory.Merchant.ScheduleSubscriptionCancelCallCount);
+            Assert.Equal("sub_cancel_confirm", _factory.Merchant.LastScheduledCancelSubscriptionId);
             Assert.Equal(cancelBefore, _factory.Merchant.CancelSubscriptionCallCount);
-            Assert.Equal(changeBefore, _factory.Merchant.ChangeSubscriptionPlanCallCount);
         }
 
         [Fact]
         public async Task PostCancelPlan_DoesNotRedirectToHpp_ForCancel()
         {
             var seeded = await SeedPaidWorkspaceAsync();
+            var scheduleBefore = _factory.Merchant.ScheduleSubscriptionCancelCallCount;
             var cancelBefore = _factory.Merchant.CancelSubscriptionCallCount;
             var orderBefore = _factory.Merchant.CreateOrderCallCount;
             var subscriptionBefore = _factory.Merchant.CreateSubscriptionCallCount;
@@ -1296,6 +1297,10 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
             Assert.False(body.TryGetProperty("redirectUrl", out _));
+            Assert.Equal(
+                scheduleBefore,
+                _factory.Merchant.ScheduleSubscriptionCancelCallCount
+            );
             Assert.Equal(
                 cancelBefore,
                 _factory.Merchant.CancelSubscriptionCallCount

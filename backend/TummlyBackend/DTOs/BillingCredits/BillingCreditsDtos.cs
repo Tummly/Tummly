@@ -1,4 +1,4 @@
-﻿namespace TummlyBackend.DTOs.BillingCredits
+namespace TummlyBackend.DTOs.BillingCredits
 {
     public sealed class BillingCreditsPageDto
     {
@@ -159,43 +159,6 @@
         public bool IsPilot { get; set; } = true;
 
         public bool AllowSms5000TopUp { get; set; }
-
-        public CustomPlanSnapshotDto? CustomPlan { get; set; }
-
-        public string? OpenCustomCycleCheckoutUrl { get; set; }
-
-        /// <summary>Paid plan whose checkout did not complete. Null when none.</summary>
-        public PendingPaymentSnapshotDto? PendingPayment { get; set; }
-    }
-
-    public sealed class PendingPaymentSnapshotDto
-    {
-        public string Plan { get; set; } = string.Empty;
-
-        public string Cadence { get; set; } = "monthly";
-
-        public DateTime? FailedAtUtc { get; set; }
-    }
-
-    public sealed class CustomPlanSnapshotDto
-    {
-        public string Cadence { get; set; } = "monthly";
-
-        public int PeriodNetPence { get; set; }
-
-        public int Locations { get; set; }
-
-        public int TeamUsers { get; set; }
-
-        public int QrPlacements { get; set; }
-
-        public int Offers { get; set; }
-
-        public int EmailCredits { get; set; }
-
-        public int SmsCredits { get; set; }
-
-        public int AiCredits { get; set; }
     }
 
     public sealed class CreditsUsageSnapshotDto

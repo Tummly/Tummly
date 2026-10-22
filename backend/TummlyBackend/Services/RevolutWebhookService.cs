@@ -817,11 +817,6 @@ namespace TummlyBackend.Services
                         RevolutOrderIntentPurposes.ShopMaterialsOrder,
                         StringComparison.Ordinal
                     )
-                    || string.Equals(
-                        intent.Purpose,
-                        RevolutOrderIntentPurposes.CustomPlanCycle,
-                        StringComparison.Ordinal
-                    )
                 );
 
             var reason = retrieved.BillingReason?.Trim() ?? string.Empty;
@@ -1224,17 +1219,6 @@ namespace TummlyBackend.Services
             if (bySetup != null)
             {
                 return bySetup;
-            }
-
-            var byIntent = await _context.RevolutOrderIntents
-                .AsNoTracking()
-                .Where(row => row.OrderId == orderId && row.RestaurantId != null)
-                .OrderByDescending(row => row.CreatedAtUtc)
-                .Select(row => row.RestaurantId)
-                .FirstOrDefaultAsync(cancellationToken);
-            if (byIntent != null)
-            {
-                return byIntent;
             }
 
             if (string.IsNullOrWhiteSpace(subscriptionId))

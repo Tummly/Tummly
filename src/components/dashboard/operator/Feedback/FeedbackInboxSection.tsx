@@ -166,23 +166,6 @@ export function FeedbackInboxSection({
 }: FeedbackInboxSectionProps) {
   const copy = FEEDBACK_PAGE_COPY.inbox
 
-  // Product demo tour (§8 step 2): the seeded recovery guest, else the newest
-  // open negative Feedback from a named guest (recovery needs a contact).
-  const isNamedGuest = (row: OperatorFeedbackInboxTableRow) =>
-    !/^(walk-in|anonymous)\b/i.test(row.guestName.trim())
-  const demoTourRowId =
-    rows.find((row) => row.guestName === "Grace Turner")?.id
-    ?? rows.find(
-      (row) =>
-        row.sentiment === "negative"
-        && row.workflowStatus === "new"
-        && isNamedGuest(row)
-    )?.id
-    ?? rows.find((row) => row.sentiment === "negative" && isNamedGuest(row))
-      ?.id
-    ?? rows.find((row) => row.sentiment === "negative")?.id
-    ?? null
-
   return (
     <section
       ref={inboxRef}
@@ -348,7 +331,7 @@ export function FeedbackInboxSection({
                         key={row.id}
                         className={GUESTS_TABLE_BODY_ROW_CLASS}
                         data-demo-tour={
-                          row.id === demoTourRowId
+                          row.guestName === "Grace Turner"
                             ? "feedback-needs-attention-row"
                             : undefined
                         }

@@ -25,9 +25,7 @@ namespace TummlyBackend.Tests.Services
             _sut = new SignupService(
                 _db,
                 _emailService,
-                new NoOpProvisioningService(),
-                new CustomPlanQuoteService(_db),
-                new StubJwtService()
+                new StubProvisioningService()
             );
         }
 
@@ -399,7 +397,6 @@ namespace TummlyBackend.Tests.Services
                     GroupName = "Solo Kitchen",
                     BusinessCategory = "takeaway",
                     PrimaryPhone = "+447700900123",
-                    ChosenPlan = BillingSubscriptionPlans.Pilot,
                     Locations =
                     [
                         new SaveSignupOnboardingDto.LocationItem
@@ -419,7 +416,7 @@ namespace TummlyBackend.Tests.Services
 
             var pending = await _db.PendingSignups.SingleAsync();
             Assert.Equal("Single", pending.AccountType);
-            Assert.Equal(BillingSubscriptionPlans.Pilot, pending.ChosenPlan);
+            Assert.Equal(BillingSubscriptionPlans.Free, pending.ChosenPlan);
             Assert.Equal("monthly", pending.ChosenCadence);
             Assert.Equal(PendingSignupStatuses.Provisioning, pending.Status);
             Assert.Equal("Single Owner", pending.FullName);
@@ -433,59 +430,6 @@ namespace TummlyBackend.Tests.Services
                 pending.OnboardingJson!,
                 StringComparison.Ordinal
             );
-        }
-
-        [Fact]
-        public async Task SaveOnboarding_MissingOrFreePlan_ThrowsChoosePlan()
-        {
-            var sessionToken = await SeedVerifiedPendingAsync("noplan@example.com");
-
-            var missing = await Assert.ThrowsAsync<Exception>(() =>
-                _sut.SaveOnboardingAsync(
-                    sessionToken,
-                    new SaveSignupOnboardingDto
-                    {
-                        Password = "Password1!",
-                        ConfirmPassword = "Password1!",
-                        FullName = "No Plan",
-                        GroupName = "Kitchen",
-                        BusinessCategory = "takeaway",
-                        Locations =
-                        [
-                            new SaveSignupOnboardingDto.LocationItem
-                            {
-                                LocationName = "Main",
-                                Address = "1 High St",
-                            },
-                        ],
-                    }
-                )
-            );
-            Assert.Equal(SignupService.ChoosePlanMessage, missing.Message);
-
-            var free = await Assert.ThrowsAsync<Exception>(() =>
-                _sut.SaveOnboardingAsync(
-                    sessionToken,
-                    new SaveSignupOnboardingDto
-                    {
-                        Password = "Password1!",
-                        ConfirmPassword = "Password1!",
-                        FullName = "Free Plan",
-                        GroupName = "Kitchen",
-                        BusinessCategory = "takeaway",
-                        ChosenPlan = BillingSubscriptionPlans.Free,
-                        Locations =
-                        [
-                            new SaveSignupOnboardingDto.LocationItem
-                            {
-                                LocationName = "Main",
-                                Address = "1 High St",
-                            },
-                        ],
-                    }
-                )
-            );
-            Assert.Equal(SignupService.ChoosePlanMessage, free.Message);
         }
 
         [Fact]
@@ -503,7 +447,6 @@ namespace TummlyBackend.Tests.Services
                         FullName = "Multi Owner",
                         GroupName = "Group Kitchen",
                         BusinessCategory = "restaurant",
-                        ChosenPlan = BillingSubscriptionPlans.Pilot,
                         Locations =
                         [
                             new SaveSignupOnboardingDto.LocationItem
@@ -589,7 +532,6 @@ namespace TummlyBackend.Tests.Services
                     FullName = "Resume Owner",
                     GroupName = "Resume Kitchen",
                     BusinessCategory = "cafe",
-                    ChosenPlan = BillingSubscriptionPlans.Pilot,
                     Locations =
                     [
                         new SaveSignupOnboardingDto.LocationItem
@@ -662,5 +604,22 @@ namespace TummlyBackend.Tests.Services
             }
         }
 
+        private sealed class StubProvisioningService : IProvisioningService
+        {
+            public Task GenerateActivationCodeAsync(string inviteToken) =>
+                Task.CompletedTask;
+
+            public Task ProvisionAsync(
+                TummlyBackend.DTOs.Trial.CompleteSetupDto dto
+            ) => Task.CompletedTask;
+
+            public Task ProvisionFromPendingAsync(Guid pendingSignupId) =>
+                Task.CompletedTask;
+
+            public Task<TummlyBackend.DTOs.Provisioning.InviteTokenResult> ValidateInviteTokenAsync(
+                string token
+            ) =>
+                throw new NotImplementedException();
+        }
     }
 }

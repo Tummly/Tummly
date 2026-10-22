@@ -673,11 +673,12 @@ namespace TummlyBackend.Services
                 return false;
             }
 
-            var activeLocations = await PendingPlanLimits.CountActiveLocationsAsync(
-                _context,
-                account.RestaurantId,
-                cancellationToken
-            );
+            var activeLocations = await _context.RestaurantLocations
+                .AsNoTracking()
+                .CountAsync(
+                    row => row.RestaurantId == account.RestaurantId,
+                    cancellationToken
+                );
             if (activeLocations > entitledLocations)
             {
                 return false;

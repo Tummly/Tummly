@@ -38,28 +38,15 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            // The job calls this every hour from the lead window until renewal.
-            // Skip when Revolut already ended the subscription (a cancel on a
-            // cancelled subscription is rejected). A failed read falls through.
-            var live = await _merchant.GetSubscriptionAsync(
+            var cancel = await _merchant.CancelSubscriptionAsync(
                 subscriptionId,
                 cancellationToken
             );
-            var alreadyEnded =
-                live.Succeeded
-                && live.State is "cancelled" or "finished";
-            if (!alreadyEnded)
+            if (!cancel.Succeeded)
             {
-                var cancel = await _merchant.CancelSubscriptionAsync(
-                    subscriptionId,
-                    cancellationToken
+                throw new InvalidOperationException(
+                    cancel.ErrorCode ?? "revolut_http_error"
                 );
-                if (!cancel.Succeeded)
-                {
-                    throw new InvalidOperationException(
-                        cancel.ErrorCode ?? "revolut_http_error"
-                    );
-                }
             }
 
             await SyncPendingSessionsAsync(

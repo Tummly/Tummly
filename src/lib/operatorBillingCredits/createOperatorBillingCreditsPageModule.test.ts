@@ -1039,35 +1039,6 @@ describe("createOperatorBillingCreditsPageModule", () => {
     expect(module.getSnapshot().showCancelPlan).toBe(false)
   })
 
-  it("shows Cancel plan for an owner on Custom, hides it when already scheduled", async () => {
-    const base = samplePage().planSubscription
-    const custom = createTestModule({
-      planSubscription: {
-        ...base,
-        subscriptionPlan: "Custom",
-        isPilot: false,
-        billingCycle: "Monthly",
-        scheduledChangeLine: null,
-      },
-    })
-    custom.setNavigationTargets({ mode: "single", locationId: 42 })
-    await custom.load()
-    expect(custom.getSnapshot().showCancelPlan).toBe(true)
-
-    const scheduled = createTestModule({
-      planSubscription: {
-        ...base,
-        subscriptionPlan: "Custom",
-        isPilot: false,
-        billingCycle: "Monthly",
-        scheduledChangeLine: "Cancels on 15 September 2026",
-      },
-    })
-    scheduled.setNavigationTargets({ mode: "single", locationId: 42 })
-    await scheduled.load()
-    expect(scheduled.getSnapshot().showCancelPlan).toBe(false)
-  })
-
   it("keeps the selected chip after a failed top-up return", async () => {
     const module = createTestModule(
       {

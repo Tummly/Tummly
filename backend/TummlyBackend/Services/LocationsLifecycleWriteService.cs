@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Locations;
 using TummlyBackend.Helpers;
@@ -16,15 +15,13 @@ namespace TummlyBackend.Services
         private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
         private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
         private readonly IRestaurantAccountTypePromotion _accountTypePromotion;
-        private readonly IPricebookCatalog _pricebook;
 
         public LocationsLifecycleWriteService(
             ApplicationDbContext context,
             IQrCodeProvisioningService qrCodeProvisioning,
             IComplimentaryStarterShopOrderService complimentaryStarterShopOrders,
             IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
-            IRestaurantAccountTypePromotion accountTypePromotion,
-            IPricebookCatalog pricebook
+            IRestaurantAccountTypePromotion accountTypePromotion
         )
         {
             _context = context;
@@ -32,7 +29,6 @@ namespace TummlyBackend.Services
             _complimentaryStarterShopOrders = complimentaryStarterShopOrders;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
             _accountTypePromotion = accountTypePromotion;
-            _pricebook = pricebook;
         }
 
         public async Task<LocationLifecycleWriteResult> ActivateDraftAsync(
@@ -58,16 +54,6 @@ namespace TummlyBackend.Services
             if (missing != null)
             {
                 return missing;
-            }
-
-            var capDeny = await PendingPlanLimits.DenyActivationAsync(
-                _context,
-                _pricebook,
-                restaurantId
-            );
-            if (capDeny != null)
-            {
-                return new LocationLifecycleWriteResult.Conflict(capDeny);
             }
 
             var from = ToWire(location.LifecycleStatus);

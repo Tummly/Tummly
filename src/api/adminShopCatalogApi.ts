@@ -56,7 +56,6 @@ export type AdminShopCatalogSku = {
   mintOnShopFulfilment: boolean
   status: AdminShopCatalogStatus
   availableInShop: boolean
-  linkedInterestProductKey?: string | null
   aboutBody: string
   specifications: AdminShopCatalogSpecification[]
   tags: AdminShopCatalogTag[]

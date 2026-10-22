@@ -1,11 +1,7 @@
-﻿using System.Globalization;
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Billing;
-using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Configurations;
@@ -31,11 +27,10 @@ namespace TummlyBackend.Services
         private readonly ICreditTopUpPaySession _creditTopUpPaySession;
         private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly ICycleEndPlanChange _cycleEndPlanChange;
+        private readonly ICycleEndPlanCancel _cycleEndPlanCancel;
         private readonly ICreditLedger _creditLedger;
         private readonly TummlySellerVatSettings _sellerVat;
         private readonly IEmailService _emailService;
-        private readonly CustomPlanCycleBillingService _customPlanCycleBilling;
-        private readonly IConfiguration _configuration;
         private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
         private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
 
@@ -52,11 +47,10 @@ namespace TummlyBackend.Services
             ICreditTopUpPaySession creditTopUpPaySession,
             ITummlyVatInvoiceService vatInvoices,
             ICycleEndPlanChange cycleEndPlanChange,
+            ICycleEndPlanCancel cycleEndPlanCancel,
             ICreditLedger creditLedger,
             IOptions<TummlySellerVatSettings> sellerVat,
             IEmailService emailService,
-            CustomPlanCycleBillingService customPlanCycleBilling,
-            IConfiguration configuration,
             IComplimentaryStarterShopOrderService? complimentaryStarterShopOrders =
                 null,
             IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null
@@ -74,11 +68,10 @@ namespace TummlyBackend.Services
             _creditTopUpPaySession = creditTopUpPaySession;
             _vatInvoices = vatInvoices;
             _cycleEndPlanChange = cycleEndPlanChange;
+            _cycleEndPlanCancel = cycleEndPlanCancel;
             _creditLedger = creditLedger;
             _sellerVat = sellerVat.Value;
             _emailService = emailService;
-            _customPlanCycleBilling = customPlanCycleBilling;
-            _configuration = configuration;
             _complimentaryStarterShopOrders =
                 complimentaryStarterShopOrders
                 ?? NoOpComplimentaryStarterShopOrderService.Instance;
@@ -125,32 +118,16 @@ namespace TummlyBackend.Services
             var billingAccount = await LoadRequiredBillingAccountAsync(restaurantId);
             var creditSnapshot = await _creditBalance.GetAccountAsync(restaurantId);
             var isPilot = IsPilotBillingAccount(billingAccount);
-            var isCustom = string.Equals(
-                billingAccount.SubscriptionPlan,
-                BillingSubscriptionPlans.Custom,
-                StringComparison.Ordinal
-            );
             var contractedBook = _pricebookCatalog.GetRequired(
                 billingAccount.ContractedPricebookId
             );
-            PricebookPlan? contractedPlan = null;
-            if (!isCustom)
+            var planKey = SubscriptionPlanKey(billingAccount.SubscriptionPlan);
+            if (!contractedBook.Plans.TryGetValue(planKey, out var contractedPlan))
             {
-                var planKey = SubscriptionPlanKey(billingAccount.SubscriptionPlan);
-                if (!contractedBook.Plans.TryGetValue(planKey, out contractedPlan))
-                {
-                    throw new InvalidOperationException(
-                        $"Contracted plan '{billingAccount.SubscriptionPlan}' is missing from pricebook '{billingAccount.ContractedPricebookId}'."
-                    );
-                }
+                throw new InvalidOperationException(
+                    $"Contracted plan '{billingAccount.SubscriptionPlan}' is missing from pricebook '{billingAccount.ContractedPricebookId}'."
+                );
             }
-
-            var customConfig = isCustom
-                ? CustomPlanConfig.TryParse(billingAccount.CustomPlanConfigJson)
-                : null;
-            var openCustomCycleCheckoutUrl = isCustom
-                ? await ResolveOpenCustomCycleCheckoutUrlAsync(restaurantId)
-                : null;
 
             var eligibleMembers = await LoadEligibleMembersAsync(restaurantId);
             var pilotEndsAt =
@@ -175,82 +152,6 @@ namespace TummlyBackend.Services
                 );
             var accessLevel = actorCanManage ? "manage" : "view";
 
-            var planSubscription = new PlanSubscriptionSnapshotDto
-            {
-                SubscriptionPlan = billingAccount.SubscriptionPlan,
-                BillingStatus = billingAccount.BillingStatus,
-                RenewalDateLabel = renewalDateLabel,
-                EmailCreditsRemaining = ChannelRemaining(
-                    creditSnapshot,
-                    CreditChannels.Email
-                ),
-                SmsCreditsRemaining = ChannelRemaining(
-                    creditSnapshot,
-                    CreditChannels.Sms
-                ),
-                AiCreditsRemaining = ChannelRemaining(
-                    creditSnapshot,
-                    CreditChannels.Ai
-                ),
-                BillingCycle = billingAccount.BillingCycle,
-                PlanPriceNet = isCustom
-                    ? FormatPoundsFromPence(customConfig?.PeriodNetPence ?? 0)
-                    : _pricebookCatalog.FormatPlanPriceNet(
-                        contractedPlan!,
-                        billingAccount.BillingCycle
-                    ),
-                IncludedLocations = isCustom
-                    ? customConfig?.Quantities.Locations ?? 0
-                    : contractedPlan!.IncludedLocations,
-                ActiveLocations = activeLocations,
-                IncludedEmailCreditsLabel = isCustom
-                    ? FormatCreditsCountLabel(customConfig?.Quantities.EmailCredits ?? 0)
-                    : _pricebookCatalog.FormatIncludedCreditsLabel(
-                        contractedPlan!,
-                        "email"
-                    ),
-                IncludedSmsCreditsLabel = isCustom
-                    ? FormatCreditsCountLabel(customConfig?.Quantities.SmsCredits ?? 0)
-                    : _pricebookCatalog.FormatIncludedCreditsLabel(
-                        contractedPlan!,
-                        "sms"
-                    ),
-                IncludedAiCreditsLabel = isCustom
-                    ? FormatCreditsCountLabel(customConfig?.Quantities.AiCredits ?? 0)
-                    : _pricebookCatalog.FormatIncludedCreditsLabel(
-                        contractedPlan!,
-                        "ai"
-                    ),
-                StarterKitState = billingAccount.StarterKitState,
-                PricebookId = billingAccount.ContractedPricebookId,
-                ScheduledChangeLine = scheduledChangeLine,
-                IsPilot = isPilot,
-                AllowSms5000TopUp = billingAccount.AllowSms5000TopUp,
-                OpenCustomCycleCheckoutUrl = openCustomCycleCheckoutUrl,
-                PendingPayment = billingAccount.PendingPaymentPlan == null
-                    ? null
-                    : new PendingPaymentSnapshotDto
-                    {
-                        Plan = billingAccount.PendingPaymentPlan,
-                        Cadence = billingAccount.PendingPaymentCadence ?? "monthly",
-                        FailedAtUtc = billingAccount.PendingPaymentFailedAtUtc,
-                    },
-                CustomPlan = customConfig == null
-                    ? null
-                    : new CustomPlanSnapshotDto
-                    {
-                        Cadence = customConfig.Cadence,
-                        PeriodNetPence = customConfig.PeriodNetPence,
-                        Locations = customConfig.Quantities.Locations,
-                        TeamUsers = customConfig.Quantities.TeamUsers,
-                        QrPlacements = customConfig.Quantities.QrPlacements,
-                        Offers = customConfig.Quantities.Offers,
-                        EmailCredits = customConfig.Quantities.EmailCredits,
-                        SmsCredits = customConfig.Quantities.SmsCredits,
-                        AiCredits = customConfig.Quantities.AiCredits,
-                    },
-            };
-
             var page = new BillingCreditsPageDto
             {
                 AccessLevel = accessLevel,
@@ -263,7 +164,51 @@ namespace TummlyBackend.Services
                     accessLevel,
                     actorPermissionRole
                 ),
-                PlanSubscription = planSubscription,
+                PlanSubscription = new PlanSubscriptionSnapshotDto
+                {
+                    SubscriptionPlan = billingAccount.SubscriptionPlan,
+                    BillingStatus = billingAccount.BillingStatus,
+                    RenewalDateLabel = renewalDateLabel,
+                    EmailCreditsRemaining = ChannelRemaining(
+                        creditSnapshot,
+                        CreditChannels.Email
+                    ),
+                    SmsCreditsRemaining = ChannelRemaining(
+                        creditSnapshot,
+                        CreditChannels.Sms
+                    ),
+                    AiCreditsRemaining = ChannelRemaining(
+                        creditSnapshot,
+                        CreditChannels.Ai
+                    ),
+                    BillingCycle = billingAccount.BillingCycle,
+                    PlanPriceNet = _pricebookCatalog.FormatPlanPriceNet(
+                        contractedPlan,
+                        billingAccount.BillingCycle
+                    ),
+                    IncludedLocations = contractedPlan.IncludedLocations,
+                    ActiveLocations = activeLocations,
+                    IncludedEmailCreditsLabel =
+                        _pricebookCatalog.FormatIncludedCreditsLabel(
+                            contractedPlan,
+                            "email"
+                        ),
+                    IncludedSmsCreditsLabel =
+                        _pricebookCatalog.FormatIncludedCreditsLabel(
+                            contractedPlan,
+                            "sms"
+                        ),
+                    IncludedAiCreditsLabel =
+                        _pricebookCatalog.FormatIncludedCreditsLabel(
+                            contractedPlan,
+                            "ai"
+                        ),
+                    StarterKitState = billingAccount.StarterKitState,
+                    PricebookId = billingAccount.ContractedPricebookId,
+                    ScheduledChangeLine = scheduledChangeLine,
+                    IsPilot = isPilot,
+                    AllowSms5000TopUp = billingAccount.AllowSms5000TopUp,
+                },
                 PaymentMethod = isPilot ? null : BuildStubPaymentMethod(),
                 Invoices = isPilot
                     ? []
@@ -826,82 +771,9 @@ namespace TummlyBackend.Services
                 return (false, "scheduled_change_empty");
             }
 
-            // Inside the lead window the job may already have cancelled the
-            // Revolut subscription, which cannot be undone.
-            if (
-                billingAccount.ScheduledCancelPlan
-                && billingAccount.RenewalDateUtc != null
-                && DateTime.UtcNow
-                    >= billingAccount.RenewalDateUtc.Value
-                        - IncludedPeriodMintService.RevolutCancelLead
-            )
-            {
-                return (false, "cancel_already_sent");
-            }
-
-            // Revolut already holds the scheduled variation (posted on submit).
-            // Re-point it at the live plan first; on failure keep the slot so
-            // Tummly and Revolut still agree.
-            if (ScheduledChangeMovedRevolutPlan(billingAccount))
-            {
-                var liveCadenceApi =
-                    MapBillingCycleToApi(billingAccount.BillingCycle) ?? "monthly";
-                try
-                {
-                    await _cycleEndPlanChange.RestoreLiveRevolutPlanIfNeededAsync(
-                        restaurantId,
-                        billingAccount.SubscriptionPlan,
-                        liveCadenceApi,
-                        billingAccount.PaidExtraLocationCount
-                    );
-                }
-                catch (InvalidOperationException ex)
-                {
-                    return (false, ex.Message);
-                }
-            }
-
             _planChange.ClearScheduledChange(billingAccount);
             await _context.SaveChangesAsync();
             return (true, null);
-        }
-
-        /// <summary>
-        /// True when Revolut may hold a pending change-plan: plan or cadence
-        /// change, or a Group extra remove down to 0 extras. A scheduled
-        /// cancel sends nothing to Revolut, but it replaces the slot of an
-        /// earlier downgrade whose change-plan Revolut may still hold. The
-        /// restore skips when Revolut has nothing pending.
-        /// </summary>
-        private static bool ScheduledChangeMovedRevolutPlan(BillingAccount billingAccount)
-        {
-            if (billingAccount.ScheduledCancelPlan)
-            {
-                return true;
-            }
-
-            var targetPlan = billingAccount.ScheduledTargetSubscriptionPlan
-                ?? billingAccount.SubscriptionPlan;
-            var targetCycle = billingAccount.ScheduledTargetBillingCycle
-                ?? billingAccount.BillingCycle;
-            if (
-                !string.Equals(
-                    targetPlan,
-                    billingAccount.SubscriptionPlan,
-                    StringComparison.OrdinalIgnoreCase
-                )
-                || !string.Equals(
-                    targetCycle,
-                    billingAccount.BillingCycle,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                return true;
-            }
-
-            return billingAccount.PaidExtraLocationCount > 0
-                && billingAccount.ScheduledTargetExtraLocationCount == 0;
         }
 
         private static bool TryParsePlanTarget(
@@ -1179,9 +1051,9 @@ namespace TummlyBackend.Services
             billingAccount.ScheduledCancelNotes =
                 string.IsNullOrWhiteSpace(additionalNotes) ? null : additionalNotes;
 
-            // No Revolut call today (ticket 23): the subscription stays active.
-            // The included-period job cancels it natively shortly before
-            // renewal, so undoing this cancel needs no Revolut call.
+            await _cycleEndPlanCancel.ApplyRevolutCancelAtCycleEndIfNeededAsync(
+                restaurantId
+            );
 
             var renewalLabel = UkDateLabels.Format(billingAccount.RenewalDateUtc!.Value);
             var actorName = await _context.Users
@@ -1211,361 +1083,6 @@ namespace TummlyBackend.Services
                 Outcome = "scheduled",
                 ScheduledChangeLine = $"Cancels on {renewalLabel}",
             };
-        }
-
-        public async Task<(CustomPlanCyclePayDto? Response, int StatusCode, string? ErrorMessage)>
-            PayCustomPlanCycleAsync(
-                int userId,
-                int restaurantId,
-                bool actorCanManage
-            )
-        {
-            if (!actorCanManage)
-            {
-                return (null, StatusCodes.Status403Forbidden, "forbidden");
-            }
-
-            var restaurant = await _context.Restaurants
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Id == restaurantId);
-            if (restaurant == null)
-            {
-                return (null, StatusCodes.Status404NotFound, "restaurant_not_found");
-            }
-
-            var billingAccount = await _context.BillingAccounts
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
-            if (billingAccount == null)
-            {
-                return (null, StatusCodes.Status404NotFound, "billing_account_missing");
-            }
-
-            if (
-                !string.Equals(
-                    billingAccount.SubscriptionPlan,
-                    BillingSubscriptionPlans.Custom,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                return (null, StatusCodes.Status400BadRequest, "not_custom_plan");
-            }
-
-            if (billingAccount.ScheduledCancelPlan)
-            {
-                return (null, StatusCodes.Status400BadRequest, "cancel_scheduled");
-            }
-
-            var paidDeny = OperatorBillingLockEvaluator.EvaluatePaidWriteDeny(
-                OperatorBillingLockEvaluator.FromBillingAccount(billingAccount)
-            );
-            // SoftLock / PastDue Custom may still resume the outstanding cycle pay.
-            if (
-                paidDeny != null
-                && paidDeny != OperatorBillingLockEvaluator.SoftLock
-                && paidDeny != OperatorBillingLockEvaluator.PastDueSendsBlocked
-            )
-            {
-                return (null, StatusCodes.Status403Forbidden, paidDeny);
-            }
-
-            var locationId = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(row => row.RestaurantId == restaurantId)
-                .OrderBy(row => row.Id)
-                .Select(row => row.Id)
-                .FirstOrDefaultAsync();
-            if (locationId == 0)
-            {
-                locationId = restaurantId;
-            }
-
-            string redirectUrl;
-            try
-            {
-                redirectUrl = RevolutHostedCheckoutRedirectUrls.BuildBillingCreditsTabUrl(
-                    _configuration,
-                    restaurant.AccountType,
-                    locationId,
-                    "plan-subscription",
-                    new Dictionary<string, string>
-                    {
-                        ["customCycleOutcome"] = "success",
-                    }
-                );
-            }
-            catch (InvalidOperationException ex)
-                when (string.Equals(
-                    ex.Message,
-                    RevolutHostedCheckoutRedirectUrls.InvalidHostErrorCode,
-                    StringComparison.Ordinal
-                ))
-            {
-                return (
-                    null,
-                    StatusCodes.Status400BadRequest,
-                    RevolutHostedCheckoutRedirectUrls.InvalidHostErrorCode
-                );
-            }
-
-            var openCheckout = await ResolveOpenCustomCycleCheckoutUrlAsync(
-                restaurantId
-            );
-            if (!string.IsNullOrWhiteSpace(openCheckout))
-            {
-                return (
-                    new CustomPlanCyclePayDto { CheckoutUrl = openCheckout },
-                    StatusCodes.Status200OK,
-                    null
-                );
-            }
-
-            var renewalKey = billingAccount.RenewalDateUtc ?? DateTime.UtcNow;
-            var idempotencyKey =
-                $"custom-cycle-{restaurantId}-{renewalKey:yyyyMMdd}";
-
-            var (checkoutUrl, error) = await _customPlanCycleBilling.StartCyclePayAsync(
-                restaurantId,
-                redirectUrl,
-                idempotencyKey
-            );
-            if (error != null || string.IsNullOrWhiteSpace(checkoutUrl))
-            {
-                return (
-                    null,
-                    StatusCodes.Status502BadGateway,
-                    error ?? "custom_cycle_start_failed"
-                );
-            }
-
-            return (
-                new CustomPlanCyclePayDto { CheckoutUrl = checkoutUrl },
-                StatusCodes.Status200OK,
-                null
-            );
-        }
-
-        /// <summary>
-        /// Retry checkout for a paid plan that did not start at signup or on an
-        /// earlier attempt. The account stays on Free until Revolut confirms payment.
-        /// </summary>
-        public async Task<(PendingPaymentRetryDto? Response, int StatusCode, string? ErrorMessage)>
-            RetryPendingPaymentAsync(
-                int userId,
-                int restaurantId,
-                bool actorCanManage
-            )
-        {
-            if (!actorCanManage)
-            {
-                return (null, StatusCodes.Status403Forbidden, "forbidden");
-            }
-
-            var restaurant = await _context.Restaurants
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Id == restaurantId);
-            if (restaurant == null)
-            {
-                return (null, StatusCodes.Status404NotFound, "restaurant_not_found");
-            }
-
-            var billingAccount = await _context.BillingAccounts
-                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
-            if (billingAccount == null)
-            {
-                return (null, StatusCodes.Status404NotFound, "billing_account_missing");
-            }
-
-            if (billingAccount.PendingPaymentPlan == null)
-            {
-                return (null, StatusCodes.Status404NotFound, "no_pending_payment");
-            }
-
-            if (!IsFreeBillingAccount(billingAccount))
-            {
-                return (null, StatusCodes.Status400BadRequest, "pending_payment_not_applicable");
-            }
-
-            var paidDeny = OperatorBillingLockEvaluator.EvaluatePaidWriteDeny(
-                OperatorBillingLockEvaluator.FromBillingAccount(billingAccount)
-            );
-            if (paidDeny != null)
-            {
-                return (null, StatusCodes.Status403Forbidden, paidDeny);
-            }
-
-            var pendingPlan = billingAccount.PendingPaymentPlan;
-            var cadence = billingAccount.PendingPaymentCadence ?? "monthly";
-            string code;
-            try
-            {
-                if (
-                    string.Equals(
-                        pendingPlan,
-                        BillingSubscriptionPlans.Custom,
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    var quote = CustomPlanConfig.TryParse(
-                        billingAccount.PendingPaymentCustomConfigJson
-                    );
-                    if (quote == null || quote.PeriodNetPence <= 0)
-                    {
-                        return (null, StatusCodes.Status400BadRequest, "custom_plan_config_invalid");
-                    }
-
-                    var customLocationId = await ResolveFirstLocationIdAsync(restaurantId);
-                    string customRedirectUrl;
-                    try
-                    {
-                        customRedirectUrl = RevolutHostedCheckoutRedirectUrls.BuildBillingCreditsTabUrl(
-                            _configuration,
-                            restaurant.AccountType,
-                            customLocationId,
-                            "plan-subscription",
-                            new Dictionary<string, string>
-                            {
-                                ["customCycleOutcome"] = "success",
-                            }
-                        );
-                    }
-                    catch (InvalidOperationException ex)
-                        when (string.Equals(
-                            ex.Message,
-                            RevolutHostedCheckoutRedirectUrls.InvalidHostErrorCode,
-                            StringComparison.Ordinal
-                        ))
-                    {
-                        return (
-                            null,
-                            StatusCodes.Status400BadRequest,
-                            RevolutHostedCheckoutRedirectUrls.InvalidHostErrorCode
-                        );
-                    }
-
-                    var (checkoutUrl, error) = await _customPlanCycleBilling.StartCyclePayAsync(
-                        restaurantId,
-                        customRedirectUrl,
-                        idempotencyKey: null,
-                        quoteOverride: quote
-                    );
-                    if (error == null && !string.IsNullOrWhiteSpace(checkoutUrl))
-                    {
-                        return (
-                            new PendingPaymentRetryDto { CheckoutUrl = checkoutUrl },
-                            StatusCodes.Status200OK,
-                            null
-                        );
-                    }
-
-                    code = error ?? "custom_cycle_start_failed";
-                }
-                else
-                {
-                    var owner = await _context.Users
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
-                    if (owner == null)
-                    {
-                        return (null, StatusCodes.Status400BadRequest, "billing_email_required");
-                    }
-
-                    var locationId = await ResolveFirstLocationIdAsync(restaurantId);
-                    var result = await _firstPaidConversionPaySession.StartAsync(
-                        billingAccount,
-                        owner,
-                        restaurant.AccountType,
-                        locationId,
-                        pendingPlan,
-                        cadence,
-                        $"pending-retry-{restaurantId}-{Guid.NewGuid():N}"
-                    );
-                    return (
-                        new PendingPaymentRetryDto { CheckoutUrl = result.RedirectUrl },
-                        StatusCodes.Status200OK,
-                        null
-                    );
-                }
-            }
-            catch (RevolutMerchantNotReadyException ex)
-            {
-                code = ex.Code;
-            }
-            catch (InvalidOperationException ex)
-            {
-                code = ex.Message;
-            }
-
-            // Keep the pending plan. Record the failure for the owner and for Admin.
-            code = code.Length > 64 ? code[..64] : code;
-            billingAccount.PendingPaymentFailedAtUtc = DateTime.UtcNow;
-            billingAccount.PendingPaymentFailureCode = code;
-            _context.AdminAuditEvents.Add(
-                new AdminAuditEvent
-                {
-                    Id = Guid.NewGuid(),
-                    OccurredAtUtc = DateTime.UtcNow,
-                    Action = AdminAuditActions.BillingPendingPaymentRetryFailed,
-                    ActorIdentity = $"user:{userId}",
-                    TargetType = AdminAuditTargetTypes.Restaurant,
-                    TargetId = restaurantId.ToString(
-                        System.Globalization.CultureInfo.InvariantCulture
-                    ),
-                    RestaurantId = restaurantId,
-                    DetailJson = JsonSerializer.Serialize(
-                        new { plan = pendingPlan, code }
-                    ),
-                    Succeeded = false,
-                }
-            );
-            await _context.SaveChangesAsync();
-
-            return (null, StatusCodes.Status502BadGateway, code);
-        }
-
-        private async Task<int> ResolveFirstLocationIdAsync(int restaurantId)
-        {
-            var locationId = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(row => row.RestaurantId == restaurantId)
-                .OrderBy(row => row.Id)
-                .Select(row => row.Id)
-                .FirstOrDefaultAsync();
-            return locationId == 0 ? restaurantId : locationId;
-        }
-
-        private async Task<string?> ResolveOpenCustomCycleCheckoutUrlAsync(
-            int restaurantId
-        )
-        {
-            var open = await _context.RevolutOrderIntents
-                .AsNoTracking()
-                .Where(row =>
-                    row.RestaurantId == restaurantId
-                    && row.Purpose == RevolutOrderIntentPurposes.CustomPlanCycle
-                    && row.IsOpen
-                )
-                .OrderByDescending(row => row.CreatedAtUtc)
-                .Select(row => row.CheckoutUrl)
-                .FirstOrDefaultAsync();
-            return string.IsNullOrWhiteSpace(open) ? null : open;
-        }
-
-        private static string FormatPoundsFromPence(int pence)
-        {
-            if (pence % 100 == 0)
-            {
-                return $"£{pence / 100}";
-            }
-
-            return $"£{(pence / 100m).ToString("0.00", CultureInfo.GetCultureInfo("en-GB"))}";
-        }
-
-        private static string FormatCreditsCountLabel(int quantity)
-        {
-            return quantity.ToString("N0", CultureInfo.GetCultureInfo("en-GB"));
         }
 
         /// <summary>

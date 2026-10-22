@@ -1,42 +1,23 @@
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
-import {
-  decodeCustomPlanIntentV2,
-  encodeCustomPlanIntentV2,
-  type CustomPlanBasePlanKey,
-  type CustomPlanPackCounts,
-  type CustomPlanV2ConfigInput,
-} from "@/lib/marketingCustomPlan/customPlanEstimate"
 
 /** Marketing entry to self-serve Signup. */
 export const SIGNUP_PATH = "/signup"
 
-export type SignupCustomPlanConfig = CustomPlanV2ConfigInput
-
 export type SignupPlanIntent = {
-  plan: "Pilot" | "Starter" | "Growth" | "Group" | "Custom"
+  plan: "Pilot" | "Starter" | "Growth" | "Group"
   cadence?: BillingCadence
-  /** v2 calculator config — survives Back, reload, and plan changes. */
-  config?: SignupCustomPlanConfig
 }
 
 const SIGNUP_PLAN_INTENT_KEY = "tummly.signupPlanIntent"
 
-const PAID_PLANS = new Set(["Starter", "Growth", "Group", "Custom"])
+const PAID_PLANS = new Set(["Starter", "Growth", "Group"])
 
 export type BuildSignupPathOptions = {
   /** Prefills Work email on `/signup` so the visitor does not type it again. */
   email?: string | null
 }
 
-function titleCasePlanFromBase(
-  basePlan: CustomPlanBasePlanKey,
-): "Starter" | "Growth" | "Group" {
-  if (basePlan === "starter") return "Starter"
-  if (basePlan === "growth") return "Growth"
-  return "Group"
-}
-
-/** Build `/signup?plan=&cadence=&email=&customIntent=` for Pricing / marketing CTAs. */
+/** Build `/signup?plan=&cadence=&email=` for Pricing / marketing CTAs. */
 export function buildSignupPath(
   intent?: SignupPlanIntent | null,
   options?: BuildSignupPathOptions,
@@ -47,12 +28,6 @@ export function buildSignupPath(
     if (intent.plan !== "Pilot" && intent.cadence != null) {
       params.set("cadence", intent.cadence)
     }
-    if (intent.config != null) {
-      params.set(
-        "customIntent",
-        encodeCustomPlanIntentV2(intent.config),
-      )
-    }
   }
   const email = options?.email?.trim()
   if (email != null && email !== "") {
@@ -62,34 +37,8 @@ export function buildSignupPath(
   return query === "" ? SIGNUP_PATH : `${SIGNUP_PATH}?${query}`
 }
 
-function normalizeIntent(parsed: SignupPlanIntent): SignupPlanIntent | null {
-  if (parsed.plan === "Pilot") {
-    return { plan: "Pilot" }
-  }
-  if (!PAID_PLANS.has(parsed.plan)) {
-    return null
-  }
-  const cadence: BillingCadence =
-    parsed.cadence === "annual" ? "annual" : "monthly"
-  const config =
-    parsed.config != null && parsed.config.version === 2
-      ? {
-          version: 2 as const,
-          cadence: parsed.config.cadence === "annual" ? "annual" as const : "monthly" as const,
-          basePlan: parsed.config.basePlan,
-          locations: Math.max(1, Math.floor(parsed.config.locations)),
-          packs: parsed.config.packs ?? {},
-        }
-      : undefined
-  return {
-    plan: parsed.plan,
-    cadence,
-    ...(config != null ? { config } : {}),
-  }
-}
-
 export function parseSignupPlanIntent(
-  searchParams: URLSearchParams,
+  searchParams: URLSearchParams
 ): SignupPlanIntent | null {
   const planRaw = searchParams.get("plan")?.trim()
   if (planRaw == null || planRaw === "") {
@@ -103,62 +52,14 @@ export function parseSignupPlanIntent(
   if (plan === "Pilot") {
     return { plan: "Pilot" }
   }
-
   const cadenceRaw = searchParams.get("cadence")?.trim().toLowerCase()
   const cadence: BillingCadence =
     cadenceRaw === "annual" ? "annual" : "monthly"
-  const customIntent = searchParams.get("customIntent")?.trim()
-  const decoded =
-    customIntent != null && customIntent !== ""
-      ? decodeCustomPlanIntentV2(customIntent)
-      : null
-
-  if (decoded != null) {
-    const config: SignupCustomPlanConfig = {
-      ...decoded,
-      cadence: decoded.cadence === "annual" ? "annual" : cadence,
-    }
-    // Prefer explicit Custom; otherwise keep the card plan for preselect.
-    const resolvedPlan =
-      plan === "Custom" ? "Custom" : (plan as SignupPlanIntent["plan"])
-    return {
-      plan: resolvedPlan,
-      cadence: config.cadence,
-      config,
-    }
-  }
-
-  return {
-    plan: plan as "Starter" | "Growth" | "Group" | "Custom",
-    cadence,
-  }
-}
-
-/**
- * The saved calculator config applies only to Custom or to the card on its
- * base plan. It stays stored while the user compares other cards, so going
- * back to that card restores the customisation.
- */
-export function activeCustomConfig(
-  intent: SignupPlanIntent | null | undefined,
-): SignupCustomPlanConfig | null {
-  if (intent == null || intent.plan === "Pilot" || intent.config == null) {
-    return null
-  }
-  if (intent.plan === "Custom") {
-    return intent.config
-  }
-  return intent.config.basePlan === intent.plan.toLowerCase()
-    ? intent.config
-    : null
+  return { plan: plan as "Starter" | "Growth" | "Group", cadence }
 }
 
 export function saveSignupPlanIntent(intent: SignupPlanIntent): void {
-  const normalized = normalizeIntent(intent)
-  if (normalized == null) {
-    return
-  }
-  sessionStorage.setItem(SIGNUP_PLAN_INTENT_KEY, JSON.stringify(normalized))
+  sessionStorage.setItem(SIGNUP_PLAN_INTENT_KEY, JSON.stringify(intent))
 }
 
 export function readSignupPlanIntent(): SignupPlanIntent | null {
@@ -167,87 +68,37 @@ export function readSignupPlanIntent(): SignupPlanIntent | null {
     return null
   }
   try {
-    return normalizeIntent(JSON.parse(raw) as SignupPlanIntent)
+    const parsed = JSON.parse(raw) as SignupPlanIntent
+    if (parsed.plan === "Pilot") {
+      return { plan: "Pilot" }
+    }
+    if (PAID_PLANS.has(parsed.plan)) {
+      return {
+        plan: parsed.plan,
+        cadence: parsed.cadence === "annual" ? "annual" : "monthly",
+      }
+    }
   } catch {
     return null
   }
+  return null
 }
 
 export function clearSignupPlanIntent(): void {
   sessionStorage.removeItem(SIGNUP_PLAN_INTENT_KEY)
 }
 
-/** Capture `?plan=` / `?cadence=` / `?customIntent=` from the signup URL into sessionStorage.
- * Plain `/signup` (OAuth error return, "Use a different email") keeps the saved
- * intent: the plan step always lists every plan, so it only preselects.
+/** Capture `?plan=` / `?cadence=` from the current signup URL into sessionStorage.
+ * Plain `/signup` clears a stale intent so Free is not overridden.
  */
 export function captureSignupPlanIntentFromSearch(
-  searchParams: URLSearchParams,
+  searchParams: URLSearchParams
 ): SignupPlanIntent | null {
   const intent = parseSignupPlanIntent(searchParams)
   if (intent != null) {
     saveSignupPlanIntent(intent)
     return intent
   }
-  return readSignupPlanIntent()
-}
-
-export function updateSignupPlanSelection(args: {
-  plan: SignupPlanIntent["plan"]
-  cadence?: BillingCadence
-  /** When false, drop a prior custom config (plain catalog checkout). */
-  keepConfig?: boolean
-}): SignupPlanIntent {
-  const existing = readSignupPlanIntent()
-  const cadence =
-    args.plan === "Pilot"
-      ? undefined
-      : (args.cadence ?? existing?.cadence ?? "monthly")
-  const keepConfig = args.keepConfig === true
-  let config: SignupCustomPlanConfig | undefined
-  if (keepConfig && args.plan !== "Pilot" && existing?.config != null) {
-    const nextBase: CustomPlanBasePlanKey =
-      args.plan === "Custom" || args.plan === "Starter" || args.plan === "Growth" || args.plan === "Group"
-        ? args.plan === "Custom"
-          ? existing.config.basePlan
-          : (args.plan.toLowerCase() as CustomPlanBasePlanKey)
-        : existing.config.basePlan
-    config = {
-      ...existing.config,
-      cadence: cadence ?? existing.config.cadence,
-      basePlan: nextBase,
-    }
-  }
-
-  const next: SignupPlanIntent = {
-    plan: args.plan,
-    ...(cadence != null ? { cadence } : {}),
-    ...(config != null ? { config } : {}),
-  }
-  saveSignupPlanIntent(next)
-  return next
-}
-
-export function saveSignupCustomPlanConfig(args: {
-  basePlan: CustomPlanBasePlanKey
-  cadence: BillingCadence
-  locations: number
-  packs: Partial<CustomPlanPackCounts>
-  /** When true, store plan as Custom (has packs / extras). */
-  asCustom: boolean
-}): SignupPlanIntent {
-  const config: SignupCustomPlanConfig = {
-    version: 2,
-    cadence: args.cadence,
-    basePlan: args.basePlan,
-    locations: args.locations,
-    packs: args.packs,
-  }
-  const next: SignupPlanIntent = {
-    plan: args.asCustom ? "Custom" : titleCasePlanFromBase(args.basePlan),
-    cadence: args.cadence,
-    config,
-  }
-  saveSignupPlanIntent(next)
-  return next
+  clearSignupPlanIntent()
+  return null
 }

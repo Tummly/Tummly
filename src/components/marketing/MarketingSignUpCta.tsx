@@ -296,7 +296,7 @@ export function MarketingSignUpCta({
                     className="size-4 shrink-0 text-[#727272]"
                     strokeWidth={2}
                   />
-                  <p className="m-0 text-xs font-inter font-medium leading-normal text-[#727272]">
+                  <p className="m-0 text-xs font-medium leading-normal text-[#727272]">
                     {badge}
                   </p>
                 </div>
@@ -320,7 +320,7 @@ export function MarketingSignUpCta({
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     className={cn(
-                      "h-[46px] min-h-[46px] flex-1 rounded-[8px] bg-transparent px-[17px] py-[15px] text-base leading-5 font-inter md:text-base",
+                      "h-[46px] min-h-[46px] flex-1 rounded-[8px] bg-transparent px-[17px] py-[15px] text-base leading-5 md:text-base",
                       isEditorial
                         ? "border-[#5f5f5f] text-[#141414] placeholder:text-[#141414] focus-visible:border-[#141414] focus-visible:ring-[#141414]/20"
                         : "border-[#969696] text-white placeholder:text-[#7d7d7d] focus-visible:border-white focus-visible:ring-white/20",

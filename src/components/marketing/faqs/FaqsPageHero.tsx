@@ -58,7 +58,7 @@ export function FaqsPageHero({
             placeholder={FAQS_PAGE_HERO.searchPlaceholder}
             className={cn(
               "h-auto min-h-0 rounded-none border-0 bg-[#eaeaea] py-6.5 pr-6.5 pl-17",
-              "text-base font-inter font-normal text-[#141414] shadow-none",
+              "text-base font-normal text-[#141414] shadow-none",
               "placeholder:text-[#707070]",
               "focus-visible:border-0 focus-visible:ring-2 focus-visible:ring-[#141414]/20",
               "md:text-[18px] md:leading-normal",

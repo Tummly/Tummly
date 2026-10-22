@@ -43,11 +43,14 @@ export function DemoExitModal({
           <p className="font-sans max-w-[510px] text-base leading-6 text-[#141414] sm:text-lg">
             {copy.body}
           </p>
+          <p className="font-sans text-sm font-medium text-[#4e4e4e]">
+            {copy.trustLine}
+          </p>
           <div className="flex flex-wrap items-center justify-center gap-3.5">
             {copy.bullets.map((bullet) => (
               <div
                 key={bullet}
-                className="flex items-center gap-2 rounded-[30px] px-2.5 py-2 text-xs font-inter font-medium text-[#727272]"
+                className="font-sans flex items-center gap-2 rounded-[30px] px-2.5 py-2 text-xs font-medium text-[#727272]"
               >
                 <span className="inline-flex size-4 items-center justify-center text-[#14a74a]">
                   <Check className="size-3.5" strokeWidth={3} />

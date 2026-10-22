@@ -89,10 +89,10 @@ describe("marketingMediaUrl", () => {
       "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/hero.mp4",
     )
     expect(FOR_GROUPS_PRODUCT_VIDEO_PATHS["hear-from-guests"]).toBe(
-      "for-groups/product-e1dfdb-hear-from-guests.mp4",
+      "for-groups/product-hear-from-guests.webm",
     )
     expect(forGroupsProductVideoUrl("whats-working")).toBe(
-      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/product-e1dfdb-whats-working.mp4",
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/product-whats-working.webm",
     )
   })
 

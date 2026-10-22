@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.DTOs.Locations;
@@ -17,19 +16,16 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly ICaptureQrLifecycleService _captureLifecycle;
         private readonly IRestaurantAccountTypePromotion _accountTypePromotion;
-        private readonly IPricebookCatalog _pricebook;
 
         public LocationLifecycleService(
             ApplicationDbContext context,
             ICaptureQrLifecycleService captureLifecycle,
-            IRestaurantAccountTypePromotion accountTypePromotion,
-            IPricebookCatalog pricebook
+            IRestaurantAccountTypePromotion accountTypePromotion
         )
         {
             _context = context;
             _captureLifecycle = captureLifecycle;
             _accountTypePromotion = accountTypePromotion;
-            _pricebook = pricebook;
         }
 
         public async Task<LocationLifecycleResult> PauseAsync(
@@ -109,16 +105,6 @@ namespace TummlyBackend.Services
                 return LocationLifecycleResult.InvalidTransition(
                     "Only a Paused location can be resumed."
                 );
-            }
-
-            var capDeny = await PendingPlanLimits.DenyActivationAsync(
-                _context,
-                _pricebook,
-                command.RestaurantId
-            );
-            if (capDeny != null)
-            {
-                return LocationLifecycleResult.InvalidTransition(capDeny);
             }
 
             await using var transaction = await BeginSettingsCaptureTransactionAsync();

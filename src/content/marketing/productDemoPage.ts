@@ -36,6 +36,7 @@ export const PRODUCT_DEMO = {
     bodyWithSubmission:
       "See how your feedback appears in Tummly and what the restaurant can do next - from recovery to engagement and performance.",
     primaryLabel: "Start tour",
+    secondaryLabel: "Explore on your own",
     safetyLine: "Demo only - nothing will be sent or changed outside this demo.",
   },
   tour: {
@@ -44,15 +45,11 @@ export const PRODUCT_DEMO = {
     exploreTitle: "Explore the Guest Loop",
     exploreBody:
       "See how Tummly turns guest feedback into action and repeat engagement.",
-    continueLabel: "Continue tour",
-    completeBody:
-      "You have seen how Tummly connects Feedback, recovery, guest context, engagement and insight.",
     chapters: [
       {
         id: "feedback",
         label: "Feedback & recovery",
-        // Step 1 points at the Feedback nav item, so the chapter starts on Home.
-        route: "home" as const,
+        route: "feedback" as const,
         steps: [
           {
             id: "ch1-s1",
@@ -60,7 +57,7 @@ export const PRODUCT_DEMO = {
             body: "Guest feedback collected through Tummly appears here, where the restaurant can review it, manage follow-up and take the right next action.",
             ctaLabel: "Open Feedback",
             target: "nav-feedback",
-            action: "navigateFeedback" as const,
+            action: "navigate" as const,
           },
           {
             id: "ch1-s2",
@@ -99,7 +96,7 @@ export const PRODUCT_DEMO = {
             title: "Track the outcome",
             body: "Tummly keeps the recovery connected to the original feedback so the team can track what happened next.",
             ctaLabel: "Complete chapter",
-            target: "feedback-recovery-summary",
+            target: "feedback-detail-panel",
             action: "completeChapter" as const,
           },
         ],
@@ -184,7 +181,7 @@ export const PRODUCT_DEMO = {
             title: "See the Guest Loop as a system",
             body: "Reports connect Capture, Feedback, Guests, Offers and Campaigns so the restaurant can understand what happened across the Guest Loop.",
             ctaLabel: "Open Weekly Brief",
-            target: "reports-weekly-brief",
+            target: "nav-reports",
             action: "openWeeklyBrief" as const,
           },
           {

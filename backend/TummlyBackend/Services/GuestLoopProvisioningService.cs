@@ -1,7 +1,6 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Provisioning;
 using TummlyBackend.DTOs.Signup;
@@ -24,9 +23,7 @@ namespace TummlyBackend.Services
         private readonly ICreditLedger _creditLedger;
         private readonly IBillingAccountLifecycle _lifecycle;
         private readonly IFirstPaidConversionPaySession _firstPaidConversionPaySession;
-        private readonly CustomPlanCycleBillingService _customPlanCycleBilling;
         private readonly IEmailService _emailService;
-        private readonly ILogger<GuestLoopProvisioningService> _logger;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
@@ -38,12 +35,9 @@ namespace TummlyBackend.Services
             ICreditLedger creditLedger,
             IBillingAccountLifecycle lifecycle,
             IFirstPaidConversionPaySession firstPaidConversionPaySession,
-            CustomPlanCycleBillingService customPlanCycleBilling,
-            IEmailService emailService,
-            ILogger<GuestLoopProvisioningService> logger
+            IEmailService emailService
         )
         {
-            _logger = logger;
             _context = context;
             _qrCodeProvisioning = qrCodeProvisioning;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
@@ -53,7 +47,6 @@ namespace TummlyBackend.Services
             _creditLedger = creditLedger;
             _lifecycle = lifecycle;
             _firstPaidConversionPaySession = firstPaidConversionPaySession;
-            _customPlanCycleBilling = customPlanCycleBilling;
             _emailService = emailService;
         }
 
@@ -129,32 +122,6 @@ namespace TummlyBackend.Services
                     trialRequest.Status = TrialRequestStatus.AccountCreated;
                 },
                 mintPilotCredits: true
-            );
-        }
-
-        public async Task RetryPaidSignupCheckoutAsync(Guid pendingSignupId)
-        {
-            var pending = await _context.PendingSignups.FirstOrDefaultAsync(x =>
-                x.Id == pendingSignupId
-            );
-            if (
-                pending == null
-                || pending.Status != PendingSignupStatuses.Complete
-                || string.IsNullOrWhiteSpace(pending.ChosenPlan)
-                || pending.ChosenPlan
-                    is BillingSubscriptionPlans.Free
-                        or BillingSubscriptionPlans.Pilot
-            )
-            {
-                return;
-            }
-
-            await StartPaidSignupPaySessionAsync(
-                pending.Email,
-                pending.ChosenPlan,
-                pending.ChosenCadence ?? "monthly",
-                pending.Id,
-                pending.CustomPlanConfigJson
             );
         }
 
@@ -343,8 +310,7 @@ namespace TummlyBackend.Services
                     pending.Email,
                     pending.ChosenPlan!,
                     pending.ChosenCadence ?? "monthly",
-                    pending.Id,
-                    pending.CustomPlanConfigJson
+                    pending.Id
                 );
             }
         }
@@ -445,8 +411,7 @@ namespace TummlyBackend.Services
             string email,
             string chosenPlan,
             string chosenCadence,
-            Guid pendingSignupId,
-            string? customPlanConfigJson
+            Guid pendingSignupId
         )
         {
             var user = await _context.Users.FirstOrDefaultAsync(x =>
@@ -473,59 +438,6 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            if (
-                string.Equals(
-                    chosenPlan,
-                    BillingSubscriptionPlans.Custom,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                billing.SubscriptionPlan = BillingSubscriptionPlans.Custom;
-                billing.CustomPlanConfigJson = customPlanConfigJson;
-                billing.BillingCycle = string.Equals(
-                    chosenCadence,
-                    "annual",
-                    StringComparison.OrdinalIgnoreCase
-                )
-                    ? BillingCycles.Annual
-                    : BillingCycles.Monthly;
-                await _context.SaveChangesAsync();
-
-                string? checkoutError;
-                try
-                {
-                    var (checkoutUrl, error) =
-                        await _customPlanCycleBilling.StartCyclePayAsync(
-                            restaurant.Id,
-                            BuildSignupCompleteRedirectUrl()
-                        );
-                    checkoutError = checkoutUrl == null
-                        ? error ?? "custom_checkout_missing"
-                        : null;
-                }
-                catch (RevolutMerchantNotReadyException ex)
-                {
-                    checkoutError = ex.Code;
-                }
-                catch (InvalidOperationException ex)
-                {
-                    checkoutError = ex.Message;
-                }
-
-                if (checkoutError != null)
-                {
-                    await RevertUnpaidCustomSignupAsync(
-                        billing,
-                        chosenCadence,
-                        customPlanConfigJson,
-                        checkoutError
-                    );
-                }
-
-                return;
-            }
-
             var locationId = await _context.RestaurantLocations
                 .AsNoTracking()
                 .Where(row => row.RestaurantId == restaurant.Id)
@@ -547,116 +459,26 @@ namespace TummlyBackend.Services
                     chosenPlan,
                     chosenCadence,
                     pendingSignupId.ToString("D"),
-                    successRedirectUrl: BuildSignupCompleteRedirectUrl()
+                    successRedirectUrl: BuildLoginSetupCompleteRedirectUrl()
                 );
             }
-            catch (RevolutMerchantNotReadyException ex)
+            catch (InvalidOperationException)
             {
-                // Stay Free; the owner retries payment from Manage Plan.
-                await RecordPendingPaymentAsync(
-                    billing,
-                    chosenPlan,
-                    chosenCadence,
-                    customConfigJson: null,
-                    ex.Code,
-                    AdminAuditActions.BillingPaidSignupCheckoutFailed
-                );
+                // Leave Free; operator can convert from Manage Plan later.
             }
-            catch (InvalidOperationException ex)
+        }
+
+        private string BuildLoginSetupCompleteRedirectUrl()
+        {
+            var baseUrl = _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(baseUrl))
             {
-                // Stay Free; the owner retries payment from Manage Plan.
-                await RecordPendingPaymentAsync(
-                    billing,
-                    chosenPlan,
-                    chosenCadence,
-                    customConfigJson: null,
-                    ex.Message,
-                    AdminAuditActions.BillingPaidSignupCheckoutFailed
+                throw new InvalidOperationException(
+                    "Frontend:BaseUrl is not configured."
                 );
             }
-        }
 
-        /// <summary>
-        /// Custom checkout did not start at signup. Keep the account on Free and
-        /// keep the quote as a pending payment so the owner can retry from Manage Plan.
-        /// </summary>
-        private async Task RevertUnpaidCustomSignupAsync(
-            BillingAccount billing,
-            string cadence,
-            string? customConfigJson,
-            string checkoutError
-        )
-        {
-            billing.SubscriptionPlan = BillingSubscriptionPlans.Free;
-            billing.BillingCycle = null;
-            billing.CustomPlanConfigJson = null;
-            await RecordPendingPaymentAsync(
-                billing,
-                BillingSubscriptionPlans.Custom,
-                cadence,
-                customConfigJson,
-                checkoutError,
-                AdminAuditActions.BillingCustomSignupCheckoutFailed
-            );
-        }
-
-        /// <summary>
-        /// Checkout did not start. The account stays on Free. Save the chosen plan
-        /// as a pending payment, log the Revolut code, and audit it for Admin.
-        /// </summary>
-        private async Task RecordPendingPaymentAsync(
-            BillingAccount billing,
-            string plan,
-            string cadence,
-            string? customConfigJson,
-            string checkoutError,
-            string auditAction
-        )
-        {
-            var code = checkoutError.Length > 64
-                ? checkoutError[..64]
-                : checkoutError;
-            billing.PendingPaymentPlan = plan;
-            billing.PendingPaymentCadence = cadence;
-            billing.PendingPaymentCustomConfigJson = customConfigJson;
-            billing.PendingPaymentFailedAtUtc = DateTime.UtcNow;
-            billing.PendingPaymentFailureCode = code;
-
-            _logger.LogWarning(
-                "Paid signup checkout did not start. RestaurantId={RestaurantId} Plan={Plan} Code={Code}",
-                billing.RestaurantId,
-                plan,
-                code
-            );
-            _context.AdminAuditEvents.Add(
-                new AdminAuditEvent
-                {
-                    Id = Guid.NewGuid(),
-                    OccurredAtUtc = DateTime.UtcNow,
-                    Action = auditAction,
-                    ActorIdentity = "system:signup",
-                    TargetType = AdminAuditTargetTypes.Restaurant,
-                    TargetId = billing.RestaurantId.ToString(
-                        System.Globalization.CultureInfo.InvariantCulture
-                    ),
-                    RestaurantId = billing.RestaurantId,
-                    DetailJson = JsonSerializer.Serialize(
-                        new { plan, code }
-                    ),
-                    Succeeded = false,
-                }
-            );
-            await _context.SaveChangesAsync();
-        }
-
-        private string BuildSignupCompleteRedirectUrl()
-        {
-            // Same base as other Hosted Checkout returns: Revolut rejects
-            // localhost / IP hosts, so local dev sets Frontend:RevolutRedirectBaseUrl.
-            var baseUrl = RevolutHostedCheckoutRedirectUrls.ResolveRedirectBaseUrl(
-                _configuration
-            );
-            return $"{baseUrl}/signup/complete";
+            return $"{baseUrl}/login?setup=complete";
         }
 
         public async Task GenerateActivationCodeAsync(string inviteToken)

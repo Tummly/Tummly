@@ -220,7 +220,6 @@ namespace TummlyBackend.Controllers
                     code = LocationCap.CapReachedCode,
                     cap = cap.Cap,
                     current = cap.Current,
-                    scheduledChangeMessage = cap.Message,
                 }),
                 AddOwnedLocationResult.FailClosed => Conflict(new
                 {

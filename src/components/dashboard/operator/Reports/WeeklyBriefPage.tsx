@@ -130,7 +130,7 @@ function WeeklyBriefMetaCard(props: {
 
 function ExecutiveSummarySection(props: { summary: string }) {
   return (
-    <ReportsSection demoTourTarget="weekly-brief-panel">
+    <ReportsSection>
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
           <AiIcon size={22} />
@@ -437,27 +437,25 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
       ) : null}
 
       {weeklyBrief.status === "empty" ? (
-        <div data-demo-tour="weekly-brief-panel">
-          <ReportsEmptyState
-            title={WEEKLY_BRIEF_PAGE_COPY.emptyTitle}
-            subtitle={
-              weeklyBrief.emptyMessage ?? WEEKLY_BRIEF_PAGE_COPY.emptySubtitle
-            }
-            action={
-              <Button
-                type="button"
-                variant="op-primary"
-                className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-                disabled={weeklyBrief.generateBusy}
-                onClick={() => {
-                  void reports.generateWeeklyBriefInPlace()
-                }}
-              >
-                {WEEKLY_BRIEF_PAGE_COPY.generateBrief}
-              </Button>
-            }
-          />
-        </div>
+        <ReportsEmptyState
+          title={WEEKLY_BRIEF_PAGE_COPY.emptyTitle}
+          subtitle={
+            weeklyBrief.emptyMessage ?? WEEKLY_BRIEF_PAGE_COPY.emptySubtitle
+          }
+          action={
+            <Button
+              type="button"
+              variant="op-primary"
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+              disabled={weeklyBrief.generateBusy}
+              onClick={() => {
+                void reports.generateWeeklyBriefInPlace()
+              }}
+            >
+              {WEEKLY_BRIEF_PAGE_COPY.generateBrief}
+            </Button>
+          }
+        />
       ) : null}
 
       {weeklyBrief.status === "error" ? (

@@ -35,8 +35,6 @@ import SignupVerifyPage from "../auth/SignupVerifyPage";
 import SignupOnboardingPage from "../auth/SignupOnboardingPage";
 import SignupChoosePlanRedirectPage from "../auth/SignupChoosePlanRedirectPage";
 import SignupProvisioningPage from "../auth/SignupProvisioningPage";
-import SignupCompletePage from "../auth/SignupCompletePage";
-import SignupLocationsPage from "../auth/SignupLocationsPage";
 import GuestFeedbackPage from "../public/GuestFeedbackPage";
 import PrivacyPage from "../public/PrivacyPage";
 import TermsPage from "../public/TermsPage";
@@ -46,7 +44,6 @@ import AcceptableUsePage from "../public/AcceptableUsePage";
 import ShopPrintTermsPage from "../public/ShopPrintTermsPage";
 import FaqsPage from "../public/FaqsPage";
 import PricingPage from "../public/PricingPage";
-import CustomPlanPage from "../public/CustomPlanPage";
 import ProductPage from "../public/ProductPage";
 import HowItWorksPage from "../public/HowItWorksPage";
 import QrMaterialsPage from "../public/QrMaterialsPage";
@@ -235,24 +232,6 @@ function AppRoutes() {
             </ErrorBoundary>
           }
         />
-        <Route
-          path="signup/complete"
-          element={
-            <ErrorBoundary>
-              <SignupCompletePage />
-            </ErrorBoundary>
-          }
-        />
-        <Route element={<ProtectedRoute />}>
-          <Route
-            path="signup/locations"
-            element={
-              <ErrorBoundary>
-                <SignupLocationsPage />
-              </ErrorBoundary>
-            }
-          />
-        </Route>
         <Route
           path="reset-password"
           element={
@@ -611,7 +590,6 @@ function AppRoutes() {
           <Route path="shop-print-terms" element={<ShopPrintTermsPage />} />
           <Route path="faqs" element={<FaqsPage />} />
           <Route path="pricing" element={<PricingPage />} />
-          <Route path="custom-plan" element={<CustomPlanPage />} />
           <Route path="product" element={<ProductPage />} />
           <Route path="how-it-works" element={<HowItWorksPage />} />
           <Route path="qr-materials" element={<QrMaterialsPage />} />

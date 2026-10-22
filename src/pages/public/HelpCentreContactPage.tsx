@@ -256,7 +256,7 @@ export default function HelpCentreContactPage() {
                 </p>
               </div>
 
-              <p className="m-0 max-w-[480px] text-xs font-inter font-medium leading-[18px] text-[#7c7c7c]">
+              <p className="m-0 max-w-[480px] text-xs font-medium leading-[18px] text-[#7c7c7c]">
                 We&apos;ll use your details to respond to your enquiry. Read our{" "}
                 <Link
                   to={LEGAL_ROUTES.privacy}

@@ -9,6 +9,8 @@ namespace TummlyBackend.Services
 {
     public sealed class PlanChangeService : IPlanChangeService
     {
+        private const int ExtraUsersPerLocation = 2;
+
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebook;
         private readonly TimeProvider _clock;
@@ -234,17 +236,17 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("invalid_plan_target");
             }
 
-            var activeLocations = await PendingPlanLimits.CountActiveLocationsAsync(
-                _context,
-                restaurantId,
-                cancellationToken
-            );
+            var activeLocations = await _context.RestaurantLocations
+                .CountAsync(
+                    row => row.RestaurantId == restaurantId,
+                    cancellationToken
+                );
             if (activeLocations > entitledLocations)
             {
                 throw new InvalidOperationException("location_cap_reached");
             }
 
-            if (!PendingPlanLimits.TryResolveTeamCap(book, targetPlan, extras, out var teamCap))
+            if (!TryResolveTeamCap(book, targetPlan, extras, out var teamCap))
             {
                 throw new InvalidOperationException("invalid_plan_target");
             }
@@ -428,6 +430,27 @@ namespace TummlyBackend.Services
             }
 
             return Math.Max(0, scheduledExtras ?? 0);
+        }
+
+        private static bool TryResolveTeamCap(
+            PricebookSnapshot book,
+            string subscriptionPlan,
+            int paidExtraLocationCount,
+            out int cap
+        )
+        {
+            cap = 0;
+            var key = subscriptionPlan.Trim().ToLowerInvariant();
+            if (!book.Plans.TryGetValue(key, out var plan))
+            {
+                return false;
+            }
+
+            var extras = string.Equals(key, "group", StringComparison.Ordinal)
+                ? Math.Max(0, paidExtraLocationCount)
+                : 0;
+            cap = plan.IncludedTeamMembers + (extras * ExtraUsersPerLocation);
+            return true;
         }
 
         private static string NormalizePlanDisplay(string plan)

@@ -212,57 +212,6 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(1, stickers.GetProperty("count").GetInt32());
         }
 
-        [Fact]
-        public async Task PostInterest_RejectsInactivePromotedProduct()
-        {
-            var seeded = await SeedOperatorAndAdminAsync();
-            await SeedInterestProductAsync(
-                "promoted-tray",
-                "Promoted tray",
-                "Was interest, now shop.",
-                isActive: false
-            );
-
-            using var request = AuthorizedPostJson(
-                "/api/shop/interest",
-                seeded.OwnerJwt,
-                new
-                {
-                    productKey = "promoted-tray",
-                    locationId = seeded.LocationId,
-                }
-            );
-
-            var response = await _client.SendAsync(request);
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        }
-
-        [Fact]
-        public async Task AdminInterestProducts_ListIncludesActiveAndPromoted()
-        {
-            await ClearInterestTablesAsync();
-            var seeded = await SeedOperatorAndAdminAsync();
-            await SeedInterestProductAsync("active-one", "Active", "A");
-            await SeedInterestProductAsync(
-                "shop-one",
-                "In Shop",
-                "B",
-                isActive: false,
-                linkedSkuId: "shop-one"
-            );
-
-            using var request = AuthorizedGet(
-                "/api/admin/shop-interest/products",
-                seeded.AdminJwt
-            );
-            var response = await _client.SendAsync(request);
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-            var body = await ReadJsonAsync(response);
-            Assert.True(body.GetProperty("success").GetBoolean());
-            Assert.Equal(2, body.GetProperty("items").GetArrayLength());
-        }
-
         private async Task ClearInterestTablesAsync()
         {
             using var scope = _factory.Services.CreateScope();
@@ -270,9 +219,6 @@ namespace TummlyBackend.Tests.Integration
                 .GetRequiredService<ApplicationDbContext>();
             context.ShopInterestRegistrations.RemoveRange(
                 context.ShopInterestRegistrations
-            );
-            context.ShopInterestProductImages.RemoveRange(
-                context.ShopInterestProductImages
             );
             context.ShopInterestProducts.RemoveRange(
                 context.ShopInterestProducts
@@ -283,9 +229,7 @@ namespace TummlyBackend.Tests.Integration
         private async Task SeedInterestProductAsync(
             string productKey,
             string title,
-            string description,
-            bool isActive = true,
-            string? linkedSkuId = null
+            string description
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -306,12 +250,8 @@ namespace TummlyBackend.Tests.Integration
                     ProductKey = productKey,
                     Title = title,
                     Description = description,
-                    Material = string.Empty,
-                    Dimensions = string.Empty,
-                    LinkedSkuId = linkedSkuId,
-                    IsActive = isActive,
+                    IsActive = true,
                     CreatedAtUtc = DateTime.UtcNow,
-                    UpdatedAtUtc = DateTime.UtcNow,
                 }
             );
             await context.SaveChangesAsync();

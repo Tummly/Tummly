@@ -1,9 +1,7 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
-using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Signup;
@@ -78,106 +76,18 @@ namespace TummlyBackend.Tests.Services
                 _mintLedger,
                 new NoOpBillingAccountLifecycle(),
                 _firstPaid,
-                new CustomPlanCycleBillingService(
-                    _db,
-                    new NoOpRevolutMerchantForCustomPlan(),
-                    TimeProvider.System,
-                    Microsoft.Extensions.Options.Options.Create(
-                        new TummlyBackend.Configurations.TummlySellerVatSettings()
-                    )
-                ),
-                new EmailServiceStubBase(),
-                NullLogger<GuestLoopProvisioningService>.Instance
+                new EmailServiceStubBase()
             );
-
-            var snapshot = _pricebook.GetRequired(_pricebook.CurrentPricebookId);
-            _db.CommercialCatalogVersions.Add(
-                CommercialCatalogSeeder.FromSnapshot(snapshot, DateTime.UtcNow)
-            );
-            _db.SaveChanges();
 
             _signup = new SignupService(
                 _db,
                 new TrackingEmailService(),
-                _provisioning,
-                new CustomPlanQuoteService(_db),
-                new StubJwtService()
+                _provisioning
             );
         }
 
         [Fact]
-        public async Task SaveOnboarding_CustomPlan_CheckoutFails_StaysFreeAndAudits()
-        {
-            await SeedVerifiedPendingAsync();
-            var dto = BuildValidOnboardingDto();
-            dto.ChosenPlan = BillingSubscriptionPlans.Custom;
-            dto.ChosenCadence = "monthly";
-            dto.CustomPlanConfigJson = JsonSerializer.Serialize(
-                new
-                {
-                    version = 2,
-                    cadence = "monthly",
-                    basePlan = "growth",
-                    locations = 2,
-                    packs = new Dictionary<string, int> { ["offers_5"] = 1 },
-                }
-            );
-
-            var result = await _signup.SaveOnboardingAsync(_sessionToken, dto);
-
-            Assert.Equal(PendingSignupStatuses.Complete, result.Status);
-            var billing = await _db.BillingAccounts.SingleAsync();
-            Assert.Equal(BillingSubscriptionPlans.Free, billing.SubscriptionPlan);
-            Assert.Null(billing.CustomPlanConfigJson);
-            Assert.Null(billing.BillingCycle);
-            Assert.Equal(BillingSubscriptionPlans.Custom, billing.PendingPaymentPlan);
-            Assert.NotNull(billing.PendingPaymentCustomConfigJson);
-            var audit = await _db.AdminAuditEvents.SingleAsync();
-            Assert.Equal(AdminAuditActions.BillingCustomSignupCheckoutFailed, audit.Action);
-            Assert.False(audit.Succeeded);
-            Assert.Equal(billing.RestaurantId, audit.RestaurantId);
-        }
-
-        [Fact]
-        public async Task SaveOnboarding_MissingPlan_ThrowsChoosePlan()
-        {
-            await SeedVerifiedPendingAsync();
-            var dto = BuildValidOnboardingDto();
-            dto.ChosenPlan = null;
-
-            var ex = await Assert.ThrowsAsync<Exception>(() =>
-                _signup.SaveOnboardingAsync(_sessionToken, dto)
-            );
-            Assert.Equal(SignupService.ChoosePlanMessage, ex.Message);
-        }
-
-        [Fact]
-        public async Task SaveOnboarding_CustomV2_NoPacks_CollapsesToGrowth()
-        {
-            await SeedVerifiedPendingAsync();
-            var dto = BuildValidOnboardingDto();
-            dto.ChosenPlan = BillingSubscriptionPlans.Custom;
-            dto.ChosenCadence = "monthly";
-            dto.CustomPlanConfigJson = JsonSerializer.Serialize(
-                new
-                {
-                    version = 2,
-                    cadence = "monthly",
-                    basePlan = "growth",
-                    locations = 2,
-                    packs = new Dictionary<string, int>(),
-                }
-            );
-
-            await _signup.SaveOnboardingAsync(_sessionToken, dto);
-            await _db.Entry(_pending).ReloadAsync();
-
-            Assert.Equal(BillingSubscriptionPlans.Growth, _pending.ChosenPlan);
-            Assert.Null(_pending.CustomPlanConfigJson);
-        }
-
-        [Fact]
-        public async Task SaveOnboarding_Verified_ProvisionsPilotAndCompletes()
+        public async Task SaveOnboarding_Verified_ProvisionsFreeAndCompletes()
         {
             await SeedVerifiedPendingAsync();
 
@@ -191,7 +101,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(PendingSignupStatuses.Complete, result.Status);
             Assert.True(await _db.Users.AnyAsync(u => u.Email == _email));
             Assert.Equal(PendingSignupStatuses.Complete, _pending.Status);
-            Assert.Equal(BillingSubscriptionPlans.Pilot, _pending.ChosenPlan);
+            Assert.Equal(BillingSubscriptionPlans.Free, _pending.ChosenPlan);
             Assert.Equal("monthly", _pending.ChosenCadence);
             Assert.Equal("Single", _pending.AccountType);
 
@@ -201,11 +111,15 @@ namespace TummlyBackend.Tests.Services
 
             var billing = await _db.BillingAccounts.SingleAsync();
             Assert.Equal(
-                BillingSubscriptionPlans.Pilot,
+                BillingSubscriptionPlans.Free,
                 billing.SubscriptionPlan
             );
-            Assert.Equal(BillingStatuses.Pilot, billing.BillingStatus);
-            Assert.True(_mintLedger.MintPilotCallCount >= 1);
+            Assert.Equal(BillingStatuses.Free, billing.BillingStatus);
+            Assert.Equal(0, _mintLedger.MintPilotCallCount);
+            Assert.Equal(
+                0,
+                await _db.ShopOrders.CountAsync(o => o.IsComplimentary)
+            );
         }
 
         [Fact]
@@ -235,15 +149,15 @@ namespace TummlyBackend.Tests.Services
 
             Assert.True(await _db.Users.AnyAsync(u => u.Email == _email));
             Assert.Equal(PendingSignupStatuses.Complete, _pending.Status);
-            Assert.Equal(BillingSubscriptionPlans.Pilot, _pending.ChosenPlan);
+            Assert.Equal(BillingSubscriptionPlans.Free, _pending.ChosenPlan);
 
             var restaurant = await _db.Restaurants.SingleAsync();
             var billing = await _db.BillingAccounts.SingleAsync();
             Assert.Equal(
-                BillingSubscriptionPlans.Pilot,
+                BillingSubscriptionPlans.Free,
                 billing.SubscriptionPlan
             );
-            Assert.Equal(BillingStatuses.Pilot, billing.BillingStatus);
+            Assert.Equal(BillingStatuses.Free, billing.BillingStatus);
             Assert.Equal(restaurant.Id, billing.RestaurantId);
             Assert.True(
                 await _db.GuestLoopSetups.AnyAsync(g =>
@@ -303,29 +217,6 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task RetryProvision_ChosenPlanGrowth_CheckoutFails_StaysFree_AndAudits()
-        {
-            await SeedOnboardingCompletePendingWithPlanAsync(
-                BillingSubscriptionPlans.Growth
-            );
-            _firstPaid.FailWithCode = "revolut_http_error";
-
-            await _signup.RetryProvisionAsync(_sessionToken);
-
-            var billing = await _db.BillingAccounts.SingleAsync();
-            Assert.Equal(BillingSubscriptionPlans.Free, billing.SubscriptionPlan);
-            Assert.Empty(await _db.RevolutPendingPaySessions.ToListAsync());
-            Assert.Equal(BillingSubscriptionPlans.Growth, billing.PendingPaymentPlan);
-            Assert.Equal("revolut_http_error", billing.PendingPaymentFailureCode);
-
-            var audit = await _db.AdminAuditEvents.SingleAsync();
-            Assert.Equal(AdminAuditActions.BillingPaidSignupCheckoutFailed, audit.Action);
-            Assert.False(audit.Succeeded);
-            Assert.Equal(billing.RestaurantId, audit.RestaurantId);
-            Assert.Contains("revolut_http_error", audit.DetailJson);
-        }
-
-        [Fact]
         public async Task RetryProvision_ChosenPlanStarter_StaysFree_AndOpensPaySession()
         {
             await SeedOnboardingCompletePendingWithPlanAsync(
@@ -367,7 +258,7 @@ namespace TummlyBackend.Tests.Services
                 status.PaymentRedirectUrl
             );
             Assert.Equal(
-                "https://tummly.example/signup/complete",
+                "https://tummly.example/login?setup=complete",
                 _firstPaid.LastSuccessRedirectUrl
             );
         }
@@ -391,8 +282,6 @@ namespace TummlyBackend.Tests.Services
                 GroupName = "Pilot Kitchen",
                 BusinessCategory = "takeaway",
                 PrimaryPhone = "07911123456",
-                ChosenPlan = BillingSubscriptionPlans.Pilot,
-                ChosenCadence = "monthly",
                 Locations =
                 [
                     new SaveSignupOnboardingDto.LocationItem
@@ -457,8 +346,6 @@ namespace TummlyBackend.Tests.Services
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
                 FullName = "Pilot Owner",
                 AccountType = "Single",
-                ChosenPlan = BillingSubscriptionPlans.Pilot,
-                ChosenCadence = "monthly",
                 OnboardingJson = JsonSerializer.Serialize(payload),
                 CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
                 UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5),

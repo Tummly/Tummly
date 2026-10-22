@@ -58,7 +58,6 @@ export function OfferDetailsOverviewPanel({
       <section
         className={PERFORMANCE_SECTION_CLASS}
         aria-label="Overview performance"
-        data-demo-tour="offer-metrics"
       >
         <div className={PERFORMANCE_KPI_STRIP_CLASS}>
           <div className={PERFORMANCE_KPI_ROW_CLASS}>

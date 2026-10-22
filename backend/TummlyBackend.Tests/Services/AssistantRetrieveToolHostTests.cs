@@ -450,20 +450,6 @@ namespace TummlyBackend.Tests.Services
             )
                 => Task.FromResult<CancelPlanResultDto?>(null);
 
-            public Task<(CustomPlanCyclePayDto? Response, int StatusCode, string? ErrorMessage)>
-                PayCustomPlanCycleAsync(
-                    int userId,
-                    int restaurantId,
-                    bool actorCanManage
-                )
-                => Task.FromResult<(CustomPlanCyclePayDto?, int, string?)>((null, 404, null));
-
-            public Task<(PendingPaymentRetryDto?, int, string?)> RetryPendingPaymentAsync(
-                int userId,
-                int restaurantId,
-                bool actorCanManage
-            ) => Task.FromResult<(PendingPaymentRetryDto?, int, string?)>((null, 404, null));
-
             public Task<BillingActivityListDto?> GetActivityAsync(
                 int restaurantId,
                 int skip,

@@ -134,10 +134,7 @@ function PreviewBody({
 
   return (
     <>
-      <section
-        className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS}
-        data-demo-tour="campaign-report"
-      >
+      <section className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS}>
         <h2 className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_TITLE_CLASS}>
           {copy.campaignSummary}
         </h2>

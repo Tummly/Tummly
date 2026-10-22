@@ -65,7 +65,7 @@ export function PilotHero() {
             {PILOT_HERO.trustItems.map((item) => (
               <p
                 key={item}
-                className="m-0 flex items-center gap-2 text-xs font-inter font-medium leading-normal text-[#727272]"
+                className="m-0 flex items-center gap-2 text-xs font-medium leading-normal text-[#727272]"
               >
                 <CircleCheckBig
                   aria-hidden

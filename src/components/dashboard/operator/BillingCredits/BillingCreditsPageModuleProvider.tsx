@@ -11,8 +11,6 @@ import { toast } from "sonner"
 import {
   addExtraGroupLocation,
   cancelBillingPlan,
-  payCustomPlanCycle,
-  retryPendingPayment,
   confirmBillingCreditTopUp,
   createPaymentMethodUpdateSession,
   downloadInvoicePdfBlob,
@@ -59,8 +57,6 @@ export function BillingCreditsPageModuleProvider({
         addExtraGroupLocation,
         removeExtraGroupLocation,
         cancelPlan: cancelBillingPlan,
-        payCustomPlanCycle,
-        retryPendingPayment,
         createPaymentMethodUpdateSession,
         fetchInvoicePdf: fetchBillingCreditsInvoicePdf,
         openInvoicePdf: openInvoicePdfBlob,

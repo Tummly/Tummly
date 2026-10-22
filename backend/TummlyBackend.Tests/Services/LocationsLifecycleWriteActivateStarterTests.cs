@@ -59,8 +59,7 @@ namespace TummlyBackend.Tests.Services
                 qrProvisioning,
                 _complimentary,
                 _printWork,
-                new RestaurantAccountTypePromotion(_context),
-                TestPricebookPaths.LoadV3()
+                new RestaurantAccountTypePromotion(_context)
             );
 
             SeedDraftLocation();

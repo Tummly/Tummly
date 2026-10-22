@@ -217,10 +217,6 @@ export function currentTourStep(state: DemoTourSessionState) {
   return { chapter, step }
 }
 
-/** Chapter 4 example question (§11 step 3). */
-export const DEMO_TOUR_AI_PROMPT =
-  "Summarise feedback from the last 30 days and tell me what needs attention."
-
 /** Custom event for Operator modules to open drawers/panels for tour actions. */
 export const DEMO_TOUR_ACTION_EVENT = "tummly-demo-tour-action"
 

@@ -91,18 +91,6 @@ A text style token is the full stack, not family alone:
 - H1 / H2 / H3 / body / label / button stay the same roles across breakpoints.
 - Do not promote body to *headline* or demote H2 to *functional* solely for mobile density.
 
-### Marketing controls — Inter (exception)
-
-On the **marketing website only**, CTA labels, small annotations and inputs use **Inter**, as the marketing Figma sets them. Helvetica Neue reads heavier and tighter at these sizes. Take weight, size, line-height and letter-spacing from Figma:
-
-| Element | Class | Figma metrics |
-| --- | --- | --- |
-| CTA / button label (`MarketingButton`), header Log in, auth social buttons | `font-inter font-medium` | Inter 500 · 14 · 0 tracking |
-| Trust annotation / small badge (e.g. "No payment card required") | `font-inter font-medium` | Inter 500 · 12 (10 on mobile chip) · 0 tracking |
-| Input text / placeholder | `font-inter font-normal` | Inter 400 · 16 · 0 tracking |
-
-`--font-inter` is defined in `src/index.css` (`@fontsource-variable/inter`). Do not use `font-inter` on the WebApp or for marketing body copy, nav links or headings — those keep the role table above.
-
 ## Code mapping (current repo)
 
 Defined in `src/index.css` `@theme` and `src/assets/fonts/helvetica-neue.css`:
@@ -115,7 +103,7 @@ Defined in `src/index.css` `@theme` and `src/assets/fonts/helvetica-neue.css`:
 
 **Operator dashboard (`html.op`):** body and chrome use Helvetica Neue; `h1`–`h3` and dialog/drawer/sheet titles use Plus Jakarta Sans via `src/index.css`. Section titles, KPI values, and prominent card headings in presentation modules also set `font-jakarta`.
 
-Keep Tailwind class names stable. Do not use Inter outside the marketing controls exception above, and do not reintroduce Roboto Serif. Do not commit Helvetica Neue source files outside `src/assets/fonts/helvetica-neue/`.
+Keep Tailwind class names stable. Do not reintroduce Inter or Roboto Serif. Do not commit Helvetica Neue source files outside `src/assets/fonts/helvetica-neue/`.
 
 ## Figma
 
@@ -127,6 +115,6 @@ Keep Tailwind class names stable. Do not use Inter outside the marketing control
 
 - Using Lora / `font-serif` for ordinary H1–H3 or body on the WebApp
 - Using Plus Jakarta Sans for dense UI chrome (tables, form labels, nav) when Helvetica Neue / `font-sans` is the functional default
-- Hardcoding `"Inter"` (use `font-inter`, marketing controls only), `"Roboto Serif"`, or raw `font-family` strings in components when a theme token exists
+- Hardcoding `"Inter"`, `"Roboto Serif"`, or raw `font-family` strings in components when a theme token exists
 - Using `font-serif` for ordinary headings (use `font-jakarta` / `font-heading`)
 - Different type families for the same semantic style on mobile vs desktop
