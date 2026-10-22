@@ -254,6 +254,7 @@ namespace TummlyBackend.Services
 
             billingAccount.SubscriptionPlan = BillingSubscriptionPlans.Pilot;
             billingAccount.BillingCycle = null;
+            billingAccount.CustomPlanConfigJson = null;
             billingAccount.BillingStatus = BillingStatuses.SoftLock;
             billingAccount.PilotPeriodEnd = renewalEndUtc;
             billingAccount.SoftLockEnteredAt = renewalEndUtc;

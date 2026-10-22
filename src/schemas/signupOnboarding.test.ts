@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
+
+import {
+  clearSignupPlanIntent,
+  readSignupPlanIntent,
+  saveSignupPlanIntent,
+} from "@/lib/signupPlanIntent"
 import {
   joinSignupFullName,
   signupAccountStepSchema,
@@ -47,6 +53,55 @@ describe("signupAccountStepSocialSchema", () => {
 })
 
 describe("toSignupOnboardingPayload", () => {
+  beforeEach(() => {
+    saveSignupPlanIntent({ plan: "Starter", cadence: "monthly" })
+  })
+
+  const filledValues = {
+    ...signupOnboardingDefaultValues,
+    token: "t",
+    email: "a@b.com",
+    firstName: "Ada",
+    lastName: "Lovelace",
+    password: "Password1!",
+    confirmPassword: "Password1!",
+    restaurantName: "Cafe",
+    businessCategory: "cafe",
+    locationName: "Main",
+    address: "1 High St",
+    city: "London",
+    postcode: "SW1A 1AA",
+  }
+
+  it("requires a chosen plan (no Free default)", () => {
+    clearSignupPlanIntent()
+    expect(() => toSignupOnboardingPayload(filledValues)).toThrow(
+      "Choose a plan to continue."
+    )
+  })
+
+  it("sends the custom config only for its own plan card", () => {
+    const config = {
+      version: 2 as const,
+      cadence: "monthly" as const,
+      basePlan: "starter" as const,
+      locations: 1,
+      packs: { offers_5: 1 },
+    }
+    saveSignupPlanIntent({ plan: "Growth", cadence: "monthly", config })
+    expect(toSignupOnboardingPayload(filledValues).customPlanConfigJson).toBeUndefined()
+
+    saveSignupPlanIntent({ plan: "Starter", cadence: "monthly", config })
+    expect(toSignupOnboardingPayload(filledValues).customPlanConfigJson).toBeDefined()
+  })
+
+  it("sends the plan and keeps the intent for a retry after a failed save", () => {
+    const payload = toSignupOnboardingPayload(filledValues)
+    expect(payload.chosenPlan).toBe("Starter")
+    expect(payload.chosenCadence).toBe("monthly")
+    expect(readSignupPlanIntent()?.plan).toBe("Starter")
+  })
+
   it("maps one location and joined fullName", () => {
     const payload = toSignupOnboardingPayload({
       ...signupOnboardingDefaultValues,

@@ -56,6 +56,24 @@ namespace TummlyBackend.Data
 
         public DbSet<BillingAccount> BillingAccounts { get; set; }
 
+        public DbSet<CommercialCatalogVersion> CommercialCatalogVersions { get; set; }
+
+        public DbSet<CommercialPlanRow> CommercialPlanRows { get; set; }
+
+        public DbSet<CommercialTopUpPackRow> CommercialTopUpPackRows { get; set; }
+
+        public DbSet<CommercialExtraLocationRow> CommercialExtraLocationRows
+        {
+            get;
+            set;
+        }
+
+        public DbSet<CommercialCustomUnitRateRow> CommercialCustomUnitRateRows
+        {
+            get;
+            set;
+        }
+
         public DbSet<CreditLedgerEntry> CreditLedgerEntries { get; set; }
 
         public DbSet<CreditWarningState> CreditWarningStates { get; set; }
@@ -106,6 +124,7 @@ namespace TummlyBackend.Data
         public DbSet<ShopMaterialSkuImage> ShopMaterialSkuImages { get; set; }
 
         public DbSet<ShopInterestProduct> ShopInterestProducts { get; set; }
+        public DbSet<ShopInterestProductImage> ShopInterestProductImages { get; set; }
 
         public DbSet<ShopInterestRegistration> ShopInterestRegistrations { get; set; }
 
@@ -724,6 +743,72 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<BillingAccount>()
                 .Property(b => b.DunningOutstandingOrderId)
                 .HasMaxLength(128);
+
+            modelBuilder.Entity<BillingAccount>()
+                .HasOne(b => b.ContractedCatalogVersion)
+                .WithMany()
+                .HasForeignKey(b => b.ContractedCatalogVersionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.CustomPlanConfigJson)
+                .HasColumnType("nvarchar(max)");
+
+            /*
+             =========================================
+             COMMERCIAL CATALOG (Admin-published)
+             =========================================
+             */
+
+            modelBuilder.Entity<CommercialCatalogVersion>(e =>
+            {
+                e.HasIndex(v => v.PublicId).IsUnique();
+                e.HasIndex(v => v.Status);
+                e.Property(v => v.PublicId).HasMaxLength(64).IsRequired();
+                e.Property(v => v.Status).HasMaxLength(32).IsRequired();
+                e.Property(v => v.Notes).HasMaxLength(500);
+            });
+
+            modelBuilder.Entity<CommercialPlanRow>(e =>
+            {
+                e.HasIndex(p => new { p.CatalogVersionId, p.PlanKey }).IsUnique();
+                e.HasOne(p => p.CatalogVersion)
+                    .WithMany(v => v.Plans)
+                    .HasForeignKey(p => p.CatalogVersionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.Property(p => p.PlanKey).HasMaxLength(32).IsRequired();
+                e.Property(p => p.DisplayName).HasMaxLength(32).IsRequired();
+            });
+
+            modelBuilder.Entity<CommercialTopUpPackRow>(e =>
+            {
+                e.HasIndex(p => new { p.CatalogVersionId, p.LookupKey }).IsUnique();
+                e.HasOne(p => p.CatalogVersion)
+                    .WithMany(v => v.TopUpPacks)
+                    .HasForeignKey(p => p.CatalogVersionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.Property(p => p.Channel).HasMaxLength(16).IsRequired();
+                e.Property(p => p.LookupKey).HasMaxLength(128).IsRequired();
+            });
+
+            modelBuilder.Entity<CommercialExtraLocationRow>(e =>
+            {
+                e.HasIndex(p => p.CatalogVersionId).IsUnique();
+                e.HasOne(p => p.CatalogVersion)
+                    .WithMany(v => v.ExtraLocations)
+                    .HasForeignKey(p => p.CatalogVersionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<CommercialCustomUnitRateRow>(e =>
+            {
+                e.HasIndex(p => new { p.CatalogVersionId, p.RateKey }).IsUnique();
+                e.HasOne(p => p.CatalogVersion)
+                    .WithMany(v => v.CustomUnitRates)
+                    .HasForeignKey(p => p.CatalogVersionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.Property(p => p.RateKey).HasMaxLength(32).IsRequired();
+            });
 
             /*
              =========================================
@@ -2698,10 +2783,24 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<ShopInterestProduct>(e =>
             {
                 e.HasIndex(row => row.ProductKey).IsUnique();
+                e.HasIndex(row => row.LinkedSkuId);
                 e.Property(row => row.ProductKey).HasMaxLength(80).IsRequired();
                 e.Property(row => row.Title).HasMaxLength(200).IsRequired();
                 e.Property(row => row.Description).HasMaxLength(1000).IsRequired();
-                e.Property(row => row.ImageUrl).HasMaxLength(512);
+                e.Property(row => row.Material).HasMaxLength(200).IsRequired();
+                e.Property(row => row.Dimensions).HasMaxLength(120).IsRequired();
+                e.Property(row => row.LinkedSkuId).HasMaxLength(80);
+            });
+
+            modelBuilder.Entity<ShopInterestProductImage>(e =>
+            {
+                e.HasIndex(row => new { row.ShopInterestProductId, row.SortOrder });
+                e.Property(row => row.StorageKey).HasMaxLength(512).IsRequired();
+                e.Property(row => row.ContentType).HasMaxLength(128).IsRequired();
+                e.HasOne(row => row.Product)
+                    .WithMany(row => row.Images)
+                    .HasForeignKey(row => row.ShopInterestProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<ShopInterestRegistration>(e =>

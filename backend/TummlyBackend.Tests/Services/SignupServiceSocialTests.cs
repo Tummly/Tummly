@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -55,6 +56,12 @@ namespace TummlyBackend.Tests.Services
 
             var packDir = ResolvePricebookPackDir();
             _pricebook = PricebookCatalog.LoadFromDirectory(packDir);
+            var snapshot = _pricebook.GetRequired(_pricebook.CurrentPricebookId);
+            _db.CommercialCatalogVersions.Add(
+                CommercialCatalogSeeder.FromSnapshot(snapshot, DateTime.UtcNow)
+            );
+            _db.SaveChanges();
+
             _provisioning = new GuestLoopProvisioningService(
                 _db,
                 qrCodeProvisioning,
@@ -69,13 +76,24 @@ namespace TummlyBackend.Tests.Services
                 new NoOpCreditLedger(),
                 new NoOpBillingAccountLifecycle(),
                 new NoOpFirstPaidConversionPaySession(),
-                new EmailServiceStubBase()
+                new CustomPlanCycleBillingService(
+                    _db,
+                    new NoOpRevolutMerchantForCustomPlan(),
+                    TimeProvider.System,
+                    Microsoft.Extensions.Options.Options.Create(
+                        new TummlyBackend.Configurations.TummlySellerVatSettings()
+                    )
+                ),
+                new EmailServiceStubBase(),
+                NullLogger<GuestLoopProvisioningService>.Instance
             );
 
             _signup = new SignupService(
                 _db,
                 new TrackingEmailService(),
-                _provisioning
+                _provisioning,
+                new CustomPlanQuoteService(_db),
+                new StubJwtService()
             );
         }
 
@@ -319,6 +337,8 @@ namespace TummlyBackend.Tests.Services
                 GroupName = "Social Kitchen",
                 BusinessCategory = "takeaway",
                 PrimaryPhone = "07911123456",
+                ChosenPlan = BillingSubscriptionPlans.Pilot,
+                ChosenCadence = "monthly",
                 Locations =
                 [
                     new SaveSignupOnboardingDto.LocationItem

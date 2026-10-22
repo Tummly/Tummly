@@ -22,6 +22,12 @@ namespace TummlyBackend.DTOs.BillingCredits
         public PlanEntitlementLimitDto TeamMembers { get; set; } = new();
 
         public PlanEntitlementLimitDto ActiveOffers { get; set; } = new();
+
+        /// <summary>
+        /// Custom v2 QR pack pool (account-wide). Cap = quantities.qrPlacementsAccountExtra;
+        /// Current = Σ max(0, active_l − per-Location QR cap). Null when not Custom / no pool.
+        /// </summary>
+        public PlanEntitlementLimitDto? ActiveQrPlacementsAccountExtra { get; set; }
     }
 
     public sealed class PlanEntitlementsLocationSnapshotDto

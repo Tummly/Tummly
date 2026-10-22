@@ -78,9 +78,12 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                         ProductKey = product.ProductKey,
                         Title = product.Title,
                         Description = product.Description,
-                        ImageUrl = null,
+                        Material = string.Empty,
+                        Dimensions = string.Empty,
+                        LinkedSkuId = null,
                         IsActive = true,
                         CreatedAtUtc = now,
+                        UpdatedAtUtc = now,
                     }
                 );
                 changed = true;

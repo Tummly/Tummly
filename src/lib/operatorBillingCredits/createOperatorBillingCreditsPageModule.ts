@@ -86,6 +86,18 @@ export type BillingContactsSnapshot = {
   paymentFailureAlerts: BillingPaymentFailureAlertFlags
 }
 
+export type CustomPlanSnapshot = {
+  cadence: string
+  periodNetPence: number
+  locations: number
+  teamUsers: number
+  qrPlacements: number
+  offers: number
+  emailCredits: number
+  smsCredits: number
+  aiCredits: number
+}
+
 export type PlanSubscriptionSnapshot = {
   subscriptionPlan: string
   billingStatus: string
@@ -105,6 +117,14 @@ export type PlanSubscriptionSnapshot = {
   scheduledChangeLine: string | null
   isPilot: boolean
   allowSms5000TopUp: boolean
+  customPlan?: CustomPlanSnapshot | null
+  openCustomCycleCheckoutUrl?: string | null
+  /** Paid plan whose checkout did not complete. Account stays on Free. */
+  pendingPayment?: {
+    plan: string
+    cadence: string
+    failedAtUtc: string | null
+  } | null
 }
 
 export type BillingActivityItem = {
@@ -223,6 +243,8 @@ export type BillingCreditsPageAdapters = {
   addExtraGroupLocation?: () => Promise<ExtraLocationChangeResult>
   removeExtraGroupLocation?: () => Promise<ExtraLocationChangeResult>
   cancelPlan?: (request: CancelPlanRequest) => Promise<CancelPlanResult>
+  payCustomPlanCycle?: () => Promise<{ checkoutUrl: string }>
+  retryPendingPayment?: () => Promise<{ checkoutUrl: string }>
   createPaymentMethodUpdateSession?: () => Promise<{ redirectUrl: string }>
   fetchInvoicePdf?: (invoiceNo: string) => Promise<Blob>
   openInvoicePdf?: (blob: Blob) => void
@@ -310,6 +332,10 @@ export type BillingCreditsSnapshot = {
   ownerManagePlanWritesEnabled: boolean
   additionalGroupLocation: AdditionalGroupLocationViewModel | null
   showCancelPlan: boolean
+  showResumeCustomCyclePay: boolean
+  resumeCustomCycleBusy: boolean
+  showRetryPendingPayment: boolean
+  retryPendingPaymentBusy: boolean
   extraLocationConfirm: ManagePlanActionConfirmDialog | null
   cancelPlanConfirm: CancelPlanDialogState | null
   toast: { kind: "success" | "error"; message: string } | null
@@ -366,6 +392,8 @@ export type OperatorBillingCreditsPageModule = {
   setCancelPlanAdditionalNotes: (value: string) => void
   setCancelPlanAcknowledged: (value: boolean) => void
   confirmCancelPlan: () => Promise<void>
+  resumeCustomPlanCycle: () => Promise<void>
+  retryPendingPayment: () => Promise<void>
   openUpdatePaymentMethodConfirm: () => void
   dismissUpdatePaymentMethodConfirm: () => void
   confirmUpdatePaymentMethod: () => Promise<void>
@@ -411,6 +439,8 @@ function emptyPlanSnapshot(): PlanSubscriptionSnapshot {
     scheduledChangeLine: null,
     isPilot: false,
     allowSms5000TopUp: false,
+    customPlan: null,
+    openCustomCycleCheckoutUrl: null,
   }
 }
 
@@ -529,6 +559,8 @@ export function createOperatorBillingCreditsPageModule(
   let extraLocationConfirm: ManagePlanActionConfirmDialog | null = null
   let extraLocationConfirmKind: "add" | "remove" | null = null
   let cancelPlanConfirm: CancelPlanDialogState | null = null
+  let resumeCustomCycleBusy = false
+  let retryPendingPaymentBusy = false
   let pendingLeave: PendingLeave | null = null
   let leaveDirtyOpen = false
   let isSaving = false
@@ -734,6 +766,21 @@ export function createOperatorBillingCreditsPageModule(
       && plan != null
       && !plan.isPilot
       && !isCancelScheduled(plan)
+    const showRetryPendingPayment =
+      showOwnerManagePlanWrites()
+      && plan != null
+      && plan.subscriptionPlan === "Free"
+      && plan.pendingPayment != null
+    const showResumeCustomCyclePay =
+      showOwnerManagePlanWrites()
+      && plan != null
+      && plan.subscriptionPlan === "Custom"
+      && !isCancelScheduled(plan)
+      && (
+        Boolean(plan.openCustomCycleCheckoutUrl)
+        || plan.billingStatus === "PastDue"
+        || plan.billingStatus === "SoftLock"
+      )
 
     const dirty = activeTabDirty()
     const eligibleMembers =
@@ -805,6 +852,10 @@ export function createOperatorBillingCreditsPageModule(
       ownerManagePlanWritesEnabled: managePlanLockMode === "none",
       additionalGroupLocation,
       showCancelPlan,
+      showResumeCustomCyclePay,
+      resumeCustomCycleBusy,
+      showRetryPendingPayment,
+      retryPendingPaymentBusy,
       extraLocationConfirm,
       cancelPlanConfirm,
       toast,
@@ -1464,6 +1515,54 @@ export function createOperatorBillingCreditsPageModule(
           ...cancelPlanConfirm,
           busy: false,
         }
+        refreshSnapshot()
+      }
+    },
+    resumeCustomPlanCycle: async () => {
+      if (adapters.payCustomPlanCycle == null || resumeCustomCycleBusy) {
+        return
+      }
+
+      const existing =
+        data?.planSubscription.openCustomCycleCheckoutUrl?.trim() ?? ""
+      if (existing !== "") {
+        pendingPayRedirectUrl = existing
+        refreshSnapshot()
+        return
+      }
+
+      resumeCustomCycleBusy = true
+      refreshSnapshot()
+      try {
+        const result = await adapters.payCustomPlanCycle()
+        pendingPayRedirectUrl = result.checkoutUrl
+      } catch {
+        toast = {
+          kind: "error",
+          message: "Could not open Custom plan checkout. Try again.",
+        }
+      } finally {
+        resumeCustomCycleBusy = false
+        refreshSnapshot()
+      }
+    },
+    retryPendingPayment: async () => {
+      if (adapters.retryPendingPayment == null || retryPendingPaymentBusy) {
+        return
+      }
+
+      retryPendingPaymentBusy = true
+      refreshSnapshot()
+      try {
+        const result = await adapters.retryPendingPayment()
+        pendingPayRedirectUrl = result.checkoutUrl
+      } catch {
+        toast = {
+          kind: "error",
+          message: "Could not open checkout. Try again.",
+        }
+      } finally {
+        retryPendingPaymentBusy = false
         refreshSnapshot()
       }
     },

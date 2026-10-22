@@ -11,6 +11,11 @@ namespace TummlyBackend.Models
         public const string Provisioning = "Provisioning";
         public const string Complete = "Complete";
         public const string Abandoned = "Abandoned";
+
+        /// <summary>
+        /// Status-only (not stored): paid checkout did not open; client retries.
+        /// </summary>
+        public const string PaymentFailed = "PaymentFailed";
     }
 
     public class PendingSignup
@@ -49,13 +54,16 @@ namespace TummlyBackend.Models
         [MaxLength(16)]
         public string? AccountType { get; set; }
 
-        /// <summary>Pilot|Free|Starter|Growth|Group</summary>
+        /// <summary>Pilot|Free|Starter|Growth|Group|Custom</summary>
         [MaxLength(32)]
         public string? ChosenPlan { get; set; }
 
         /// <summary>monthly|annual</summary>
         [MaxLength(16)]
         public string? ChosenCadence { get; set; }
+
+        /// <summary>Custom à-la-carte config JSON from marketing custom-plan.</summary>
+        public string? CustomPlanConfigJson { get; set; }
 
         public string? OnboardingJson { get; set; }
 
@@ -65,5 +73,10 @@ namespace TummlyBackend.Models
         public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
         public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Set when POST /api/Signup/session-login succeeds (one-time use).
+        /// </summary>
+        public DateTime? SessionLoginConsumedAtUtc { get; set; }
     }
 }

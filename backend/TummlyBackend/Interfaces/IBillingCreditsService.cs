@@ -71,6 +71,20 @@ namespace TummlyBackend.Interfaces
             CancelPlanRequestDto request
         );
 
+        Task<(CustomPlanCyclePayDto? Response, int StatusCode, string? ErrorMessage)>
+            PayCustomPlanCycleAsync(
+                int userId,
+                int restaurantId,
+                bool actorCanManage
+            );
+
+        Task<(PendingPaymentRetryDto? Response, int StatusCode, string? ErrorMessage)>
+            RetryPendingPaymentAsync(
+                int userId,
+                int restaurantId,
+                bool actorCanManage
+            );
+
         Task<BillingActivityListDto?> GetActivityAsync(
             int restaurantId,
             int skip,

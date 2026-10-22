@@ -31,7 +31,7 @@ import { clearAuthSession } from "@/pages/utils/authHelpers"
 import { useAuthStore } from "@/stores/authStore"
 
 const logInClass =
-  "rounded-sm px-2.5 py-2 text-sm font-medium leading-5 text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30 sm:px-[18px] sm:py-2.5"
+  "rounded-sm px-2.5 py-2 text-sm font-inter font-medium leading-5 text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30 sm:px-[18px] sm:py-2.5"
 
 /**
  * Figma marketing Header (`5700:25213`).

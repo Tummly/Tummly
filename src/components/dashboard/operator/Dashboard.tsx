@@ -584,25 +584,24 @@ function DashboardContent({ mode }: DashboardProps) {
         {mode === "single" ? (
           <>
             <DemoTourActionBridge
-              openAiAssistant={(prefill) => {
-                aiAssistant.openDrawer()
-                if (prefill) {
-                  window.setTimeout(() => {
-                    const input = document.querySelector<HTMLTextAreaElement>(
-                      '[data-demo-tour="ai-assistant-panel"] textarea'
-                    )
-                    if (input) {
-                      const setter = Object.getOwnPropertyDescriptor(
-                        window.HTMLTextAreaElement.prototype,
-                        "value"
-                      )?.set
-                      setter?.call(input, prefill)
-                      input.dispatchEvent(new Event("input", { bubbles: true }))
-                      input.focus()
-                    }
-                  }, 400)
+              openAiAssistant={({ prompt, send }) => {
+                const assistant = aiAssistantRef.current
+                notificationsRef.current.closeDrawer()
+                assistant.openDrawer({
+                  operatorFirstName: getOperatorFirstName(
+                    profileFirstNameRef.current
+                  ),
+                })
+                if (!send) {
+                  // Fresh thread so the tour prompt is not mixed with older chats.
+                  assistant.startNewChat()
+                }
+                assistant.setComposerDraft(prompt)
+                if (send) {
+                  assistant.send()
                 }
               }}
+              closeAiAssistant={() => aiAssistantRef.current.closeDrawer()}
             />
             <ProductDemoTourHost />
           </>

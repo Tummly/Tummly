@@ -9,11 +9,26 @@ import { SetupAccountStatus } from "@/components/auth/SetupAccountShell"
 import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
 import { validateWizardStep } from "@/components/guest-loop/useGuestLoopStepCanSubmit"
 import { SignupAccountStep } from "@/components/signup/SignupAccountStep"
+import { SignupChoosePlanStep } from "@/components/signup/SignupChoosePlanStep"
+import { SignupCustomisePlanStep } from "@/components/signup/SignupCustomisePlanStep"
 import { SignupLocationStep } from "@/components/signup/SignupLocationStep"
 import { SignupRestaurantStep } from "@/components/signup/SignupRestaurantStep"
+import { SignupReviewPlanStep } from "@/components/signup/SignupReviewPlanStep"
 import { Form } from "@/components/ui/form"
 import { defaultFormValidationOptions } from "@/lib/form"
+import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
+import {
+  clearSignupOnboardingDraft,
+  readSignupOnboardingDraft,
+  saveSignupOnboardingDraft,
+} from "@/lib/signupOnboardingDraft"
 import { readSignupSessionToken } from "@/lib/signupSession"
+import {
+  activeCustomConfig,
+  clearSignupPlanIntent,
+  readSignupPlanIntent,
+  saveSignupPlanIntent,
+} from "@/lib/signupPlanIntent"
 import {
   signupAccountStepFields,
   signupAccountStepSchema,
@@ -55,37 +70,65 @@ type SignupOnboardingWizardProps = {
   prefill: OnboardingSessionPrefill
 }
 
+type WizardStep = 1 | 2 | 3 | 4 | 5 | 6
+
+/**
+ * Calculator + Review Figma frames are drawn for 2K screens; below that width
+ * scale the body to 80% so 1080p screens need less scrolling. The footer bar
+ * is portalled outside this wrapper and keeps full size.
+ */
+const DENSE_STEP_ZOOM = "w-full [zoom:0.8] min-[2200px]:[zoom:1]"
+
 function SignupOnboardingWizard({ prefill }: SignupOnboardingWizardProps) {
   const navigate = useNavigate()
-  const [step, setStep] = useState(1)
-  const [isSaving, setIsSaving] = useState(false)
   const { isSocial, sessionToken } = prefill
+  // Reload keeps entered details and plan; password is never stored, so
+  // email signups resume on step 1 to re-enter it.
+  const [draft] = useState(() => readSignupOnboardingDraft(sessionToken))
+  const [step, setStep] = useState<WizardStep>(() => {
+    if (draft == null || !isSocial) return 1
+    return Math.min(Math.max(1, Math.floor(draft.step)), 6) as WizardStep
+  })
+  const [isSaving, setIsSaving] = useState(false)
 
   const form = useForm<SignupOnboardingFormValues>({
     resolver: zodResolver(
-      isSocial ? signupOnboardingSocialSchema : signupOnboardingSchema
+      isSocial ? signupOnboardingSocialSchema : signupOnboardingSchema,
     ),
     defaultValues: {
       ...signupOnboardingDefaultValues,
+      ...draft?.values,
       token: prefill.sessionToken,
       email: prefill.email,
-      firstName: prefill.firstName,
-      lastName: prefill.lastName,
+      firstName: draft?.values.firstName ?? prefill.firstName,
+      lastName: draft?.values.lastName ?? prefill.lastName,
     },
     ...defaultFormValidationOptions,
   })
+
+  useEffect(() => {
+    saveSignupOnboardingDraft(sessionToken, step, form.getValues())
+    const subscription = form.watch((values) => {
+      saveSignupOnboardingDraft(
+        sessionToken,
+        step,
+        values as Partial<SignupOnboardingFormValues>,
+      )
+    })
+    return () => subscription.unsubscribe()
+  }, [form, sessionToken, step])
 
   const handleContinueAccount = () => {
     const valid = isSocial
       ? validateWizardStep(
           form,
           signupAccountStepSocialFields,
-          signupAccountStepSocialSchema
+          signupAccountStepSocialSchema,
         )
       : validateWizardStep(
           form,
           signupAccountStepFields,
-          signupAccountStepSchema
+          signupAccountStepSchema,
         )
     if (!valid) return
     setStep(2)
@@ -95,40 +138,99 @@ function SignupOnboardingWizard({ prefill }: SignupOnboardingWizardProps) {
     const valid = validateWizardStep(
       form,
       signupRestaurantStepFields,
-      signupRestaurantStepSchema
+      signupRestaurantStepSchema,
     )
     if (!valid) return
     setStep(3)
   }
 
-  const handleFinish = async () => {
+  const handleContinueLocation = () => {
     const valid = validateWizardStep(
       form,
       signupLocationStepFields,
-      signupLocationStepSchema
+      signupLocationStepSchema,
     )
     if (!valid) return
+    setStep(4)
+  }
 
+  const saveOnboarding = async () => {
     setIsSaving(true)
     form.clearErrors("root")
 
     try {
       await saveSignupOnboarding(
         sessionToken,
-        toSignupOnboardingPayload(form.getValues(), { isSocial })
+        toSignupOnboardingPayload(form.getValues(), { isSocial }),
       )
+      clearSignupPlanIntent()
+      clearSignupOnboardingDraft(sessionToken)
       navigate("/signup/provisioning", { replace: true })
     } catch (error) {
       form.setError("root", {
         type: "server",
         message: getApiErrorMessage(
           error,
-          "We couldn't save your details. Please try again."
+          "We couldn't save your details. Please try again.",
         ),
       })
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handlePilotContinue = () => {
+    saveSignupPlanIntent({ plan: "Pilot" })
+    void saveOnboarding()
+  }
+
+  const handleCheckoutPlain = (
+    plan: "Starter" | "Growth" | "Group",
+    cadence: BillingCadence,
+  ) => {
+    const existing = readSignupPlanIntent()
+    // Keep restored custom config when the selected card matches its base plan.
+    if (
+      existing?.config != null &&
+      existing.config.basePlan === plan.toLowerCase()
+    ) {
+      saveSignupPlanIntent({
+        plan: existing.plan === "Custom" ? "Custom" : plan,
+        cadence,
+        config: { ...existing.config, cadence },
+      })
+    } else {
+      // Keep the saved customisation for its own card; it is not applied here.
+      saveSignupPlanIntent({
+        plan,
+        cadence,
+        ...(existing?.config != null ? { config: existing.config } : {}),
+      })
+    }
+    setStep(6)
+  }
+
+  const handleCustomise = (
+    plan: "Starter" | "Growth" | "Group",
+    cadence: BillingCadence,
+  ) => {
+    const existing = readSignupPlanIntent()
+    saveSignupPlanIntent({
+      plan,
+      cadence,
+      config:
+        existing?.config != null &&
+        existing.config.basePlan === plan.toLowerCase()
+          ? { ...existing.config, cadence }
+          : {
+              version: 2,
+              cadence,
+              basePlan: plan.toLowerCase() as "starter" | "growth" | "group",
+              locations: 1,
+              packs: {},
+            },
+    })
+    setStep(5)
   }
 
   const handleBack = () => {
@@ -138,15 +240,40 @@ function SignupOnboardingWizard({ prefill }: SignupOnboardingWizardProps) {
     }
     if (step === 3) {
       setStep(2)
+      return
+    }
+    if (step === 4) {
+      setStep(3)
+      return
+    }
+    if (step === 5) {
+      setStep(4)
+      return
+    }
+    if (step === 6) {
+      // Prefer customise when a custom config exists.
+      setStep(activeCustomConfig(readSignupPlanIntent()) != null ? 5 : 4)
     }
   }
+
+  const contentMaxWidth =
+    step === 4
+      ? "max-w-[1588px]"
+      : step === 5
+        ? "max-w-[1548px]"
+        : step === 6
+          ? "max-w-[640px]"
+          : "max-w-[473px]"
+
+  const rootError = form.formState.errors.root?.message
 
   return (
     <Form {...form}>
       <GuestLoopShell
-        contentAlign="center"
+        contentAlign={step >= 4 ? "start" : "center"}
         showBackButton={false}
-        contentMaxWidthClassName="max-w-[473px]"
+        contentMaxWidthClassName={contentMaxWidth}
+        wide={step >= 4}
       >
         {step === 1 ? (
           <SignupAccountStep
@@ -165,10 +292,45 @@ function SignupOnboardingWizard({ prefill }: SignupOnboardingWizardProps) {
         {step === 3 ? (
           <SignupLocationStep
             form={form}
-            onContinue={handleFinish}
+            onContinue={handleContinueLocation}
             onBack={handleBack}
-            isSubmitting={isSaving}
           />
+        ) : null}
+        {step === 4 ? (
+          <>
+            {rootError != null ? (
+              <p className="mb-4 m-0 text-sm text-red-600">{rootError}</p>
+            ) : null}
+            <SignupChoosePlanStep
+              onBack={handleBack}
+              onCheckout={handleCheckoutPlain}
+              onCustomise={handleCustomise}
+              onPilotContinue={handlePilotContinue}
+              isSubmitting={isSaving}
+            />
+          </>
+        ) : null}
+        {step === 5 ? (
+          <div className={DENSE_STEP_ZOOM}>
+            <SignupCustomisePlanStep
+              onBack={handleBack}
+              onContinueToReview={() => setStep(6)}
+            />
+          </div>
+        ) : null}
+        {step === 6 ? (
+          <>
+            {rootError != null ? (
+              <p className="mb-4 m-0 text-sm text-red-600">{rootError}</p>
+            ) : null}
+            <div className={DENSE_STEP_ZOOM}>
+              <SignupReviewPlanStep
+                onBack={handleBack}
+                onConfirm={saveOnboarding}
+                isSubmitting={isSaving}
+              />
+            </div>
+          </>
         ) : null}
       </GuestLoopShell>
     </Form>
@@ -180,7 +342,7 @@ function SignupOnboardingPage() {
   const sessionToken = readSignupSessionToken()
 
   const [gateState, setGateState] = useState<"loading" | "ready" | "error">(
-    "loading"
+    "loading",
   )
   const [gateError, setGateError] = useState<string | null>(null)
   const [prefill, setPrefill] = useState<OnboardingSessionPrefill | null>(null)
@@ -233,8 +395,8 @@ function SignupOnboardingPage() {
         setGateError(
           getApiErrorMessage(
             error,
-            "We couldn't load your signup session. Please start again."
-          )
+            "We couldn't load your signup session. Please start again.",
+          ),
         )
         setGateState("error")
       }

@@ -2,6 +2,44 @@
 
 Reverse chronological record of behaviour and documentation status changes.
 
+## 2026-10-20 — Custom plan lifecycle + VAT
+
+### Added
+
+- Custom cycle VAT via `TUMMLY_VAT_MODE_ACTIVE`; invoice + billing activity on cycle complete
+- Hourly `CustomPlanCycleRenewalJob` (open/reuse cycle order, dunning, soft-lock tick)
+- Manage plan Custom summary, resume cycle pay API, cancel-at-period-end → Pilot SoftLock
+- Signup `PaymentRedirectUrl` for open Custom cycle intents
+
+### Updated
+
+- `docs/product/group-custom-plan-support.md` — renew / VAT / cancel / Manage plan Shipped; re-quote still Planned
+- `docs/product/README.md` — Custom lifecycle status
+
+## 2026-10-20 — Commercial catalog Admin + custom plan path
+
+### Added
+
+- ADR `0048-commercial-catalog-is-db-admin-published.md` — DB Admin-published catalog supersedes JSON runtime load
+- Admin **Billing catalog** panel + APIs; seed from billing pack v3.0; `DbPricebookCatalog`
+- Marketing Pricing “Customise your plan” + `/custom-plan` à-la-carte estimate; Custom plan cycle order purpose
+
+### Updated
+
+- `docs/product/group-custom-plan-support.md` — Admin catalog + Custom acquire path Shipped
+- `docs/product/README.md` — index row for Group / Custom plan note
+- Custom plan annual estimate uses Admin annual unit rates (15% fallback per empty row)
+
+## 2026-10-20 — Group custom plan support note
+
+### Added
+
+- `docs/product/group-custom-plan-support.md` — shipped Group extras / included-credit formula / top-ups vs Planned custom plan (500 locations, independent recurring allotments); build decisions still open
+
+### Updated
+
+- `docs/product/README.md` — index row for the Group custom plan note
+
 ## 2026-09-21 — Cookie/storage inventory
 
 ### Added

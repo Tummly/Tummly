@@ -4,7 +4,7 @@ namespace TummlyBackend.Models
 {
     /// <summary>
     /// Wider-media Shop concept that uses Register interest (not cart/checkout).
-    /// Launch seeds zero rows; Design adds products later.
+    /// Admin can promote a product into a buyable Shop SKU and demote it back.
     /// </summary>
     public sealed class ShopInterestProduct
     {
@@ -22,15 +22,53 @@ namespace TummlyBackend.Models
         [MaxLength(1000)]
         public string Description { get; set; } = string.Empty;
 
-        [MaxLength(512)]
-        public string? ImageUrl { get; set; }
+        [MaxLength(200)]
+        public string Material { get; set; } = string.Empty;
+
+        [MaxLength(120)]
+        public string Dimensions { get; set; } = string.Empty;
+
+        /// <summary>
+        /// When set, this interest product is promoted to the Shop SKU with this id.
+        /// </summary>
+        [MaxLength(80)]
+        public string? LinkedSkuId { get; set; }
 
         public bool IsActive { get; set; } = true;
 
         public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
+        public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+
         public ICollection<ShopInterestRegistration> Registrations { get; set; } =
             new List<ShopInterestRegistration>();
+
+        public ICollection<ShopInterestProductImage> Images { get; set; } =
+            new List<ShopInterestProductImage>();
+    }
+
+    public sealed class ShopInterestProductImage
+    {
+        public int Id { get; set; }
+
+        public int ShopInterestProductId { get; set; }
+
+        public ShopInterestProduct Product { get; set; } = null!;
+
+        /// <summary>
+        /// Blob object key (same storage as Shop catalog images).
+        /// </summary>
+        [Required]
+        [MaxLength(512)]
+        public string StorageKey { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(128)]
+        public string ContentType { get; set; } = "image/png";
+
+        public int SortOrder { get; set; }
+
+        public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     }
 
     /// <summary>

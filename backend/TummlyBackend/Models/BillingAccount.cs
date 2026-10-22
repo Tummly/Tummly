@@ -35,10 +35,42 @@ namespace TummlyBackend.Models
         public string BillingStatus { get; set; } = BillingStatuses.Free;
 
         /// <summary>
-        /// This account's contracted catalog id (<c>pricebook.id</c>).
+        /// This account's contracted catalog id (<c>pricebook.id</c> / commercial PublicId).
         /// </summary>
         [MaxLength(64)]
         public string ContractedPricebookId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// FK to the commercial catalog version this account contracted (grandfather).
+        /// Null until Phase-1 catalog is seeded and account re-binds.
+        /// </summary>
+        public Guid? ContractedCatalogVersionId { get; set; }
+
+        [ForeignKey(nameof(ContractedCatalogVersionId))]
+        public CommercialCatalogVersion? ContractedCatalogVersion { get; set; }
+
+        /// <summary>
+        /// Custom à-la-carte config JSON (quantities + rate snapshot). Null unless Custom plan.
+        /// </summary>
+        public string? CustomPlanConfigJson { get; set; }
+
+        /// <summary>
+        /// Paid plan the owner chose when checkout did not start (signup or retry).
+        /// The account stays on Free until Revolut confirms payment. Null when none.
+        /// </summary>
+        [MaxLength(32)]
+        public string? PendingPaymentPlan { get; set; }
+
+        [MaxLength(16)]
+        public string? PendingPaymentCadence { get; set; }
+
+        /// <summary>Custom quote JSON kept for a pending Custom plan retry.</summary>
+        public string? PendingPaymentCustomConfigJson { get; set; }
+
+        public DateTime? PendingPaymentFailedAtUtc { get; set; }
+
+        [MaxLength(64)]
+        public string? PendingPaymentFailureCode { get; set; }
 
         [MaxLength(320)]
         public string? BillingEmail { get; set; }
@@ -174,6 +206,8 @@ namespace TummlyBackend.Models
         public const string Growth = "Growth";
 
         public const string Group = "Group";
+
+        public const string Custom = "Custom";
     }
 
     public static class BillingStatuses

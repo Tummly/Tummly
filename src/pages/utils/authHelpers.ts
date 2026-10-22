@@ -5,6 +5,7 @@ import {
   useAuthStore,
 } from "@/stores/authStore"
 import type { AuthSessionRole } from "@/types/auth"
+import type { SignupSessionLoginResult } from "@/api/signupApi"
 import {
   readBoolean,
   readNumber,
@@ -270,4 +271,17 @@ export function getPostLoginDestination(
 
 export function isWorkspaceSetupDestination(path: string) {
   return path === WORKSPACE_SETUP_PATH
+}
+
+/** Store the operator session issued by `POST /Signup/session-login`. */
+export function persistSignupLoginSession(session: SignupSessionLoginResult) {
+  persistAuthSession(
+    session.token,
+    "USER",
+    session.accountType,
+    session.refreshToken
+  )
+  if (session.selectedLocationId != null) {
+    persistSelectedLocation(session.selectedLocationId)
+  }
 }

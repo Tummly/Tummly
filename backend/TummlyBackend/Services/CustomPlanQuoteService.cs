@@ -1,0 +1,409 @@
+using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing.CustomPlan;
+using TummlyBackend.Data;
+using TummlyBackend.DTOs.Admin;
+using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
+
+namespace TummlyBackend.Services
+{
+    public sealed class CustomPlanQuoteService : ICustomPlanQuoteService
+    {
+        private static readonly string[] PaidPlanKeys = ["starter", "growth", "group"];
+
+        private readonly ApplicationDbContext _context;
+
+        public CustomPlanQuoteService(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        public async Task<CustomPlanQuoteResult> QuoteAsync(
+            CustomPlanQuoteRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var version = await LoadPublishedAsync(cancellationToken)
+                ?? throw new CustomPlanQuoteException(
+                    "catalog_not_ready",
+                    "Catalog not ready."
+                );
+
+            var cadence = string.Equals(
+                request.Cadence?.Trim(),
+                "annual",
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? "annual"
+                : "monthly";
+
+            var locations = request.Locations;
+            if (locations > CustomPlanConfig.MaxLocations)
+            {
+                throw new CustomPlanQuoteException(
+                    "custom_plan_contact_sales",
+                    "More than 500 Locations needs a sales conversation."
+                );
+            }
+
+            var packs = NormalizePacks(request.Packs);
+            var plans = BuildPlanSummaries(version);
+            if (plans.Count == 0)
+            {
+                throw new CustomPlanQuoteException(
+                    "catalog_not_ready",
+                    "Catalog not ready."
+                );
+            }
+
+            var rates = version.CustomUnitRates
+                .Select(r => new CustomPlanRateSnapshot
+                {
+                    RateKey = r.RateKey,
+                    UnitQuantity = r.UnitQuantity,
+                    MonthlyNetPence = r.MonthlyNetPence,
+                    AnnualNetPence = r.AnnualNetPence,
+                })
+                .ToList();
+            var ratesByKey = rates.ToDictionary(
+                r => r.RateKey,
+                StringComparer.Ordinal
+            );
+
+            var clampedLocations = Math.Max(1, locations);
+            var minPlan = MinBasePlanForLocations(clampedLocations, plans);
+            // Location count alone sets the base package; other capacity is
+            // bought as packs on top (never by moving to a higher package).
+            var requested = ParseBasePlanKey(request.BasePlan);
+            var basePlan = minPlan;
+
+            var planRow = plans.FirstOrDefault(p =>
+                string.Equals(p.PlanKey, basePlan, StringComparison.Ordinal)
+            );
+            if (planRow == null)
+            {
+                throw new CustomPlanQuoteException(
+                    "invalid_base_plan",
+                    "Unknown base plan."
+                );
+            }
+
+            var basePlanChanged =
+                requested != null
+                && !string.Equals(requested, basePlan, StringComparison.Ordinal);
+
+            var includedLocations = planRow.IncludedLocations;
+            var additionalLocations = Math.Max(0, clampedLocations - includedLocations);
+            var extra = version.ExtraLocations.FirstOrDefault();
+            var usersAdded = extra?.UsersAdded ?? 0;
+            var extraAi = extra?.CreditsMonthlyAi ?? 0;
+            var extraEmail = extra?.CreditsMonthlyEmail ?? 0;
+            var extraSms = extra?.CreditsMonthlySms ?? 0;
+
+            var teamFromPacks = packs.GetValueOrDefault("team_users_5") * 5;
+            var offersFromPacks = packs.GetValueOrDefault("offers_5") * 5;
+            var qrAccountExtra = packs.GetValueOrDefault("qr_10") * 10;
+            var emailFromPacks =
+                packs.GetValueOrDefault("email_20k") * 20_000
+                + packs.GetValueOrDefault("email_50k") * 50_000;
+            var smsFromPacks =
+                packs.GetValueOrDefault("sms_500") * 500
+                + packs.GetValueOrDefault("sms_1000") * 1_000
+                + packs.GetValueOrDefault("sms_5000") * 5_000;
+            var aiFromPacks =
+                packs.GetValueOrDefault("ai_500") * 500
+                + packs.GetValueOrDefault("ai_2000") * 2_000;
+
+            var quantities = new CustomPlanQuantities
+            {
+                Locations = clampedLocations,
+                TeamUsers =
+                    planRow.IncludedTeamMembers
+                    + teamFromPacks
+                    + additionalLocations * usersAdded,
+                QrPlacements = planRow.ActiveQrPlacementsPerLocation,
+                QrPlacementsAccountExtra = qrAccountExtra,
+                Offers = planRow.ActiveOffersAccount + offersFromPacks,
+                EmailCredits =
+                    planRow.CreditsMonthlyEmail
+                    + emailFromPacks
+                    + additionalLocations * extraEmail,
+                SmsCredits =
+                    planRow.CreditsMonthlySms
+                    + smsFromPacks
+                    + additionalLocations * extraSms,
+                AiCredits =
+                    planRow.CreditsMonthlyAi
+                    + aiFromPacks
+                    + additionalLocations * extraAi,
+            };
+
+            var lines = new List<CustomPlanLine>();
+            var monthlyNetPence = 0;
+            var periodNetPence = 0;
+
+            var monthlyBase = planRow.MonthlyNetPence;
+            var periodBase = PlanPeriodNetPence(planRow, cadence);
+            monthlyNetPence += monthlyBase;
+            periodNetPence += periodBase;
+            lines.Add(
+                new CustomPlanLine
+                {
+                    Key = $"base:{basePlan}",
+                    Label =
+                        $"{planRow.DisplayName} · {includedLocations} included Location{(includedLocations == 1 ? "" : "s")}",
+                    Quantity = 1,
+                    NetPence = periodBase,
+                }
+            );
+
+            if (
+                additionalLocations > 0
+                && ratesByKey.TryGetValue(
+                    CommercialCustomUnitRateKeys.Location,
+                    out var locationRate
+                )
+            )
+            {
+                var monthlyExtra = CustomPlanLineNet.Monthly(
+                    additionalLocations,
+                    locationRate.MonthlyNetPence,
+                    locationRate.UnitQuantity
+                );
+                var periodExtra = CustomPlanLineNet.ForCadence(
+                    cadence,
+                    additionalLocations,
+                    locationRate.MonthlyNetPence,
+                    locationRate.AnnualNetPence,
+                    locationRate.UnitQuantity
+                );
+                monthlyNetPence += monthlyExtra;
+                periodNetPence += periodExtra;
+                lines.Add(
+                    new CustomPlanLine
+                    {
+                        Key = "extra:location",
+                        Label =
+                            $"{additionalLocations} additional Location{(additionalLocations == 1 ? "" : "s")}",
+                        Quantity = additionalLocations,
+                        NetPence = periodExtra,
+                    }
+                );
+            }
+
+            foreach (var def in CustomPlanPacks.All)
+            {
+                var count = packs.GetValueOrDefault(def.PackKey);
+                if (count <= 0)
+                {
+                    continue;
+                }
+
+                if (!ratesByKey.TryGetValue(def.RateKey, out var rate))
+                {
+                    continue;
+                }
+
+                var naturalQty = count * def.PackSize;
+                var monthlyPack = CustomPlanLineNet.Monthly(
+                    naturalQty,
+                    rate.MonthlyNetPence,
+                    rate.UnitQuantity
+                );
+                var periodPack = CustomPlanLineNet.ForCadence(
+                    cadence,
+                    naturalQty,
+                    rate.MonthlyNetPence,
+                    rate.AnnualNetPence,
+                    rate.UnitQuantity
+                );
+                monthlyNetPence += monthlyPack;
+                periodNetPence += periodPack;
+                lines.Add(
+                    new CustomPlanLine
+                    {
+                        Key = $"pack:{def.PackKey}",
+                        Label = $"{PackTitle(def.PackKey)} × {count}",
+                        Quantity = count,
+                        NetPence = periodPack,
+                    }
+                );
+            }
+
+            var packsHaveAny = packs.Values.Any(c => c > 0);
+            var plainCatalog = !packsHaveAny && additionalLocations == 0;
+            var storedAsPlan = plainCatalog
+                ? BasePlanToChosenPlan(basePlan)
+                : BillingSubscriptionPlans.Custom;
+
+            // Compact packs: omit zero counts in stored JSON.
+            var storedPacks = packs
+                .Where(kv => kv.Value > 0)
+                .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
+
+            return new CustomPlanQuoteResult
+            {
+                Version = 2,
+                CatalogPublicId = version.PublicId,
+                Cadence = cadence,
+                BasePlan = basePlan,
+                Locations = clampedLocations,
+                Packs = storedPacks,
+                Quantities = quantities,
+                MonthlyNetPence = monthlyNetPence,
+                PeriodNetPence = periodNetPence,
+                Lines = lines,
+                RateSnapshot = rates,
+                BasePlanChanged = basePlanChanged,
+                RequestedBasePlan = requested,
+                StoredAsPlan = storedAsPlan,
+            };
+        }
+
+        private async Task<CommercialCatalogVersion?> LoadPublishedAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.CommercialCatalogVersions
+                .AsNoTracking()
+                .Include(v => v.Plans)
+                .Include(v => v.ExtraLocations)
+                .Include(v => v.CustomUnitRates)
+                .Where(v => v.Status == CommercialCatalogStatuses.Published)
+                .OrderByDescending(v => v.PublishedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        internal static Dictionary<string, int> NormalizePacks(
+            Dictionary<string, int>? packs
+        )
+        {
+            var next = CustomPlanPacks.All.ToDictionary(
+                p => p.PackKey,
+                _ => 0,
+                StringComparer.Ordinal
+            );
+            if (packs == null)
+            {
+                return next;
+            }
+
+            foreach (var (key, raw) in packs)
+            {
+                if (!CustomPlanPacks.IsKnownPackKey(key))
+                {
+                    throw new CustomPlanQuoteException(
+                        "invalid_pack",
+                        $"Unknown pack key: {key}."
+                    );
+                }
+
+                next[key] = Math.Clamp(raw, 0, CustomPlanPacks.MaxPackCount);
+            }
+
+            return next;
+        }
+
+        internal static string MinBasePlanForLocations(
+            int locations,
+            IReadOnlyList<PublicCatalogPlanSummaryDto> plans
+        )
+        {
+            var n = Math.Max(1, locations);
+            var paid = plans
+                .Where(p =>
+                    PaidPlanKeys.Contains(p.PlanKey, StringComparer.Ordinal)
+                )
+                .OrderBy(p => p.IncludedLocations)
+                .ToList();
+
+            foreach (var plan in paid)
+            {
+                if (plan.IncludedLocations >= n)
+                {
+                    return plan.PlanKey;
+                }
+            }
+
+            return "group";
+        }
+
+        internal static string? ParseBasePlanKey(string? value)
+        {
+            var key = value?.Trim().ToLowerInvariant();
+            return key is "starter" or "growth" or "group" ? key : null;
+        }
+
+        private static string BasePlanToChosenPlan(string basePlan) =>
+            basePlan switch
+            {
+                "starter" => BillingSubscriptionPlans.Starter,
+                "growth" => BillingSubscriptionPlans.Growth,
+                _ => BillingSubscriptionPlans.Group,
+            };
+
+        private static int PlanPeriodNetPence(
+            PublicCatalogPlanSummaryDto plan,
+            string cadence
+        )
+        {
+            if (string.Equals(cadence, "annual", StringComparison.OrdinalIgnoreCase))
+            {
+                if (plan.AnnualNetPence > 0)
+                {
+                    return plan.AnnualNetPence;
+                }
+
+                return (int)Math.Round(
+                    plan.MonthlyNetPence * 12 * CustomPlanPacks.AnnualFallbackFactor
+                );
+            }
+
+            return plan.MonthlyNetPence;
+        }
+
+        private static List<PublicCatalogPlanSummaryDto> BuildPlanSummaries(
+            CommercialCatalogVersion version
+        )
+        {
+            return version.Plans
+                .Where(p =>
+                    PaidPlanKeys.Contains(
+                        p.PlanKey.Trim().ToLowerInvariant(),
+                        StringComparer.Ordinal
+                    )
+                )
+                .Select(p => new PublicCatalogPlanSummaryDto
+                {
+                    PlanKey = p.PlanKey.Trim().ToLowerInvariant(),
+                    DisplayName = p.DisplayName,
+                    MonthlyNetPence = p.MonthlyNetPence,
+                    AnnualNetPence = p.AnnualNetPence,
+                    IncludedLocations = p.IncludedLocations,
+                    IncludedTeamMembers = p.IncludedTeamMembers,
+                    ActiveOffersAccount = p.ActiveOffersAccount,
+                    ActiveQrPlacementsPerLocation = p.ActiveQrPlacementsPerLocation,
+                    CreditsMonthlyAi = p.CreditsMonthlyAi ?? 0,
+                    CreditsMonthlyEmail = p.CreditsMonthlyEmail ?? 0,
+                    CreditsMonthlySms = p.CreditsMonthlySms ?? 0,
+                })
+                .ToList();
+        }
+
+        private static string PackTitle(string packKey) =>
+            packKey switch
+            {
+                "team_users_5" => "Additional team users",
+                "offers_5" => "Additional active Offers",
+                "qr_10" => "Extra QR placements",
+                "email_20k" => "+20,000 Email/month",
+                "email_50k" => "+50,000 Email/month",
+                "sms_500" => "+500 SMS/month",
+                "sms_1000" => "+1,000 SMS/month",
+                "sms_5000" => "+5,000 SMS/month",
+                "ai_500" => "+500 AI actions/month",
+                "ai_2000" => "+2,000 AI actions/month",
+                _ => packKey,
+            };
+    }
+}
