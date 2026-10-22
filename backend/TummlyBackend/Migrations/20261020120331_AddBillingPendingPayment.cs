@@ -11,19 +11,7 @@ namespace TummlyBackend.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Custom plan columns were in the model snapshot without a migration.
-            migrationBuilder.AddColumn<string>(
-                name: "CustomPlanConfigJson",
-                table: "BillingAccounts",
-                type: "nvarchar(max)",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "CustomPlanConfigJson",
-                table: "PendingSignups",
-                type: "nvarchar(max)",
-                nullable: true);
-
+            // CustomPlanConfigJson columns are added by AddCommercialCatalog.
             migrationBuilder.AddColumn<string>(
                 name: "PendingPaymentCadence",
                 table: "BillingAccounts",
@@ -61,14 +49,6 @@ namespace TummlyBackend.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "CustomPlanConfigJson",
-                table: "PendingSignups");
-
-            migrationBuilder.DropColumn(
-                name: "CustomPlanConfigJson",
-                table: "BillingAccounts");
-
             migrationBuilder.DropColumn(
                 name: "PendingPaymentCadence",
                 table: "BillingAccounts");

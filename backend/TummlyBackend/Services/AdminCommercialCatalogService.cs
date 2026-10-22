@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
@@ -231,6 +232,33 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            var paidKeys = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "starter",
+                "growth",
+                "group",
+            };
+            var plans = version.Plans
+                .Where(p => paidKeys.Contains(p.PlanKey.Trim().ToLowerInvariant()))
+                .OrderBy(p => p.IncludedLocations)
+                .Select(p => new PublicCatalogPlanSummaryDto
+                {
+                    PlanKey = p.PlanKey.Trim().ToLowerInvariant(),
+                    DisplayName = p.DisplayName,
+                    MonthlyNetPence = p.MonthlyNetPence,
+                    AnnualNetPence = p.AnnualNetPence,
+                    IncludedLocations = p.IncludedLocations,
+                    IncludedTeamMembers = p.IncludedTeamMembers,
+                    ActiveOffersAccount = p.ActiveOffersAccount,
+                    ActiveQrPlacementsPerLocation = p.ActiveQrPlacementsPerLocation,
+                    CreditsMonthlyAi = p.CreditsMonthlyAi ?? 0,
+                    CreditsMonthlyEmail = p.CreditsMonthlyEmail ?? 0,
+                    CreditsMonthlySms = p.CreditsMonthlySms ?? 0,
+                })
+                .ToList();
+
+            var extra = version.ExtraLocations.FirstOrDefault();
+
             return new PublicCustomUnitRatesDto
             {
                 CatalogPublicId = version.PublicId,
@@ -245,6 +273,24 @@ namespace TummlyBackend.Services
                         UnitQuantity = r.UnitQuantity,
                         MonthlyNetPence = r.MonthlyNetPence,
                         AnnualNetPence = r.AnnualNetPence,
+                    })
+                    .ToList(),
+                Plans = plans,
+                ExtraLocation = extra == null
+                    ? null
+                    : new PublicExtraLocationSummaryDto
+                    {
+                        UsersAdded = extra.UsersAdded,
+                        CreditsMonthlyAi = extra.CreditsMonthlyAi,
+                        CreditsMonthlyEmail = extra.CreditsMonthlyEmail,
+                        CreditsMonthlySms = extra.CreditsMonthlySms,
+                    },
+                Packs = CustomPlanPacks.All
+                    .Select(p => new PublicCatalogPackMetaDto
+                    {
+                        PackKey = p.PackKey,
+                        RateKey = p.RateKey,
+                        PackSize = p.PackSize,
                     })
                     .ToList(),
             };

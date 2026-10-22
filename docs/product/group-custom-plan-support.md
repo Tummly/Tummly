@@ -39,7 +39,9 @@ Commercial numbers for catalog plans come from the Admin-published commercial ca
 
 **Group** remains a fixed catalog SKU plus extra-location add-ons (cap 30).
 
-**Custom** is a separate self-serve path: Pricing “Customise your plan” → `/custom-plan` unit steppers → signup with config snapshot → Revolut cycle order → Active + included mint. Renewals open a new cycle order at `RenewalDateUtc` (hourly job); unpaid cycles start a dunning episode and soft-lock on the same clock as catalog. Cancel at period end demotes to Pilot SoftLock. Unit rates are Admin-editable on the published commercial catalog. Mid-period Admin rate edits do not change an active contract until re-quote (snapshot wins).
+**Custom v2 (2026-10-20):** base package (Starter / Growth / Group, picked by Location count; customer may keep a higher one) + fixed add-on packs (+5 team users, +5 Offers, +10 QR placements account-wide, Email 20k / 50k, SMS 500 / 1,000 / 5,000, AI 500 / 2,000). Server re-prices every config (`CustomPlanQuoteService`, `POST /api/public/commercial-catalog/custom-plan/quote`); no packs and Locations within the base → plain catalog plan. Signup: account → business → first Location → choose / customise plan → review → Revolut → `/signup/complete` (one-time `POST /api/Signup/session-login`) → `/signup/locations` → WebApp. Free default removed from self-serve signup. Spec: `.scratch/signup-plan-customise/`.
+
+**Custom (v1, à-la-carte, superseded)** was a separate self-serve path: Pricing “Customise your plan” → `/custom-plan` unit steppers → signup with config snapshot → Revolut cycle order → Active + included mint. Renewals open a new cycle order at `RenewalDateUtc` (hourly job); unpaid cycles start a dunning episode and soft-lock on the same clock as catalog. Cancel at period end demotes to Pilot SoftLock. Unit rates are Admin-editable on the published commercial catalog. Mid-period Admin rate edits do not change an active contract until re-quote (snapshot wins).
 
 ## Catalog baseline
 

@@ -1,3 +1,5 @@
+import { isAxiosError } from "axios"
+
 import axiosInstance from "./axiosInstance"
 import { unwrapDataObject } from "@/lib/apiEnvelope"
 import type {
@@ -6,6 +8,35 @@ import type {
 } from "@/schemas/signup"
 
 const skipAuth = { skipAuthRedirect: true } as const
+
+export type SignupSessionLoginResult = {
+  token: string
+  refreshToken: string | null
+  accountType: string
+  workspaceCount: number
+  restaurantId: number | null
+  selectedLocationId: number | null
+  activationRequired: boolean
+  ownerActivation: "ok" | "pending" | "expired"
+}
+
+export type SignupSessionLoginErrorCode =
+  | "payment_pending"
+  | "session_login_used"
+
+export class SignupSessionLoginError extends Error {
+  readonly code: SignupSessionLoginErrorCode
+
+  constructor(
+    code: SignupSessionLoginErrorCode,
+    message: string,
+    options?: ErrorOptions
+  ) {
+    super(message, options)
+    this.name = "SignupSessionLoginError"
+    this.code = code
+  }
+}
 
 export type SignupSession = {
   sessionToken: string
@@ -55,6 +86,8 @@ export type SignupProvisioningStatus = {
   status: string
   ready: boolean
   paymentRedirectUrl?: string | null
+  /** With status `PaymentFailed`: the paid checkout did not open. */
+  paymentFailureCode?: string | null
 }
 
 function asSignupSession(data: Record<string, unknown>): SignupSession {
@@ -170,5 +203,93 @@ export async function getSignupProvisioningStatus(
       typeof payload.paymentRedirectUrl === "string"
         ? payload.paymentRedirectUrl
         : null,
+    paymentFailureCode:
+      typeof payload.paymentFailureCode === "string"
+        ? payload.paymentFailureCode
+        : null,
+  }
+}
+
+function asSignupSessionLogin(
+  data: Record<string, unknown>
+): SignupSessionLoginResult {
+  const ownerActivationRaw = String(data.ownerActivation ?? "ok")
+  const ownerActivation =
+    ownerActivationRaw === "pending" || ownerActivationRaw === "expired"
+      ? ownerActivationRaw
+      : "ok"
+
+  return {
+    token: String(data.token ?? ""),
+    refreshToken:
+      typeof data.refreshToken === "string" ? data.refreshToken : null,
+    accountType: String(data.accountType ?? ""),
+    workspaceCount:
+      typeof data.workspaceCount === "number" ? data.workspaceCount : 0,
+    restaurantId:
+      typeof data.restaurantId === "number" ? data.restaurantId : null,
+    selectedLocationId:
+      typeof data.selectedLocationId === "number"
+        ? data.selectedLocationId
+        : null,
+    activationRequired: data.activationRequired === true,
+    ownerActivation,
+  }
+}
+
+function readConflictCode(payload: unknown): string | null {
+  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) {
+    return null
+  }
+  const code = (payload as { code?: unknown }).code
+  return typeof code === "string" && code.trim() !== "" ? code.trim() : null
+}
+
+/**
+ * Exchange a completed signup session for an operator auth session.
+ * 409 `payment_pending` / `session_login_used` → SignupSessionLoginError.
+ */
+export async function signupSessionLogin(
+  sessionToken: string
+): Promise<SignupSessionLoginResult> {
+  try {
+    const response = await axiosInstance.post(
+      "/Signup/session-login",
+      { sessionToken },
+      skipAuth
+    )
+    const result = asSignupSessionLogin(requireDataObject(response.data))
+    if (!result.token) {
+      throw new Error("Invalid session-login response.")
+    }
+    return result
+  } catch (error) {
+    if (error instanceof SignupSessionLoginError) {
+      throw error
+    }
+    if (isAxiosError(error) && error.response?.status === 409) {
+      const code = readConflictCode(error.response.data)
+      if (code === "payment_pending") {
+        throw new SignupSessionLoginError(
+          "payment_pending",
+          "Payment is still confirming. Please wait a moment.",
+          { cause: error }
+        )
+      }
+      if (code === "session_login_used") {
+        throw new SignupSessionLoginError(
+          "session_login_used",
+          "This setup link was already used. Please sign in.",
+          { cause: error }
+        )
+      }
+    }
+    if (isAxiosError<{ message?: string }>(error)) {
+      throw new Error(
+        error.response?.data?.message ?? "Could not finish sign-in.",
+        { cause: error }
+      )
+    }
+    throw error
   }
 }

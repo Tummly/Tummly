@@ -102,11 +102,59 @@ namespace TummlyBackend.Services
                 );
             var teamCurrent = activeMembers + pendingInvites;
 
+            PlanEntitlementLimitDto? qrAccountExtra = null;
+            if (
+                string.Equals(
+                    billingAccount.SubscriptionPlan,
+                    BillingSubscriptionPlans.Custom,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                var custom = CustomPlanConfig.TryParse(
+                    billingAccount.CustomPlanConfigJson
+                );
+                if (custom != null && custom.Quantities.QrPlacementsAccountExtra > 0)
+                {
+                    var perLocCap = Math.Max(0, custom.Quantities.QrPlacements);
+                    var locationIds = await _context.RestaurantLocations
+                        .AsNoTracking()
+                        .Where(row => row.RestaurantId == restaurantId)
+                        .Select(row => row.Id)
+                        .ToListAsync(cancellationToken);
+                    var activeByLocation = await _context.QrCodes
+                        .AsNoTracking()
+                        .Where(qr =>
+                            locationIds.Contains(qr.RestaurantLocationId)
+                            && qr.Status == QrCodeStatus.Active
+                        )
+                        .GroupBy(qr => qr.RestaurantLocationId)
+                        .Select(g => new { LocationId = g.Key, Count = g.Count() })
+                        .ToDictionaryAsync(
+                            row => row.LocationId,
+                            row => row.Count,
+                            cancellationToken
+                        );
+                    var overflow = 0;
+                    foreach (var locId in locationIds)
+                    {
+                        var active = activeByLocation.GetValueOrDefault(locId);
+                        overflow += Math.Max(0, active - perLocCap);
+                    }
+
+                    qrAccountExtra = Limit(
+                        custom.Quantities.QrPlacementsAccountExtra,
+                        overflow
+                    );
+                }
+            }
+
             return new PlanEntitlementsAccountSnapshotDto
             {
                 Locations = Limit(locationCap, locationCount),
                 TeamMembers = Limit(teamCap, teamCurrent),
                 ActiveOffers = Limit(plan.ActiveOffersAccount, activeOffers),
+                ActiveQrPlacementsAccountExtra = qrAccountExtra,
             };
         }
 

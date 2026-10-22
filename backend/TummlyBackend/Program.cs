@@ -670,6 +670,7 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<CustomPlanCycleBillingService>();
 builder.Services.AddScoped<ICustomPlanCycleRenewalJob, CustomPlanCycleRenewalJob>();
+builder.Services.AddScoped<ICustomPlanQuoteService, CustomPlanQuoteService>();
 builder.Services.AddHostedService<CustomPlanCycleRenewalBackgroundService>();
 builder.Services.AddScoped<IShopInterestService, ShopInterestService>();
 builder.Services.AddScoped<

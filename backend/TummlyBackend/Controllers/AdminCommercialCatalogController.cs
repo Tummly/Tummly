@@ -116,10 +116,15 @@ namespace TummlyBackend.Controllers
     public sealed class PublicCommercialCatalogController : ControllerBase
     {
         private readonly IAdminCommercialCatalogService _catalog;
+        private readonly ICustomPlanQuoteService _quote;
 
-        public PublicCommercialCatalogController(IAdminCommercialCatalogService catalog)
+        public PublicCommercialCatalogController(
+            IAdminCommercialCatalogService catalog,
+            ICustomPlanQuoteService quote
+        )
         {
             _catalog = catalog;
+            _quote = quote;
         }
 
         [HttpGet("custom-unit-rates")]
@@ -135,6 +140,31 @@ namespace TummlyBackend.Controllers
             }
 
             return Ok(new { success = true, item });
+        }
+
+        [HttpPost("custom-plan/quote")]
+        [AllowAnonymous]
+        public async Task<IActionResult> QuoteCustomPlan(
+            [FromBody] CustomPlanQuoteRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                var item = await _quote.QuoteAsync(request, cancellationToken);
+                return Ok(new { success = true, item });
+            }
+            catch (CustomPlanQuoteException ex)
+            {
+                return BadRequest(
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Message,
+                    }
+                );
+            }
         }
     }
 }

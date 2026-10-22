@@ -24,7 +24,7 @@ namespace TummlyBackend.DTOs.Signup
 
         public List<LocationItem> Locations { get; set; } = [];
 
-        /// <summary>Pilot|Free|Starter|Growth|Group|Custom — omit for Free default.</summary>
+        /// <summary>Pilot|Starter|Growth|Group|Custom — required (no Free default).</summary>
         public string? ChosenPlan { get; set; }
 
         /// <summary>monthly|annual</summary>

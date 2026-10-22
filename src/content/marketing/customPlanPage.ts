@@ -5,7 +5,7 @@ import { MARKETING_FAQS_PATH } from "@/constants/marketingNav"
 export const CUSTOM_PLAN_HERO = {
   eyebrow: "Build your own plan",
   title: "A Tummly plan built around your restaurants.",
-  body: "Choose your Locations, adjust your team and QR capacity, and add the Email, SMS or AI allowances you need. See what's included and how your subscription price is calculated.",
+  body: "Start from a base package, choose your Locations, then add fixed capacity and credit packs. Included allowances stay covered — you only pay for the extras you need.",
 } as const
 
 export const CUSTOM_PLAN_SECTION_INSET = "px-5 lg:px-[60px]"

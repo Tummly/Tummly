@@ -132,6 +132,32 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task RetryPaidSignupCheckoutAsync(Guid pendingSignupId)
+        {
+            var pending = await _context.PendingSignups.FirstOrDefaultAsync(x =>
+                x.Id == pendingSignupId
+            );
+            if (
+                pending == null
+                || pending.Status != PendingSignupStatuses.Complete
+                || string.IsNullOrWhiteSpace(pending.ChosenPlan)
+                || pending.ChosenPlan
+                    is BillingSubscriptionPlans.Free
+                        or BillingSubscriptionPlans.Pilot
+            )
+            {
+                return;
+            }
+
+            await StartPaidSignupPaySessionAsync(
+                pending.Email,
+                pending.ChosenPlan,
+                pending.ChosenCadence ?? "monthly",
+                pending.Id,
+                pending.CustomPlanConfigJson
+            );
+        }
+
         public async Task ProvisionFromPendingAsync(Guid pendingSignupId)
         {
             var pending = await _context.PendingSignups.FirstOrDefaultAsync(x =>
@@ -472,7 +498,7 @@ namespace TummlyBackend.Services
                     var (checkoutUrl, error) =
                         await _customPlanCycleBilling.StartCyclePayAsync(
                             restaurant.Id,
-                            BuildLoginSetupCompleteRedirectUrl()
+                            BuildSignupCompleteRedirectUrl()
                         );
                     checkoutError = checkoutUrl == null
                         ? error ?? "custom_checkout_missing"
@@ -521,7 +547,7 @@ namespace TummlyBackend.Services
                     chosenPlan,
                     chosenCadence,
                     pendingSignupId.ToString("D"),
-                    successRedirectUrl: BuildLoginSetupCompleteRedirectUrl()
+                    successRedirectUrl: BuildSignupCompleteRedirectUrl()
                 );
             }
             catch (RevolutMerchantNotReadyException ex)
@@ -623,17 +649,14 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync();
         }
 
-        private string BuildLoginSetupCompleteRedirectUrl()
+        private string BuildSignupCompleteRedirectUrl()
         {
-            var baseUrl = _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/');
-            if (string.IsNullOrWhiteSpace(baseUrl))
-            {
-                throw new InvalidOperationException(
-                    "Frontend:BaseUrl is not configured."
-                );
-            }
-
-            return $"{baseUrl}/login?setup=complete";
+            // Same base as other Hosted Checkout returns: Revolut rejects
+            // localhost / IP hosts, so local dev sets Frontend:RevolutRedirectBaseUrl.
+            var baseUrl = RevolutHostedCheckoutRedirectUrls.ResolveRedirectBaseUrl(
+                _configuration
+            );
+            return $"{baseUrl}/signup/complete";
         }
 
         public async Task GenerateActivationCodeAsync(string inviteToken)

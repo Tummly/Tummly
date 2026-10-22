@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
@@ -56,6 +57,21 @@ namespace TummlyBackend.Tests.Services
                 published.CustomUnitRates,
                 r => r.RateKey == CommercialCustomUnitRateKeys.Location
             );
+        }
+
+        [Fact]
+        public async Task GetPublicCustomUnitRates_IncludesPlansExtraAndPacks()
+        {
+            var item = await _sut.GetPublicCustomUnitRatesAsync();
+            Assert.NotNull(item);
+            Assert.Equal(3, item!.Plans.Count);
+            Assert.Contains(item.Plans, p => p.PlanKey == "starter");
+            Assert.Contains(item.Plans, p => p.PlanKey == "growth");
+            Assert.Contains(item.Plans, p => p.PlanKey == "group");
+            Assert.NotNull(item.ExtraLocation);
+            Assert.Equal(2, item.ExtraLocation!.UsersAdded);
+            Assert.Equal(CustomPlanPacks.All.Count, item.Packs.Count);
+            Assert.Contains(item.Packs, p => p.PackKey == "team_users_5");
         }
 
         [Fact]

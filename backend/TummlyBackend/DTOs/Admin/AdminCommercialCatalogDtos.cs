@@ -156,5 +156,12 @@ namespace TummlyBackend.DTOs.Admin
         public int MaxLocations { get; set; } = 500;
 
         public List<AdminCommercialCustomUnitRateDto> UnitRates { get; set; } = [];
+
+        /// <summary>Paid plans from published catalog (contract §6.1).</summary>
+        public List<PublicCatalogPlanSummaryDto> Plans { get; set; } = [];
+
+        public PublicExtraLocationSummaryDto? ExtraLocation { get; set; }
+
+        public List<PublicCatalogPackMetaDto> Packs { get; set; } = [];
     }
 }

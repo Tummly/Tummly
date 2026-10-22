@@ -201,5 +201,41 @@ namespace TummlyBackend.Controllers
                 );
             }
         }
+
+        [HttpPost("session-login")]
+        public async Task<IActionResult> SessionLogin(
+            [FromBody] SignupSessionLoginDto dto
+        )
+        {
+            try
+            {
+                var data = await _signupService.SessionLoginAsync(dto.SessionToken);
+                return Ok(
+                    new
+                    {
+                        success = true,
+                        message = "Signed in.",
+                        data,
+                    }
+                );
+            }
+            catch (SignupConflictException ex)
+            {
+                return Conflict(
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Message,
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(
+                    new { success = false, message = ex.Message }
+                );
+            }
+        }
     }
 }

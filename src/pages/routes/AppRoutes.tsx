@@ -35,6 +35,8 @@ import SignupVerifyPage from "../auth/SignupVerifyPage";
 import SignupOnboardingPage from "../auth/SignupOnboardingPage";
 import SignupChoosePlanRedirectPage from "../auth/SignupChoosePlanRedirectPage";
 import SignupProvisioningPage from "../auth/SignupProvisioningPage";
+import SignupCompletePage from "../auth/SignupCompletePage";
+import SignupLocationsPage from "../auth/SignupLocationsPage";
 import GuestFeedbackPage from "../public/GuestFeedbackPage";
 import PrivacyPage from "../public/PrivacyPage";
 import TermsPage from "../public/TermsPage";
@@ -233,6 +235,24 @@ function AppRoutes() {
             </ErrorBoundary>
           }
         />
+        <Route
+          path="signup/complete"
+          element={
+            <ErrorBoundary>
+              <SignupCompletePage />
+            </ErrorBoundary>
+          }
+        />
+        <Route element={<ProtectedRoute />}>
+          <Route
+            path="signup/locations"
+            element={
+              <ErrorBoundary>
+                <SignupLocationsPage />
+              </ErrorBoundary>
+            }
+          />
+        </Route>
         <Route
           path="reset-password"
           element={

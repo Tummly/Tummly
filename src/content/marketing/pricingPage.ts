@@ -204,7 +204,7 @@ export const PRICING_CUSTOMISE_PLAN = {
   eyebrow: "Customise your plan",
   title: "Need more than 5 Locations?",
   body: "Choose your Locations, add extra team users, QR placements, Offers and monthly credits, and see your estimated subscription price.",
-  ctaLabel: "Build your own plan",
+  ctaLabel: "Customise your plan",
   ctaTo: MARKETING_CUSTOM_PLAN_PATH,
 } as const
 

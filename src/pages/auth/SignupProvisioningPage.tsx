@@ -8,10 +8,7 @@ import {
 } from "@/api/signupApi"
 import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
 import { Button } from "@/components/ui/button"
-import {
-  clearSignupSessionToken,
-  readSignupSessionToken,
-} from "@/lib/signupSession"
+import { readSignupSessionToken } from "@/lib/signupSession"
 
 const POLL_INTERVAL_MS = 2000
 
@@ -21,6 +18,9 @@ const PROVISIONING_LOADING_COPY = "Setting up your Tummly workspace…"
 async function kickPilotProvision(sessionToken: string) {
   await retrySignupProvision(sessionToken)
 }
+
+const PAYMENT_FAILED_MESSAGE =
+  "We couldn't open the payment page. Your details are saved — select Retry to try again."
 
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error)) {
@@ -51,13 +51,9 @@ function SignupProvisioningPage() {
   const [provisioningAttempt, setProvisioningAttempt] = useState(0)
 
   const provisioningRunId = useRef(0)
-  /** Avoid /signup bounce when goToLogin clears the session before navigate lands. */
-  const leavingForLoginRef = useRef(false)
 
-  const goToLogin = useCallback(() => {
-    leavingForLoginRef.current = true
-    clearSignupSessionToken()
-    navigate("/login?setup=complete", { replace: true })
+  const goToComplete = useCallback(() => {
+    navigate("/signup/complete", { replace: true })
   }, [navigate])
 
   const goToOnboarding = useCallback(() => {
@@ -66,10 +62,6 @@ function SignupProvisioningPage() {
 
   useEffect(() => {
     if (!sessionToken) {
-      if (leavingForLoginRef.current) {
-        navigate("/login?setup=complete", { replace: true })
-        return
-      }
       navigate("/signup", { replace: true })
       return
     }
@@ -104,6 +96,10 @@ function SignupProvisioningPage() {
         if (status.status === "EmailPending") {
           navigate("/signup", { replace: true })
           return "redirected"
+        }
+
+        if (status.status === "PaymentFailed") {
+          throw new Error(PAYMENT_FAILED_MESSAGE)
         }
 
         if (status.status === "AwaitingPayment") {
@@ -141,6 +137,10 @@ function SignupProvisioningPage() {
     const waitUntilReady = async () => {
       while (isCurrent()) {
         const status = await getSignupProvisioningStatus(sessionToken)
+
+        if (status.status === "PaymentFailed") {
+          throw new Error(PAYMENT_FAILED_MESSAGE)
+        }
 
         if (status.ready || status.status === "Complete") {
           if (
@@ -182,7 +182,7 @@ function SignupProvisioningPage() {
         await waitUntilReady()
         if (!isCurrent()) return
 
-        goToLogin()
+        goToComplete()
       } catch (error) {
         if (!isCurrent()) return
         setProvisioningError(
@@ -200,7 +200,7 @@ function SignupProvisioningPage() {
         provisioningRunId.current += 1
       }
     }
-  }, [goToLogin, navigate, provisioningAttempt, sessionToken])
+  }, [goToComplete, navigate, provisioningAttempt, sessionToken])
 
   const handleRetry = () => {
     if (isBusy || !sessionToken) return
@@ -237,6 +237,7 @@ function SignupProvisioningPage() {
       contentAlign="center"
       contentMaxWidthClassName="max-w-none"
       showBackButton={Boolean(provisioningError)}
+      backButtonPlacement="top"
       backButtonDisabled={false}
       onBack={provisioningError ? goToOnboarding : undefined}
     >

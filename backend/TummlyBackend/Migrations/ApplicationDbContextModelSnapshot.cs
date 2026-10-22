@@ -2970,6 +2970,9 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<DateTime?>("SessionLoginConsumedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid>("SessionToken")
                         .HasColumnType("uniqueidentifier");
 

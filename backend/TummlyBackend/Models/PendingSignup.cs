@@ -11,6 +11,11 @@ namespace TummlyBackend.Models
         public const string Provisioning = "Provisioning";
         public const string Complete = "Complete";
         public const string Abandoned = "Abandoned";
+
+        /// <summary>
+        /// Status-only (not stored): paid checkout did not open; client retries.
+        /// </summary>
+        public const string PaymentFailed = "PaymentFailed";
     }
 
     public class PendingSignup
@@ -68,5 +73,10 @@ namespace TummlyBackend.Models
         public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
         public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Set when POST /api/Signup/session-login succeeds (one-time use).
+        /// </summary>
+        public DateTime? SessionLoginConsumedAtUtc { get; set; }
     }
 }

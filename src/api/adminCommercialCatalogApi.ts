@@ -249,11 +249,75 @@ export async function publishCommercialCatalog(options?: {
   return mapVersion(data.item)
 }
 
+export type PublicCatalogPlanSummaryDto = {
+  planKey: string
+  displayName: string
+  monthlyNetPence: number
+  annualNetPence: number
+  includedLocations: number
+  includedTeamMembers: number
+  activeOffersAccount: number
+  activeQrPlacementsPerLocation: number
+  creditsMonthlyAi: number
+  creditsMonthlyEmail: number
+  creditsMonthlySms: number
+}
+
+export type PublicExtraLocationSummaryDto = {
+  usersAdded: number
+  creditsMonthlyAi: number
+  creditsMonthlyEmail: number
+  creditsMonthlySms: number
+}
+
+export type PublicCatalogPackMetaDto = {
+  packKey: string
+  rateKey: string
+  packSize: number
+}
+
 export type PublicCustomUnitRates = {
   catalogPublicId: string
   vatRateBps: number
   maxLocations: number
   unitRates: AdminCommercialCustomUnitRate[]
+  /** Paid plans from published catalog (contract §6.1). */
+  plans: PublicCatalogPlanSummaryDto[]
+  extraLocation: PublicExtraLocationSummaryDto | null
+  packs: PublicCatalogPackMetaDto[]
+}
+
+function mapPublicPlan(
+  raw: Record<string, unknown>,
+): PublicCatalogPlanSummaryDto {
+  return {
+    planKey: String(raw.planKey ?? "").toLowerCase(),
+    displayName: String(raw.displayName ?? ""),
+    monthlyNetPence: Number(raw.monthlyNetPence ?? 0),
+    annualNetPence: Number(raw.annualNetPence ?? 0),
+    includedLocations: Number(raw.includedLocations ?? 0),
+    includedTeamMembers: Number(raw.includedTeamMembers ?? 0),
+    activeOffersAccount: Number(raw.activeOffersAccount ?? 0),
+    activeQrPlacementsPerLocation: Number(
+      raw.activeQrPlacementsPerLocation ?? 0,
+    ),
+    creditsMonthlyAi: Number(raw.creditsMonthlyAi ?? 0),
+    creditsMonthlyEmail: Number(raw.creditsMonthlyEmail ?? 0),
+    creditsMonthlySms: Number(raw.creditsMonthlySms ?? 0),
+  }
+}
+
+function mapUnitRate(
+  raw: Record<string, unknown>,
+): AdminCommercialCustomUnitRate {
+  return {
+    id: String(raw.id ?? ""),
+    rateKey: String(raw.rateKey ?? ""),
+    unitQuantity: Number(raw.unitQuantity ?? 1),
+    monthlyNetPence: Number(raw.monthlyNetPence ?? 0),
+    annualNetPence:
+      raw.annualNetPence == null ? null : Number(raw.annualNetPence),
+  }
 }
 
 export async function fetchPublicCustomUnitRates(): Promise<PublicCustomUnitRates> {
@@ -264,19 +328,138 @@ export async function fetchPublicCustomUnitRates(): Promise<PublicCustomUnitRate
     throw new Error(data.message ?? "Catalog not ready.")
   }
   const item = data.item
+  const extraRaw =
+    item.extraLocation != null && typeof item.extraLocation === "object"
+      ? (item.extraLocation as Record<string, unknown>)
+      : null
   return {
     catalogPublicId: String(item.catalogPublicId ?? ""),
     vatRateBps: Number(item.vatRateBps ?? 0),
     maxLocations: Number(item.maxLocations ?? 500),
     unitRates: Array.isArray(item.unitRates)
-      ? (item.unitRates as Record<string, unknown>[]).map((r) => ({
-          id: String(r.id ?? ""),
-          rateKey: String(r.rateKey ?? ""),
-          unitQuantity: Number(r.unitQuantity ?? 1),
-          monthlyNetPence: Number(r.monthlyNetPence ?? 0),
-          annualNetPence:
-            r.annualNetPence == null ? null : Number(r.annualNetPence),
+      ? (item.unitRates as Record<string, unknown>[]).map(mapUnitRate)
+      : [],
+    plans: Array.isArray(item.plans)
+      ? (item.plans as Record<string, unknown>[]).map(mapPublicPlan)
+      : [],
+    extraLocation:
+      extraRaw == null
+        ? null
+        : {
+            usersAdded: Number(extraRaw.usersAdded ?? 0),
+            creditsMonthlyAi: Number(extraRaw.creditsMonthlyAi ?? 0),
+            creditsMonthlyEmail: Number(extraRaw.creditsMonthlyEmail ?? 0),
+            creditsMonthlySms: Number(extraRaw.creditsMonthlySms ?? 0),
+          },
+    packs: Array.isArray(item.packs)
+      ? (item.packs as Record<string, unknown>[]).map((p) => ({
+          packKey: String(p.packKey ?? ""),
+          rateKey: String(p.rateKey ?? ""),
+          packSize: Number(p.packSize ?? 0),
         }))
       : [],
   }
+}
+
+export type CustomPlanQuoteRequest = {
+  cadence: "monthly" | "annual"
+  basePlan: "starter" | "growth" | "group" | null
+  locations: number
+  packs: Record<string, number>
+}
+
+export type CustomPlanQuoteLine = {
+  key: string
+  label: string
+  quantity: number
+  netPence: number
+}
+
+export type CustomPlanQuoteResult = {
+  version: number
+  catalogPublicId: string
+  cadence: string
+  basePlan: string
+  locations: number
+  packs: Record<string, number>
+  quantities: {
+    locations: number
+    teamUsers: number
+    qrPlacements: number
+    qrPlacementsAccountExtra: number
+    offers: number
+    emailCredits: number
+    smsCredits: number
+    aiCredits: number
+  }
+  monthlyNetPence: number
+  periodNetPence: number
+  lines: CustomPlanQuoteLine[]
+  basePlanChanged: boolean
+  requestedBasePlan: string | null
+  storedAsPlan: string
+}
+
+function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
+  const quantitiesRaw =
+    raw.quantities != null && typeof raw.quantities === "object"
+      ? (raw.quantities as Record<string, unknown>)
+      : {}
+  const packsRaw =
+    raw.packs != null && typeof raw.packs === "object"
+      ? (raw.packs as Record<string, number>)
+      : {}
+  return {
+    version: Number(raw.version ?? 2),
+    catalogPublicId: String(raw.catalogPublicId ?? ""),
+    cadence: String(raw.cadence ?? "monthly"),
+    basePlan: String(raw.basePlan ?? ""),
+    locations: Number(raw.locations ?? 0),
+    packs: packsRaw,
+    quantities: {
+      locations: Number(quantitiesRaw.locations ?? 0),
+      teamUsers: Number(quantitiesRaw.teamUsers ?? 0),
+      qrPlacements: Number(quantitiesRaw.qrPlacements ?? 0),
+      qrPlacementsAccountExtra: Number(
+        quantitiesRaw.qrPlacementsAccountExtra ?? 0,
+      ),
+      offers: Number(quantitiesRaw.offers ?? 0),
+      emailCredits: Number(quantitiesRaw.emailCredits ?? 0),
+      smsCredits: Number(quantitiesRaw.smsCredits ?? 0),
+      aiCredits: Number(quantitiesRaw.aiCredits ?? 0),
+    },
+    monthlyNetPence: Number(raw.monthlyNetPence ?? 0),
+    periodNetPence: Number(raw.periodNetPence ?? 0),
+    lines: Array.isArray(raw.lines)
+      ? (raw.lines as Record<string, unknown>[]).map((line) => ({
+          key: String(line.key ?? ""),
+          label: String(line.label ?? ""),
+          quantity: Number(line.quantity ?? 0),
+          netPence: Number(line.netPence ?? 0),
+        }))
+      : [],
+    basePlanChanged: Boolean(raw.basePlanChanged),
+    requestedBasePlan:
+      raw.requestedBasePlan == null ? null : String(raw.requestedBasePlan),
+    storedAsPlan: String(raw.storedAsPlan ?? "Custom"),
+  }
+}
+
+/** Anonymous server quote — contract §6.2. */
+export async function quotePublicCustomPlan(
+  body: CustomPlanQuoteRequest,
+): Promise<CustomPlanQuoteResult> {
+  const { data } = await axiosInstance.post<
+    Envelope<Record<string, unknown>> & { code?: string }
+  >("/public/commercial-catalog/custom-plan/quote", body, {
+    skipAuthRedirect: true,
+  })
+  if (!data.success || !data.item) {
+    const err = new Error(data.message ?? "Could not quote plan.") as Error & {
+      code?: string
+    }
+    err.code = data.code
+    throw err
+  }
+  return mapQuoteResult(data.item)
 }
