@@ -51,6 +51,7 @@ const labelMotionStyle = {
 
 type AddressInputProps = {
   id: string
+  label: string
   value: string
   isActive: boolean
   isLocked: boolean
@@ -66,6 +67,7 @@ type AddressInputProps = {
 
 const AddressInput = memo(function AddressInput({
   id,
+  label,
   value,
   isActive,
   isLocked,
@@ -161,7 +163,7 @@ const AddressInput = memo(function AddressInput({
           style={labelMotionStyle}
           className="pointer-events-none absolute left-0 z-10 inline-flex origin-top-left items-center gap-1.5 text-sm leading-5 text-guest-feedback-placeholder"
         >
-          <span>Address</span>
+          <span>{label}</span>
         </motion.label>
 
         <input
@@ -221,8 +223,12 @@ type AddressPostcodeFieldsProps = {
   onPostcodeBlur?: () => void
   /** When false, never show the map-pin affordance in the address field. */
   showPin?: boolean
-  /** Operator address field label. Defaults to "Address". */
+  /** Address field label. Defaults to "Address". */
   addressLabel?: string
+  /** City field label. Defaults to "City". */
+  cityLabel?: string
+  /** Postcode field label. Defaults to "Postcode". */
+  postcodeLabel?: string
 }
 
 export function AddressPostcodeFields({
@@ -246,6 +252,8 @@ export function AddressPostcodeFields({
   onPostcodeBlur,
   showPin = true,
   addressLabel = "Address",
+  cityLabel = "City",
+  postcodeLabel = "Postcode",
 }: AddressPostcodeFieldsProps) {
   const generatedId = useId()
   const addressInputId = `${generatedId}-address`
@@ -736,6 +744,7 @@ export function AddressPostcodeFields({
 
         <AddressInput
           id={addressInputId}
+          label={addressLabel}
           value={searchQuery}
           isActive={isAddressActive}
           isLocked={isLocked}
@@ -860,31 +869,58 @@ export function AddressPostcodeFields({
   )
 
   if (!isOperator) {
+    const postcodeField = (
+      <div className="relative min-w-0 flex-1">
+        <FloatingLabelInput
+          id={postcodeInputId}
+          name="tummly-setup-postcode"
+          label={postcodeLabel}
+          value={postcode}
+          onChange={(event) => handlePostcodeChange(event.target.value)}
+          onBlur={() => {
+            void handlePostcodeBlur()
+          }}
+          autoComplete="off"
+          required={required}
+          error={postcodeError}
+          reserveClassName="min-h-0"
+        />
+        {isResolvingPostcode || isResolvingSuggestion ? (
+          <Loader2Icon
+            aria-hidden
+            className="pointer-events-none absolute top-4 right-3 size-4 animate-spin text-[#7d7d7d]"
+          />
+        ) : null}
+      </div>
+    )
+
+    // With a City field: Address full width, then City | Postcode.
+    if (onCityChange) {
+      return (
+        <div className="flex flex-col gap-[18px]">
+          {addressField}
+          <div className="flex flex-col gap-[18px] sm:flex-row">
+            <FloatingLabelInput
+              id={`${generatedId}-city`}
+              label={cityLabel}
+              value={city}
+              onChange={(event) => onCityChange(event.target.value)}
+              autoComplete="address-level2"
+              required={required}
+              error={cityError}
+              reserveClassName="min-h-0"
+              className="min-w-0 flex-1"
+            />
+            {postcodeField}
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="flex flex-col gap-6 sm:flex-row sm:gap-5">
         {addressField}
-        <div className="relative min-w-0 flex-1">
-          <FloatingLabelInput
-            id={postcodeInputId}
-            name="tummly-setup-postcode"
-            label="Postcode"
-            value={postcode}
-            onChange={(event) => handlePostcodeChange(event.target.value)}
-            onBlur={() => {
-              void handlePostcodeBlur()
-            }}
-            autoComplete="off"
-            required={required}
-            error={postcodeError}
-            reserveClassName="min-h-0"
-          />
-          {isResolvingPostcode || isResolvingSuggestion ? (
-            <Loader2Icon
-              aria-hidden
-              className="pointer-events-none absolute top-4 right-3 size-4 animate-spin text-[#7d7d7d]"
-            />
-          ) : null}
-        </div>
+        {postcodeField}
       </div>
     )
   }
@@ -897,7 +933,7 @@ export function AddressPostcodeFields({
         <>
           <div className="flex min-w-0 flex-col gap-2">
             <Label htmlFor={`${generatedId}-city`} className={operatorLabelClass}>
-              City
+              {cityLabel}
             </Label>
             <Input
               id={`${generatedId}-city`}
@@ -916,7 +952,7 @@ export function AddressPostcodeFields({
           <div className="relative min-w-0">
             <div className="flex flex-col gap-2">
               <Label htmlFor={postcodeInputId} className={operatorLabelClass}>
-                Postcode
+                {postcodeLabel}
               </Label>
               <Input
                 id={postcodeInputId}

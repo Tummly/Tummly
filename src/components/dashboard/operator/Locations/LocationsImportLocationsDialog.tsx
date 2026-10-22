@@ -1,5 +1,5 @@
 import { useRef, useState } from "react"
-import { XIcon } from "lucide-react"
+import { Download, XIcon } from "lucide-react"
 
 import { downloadLocationUploadTemplate } from "@/api/locationUploadApi"
 import { AddressPostcodeFields } from "@/components/form/AddressPostcodeFields"
@@ -36,6 +36,7 @@ import {
   CAPTURE_DIALOG_CLOSE_BUTTON_CLASS,
   CAPTURE_DIALOG_HEADER_ROW_CLASS,
 } from "@/lib/operatorCapture/capturePresentation"
+import { cn } from "@/lib/utils"
 
 const FIELD_INPUT_CLASS =
   "h-[50px] rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary shadow-none placeholder:text-op-text-muted md:text-sm dark:bg-transparent"
@@ -57,6 +58,8 @@ type LocationsImportLocationsDialogProps = {
   onOpenChange: (open: boolean) => void
   onConfirm: (locations: LocationsImportRow[]) => void | Promise<void>
   isSubmitting?: boolean
+  /** `signup`: post-signup Locations step upload view (Figma `6780:41924`). */
+  variant?: "operator" | "signup"
 }
 
 type DialogView = "upload" | "review"
@@ -190,6 +193,7 @@ export function LocationsImportLocationsDialog({
   onOpenChange,
   onConfirm,
   isSubmitting = false,
+  variant = "operator",
 }: LocationsImportLocationsDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [view, setView] = useState<DialogView>("upload")
@@ -308,6 +312,97 @@ export function LocationsImportLocationsDialog({
     resetDialogState()
   }
 
+  const openFilePicker = () => fileInputRef.current?.click()
+
+  const uploadMessages = (
+    <>
+      {uploadError ? (
+        <p
+          className="m-0 text-sm text-[var(--op-color-red-550)]"
+          role="alert"
+        >
+          {uploadError}
+        </p>
+      ) : null}
+
+      {downloadError ? (
+        <p
+          className="m-0 text-sm text-[var(--op-color-red-550)]"
+          role="alert"
+        >
+          {downloadError}
+        </p>
+      ) : null}
+    </>
+  )
+
+  const closeButton = (
+    <DialogClose asChild>
+      <Button
+        type="button"
+        variant="op-collapse"
+        className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
+        aria-label="Close"
+      >
+        <XIcon aria-hidden />
+      </Button>
+    </DialogClose>
+  )
+
+  const signupUploadView = (
+    <div className="flex flex-col gap-5">
+      <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
+        <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
+          <DialogTitle className="pr-0 font-sans text-2xl font-bold tracking-normal text-op-text-primary">
+            Import restaurant Locations
+          </DialogTitle>
+          <DialogDescription className="font-sans text-sm font-semibold leading-[19px] text-op-text-primary">
+            Add multiple restaurants using a CSV file.
+          </DialogDescription>
+        </DialogHeader>
+        {closeButton}
+      </div>
+
+      <button
+        type="button"
+        onClick={openFilePicker}
+        className="flex w-full cursor-pointer flex-col items-center gap-[22px] rounded-[6px] border border-[#ccddd2] bg-[#d6e7dc] px-4 py-[26px] text-center text-black outline-none transition-colors hover:bg-[#cfe2d5] focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <Download className="size-6" strokeWidth={1.5} aria-hidden />
+        <span className="flex w-[231px] flex-col gap-1.5 font-sans leading-[18px]">
+          <span className="text-sm font-bold">Upload your Locations CSV</span>
+          <span className="text-xs">
+            Download the template, complete your restaurant details, then
+            upload it here.
+          </span>
+        </span>
+      </button>
+
+      {uploadMessages}
+
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isDownloadingTemplate}
+          onClick={() => void handleDownloadTemplate()}
+          className="h-auto flex-1 rounded-[4px] border-[#4e4e4e] bg-transparent px-[19px] py-[13px] font-sans text-sm font-medium leading-5 text-[#141414] shadow-none hover:bg-white/60"
+        >
+          {isDownloadingTemplate
+            ? "Downloading..."
+            : "Download the Locations template"}
+        </Button>
+        <Button
+          type="button"
+          onClick={openFilePicker}
+          className="h-auto flex-1 rounded-[4px] bg-[#14a74a] px-[18px] py-3 font-sans text-sm font-medium leading-[22px] text-white shadow-none hover:bg-[#14a74a]/90"
+        >
+          Upload
+        </Button>
+      </div>
+    </div>
+  )
+
   const readyCount = countSettingsReady(draftLocations)
   const canConfirm =
     draftLocations.length > 0 && readyCount === draftLocations.length
@@ -316,7 +411,10 @@ export function LocationsImportLocationsDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="max-h-[90vh] overflow-y-auto border-0 bg-op-surface-secondary p-8 text-op-text-primary sm:max-w-[640px]"
+        className={cn(
+          "max-h-[90vh] overflow-y-auto border-0 bg-op-surface-secondary p-8 text-op-text-primary sm:max-w-[640px]",
+          variant === "signup" && view === "upload" && "sm:max-w-[642px]"
+        )}
       >
         <input
           ref={fileInputRef}
@@ -328,7 +426,9 @@ export function LocationsImportLocationsDialog({
           }}
         />
 
-        {view === "upload" ? (
+        {view === "upload" && variant === "signup" ? (
+          signupUploadView
+        ) : view === "upload" ? (
           <div className="flex flex-col gap-[60px]">
             <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
               <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
@@ -341,16 +441,7 @@ export function LocationsImportLocationsDialog({
                   continuing.
                 </DialogDescription>
               </DialogHeader>
-              <DialogClose asChild>
-                <Button
-                  type="button"
-                  variant="op-collapse"
-                  className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
-                  aria-label="Close"
-                >
-                  <XIcon aria-hidden />
-                </Button>
-              </DialogClose>
+              {closeButton}
             </div>
 
             <div className="flex flex-col gap-[18px]">
@@ -371,7 +462,7 @@ export function LocationsImportLocationsDialog({
                   type="button"
                   variant="op-tertiary"
                   className="flex-1"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={openFilePicker}
                 >
                   Upload file
                 </Button>
@@ -381,23 +472,7 @@ export function LocationsImportLocationsDialog({
                 CSV or XLSX only.
               </p>
 
-              {uploadError ? (
-                <p
-                  className="m-0 text-sm text-[var(--op-color-red-550)]"
-                  role="alert"
-                >
-                  {uploadError}
-                </p>
-              ) : null}
-
-              {downloadError ? (
-                <p
-                  className="m-0 text-sm text-[var(--op-color-red-550)]"
-                  role="alert"
-                >
-                  {downloadError}
-                </p>
-              ) : null}
+              {uploadMessages}
             </div>
           </div>
         ) : (

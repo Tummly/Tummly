@@ -19,18 +19,17 @@ export function SignupLocationsCapacity({
 
   return (
     <div className={cn("flex w-full flex-col gap-3", className)}>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="m-0 font-sans text-sm font-medium text-[#141414]">
-          Location capacity
-        </p>
-        <p
-          className="m-0 font-sans text-sm font-semibold text-[#141414]"
-          aria-live="polite"
-        >
+      <div className="flex items-center justify-between gap-2 font-sans text-sm leading-[18px] text-[#141414]">
+        <p className="m-0 font-bold">Location capacity</p>
+        <p className="m-0 font-medium" aria-live="polite">
           {safeCurrent} of {safeCap} added
         </p>
       </div>
-      <Progress value={percent} className="h-2 rounded-full bg-[#e8e8e8]" />
+      <Progress
+        value={percent}
+        aria-label="Location capacity"
+        className="h-1.5 rounded-[8px] bg-[#cbcbcb] [&_[data-slot=progress-indicator]]:rounded-[8px] [&_[data-slot=progress-indicator]]:bg-[#14a74a]"
+      />
     </div>
   )
 }

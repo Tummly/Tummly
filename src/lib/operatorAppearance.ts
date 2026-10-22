@@ -30,6 +30,20 @@ export function isThemedAppShellPath(pathname: string): boolean {
   return isOperatorDashboardPath(pathname) || isStaffDashboardPath(pathname)
 }
 
+/**
+ * Signup pages that reuse Operator dialogs (Locations add / import / edit).
+ * They need the `html.op` token scope but stay forced light.
+ */
+export const OPERATOR_TOKEN_LIGHT_PATHS = ["/signup/locations"] as const
+
+/** `html.op` token scope — themed shells plus the light-only signup paths. */
+export function isOperatorTokenScopePath(pathname: string): boolean {
+  return (
+    isThemedAppShellPath(pathname)
+    || OPERATOR_TOKEN_LIGHT_PATHS.some((path) => pathname === path)
+  )
+}
+
 export function parseOperatorAppearancePreference(
   value: string | null | undefined
 ): OperatorAppearancePreference {

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
-import { MapPinned } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
+import verifiedLocationIllustration from "@/assets/svg/signup/verified-location-illustration.svg"
 import {
   getLocationDetail,
   getLocationsList,
@@ -14,10 +14,13 @@ import {
   importOwnedLocations,
 } from "@/api/locationsWriteApi"
 import { LocationDetailEditDetailsDialog } from "@/components/dashboard/operator/Locations/LocationDetailEditDetailsDialog"
-import { LocationsAddLocationDialog } from "@/components/dashboard/operator/Locations/LocationsAddLocationDialog"
 import { LocationsImportLocationsDialog } from "@/components/dashboard/operator/Locations/LocationsImportLocationsDialog"
 import { AuthSessionLoading } from "@/components/auth/AuthSessionLoading"
-import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
+import {
+  GuestLoopShell,
+  GuestLoopShellFooter,
+} from "@/components/guest-loop/GuestLoopShell"
+import { SignupAddLocationDialog } from "@/components/signup/locations/SignupAddLocationDialog"
 import { SignupLocationsActionCards } from "@/components/signup/locations/SignupLocationsActionCards"
 import { SignupLocationsCapacity } from "@/components/signup/locations/SignupLocationsCapacity"
 import {
@@ -27,6 +30,7 @@ import {
 import { fetchSignupLocationCapacity } from "@/components/signup/locations/fetchSignupLocationCapacity"
 import { Button } from "@/components/ui/button"
 import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
+import { cn } from "@/lib/utils"
 import type { LocationDetailEditFields } from "@/lib/operatorLocations/createOperatorLocationDetailPageModule"
 import type { PlanEntitlementLimit } from "@/lib/planEntitlements/planEntitlementsPresentation"
 import {
@@ -132,6 +136,8 @@ function SignupLocationsPage() {
     && capacity.available
     && (capacity.atCap || capacity.current >= capacity.cap)
 
+  const hasLocations = locations.length > 0
+
   const openEdit = async (locationId: number) => {
     setEditError(null)
     setEditLoading(true)
@@ -167,44 +173,55 @@ function SignupLocationsPage() {
 
   return (
     <GuestLoopShell
+      wide
       contentAlign="start"
-      contentMaxWidthClassName="max-w-[960px]"
+      contentMaxWidthClassName="max-w-none flex-1"
       showBackButton={false}
     >
-      <div className="flex w-full flex-col gap-10 lg:flex-row lg:items-start lg:justify-between lg:gap-16">
-        <div className="flex min-w-0 flex-1 flex-col gap-8">
-          <div className="flex flex-col gap-3">
-            <p className="m-0 font-sans text-xs font-semibold tracking-[0.08em] text-[#14a74a]">
-              CUSTOMISE YOUR SUBSCRIPTION
-            </p>
-            <h1 className="m-0 font-jakarta text-[clamp(1.75rem,3vw,2.25rem)] font-medium leading-tight tracking-[-0.04em] text-[#141414]">
-              Add your restaurant Locations
-            </h1>
-            <p className="m-0 max-w-[520px] font-sans text-base font-normal leading-6 text-[#5c5c5c]">
-              Set up the restaurants you want to manage with Tummly. Add them
-              individually or upload multiple Locations at once. You can finish
-              setting up additional Locations later.
-            </p>
-          </div>
-
-          {loadError ? (
-            <div
-              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-              role="alert"
-            >
-              {loadError}
+      <div className="relative flex flex-1 flex-col">
+        <div
+          className={cn(
+            "relative z-10 flex w-full max-w-[661px] flex-col",
+            hasLocations ? "gap-[30px]" : "gap-[50px]"
+          )}
+        >
+          <div className="flex flex-col gap-11">
+            <div className="flex flex-col gap-3.5 text-[#141414]">
+              <p className="m-0 font-jakarta text-sm font-semibold leading-4 tracking-[0.56px]">
+                CUSTOMISE YOUR SUBSCRIPTION
+              </p>
+              <div className="flex flex-col gap-5">
+                <h1 className="m-0 font-jakarta text-[clamp(1.75rem,3vw,2.25rem)] font-semibold leading-normal">
+                  Add your restaurant Locations
+                </h1>
+                <p className="m-0 max-w-[688px] font-sans text-base leading-[22px]">
+                  Set up the restaurants you want to manage with Tummly. Add
+                  them individually or upload multiple Locations at once. You
+                  can finish setting up additional Locations later.
+                </p>
+              </div>
             </div>
-          ) : null}
 
-          {capacity?.available ? (
-            <SignupLocationsCapacity
-              current={capacity.current}
-              cap={capacity.cap}
-            />
-          ) : null}
+            {loadError ? (
+              <div
+                className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                role="alert"
+              >
+                {loadError}
+              </div>
+            ) : null}
+
+            {capacity?.available ? (
+              <SignupLocationsCapacity
+                current={capacity.current}
+                cap={capacity.cap}
+              />
+            ) : null}
+          </div>
 
           <SignupLocationsActionCards
             disabled={atCap}
+            layout={hasLocations ? "row" : "stacked"}
             onAddIndividually={() => {
               setAddError(null)
               setAddOpen(true)
@@ -220,33 +237,43 @@ function SignupLocationsPage() {
           />
         </div>
 
+        {/* Figma frame is 430×430 with 132px of empty canvas under the
+            store; crop that so the page does not scroll. */}
         <div
-          className="mx-auto hidden w-full max-w-[280px] shrink-0 items-center justify-center text-[#14a74a] lg:flex"
           aria-hidden
+          className="pointer-events-none absolute right-[-8px] bottom-0 hidden h-[298px] w-[430px] overflow-hidden xl:block"
         >
-          <MapPinned className="size-40 stroke-[1.25]" />
+          <img
+            src={verifiedLocationIllustration}
+            alt=""
+            width={430}
+            height={430}
+            className="block size-[430px] max-w-none"
+          />
         </div>
       </div>
 
-      <div className="mt-10 flex w-full flex-col gap-3 sm:flex-row sm:items-center">
-        <Button
-          type="button"
-          onClick={goToDashboard}
-          className="h-[45px] rounded-[4px] bg-[#14a74a] px-6 text-sm font-medium text-white shadow-none hover:bg-[#14a74a]/90 sm:min-w-[220px]"
-        >
-          Setup your locations
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={goToDashboard}
-          className="h-[45px] rounded-[4px] border-[#d0d0d0] bg-transparent px-6 text-sm font-medium text-[#141414] shadow-none hover:bg-[#f3f3f3] sm:min-w-[200px]"
-        >
-          Add locations later
-        </Button>
-      </div>
+      <GuestLoopShellFooter>
+        <div className="flex w-full items-center justify-between gap-4">
+          <Button
+            type="button"
+            onClick={goToDashboard}
+            className="h-auto rounded-[4px] bg-[#141414] px-[18px] py-3 font-sans text-sm font-medium leading-5 text-white shadow-none hover:bg-[#141414]/90"
+          >
+            Setup your locations
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={goToDashboard}
+            className="h-auto rounded-[4px] border-[#4e4e4e] bg-transparent px-[19px] py-[13px] font-sans text-sm font-medium leading-5 text-[#141414] shadow-none hover:bg-white"
+          >
+            Add locations later
+          </Button>
+        </div>
+      </GuestLoopShellFooter>
 
-      <LocationsAddLocationDialog
+      <SignupAddLocationDialog
         open={addOpen}
         busy={addBusy}
         error={addError}
@@ -280,6 +307,7 @@ function SignupLocationsPage() {
       />
 
       <LocationsImportLocationsDialog
+        variant="signup"
         open={importOpen}
         onOpenChange={setImportOpen}
         isSubmitting={importBusy}

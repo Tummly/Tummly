@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   isOperatorDashboardPath,
+  isOperatorTokenScopePath,
   isStaffDashboardPath,
   isThemedAppShellPath,
   resolveOperatorAppearanceDocumentTheme,
@@ -59,6 +60,22 @@ describe("isThemedAppShellPath", () => {
   it("is false on marketing surfaces", () => {
     expect(isThemedAppShellPath("/")).toBe(false)
     expect(isThemedAppShellPath("/help-center")).toBe(false)
+  })
+})
+
+describe("isOperatorTokenScopePath", () => {
+  it("is true for themed shells and the signup Locations step", () => {
+    expect(isOperatorTokenScopePath("/multi-dashboard/locations")).toBe(true)
+    expect(isOperatorTokenScopePath("/signup/locations")).toBe(true)
+  })
+
+  it("keeps the signup Locations step out of the theme toggle", () => {
+    expect(isThemedAppShellPath("/signup/locations")).toBe(false)
+  })
+
+  it("is false on other signup and marketing surfaces", () => {
+    expect(isOperatorTokenScopePath("/signup/onboarding")).toBe(false)
+    expect(isOperatorTokenScopePath("/")).toBe(false)
   })
 })
 

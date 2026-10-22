@@ -1,17 +1,59 @@
-import { FileUp, Plus } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { Download, MapPinPlusInside } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 type SignupLocationsActionCardsProps = {
   disabled?: boolean
+  /** `stacked` before any Location exists; `row` once the list shows. */
+  layout?: "stacked" | "row"
   onAddIndividually: () => void
   onImportCsv: () => void
   className?: string
 }
 
+type ActionCardProps = {
+  icon: LucideIcon
+  title: string
+  description: string
+  tone: "outline" | "accent"
+  disabled: boolean
+  onClick: () => void
+}
+
+function ActionCard({
+  icon: Icon,
+  title,
+  description,
+  tone,
+  disabled,
+  onClick,
+}: ActionCardProps) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex h-[154px] min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-[22px] rounded-[6px] px-4 py-6 text-center text-black outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+        tone === "outline"
+          ? "border border-[#cacaca] hover:bg-white"
+          : "bg-[#d6e7dc] hover:bg-[#cfe2d5]"
+      )}
+    >
+      <Icon className="size-6" strokeWidth={1.5} aria-hidden />
+      <span className="flex w-[231px] max-w-full flex-col gap-1.5 font-sans leading-[18px]">
+        <span className="text-sm font-bold">{title}</span>
+        <span className="text-xs">{description}</span>
+      </span>
+    </button>
+  )
+}
+
+/** Figma `6777:41507` (stacked) / `6780:42236` (row). */
 export function SignupLocationsActionCards({
   disabled = false,
+  layout = "stacked",
   onAddIndividually,
   onImportCsv,
   className,
@@ -19,49 +61,27 @@ export function SignupLocationsActionCards({
   return (
     <div
       className={cn(
-        "grid w-full grid-cols-1 gap-4 sm:grid-cols-2",
+        "flex w-full flex-col gap-4",
+        layout === "row" && "sm:flex-row sm:items-center",
         className
       )}
     >
-      <Button
-        type="button"
-        variant="outline"
+      <ActionCard
+        icon={MapPinPlusInside}
+        title="Add individually"
+        description="Enter each restaurant's name and address."
+        tone="outline"
         disabled={disabled}
         onClick={onAddIndividually}
-        className="h-auto min-h-0 w-full flex-col items-start gap-3 rounded-[8px] border-[#e0e0e0] bg-white px-5 py-5 text-left shadow-none hover:bg-[#f7f7f7]"
-      >
-        <span className="flex size-10 items-center justify-center rounded-[8px] bg-[#e7f7ec] text-[#14a74a]">
-          <Plus className="size-5" aria-hidden />
-        </span>
-        <span className="flex flex-col gap-1">
-          <span className="font-sans text-base font-semibold text-[#141414]">
-            Add individually
-          </span>
-          <span className="font-sans text-sm font-normal leading-5 text-[#5c5c5c]">
-            Enter each restaurant&apos;s name and address.
-          </span>
-        </span>
-      </Button>
-
-      <Button
-        type="button"
-        variant="outline"
+      />
+      <ActionCard
+        icon={Download}
+        title="Import Locations"
+        description="Upload a CSV file to add multiple restaurants."
+        tone="accent"
         disabled={disabled}
         onClick={onImportCsv}
-        className="h-auto min-h-0 w-full flex-col items-start gap-3 rounded-[8px] border-[#e0e0e0] bg-white px-5 py-5 text-left shadow-none hover:bg-[#f7f7f7]"
-      >
-        <span className="flex size-10 items-center justify-center rounded-[8px] bg-[#e7f7ec] text-[#14a74a]">
-          <FileUp className="size-5" aria-hidden />
-        </span>
-        <span className="flex flex-col gap-1">
-          <span className="font-sans text-base font-semibold text-[#141414]">
-            Import Locations
-          </span>
-          <span className="font-sans text-sm font-normal leading-5 text-[#5c5c5c]">
-            Upload a CSV file to add multiple restaurants.
-          </span>
-        </span>
-      </Button>
+      />
     </div>
   )
 }

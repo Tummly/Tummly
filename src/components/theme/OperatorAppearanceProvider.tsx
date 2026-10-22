@@ -5,6 +5,7 @@ import { useLocation } from "react-router-dom"
 import {
   OPERATOR_APPEARANCE_STORAGE_KEY,
   applyOperatorAppearanceDocumentTheme,
+  isOperatorTokenScopePath,
   isThemedAppShellPath,
   parseOperatorAppearancePreference,
   readSystemPrefersDark,
@@ -30,9 +31,11 @@ function useDemoTourForceLight(): boolean {
 
 function OperatorAppearanceDocumentSync({
   themeEnabled,
+  opScope,
   forceLight,
 }: {
   themeEnabled: boolean
+  opScope: boolean
   forceLight: boolean
 }) {
   const { theme, systemTheme } = useTheme()
@@ -52,10 +55,10 @@ function OperatorAppearanceDocumentSync({
         })
 
     applyOperatorAppearanceDocumentTheme({
-      applyOpScope: themeEnabled,
+      applyOpScope: opScope,
       theme: resolved,
     })
-  }, [theme, systemTheme, themeEnabled, forceLight])
+  }, [theme, systemTheme, themeEnabled, opScope, forceLight])
 
   return null
 }
@@ -67,6 +70,7 @@ export function OperatorAppearanceProvider({
 }) {
   const { pathname } = useLocation()
   const themeEnabled = isThemedAppShellPath(pathname)
+  const opScope = isOperatorTokenScopePath(pathname)
   const forceLight = useDemoTourForceLight()
   const forcedTheme =
     !themeEnabled || forceLight ? "light" : undefined
@@ -82,6 +86,7 @@ export function OperatorAppearanceProvider({
     >
       <OperatorAppearanceDocumentSync
         themeEnabled={themeEnabled}
+        opScope={opScope}
         forceLight={forceLight}
       />
       {children}
