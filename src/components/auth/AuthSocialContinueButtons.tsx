@@ -30,7 +30,7 @@ export function AuthSocialContinueButtons({
   const isDark = tone === "dark"
 
   const buttonClass = cn(
-    "h-11 min-h-11 gap-3 border-[#4e4e4e] bg-transparent px-[19px] py-[13px] text-sm font-medium leading-5",
+    "h-11 min-h-11 gap-3 border-[#4e4e4e] bg-transparent px-[19px] py-[13px] text-sm font-inter font-medium leading-5",
     isDark
       ? "rounded-[8px] text-white hover:bg-white/10 hover:text-white"
       : "rounded-[4px] text-[#141414] hover:bg-[#f5f5f5]",
