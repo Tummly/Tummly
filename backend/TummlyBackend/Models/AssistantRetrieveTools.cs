@@ -56,6 +56,15 @@ namespace TummlyBackend.Models
         public IReadOnlyList<string> FailedLocationNames { get; set; } = [];
 
         public IReadOnlyList<string> NotStartedLocationNames { get; set; } = [];
+
+        /// <summary>
+        /// View permission per <c>(areaId, locationId)</c> for this turn's
+        /// owner. One check per key per turn; safe for parallel tool reads.
+        /// </summary>
+        public System.Collections.Concurrent.ConcurrentDictionary<
+            (string AreaId, int LocationId),
+            Lazy<Task<bool>>
+        > ViewPermissions { get; } = new();
     }
 
     public delegate Task<IReadOnlyList<AssistantToolCallResult>> AssistantRetrieveToolExecutor(

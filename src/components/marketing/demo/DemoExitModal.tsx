@@ -43,9 +43,6 @@ export function DemoExitModal({
           <p className="font-sans max-w-[510px] text-base leading-6 text-[#141414] sm:text-lg">
             {copy.body}
           </p>
-          <p className="font-sans text-sm font-medium text-[#4e4e4e]">
-            {copy.trustLine}
-          </p>
           <div className="flex flex-wrap items-center justify-center gap-3.5">
             {copy.bullets.map((bullet) => (
               <div

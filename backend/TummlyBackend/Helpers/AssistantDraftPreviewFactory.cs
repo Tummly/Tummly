@@ -13,7 +13,10 @@ namespace TummlyBackend.Helpers
             string? channel,
             string? subject,
             string? messageBody,
-            string? timingLabel = null
+            string? timingLabel = null,
+            int? offerId = null,
+            string? conditionsSummary = null,
+            string? validityLabel = null
         )
             => new(
                 Kind: "campaign",
@@ -24,7 +27,10 @@ namespace TummlyBackend.Helpers
                 Channel: channel,
                 Subject: subject,
                 MessageBody: messageBody,
-                TimingLabel: timingLabel
+                TimingLabel: timingLabel,
+                OfferId: offerId,
+                ConditionsSummary: conditionsSummary,
+                ValidityLabel: validityLabel
             );
 
         public static AssistantDraftPreview Offer(

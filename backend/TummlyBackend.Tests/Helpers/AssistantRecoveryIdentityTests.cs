@@ -367,6 +367,20 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void PrepareRecoveryResponses_AsksForSetPrepare()
+        {
+            Assert.True(
+                AssistantRecoveryIdentity.AsksForSetPrepare(
+                    "Prepare recovery responses for the guests that need attention in this Feedback set."
+                )
+            );
+            Assert.True(
+                AssistantRecoveryIdentity.AsksToSendBulk("Send this recovery to all 3")
+            );
+            Assert.True(AssistantRecoveryIdentity.AsksToSendBulk("no changes"));
+        }
+
+        [Fact]
         public void ForBoth_AsksForAll_OnNamedPool()
         {
             var stamp = new DateTime(2026, 10, 8, 5, 55, 0, DateTimeKind.Utc);

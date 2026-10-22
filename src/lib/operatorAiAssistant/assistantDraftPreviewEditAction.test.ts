@@ -20,17 +20,61 @@ describe("assistantDraftPreviewEditAction", () => {
 
   it("maps recovery draft to open-recovery Edit Draft", () => {
     expect(
+      assistantDraftPreviewEditAction(
+        {
+          kind: "recovery",
+          statusLabel: "Draft · Not sent",
+          feedbackId: 12,
+          intent: "respond-to-guest",
+        },
+        {
+          feedbackId: 12,
+          intent: "respond-to-guest",
+        }
+      )
+    ).toEqual({
+      type: "open-recovery",
+      label: "Edit Draft",
+      feedbackId: 12,
+      intent: "respond-to-guest",
+    })
+  })
+
+  it("hides recovery Edit Draft when pending draft is cleared", () => {
+    expect(
       assistantDraftPreviewEditAction({
         kind: "recovery",
         statusLabel: "Draft · Not sent",
         feedbackId: 12,
         intent: "respond-to-guest",
       })
+    ).toBeNull()
+  })
+
+  it("maps bulk pending draft to open-bulk-recovery Edit Draft", () => {
+    expect(
+      assistantDraftPreviewEditAction(
+        {
+          kind: "recovery",
+          statusLabel: "Draft · Not sent",
+          feedbackId: 12,
+          intent: "respond-to-guest",
+        },
+        {
+          feedbackId: 12,
+          intent: "respond-to-guest",
+          bulkShared: true,
+          batchId: 9,
+          feedbackIds: [12, 13, 14],
+        }
+      )
     ).toEqual({
-      type: "open-recovery",
+      type: "open-bulk-recovery",
       label: "Edit Draft",
       feedbackId: 12,
+      batchId: 9,
       intent: "respond-to-guest",
+      count: 3,
     })
   })
 })

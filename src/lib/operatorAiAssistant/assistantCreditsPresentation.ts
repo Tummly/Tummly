@@ -201,9 +201,13 @@ export const ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS = ASSISTANT_COMPOSER_CIRCLE_CL
 
 export const ASSISTANT_COMPOSER_SEND_ICON_CLASS = "size-4"
 
+/**
+ * Compact composer — shorter than Figma 144px so more thread text stays
+ * in view. Fixed height; content sizing must not grow the field.
+ */
 const ASSISTANT_COMPOSER_FIELD_BASE_CLASS = [
-  "flex min-h-[112px] flex-col justify-between border-0 p-4",
-  "md:min-h-[144px] md:p-[21px]",
+  "flex h-[84px] flex-col justify-between overflow-hidden border-0 p-3",
+  "md:h-[96px] md:p-3.5",
 ].join(" ")
 
 /**
@@ -223,7 +227,9 @@ export function assistantComposerShellClass(focused: boolean): string {
 
 export function assistantComposerTextareaClass(): string {
   return [
-    "min-h-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0",
+    // field-sizing-fixed overrides shared Textarea field-sizing-content so long
+    // placeholders / drafts cannot inflate the Figma 144px field.
+    "field-sizing-fixed min-h-0 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent p-0",
     "text-sm text-op-text-primary shadow-none",
     "placeholder:text-[var(--op-color-gray-550)]",
     "focus-visible:border-0 focus-visible:ring-0",

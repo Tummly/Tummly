@@ -5,14 +5,15 @@ import { PRODUCT_DEMO } from "@/content/marketing/productDemoPage"
 type DemoWelcomeModalProps = {
   hasGuestSubmission: boolean
   onStartTour: () => void
-  onExplore: () => void
 }
 
-/** Restaurant-view welcome (§6) — shown on the dashboard after demo JWT. */
+/**
+ * Restaurant-view welcome (§6) — shown on the dashboard after demo JWT.
+ * Figma `5736:19952` (Tummly - Marketing Website): one CTA, Start tour.
+ */
 export function DemoWelcomeModal({
   hasGuestSubmission,
   onStartTour,
-  onExplore,
 }: DemoWelcomeModalProps) {
   const copy = PRODUCT_DEMO.welcome
 
@@ -21,51 +22,48 @@ export function DemoWelcomeModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="demo-welcome-title"
-      className="relative z-10 flex w-full max-w-[520px] flex-col items-center gap-10 overflow-clip rounded-[10px] bg-white px-8 py-10 shadow-[0_8px_40px_rgba(0,0,0,0.18)] sm:px-12"
+      className="relative z-10 flex w-full max-w-[706px] flex-col items-center gap-12 overflow-clip rounded-[10px] bg-white px-6 py-10 shadow-[0_8px_40px_rgba(0,0,0,0.18)] sm:gap-[70px] sm:px-[100px]"
     >
       <MarketingLogo
         onLight
-        width={145}
-        height={37}
-        className="h-[37px] w-auto"
+        width={144}
+        height={36}
+        className="h-9 w-auto"
       />
 
-      <div className="flex w-full flex-col items-center gap-[22px] text-center">
-        <p className="font-sans text-[11px] font-medium tracking-[0.08em] text-[#7c7c7c] uppercase">
-          {copy.eyebrow}
-        </p>
-        <h1
-          id="demo-welcome-title"
-          className="font-jakarta text-[32px] leading-tight font-semibold text-[#141414] sm:text-[38px]"
-        >
-          {copy.title}
-        </h1>
-        <p className="font-sans max-w-[420px] text-base leading-6 text-[#4e4e4e] sm:text-lg sm:leading-6">
-          {hasGuestSubmission ? copy.bodyWithSubmission : copy.body}
-        </p>
-      </div>
+      <div className="flex w-full flex-col items-center gap-[34px]">
+        <div className="flex w-full flex-col items-center gap-[22px] text-center">
+          <div className="flex flex-col items-center gap-1.5">
+            <p className="font-sans text-sm leading-4 font-medium text-[#4a4a4a] uppercase">
+              {copy.eyebrow}
+            </p>
+            <h1
+              id="demo-welcome-title"
+              className="font-jakarta text-[26px] leading-[1.26] font-semibold text-[#141414] sm:text-[30px]"
+            >
+              {copy.title}
+            </h1>
+          </div>
+          <p className="font-sans max-w-[506px] text-base leading-6 text-[#141414]">
+            {hasGuestSubmission ? copy.bodyWithSubmission : copy.body}
+          </p>
+        </div>
 
-      <div className="flex w-full flex-col items-center gap-3">
         <MarketingButton
           type="button"
           variant="primary"
           showArrow={false}
-          className="w-full max-w-[320px] min-h-11"
+          className="h-[50px] w-full max-w-[376px] rounded-[4px]"
           onClick={onStartTour}
+          autoFocus
         >
           {copy.primaryLabel}
         </MarketingButton>
-        <MarketingButton
-          type="button"
-          variant="secondary"
-          showArrow={false}
-          className="w-full max-w-[320px] min-h-11"
-          onClick={onExplore}
-        >
-          {copy.secondaryLabel}
-        </MarketingButton>
-        <p className="font-sans text-sm text-[#7c7c7c]">{copy.safetyLine}</p>
       </div>
+
+      <p className="font-sans text-center text-sm leading-4 text-[#141414]">
+        {copy.safetyLine}
+      </p>
     </div>
   )
 }

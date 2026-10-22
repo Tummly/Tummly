@@ -35,6 +35,11 @@ import {
 } from "@/components/ui/drawer"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  ASSISTANT_COLLAPSED_HEADER_CLASS,
+  ASSISTANT_EXPAND_HEADER_CLASS,
+  ASSISTANT_THREAD_BOTTOM_EDGE_FADE_CLASS,
+  ASSISTANT_THREAD_EDGE_SHELL_CLASS,
+  ASSISTANT_THREAD_TOP_EDGE_FADE_CLASS,
   assistantComposerDockClass,
   assistantComposerRailClass,
   assistantConversationStageClass,
@@ -42,7 +47,10 @@ import {
   assistantDrawerMountsOverlay,
   assistantDrawerOverlayClass,
   assistantThreadBodyClass,
+  assistantThreadEdgeFades,
+  assistantThreadIsNearBottom,
   assistantThreadRailClass,
+  assistantThreadShouldForceFollow,
   assistantThreadStickAnchor,
   paintsAssistantExpand,
   stickAssistantThreadToBottom,
@@ -60,6 +68,7 @@ import type {
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import { formatScopeChangeNotice } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import { cn } from "@/lib/utils"
@@ -124,12 +133,16 @@ function ThreadMessage({
   onRetry,
   onActivateAction,
   onOpenChangeScope,
+  latestUserPrompt,
+  pendingRecoveryDraft = null,
 }: {
   message: OperatorAiAssistantMessage
   retryVisible: boolean
   onRetry: () => void
   onActivateAction: (action: OperatorAiAssistantAction) => void
   onOpenChangeScope: () => void
+  latestUserPrompt: string
+  pendingRecoveryDraft?: RecoveryDraftActionPayload | null
 }) {
   if (message.role === "user") {
     return (
@@ -137,7 +150,7 @@ function ThreadMessage({
         className="flex justify-end"
         data-assistant-thread-row={message.id}
       >
-        <div className="max-w-[85%] rounded-[8px] border border-op-assistant-list-border bg-op-assistant-list-row-active px-[18px] py-[14px] text-sm leading-5 text-op-assistant-list-subtitle">
+        <div className="max-w-[85%] rounded-[8px] border border-op-assistant-list-border bg-op-assistant-list-row-active px-[18px] py-[14px] text-sm leading-5 text-op-text-primary">
           {message.body}
         </div>
       </div>
@@ -150,7 +163,10 @@ function ThreadMessage({
         className="flex flex-col gap-[30px]"
         data-assistant-thread-row={message.id}
       >
-        <AssistantPreparingAnswer phrase={message.body} />
+        <AssistantPreparingAnswer
+          phrase={message.body}
+          prompt={latestUserPrompt}
+        />
       </div>
     )
   }
@@ -168,12 +184,15 @@ function ThreadMessage({
     "prepare-recovery",
     "review-campaign",
     "open-recovery",
+    "open-bulk-recovery",
+    "send-bulk-recovery",
     "review-offer",
   ])
   const draftEditTypes = new Set([
     "review-campaign",
     "review-offer",
     "open-recovery",
+    "open-bulk-recovery",
   ])
   const cardActionTypes = new Set(
     [recommended?.primaryAction?.type, recommended?.secondaryAction?.type].filter(
@@ -206,12 +225,27 @@ function ThreadMessage({
       all.findIndex((other) => other.type === action.type) === index
   )
 
+  const workedSeconds =
+    message.workedSeconds != null
+    && Number.isFinite(message.workedSeconds)
+    && message.workedSeconds >= 0
+      ? message.workedSeconds
+      : null
+
   return (
     <div
       className="flex flex-col gap-[30px]"
       data-assistant-thread-row={message.id}
     >
-      <div className="flex flex-col gap-[12px]">
+      <div className="flex flex-col gap-2">
+        {workedSeconds != null ? (
+          <AssistantPreparingAnswer
+            phrase=""
+            working={false}
+            elapsed={workedSeconds}
+            showGlyph={false}
+          />
+        ) : null}
         <div className="flex gap-3 items-start">
           <AiIcon size={26} className="text-op-assistant-list-title" />
           <div className="flex min-w-0 flex-1 flex-col gap-3">
@@ -245,7 +279,7 @@ function ThreadMessage({
               <GroundedLiveAnswerBody body={message.body} />
             ) : null}
             {message.class !== "grounded" && message.class !== "gap" ? (
-              <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
+              <p className="text-sm leading-5 text-[var(--op-color-gray-800)] dark:text-[var(--op-color-gray-400)]">
                 {message.body}
               </p>
             ) : null}
@@ -271,6 +305,7 @@ function ThreadMessage({
               <AssistantDraftPreviewCard
                 draft={draftPreview}
                 onEditDraft={onActivateAction}
+                pendingRecoveryDraft={pendingRecoveryDraft}
               />
             ) : null}
             {scopeNotice ? (
@@ -382,7 +417,15 @@ export function AiAssistantDrawer({
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const threadBodyRef = useRef<HTMLDivElement>(null)
   const lastScrolledThreadKeyRef = useRef<string | null>(null)
+  /** False while the operator scrolls up mid-stream; re-arms near the end. */
+  const followThreadRef = useRef(true)
+  const touchStartYRef = useRef<number | null>(null)
   const [composerFocused, setComposerFocused] = useState(false)
+  /** Edge fades only while content is clipped past that edge. */
+  const [threadEdgeFades, setThreadEdgeFades] = useState({
+    top: false,
+    bottom: false,
+  })
   const animatedPlaceholder = useEmptyComposerPlaceholder({
     placeholders: snapshot.composerPlaceholders,
     cycleGeneration: snapshot.placeholderCycleGeneration,
@@ -405,6 +448,12 @@ export function AiAssistantDrawer({
   const showExpandedList = paintExpanded && expandedListOpen
   const showGreeting =
     !showList && !snapshot.messages.some((message) => message.role === "user")
+  const latestThreadUserPrompt =
+    [...snapshot.messages]
+      .reverse()
+      .find((row) => row.role === "user")
+      ?.body
+    ?? ""
 
   const handleOpenRecent = () => {
     if (paintExpanded) {
@@ -497,9 +546,76 @@ export function AiAssistantDrawer({
     snapshot.drawerOpen,
   ])
 
+  const syncThreadEdgeFades = (body: HTMLElement) => {
+    setThreadEdgeFades(
+      assistantThreadEdgeFades({
+        scrollTop: body.scrollTop,
+        scrollHeight: body.scrollHeight,
+        clientHeight: body.clientHeight,
+      })
+    )
+  }
+
+  useEffect(() => {
+    if (showList || showGreeting || !snapshot.drawerOpen) {
+      setThreadEdgeFades({ top: false, bottom: false })
+      return
+    }
+    const body = threadBodyRef.current
+    if (body == null) {
+      return
+    }
+
+    const releaseFollow = () => {
+      followThreadRef.current = false
+    }
+
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) {
+        releaseFollow()
+      }
+    }
+
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartYRef.current = event.touches[0]?.clientY ?? null
+    }
+
+    const onTouchMove = (event: TouchEvent) => {
+      const y = event.touches[0]?.clientY
+      const startY = touchStartYRef.current
+      if (y == null || startY == null) {
+        return
+      }
+      // Finger moves down → content scrolls up → leave the live edge.
+      if (y - startY > 2) {
+        releaseFollow()
+      }
+      touchStartYRef.current = y
+    }
+
+    const onScroll = () => {
+      followThreadRef.current = assistantThreadIsNearBottom(body)
+      syncThreadEdgeFades(body)
+    }
+
+    syncThreadEdgeFades(body)
+    body.addEventListener("wheel", onWheel, { passive: true })
+    body.addEventListener("touchstart", onTouchStart, { passive: true })
+    body.addEventListener("touchmove", onTouchMove, { passive: true })
+    body.addEventListener("scroll", onScroll, { passive: true })
+    return () => {
+      body.removeEventListener("wheel", onWheel)
+      body.removeEventListener("touchstart", onTouchStart)
+      body.removeEventListener("touchmove", onTouchMove)
+      body.removeEventListener("scroll", onScroll)
+    }
+  }, [showGreeting, showList, snapshot.drawerOpen, snapshot.messages.length])
+
   useLayoutEffect(() => {
     if (showList || showGreeting) {
       lastScrolledThreadKeyRef.current = null
+      followThreadRef.current = true
+      setThreadEdgeFades({ top: false, bottom: false })
       return
     }
     const key = assistantThreadStickAnchor({
@@ -507,15 +623,30 @@ export function AiAssistantDrawer({
       showGreeting,
       messages: snapshot.messages,
     })
-    if (key == null || lastScrolledThreadKeyRef.current === key) {
+    if (key == null) {
       return
     }
+    const previousKey = lastScrolledThreadKeyRef.current
+    if (
+      assistantThreadShouldForceFollow({
+        previousKey,
+        lastMessage: snapshot.messages.at(-1),
+      })
+    ) {
+      followThreadRef.current = true
+    }
+    if (previousKey === key) {
+      return
+    }
+    lastScrolledThreadKeyRef.current = key
     const body = threadBodyRef.current
     if (body == null) {
       return
     }
-    lastScrolledThreadKeyRef.current = key
-    stickAssistantThreadToBottom(body)
+    if (followThreadRef.current) {
+      stickAssistantThreadToBottom(body)
+    }
+    syncThreadEdgeFades(body)
   }, [showGreeting, showList, snapshot.messages])
 
   const conversationStage = (
@@ -729,76 +860,95 @@ export function AiAssistantDrawer({
       </div>
     ) : (
       <div className={assistantConversationStageClass(paintExpanded)}>
-        <div
-          ref={threadBodyRef}
-          className={cn(assistantThreadBodyClass(paintExpanded), !paintExpanded && "!px-5")}
-        >
-          <div className={assistantThreadRailClass(paintExpanded)}>
-            {showGreeting ? (
-              <div className="flex flex-1 flex-col justify-center gap-7 pb-4">
-                <div className="flex flex-col gap-4">
-                  <div className="inline-flex items-center gap-3">
-                    <AiIcon size={26} className="size-6 shrink-0 text-op-assistant-list-title" />
-                    <span className="text-base font-normal text-op-assistant-list-subtitle">
-                      {snapshot.greeting.hello}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-2.5">
-                    <h2 className="text-2xl font-medium tracking-tight text-op-assistant-list-title">
-                      {snapshot.greeting.headline}
-                    </h2>
-                    <p className="max-w-[380px] text-sm font-normal leading-relaxed text-op-assistant-list-subtitle">
-                      {snapshot.greeting.body}
-                    </p>
-                  </div>
-                </div>
-
-                {snapshot.suggestionChips.length > 0 ? (
-                  <div className="flex flex-col gap-3.5 pt-1">
-                    {snapshot.suggestionChips.map((label) => (
-                      <button
-                        key={label}
-                        type="button"
-                        disabled={snapshot.chipsLocked}
-                        onClick={() => {
-                          onFillComposerFromChip(label)
-                          composerRef.current?.focus()
-                        }}
-                        className="group inline-flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 py-0.5"
-                      >
-                        <ArrowRight
-                          className="size-3.5 shrink-0 text-op-assistant-list-title transition-transform group-hover:translate-x-0.5"
-                          aria-hidden
-                        />
-                        <span className="text-sm font-normal text-op-assistant-list-title group-hover:text-op-assistant-list-subtitle">
-                          {label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div className="flex flex-1 flex-col gap-[30px] pt-2">
-                {snapshot.messages.map((message) => (
-                  <ThreadMessage
-                    key={message.id}
-                    message={message}
-                    retryVisible={snapshot.retryVisible}
-                    onRetry={onRetry}
-                    onActivateAction={onActivateAction}
-                    onOpenChangeScope={onOpenChangeScope}
-                  />
-                ))}
-              </div>
+        <div className={ASSISTANT_THREAD_EDGE_SHELL_CLASS}>
+          {threadEdgeFades.top ? (
+            <div
+              aria-hidden
+              className={ASSISTANT_THREAD_TOP_EDGE_FADE_CLASS}
+            />
+          ) : null}
+          <div
+            ref={threadBodyRef}
+            className={cn(
+              assistantThreadBodyClass(paintExpanded),
+              !paintExpanded && "!px-5"
             )}
+          >
+            <div className={assistantThreadRailClass(paintExpanded)}>
+              {showGreeting ? (
+                <div className="flex flex-1 flex-col justify-center gap-7 pb-4">
+                  <div className="flex flex-col gap-4">
+                    <div className="inline-flex items-center gap-3">
+                      <AiIcon size={26} className="size-6 shrink-0 text-op-assistant-list-title" />
+                      <span className="text-base font-normal text-op-assistant-list-subtitle">
+                        {snapshot.greeting.hello}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      <h2 className="text-2xl font-medium tracking-tight text-op-assistant-list-title">
+                        {snapshot.greeting.headline}
+                      </h2>
+                      <p className="max-w-[380px] text-sm font-normal leading-relaxed text-op-assistant-list-subtitle">
+                        {snapshot.greeting.body}
+                      </p>
+                    </div>
+                  </div>
+
+                  {snapshot.suggestionChips.length > 0 ? (
+                    <div className="flex flex-col gap-3.5 pt-1">
+                      {snapshot.suggestionChips.map((label) => (
+                        <button
+                          key={label}
+                          type="button"
+                          disabled={snapshot.chipsLocked}
+                          onClick={() => {
+                            onFillComposerFromChip(label)
+                            composerRef.current?.focus()
+                          }}
+                          className="group inline-flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 py-0.5"
+                        >
+                          <ArrowRight
+                            className="size-3.5 shrink-0 text-op-assistant-list-title transition-transform group-hover:translate-x-0.5"
+                            aria-hidden
+                          />
+                          <span className="text-sm font-normal text-op-assistant-list-title group-hover:text-op-assistant-list-subtitle">
+                            {label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex flex-1 flex-col gap-5">
+                  {snapshot.messages.map((message) => (
+                    <ThreadMessage
+                      key={message.id}
+                      message={message}
+                      retryVisible={snapshot.retryVisible}
+                      onRetry={onRetry}
+                      onActivateAction={onActivateAction}
+                      onOpenChangeScope={onOpenChangeScope}
+                      latestUserPrompt={latestThreadUserPrompt}
+                      pendingRecoveryDraft={snapshot.pendingRecoveryDraft}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+          {threadEdgeFades.bottom ? (
+            <div
+              aria-hidden
+              className={ASSISTANT_THREAD_BOTTOM_EDGE_FADE_CLASS}
+            />
+          ) : null}
         </div>
 
         <div
           className={cn(
             assistantComposerDockClass(paintExpanded),
-            !paintExpanded && "!px-5 !pb-5 !gap-0"
+            !paintExpanded && "!px-5 !pb-1.5 !gap-0"
           )}
         >
           <div className={assistantComposerRailClass(paintExpanded)}>
@@ -941,7 +1091,7 @@ export function AiAssistantDrawer({
       ) : null}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 flex-col gap-1.5 px-7 pt-5 pb-3">
+        <div className={ASSISTANT_EXPAND_HEADER_CLASS}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-5">
               <Button
@@ -1022,7 +1172,7 @@ export function AiAssistantDrawer({
       <div
         className={cn(
           "flex min-h-0 min-w-0 flex-1 flex-col",
-          showList ? "" : "pt-5"
+          showList ? "" : "pt-3"
         )}
       >
         {showList ? (
@@ -1044,7 +1194,7 @@ export function AiAssistantDrawer({
           />
         ) : (
           <>
-            <div className="flex shrink-0 flex-col gap-1.5 px-5 pb-5">
+            <div className={ASSISTANT_COLLAPSED_HEADER_CLASS}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-5">
                   <Button

@@ -29,6 +29,11 @@ import {
   updateFeedbackDetectedTags,
   updateFeedbackInternalNote,
 } from "@/api/dashboardApi"
+import {
+  getBulkRecoveryBatch,
+  sendBulkRecoveryBatch,
+  updateBulkRecoveryBatchDraft,
+} from "@/api/bulkRecoveryApi"
 import { feedbackPageModuleContext } from "@/components/dashboard/operator/Feedback/utils/feedbackPageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { createOperatorFeedbackPageModule } from "@/lib/operatorFeedback/createOperatorFeedbackPageModule"
@@ -165,6 +170,11 @@ export function FeedbackPageModuleProvider({
             maskedDestination: activity.maskedDestination ?? "",
           },
         }
+      },
+      getBulkRecoveryBatch: async (batchId) => getBulkRecoveryBatch(batchId),
+      sendBulkRecoveryBatch: async (batchId) => sendBulkRecoveryBatch(batchId),
+      updateBulkRecoveryBatchDraft: async (batchId, body) => {
+        await updateBulkRecoveryBatchDraft(batchId, body)
       },
       sendGuestPreviewTest: async (request) => {
         await sendGuestPreviewTest(request.feedbackId, {

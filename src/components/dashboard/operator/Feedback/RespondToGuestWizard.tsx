@@ -252,7 +252,10 @@ export function RespondToGuestWizard({
                   disabled={locked || snapshot.sendBlocked}
                   onClick={onOpenSendConfirm}
                 >
-                  Send response
+                  {snapshot.bulkMemberCount != null
+                    && snapshot.bulkMemberCount >= 2
+                    ? `Send to all ${snapshot.bulkMemberCount}`
+                    : "Send response"}
                 </Button>
                 {snapshot.paidWrite.helperCta != null ? (
                   <Button
@@ -432,6 +435,7 @@ export function RespondToGuestWizard({
                 subject={snapshot.subject}
                 message={snapshot.message}
                 aiActionCount={snapshot.aiActionCount}
+                bulkMemberCount={snapshot.bulkMemberCount}
               />
             ) : null}
 

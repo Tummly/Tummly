@@ -114,6 +114,8 @@ export type OperatorAiAssistantActionType =
   | "draft-campaign"
   | "draft-offer"
   | "open-recovery"
+  | "open-bulk-recovery"
+  | "send-bulk-recovery"
   | "view-feedback-set"
   | "prepare-recovery"
   | "view-campaigns"
@@ -135,6 +137,7 @@ export type OperatorAiAssistantAction = {
   smartGroup?: string | null
   marketingEligible?: boolean | null
   feedbackId?: number | null
+  batchId?: number | null
   intent?: string | null
   campaignId?: number | null
   clickable?: boolean
@@ -201,6 +204,11 @@ export type OperatorAiAssistantMessage = {
   presentation?: OperatorAiAssistantMessagePresentation | null
   /** Server applied an NL Analysis scope override on this turn. */
   scopeChange?: OperatorAiAssistantScopeChangeNotice | null
+  /**
+   * Client-only: seconds the turn waited before this assistant reply.
+   * Drives the settled “Worked for …” ThoughtLine.
+   */
+  workedSeconds?: number | null
 }
 
 export type OperatorAiAssistantScopeChangeNotice = {
@@ -400,6 +408,8 @@ export type OperatorAiAssistantSnapshot = {
   shellAiCredits: OperatorShellAiCreditsViewModel
   restorationHelper: AssistantCreditsRestorationHelper | null
   deleteConfirm: OperatorAiAssistantDeleteConfirmSnapshot
+  /** Active recovery draft for Edit Draft / Review recovery (null after send). */
+  pendingRecoveryDraft: RecoveryDraftActionPayload | null
 }
 
 export type OperatorAiAssistantCreditsChrome = {
@@ -1041,6 +1051,8 @@ type AssistantState = {
   messages: OperatorAiAssistantMessage[]
   turnInFlight: boolean
   waitBody: string
+  /** Wall-clock start of the in-flight turn wait chrome. */
+  waitStartedAtMs: number | null
   turnConversationId: string | null
   helpfulFills: Record<string, OperatorAiAssistantHelpfulFill>
   searchQuery: string
@@ -1086,6 +1098,7 @@ const INITIAL_STATE: AssistantState = {
   messages: [],
   turnInFlight: false,
   waitBody: ASSISTANT_WAIT_BODY,
+  waitStartedAtMs: null,
   turnConversationId: null,
   helpfulFills: {},
   searchQuery: "",
@@ -1355,6 +1368,12 @@ function visibleActionsForMessage(
     isCompletingOfferAction(action.type)
   )
   const hasOpenRecovery = raw.some((action) => action.type === "open-recovery")
+  const hasOpenBulkRecovery = raw.some(
+    (action) => action.type === "open-bulk-recovery"
+  )
+  const hasSendBulkRecovery = raw.some(
+    (action) => action.type === "send-bulk-recovery"
+  )
   const combinedCreate =
     hasCompletingCampaign && hasCompletingOffer
   const filtered = combinedCreate
@@ -1366,9 +1385,23 @@ function visibleActionsForMessage(
       ? raw.filter((action) => isCompletingCampaignAction(action.type)).slice(0, 3)
       : hasCompletingOffer
         ? raw.filter((action) => isCompletingOfferAction(action.type)).slice(0, 1)
-        : hasOpenRecovery
-          ? raw.filter((action) => action.type === "open-recovery").slice(0, 1)
-          : raw.slice(0, 3)
+        : hasOpenBulkRecovery
+          ? (["open-bulk-recovery", "send-bulk-recovery"] as const)
+              .map((type) => raw.find((action) => action.type === type))
+              .filter(
+                (action): action is OperatorAiAssistantAction => action != null
+              )
+              .slice(0, 2)
+          : hasSendBulkRecovery
+            ? (["send-bulk-recovery", "open-recovery"] as const)
+                .map((type) => raw.find((action) => action.type === type))
+                .filter(
+                  (action): action is OperatorAiAssistantAction => action != null
+                )
+                .slice(0, 2)
+            : hasOpenRecovery
+              ? raw.filter((action) => action.type === "open-recovery").slice(0, 1)
+              : raw.slice(0, 3)
 
   return filtered.map((action) => ({
     ...action,
@@ -1387,12 +1420,23 @@ function visibleActionsForMessage(
               && action.offerId === state.completingOfferNavigateId)
           )
           : action.type === "open-recovery"
+            || action.type === "open-bulk-recovery"
             ? !(
                 state.turnInFlight
                 || state.actionInFlight
                 || state.pendingRecoveryDraft == null
+                || (action.type === "open-bulk-recovery"
+                  && (state.pendingRecoveryDraft.batchId == null
+                    || state.pendingRecoveryDraft.batchId <= 0))
               )
-            : true,
+            : action.type === "send-bulk-recovery"
+              ? !(
+                  state.turnInFlight
+                  || state.actionInFlight
+                  || state.pendingRecoveryDraft?.bulkShared !== true
+                  || state.pendingRecoveryDraft.batchId == null
+                )
+              : true,
   }))
 }
 
@@ -1486,6 +1530,7 @@ function toSnapshot(
       : "",
     showSuggestionChips: suggestionChips.length > 0,
     messages: displayMessages,
+    pendingRecoveryDraft: state.pendingRecoveryDraft,
     turnInFlight: state.turnInFlight,
     sendLocked: state.turnInFlight || mic.submitLocked,
     chipsLocked: state.turnInFlight || mic.submitLocked,
@@ -1581,16 +1626,91 @@ function buildShellAiCreditsViewModel(
   }
 }
 
+function workedSecondsByMessageId(
+  messages: readonly OperatorAiAssistantMessage[]
+): Map<string, number> {
+  const byId = new Map<string, number>()
+  for (const message of messages) {
+    if (
+      message.role === "assistant"
+      && message.workedSeconds != null
+      && Number.isFinite(message.workedSeconds)
+      && message.workedSeconds >= 0
+    ) {
+      byId.set(message.id, message.workedSeconds)
+    }
+  }
+  return byId
+}
+
+function mergeClientWorkedSeconds(
+  messages: readonly OperatorAiAssistantMessage[],
+  previous: readonly OperatorAiAssistantMessage[]
+): OperatorAiAssistantMessage[] {
+  const byId = workedSecondsByMessageId(previous)
+  if (byId.size === 0) {
+    return [...messages]
+  }
+  return messages.map((message) => {
+    const workedSeconds = byId.get(message.id)
+    return workedSeconds == null ? message : { ...message, workedSeconds }
+  })
+}
+
+function stampLatestAssistantWorkedSeconds(
+  messages: readonly OperatorAiAssistantMessage[],
+  workedSeconds: number | null
+): OperatorAiAssistantMessage[] {
+  if (workedSeconds == null || !Number.isFinite(workedSeconds) || workedSeconds < 0) {
+    return [...messages]
+  }
+  const rounded = Math.round(workedSeconds * 10) / 10
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role !== "assistant") {
+      continue
+    }
+    return messages.map((message, messageIndex) =>
+      messageIndex === index ? { ...message, workedSeconds: rounded } : message
+    )
+  }
+  return [...messages]
+}
+
+function finishTurnMessages(
+  state: AssistantState,
+  row: OperatorAiAssistantConversationRow,
+  nowMs: number
+): OperatorAiAssistantMessage[] {
+  const startedAt = state.waitStartedAtMs
+  const workedSeconds =
+    state.turnInFlight && startedAt != null
+      ? Math.max(0, (nowMs - startedAt) / 1000)
+      : null
+  const merged = mergeClientWorkedSeconds(
+    row.messages.filter((message) => message.role !== "wait"),
+    state.messages
+  )
+  return stampLatestAssistantWorkedSeconds(merged, workedSeconds)
+}
+
 function applyConversation(
   state: AssistantState,
-  row: OperatorAiAssistantConversationRow
+  row: OperatorAiAssistantConversationRow,
+  nowMs?: number
 ): AssistantState {
+  const messages =
+    nowMs != null
+      ? finishTurnMessages(state, row, nowMs)
+      : mergeClientWorkedSeconds(
+          row.messages.filter((message) => message.role !== "wait"),
+          state.messages
+        )
   return {
     ...state,
     view: "thread",
     conversationId: row.id,
     analysisScope: row.analysisScope,
-    messages: row.messages.filter((message) => message.role !== "wait"),
+    messages,
     pendingCampaignDraft: row.pendingCampaignDraft ?? null,
     pendingOfferDraft: row.pendingOfferDraft ?? null,
     pendingRecoveryDraft: row.pendingRecoveryDraft ?? null,
@@ -1602,6 +1722,7 @@ function applyConversation(
     draftActionSpent: false,
     turnInFlight: false,
     waitBody: ASSISTANT_WAIT_BODY,
+    waitStartedAtMs: null,
     turnConversationId: null,
     listItems: upsertListItem(state.listItems, row, activeListPanel(state)),
   }
@@ -1670,6 +1791,7 @@ function emptyGreetingState(
     draftInterviewActive: false,
     turnInFlight: false,
     waitBody: ASSISTANT_WAIT_BODY,
+    waitStartedAtMs: null,
     turnConversationId: null,
     helpfulFills: {},
     bodyLoadError: false,
@@ -1928,6 +2050,7 @@ export function createOperatorAiAssistantModule(
       widthMode: "collapsed",
       composerDraft: "",
       turnInFlight: false,
+      waitStartedAtMs: null,
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     }
     publish()
@@ -2124,6 +2247,7 @@ export function createOperatorAiAssistantModule(
       messages: storedMessages,
       turnInFlight: true,
       waitBody,
+      waitStartedAtMs: adapters.nowMs(),
       turnConversationId: state.conversationId,
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     }
@@ -2150,7 +2274,7 @@ export function createOperatorAiAssistantModule(
         inflight = null
         stopWaitRotation()
         state = {
-          ...applyConversation(state, row),
+          ...applyConversation(state, row, adapters.nowMs()),
           composerDraft: "",
         }
         publish()
@@ -2169,6 +2293,7 @@ export function createOperatorAiAssistantModule(
             ...state,
             turnInFlight: false,
             waitBody: ASSISTANT_WAIT_BODY,
+            waitStartedAtMs: null,
             turnConversationId: null,
           }
           publish()
@@ -2178,6 +2303,7 @@ export function createOperatorAiAssistantModule(
           ...state,
           turnInFlight: false,
           waitBody: ASSISTANT_WAIT_BODY,
+          waitStartedAtMs: null,
           turnConversationId: null,
           messages: [...storedMessages, failureMessage()],
         }
@@ -2717,6 +2843,25 @@ export function createOperatorAiAssistantModule(
         runTurn(ASSISTANT_PREPARE_RECOVERY_PROMPT, false)
         return
       }
+      if (action.type === "send-bulk-recovery") {
+        if (
+          state.bodyLoadError
+          || mic.getSnapshot().submitLocked
+          || state.turnInFlight
+          || state.pendingRecoveryDraft?.bulkShared !== true
+        ) {
+          return
+        }
+        const count = action.count ?? state.pendingRecoveryDraft.feedbackIds?.length ?? 0
+        const prompt =
+          count > 0
+            ? `Send this recovery to all ${count}`
+            : "Send this recovery to all of them"
+        state = { ...state, composerDraft: prompt }
+        publish()
+        runTurn(prompt, false)
+        return
+      }
       if (isCompletingCampaignAction(action.type)) {
         const campaignId = action.campaignId
         if (campaignId == null || state.actionInFlight) {
@@ -2800,26 +2945,60 @@ export function createOperatorAiAssistantModule(
       if (isRetiredDraftActionType(action.type)) {
         return
       }
-      if (action.type === "open-recovery") {
+      if (
+        action.type === "open-recovery"
+        || action.type === "open-bulk-recovery"
+      ) {
         const payload = state.pendingRecoveryDraft
         const latest = state.messages.at(-1)
-        if (
-          payload == null
-          || state.actionInFlight
-          || latest?.role !== "assistant"
-          || !latest.actions?.some((item) => item.type === "open-recovery")
-        ) {
+        const openAsBulk =
+          action.type === "open-bulk-recovery"
+          || (
+            payload?.bulkShared === true
+            && payload.batchId != null
+            && payload.batchId > 0
+          )
+        const latestHasOpenRecovery =
+          latest?.role === "assistant"
+          && latest.actions?.some(
+            (item) =>
+              item.type === "open-recovery"
+              || item.type === "open-bulk-recovery"
+          )
+        // Edit Draft may sit on an older prepare card while the latest turn
+        // is a confirm reply — still allow open when pending draft exists.
+        if (payload == null || state.actionInFlight) {
           return
         }
+        if (!latestHasOpenRecovery && action.label !== "Edit Draft") {
+          return
+        }
+        if (openAsBulk && (payload.batchId == null || payload.batchId <= 0)) {
+          return
+        }
+        const navigateAction: OperatorAiAssistantAction = openAsBulk
+          ? {
+              ...action,
+              type: "open-bulk-recovery",
+              batchId: payload.batchId,
+              count:
+                action.count
+                ?? payload.feedbackIds?.length
+                ?? undefined,
+            }
+          : action
         state = { ...state, actionInFlight: true }
         publish()
-        void adapters
-          .prepareOpenRecovery({
-            feedbackId: payload.feedbackId,
-            intent: payload.intent,
-            offerId: payload.offerId ?? null,
-          })
-          .then(() => adapters.openRecoveryFromDraftAction(payload))
+        const openPromise = openAsBulk
+          ? adapters.openRecoveryFromDraftAction(payload)
+          : adapters
+              .prepareOpenRecovery({
+                feedbackId: payload.feedbackId,
+                intent: payload.intent,
+                offerId: payload.offerId ?? null,
+              })
+              .then(() => adapters.openRecoveryFromDraftAction(payload))
+        void openPromise
           .then(() => {
             state = {
               ...state,
@@ -2828,7 +3007,7 @@ export function createOperatorAiAssistantModule(
             publish()
             closeDrawer()
             adapters.navigateAction({
-              action,
+              action: navigateAction,
               analysisScope,
               recoveryDraft: payload,
             })

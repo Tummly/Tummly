@@ -34,6 +34,39 @@ namespace TummlyBackend.Helpers
                 + "- **Status:** not sent\n\n"
                 + "Nothing was sent. Review recovery opens the Feedback wizard.";
 
+        public static string BulkSharedSuccessBody(int eligibleCount, string channelLabel)
+            => "You have **"
+                + eligibleCount.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + "** Feedback that need recovery. "
+                + "This is the message I will send to them by "
+                + channelLabel
+                + ". Would you like any changes?";
+
+        public static string BulkSharedNoneEligibleBody()
+            => "None of the Feedback in this set can receive a guest recovery "
+                + "message right now (no contact, marketing rules, or already "
+                + "resolved). No recovery work was stored. "
+                + AssistantNextTryCopy.Sentence;
+
+        public static string BulkSendSummaryBody(int sent, int total, int skipped)
+        {
+            var body =
+                "Sent to **"
+                + sent.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + "** of **"
+                + total.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + "**.";
+            if (skipped > 0)
+            {
+                body +=
+                    " Skipped **"
+                    + skipped.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + "** (no contact, opted out, already resolved, or send failed).";
+            }
+
+            return body;
+        }
+
         public static string SuccessInternalBody(string guestName)
             => "I prepared Record an internal action only for "
                 + $"{guestName}.\n\n"

@@ -97,12 +97,55 @@ namespace TummlyBackend.Tests.Services
         }
 
         /// <summary>
-        /// Replace Active→Draft on one Campaign must free the Active slot before
-        /// promoting the Draft. Campaign.OfferId already points at the new Offer
-        /// (same order as CampaignDraftService.PatchAsync).
+        /// Campaign Draft attach is prep — Offer stays Draft and does not burn
+        /// the Active Offer cap (AI attach under Pilot cap=1).
         /// </summary>
         [Fact]
-        public async Task SyncInFlight_ForAttachChange_ReplaceActiveWithDraft_AtCap_Succeeds()
+        public async Task SyncInFlight_CampaignDraftAttach_DoesNotPromoteOffer()
+        {
+            var locationId = await SeedPilotLocationAsync();
+            var activeId = await SeedOfferAsync(locationId, CatalogOfferStatus.Active);
+            var draftId = await SeedOfferAsync(locationId, CatalogOfferStatus.Draft);
+            _context.Campaigns.Add(
+                new Campaign
+                {
+                    RestaurantLocationId = locationId,
+                    Name = "AI draft",
+                    Status = CampaignDraftService.DraftStatus,
+                    AudienceKey = "all-eligible-guests",
+                    MessageBody = "Come back.",
+                    OfferId = draftId,
+                    OfferStance = "existing-offer",
+                    CreatedAt = _now,
+                    UpdatedAt = _now,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var result = await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+                activeId,
+                draftId
+            );
+
+            Assert.IsType<CatalogOfferInFlightSyncResult.Ok>(result);
+            Assert.Equal(
+                CatalogOfferStatus.Draft,
+                (await _context.CatalogOffers.FirstAsync(row => row.Id == activeId))
+                    .Status
+            );
+            Assert.Equal(
+                CatalogOfferStatus.Draft,
+                (await _context.CatalogOffers.FirstAsync(row => row.Id == draftId))
+                    .Status
+            );
+        }
+
+        /// <summary>
+        /// Replace Active→Draft on a live (non-draft) Campaign frees the Active
+        /// slot before promoting the Draft (same order as PatchAsync).
+        /// </summary>
+        [Fact]
+        public async Task SyncInFlight_ForAttachChange_ReplaceActiveWithDraft_OnScheduled_Succeeds()
         {
             var locationId = await SeedPilotLocationAsync();
             var previousId = await SeedOfferAsync(locationId, CatalogOfferStatus.Active);
@@ -112,7 +155,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     RestaurantLocationId = locationId,
                     Name = "Summer win-back",
-                    Status = "draft",
+                    Status = CampaignLifecycleService.ScheduledStatus,
                     AudienceKey = "all-eligible-guests",
                     MessageBody = "Come back.",
                     OfferId = nextId,
@@ -177,12 +220,12 @@ namespace TummlyBackend.Tests.Services
             _context.Restaurants.Add(restaurant);
             await _context.SaveChangesAsync();
 
-            _context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(
-                    restaurant.Id,
-                    "TUMMLY-UK-GBP-2026-08-V3"
-                )
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
             );
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Pilot;
+            _context.BillingAccounts.Add(billing);
 
             var location = new RestaurantLocation
             {

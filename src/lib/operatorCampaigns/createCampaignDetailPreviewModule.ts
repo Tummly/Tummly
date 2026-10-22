@@ -88,6 +88,8 @@ export type CampaignDetailPreviewViewModel = {
   eligibility: CampaignDetailPreviewEligibility | null
   sendLogicLabel: string
   footerDisclaimer: string
+  /** Draft-only quick send CTA; null when the campaign is not a draft. */
+  sendCampaignLabel: string | null
   editCampaignLabel: string
   closeLabel: string
 }
@@ -311,6 +313,10 @@ function buildViewModel(
     eligibility: enrichment.eligibility,
     sendLogicLabel: sendLogicLabelForStatus(campaign.status),
     footerDisclaimer: CAMPAIGN_DETAIL_PREVIEW_COPY.footerDisclaimer,
+    sendCampaignLabel:
+      campaign.status.trim().toLowerCase() === "draft"
+        ? CAMPAIGN_DETAIL_PREVIEW_COPY.sendCampaign
+        : null,
     editCampaignLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.editCampaign,
     closeLabel: CAMPAIGN_DETAIL_PREVIEW_COPY.close,
   }

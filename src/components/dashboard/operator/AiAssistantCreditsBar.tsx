@@ -26,7 +26,7 @@ export function AiAssistantCreditsBar({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 rounded-t-[8px] rounded-b-none bg-op-assistant-credits-background px-5 py-4",
+        "flex items-center justify-between gap-3 rounded-t-[8px] rounded-b-none bg-op-assistant-credits-background px-4 py-2",
         className
       )}
     >

@@ -79,7 +79,7 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
-  it("maps review-campaign to Campaigns with Campaign Detail id, not Drafts view", () => {
+  it("maps review-campaign to Campaigns detail preview drawer", () => {
     expect(
       planAssistantActionNavigate({
         action: {
@@ -93,7 +93,9 @@ describe("planAssistantActionNavigate", () => {
     ).toEqual({
       path: "/multi-dashboard/campaigns?location=11",
       selectLocationId: 11,
-      campaigns: { previewCampaignId: 41 },
+      campaigns: {
+        previewCampaignId: 41,
+      },
     })
   })
 
@@ -284,6 +286,40 @@ describe("planAssistantActionNavigate", () => {
           label: "Review recovery",
           feedbackId: 42,
           intent: "respond-to-guest",
+        },
+        analysisScope: SCOPE,
+        mode: "multi",
+        recoveryDraft,
+      })
+    ).toEqual({
+      path: "/multi-dashboard/feedback?location=11",
+      selectLocationId: 11,
+      recoveryDraft,
+    })
+  })
+
+  it("maps open-bulk-recovery to Feedback with batchId on the draft payload", () => {
+    const recoveryDraft = {
+      feedbackId: 42,
+      batchId: 9,
+      bulkShared: true as const,
+      intent: "respond-to-guest" as const,
+      channel: "email" as const,
+      purpose: "acknowledge_feedback" as const,
+      tone: "warm_and_apologetic" as const,
+      includeNotes: "",
+      subject: "Hi",
+      message: "Hi {{guest_first_name}}, thanks",
+    }
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "open-bulk-recovery",
+          label: "Review recovery",
+          feedbackId: 42,
+          batchId: 9,
+          intent: "respond-to-guest",
+          count: 12,
         },
         analysisScope: SCOPE,
         mode: "multi",

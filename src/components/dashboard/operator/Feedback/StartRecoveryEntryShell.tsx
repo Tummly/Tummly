@@ -163,7 +163,7 @@ export function StartRecoveryEntryShell({
             {/* Figma 1728 frame uses 200px side inset; scale down on narrower viewports. */}
             <div className="flex flex-1 flex-col px-4 pb-24 pt-10 sm:px-6 sm:pt-[60px] md:px-[100px] min-[1728px]:px-[200px]">
               <DialogTitle className="pr-0 text-[28px] font-bold leading-none tracking-normal text-op-text-primary sm:text-[32px]">
-                <span data-demo-tour="feedback-recovery-drawer">Start recovery</span>
+                Start recovery
               </DialogTitle>
               <DialogDescription
                 className={cn(
@@ -226,6 +226,7 @@ export function StartRecoveryEntryShell({
                         className="flex flex-col gap-[18px]"
                         role="radiogroup"
                         aria-label="Recovery follow-up options"
+                        data-demo-tour="feedback-recovery-drawer"
                       >
                         {snapshot.intents.map((intent) => {
                           const selected = pendingIntentId === intent.id
@@ -296,7 +297,10 @@ export function StartRecoveryEntryShell({
                     </TooltipProvider>
                   </div>
 
-                  <aside className={START_RECOVERY_SUMMARY_CLASS}>
+                  <aside
+                    className={START_RECOVERY_SUMMARY_CLASS}
+                    data-demo-tour="feedback-recovery-summary"
+                  >
                     <h2 className="text-lg font-semibold text-op-text-primary">
                       Feedback summary
                     </h2>

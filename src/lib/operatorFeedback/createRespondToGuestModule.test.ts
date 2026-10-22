@@ -132,6 +132,9 @@ function createAdapters(
       >
     >,
     getCreditChrome: overrides.getCreditChrome,
+    getBulkRecoveryBatch: overrides.getBulkRecoveryBatch,
+    sendBulkRecoveryBatch: overrides.sendBulkRecoveryBatch,
+    updateBulkRecoveryBatchDraft: overrides.updateBulkRecoveryBatchDraft,
   }
 }
 
@@ -192,6 +195,131 @@ describe("createRespondToGuestModule", () => {
     expect(module.getSnapshot().step).toBe("setup")
     expect(module.back()).toBe("return-to-shell")
     expect(module.getSnapshot().isOpen).toBe(false)
+  })
+
+  it("openFromBulkDraftAction lands on Review with N-guest chrome", async () => {
+    const getBulkRecoveryBatch = vi.fn(async () => ({
+      id: 44,
+      locationId: 1,
+      channel: "email",
+      subject: "Shared subject",
+      bodyTemplate: "Hi {{guest_first_name}}, thanks for telling us.",
+      purpose: "acknowledge_feedback",
+      tone: "warm_and_apologetic",
+      includeNotes: null,
+      memberCount: 12,
+      members: [
+        {
+          feedbackId: 2418,
+          guestName: "Mohamed M.",
+          maskedDestination: "m••••@email.com",
+        },
+        {
+          feedbackId: 2419,
+          guestName: "James K.",
+          maskedDestination: "j••••@email.com",
+        },
+      ],
+    }))
+    const module = createRespondToGuestModule(
+      createAdapters({ getBulkRecoveryBatch })
+    )
+
+    await module.openFromBulkDraftAction({
+      batchId: 44,
+      feedbackId: 2418,
+      channel: "email",
+      purpose: "acknowledge_feedback",
+      tone: "warm_and_apologetic",
+      includeNotes: "",
+      subject: "Shared subject",
+      message: "Hi {{guest_first_name}}, thanks for telling us.",
+    })
+
+    expect(getBulkRecoveryBatch).toHaveBeenCalledWith(44)
+    expect(module.getSnapshot()).toMatchObject({
+      isOpen: true,
+      step: "review",
+      openedFromDraftAction: true,
+      batchId: 44,
+      bulkMemberCount: 12,
+      subject: "Shared subject",
+      message: "Hi {{guest_first_name}}, thanks for telling us.",
+      maskedDestination: "12 email destinations",
+      summary: {
+        guestName: "12 guests",
+      },
+    })
+  })
+
+  it("confirmSend uses bulk batch API when batchId is set", async () => {
+    const sendBulkRecoveryBatch = vi.fn(async () => ({
+      sent: 12,
+      skipped: 0,
+      failed: 0,
+      total: 12,
+    }))
+    const updateBulkRecoveryBatchDraft = vi.fn(async () => {})
+    const sendGuestResponse = vi.fn(async (): Promise<SendGuestResponseResult> => ({
+      workflowStatus: "in_progress",
+      needsAttention: true,
+      activityEvent: {
+        kind: "guest_response_sent",
+        at: "2026-08-03T12:00:00.000Z",
+        actorDisplayName: "Alex",
+        channel: "email",
+        maskedDestination: "m••••@email.com",
+      },
+    }))
+    const getBulkRecoveryBatch = vi.fn(async () => ({
+      id: 44,
+      locationId: 1,
+      channel: "email",
+      subject: "Shared subject",
+      bodyTemplate: "Hi {{guest_first_name}}, thanks for telling us.",
+      purpose: "acknowledge_feedback",
+      tone: "warm_and_apologetic",
+      includeNotes: null,
+      memberCount: 12,
+      members: [
+        {
+          feedbackId: 2418,
+          guestName: "Mohamed M.",
+          maskedDestination: "m••••@email.com",
+        },
+      ],
+    }))
+    const module = createRespondToGuestModule(
+      createAdapters({
+        getBulkRecoveryBatch,
+        sendBulkRecoveryBatch,
+        updateBulkRecoveryBatchDraft,
+        sendGuestResponse,
+      })
+    )
+
+    await module.openFromBulkDraftAction({
+      batchId: 44,
+      feedbackId: 2418,
+      channel: "email",
+      purpose: "acknowledge_feedback",
+      tone: "warm_and_apologetic",
+      includeNotes: "",
+      subject: "Shared subject",
+      message: "Hi {{guest_first_name}}, thanks for telling us.",
+    })
+    await module.confirmSend()
+
+    expect(updateBulkRecoveryBatchDraft).toHaveBeenCalledWith(44, {
+      subject: "Shared subject",
+      bodyTemplate: "Hi {{guest_first_name}}, thanks for telling us.",
+    })
+    expect(sendBulkRecoveryBatch).toHaveBeenCalledWith(44)
+    expect(sendGuestResponse).not.toHaveBeenCalled()
+    expect(module.getSnapshot()).toMatchObject({
+      step: "success",
+      batchId: null,
+    })
   })
 
   it("opens at Response setup with Email pre-selected and masked destination", async () => {

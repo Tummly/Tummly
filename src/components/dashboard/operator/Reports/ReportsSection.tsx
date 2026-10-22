@@ -14,6 +14,8 @@ type ReportsSectionProps = {
   headerEnd?: ReactNode
   children: ReactNode
   className?: string
+  /** Product demo tour anchor (`data-demo-tour`). */
+  demoTourTarget?: string
 }
 
 /** Shared Reports section card — Capture / Performance section chrome. */
@@ -23,11 +25,15 @@ export function ReportsSection({
   headerEnd,
   children,
   className,
+  demoTourTarget,
 }: ReportsSectionProps) {
   const hasHeader = title != null || subtitle != null || headerEnd != null
 
   return (
-    <section className={cn(REPORTS_SECTION_CLASS, className)}>
+    <section
+      className={cn(REPORTS_SECTION_CLASS, className)}
+      data-demo-tour={demoTourTarget}
+    >
       {hasHeader ? (
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className={REPORTS_SECTION_HEADER_CLASS}>

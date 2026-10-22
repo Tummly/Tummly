@@ -31,6 +31,11 @@ export type RecoveryDraftActionPayload = {
   offerId?: number | null
   locationId?: number | null
   useConfirmedActionForGuestResponse?: boolean
+  /** Shared draft prepared once for many Feedback targets. */
+  bulkShared?: boolean
+  feedbackIds?: number[]
+  /** Durable bulk recovery batch when Review and send opens in bulk mode. */
+  batchId?: number | null
 }
 
 export const RECOVERY_DRAFT_ACTION_TOASTS = {
@@ -169,6 +174,17 @@ export function parseRecoveryDraftActionPayload(
     }
   }
 
+  const feedbackIds = Array.isArray(row.feedbackIds)
+    ? row.feedbackIds.filter(
+        (id): id is number =>
+          typeof id === "number" && Number.isFinite(id) && id > 0
+      )
+    : []
+  const batchId = asOfferId(row.batchId)
+  const bulkShared =
+    row.bulkShared === true
+    && (feedbackIds.length > 0 || batchId != null)
+
   return {
     feedbackId,
     intent,
@@ -184,6 +200,9 @@ export function parseRecoveryDraftActionPayload(
     locationId: asOfferId(row.locationId),
     useConfirmedActionForGuestResponse:
       row.useConfirmedActionForGuestResponse === true,
+    bulkShared,
+    feedbackIds: bulkShared ? feedbackIds : [],
+    batchId,
   }
 }
 

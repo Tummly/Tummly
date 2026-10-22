@@ -786,7 +786,16 @@ namespace TummlyBackend.Helpers
             {
                 days = 14;
             }
-            else if (ContainsAny(lower, "next week", "a week", "one week"))
+            else if (ContainsAny(
+                    lower,
+                    "next week",
+                    "a week",
+                    "one week",
+                    "1 week",
+                    "1 weeek",
+                    "a weeek",
+                    "one weeek"
+                ))
             {
                 days = 7;
             }

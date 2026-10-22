@@ -5,6 +5,7 @@ import type {
   OperatorAiAssistantDraftPreview,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import { assistantDraftPreviewEditAction } from "@/lib/operatorAiAssistant/assistantDraftPreviewEditAction"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
@@ -20,11 +21,16 @@ function MetaRow({ label, value }: { label: string; value: string }) {
 export function AssistantDraftPreviewCard({
   draft,
   onEditDraft,
+  pendingRecoveryDraft = null,
 }: {
   draft: OperatorAiAssistantDraftPreview
   onEditDraft: (action: OperatorAiAssistantAction) => void
+  pendingRecoveryDraft?: RecoveryDraftActionPayload | null
 }) {
-  const editAction = assistantDraftPreviewEditAction(draft)
+  const editAction = assistantDraftPreviewEditAction(
+    draft,
+    pendingRecoveryDraft
+  )
   const heading =
     draft.kind === "campaign"
       ? (draft.name ?? "Campaign Draft")
@@ -54,6 +60,12 @@ export function AssistantDraftPreviewCard({
           ) : null}
           {draft.timingLabel ? (
             <MetaRow label="Timing" value={draft.timingLabel} />
+          ) : null}
+          {draft.conditionsSummary ? (
+            <MetaRow label="Offer" value={draft.conditionsSummary} />
+          ) : null}
+          {draft.validityLabel ? (
+            <MetaRow label="Validity" value={draft.validityLabel} />
           ) : null}
           {draft.subject ? (
             <MetaRow label="Subject" value={draft.subject} />

@@ -69,24 +69,42 @@ export const ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS =
 
 /**
  * Stage is full pane width so the thread scrollbar sits on the right bleed.
- * 30px sits between the thread and the composer (Actions / answer vs input).
- * Expand also keeps 16px under the composer.
+ * Tight gap keeps more answer height above the composer.
  */
 export function assistantConversationStageClass(expanded: boolean): string {
   return expanded
-    ? "flex min-h-0 flex-1 flex-col gap-[30px] pb-4"
-    : "flex min-h-0 flex-1 flex-col gap-[30px]"
+    ? "flex min-h-0 flex-1 flex-col gap-1.5 pb-1.5"
+    : "flex min-h-0 flex-1 flex-col gap-1.5"
 }
+
+/** Relative shell that hosts the thread plus top/bottom edge fades. */
+export const ASSISTANT_THREAD_EDGE_SHELL_CLASS =
+  "relative flex min-h-0 flex-1 flex-col"
+
+/**
+ * Thin edge soften (16px): solid fill at the clip line, then a short fade.
+ * Full `from-*` (not /55) so the hard cut is covered; height stays small.
+ * Pointer-events none so the thread still scrolls under it.
+ */
+export const ASSISTANT_THREAD_TOP_EDGE_FADE_CLASS = [
+  "pointer-events-none absolute inset-x-0 top-0 z-10 h-4",
+  "bg-gradient-to-b from-op-assistant-list-background to-transparent",
+].join(" ")
+
+export const ASSISTANT_THREAD_BOTTOM_EDGE_FADE_CLASS = [
+  "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-4",
+  "bg-gradient-to-t from-op-assistant-list-background to-transparent",
+].join(" ")
 
 /**
  * Scrollable thread. Expand is full pane width so the scrollbar sits on
- * the right bleed. Collapsed keeps 30px side gutters; stage gap owns the
- * space above the composer.
+ * the right bleed. Collapsed keeps side gutters.
+ * Edge fades hide at the live edges, so only a thin py is needed.
  */
 export function assistantThreadBodyClass(expanded: boolean): string {
   return [
     OPERATOR_RIGHT_DRAWER_BODY_CLASS,
-    "flex flex-col",
+    "flex flex-col py-1.5",
     expanded ? "" : "px-[30px]",
   ]
     .filter((part) => part.length > 0)
@@ -104,15 +122,23 @@ export function assistantThreadRailClass(expanded: boolean): string {
 export function assistantComposerDockClass(expanded: boolean): string {
   return expanded
     ? "flex w-full shrink-0 flex-col"
-    : "flex w-full shrink-0 flex-col gap-8 px-[30px] pb-4"
+    : "flex w-full shrink-0 flex-col gap-4 px-[30px] pb-1.5"
 }
 
 /** Inner composer rail. Expand matches the 800px chat column. */
 export function assistantComposerRailClass(expanded: boolean): string {
   return expanded
-    ? `flex w-full shrink-0 flex-col gap-8 ${ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS}`
+    ? `flex w-full shrink-0 flex-col gap-4 ${ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS}`
     : "contents"
 }
+
+/** Collapsed conversation header — tight so more thread height shows. */
+export const ASSISTANT_COLLAPSED_HEADER_CLASS =
+  "flex shrink-0 flex-col gap-1 px-5 pb-2"
+
+/** Expand conversation header — tight top padding + room for the top fade. */
+export const ASSISTANT_EXPAND_HEADER_CLASS =
+  "flex shrink-0 flex-col gap-1 px-7 pt-3 pb-1.5"
 
 /**
  * Stick-to-end key for the conversation thread.
@@ -134,7 +160,68 @@ export function assistantThreadStickAnchor(input: {
   return `${input.messages.length}:${last.id}:${last.role}:${last.body}`
 }
 
+/** Slack from the true bottom that still counts as following the stream. */
+export const ASSISTANT_THREAD_NEAR_BOTTOM_PX = 80
+
+/** Slack from the true top that still counts as parked at the start. */
+export const ASSISTANT_THREAD_NEAR_TOP_PX = 2
+
+/** True when the thread is parked at (or near) the end. */
+export function assistantThreadIsNearBottom(
+  body: Pick<HTMLElement, "scrollTop" | "scrollHeight" | "clientHeight">,
+  thresholdPx: number = ASSISTANT_THREAD_NEAR_BOTTOM_PX
+): boolean {
+  return body.scrollHeight - body.scrollTop - body.clientHeight <= thresholdPx
+}
+
+/** True when the thread is parked at (or near) the start. */
+export function assistantThreadIsNearTop(
+  body: Pick<HTMLElement, "scrollTop">,
+  thresholdPx: number = ASSISTANT_THREAD_NEAR_TOP_PX
+): boolean {
+  return body.scrollTop <= thresholdPx
+}
+
+/**
+ * Edge fades only while content is clipped past that edge.
+ * At the end of the chat the bottom fade stays off so last lines stay sharp.
+ */
+export function assistantThreadEdgeFades(input: {
+  scrollTop: number
+  scrollHeight: number
+  clientHeight: number
+}): { top: boolean; bottom: boolean } {
+  const canScroll = input.scrollHeight - input.clientHeight > 1
+  if (!canScroll) {
+    return { top: false, bottom: false }
+  }
+  return {
+    top: !assistantThreadIsNearTop(input),
+    bottom: !assistantThreadIsNearBottom(input, ASSISTANT_THREAD_NEAR_TOP_PX),
+  }
+}
+
+/**
+ * True when a new user turn should re-pin follow after the operator scrolled away.
+ */
+export function assistantThreadShouldForceFollow(input: {
+  previousKey: string | null
+  lastMessage: { id: string; role: string } | null | undefined
+}): boolean {
+  const last = input.lastMessage
+  if (last == null || last.role !== "user") {
+    return false
+  }
+  const previousKey = input.previousKey
+  if (previousKey == null) {
+    return true
+  }
+  return !previousKey.includes(`:${last.id}:`)
+}
+
 /** Scroll the thread body so the latest row sits at the end. */
-export function stickAssistantThreadToBottom(body: HTMLElement): void {
+export function stickAssistantThreadToBottom(
+  body: Pick<HTMLElement, "scrollTop" | "scrollHeight">
+): void {
   body.scrollTop = body.scrollHeight
 }

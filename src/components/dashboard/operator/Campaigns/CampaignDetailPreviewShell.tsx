@@ -26,11 +26,15 @@ export type CampaignDetailPreviewShellProps = {
   loadError: string | null
   retryLabel: string
   footerDisclaimer?: string | null
+  /** Quick send — primary when present (Draft preview). */
   primaryActionLabel?: string | null
+  /** Edit campaign — secondary beside send / alone when send is hidden. */
+  editActionLabel?: string | null
   secondaryActionLabel?: string | null
   onOpenChange: (open: boolean) => void
   onRetry: () => void
   onPrimaryAction?: () => void
+  onEditAction?: () => void
   children?: ReactNode
 }
 
@@ -48,10 +52,12 @@ export function CampaignDetailPreviewShell({
   retryLabel,
   footerDisclaimer = null,
   primaryActionLabel = null,
+  editActionLabel = null,
   secondaryActionLabel = null,
   onOpenChange,
   onRetry,
   onPrimaryAction,
+  onEditAction,
   children,
 }: CampaignDetailPreviewShellProps) {
   const showBody = loadStatus === "loaded"
@@ -124,6 +130,7 @@ export function CampaignDetailPreviewShell({
               <div className={OPERATOR_RIGHT_DRAWER_BODY_CLASS}>{children}</div>
               {footerDisclaimer != null
               || primaryActionLabel != null
+              || editActionLabel != null
               || secondaryActionLabel != null ? (
                 <footer className="flex shrink-0 flex-col gap-4 border-t border-op-card-border p-[22px]">
                   {footerDisclaimer != null ? (
@@ -139,6 +146,19 @@ export function CampaignDetailPreviewShell({
                         onClick={onPrimaryAction}
                       >
                         {primaryActionLabel}
+                      </Button>
+                    ) : null}
+                    {editActionLabel != null ? (
+                      <Button
+                        type="button"
+                        variant={
+                          primaryActionLabel != null
+                            ? "op-secondary"
+                            : "op-primary"
+                        }
+                        onClick={onEditAction}
+                      >
+                        {editActionLabel}
                       </Button>
                     ) : null}
                     {secondaryActionLabel != null ? (

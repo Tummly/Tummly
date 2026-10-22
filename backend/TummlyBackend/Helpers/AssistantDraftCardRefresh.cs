@@ -20,23 +20,49 @@ public static class AssistantDraftCardRefresh
             .ToList();
         if (previous.Count == 0) return;
 
-        if (next.Kind != "campaign" || update.Body.Contains("- **Location:**", StringComparison.Ordinal))
+        var prior = AssistantMessagePresentationJson.ParseDto(previous[0].PresentationJson)!.DraftPreview!;
+        var changes = new List<string>();
+        void Changed(string label, string? oldValue, string? newValue)
         {
-            var prior = AssistantMessagePresentationJson.ParseDto(previous[0].PresentationJson)!.DraftPreview!;
-            var changes = new List<string>();
-            void Changed(string label, string? oldValue, string? newValue)
+            if (oldValue != newValue) changes.Add($"{label}: {newValue ?? "None"}");
+        }
+        Changed("Audience", prior.AudienceLabel, next.AudienceLabel);
+        Changed("Channel", prior.Channel, next.Channel);
+        Changed("Subject", prior.Subject, next.Subject);
+        Changed("Conditions", prior.ConditionsSummary, next.ConditionsSummary);
+        Changed("Validity", prior.ValidityLabel, next.ValidityLabel);
+        Changed("Timing", prior.TimingLabel, next.TimingLabel);
+        Changed("Name", prior.Name, next.Name);
+        Changed("Title", prior.Title, next.Title);
+        Changed(
+            "Offer",
+            prior.OfferId?.ToString(),
+            next.OfferId?.ToString()
+        );
+        if (prior.MessageBody != next.MessageBody)
+        {
+            changes.Add("Message updated. See the Draft card.");
+        }
+
+        // Full persist SuccessBody (has Location) keeps the attach/create
+        // confirmation — do not replace with "No Draft fields changed".
+        // Offer/recovery always rewrite from the preview diff. Campaign
+        // field-only edits (no Location) rewrite only when something changed.
+        var isFullPersistBody = update.Body.Contains(
+            "- **Location:**",
+            StringComparison.Ordinal
+        );
+        if (string.Equals(next.Kind, "campaign", StringComparison.Ordinal))
+        {
+            if (!isFullPersistBody && changes.Count > 0)
             {
-                if (oldValue != newValue) changes.Add($"{label}: {newValue ?? "None"}");
+                update.Body = AssistantCampaignDraftPersistCopy.ChangesBody(
+                    changes
+                );
             }
-            Changed("Audience", prior.AudienceLabel, next.AudienceLabel);
-            Changed("Channel", prior.Channel, next.Channel);
-            Changed("Subject", prior.Subject, next.Subject);
-            Changed("Conditions", prior.ConditionsSummary, next.ConditionsSummary);
-            Changed("Validity", prior.ValidityLabel, next.ValidityLabel);
-            Changed("Timing", prior.TimingLabel, next.TimingLabel);
-            Changed("Name", prior.Name, next.Name);
-            Changed("Title", prior.Title, next.Title);
-            if (prior.MessageBody != next.MessageBody) changes.Add("Message updated. See the Draft card.");
+        }
+        else
+        {
             update.Body = AssistantCampaignDraftPersistCopy.ChangesBody(changes);
         }
 

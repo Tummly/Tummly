@@ -240,6 +240,25 @@
   }
 }
 
+/* Preparing glyph — rotate only (no translate / opacity on the mark). */
+@keyframes assistant-preparing-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  28% {
+    transform: rotate(70deg);
+  }
+  52% {
+    transform: rotate(200deg);
+  }
+  78% {
+    transform: rotate(290deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 /* Claude-style wait line — muted base, primary highlight sweep. */
 .assistant-wait-shimmer {
   background-image: linear-gradient(

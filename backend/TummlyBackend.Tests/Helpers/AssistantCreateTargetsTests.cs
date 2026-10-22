@@ -190,6 +190,54 @@ namespace TummlyBackend.Tests.Helpers
                     "Create a campaign and attach Happy Hour to it"
                 )
             );
+            // "Add to that campaign…" is attach-to-prior, not retrieve.
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify(
+                    "Add to that campaign a 20% offer that is valid for a week"
+                )
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeAttachToCampaignIntent(
+                    "Add to that campaign a 20% offer that is valid for a week"
+                )
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    "Add to that campaign a 20% offer that is valid for a week"
+                )
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    "Add a 20% offer to that campaign"
+                )
+            );
+            Assert.False(
+                AssistantTaskClassification.LooksLikeAttachExistingOfferOnly(
+                    "Add to that campaign a 20% offer that is valid for a week"
+                )
+            );
+            // Discount-only follow-up (no campaign noun) + confirm chip copy.
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify(
+                    "add 20 percent discount for a week"
+                )
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    "add 20 percent discount for a week"
+                )
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify("add it to draft")
+            );
+            Assert.True(
+                AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    "add it to draft"
+                )
+            );
         }
 
         [Fact]

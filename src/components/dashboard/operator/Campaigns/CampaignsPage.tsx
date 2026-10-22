@@ -629,6 +629,38 @@ export function CampaignsPage() {
     handleContinueEditing(campaignId)
   }
 
+  /** Draft preview quick send — open Review send-now and show confirm. */
+  const handleSendCampaignFromPreview = () => {
+    const campaignId = campaignDetailPreviewSnapshot.viewModel?.campaignId
+    const viewModel = snapshot.viewModel
+    if (
+      campaignId == null
+      || campaignDetailPreviewSnapshot.loadStatus !== "loaded"
+      || viewModel == null
+    ) {
+      return
+    }
+    campaignDetailPreview.close()
+    void (async () => {
+      try {
+        const response = await getCampaignDraftById(campaignId)
+        if (!response.success || response.campaign == null) {
+          throw new Error("Campaign draft load failed.")
+        }
+        await campaignWizard.openFromDraft({
+          locationName: viewModel.locationName,
+          locationAddress: selectedLocationAddress,
+          draft: response.campaign,
+          startStep: "review",
+          scheduleMode: "send-now",
+        })
+        campaignWizard.openCommitConfirm()
+      } catch {
+        toast.error("Could not open this campaign for send. Try again.")
+      }
+    })()
+  }
+
   const handleSaveAndExit = async () => {
     await campaignWizard.saveAndExit()
     if (!campaignWizard.getSnapshot().isOpen) {
@@ -835,6 +867,7 @@ export function CampaignsPage() {
           void campaignDetailPreview.retryLoad()
         }}
         onSelectChannel={campaignDetailPreview.setSelectedChannel}
+        onSendCampaign={handleSendCampaignFromPreview}
         onEditCampaign={handleEditCampaignFromPreview}
       />
       <CampaignWizardDialog

@@ -24,6 +24,10 @@ import {
   type DemoTourSessionState,
 } from "@/lib/productDemo/demoTourSession"
 import {
+  DEMO_CHROME_ATTRIBUTE,
+  installDemoInteractionLock,
+} from "@/lib/productDemo/demoInteractionLock"
+import {
   productDemoPath,
   productDemoPathForChapter,
 } from "@/lib/productDemo/productDemoPaths"
@@ -67,6 +71,13 @@ export function ProductDemoTourHost() {
   }, [])
 
   const showEntry = state?.phase === "entry"
+  const demoActive = state != null
+
+  // The demo is a guided tour: only the tour chrome takes visitor input.
+  useEffect(() => {
+    if (!demoActive) return
+    return installDemoInteractionLock()
+  }, [demoActive])
 
   useEffect(() => {
     if (!showEntry) return
@@ -141,24 +152,30 @@ export function ProductDemoTourHost() {
       freeExplore: false,
       phase: "tour",
     })
+    // Drawers from an earlier step cannot be rebuilt, so a chapter always
+    // restarts from its first screen.
+    dispatchDemoTourAction({ action: "resetTourUi" })
     navigate(productDemoPathForChapter(nextChapter.id))
-    const nextStep = nextChapter.steps[clampedStep]
-    if (nextStep) {
-      window.setTimeout(() => {
-        dispatchDemoTourAction({
-          action: nextStep.action,
-          target: nextStep.target,
-        })
-      }, 250)
-    }
   }
 
   const advanceFromCta = () => {
     if (chapter == null || step == null) return
 
-    dispatchDemoTourAction({ action: step.action, target: step.target })
+    // Each step CTA does its action once, then the tour moves on.
+    if (step.action === "navigateFeedback") {
+      navigate(productDemoPath("feedback"))
+    } else if (step.action === "navigateCampaigns") {
+      navigate(productDemoPath("campaigns"))
+    } else if (step.action === "openWeeklyBrief") {
+      // Opens the brief page whether or not this week's brief exists yet.
+      navigate(`${productDemoPath("reports")}/weekly-brief`)
+    } else {
+      dispatchDemoTourAction({ action: step.action, target: step.target })
+    }
 
     if (step.action === "completeTour") {
+      // Keep the AI panel open: closing it cancels a running answer, and the
+      // conversion modal covers it anyway.
       persist({
         ...state,
         completedChapterIds: PRODUCT_DEMO.tour.chapters.map((c) => c.id),
@@ -168,57 +185,44 @@ export function ProductDemoTourHost() {
       return
     }
 
-    if (step.action === "completeChapter") {
-      const completed = new Set(state.completedChapterIds)
-      completed.add(chapter.id)
-      const nextChapterIndex = state.chapterIndex + 1
-      if (nextChapterIndex >= PRODUCT_DEMO.tour.chapters.length) {
-        persist({
-          ...state,
-          completedChapterIds: [...completed],
-          exploreOpen: true,
-          phase: "tour",
-        })
-        return
-      }
-      persist({
-        ...state,
-        completedChapterIds: [...completed],
-        chapterIndex: nextChapterIndex,
-        stepIndex: 0,
-        exploreOpen: true,
-        phase: "tour",
-      })
+    const nextStepIndex = state.stepIndex + 1
+    if (
+      step.action !== "completeChapter" &&
+      nextStepIndex < chapter.steps.length
+    ) {
+      persist({ ...state, stepIndex: nextStepIndex })
+      return
+    }
+
+    // Chapter done: return to the Tour Guide with progress (§8 step 6).
+    const completed = new Set(state.completedChapterIds)
+    completed.add(chapter.id)
+    const nextChapterIndex = PRODUCT_DEMO.tour.chapters.findIndex(
+      (c) => !completed.has(c.id)
+    )
+    dispatchDemoTourAction({ action: "resetTourUi" })
+    persist({
+      ...state,
+      completedChapterIds: [...completed],
+      chapterIndex:
+        nextChapterIndex >= 0 ? nextChapterIndex : state.chapterIndex,
+      stepIndex: 0,
+      exploreOpen: true,
+      phase: "tour",
+    })
+    if (nextChapterIndex >= 0) {
       const nextChapter = PRODUCT_DEMO.tour.chapters[nextChapterIndex]
       if (nextChapter) {
         navigate(productDemoPathForChapter(nextChapter.id))
       }
-      return
     }
-
-    if (step.action === "navigateCampaigns") {
-      navigate(productDemoPath("campaigns"))
-    }
-
-    const nextStepIndex = state.stepIndex + 1
-    if (nextStepIndex < chapter.steps.length) {
-      goChapterStep(state.chapterIndex, nextStepIndex)
-      return
-    }
-
-    // End of chapter without completeChapter action — open explore
-    const completed = new Set(state.completedChapterIds)
-    completed.add(chapter.id)
-    persist({
-      ...state,
-      completedChapterIds: [...completed],
-      exploreOpen: true,
-      phase: "tour",
-    })
   }
 
   const overlay = (
-    <div className="pointer-events-none fixed inset-0 z-[80]">
+    <div
+      className="pointer-events-none fixed inset-0 z-[300]"
+      {...{ [DEMO_CHROME_ATTRIBUTE]: "" }}
+    >
       {/* Full-page glass only for entry / welcome / exit — not for Tour Guide explore. */}
       {(showEntry || showWelcome || showExit) && (
         <div
@@ -301,15 +305,6 @@ export function ProductDemoTourHost() {
               onStartTour={() => {
                 goChapterStep(0, 0)
               }}
-              onExplore={() => {
-                persist({
-                  ...state,
-                  phase: "tour",
-                  exploreOpen: false,
-                  freeExplore: true,
-                })
-                navigate(productDemoPath("feedback"))
-              }}
             />
             <Link
               to="/"
@@ -331,7 +326,9 @@ export function ProductDemoTourHost() {
               stepIndex={state.stepIndex}
               completedChapterIds={state.completedChapterIds}
               exploreOpen={state.exploreOpen}
-              showFab={showFab && !showExit}
+              // During a coachmark its "Open tour guide" link is the launcher;
+              // the floating button would cover drawers (AI composer).
+              showFab={showFab && !showExit && !showCoachmark}
               onToggleExplore={() =>
                 persist({
                   ...state,
@@ -339,6 +336,15 @@ export function ProductDemoTourHost() {
                 })
               }
               onSelectChapter={(index) => goChapterStep(index, 0)}
+              onContinue={() => {
+                if (state.stepIndex === 0) {
+                  // Start of a chapter: go to its first screen.
+                  goChapterStep(state.chapterIndex, 0)
+                  return
+                }
+                // Mid-chapter: the step's screen is still open; resume it.
+                persist({ ...state, exploreOpen: false, freeExplore: false })
+              }}
             />
             <Link
               to="/"
@@ -346,7 +352,8 @@ export function ProductDemoTourHost() {
                 event.preventDefault()
                 leaveDemo("/")
               }}
-              className="font-sans pointer-events-auto absolute top-4 right-4 z-40 text-sm font-medium text-[#141414]/70 underline-offset-2 hover:text-[#141414] hover:underline"
+              // Bottom left, beside the sidebar: the top bar holds the account menu.
+              className="font-sans pointer-events-auto absolute bottom-4 left-[68px] z-40 inline-flex min-h-11 items-center rounded-full bg-white px-4 text-sm font-medium text-[#141414] shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:bg-[#f3f3f3] sm:bottom-8"
             >
               Exit demo
             </Link>

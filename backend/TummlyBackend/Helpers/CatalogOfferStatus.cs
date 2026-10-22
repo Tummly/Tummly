@@ -186,7 +186,9 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// First-or-next attach may bind Draft or Active (not paused / archived /
-        /// past fixed expiry). Draft becomes Active after the first live attach.
+        /// past fixed expiry). Draft becomes Active after the first live attach
+        /// (non-draft Campaign, recovery, thank-you, or offer card) — not when
+        /// the Offer is only on a Campaign Draft.
         /// </summary>
         public static bool IsAttachable(
             string storedStatus,
@@ -214,8 +216,9 @@ namespace TummlyBackend.Helpers
         }
 
         /// <summary>
-        /// Stored draft ↔ active from raw live attach count. Leaves paused /
-        /// archived / expired-effective rows unchanged.
+        /// Stored draft ↔ active from raw live attach count (excludes Campaign
+        /// Draft / cancelled). Leaves paused / archived / expired-effective
+        /// rows unchanged.
         /// </summary>
         public static string ResolveStoredStatusFromLiveAttachCount(
             string storedStatus,

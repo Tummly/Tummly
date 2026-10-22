@@ -36,6 +36,8 @@ namespace TummlyBackend.Services
         private readonly ICampaignMessageDraftService _campaignMessageDrafts;
         private readonly IOffersCatalogService _offersCatalog;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
+        private readonly IFeedbackGuestResponsesService? _guestResponses;
+        private readonly IBulkRecoveryBatchService? _bulkRecoveryBatches;
         private readonly ICaptureThankYouOfferService _thankYouOffers;
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IAssistantAiBilling _aiBilling;
@@ -72,6 +74,8 @@ namespace TummlyBackend.Services
             ICaptureThankYouOfferService thankYouOffers,
             IRestaurantPermissionHelper permissions,
             IAssistantAiBilling aiBilling,
+            IFeedbackGuestResponsesService? guestResponses = null,
+            IBulkRecoveryBatchService? bulkRecoveryBatches = null,
             TimeProvider? timeProvider = null,
             IOptions<FeedbackClassificationSettings>? liveAnswerSettings = null,
             IRestaurantContextSnapshotService? restaurantContextSnapshot = null,
@@ -96,6 +100,8 @@ namespace TummlyBackend.Services
             _campaignMessageDrafts = campaignMessageDrafts;
             _offersCatalog = offersCatalog;
             _recoveryDrafts = recoveryDrafts;
+            _guestResponses = guestResponses;
+            _bulkRecoveryBatches = bulkRecoveryBatches;
             _thankYouOffers = thankYouOffers;
             _permissions = permissions;
             _aiBilling = aiBilling;
@@ -648,6 +654,8 @@ namespace TummlyBackend.Services
             _skipLiveAnswerBilling = false;
             _pendingToolOwnedLocationId = null;
             _pendingToolOwnedLocationName = null;
+            // Flows to the singleton live-answer provider and to persist.
+            AssistantTurnTimings.Begin();
             var ownedLocations = await LoadOwnedLocationsAsync(
                 conversation.OwnedLocationId,
                 conversation.OwnerUserId,
@@ -1105,7 +1113,15 @@ namespace TummlyBackend.Services
                 }
             }
 
+            // Commercial "add 20% off…" must attach to the Campaign, not mutate
+            // a prior CreatedOfferId as OfferPath-only.
             if (gapState is null
+                && !AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    userMessage
+                )
+                && !AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                    userMessage
+                )
                 && AssistantPriorDraftAuthority.ResolveOffer(
                     conversation.CreatedOfferId,
                     userMessage
@@ -1353,12 +1369,27 @@ namespace TummlyBackend.Services
 
             var askKind = AssistantAskIntent.Classify(userMessage);
 
+            var bulkSent = await TrySendBulkRecoveryAsync(
+                conversation,
+                userMessage,
+                replaceFailure,
+                cancellationToken
+            );
+            if (bulkSent is not null)
+            {
+                return bulkSent;
+            }
+
+            var pendingRecoveryWork = AssistantRecoveryWork.Parse(
+                conversation.RecoveryWorkJson
+            );
             if (gapState is null
                 && AssistantAskIntent.LooksLikeBareAcknowledge(userMessage)
+                && pendingRecoveryWork is not { BulkShared: true }
                 && (
                     conversation.CreatedCampaignId is int
                     || conversation.CreatedOfferId is int
-                    || !string.IsNullOrWhiteSpace(conversation.RecoveryWorkJson)
+                    || pendingRecoveryWork is not null
                 )
                 && !AssistantTaskClassification.LooksLikeCreateTurn(userMessage)
                 && !AssistantAskIntent.HasRetrieveAsk(userMessage)
@@ -1430,6 +1461,18 @@ namespace TummlyBackend.Services
             }
 
             AssistantLiveAnswerResult answer;
+            // Deadline covers the live answer and its retrieve tools only.
+            // Failure persist below keeps the request token or None.
+            using var turnDeadline = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken
+            );
+            if (_liveAnswerSettings.AssistantTurnDeadlineSeconds > 0)
+            {
+                turnDeadline.CancelAfter(
+                    TimeSpan.FromSeconds(_liveAnswerSettings.AssistantTurnDeadlineSeconds)
+                );
+            }
+
             try
             {
                 await TryPublishProgressAsync(
@@ -1485,7 +1528,7 @@ namespace TummlyBackend.Services
                             )
                             : null
                     ),
-                    cancellationToken
+                    turnDeadline.Token
                 );
                 if (useRetrieveTools && retrieveToolContext is not null)
                 {
@@ -1511,6 +1554,26 @@ namespace TummlyBackend.Services
                         );
                     }
                 }
+            }
+            catch (OperationCanceledException)
+                when (turnDeadline.IsCancellationRequested
+                    && !cancellationToken.IsCancellationRequested)
+            {
+                // Turn deadline, not a client cancel: save the failure message
+                // and use no credit (no turnBilling).
+                _logger.LogWarning(
+                    "Assistant turn hit the {DeadlineSeconds} second deadline for conversation {ConversationId}",
+                    _liveAnswerSettings.AssistantTurnDeadlineSeconds,
+                    conversation.Id
+                );
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    FailureMessage(DateTime.UtcNow),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
             }
             catch (OperationCanceledException)
             {
@@ -1656,14 +1719,10 @@ namespace TummlyBackend.Services
                     {
                         conversation.CreatedOfferId = createdCombinedOfferId;
                     }
-                    assistantMessage = persist.Class == AssistantMessageClass.Gap
-                        ? GapMessage(assistantNow, persist.Body)
-                        : GroundedMessage(
-                            assistantNow,
-                            persist.Title,
-                            persist.Body,
-                            persist.Actions
-                        );
+                    assistantMessage = PersistCombinedTurnMessage(
+                        assistantNow,
+                        persist
+                    );
                 }
                 else if (string.Equals(
                         persistTask,
@@ -2580,7 +2639,8 @@ namespace TummlyBackend.Services
             IReadOnlyList<AssistantActionDto> Actions,
             int? CreatedCampaignId,
             int? CreatedOfferId,
-            AssistantGapState? GapState
+            AssistantGapState? GapState,
+            AssistantDraftPreview? DraftPreview = null
         );
 
         private async Task<CombinedCreateTurn> PersistCreateCampaignWithOfferAsync(
@@ -2761,15 +2821,24 @@ namespace TummlyBackend.Services
                 ).ToList();
             var parsedCreateTerms = AssistantOfferPathTerms.Parse(userMessage);
             if (matches.Count >= 1
-                && parsedCreateTerms.DiscountPercentage is not null
                 && !AssistantPriorDraftAuthority.LooksLikeUseExistingOffer(userMessage)
-                && !AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(userMessage)
-                && !AssistantTaskClassification.LooksLikeAttachExistingOfferOnly(
-                    userMessage
+                && (
+                    AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                        userMessage
+                    )
+                    || (
+                        parsedCreateTerms.DiscountPercentage is not null
+                        && !AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                            userMessage
+                        )
+                        && !AssistantTaskClassification.LooksLikeAttachExistingOfferOnly(
+                            userMessage
+                        )
+                    )
                 ))
             {
-                // "Create a 10% Campaign" states new terms. Do not attach the
-                // first existing 10% Offer (for example Happy Hour).
+                // "add 20 percent off…" / "Create a 10% Campaign" states new
+                // terms. Do not Gap or reuse duplicate "20% off" catalog rows.
                 matches = [];
             }
             if (matches.Count >= 2
@@ -3153,6 +3222,52 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Same as create-with-offer: regenerate guest copy with ConfirmedOffer
+            // so Email/SMS mentions the attached terms (e.g. 20% off).
+            string? messageSubject = null;
+            string? messageBody = null;
+            var channel = existing.Channel ?? "email";
+            try
+            {
+                var copy = await _campaignMessageDrafts.PrepareAsync(
+                    locationName,
+                    new PrepareCampaignMessageDraftRequest
+                    {
+                        LocationId = locationId,
+                        Channel = channel,
+                        GoalId = existing.GoalId ?? "re-engage-inactive",
+                        AudienceKey =
+                            existing.AudienceKey
+                            ?? AssistantCampaignDraftBind.AudienceAllEligible,
+                        OfferStance = offerStance,
+                        CampaignName = existing.Name,
+                        Tone = "friendly_and_clear",
+                        Mode = "prepare",
+                        ConfirmedOffer = ToCampaignMessageDraftOfferPayload(offer),
+                    },
+                    cancellationToken
+                );
+                if (copy is CampaignMessageDraftServiceResult.Ok okCopy)
+                {
+                    messageSubject = string.Equals(
+                        channel,
+                        "sms",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                        ? null
+                        : okCopy.Subject;
+                    messageBody = okCopy.Body;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // Soft-fail: still attach OfferId when copy generate fails.
+            }
+
             CampaignDraftWriteResult patchResult;
             try
             {
@@ -3163,6 +3278,8 @@ namespace TummlyBackend.Services
                         RowVersion = existing.RowVersion,
                         OfferStance = offerStance,
                         OfferId = offerId,
+                        MessageSubject = messageSubject,
+                        MessageBody = messageBody,
                     },
                     cancellationToken
                 );
@@ -3170,6 +3287,22 @@ namespace TummlyBackend.Services
             catch (OperationCanceledException)
             {
                 throw;
+            }
+            catch (PlanEntitlementCapException cap)
+            {
+                // Attach promotes Draft → Active; Active Offer plan cap blocks it.
+                return new CombinedCreateTurn(
+                    AssistantMessageClass.Grounded,
+                    AssistantCombinedCreatePersistCopy.FailureTitle,
+                    $"The Offer was saved. The Campaign was not updated because this plan already uses {cap.Current} of {cap.Cap} Active Offers. Pause or archive an Active Offer, then retry attach.",
+                    AssistantActionCatalog.ValidateReviewOffer(
+                        offerId,
+                        AssistantMessageClass.Grounded
+                    ),
+                    null,
+                    offerId,
+                    null
+                );
             }
             catch
             {
@@ -3652,7 +3785,23 @@ namespace TummlyBackend.Services
                 ),
                 campaign.Id,
                 offerId,
-                null
+                null,
+                // Campaign Draft card — Edit Draft opens the Campaign wizard,
+                // not Offer Details (offer is secondary via review-offer).
+                AssistantDraftPreviewFactory.Campaign(
+                    campaign.Id,
+                    campaign.Name,
+                    resolvedAudienceLabel,
+                    campaign.Channel,
+                    campaign.MessageSubject,
+                    campaign.MessageBody,
+                    offerId: offerId,
+                    conditionsSummary:
+                        $"{AssistantCombinedCreatePersistCopy.TypeLabel(attached)} · {AssistantCombinedCreatePersistCopy.ValueLabel(attached)}",
+                    validityLabel: AssistantCombinedCreatePersistCopy.ValidityLabel(
+                        attached
+                    )
+                )
             );
         }
 
@@ -3673,6 +3822,16 @@ namespace TummlyBackend.Services
                 return providerTask;
             }
 
+            // "add 20% off…" must stay Campaign+Offer even when Azure returns
+            // OfferPath or a prior CreatedOfferId would mutate Offer only.
+            if (AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(userMessage)
+                || AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                    userMessage
+                ))
+            {
+                return AssistantTask.CreateCampaignWithOffer;
+            }
+
             if (AssistantPriorDraftAuthority.ResolveOffer(
                     conversation.CreatedOfferId,
                     userMessage
@@ -3688,6 +3847,12 @@ namespace TummlyBackend.Services
                         AssistantTask.CreateCampaignDraft,
                         StringComparison.Ordinal
                     )
+                )
+                && !AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    userMessage
+                )
+                && !AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                    userMessage
                 ))
             {
                 return AssistantTask.OfferPath;
@@ -3722,6 +3887,26 @@ namespace TummlyBackend.Services
                 ))
             {
                 return AssistantTask.OfferPath;
+            }
+
+            if (localTask == AssistantTask.CreateCampaignWithOffer
+                && (
+                    string.Equals(
+                        providerTask,
+                        AssistantTask.OfferPath,
+                        StringComparison.Ordinal
+                    )
+                    || string.Equals(
+                        providerTask,
+                        AssistantTask.Retrieve,
+                        StringComparison.Ordinal
+                    )
+                )
+                && AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(
+                    userMessage
+                ))
+            {
+                return AssistantTask.CreateCampaignWithOffer;
             }
 
             if (localTask == AssistantTask.RecoveryPath
@@ -3772,10 +3957,26 @@ namespace TummlyBackend.Services
         )
         {
             if (AssistantTaskClassification.LooksLikeAttachExistingOfferOnly(userMessage)
-                || AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(userMessage)
                 || AssistantTaskClassification.LooksLikeRemoveOfferFromCampaign(
                     userMessage
                 ))
+            {
+                return false;
+            }
+
+            // "add 20 percent off…" — create a new Offer even when terms are
+            // incomplete (typo week) or two catalog rows share "20% off".
+            if (AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(userMessage))
+            {
+                var commercial = priorTerms
+                    ?? AssistantOfferPathTerms.Parse(userMessage);
+                return commercial.DiscountPercentage is not null
+                    || commercial.DiscountAmount is not null
+                    || commercial.OfferType is not null
+                    || AssistantOfferPathTerms.IsComplete(commercial);
+            }
+
+            if (AssistantTaskClassification.LooksLikeAttachOnlyToCampaign(userMessage))
             {
                 return false;
             }
@@ -4123,40 +4324,19 @@ namespace TummlyBackend.Services
             switch (match)
             {
                 case AssistantRecoveryIdentity.Match.Many many
-                    when AssistantRecoveryIdentity.AsksForAll(userMessage):
+                    when AssistantRecoveryIdentity.AsksForAll(userMessage)
+                        || AssistantRecoveryIdentity.AsksForSetPrepare(
+                            gapState.SourceUserMessage
+                        ):
                 {
-                    var ordered = many.Rows
-                        .OrderByDescending(row => row.CreatedAt)
-                        .ThenByDescending(row => row.Id)
-                        .ToList();
-                    var persistAll = await PersistPrepareRecoveryAsync(
+                    var persistAll = await PersistBulkSharedPrepareAsync(
                         conversation,
                         gapState.SourceUserMessage,
                         feedbackEvidence,
                         offersEvidence,
-                        cancellationToken,
-                        ordered[0]
+                        many.Rows,
+                        cancellationToken
                     );
-                    if (persistAll.Work is not null)
-                    {
-                        persistAll.Work.PendingFeedbackIds = ordered
-                            .Skip(1)
-                            .Select(row => row.Id)
-                            .ToList();
-                    }
-
-                    if (ordered.Count > 1 && persistAll.Gap is null)
-                    {
-                        var remain = ordered.Count - 1;
-                        persistAll = persistAll with
-                        {
-                            Body = persistAll.Body
-                                + $"\n\n{remain} Feedback "
-                                + (remain == 1 ? "item remains" : "items remain")
-                                + ". Say yes to recover the next one.",
-                        };
-                    }
-
                     ApplyRecoveryPersist(conversation, persistAll);
                     return await PersistAssistantAsync(
                         conversation,
@@ -4232,6 +4412,215 @@ namespace TummlyBackend.Services
             }
         }
 
+        private async Task<RecoveryPersistTurn> PersistBulkSharedPrepareAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            AssistantFeedbackEvidence feedbackEvidence,
+            AssistantOffersEvidence offersEvidence,
+            IReadOnlyList<AssistantFeedbackEvidenceRow> candidateRows,
+            CancellationToken cancellationToken
+        )
+        {
+            IReadOnlyList<AssistantActionDto> none = [];
+            var intent = AssistantRecoveryIntent.Bind(userMessage);
+            var eligible = await FilterEligibleRecoveryRowsAsync(
+                candidateRows,
+                intent,
+                cancellationToken
+            );
+            if (eligible.Count == 0)
+            {
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.FailureTitle,
+                    AssistantRecoveryPersistCopy.BulkSharedNoneEligibleBody(),
+                    none,
+                    null,
+                    null
+                );
+            }
+
+            if (eligible.Count == 1)
+            {
+                return await PersistPrepareRecoveryAsync(
+                    conversation,
+                    userMessage,
+                    feedbackEvidence,
+                    offersEvidence,
+                    cancellationToken,
+                    eligible[0]
+                );
+            }
+
+            var capped = eligible
+                .Take(AssistantRecoveryWork.MaxBulkFeedbackIds)
+                .ToList();
+            var prepared = await PersistPrepareRecoveryAsync(
+                conversation,
+                userMessage,
+                feedbackEvidence,
+                offersEvidence,
+                cancellationToken,
+                capped[0]
+            );
+            if (prepared.Work is null || prepared.Gap is not null)
+            {
+                return prepared;
+            }
+
+            var channelLabel = AssistantRecoveryPersistCopy.ChannelLabel(
+                prepared.Work.Channel ?? "email"
+            );
+            prepared.Work.Message =
+                BulkRecoveryPersonalise.EnsureGuestFirstNameToken(
+                    prepared.Work.Message ?? string.Empty
+                );
+            prepared.Work.BulkShared = true;
+            prepared.Work.FeedbackIds = capped.Select(row => row.Id).ToList();
+            prepared.Work.PendingFeedbackIds = [];
+
+            if (_bulkRecoveryBatches is not null
+                && prepared.Work.LocationId is int locationId
+                && FeedbackGuestResponseMapping.TryParseChannel(
+                    prepared.Work.Channel,
+                    out var batchChannel
+                )
+                && prepared.Work.Intent
+                    == AssistantRecoveryEligibility.IntentRespondToGuest)
+            {
+                var location = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        item => item.Id == locationId,
+                        cancellationToken
+                    );
+                if (location is not null)
+                {
+                    try
+                    {
+                        var batch = await _bulkRecoveryBatches.CreateDraftAsync(
+                            location.RestaurantId,
+                            locationId,
+                            conversation.OwnerUserId,
+                            prepared.Work.FeedbackIds,
+                            batchChannel,
+                            FeedbackRecoveryIntent.RespondToGuest,
+                            prepared.Work.Subject,
+                            prepared.Work.Message ?? string.Empty,
+                            prepared.Work.Purpose,
+                            prepared.Work.Tone,
+                            prepared.Work.IncludeNotes,
+                            cancellationToken
+                        );
+                        if (batch is not null)
+                        {
+                            prepared.Work.BatchId = batch.Id;
+                            prepared.Work.Message = batch.BodyTemplate;
+                            prepared.Work.Subject = batch.Subject;
+                            prepared.Work.FeedbackIds = batch.Members
+                                .Select(m => m.FeedbackId)
+                                .ToList();
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch
+                    {
+                        // Fall through without BatchId — parse will reject bulk work.
+                    }
+                }
+            }
+
+            if (prepared.Work.BatchId is null or <= 0)
+            {
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.FailureTitle,
+                    AssistantRecoveryPersistCopy.FailureBody("bulk prepare"),
+                    none,
+                    null,
+                    null
+                );
+            }
+
+            return prepared with
+            {
+                Title = AssistantRecoveryPersistCopy.SuccessTitle,
+                Body = AssistantRecoveryPersistCopy.BulkSharedSuccessBody(
+                    prepared.Work.FeedbackIds.Count,
+                    channelLabel
+                ),
+                Actions = AssistantActionCatalog.ValidateBulkRecoveryActions(
+                    prepared.Work.FeedbackId,
+                    prepared.Work.BatchId.Value,
+                    prepared.Work.Intent,
+                    prepared.Work.FeedbackIds.Count,
+                    AssistantMessageClass.Grounded
+                ),
+                DraftPreview = AssistantDraftPreviewFactory.Recovery(
+                    prepared.Work.FeedbackId,
+                    prepared.Work.Channel ?? "email",
+                    prepared.Work.Subject,
+                    prepared.Work.Message,
+                    prepared.Work.Intent,
+                    prepared.Work.Purpose
+                ),
+            };
+        }
+
+        private async Task<List<AssistantFeedbackEvidenceRow>> FilterEligibleRecoveryRowsAsync(
+            IReadOnlyList<AssistantFeedbackEvidenceRow> rows,
+            string intent,
+            CancellationToken cancellationToken
+        )
+        {
+            var ordered = rows
+                .OrderByDescending(row => row.CreatedAt)
+                .ThenByDescending(row => row.Id)
+                .ToList();
+            if (ordered.Count == 0)
+            {
+                return [];
+            }
+
+            var ids = ordered.Select(row => row.Id).ToList();
+            List<Feedback> feedbacks;
+            try
+            {
+                feedbacks = await _context.Feedbacks
+                    .AsNoTracking()
+                    .Include(item => item.LocationGuest)
+                    .Where(item => ids.Contains(item.Id))
+                    .ToListAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return [];
+            }
+
+            var byId = feedbacks.ToDictionary(item => item.Id);
+            var eligible = new List<AssistantFeedbackEvidenceRow>();
+            foreach (var row in ordered)
+            {
+                if (!byId.TryGetValue(row.Id, out var feedback))
+                {
+                    continue;
+                }
+
+                if (AssistantRecoveryEligibility.Evaluate(feedback, intent)
+                    is AssistantRecoveryEligibility.Outcome.Allowed)
+                {
+                    eligible.Add(row);
+                }
+            }
+
+            return eligible;
+        }
+
         private async Task<RecoveryPersistTurn> PersistPrepareRecoveryAsync(
             AssistantConversation conversation,
             string userMessage,
@@ -4285,40 +4674,16 @@ namespace TummlyBackend.Services
                         null
                     );
                 case AssistantRecoveryIdentity.Match.Many many
-                    when AssistantRecoveryIdentity.AsksForAll(userMessage):
-                    var ordered = many.Rows
-                        .OrderByDescending(row => row.CreatedAt)
-                        .ThenByDescending(row => row.Id)
-                        .ToList();
-                    var prepared = await PersistPrepareRecoveryAsync(
+                    when AssistantRecoveryIdentity.AsksForAll(userMessage)
+                        || AssistantRecoveryIdentity.AsksForSetPrepare(userMessage):
+                    return await PersistBulkSharedPrepareAsync(
                         conversation,
                         userMessage,
                         feedbackEvidence,
                         offersEvidence,
-                        cancellationToken,
-                        ordered[0]
+                        many.Rows,
+                        cancellationToken
                     );
-                    if (prepared.Work is not null)
-                    {
-                        prepared.Work.PendingFeedbackIds = ordered
-                            .Skip(1)
-                            .Select(row => row.Id)
-                            .ToList();
-                    }
-
-                    if (ordered.Count > 1)
-                    {
-                        var remain = ordered.Count - 1;
-                        prepared = prepared with
-                        {
-                            Body = prepared.Body
-                                + $"\n\n{remain} negative Feedback "
-                                + (remain == 1 ? "item remains" : "items remain")
-                                + ". Say yes to recover the next one.",
-                        };
-                    }
-
-                    return prepared;
                 case AssistantRecoveryIdentity.Match.Many many:
                     return new RecoveryPersistTurn(
                         "",
@@ -4557,6 +4922,141 @@ namespace TummlyBackend.Services
             );
         }
 
+        private async Task<AssistantTurnOutcome?> TrySendBulkRecoveryAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            var current = AssistantRecoveryWork.Parse(conversation.RecoveryWorkJson);
+            if (current is not { BulkShared: true, FeedbackIds.Count: > 0 })
+            {
+                return null;
+            }
+
+            if (!AssistantRecoveryIdentity.AsksToSendBulk(userMessage))
+            {
+                return null;
+            }
+
+            if (current.Intent != AssistantRecoveryEligibility.IntentRespondToGuest
+                && current.Intent != AssistantRecoveryEligibility.IntentRespondAndRecord)
+            {
+                return await PersistAssistantAsync(
+                    conversation,
+                    GroundedMessage(
+                        DateTime.UtcNow,
+                        AssistantRecoveryPersistCopy.FailureTitle,
+                        "Bulk send is available for guest message recoveries. "
+                            + "Use Review recovery to finish other intents.",
+                        ReviewRecoveryActions(current.FeedbackId, current.Intent)
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
+            if (_bulkRecoveryBatches is null
+                || current.BatchId is null or <= 0)
+            {
+                return await PersistAssistantAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantRecoveryPersistCopy.FailureBody("bulk send")
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
+            if (!string.IsNullOrWhiteSpace(current.Message))
+            {
+                try
+                {
+                    await _bulkRecoveryBatches.UpdateDraftAsync(
+                        current.BatchId.Value,
+                        current.Subject,
+                        current.Message,
+                        current.Purpose,
+                        current.Tone,
+                        current.IncludeNotes,
+                        cancellationToken
+                    );
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch
+                {
+                    // Send still uses stored batch draft when update fails.
+                }
+            }
+
+            SendBulkRecoveryBatchResultDto? sendResult;
+            try
+            {
+                sendResult = await _bulkRecoveryBatches.SendAsync(
+                    current.BatchId.Value,
+                    conversation.OwnerUserId,
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return await PersistAssistantAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantRecoveryPersistCopy.FailureBody("bulk send")
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
+            if (sendResult is null)
+            {
+                return await PersistAssistantAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantRecoveryPersistCopy.FailureBody("bulk send")
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
+            conversation.RecoveryWorkJson = null;
+            return await PersistAssistantAsync(
+                conversation,
+                GroundedMessage(
+                    DateTime.UtcNow,
+                    "Recovery messages sent",
+                    AssistantRecoveryPersistCopy.BulkSendSummaryBody(
+                        sendResult.Sent,
+                        sendResult.Total,
+                        sendResult.Skipped + sendResult.Failed
+                    ),
+                    []
+                ),
+                replaceFailure,
+                cancellationToken,
+                liveAnswerAlreadyCompleted: true
+            );
+        }
+
         private async Task<AssistantTurnOutcome?> TryContinueRecoveryQueueAsync(
             AssistantConversation conversation,
             string userMessage,
@@ -4572,6 +5072,11 @@ namespace TummlyBackend.Services
             }
 
             var current = AssistantRecoveryWork.Parse(conversation.RecoveryWorkJson);
+            if (current is { BulkShared: true })
+            {
+                return null;
+            }
+
             if (current?.PendingFeedbackIds is not { Count: > 0 } pending)
             {
                 return null;
@@ -4710,6 +5215,9 @@ namespace TummlyBackend.Services
                     && !PreferCreateNewOfferWhenAttachAmbiguous(
                         sourceUserMessage,
                         priorTerms
+                    )
+                    && !AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                        sourceUserMessage
                     ))
                 {
                     var titles = offerMatches.Select(offer => offer.Title).ToList();
@@ -5384,6 +5892,20 @@ namespace TummlyBackend.Services
                     DraftPresentationOrNull(persist.DraftPreview)
                 );
 
+        private static AssistantMessage PersistCombinedTurnMessage(
+            DateTime createdAt,
+            CombinedCreateTurn persist
+        )
+            => persist.Class == AssistantMessageClass.Gap
+                ? GapMessage(createdAt, persist.Body)
+                : GroundedMessage(
+                    createdAt,
+                    persist.Title,
+                    persist.Body,
+                    persist.Actions,
+                    DraftPresentationOrNull(persist.DraftPreview)
+                );
+
         private static int CreatePersistLocationId(
             int? boundLocationId,
             AssistantConversation conversation
@@ -5599,6 +6121,35 @@ namespace TummlyBackend.Services
                             .Select(message => message.Body)
                     );
                     choice = AssistantCampaignDraftBind.ResolveSingleChannelLabel(earlier);
+                }
+
+                if (choice is null
+                    && gapState.Kind == AssistantGapTurn.KindOffer
+                    && AssistantTaskClassification.LooksLikeAddCommercialOfferTerms(
+                        gapState.SourceUserMessage
+                    )
+                    && string.Equals(
+                        gapState.AssistantTask,
+                        AssistantTask.CreateCampaignWithOffer,
+                        StringComparison.Ordinal
+                    ))
+                {
+                    // Duplicate "20% off, 20% off" cannot be named apart. Create
+                    // a new Offer from the source ask instead of re-asking.
+                    return await ResumeCombinedCreateAsync(
+                        conversation,
+                        gapState.SourceUserMessage,
+                        userMessage,
+                        analysisScopeLocationName,
+                        ownedLocations,
+                        new AssistantCampaignDraftBindChoice(
+                            ChannelLabel: gapState.ChannelLabel
+                        ),
+                        updateScope: false,
+                        replaceFailure,
+                        cancellationToken,
+                        allowEmptyAudience: gapState.AllowEmptyChannelAudience
+                    );
                 }
 
                 if (choice is null)
@@ -6259,12 +6810,7 @@ namespace TummlyBackend.Services
             return new GapResume(
                 await PersistAssistantAsync(
                     conversation,
-                    GroundedMessage(
-                        DateTime.UtcNow,
-                        persist.Title,
-                        persist.Body,
-                        persist.Actions
-                    ),
+                    PersistCombinedTurnMessage(DateTime.UtcNow, persist),
                     replaceFailure,
                     cancellationToken
                 ),
@@ -6355,12 +6901,7 @@ namespace TummlyBackend.Services
             return new GapResume(
                 await PersistAssistantAsync(
                     conversation,
-                    GroundedMessage(
-                        DateTime.UtcNow,
-                        persist.Title,
-                        persist.Body,
-                        persist.Actions
-                    ),
+                    PersistCombinedTurnMessage(DateTime.UtcNow, persist),
                     replaceFailure,
                     cancellationToken
                 ),
@@ -6728,17 +7269,9 @@ namespace TummlyBackend.Services
                 conversation.CreatedOfferId = createdOfferId;
             }
 
-            var assistantMessage = persist.Class == AssistantMessageClass.Gap
-                ? GapMessage(DateTime.UtcNow, persist.Body)
-                : GroundedMessage(
-                    DateTime.UtcNow,
-                    persist.Title,
-                    persist.Body,
-                    persist.Actions
-                );
             var turn = await PersistAssistantAsync(
                 conversation,
-                assistantMessage,
+                PersistCombinedTurnMessage(DateTime.UtcNow, persist),
                 replaceFailure,
                 cancellationToken,
                 liveAnswerAlreadyCompleted: true
@@ -8322,6 +8855,8 @@ namespace TummlyBackend.Services
             var domainCalls = calls
                 .Where(call => statusCalls.All(status => status.Id != call.Id))
                 .ToList();
+            var timings = AssistantTurnTimings.Current;
+            var phaseStartMs = timings?.ElapsedMs ?? 0;
             var results = new List<AssistantToolCallResult>();
             if (domainCalls.Count > 0)
             {
@@ -8336,6 +8871,7 @@ namespace TummlyBackend.Services
 
             foreach (var call in statusCalls)
             {
+                var callStartMs = timings?.ElapsedMs ?? 0;
                 results.Add(
                     new AssistantToolCallResult(
                         call.Id,
@@ -8343,8 +8879,14 @@ namespace TummlyBackend.Services
                         await ReadStatusToolAsync(context, call.Name, cancellationToken)
                     )
                 );
+                timings?.RecordToolCall(
+                    call.Name,
+                    timings.ElapsedMs - callStartMs,
+                    "success"
+                );
             }
 
+            timings?.AddToolPhase(timings.ElapsedMs - phaseStartMs);
             return results;
         }
 
@@ -8414,15 +8956,6 @@ namespace TummlyBackend.Services
                 _pendingScopeChange = null;
             }
 
-            if (assistantMessage.Role == AssistantMessageRole.Assistant)
-            {
-                assistantMessage.TurnTraceJson = AssistantTurnTrace.Serialize(
-                    _liveAnswerSettings,
-                    _turnToolNames
-                );
-                _turnToolNames.Clear();
-            }
-
             if (!liveAnswerAlreadyCompleted)
             {
                 proposedConversationTitle = await TryReadModelConversationTitleAsync(
@@ -8431,6 +8964,19 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
             }
+
+            var timings = AssistantTurnTimings.Current;
+            if (assistantMessage.Role == AssistantMessageRole.Assistant)
+            {
+                assistantMessage.TurnTraceJson = AssistantTurnTrace.Serialize(
+                    _liveAnswerSettings,
+                    _turnToolNames,
+                    timings
+                );
+                _turnToolNames.Clear();
+            }
+
+            var persistStartMs = timings?.ElapsedMs ?? 0;
 
             if (turnBilling is not null && turnBilling.ShouldConsume(assistantMessage))
             {
@@ -8477,6 +9023,16 @@ namespace TummlyBackend.Services
                 conversation.Messages.Add(assistantMessage);
                 conversation.LastActivityAt = assistantMessage.CreatedAt;
                 await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            if (timings is not null)
+            {
+                LogTurnTimings(
+                    conversation.Id,
+                    assistantMessage,
+                    timings,
+                    timings.ElapsedMs - persistStartMs
+                );
             }
 
             var dto = AssistantAnalysisScope.ToConversationDto(conversation);
@@ -8653,6 +9209,20 @@ namespace TummlyBackend.Services
                 .ThenBy(message => message.Id)
                 .Last();
             var scope = AssistantAnalysisScope.FromConversation(conversation);
+            var timings = AssistantTurnTimings.Current;
+            var firstTitleCall = timings?.ModelCallCount ?? 0;
+            // The title is not worth a slow turn: on timeout keep the
+            // first-message title.
+            using var titleLimit = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken
+            );
+            if (_liveAnswerSettings.AssistantTitleTimeoutSeconds > 0)
+            {
+                titleLimit.CancelAfter(
+                    TimeSpan.FromSeconds(_liveAnswerSettings.AssistantTitleTimeoutSeconds)
+                );
+            }
+
             try
             {
                 var answer = await _liveAnswer.CompleteAsync(
@@ -8662,11 +9232,20 @@ namespace TummlyBackend.Services
                         AssistantAnalysisScope.PeriodPhrase(scope.ReportingPeriod),
                         EmptyEvidence
                     ),
-                    cancellationToken
+                    titleLimit.Token
                 );
                 return answer is AssistantLiveAnswerResult.Succeeded succeeded
                     ? succeeded.ConversationTitle
                     : null;
+            }
+            catch (OperationCanceledException)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(
+                    "Assistant conversation title call passed {TimeoutSeconds} seconds; kept the first-message title",
+                    _liveAnswerSettings.AssistantTitleTimeoutSeconds
+                );
+                return null;
             }
             catch (OperationCanceledException)
             {
@@ -8676,6 +9255,45 @@ namespace TummlyBackend.Services
             {
                 return null;
             }
+            finally
+            {
+                timings?.RelabelModelCallsFrom(
+                    firstTitleCall,
+                    AssistantTurnTimings.RoundTitle
+                );
+            }
+        }
+
+        private void LogTurnTimings(
+            int conversationId,
+            AssistantMessage assistantMessage,
+            AssistantTurnTimings timings,
+            long persistMs
+        )
+        {
+            var summary = timings.Summarize();
+            _logger.LogInformation(
+                "Assistant turn timings: conversation {ConversationId}, class {AnswerClass}, "
+                    + "total {TotalMs} ms, before first model call {MsBeforeFirstModelCall} ms, "
+                    + "model calls {ModelCallCount} ({ModelRounds}) {ModelMs} ms with {ModelRetries} retries, "
+                    + "tool calls {ToolCallCount} in {ToolPhaseMs} ms, persist {PersistMs} ms, "
+                    + "tokens prompt {PromptTokens} cached {CachedTokens} completion {CompletionTokens} reasoning {ReasoningTokens}",
+                conversationId,
+                assistantMessage.Class.ToString(),
+                summary.TotalMs,
+                summary.MsBeforeFirstModelCall,
+                summary.ModelCallCount,
+                summary.ModelRounds,
+                summary.ModelMs,
+                summary.ModelRetries,
+                summary.ToolCallCount,
+                summary.ToolPhaseMs,
+                persistMs,
+                summary.PromptTokens,
+                summary.CachedTokens,
+                summary.CompletionTokens,
+                summary.ReasoningTokens
+            );
         }
 
         private async Task<AssistantConversation?> LoadOwnedConversationAsync(

@@ -29,6 +29,7 @@ type CampaignDetailPreviewDrawerProps = {
   onOpenChange: (open: boolean) => void
   onRetry: () => void
   onSelectChannel: (channelId: CampaignTemplatePreviewChannelId) => void
+  onSendCampaign: () => void
   onEditCampaign: () => void
 }
 
@@ -73,6 +74,7 @@ export function CampaignDetailPreviewDrawer({
   onOpenChange,
   onRetry,
   onSelectChannel,
+  onSendCampaign,
   onEditCampaign,
 }: CampaignDetailPreviewDrawerProps) {
   const copy = CAMPAIGN_DETAIL_PREVIEW_COPY
@@ -88,11 +90,13 @@ export function CampaignDetailPreviewDrawer({
       loadError={snapshot.loadError ?? copy.loadError}
       retryLabel={copy.retry}
       footerDisclaimer={viewModel?.footerDisclaimer ?? null}
-      primaryActionLabel={viewModel?.editCampaignLabel ?? null}
+      primaryActionLabel={viewModel?.sendCampaignLabel ?? null}
+      editActionLabel={viewModel?.editCampaignLabel ?? null}
       secondaryActionLabel={viewModel?.closeLabel ?? null}
       onOpenChange={onOpenChange}
       onRetry={onRetry}
-      onPrimaryAction={onEditCampaign}
+      onPrimaryAction={onSendCampaign}
+      onEditAction={onEditCampaign}
     >
       {viewModel != null ? (
         <PreviewBody
@@ -130,7 +134,10 @@ function PreviewBody({
 
   return (
     <>
-      <section className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS}>
+      <section
+        className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_CLASS}
+        data-demo-tour="campaign-report"
+      >
         <h2 className={CAMPAIGN_TEMPLATE_PREVIEW_SECTION_TITLE_CLASS}>
           {copy.campaignSummary}
         </h2>

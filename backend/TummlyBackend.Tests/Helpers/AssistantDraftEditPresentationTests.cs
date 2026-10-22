@@ -35,7 +35,12 @@ public class AssistantDraftEditPresentationTests
         Assert.Equal("Other Draft", AssistantMessagePresentationJson.ParseDto(other.PresentationJson)?.DraftPreview?.MessageBody);
         Assert.Equal("Shorter copy", AssistantMessagePresentationJson.ParseDto(update.PresentationJson)?.DraftPreview?.MessageBody);
         Assert.Single(AssistantAnalysisScope.ParseActions(update.ActionsJson));
-        Assert.Equal("Subject updated.", update.Body);
+        Assert.Equal(
+            AssistantCampaignDraftPersistCopy.ChangesBody(
+                ["Message updated. See the Draft card."]
+            ),
+            update.Body
+        );
     }
 
     [Fact]
@@ -45,6 +50,85 @@ public class AssistantDraftEditPresentationTests
         var conversation = new AssistantConversation { Messages = [original] };
         AssistantDraftCardRefresh.Apply(conversation, new AssistantMessage { Class = AssistantMessageClass.Failure });
         Assert.Equal("Original copy", AssistantMessagePresentationJson.ParseDto(original.PresentationJson)?.DraftPreview?.MessageBody);
+    }
+
+    /// <summary>
+    /// Attach Offer to an existing Campaign Draft: SuccessBody must stay
+    /// (not "No Draft fields changed") when prior card has the same CampaignId.
+    /// </summary>
+    [Fact]
+    public void AttachOffer_KeepsFullPersistSuccessBody_OnSameCampaignCard()
+    {
+        var original = Message(42, "Welcome back copy");
+        var conversation = new AssistantConversation { Messages = [original] };
+        var successBody = AssistantCombinedCreatePersistCopy.SuccessBody(
+            "Main",
+            "Email",
+            "All eligible guests",
+            eligibleCount: 12,
+            typeLabel: "Percentage discount",
+            valueLabel: "20%",
+            validityLabel: "7 days after issue",
+            offerTitle: "20% off",
+            campaignName: "Campaign by Email at Main"
+        );
+        var update = new AssistantMessage
+        {
+            Role = AssistantMessageRole.Assistant,
+            Class = AssistantMessageClass.Grounded,
+            Title = AssistantCombinedCreatePersistCopy.SuccessTitle,
+            Body = successBody,
+            PresentationJson = AssistantMessagePresentationJson.Serialize(
+                AssistantAnswerPresentationShape.ForDraftPreview(
+                    AssistantDraftPreviewFactory.Campaign(
+                        42,
+                        "Campaign by Email at Main",
+                        "All eligible guests",
+                        "email",
+                        "We'd love to welcome you back",
+                        "Welcome back copy",
+                        offerId: 99,
+                        conditionsSummary: "Percentage discount · 20%",
+                        validityLabel: "7 days after issue"
+                    )
+                )
+            ),
+            ActionsJson = AssistantAnalysisScope.SerializeActions(
+                [
+                    new AssistantActionDto
+                    {
+                        Type = "review-campaign",
+                        Label = "Review campaign draft",
+                        CampaignId = 42,
+                    },
+                ]
+            ),
+        };
+
+        AssistantDraftCardRefresh.Apply(conversation, update);
+
+        Assert.Null(
+            AssistantMessagePresentationJson.ParseDto(original.PresentationJson)
+                ?.DraftPreview
+        );
+        Assert.Equal(successBody, update.Body);
+        Assert.DoesNotContain(
+            "No Draft fields changed",
+            update.Body,
+            StringComparison.Ordinal
+        );
+        Assert.Equal(
+            99,
+            AssistantMessagePresentationJson.ParseDto(update.PresentationJson)
+                ?.DraftPreview
+                ?.OfferId
+        );
+        Assert.Equal(
+            "Percentage discount · 20%",
+            AssistantMessagePresentationJson.ParseDto(update.PresentationJson)
+                ?.DraftPreview
+                ?.ConditionsSummary
+        );
     }
 
     private static AssistantMessage Message(int id, string copy) => new()

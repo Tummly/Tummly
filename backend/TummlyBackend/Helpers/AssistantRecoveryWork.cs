@@ -54,14 +54,36 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// Negative Feedback ids still to recover after this one, newest first
-        /// already removed.
+        /// already removed. Unused when <see cref="BulkShared"/> is true.
         /// </summary>
         public List<int> PendingFeedbackIds { get; set; } = [];
+
+        /// <summary>
+        /// Shared draft prepared once; <see cref="FeedbackIds"/> are all send targets.
+        /// </summary>
+        public bool BulkShared { get; set; }
+
+        /// <summary>
+        /// Eligible Feedback ids for bulk shared send (includes the anchor
+        /// <see cref="FeedbackId"/>). Empty when not bulk.
+        /// </summary>
+        public List<int> FeedbackIds { get; set; } = [];
+
+        /// <summary>
+        /// Durable <see cref="Models.BulkRecoveryBatch"/> id when
+        /// <see cref="BulkShared"/> is true.
+        /// </summary>
+        public int? BatchId { get; set; }
     }
 
     public static class AssistantRecoveryWork
     {
         public const string Target = "recovery-work";
+
+        /// <summary>
+        /// Soft cap on bulk shared targets per prepare (retrieve set size).
+        /// </summary>
+        public const int MaxBulkFeedbackIds = 50;
 
         public static AssistantRecoveryWorkState? Parse(string? json)
         {
@@ -83,6 +105,24 @@ namespace TummlyBackend.Helpers
                     || string.IsNullOrWhiteSpace(state.Intent))
                 {
                     return null;
+                }
+
+                if (state.BulkShared)
+                {
+                    if (state.FeedbackIds is not { Count: > 0 })
+                    {
+                        return null;
+                    }
+
+                    if (!state.FeedbackIds.Contains(state.FeedbackId))
+                    {
+                        state.FeedbackIds.Insert(0, state.FeedbackId);
+                    }
+
+                    if (state.BatchId is null or <= 0)
+                    {
+                        return null;
+                    }
                 }
 
                 return state;
@@ -115,6 +155,11 @@ namespace TummlyBackend.Helpers
                 OfferId = state.OfferId,
                 UseConfirmedActionForGuestResponse =
                     state.UseConfirmedActionForGuestResponse,
+                BulkShared = state.BulkShared,
+                FeedbackIds = state.BulkShared
+                    ? state.FeedbackIds.ToList()
+                    : [],
+                BatchId = state.BulkShared ? state.BatchId : null,
             };
     }
 }

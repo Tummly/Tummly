@@ -36,12 +36,19 @@ namespace TummlyBackend.Helpers
             Uri requestUri,
             string apiKey,
             string body,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            AzureOpenAIRetryOptions? retry = null,
+            AzureOpenAIChatSendStats? stats = null
         )
         {
-            const int maxWaits = 3;
+            retry ??= AzureOpenAIRetryOptions.Default;
             for (var attempt = 0; ; attempt++)
             {
+                if (stats is not null)
+                {
+                    stats.Retries = attempt;
+                }
+
                 using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
                 request.Headers.TryAddWithoutValidation("api-key", apiKey);
                 request.Headers.Accept.Add(
@@ -54,9 +61,21 @@ namespace TummlyBackend.Helpers
                 );
 
                 using var response = await client.SendAsync(request, cancellationToken);
-                if (IsTransientStatusCode(response.StatusCode) && attempt < maxWaits)
+                if (stats is not null)
+                {
+                    stats.StatusCode = (int)response.StatusCode;
+                }
+
+                if (IsTransientStatusCode(response.StatusCode)
+                    && attempt < retry.MaxTransientRetries)
                 {
                     var wait = WaitAfterTransient(response, attempt);
+                    if (wait > retry.MaxRetryWait)
+                    {
+                        wait = retry.MaxRetryWait;
+                    }
+
+                    retry.OnTransientWait?.Invoke((int)response.StatusCode, wait);
                     await Task.Delay(wait, cancellationToken);
                     continue;
                 }
@@ -181,6 +200,30 @@ namespace TummlyBackend.Helpers
                 responseJson,
                 out content
             );
+    }
+
+    /// <summary>
+    /// Transient retry policy for one chat-completions call. The default keeps
+    /// the background workers' behaviour: three retries, up to 30 seconds each.
+    /// </summary>
+    public sealed record AzureOpenAIRetryOptions(
+        int MaxTransientRetries,
+        TimeSpan MaxRetryWait,
+        Action<int, TimeSpan>? OnTransientWait = null
+    )
+    {
+        public static readonly AzureOpenAIRetryOptions Default = new(
+            3,
+            TimeSpan.FromSeconds(30)
+        );
+    }
+
+    /// <summary>Last HTTP status and retry count of one send.</summary>
+    public sealed class AzureOpenAIChatSendStats
+    {
+        public int? StatusCode { get; set; }
+
+        public int Retries { get; set; }
     }
 
     public abstract record AzureOpenAIChatSendResult

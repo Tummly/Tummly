@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -26,6 +27,7 @@ namespace TummlyBackend.Services
         private readonly ICreditBalanceSnapshot _creditBalance;
         private readonly ICampaignFireWork _fireWork;
         private readonly ICampaignProductAnalytics _analytics;
+        private readonly IOffersCatalogService? _offers;
         private readonly Func<DateTime> _utcNow;
 
         public CampaignScheduleCommitService(
@@ -35,7 +37,8 @@ namespace TummlyBackend.Services
             ICreditBalanceSnapshot creditBalance,
             ICampaignFireWork fireWork,
             ICampaignProductAnalytics? analytics = null,
-            Func<DateTime>? utcNow = null
+            Func<DateTime>? utcNow = null,
+            IOffersCatalogService? offers = null
         )
         {
             _context = context;
@@ -44,6 +47,7 @@ namespace TummlyBackend.Services
             _creditBalance = creditBalance;
             _fireWork = fireWork;
             _analytics = analytics ?? NoOpCampaignProductAnalytics.Instance;
+            _offers = offers;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
@@ -319,6 +323,51 @@ namespace TummlyBackend.Services
                 entity.BillingReservationRef = reserved.ReservationRef;
 
                 await _context.SaveChangesAsync(cancellationToken);
+
+                // Draft Campaign attach keeps Offer Draft; schedule / send is the
+                // first live attach and may promote under Active Offer cap.
+                if (
+                    _offers != null
+                    && entity.OfferId is int attachedOfferId
+                )
+                {
+                    var sync =
+                        await _offers.SyncInFlightStoredStatusAsync(
+                            attachedOfferId,
+                            cancellationToken
+                        );
+                    if (
+                        sync is CatalogOfferInFlightSyncResult.CapReached cap
+                    )
+                    {
+                        if (transaction != null)
+                        {
+                            await transaction.RollbackAsync(
+                                cancellationToken
+                            );
+                        }
+                        else
+                        {
+                            _context.ChangeTracker.Clear();
+                        }
+
+                        await _billingReserve.ReleaseAsync(
+                            new CampaignBillingReleaseRequest
+                            {
+                                CampaignId = entity.Id,
+                                ReservationRef = reserved.ReservationRef,
+                            },
+                            cancellationToken
+                        );
+
+                        return new CampaignScheduleCommitResult.InvalidSchedule
+                        {
+                            Message =
+                                $"Active Offer limit reached ({cap.Current}/{cap.Cap}). Pause or archive another Active Offer before scheduling this campaign.",
+                        };
+                    }
+                }
+
                 if (transaction != null)
                 {
                     await transaction.CommitAsync(cancellationToken);

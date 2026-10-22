@@ -33,6 +33,7 @@ namespace TummlyBackend.Tests.Services
         private readonly RecordingAssistantProgressPublisher _progress;
         private readonly FakeCampaignMessageDraftProvider _messageDrafts;
         private readonly FakeFeedbackRecoveryDraftProvider _recoveryDrafts;
+        private readonly FakeFeedbackGuestResponsesService _guestResponses;
         private readonly ControllableHomeRecommendation _homeRecommendation;
         private readonly ControllableWeeklyBriefGenerate _weeklyBriefGenerate;
         private readonly CreditLedgerService _creditLedger;
@@ -81,6 +82,7 @@ namespace TummlyBackend.Tests.Services
             _progress = new RecordingAssistantProgressPublisher();
             _messageDrafts = new FakeCampaignMessageDraftProvider();
             _recoveryDrafts = new FakeFeedbackRecoveryDraftProvider();
+            _guestResponses = new FakeFeedbackGuestResponsesService();
             _homeRecommendation = new ControllableHomeRecommendation();
             _weeklyBriefGenerate = new ControllableWeeklyBriefGenerate();
             _clock = new ManualTimeProvider(_now);
@@ -138,6 +140,12 @@ namespace TummlyBackend.Tests.Services
                 thankYouOffers ?? new CaptureThankYouOfferService(_context, catalog),
                 new RestaurantPermissionHelper(_context),
                 aiBilling ?? _aiBilling,
+                _guestResponses,
+                new BulkRecoveryBatchService(
+                    _context,
+                    _guestResponses,
+                    timeProvider ?? _clock
+                ),
                 timeProvider ?? _clock,
                 liveAnswerOptions
                     ?? Options.Create(
@@ -1864,7 +1872,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("10%", answer.Body, StringComparison.Ordinal);
             Assert.Contains("30 days after issue", answer.Body, StringComparison.Ordinal);
             Assert.Contains(
-                "Active (attached to this Campaign Draft)",
+                "Draft (attached to this Campaign Draft)",
                 answer.Body,
                 StringComparison.Ordinal
             );
@@ -1889,9 +1897,13 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("draft", campaign.Status);
             Assert.Equal("create-new-offer", campaign.OfferStance);
             Assert.Equal(offer.Id, campaign.OfferId);
-            Assert.Equal(CatalogOfferStatus.Active, offer.Status);
+            // Campaign Draft attach does not promote Offer → Active.
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
             Assert.Equal(campaign.Id, answer.Actions[0].CampaignId);
             Assert.Equal(offer.Id, answer.Actions[2].OfferId);
+            Assert.NotNull(answer.Presentation?.DraftPreview);
+            Assert.Equal("campaign", answer.Presentation!.DraftPreview!.Kind);
+            Assert.Equal(campaign.Id, answer.Presentation.DraftPreview.CampaignId);
             Assert.Equal(campaign.Id, _context.AssistantConversations.Single().CreatedCampaignId);
             Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
             Assert.Null(
@@ -2157,10 +2169,14 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(offerId, offer.Id);
             Assert.Equal("existing-offer", campaign.OfferStance);
             Assert.Equal(offerId, campaign.OfferId);
-            Assert.Equal(CatalogOfferStatus.Active, offer.Status);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
             Assert.Equal(
                 new[] { "review-campaign", "change-audience", "review-offer" },
                 ok.Conversation.Messages[^1].Actions.Select(action => action.Type)
+            );
+            Assert.Equal(
+                "campaign",
+                ok.Conversation.Messages[^1].Presentation?.DraftPreview?.Kind
             );
             Assert.DoesNotContain(
                 "create-new-offer",
@@ -2544,6 +2560,330 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(campaign);
             Assert.Equal(offerId, campaign!.OfferId);
             Assert.Equal("existing-offer", campaign.OfferStance);
+        }
+
+        [Fact]
+        public async Task SendTurn_AddOfferToThatCampaign_CreatesOfferAndPatchesPriorDraft()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            var campaignId = Assert.Single(_context.Campaigns).Id;
+            Assert.Equal(
+                campaignId,
+                _context.AssistantConversations.Single().CreatedCampaignId
+            );
+            Assert.Null((await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+
+            var attached = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Add to that campaign a 20% offer that is valid for a week",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.Equal(
+                "Campaign Draft saved with Offer",
+                attached.Conversation.Messages[^1].Title
+            );
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            Assert.Equal(1, await _context.CatalogOffers.CountAsync());
+            var campaign = await _context.Campaigns.FindAsync(campaignId);
+            Assert.NotNull(campaign);
+            Assert.NotNull(campaign!.OfferId);
+            Assert.Equal("create-new-offer", campaign.OfferStance);
+            Assert.Equal(
+                campaign.OfferId,
+                _context.AssistantConversations.Single().CreatedOfferId
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_ForcedRetrieve_AddOfferToThatCampaign_StillPersistsAttach()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            var campaignId = Assert.Single(_context.Campaigns).Id;
+
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Attach 20% off",
+                "I will create a new offer and attach it to the draft.",
+                AssistantTask.Retrieve
+            );
+
+            var attached = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Add to that campaign a 20% offer that is valid for a week",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.Equal(
+                "Campaign Draft saved with Offer",
+                attached.Conversation.Messages[^1].Title
+            );
+            Assert.NotNull((await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_AddPercentOff_TwoExistingSameTitle_CreatesNewNotClashGap()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+            await SeedCatalogOfferAsync(
+                locationId,
+                "20% off",
+                status: CatalogOfferStatus.Draft,
+                discountPercentage: 20m
+            );
+            await SeedCatalogOfferAsync(
+                locationId,
+                "20% off",
+                status: CatalogOfferStatus.Draft,
+                discountPercentage: 20m
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            var campaignId = Assert.Single(_context.Campaigns).Id;
+
+            var attached = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "add 20 percent off 1 weeek",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.Equal("grounded", attached.Conversation.Messages[^1].Class);
+            Assert.Equal(
+                "Campaign Draft saved with Offer",
+                attached.Conversation.Messages[^1].Title
+            );
+            Assert.DoesNotContain(
+                "Which existing Offer",
+                attached.Conversation.Messages[^1].Body,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.Equal(3, await _context.CatalogOffers.CountAsync());
+            Assert.NotNull((await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+        }
+
+        [Fact]
+        public async Task SendTurn_ForcedOfferPath_AddPercentOff_ShowsCampaignNotOfferDraft()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            var campaignId = Assert.Single(_context.Campaigns).Id;
+            Assert.Equal(
+                campaignId,
+                _context.AssistantConversations.Single().CreatedCampaignId
+            );
+            var priorOfferId = await SeedCatalogOfferAsync(
+                locationId,
+                "Prior 10% off",
+                status: CatalogOfferStatus.Draft,
+                discountPercentage: 10m
+            );
+            var conversation = _context.AssistantConversations.Single();
+            conversation.CreatedOfferId = priorOfferId;
+            await _context.SaveChangesAsync();
+
+            _fake.ResetToCannedStub();
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Offers catalog Draft",
+                "I updated the Offers catalog Draft.",
+                AssistantTask.OfferPath
+            );
+
+            var attached = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "add 20 percent off for 1 week",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.Equal(
+                "Campaign Draft saved with Offer",
+                attached.Conversation.Messages[^1].Title
+            );
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            Assert.NotNull((await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+        }
+
+        [Fact]
+        public async Task SendTurn_AddPercentDiscount_AttachesToPriorDraftNotNoOffer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            var campaignId = Assert.Single(_context.Campaigns).Id;
+            Assert.Null((await _context.Campaigns.FindAsync(campaignId))!.OfferId);
+
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft",
+                "I saved a Campaign Draft.",
+                AssistantTask.CreateCampaignDraft
+            );
+
+            var attached = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "add 20 percent discount for a week",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.Equal(
+                "Campaign Draft saved with Offer",
+                attached.Conversation.Messages[^1].Title
+            );
+            Assert.DoesNotContain(
+                "No Offer",
+                attached.Conversation.Messages[^1].Body,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            var campaign = await _context.Campaigns.FindAsync(campaignId);
+            Assert.NotNull(campaign!.OfferId);
+            Assert.Equal(1, await _context.CatalogOffers.CountAsync());
+            Assert.Contains(
+                "20% off",
+                campaign.MessageBody ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.NotNull(_messageDrafts.LastInput?.ConfirmedOffer);
+            Assert.Equal(20m, _messageDrafts.LastInput!.ConfirmedOffer!.DiscountPercentage);
+        }
+
+        [Fact]
+        public async Task SendTurn_AddItToDraft_Confirm_AttachesExistingOfferNotNoOffer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+            var offerId = await SeedCatalogOfferAsync(locationId, "20% off");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            var campaignId = Assert.Single(_context.Campaigns).Id;
+            var conversation = _context.AssistantConversations.Single();
+            conversation.CreatedOfferId = offerId;
+            await _context.SaveChangesAsync();
+
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft",
+                "Campaign Draft saved with No Offer.",
+                AssistantTask.CreateCampaignDraft
+            );
+
+            var attached = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "add it to draft",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.Equal(
+                "Campaign Draft saved with Offer",
+                attached.Conversation.Messages[^1].Title
+            );
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            Assert.Equal(
+                offerId,
+                (await _context.Campaigns.FindAsync(campaignId))!.OfferId
+            );
+            Assert.Equal(1, await _context.CatalogOffers.CountAsync());
         }
 
         [Fact]
@@ -4933,6 +5273,129 @@ namespace TummlyBackend.Tests.Services
             Assert.DoesNotContain(answer.Actions, action => action.Type == "review-campaign");
             Assert.Null(ok.Conversation.PendingCampaignDraft);
             Assert.False(ok.Conversation.DraftInterviewActive);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoverySet_ManyEligible_BulkSharedDraftNotGap()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var guestA = await SeedLocationGuestAsync(locationId, DateTime.UtcNow.AddHours(-3));
+            var guestB = await SeedLocationGuestAsync(locationId, DateTime.UtcNow.AddHours(-2));
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-3),
+                locationGuestId: guestA,
+                guestName: "Alex One",
+                guestContact: "alex@example.com"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                locationGuestId: guestB,
+                guestName: "Blair Two",
+                guestContact: "blair@example.com"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Prepare recovery responses for the guests that need attention in this Feedback set."
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.DoesNotContain(
+                "Which Feedback should I recover",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("**2** Feedback that need recovery", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Would you like any changes?", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                answer.Actions,
+                action => action.Type == "send-bulk-recovery" && action.Count == 2
+            );
+            Assert.Contains(
+                answer.Actions,
+                action => action.Type == "open-bulk-recovery" && action.BatchId > 0
+            );
+            Assert.NotNull(ok.Conversation.PendingRecoveryDraft);
+            Assert.True(ok.Conversation.PendingRecoveryDraft!.BulkShared);
+            Assert.Equal(2, ok.Conversation.PendingRecoveryDraft.FeedbackIds.Count);
+            Assert.True(ok.Conversation.PendingRecoveryDraft.BatchId is > 0);
+            Assert.Contains(
+                BulkRecoveryPersonalise.GuestFirstNameToken,
+                ok.Conversation.PendingRecoveryDraft.Message ?? "",
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_BulkShared_SendToAll_LoopsGuestResponses()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var guestA = await SeedLocationGuestAsync(locationId, DateTime.UtcNow.AddHours(-3));
+            var guestB = await SeedLocationGuestAsync(locationId, DateTime.UtcNow.AddHours(-2));
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-3),
+                locationGuestId: guestA,
+                guestName: "Alex One",
+                guestContact: "alex@example.com"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                locationGuestId: guestB,
+                guestName: "Blair Two",
+                guestContact: "blair@example.com"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Hi Alex, Shared recovery body for all guests.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var prepared = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Prepare recovery responses for the guests that need attention in this Feedback set."
+                    )
+                )
+            );
+            var conversationId = prepared.Conversation.Id;
+            Assert.True(prepared.Conversation.PendingRecoveryDraft?.BatchId is > 0);
+
+            var sentOutcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Send to all 2", conversationId)
+            );
+            var sent = Assert.IsType<AssistantTurnOutcome.Ok>(sentOutcome);
+            Assert.Equal(2, _guestResponses.Sent.Count);
+            Assert.Contains(
+                _guestResponses.Sent,
+                item => item.Body.StartsWith("Hi Alex,", StringComparison.Ordinal)
+            );
+            Assert.Contains(
+                _guestResponses.Sent,
+                item => item.Body.StartsWith("Hi Blair,", StringComparison.Ordinal)
+            );
+            Assert.Contains(
+                "Sent to **2** of **2**",
+                sent.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.Null(sent.Conversation.PendingRecoveryDraft);
         }
 
         [Fact]

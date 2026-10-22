@@ -582,6 +582,109 @@ namespace TummlyBackend.Migrations
                     b.ToTable("BillingAccounts");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.BulkRecoveryBatch", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BodyTemplate")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IncludeNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Intent")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Tone")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("RestaurantId");
+
+                    b.HasIndex("RestaurantLocationId", "CreatedAt");
+
+                    b.ToTable("BulkRecoveryBatches");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.BulkRecoveryBatchMember", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BatchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("FeedbackGuestResponseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FeedbackGuestResponseId");
+
+                    b.HasIndex("FeedbackId");
+
+                    b.HasIndex("BatchId", "FeedbackId")
+                        .IsUnique();
+
+                    b.ToTable("BulkRecoveryBatchMembers");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.Campaign", b =>
                 {
                     b.Property<int>("Id")
@@ -5421,6 +5524,59 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Restaurant");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.BulkRecoveryBatch", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
+                        .WithMany()
+                        .HasForeignKey("RestaurantLocationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Restaurant");
+
+                    b.Navigation("RestaurantLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.BulkRecoveryBatchMember", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.BulkRecoveryBatch", "Batch")
+                        .WithMany("Members")
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.FeedbackGuestResponse", "FeedbackGuestResponse")
+                        .WithMany()
+                        .HasForeignKey("FeedbackGuestResponseId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Batch");
+
+                    b.Navigation("Feedback");
+
+                    b.Navigation("FeedbackGuestResponse");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.Campaign", b =>
                 {
                     b.HasOne("TummlyBackend.Models.User", "CreatedByUser")
@@ -6688,6 +6844,11 @@ namespace TummlyBackend.Migrations
             modelBuilder.Entity("TummlyBackend.Models.AssistantConversation", b =>
                 {
                     b.Navigation("Messages");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.BulkRecoveryBatch", b =>
+                {
+                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.CommercialCatalogVersion", b =>

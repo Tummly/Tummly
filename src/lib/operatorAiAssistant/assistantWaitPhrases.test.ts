@@ -67,6 +67,11 @@ describe("assistantWaitPhrases", () => {
         "What's billing Does my account have at the moment?"
       )
     ).toBe("billing")
+    expect(
+      classifyAssistantWaitRetrieveFocus(
+        "What changed across my Guest Loop this week?"
+      )
+    ).toBe("performance")
   })
 
   it("refuse and out-of-scope waits never rotate retrieve summary copy", () => {
@@ -99,7 +104,7 @@ describe("assistantWaitPhrases", () => {
     expect(plan.gate).toBe("retrieve")
     expect(plan.retrieveFocus).toBe("billing")
     expect(assistantWaitPhraseAt(plan, "retrieving", 0)).toBe(
-      "Loading plan and billing status…"
+      "Reading plan and billing status…"
     )
     expect(assistantWaitPhraseAt(plan, "preparing", 0)).toBe(
       "Writing the plan and credits answer…"
@@ -128,7 +133,7 @@ describe("assistantWaitPhrases", () => {
 
     const feedback = planAssistantWaitPhrases("Summarise recent feedback")
     expect(assistantWaitPhraseAt(feedback, "retrieving", 0)).toBe(
-      "Loading feedback scores…"
+      "Reading feedback scores…"
     )
     expect(assistantWaitPhraseAt(feedback, "preparing", 0)).toBe(
       "Summarising feedback…"
@@ -138,7 +143,7 @@ describe("assistantWaitPhrases", () => {
   it("exports default retrieve bodies and recognises wait phrases", () => {
     expect(ASSISTANT_WAIT_BODY).toBe("Matching your question to venue data…")
     expect(ASSISTANT_WAIT_RETRIEVING_BODY).toBe(
-      "Loading campaigns, feedback, and offers…"
+      "Reading campaigns, feedback, and offers…"
     )
     expect(ASSISTANT_WAIT_PREPARING_BODY).toBe("Writing the summary…")
     expect(isAssistantCheckingWaitBody(ASSISTANT_WAIT_BODY)).toBe(true)

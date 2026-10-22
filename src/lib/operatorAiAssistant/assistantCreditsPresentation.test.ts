@@ -238,13 +238,15 @@ describe("assistantCreditsPresentation", () => {
     )
   })
 
-  it("uses a shorter composer field below md and Figma 144px from md", () => {
+  it("uses a compact composer field so more thread text stays in view", () => {
     const className = assistantComposerFieldClass("mic")
 
-    expect(className).toContain("min-h-[112px]")
-    expect(className).toContain("p-4")
-    expect(className).toContain("md:min-h-[144px]")
-    expect(className).toContain("md:p-[21px]")
+    expect(className).toContain("h-[84px]")
+    expect(className).toContain("p-3")
+    expect(className).toContain("md:h-[96px]")
+    expect(className).toContain("md:p-3.5")
+    expect(className).not.toContain("min-h-[")
+    expect(className).not.toContain("h-[144px]")
   })
 
   it("keeps Mic and Send circles the same size", () => {
@@ -258,6 +260,8 @@ describe("assistantCreditsPresentation", () => {
   it("uses primary typed text, muted placeholder text, and no inner focus chrome", () => {
     const className = assistantComposerTextareaClass()
 
+    expect(className).toContain("field-sizing-fixed")
+    expect(className).toContain("overflow-y-auto")
     expect(className).toContain("text-op-text-primary")
     expect(className).toContain(
       "placeholder:text-[var(--op-color-gray-550)]"
