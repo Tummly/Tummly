@@ -298,62 +298,6 @@ namespace TummlyBackend.Services
             );
         }
 
-        public async Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
-            string subscriptionId,
-            CancellationToken cancellationToken = default
-        )
-        {
-            if (
-                string.IsNullOrWhiteSpace(subscriptionId)
-                || string.IsNullOrWhiteSpace(_settings.SecretKey)
-                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
-            )
-            {
-                return new RevolutMerchantCreateResult(
-                    Succeeded: false,
-                    ErrorCode: "revolut_not_ready"
-                );
-            }
-
-            var client = _httpClientFactory.CreateClient(HttpClientName);
-            using var message = new HttpRequestMessage(
-                HttpMethod.Patch,
-                $"api/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}"
-            );
-            message.Content = JsonContent.Create(
-                new
-                {
-                    scheduled_action = new
-                    {
-                        type = "cancel",
-                        reason = "customer_request",
-                    },
-                },
-                options: JsonOptions
-            );
-            ApplyAuthHeaders(message);
-
-            using var response = await client.SendAsync(
-                message,
-                cancellationToken
-            );
-            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                return new RevolutMerchantCreateResult(
-                    Succeeded: false,
-                    ErrorCode: "revolut_http_error",
-                    RawBody: raw
-                );
-            }
-
-            return new RevolutMerchantCreateResult(
-                Succeeded: true,
-                Id: subscriptionId.Trim(),
-                RawBody: raw
-            );
-        }
-
         public async Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
             string subscriptionId,
             CancellationToken cancellationToken = default
@@ -743,6 +687,7 @@ namespace TummlyBackend.Services
             string? currentCycleId = null;
             string? paymentMethodId = null;
             string? customerId = null;
+            var hasScheduledAction = false;
             if (!string.IsNullOrWhiteSpace(raw))
             {
                 using var doc = JsonDocument.Parse(raw);
@@ -752,6 +697,10 @@ namespace TummlyBackend.Services
                 currentCycleId = ReadStringProp(root, "current_cycle_id");
                 paymentMethodId = ReadStringProp(root, "payment_method_id");
                 customerId = ReadStringProp(root, "customer_id");
+                hasScheduledAction =
+                    root.ValueKind == JsonValueKind.Object
+                    && root.TryGetProperty("scheduled_action", out var scheduled)
+                    && scheduled.ValueKind == JsonValueKind.Object;
             }
 
             return new RevolutSubscriptionRetrieveResult(
@@ -761,7 +710,8 @@ namespace TummlyBackend.Services
                 CurrentCycleId: currentCycleId,
                 PaymentMethodId: paymentMethodId,
                 CustomerId: customerId,
-                RawBody: raw
+                RawBody: raw,
+                HasScheduledAction: hasScheduledAction
             );
         }
 

@@ -12,6 +12,9 @@ namespace TummlyBackend.DTOs.TeamPermissions
 
         public int? Current { get; init; }
 
+        /// <summary>Set when a scheduled downgrade sets the cap.</summary>
+        public string? ScheduledChangeMessage { get; init; }
+
         public static TeamPermissionsWriteResult Ok() => new();
 
         public static TeamPermissionsWriteResult Fail(string error) => new()
@@ -33,6 +36,7 @@ namespace TummlyBackend.DTOs.TeamPermissions
                 return new TeamPermissionsWriteResult
                 {
                     Error = TeamMemberCapGate.CapReachedMessage,
+                    ScheduledChangeMessage = decision.Message,
                     Code = TeamMemberCapGate.CapReachedCode,
                     Cap = decision.Cap,
                     Current = decision.Current,

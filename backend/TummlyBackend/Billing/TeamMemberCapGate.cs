@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -42,10 +43,23 @@ namespace TummlyBackend.Billing
                 return TeamMemberCapDecision.UnavailableNow();
             }
 
+            var scheduledCap = PendingPlanLimits.ScheduledTeamCap(_pricebook, account);
+            var scheduledLimits = scheduledCap != null && scheduledCap < cap;
+            if (scheduledLimits)
+            {
+                cap = scheduledCap!.Value;
+            }
+
             var current = await CountUsageAsync(restaurantId);
             if (current >= cap)
             {
-                return TeamMemberCapDecision.AtCap(cap, current);
+                return TeamMemberCapDecision.AtCap(
+                    cap,
+                    current,
+                    scheduledLimits
+                        ? PendingPlanLimits.TeamCapMessage(account, cap)
+                        : null
+                );
             }
 
             return TeamMemberCapDecision.Allow(cap, current);

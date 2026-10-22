@@ -22,6 +22,7 @@ import {
   type AdminShopCatalogSpecification,
   type AdminShopCatalogTag,
 } from "@/api/adminShopCatalogApi"
+import { demoteAdminShopInterestBySku } from "@/api/adminShopInterestApi"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
@@ -339,6 +340,18 @@ export function AdminShopCatalogPanel() {
     }
   }
 
+  const demoteToInterest = async (sku: AdminShopCatalogSku) => {
+    if (!sku.linkedInterestProductKey) return
+    try {
+      await demoteAdminShopInterestBySku(sku.skuId)
+      toast.success("Product demoted to Register Interest.")
+      setEditor(null)
+      await reload()
+    } catch (error) {
+      toast.error(apiErrorMessage(error, "Could not demote product."))
+    }
+  }
+
   const addTag = async () => {
     const label = newTagLabel.trim()
     if (!label) return
@@ -555,6 +568,16 @@ export function AdminShopCatalogPanel() {
                         >
                           Delete
                         </Button>
+                        {sku.linkedInterestProductKey ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="op-secondary"
+                            onClick={() => void demoteToInterest(sku)}
+                          >
+                            Demote to Interest
+                          </Button>
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>

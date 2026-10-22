@@ -13,8 +13,8 @@ import { forGroupsProductVideoUrl } from "@/lib/marketingMedia"
 import { cn } from "@/lib/utils"
 
 /**
- * Figma For Groups Product `6405:36122`.
- * Centre copy + four equal cards (video fills card, copy overlaid at bottom) + CTA.
+ * Figma For Groups Product `6405:36122` / cards `6405:36126`.
+ * Centre copy + four equal cards (video above copy) + CTA.
  */
 export function ForGroupsProduct() {
   return (
@@ -50,27 +50,15 @@ export function ForGroupsProduct() {
           {FOR_GROUPS_PRODUCT.cards.map((card) => (
             <li key={card.id} className="flex min-w-0">
               <article
-                className="relative flex h-[496px] w-full flex-col items-center justify-end overflow-hidden rounded-[12px] pb-10"
+                className="flex h-[496px] w-full flex-col items-center overflow-hidden rounded-[12px] pb-10"
                 style={{ backgroundColor: FOR_GROUPS_PRODUCT.cardBackground }}
               >
                 <MarketingLoopVideo
                   src={forGroupsProductVideoUrl(card.id)}
-                  className="absolute inset-0 size-full bg-black"
-                  videoClassName="inset-auto left-0 w-full object-cover object-top"
-                  style={{
-                    // Source frames pad the UI ~33% down. Shift a taller
-                    // cover up so the UI meets the card top (files unchanged).
-                    top: "-53%",
-                    height: "160%",
-                    right: "auto",
-                    bottom: "auto",
-                  }}
+                  className="min-h-0 w-full flex-1 bg-[#e1dfdb]"
+                  videoClassName="bg-[#e1dfdb] object-cover object-center"
                 />
-                <div
-                  className="pointer-events-none absolute inset-x-0 bottom-0 z-1 h-45 bg-linear-to-t from-[#e1dfdb] via-[#e1dfdb]/85 to-transparent"
-                  aria-hidden
-                />
-                <div className="relative z-10 flex w-full flex-col items-center gap-3.5 px-2.5 text-center text-[#141414]">
+                <div className="flex w-full shrink-0 flex-col items-center gap-3.5 px-2.5 text-center text-[#141414]">
                   <h3 className="m-0 font-jakarta text-xl font-bold leading-normal">
                     {card.title}
                   </h3>

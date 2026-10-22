@@ -49,7 +49,7 @@ export function QrMaterialsStarterKit() {
               {QR_MATERIALS_STARTER_KIT.ctaLabel}
             </RequestTrialLink>
           </MarketingButton>
-          <p className="m-0 font-sans text-xs font-medium leading-normal text-[#727272]">
+          <p className="m-0 text-xs font-inter font-medium leading-normal text-[#727272]">
             {QR_MATERIALS_STARTER_KIT.note}
           </p>
         </div>

@@ -113,9 +113,6 @@ export function OffersListTable({
               </TableCell>
               <TableCell
                 className={GUESTS_TABLE_BODY_CELL_CLASS}
-                data-demo-tour={
-                  row.title.includes("14%") ? "offer-metrics" : undefined
-                }
               >
                 <span className="text-sm text-foreground">{row.claimsLabel}</span>
               </TableCell>
