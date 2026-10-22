@@ -1,4 +1,4 @@
-namespace TummlyBackend.DTOs.BillingCredits
+﻿namespace TummlyBackend.DTOs.BillingCredits
 {
     public sealed class CreditTopUpRequestDto
     {
@@ -31,5 +31,19 @@ namespace TummlyBackend.DTOs.BillingCredits
         public string Outcome { get; set; } = "pay";
 
         public string RedirectUrl { get; set; } = string.Empty;
+    }
+
+    public sealed class CustomPlanCyclePayDto
+    {
+        public bool Success { get; set; } = true;
+
+        public string CheckoutUrl { get; set; } = string.Empty;
+    }
+
+    public sealed class PendingPaymentRetryDto
+    {
+        public bool Success { get; set; } = true;
+
+        public string CheckoutUrl { get; set; } = string.Empty;
     }
 }

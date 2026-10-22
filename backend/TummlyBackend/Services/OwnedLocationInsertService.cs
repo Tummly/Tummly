@@ -124,7 +124,8 @@ namespace TummlyBackend.Services
                     case AddOwnedLocationResult.CapReached reached:
                         remainingRowTemplate = new ImportErrorRow(
                             index,
-                            $"Location cap reached ({reached.Current} of {reached.Cap}).",
+                            reached.Message
+                                ?? $"Location cap reached ({reached.Current} of {reached.Cap}).",
                             LocationCap.CapReachedCode,
                             reached.Cap,
                             reached.Current
@@ -178,7 +179,8 @@ namespace TummlyBackend.Services
             }
 
             if (
-                !TryResolveEntitled(
+                !PendingPlanLimits.TryResolveLiveLocationCap(
+                    _pricebookCatalog,
                     billingAccount,
                     out var entitled
                 )
@@ -188,15 +190,30 @@ namespace TummlyBackend.Services
                 return new AddOwnedLocationResult.FailClosed();
             }
 
-            var ownedCount = await _context.RestaurantLocations
-                .CountAsync(row => row.RestaurantId == restaurantId);
+            var scheduledCap = PendingPlanLimits.ScheduledLocationCap(
+                _pricebookCatalog,
+                billingAccount
+            );
+            var scheduledLimits = scheduledCap != null && scheduledCap < entitled;
+            if (scheduledLimits)
+            {
+                entitled = scheduledCap!.Value;
+            }
+
+            var ownedCount = await PendingPlanLimits.CountInsertLocationsAsync(
+                _context,
+                restaurantId
+            );
 
             if (ownedCount >= entitled)
             {
                 await transaction.RollbackAsync();
                 return new AddOwnedLocationResult.CapReached(
                     entitled,
-                    ownedCount
+                    ownedCount,
+                    scheduledLimits
+                        ? PendingPlanLimits.LocationCapMessage(billingAccount, entitled)
+                        : null
                 );
             }
 
@@ -283,30 +300,6 @@ namespace TummlyBackend.Services
             }
 
             return null;
-        }
-
-        private bool TryResolveEntitled(
-            BillingAccount billingAccount,
-            out int entitled
-        )
-        {
-            entitled = 0;
-            try
-            {
-                var book = _pricebookCatalog.GetRequired(
-                    billingAccount.ContractedPricebookId
-                );
-                return LocationCap.TryResolve(
-                    book,
-                    billingAccount.SubscriptionPlan,
-                    billingAccount.PaidExtraLocationCount,
-                    out entitled
-                );
-            }
-            catch (InvalidOperationException)
-            {
-                return false;
-            }
         }
 
         private async Task LockBillingAccountRowAsync(int restaurantId)

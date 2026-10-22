@@ -217,6 +217,37 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ProcessJobForRestaurant_CustomCancelAtRenewalDate_SoftLocksAsPilot()
+        {
+            var renewal = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var harness = await SeedPaidAccountAsync(
+                BillingSubscriptionPlans.Custom,
+                BillingCycles.Monthly,
+                utcNow: renewal
+            );
+            var account = await harness.Context.BillingAccounts.SingleAsync();
+            account.ScheduledCancelPlan = true;
+            account.HasScheduledChange = true;
+            account.RenewalDateUtc = renewal;
+            account.CustomPlanConfigJson =
+                """{"catalogPublicId":"cat","cadence":"monthly","periodNetPence":9000,"monthlyNetPence":9000,"quantities":{"locations":2,"teamUsers":2,"qrPlacements":5,"offers":1,"emailCredits":500,"smsCredits":20,"aiCredits":20}}""";
+            await harness.Context.SaveChangesAsync();
+
+            var result = await harness.Mint.ProcessJobForRestaurantAsync(
+                harness.RestaurantId,
+                nowUtc: renewal
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Equal("cancel_applied", result.Code);
+            await harness.Context.Entry(account).ReloadAsync();
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.SoftLock, account.BillingStatus);
+            Assert.Null(account.CustomPlanConfigJson);
+            Assert.False(account.ScheduledCancelPlan);
+        }
+
+        [Fact]
         public async Task ProcessJobForRestaurant_CancelAtRenewalDate_AppliesAndSkipsMint()
         {
             var renewal = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);

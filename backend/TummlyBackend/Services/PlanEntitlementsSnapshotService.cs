@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
@@ -55,12 +56,12 @@ namespace TummlyBackend.Services
             }
 
             var now = DateTime.UtcNow;
-            var locationCount = await _context.RestaurantLocations
-                .AsNoTracking()
-                .CountAsync(
-                    row => row.RestaurantId == restaurantId,
-                    cancellationToken
-                );
+            // Same rows the insert gate counts (Draft + Active).
+            var locationCount = await PendingPlanLimits.CountInsertLocationsAsync(
+                _context,
+                restaurantId,
+                cancellationToken
+            );
             var activeMembers = await _context.RestaurantMemberships
                 .AsNoTracking()
                 .CountAsync(
@@ -86,10 +87,12 @@ namespace TummlyBackend.Services
                 select offer.Id
             ).CountAsync(cancellationToken);
 
+            var customLocs = CustomConfiguredLocations(billingAccount!);
             LocationCap.TryResolve(
                 ResolveBook(billingAccount!),
                 billingAccount!.SubscriptionPlan,
                 billingAccount.PaidExtraLocationCount,
+                customLocs,
                 out var locationCap
             );
 
@@ -99,11 +102,59 @@ namespace TummlyBackend.Services
                 );
             var teamCurrent = activeMembers + pendingInvites;
 
+            PlanEntitlementLimitDto? qrAccountExtra = null;
+            if (
+                string.Equals(
+                    billingAccount.SubscriptionPlan,
+                    BillingSubscriptionPlans.Custom,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                var custom = CustomPlanConfig.TryParse(
+                    billingAccount.CustomPlanConfigJson
+                );
+                if (custom != null && custom.Quantities.QrPlacementsAccountExtra > 0)
+                {
+                    var perLocCap = Math.Max(0, custom.Quantities.QrPlacements);
+                    var locationIds = await _context.RestaurantLocations
+                        .AsNoTracking()
+                        .Where(row => row.RestaurantId == restaurantId)
+                        .Select(row => row.Id)
+                        .ToListAsync(cancellationToken);
+                    var activeByLocation = await _context.QrCodes
+                        .AsNoTracking()
+                        .Where(qr =>
+                            locationIds.Contains(qr.RestaurantLocationId)
+                            && qr.Status == QrCodeStatus.Active
+                        )
+                        .GroupBy(qr => qr.RestaurantLocationId)
+                        .Select(g => new { LocationId = g.Key, Count = g.Count() })
+                        .ToDictionaryAsync(
+                            row => row.LocationId,
+                            row => row.Count,
+                            cancellationToken
+                        );
+                    var overflow = 0;
+                    foreach (var locId in locationIds)
+                    {
+                        var active = activeByLocation.GetValueOrDefault(locId);
+                        overflow += Math.Max(0, active - perLocCap);
+                    }
+
+                    qrAccountExtra = Limit(
+                        custom.Quantities.QrPlacementsAccountExtra,
+                        overflow
+                    );
+                }
+            }
+
             return new PlanEntitlementsAccountSnapshotDto
             {
                 Locations = Limit(locationCap, locationCount),
                 TeamMembers = Limit(teamCap, teamCurrent),
                 ActiveOffers = Limit(plan.ActiveOffersAccount, activeOffers),
+                ActiveQrPlacementsAccountExtra = qrAccountExtra,
             };
         }
 
@@ -195,6 +246,44 @@ namespace TummlyBackend.Services
             }
 
             var key = billingAccount.SubscriptionPlan.Trim().ToLowerInvariant();
+            if (key == "custom")
+            {
+                var custom = CustomPlanConfig.TryParse(
+                    billingAccount.CustomPlanConfigJson
+                );
+                if (custom == null)
+                {
+                    return false;
+                }
+
+                plan = new PricebookPlan
+                {
+                    Key = "custom",
+                    DisplayName = "Custom",
+                    MonthlyNetPence = custom.MonthlyNetPence,
+                    AnnualNetPence = custom.PeriodNetPence,
+                    IncludedLocations = Math.Min(
+                        custom.Quantities.Locations,
+                        CustomPlanConfig.MaxLocations
+                    ),
+                    IncludedTeamMembers = Math.Max(0, custom.Quantities.TeamUsers),
+                    ActiveOffersAccount = Math.Max(0, custom.Quantities.Offers),
+                    ActiveQrPlacementsPerLocation = Math.Max(
+                        0,
+                        custom.Quantities.QrPlacements
+                    ),
+                    PublishedGuestFormsPerLocation = 1,
+                    DraftGuestFormsPerLocation = 1,
+                    CreditsMonthly = new PricebookChannelCredits
+                    {
+                        Ai = custom.Quantities.AiCredits,
+                        Email = custom.Quantities.EmailCredits,
+                        Sms = custom.Quantities.SmsCredits,
+                    },
+                };
+                return true;
+            }
+
             if (!book.Plans.TryGetValue(key, out plan))
             {
                 return false;
@@ -206,6 +295,23 @@ namespace TummlyBackend.Services
         private PricebookSnapshot ResolveBook(BillingAccount billingAccount)
         {
             return _pricebook.GetRequired(billingAccount.ContractedPricebookId);
+        }
+
+        private static int? CustomConfiguredLocations(BillingAccount billingAccount)
+        {
+            if (
+                !string.Equals(
+                    billingAccount.SubscriptionPlan,
+                    BillingSubscriptionPlans.Custom,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return null;
+            }
+
+            var custom = CustomPlanConfig.TryParse(billingAccount.CustomPlanConfigJson);
+            return custom?.Quantities.Locations;
         }
 
         private static PlanEntitlementLimitDto Limit(int cap, int current)

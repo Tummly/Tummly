@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
@@ -715,7 +716,13 @@ namespace TummlyBackend.Services
             var billingAccount = await LoadBillingAccountForUpdateAsync(
                 restaurantId
             );
-            if (!TryResolveActiveQrCap(billingAccount, out var cap))
+            if (
+                !TryResolveActiveQrCap(
+                    billingAccount,
+                    out var perLocCap,
+                    out var accountExtra
+                )
+            )
             {
                 return QrLifecycleResult.Conflict(
                     "Plan entitlements are unavailable."
@@ -727,12 +734,49 @@ namespace TummlyBackend.Services
                 && qr.Status == QrCodeStatus.Active
             );
 
-            if (current + increment > cap)
+            if (current + increment <= perLocCap)
             {
-                return QrLifecycleResult.ActiveQrCapReached(cap, current);
+                return null;
             }
 
-            return null;
+            if (accountExtra <= 0)
+            {
+                return QrLifecycleResult.ActiveQrCapReached(perLocCap, current);
+            }
+
+            // Account-wide pool: Σ max(0, active_l − perLocCap) may use accountExtra.
+            var locationIds = await _context.RestaurantLocations
+                .Where(row => row.RestaurantId == restaurantId)
+                .Select(row => row.Id)
+                .ToListAsync();
+
+            var activeByLocation = await _context.QrCodes
+                .Where(qr =>
+                    locationIds.Contains(qr.RestaurantLocationId)
+                    && qr.Status == QrCodeStatus.Active
+                )
+                .GroupBy(qr => qr.RestaurantLocationId)
+                .Select(g => new { LocationId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(row => row.LocationId, row => row.Count);
+
+            var totalOverflow = 0;
+            foreach (var locId in locationIds)
+            {
+                var active = activeByLocation.GetValueOrDefault(locId);
+                if (locId == locationId)
+                {
+                    active = current + increment;
+                }
+
+                totalOverflow += Math.Max(0, active - perLocCap);
+            }
+
+            if (totalOverflow <= accountExtra)
+            {
+                return null;
+            }
+
+            return QrLifecycleResult.ActiveQrCapReached(perLocCap, current);
         }
 
         private async Task<BillingAccount?> LoadBillingAccountForUpdateAsync(
@@ -755,10 +799,12 @@ namespace TummlyBackend.Services
 
         private bool TryResolveActiveQrCap(
             BillingAccount? billingAccount,
-            out int cap
+            out int perLocationCap,
+            out int accountExtra
         )
         {
-            cap = 0;
+            perLocationCap = 0;
+            accountExtra = 0;
             if (
                 billingAccount == null
                 || string.IsNullOrWhiteSpace(
@@ -767,6 +813,25 @@ namespace TummlyBackend.Services
             )
             {
                 return false;
+            }
+
+            var key = billingAccount.SubscriptionPlan.Trim().ToLowerInvariant();
+            if (key == "custom")
+            {
+                var custom = CustomPlanConfig.TryParse(
+                    billingAccount.CustomPlanConfigJson
+                );
+                if (custom == null)
+                {
+                    return false;
+                }
+
+                perLocationCap = Math.Max(0, custom.Quantities.QrPlacements);
+                accountExtra = Math.Max(
+                    0,
+                    custom.Quantities.QrPlacementsAccountExtra
+                );
+                return true;
             }
 
             PricebookSnapshot book;
@@ -781,13 +846,12 @@ namespace TummlyBackend.Services
                 return false;
             }
 
-            var key = billingAccount.SubscriptionPlan.Trim().ToLowerInvariant();
             if (!book.Plans.TryGetValue(key, out var plan))
             {
                 return false;
             }
 
-            cap = plan.ActiveQrPlacementsPerLocation;
+            perLocationCap = plan.ActiveQrPlacementsPerLocation;
             return true;
         }
 

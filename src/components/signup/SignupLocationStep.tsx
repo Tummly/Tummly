@@ -123,7 +123,7 @@ export function SignupLocationStep({
             onClick={() => void onContinue()}
             className="h-11 min-w-0 flex-1 rounded-[4px] px-[18px] py-3 text-sm font-medium leading-[22px] shadow-none"
           >
-            {isSubmitting ? "Please wait..." : "Set up your account"}
+            {isSubmitting ? "Please wait..." : "Continue"}
           </Button>
         </div>
       </div>

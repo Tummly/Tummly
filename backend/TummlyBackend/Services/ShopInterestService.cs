@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Shop;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -26,6 +27,7 @@ namespace TummlyBackend.Services
         {
             var products = await _context.ShopInterestProducts
                 .AsNoTracking()
+                .Include(row => row.Images)
                 .Where(row => row.IsActive)
                 .OrderBy(row => row.Id)
                 .ToListAsync(cancellationToken);
@@ -45,15 +47,27 @@ namespace TummlyBackend.Services
             }
 
             return products
-                .Select(row => new ShopInterestProductDto
+                .Select(row =>
                 {
-                    ProductKey = row.ProductKey,
-                    Title = row.Title,
-                    Description = row.Description,
-                    ImageUrl = row.ImageUrl,
-                    InterestRegistered =
-                        registeredKeys != null
-                        && registeredKeys.Contains(row.ProductKey),
+                    var firstImage = row.Images
+                        .OrderBy(image => image.SortOrder)
+                        .ThenBy(image => image.Id)
+                        .FirstOrDefault();
+                    return new ShopInterestProductDto
+                    {
+                        ProductKey = row.ProductKey,
+                        Title = row.Title,
+                        Description = row.Description,
+                        ImageUrl =
+                            firstImage == null
+                                ? null
+                                : ShopCatalogImageRules.BuildPublicUrl(
+                                    firstImage.StorageKey
+                                ),
+                        InterestRegistered =
+                            registeredKeys != null
+                            && registeredKeys.Contains(row.ProductKey),
+                    };
                 })
                 .ToList();
         }

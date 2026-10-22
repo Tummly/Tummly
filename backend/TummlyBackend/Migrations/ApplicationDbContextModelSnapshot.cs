@@ -451,10 +451,16 @@ namespace TummlyBackend.Migrations
                     b.Property<bool>("ChargebackRestricted")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("ContractedCatalogVersionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ContractedPricebookId")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("CustomPlanConfigJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("DormantEnteredAt")
                         .HasColumnType("datetime2");
@@ -495,6 +501,24 @@ namespace TummlyBackend.Migrations
 
                     b.Property<bool>("PaymentFailureAlertOwner")
                         .HasColumnType("bit");
+
+                    b.Property<string>("PendingPaymentCadence")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("PendingPaymentCustomConfigJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("PendingPaymentFailedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PendingPaymentFailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PendingPaymentPlan")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<bool>("PilotDormantNotified")
                         .HasColumnType("bit");
@@ -548,6 +572,8 @@ namespace TummlyBackend.Migrations
                         .HasColumnType("nvarchar(32)");
 
                     b.HasKey("RestaurantId");
+
+                    b.HasIndex("ContractedCatalogVersionId");
 
                     b.HasIndex("RevolutCustomerId")
                         .IsUnique()
@@ -864,6 +890,257 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("RestaurantLocationId", "Status");
 
                     b.ToTable("CatalogOffers");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.CommercialCatalogVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PublicId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("PublishedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PublishedByAdminUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("VatRateBps")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("CommercialCatalogVersions");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.CommercialCustomUnitRateRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("AnnualNetPence")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CatalogVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("MonthlyNetPence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RateKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("UnitQuantity")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogVersionId", "RateKey")
+                        .IsUnique();
+
+                    b.ToTable("CommercialCustomUnitRateRows");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.CommercialExtraLocationRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AnnualNetPence")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CatalogVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("CreditsMonthlyAi")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CreditsMonthlyEmail")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CreditsMonthlySms")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LookupKeyAnnual")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("LookupKeyMonthly")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("MonthlyNetPence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RevolutPlanVariationIdAnnual")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("RevolutPlanVariationIdMonthly")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("UsersAdded")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogVersionId")
+                        .IsUnique();
+
+                    b.ToTable("CommercialExtraLocationRows");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.CommercialPlanRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ActiveOffersAccount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ActiveQrPlacementsPerLocation")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AnnualNetPence")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CatalogVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("CreditsMonthlyAi")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreditsMonthlyEmail")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreditsMonthlySms")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreditsOneTimeAi")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreditsOneTimeEmail")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreditsOneTimeSms")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("DraftGuestFormsPerLocation")
+                        .HasColumnType("int");
+
+                    b.Property<int>("IncludedLocations")
+                        .HasColumnType("int");
+
+                    b.Property<int>("IncludedTeamMembers")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LookupKeyAnnual")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("LookupKeyMonthly")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("MonthlyNetPence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PlanKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("PublishedGuestFormsPerLocation")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RevolutPlanVariationIdAnnual")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("RevolutPlanVariationIdMonthly")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int?>("SelfServeMaxLocations")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogVersionId", "PlanKey")
+                        .IsUnique();
+
+                    b.ToTable("CommercialPlanRows");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.CommercialTopUpPackRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ApprovalRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("CatalogVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("LookupKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("NetPence")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogVersionId", "LookupKey")
+                        .IsUnique();
+
+                    b.ToTable("CommercialTopUpPackRows");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.CreditLedgerEntry", b =>
@@ -2657,6 +2934,9 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("CustomPlanConfigJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -2689,6 +2969,9 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("RevolutOrderId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("SessionLoginConsumedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<Guid>("SessionToken")
                         .HasColumnType("uniqueidentifier");
@@ -3921,12 +4204,22 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
-                    b.Property<string>("ImageUrl")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
+                    b.Property<string>("Dimensions")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<string>("LinkedSkuId")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Material")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("ProductKey")
                         .IsRequired()
@@ -3938,12 +4231,51 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("LinkedSkuId");
 
                     b.HasIndex("ProductKey")
                         .IsUnique();
 
                     b.ToTable("ShopInterestProducts");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopInterestProductImage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ShopInterestProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopInterestProductId", "SortOrder");
+
+                    b.ToTable("ShopInterestProductImages");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.ShopInterestRegistration", b =>
@@ -5073,11 +5405,18 @@ namespace TummlyBackend.Migrations
 
             modelBuilder.Entity("TummlyBackend.Models.BillingAccount", b =>
                 {
+                    b.HasOne("TummlyBackend.Models.CommercialCatalogVersion", "ContractedCatalogVersion")
+                        .WithMany()
+                        .HasForeignKey("ContractedCatalogVersionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
                         .WithOne("BillingAccount")
                         .HasForeignKey("TummlyBackend.Models.BillingAccount", "RestaurantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ContractedCatalogVersion");
 
                     b.Navigation("Restaurant");
                 });
@@ -5170,6 +5509,50 @@ namespace TummlyBackend.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("RestaurantLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.CommercialCustomUnitRateRow", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.CommercialCatalogVersion", "CatalogVersion")
+                        .WithMany("CustomUnitRates")
+                        .HasForeignKey("CatalogVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CatalogVersion");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.CommercialExtraLocationRow", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.CommercialCatalogVersion", "CatalogVersion")
+                        .WithMany("ExtraLocations")
+                        .HasForeignKey("CatalogVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CatalogVersion");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.CommercialPlanRow", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.CommercialCatalogVersion", "CatalogVersion")
+                        .WithMany("Plans")
+                        .HasForeignKey("CatalogVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CatalogVersion");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.CommercialTopUpPackRow", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.CommercialCatalogVersion", "CatalogVersion")
+                        .WithMany("TopUpPacks")
+                        .HasForeignKey("CatalogVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CatalogVersion");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.CreditLedgerEntry", b =>
@@ -6092,6 +6475,17 @@ namespace TummlyBackend.Migrations
                     b.Navigation("ShopCart");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.ShopInterestProductImage", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.ShopInterestProduct", "Product")
+                        .WithMany("Images")
+                        .HasForeignKey("ShopInterestProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.ShopInterestRegistration", b =>
                 {
                     b.HasOne("TummlyBackend.Models.ShopInterestProduct", "Product")
@@ -6296,6 +6690,17 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Messages");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.CommercialCatalogVersion", b =>
+                {
+                    b.Navigation("CustomUnitRates");
+
+                    b.Navigation("ExtraLocations");
+
+                    b.Navigation("Plans");
+
+                    b.Navigation("TopUpPacks");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.GuestTag", b =>
                 {
                     b.Navigation("Memberships");
@@ -6345,6 +6750,8 @@ namespace TummlyBackend.Migrations
 
             modelBuilder.Entity("TummlyBackend.Models.ShopInterestProduct", b =>
                 {
+                    b.Navigation("Images");
+
                     b.Navigation("Registrations");
                 });
 

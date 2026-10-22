@@ -165,7 +165,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task MintOnOrderCompleted_GateFailed_DoesNotApplyOrMint()
+        public async Task MintOnOrderCompleted_GateFailed_KeepsLivePlanMintsAndAudits()
         {
             var now = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
             var harness = await SeedGrowthWithScheduleAsync(
@@ -185,7 +185,8 @@ namespace TummlyBackend.Tests.Services
                 }
             );
 
-            Assert.Equal("scheduled_change_gate_failed", result.Code);
+            Assert.True(result.Succeeded);
+            Assert.Equal(3, result.InsertedAllocationIds.Count);
 
             var account = await harness.Context.BillingAccounts
                 .AsNoTracking()
@@ -195,9 +196,44 @@ namespace TummlyBackend.Tests.Services
                 BillingSubscriptionPlans.Starter,
                 account.ScheduledTargetSubscriptionPlan
             );
+
+            var email = await harness.Context.CreditLedgerEntries
+                .SingleAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                    && row.Channel == CreditChannels.Email
+                );
+            Assert.Equal(10_000, email.Quantity);
+
+            var audit = await harness.Context.AdminAuditEvents.SingleAsync();
             Assert.Equal(
+                AdminAuditActions.BillingScheduledChangeGateFailed,
+                audit.Action
+            );
+            Assert.Equal(harness.RestaurantId, audit.RestaurantId);
+            Assert.False(audit.Succeeded);
+        }
+
+        [Fact]
+        public async Task EnsureEntitlementGate_IgnoresPausedAndArchivedLocations()
+        {
+            var now = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
+            var harness = await SeedGrowthWithScheduleAsync(
+                now,
+                BillingSubscriptionPlans.Starter,
+                BillingCycles.Monthly,
+                extraLocations: 2
+            );
+            var extras = await harness.Context.RestaurantLocations
+                .Where(row => row.LocationName.StartsWith("Extra"))
+                .ToListAsync();
+            extras[0].LifecycleStatus = LocationLifecycleStatus.Paused;
+            extras[1].LifecycleStatus = LocationLifecycleStatus.Archived;
+            await harness.Context.SaveChangesAsync();
+
+            await harness.PlanChange.EnsureEntitlementGateAsync(
+                BillingSubscriptionPlans.Starter,
                 0,
-                await harness.Context.CreditLedgerEntries.CountAsync()
+                harness.RestaurantId
             );
         }
 
