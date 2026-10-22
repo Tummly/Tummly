@@ -78,7 +78,7 @@ export function HeroSignupForm({
             className="size-[13px] shrink-0 text-[#727272] lg:size-4"
             strokeWidth={2}
           />
-          <p className="m-0 text-[10px] font-medium leading-[12px] text-[#727272] lg:text-xs lg:leading-normal">
+          <p className="m-0 text-[10px] font-inter font-medium leading-[12px] text-[#727272] lg:text-xs lg:leading-normal">
             {trustBadge}
           </p>
         </div>
@@ -101,7 +101,7 @@ export function HeroSignupForm({
             placeholder={emailPlaceholder}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="h-[46px] min-h-[46px] flex-1 rounded-[8px] border-[#969696] bg-transparent px-[17px] py-[15px] text-base leading-5 text-[#141414] placeholder:text-[#7d7d7d] focus-visible:border-[#141414] focus-visible:ring-[#141414]/20 md:text-base"
+            className="h-[46px] min-h-[46px] flex-1 rounded-[8px] border-[#969696] bg-transparent px-[17px] py-[15px] text-base leading-5 font-inter text-[#141414] placeholder:text-[#7d7d7d] focus-visible:border-[#141414] focus-visible:ring-[#141414]/20 md:text-base"
           />
           <MarketingButton
             type="submit"

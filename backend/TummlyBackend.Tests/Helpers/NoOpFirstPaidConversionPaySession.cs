@@ -54,6 +54,9 @@ namespace TummlyBackend.Tests.Helpers
 
         public int AbandonCallCount { get; private set; }
 
+        /// <summary>When set, StartAsync throws with this code (Revolut failure).</summary>
+        public string? FailWithCode { get; set; }
+
         public const string CheckoutUrl = "https://checkout.test/paid-signup";
 
         public async Task<PlanChangeResultDto> StartAsync(
@@ -71,6 +74,11 @@ namespace TummlyBackend.Tests.Helpers
             LastTargetPlan = targetPlan;
             LastTargetCadence = targetCadenceApi;
             LastSuccessRedirectUrl = successRedirectUrl;
+
+            if (FailWithCode != null)
+            {
+                throw new InvalidOperationException(FailWithCode);
+            }
 
             _context.RevolutPendingPaySessions.Add(
                 new RevolutPendingPaySession

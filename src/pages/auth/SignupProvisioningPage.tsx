@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom"
 import {
   getSignupProvisioningStatus,
   retrySignupProvision,
+  signupSessionLogin,
 } from "@/api/signupApi"
 import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
 import { Button } from "@/components/ui/button"
@@ -12,6 +13,7 @@ import {
   clearSignupSessionToken,
   readSignupSessionToken,
 } from "@/lib/signupSession"
+import { persistSignupLoginSession } from "@/pages/utils/authHelpers"
 
 const POLL_INTERVAL_MS = 2000
 
@@ -21,6 +23,15 @@ const PROVISIONING_LOADING_COPY = "Setting up your Tummly workspace…"
 async function kickPilotProvision(sessionToken: string) {
   await retrySignupProvision(sessionToken)
 }
+
+/** Account exists (no paid plan yet) when checkout fails to open. */
+const PAYMENT_FAILED_HEADING =
+  "Your account is created, but we couldn't take payment."
+
+const PAYMENT_FAILED_CONTINUE_FREE = "Continue on Free for now"
+
+const PAYMENT_FAILED_MESSAGE =
+  "Your paid plan is not active yet because the payment page didn't open. Select Retry to open it again."
 
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error)) {
@@ -51,13 +62,10 @@ function SignupProvisioningPage() {
   const [provisioningAttempt, setProvisioningAttempt] = useState(0)
 
   const provisioningRunId = useRef(0)
-  /** Avoid /signup bounce when goToLogin clears the session before navigate lands. */
-  const leavingForLoginRef = useRef(false)
+  const isPaymentFailed = provisioningError === PAYMENT_FAILED_MESSAGE
 
-  const goToLogin = useCallback(() => {
-    leavingForLoginRef.current = true
-    clearSignupSessionToken()
-    navigate("/login?setup=complete", { replace: true })
+  const goToComplete = useCallback(() => {
+    navigate("/signup/complete", { replace: true })
   }, [navigate])
 
   const goToOnboarding = useCallback(() => {
@@ -66,10 +74,6 @@ function SignupProvisioningPage() {
 
   useEffect(() => {
     if (!sessionToken) {
-      if (leavingForLoginRef.current) {
-        navigate("/login?setup=complete", { replace: true })
-        return
-      }
       navigate("/signup", { replace: true })
       return
     }
@@ -104,6 +108,10 @@ function SignupProvisioningPage() {
         if (status.status === "EmailPending") {
           navigate("/signup", { replace: true })
           return "redirected"
+        }
+
+        if (status.status === "PaymentFailed") {
+          throw new Error(PAYMENT_FAILED_MESSAGE)
         }
 
         if (status.status === "AwaitingPayment") {
@@ -141,6 +149,10 @@ function SignupProvisioningPage() {
     const waitUntilReady = async () => {
       while (isCurrent()) {
         const status = await getSignupProvisioningStatus(sessionToken)
+
+        if (status.status === "PaymentFailed") {
+          throw new Error(PAYMENT_FAILED_MESSAGE)
+        }
 
         if (status.ready || status.status === "Complete") {
           if (
@@ -182,7 +194,7 @@ function SignupProvisioningPage() {
         await waitUntilReady()
         if (!isCurrent()) return
 
-        goToLogin()
+        goToComplete()
       } catch (error) {
         if (!isCurrent()) return
         setProvisioningError(
@@ -200,7 +212,7 @@ function SignupProvisioningPage() {
         provisioningRunId.current += 1
       }
     }
-  }, [goToLogin, navigate, provisioningAttempt, sessionToken])
+  }, [goToComplete, navigate, provisioningAttempt, sessionToken])
 
   const handleRetry = () => {
     if (isBusy || !sessionToken) return
@@ -228,6 +240,31 @@ function SignupProvisioningPage() {
     })()
   }
 
+  const handleContinueOnFree = () => {
+    if (isBusy || !sessionToken) return
+
+    void (async () => {
+      setIsBusy(true)
+      try {
+        const session = await signupSessionLogin(sessionToken, {
+          continueOnFree: true,
+        })
+        persistSignupLoginSession(session)
+        clearSignupSessionToken()
+        // Free cap is 1 Location: the Locations step forwards to the WebApp.
+        navigate("/signup/locations", { replace: true })
+      } catch (error) {
+        setProvisioningError(
+          getApiErrorMessage(
+            error,
+            "We couldn't sign you in. Please try again."
+          )
+        )
+        setIsBusy(false)
+      }
+    })()
+  }
+
   if (!sessionToken) {
     return null
   }
@@ -237,13 +274,16 @@ function SignupProvisioningPage() {
       contentAlign="center"
       contentMaxWidthClassName="max-w-none"
       showBackButton={Boolean(provisioningError)}
+      backButtonPlacement="top"
       backButtonDisabled={false}
       onBack={provisioningError ? goToOnboarding : undefined}
     >
       {provisioningError ? (
         <div className="mx-auto flex w-full max-w-[473px] flex-col gap-6">
           <p className="m-0 text-center font-sans text-lg font-normal leading-6 text-[#141414]">
-            We couldn&apos;t finish setting up your account.
+            {isPaymentFailed
+              ? PAYMENT_FAILED_HEADING
+              : "We couldn't finish setting up your account."}
           </p>
           <div
             className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700"
@@ -259,6 +299,17 @@ function SignupProvisioningPage() {
           >
             {isBusy ? "Retrying…" : "Retry"}
           </Button>
+          {isPaymentFailed ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isBusy}
+              onClick={handleContinueOnFree}
+              className="h-[45px] w-full rounded-[4px] border-[#4e4e4e] bg-transparent text-sm font-medium text-[#141414] shadow-none"
+            >
+              {PAYMENT_FAILED_CONTINUE_FREE}
+            </Button>
+          ) : null}
         </div>
       ) : (
         <p

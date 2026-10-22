@@ -44,7 +44,7 @@ type MarketingButtonProps = Omit<
 }
 
 const baseClass =
-  "inline-flex h-auto min-h-0 cursor-pointer items-center justify-center rounded-[4px] border text-sm font-medium whitespace-nowrap no-underline shadow-none outline-none select-none focus-visible:ring-2 focus-visible:ring-[#141414]/30 disabled:pointer-events-none disabled:opacity-50"
+  "inline-flex h-auto min-h-0 cursor-pointer items-center justify-center rounded-[4px] border text-sm font-inter font-medium whitespace-nowrap no-underline shadow-none outline-none select-none focus-visible:ring-2 focus-visible:ring-[#141414]/30 disabled:pointer-events-none disabled:opacity-50"
 
 const variantClass: Record<MarketingButtonVariant, string> = {
   primary: "border-transparent text-white",

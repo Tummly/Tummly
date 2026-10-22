@@ -139,6 +139,20 @@ describe("buildManagePlanCardViewModels", () => {
     expect(cards[1]?.priceSubline).toBeNull()
   })
 
+  it("disables catalog CTAs while on Custom", () => {
+    const cards = buildManagePlanCardViewModels({
+      plan: paidPlan({ subscriptionPlan: "Custom", isPilot: false }),
+      previewCadence: "monthly",
+      vatRateBps: 0,
+    })
+
+    expect(cards.every((card) => card.cta.kind === "disabled")).toBe(true)
+    expect(cards[1]?.cta).toMatchObject({
+      kind: "disabled",
+      label: "Cancel Custom first",
+    })
+  })
+
   it("omits + VAT from price headlines when vatRateBps is 0", () => {
     const cards = buildManagePlanCardViewModels({
       plan: paidPlan({ subscriptionPlan: "Pilot", isPilot: true }),

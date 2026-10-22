@@ -1,27 +1,44 @@
-import { ArrowRightIcon } from "lucide-react"
-
+import captureIllustration from "@/assets/images/marketing/pricing/guest-loop/capture.png"
+import engageIllustration from "@/assets/images/marketing/pricing/guest-loop/engage.png"
+import listenIllustration from "@/assets/images/marketing/pricing/guest-loop/listen.png"
+import understandIllustration from "@/assets/images/marketing/pricing/guest-loop/understand.png"
 import {
   PRICING_GUEST_LOOP,
   PRICING_SECTION_BODY,
-  PRICING_SECTION_HEADING,
   PRICING_SECTION_INSET,
   PRICING_SECTION_Y,
+  type PricingGuestLoopCardId,
 } from "@/content/marketing/pricingPage"
 import { cn } from "@/lib/utils"
 
-/** Figma Guest Loop strip (`5437:13673` / `5141:8494`). */
+const CARD_IMAGES = {
+  capture: captureIllustration,
+  listen: listenIllustration,
+  engage: engageIllustration,
+  understand: understandIllustration,
+} as const satisfies Record<PricingGuestLoopCardId, string>
+
+/**
+ * Figma Guest Loop cards `5661:14067` — below UK restaurant sectors.
+ */
 export function PricingGuestLoop() {
   return (
-    <section className="w-full bg-white">
+    <section
+      aria-labelledby="pricing-guest-loop-heading"
+      className="w-full bg-[#f0f0f0]"
+    >
       <div
         className={cn(
-          "flex w-full flex-col gap-10 lg:flex-row lg:items-center lg:justify-between lg:gap-[60px]",
+          "flex w-full flex-col items-center gap-[60px]",
           PRICING_SECTION_INSET,
           PRICING_SECTION_Y,
         )}
       >
-        <div className="flex max-w-[548px] flex-col gap-[18px]">
-          <h2 className={cn("m-0", PRICING_SECTION_HEADING)}>
+        <div className="flex w-full max-w-[566px] flex-col items-center gap-[18px] text-center">
+          <h2
+            id="pricing-guest-loop-heading"
+            className="m-0 max-w-[496px] font-jakarta text-[36px] font-[500] leading-normal text-black"
+          >
             {PRICING_GUEST_LOOP.title}
           </h2>
           <p className={cn("m-0", PRICING_SECTION_BODY)}>
@@ -29,24 +46,30 @@ export function PricingGuestLoop() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-center sm:gap-5 lg:gap-10">
-          {PRICING_GUEST_LOOP.steps.map((step, index) => (
-            <div key={step.id} className="flex items-center gap-5">
-              <div className="flex min-w-[120px] flex-col items-center gap-3 text-center text-[#141414]">
-                <p className="m-0 text-lg font-medium leading-6">{step.label}</p>
-                <p className="m-0 whitespace-pre-line text-sm font-normal leading-5">
-                  {step.detail}
-                </p>
-              </div>
-              {index < PRICING_GUEST_LOOP.steps.length - 1 ? (
-                <ArrowRightIcon
-                  className="hidden size-4 shrink-0 text-[#b0b0b0] sm:block"
-                  aria-hidden
+        <ul className="m-0 grid w-full list-none grid-cols-1 gap-5 p-0 sm:grid-cols-2 xl:grid-cols-4">
+          {PRICING_GUEST_LOOP.cards.map((card) => (
+            <li key={card.id} className="min-w-0">
+              <article className="flex h-full min-h-[356px] flex-col items-center justify-between overflow-hidden rounded-lg bg-[#e2e2e2] px-[26px] py-9">
+                <img
+                  src={CARD_IMAGES[card.id]}
+                  alt={card.imageAlt}
+                  width={200}
+                  height={200}
+                  className="size-[200px] shrink-0 object-contain"
+                  decoding="async"
                 />
-              ) : null}
-            </div>
+                <div className="flex w-full flex-col items-center gap-2.5 text-center">
+                  <h3 className="m-0 font-jakarta text-xl font-semibold leading-6 text-[#141414]">
+                    {card.title}
+                  </h3>
+                  <p className="m-0 font-sans text-sm font-normal leading-5 text-[#141414]">
+                    {card.body}
+                  </p>
+                </div>
+              </article>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     </section>
   )

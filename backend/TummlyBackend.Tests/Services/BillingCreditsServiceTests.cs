@@ -1,5 +1,8 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
@@ -176,6 +179,134 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("£11", response.VatLabel);
         }
 
+        [Fact]
+        public async Task ClearScheduledChange_Downgrade_RestoresLiveRevolutPlan()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings(),
+                paidStarter: true
+            );
+            var account = await harness.Context.BillingAccounts.SingleAsync();
+            account.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+            account.HasScheduledChange = true;
+            account.ScheduledTargetSubscriptionPlan = BillingSubscriptionPlans.Starter;
+            account.ScheduledTargetBillingCycle = BillingCycles.Monthly;
+            account.ScheduledTargetExtraLocationCount = 0;
+            await harness.Context.SaveChangesAsync();
+
+            var result = await harness.Service.ClearScheduledChangeAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId
+            );
+
+            Assert.True(result!.Value.Success);
+            var restore = Assert.Single(harness.CycleEndPlanChange.Restores);
+            Assert.Equal((BillingSubscriptionPlans.Growth, "monthly", 0), restore);
+            Assert.False(
+                (await harness.Context.BillingAccounts.AsNoTracking().SingleAsync())
+                    .HasScheduledChange
+            );
+        }
+
+        [Fact]
+        public async Task ClearScheduledChange_RevolutFails_KeepsSchedule()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings(),
+                paidStarter: true
+            );
+            harness.CycleEndPlanChange.ThrowCode = "revolut_http_error";
+            var account = await harness.Context.BillingAccounts.SingleAsync();
+            account.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+            account.HasScheduledChange = true;
+            account.ScheduledTargetSubscriptionPlan = BillingSubscriptionPlans.Starter;
+            account.ScheduledTargetBillingCycle = BillingCycles.Monthly;
+            await harness.Context.SaveChangesAsync();
+
+            var result = await harness.Service.ClearScheduledChangeAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId
+            );
+
+            Assert.False(result!.Value.Success);
+            Assert.Equal("revolut_http_error", result.Value.ErrorCode);
+            Assert.True(
+                (await harness.Context.BillingAccounts.AsNoTracking().SingleAsync())
+                    .HasScheduledChange
+            );
+        }
+
+        [Fact]
+        public async Task ClearScheduledChange_ExtraRemoveAboveZero_SkipsRevolut()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings(),
+                paidStarter: true
+            );
+            var account = await harness.Context.BillingAccounts.SingleAsync();
+            account.SubscriptionPlan = BillingSubscriptionPlans.Group;
+            account.PaidExtraLocationCount = 2;
+            account.HasScheduledChange = true;
+            account.ScheduledTargetSubscriptionPlan = BillingSubscriptionPlans.Group;
+            account.ScheduledTargetBillingCycle = account.BillingCycle;
+            account.ScheduledTargetExtraLocationCount = 1;
+            await harness.Context.SaveChangesAsync();
+
+            var result = await harness.Service.ClearScheduledChangeAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId
+            );
+
+            Assert.True(result!.Value.Success);
+            Assert.Empty(harness.CycleEndPlanChange.Restores);
+        }
+
+        [Fact]
+        public async Task ClearScheduledChange_CancelInsideLeadWindow_Refuses()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings(),
+                paidStarter: true
+            );
+            var account = await harness.Context.BillingAccounts.SingleAsync();
+            account.HasScheduledChange = true;
+            account.ScheduledCancelPlan = true;
+            account.RenewalDateUtc = DateTime.UtcNow.AddHours(3);
+            await harness.Context.SaveChangesAsync();
+
+            var result = await harness.Service.ClearScheduledChangeAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId
+            );
+
+            Assert.False(result!.Value.Success);
+            Assert.Equal("cancel_already_sent", result.Value.ErrorCode);
+            Assert.Empty(harness.CycleEndPlanChange.Restores);
+        }
+
+        [Fact]
+        public async Task ClearScheduledChange_CancelBeforeLeadWindow_ClearsAndRestores()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings(),
+                paidStarter: true
+            );
+            var account = await harness.Context.BillingAccounts.SingleAsync();
+            account.HasScheduledChange = true;
+            account.ScheduledCancelPlan = true;
+            account.RenewalDateUtc = DateTime.UtcNow.AddDays(10);
+            await harness.Context.SaveChangesAsync();
+
+            var result = await harness.Service.ClearScheduledChangeAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId
+            );
+
+            Assert.True(result!.Value.Success);
+            // Guarded restore: Revolut may still hold an earlier downgrade.
+            Assert.Single(harness.CycleEndPlanChange.Restores);
+        }
+
         [Theory]
         [InlineData(55, 0, 55)]
         [InlineData(55, 2000, 66)]
@@ -189,6 +320,191 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(
                 expectedGross,
                 CreditTopUpPricebook.GrossPounds(net, vatRateBps)
+            );
+        }
+
+        [Fact]
+        public async Task RetryPendingPayment_StandardPlan_ReturnsCheckout_AndKeepsPending()
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var firstPaid = new RecordingFirstPaidConversionPaySession(context);
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Growth, null);
+            var service = BuildPendingRetryService(context, firstPaid);
+
+            var (response, statusCode, error) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true
+            );
+
+            Assert.Equal(StatusCodes.Status200OK, statusCode);
+            Assert.Null(error);
+            Assert.Equal(RecordingFirstPaidConversionPaySession.CheckoutUrl, response!.CheckoutUrl);
+            Assert.Equal(BillingSubscriptionPlans.Growth, firstPaid.LastTargetPlan);
+            var billing = await context.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Growth, billing.PendingPaymentPlan);
+            Assert.Equal(BillingSubscriptionPlans.Free, billing.SubscriptionPlan);
+        }
+
+        [Fact]
+        public async Task RetryPendingPayment_StandardPlan_CheckoutFails_RecordsFailureAndAudits()
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var firstPaid = new RecordingFirstPaidConversionPaySession(context)
+            {
+                FailWithCode = "revolut_http_error",
+            };
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Growth, null);
+            var service = BuildPendingRetryService(context, firstPaid);
+
+            var (response, statusCode, error) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true
+            );
+
+            Assert.Null(response);
+            Assert.Equal(StatusCodes.Status502BadGateway, statusCode);
+            Assert.Equal("revolut_http_error", error);
+            var billing = await context.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Growth, billing.PendingPaymentPlan);
+            Assert.Equal("revolut_http_error", billing.PendingPaymentFailureCode);
+            var audit = await context.AdminAuditEvents.SingleAsync();
+            Assert.Equal(AdminAuditActions.BillingPendingPaymentRetryFailed, audit.Action);
+            Assert.False(audit.Succeeded);
+        }
+
+        [Fact]
+        public async Task RetryPendingPayment_CustomPlan_CheckoutFails_KeepsSavedQuote()
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var quote = new CustomPlanConfig
+            {
+                Cadence = "monthly",
+                MonthlyNetPence = 12120,
+                PeriodNetPence = 12120,
+                Quantities = new CustomPlanQuantities { Locations = 2, EmailCredits = 20000 },
+            }.ToJson();
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Custom, quote);
+            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context));
+
+            var (response, statusCode, error) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true
+            );
+
+            Assert.Null(response);
+            Assert.Equal(StatusCodes.Status502BadGateway, statusCode);
+            Assert.NotNull(error);
+            var billing = await context.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Custom, billing.PendingPaymentPlan);
+            Assert.Equal(quote, billing.PendingPaymentCustomConfigJson);
+        }
+
+        [Fact]
+        public async Task RetryPendingPayment_NoPendingPayment_Returns404()
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var restaurantId = await SeedPendingPaymentAsync(context, null, null);
+            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context));
+
+            var (response, statusCode, error) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true
+            );
+
+            Assert.Null(response);
+            Assert.Equal(StatusCodes.Status404NotFound, statusCode);
+            Assert.Equal("no_pending_payment", error);
+        }
+
+        private static int ownerIdOf(ApplicationDbContext context, int restaurantId)
+        {
+            return context.Restaurants.Single(row => row.Id == restaurantId).OwnerUserId;
+        }
+
+        private static async Task<int> SeedPendingPaymentAsync(
+            ApplicationDbContext context,
+            string? pendingPlan,
+            string? pendingCustomJson
+        )
+        {
+            var owner = new User
+            {
+                FullName = "Owner",
+                Email = $"owner-{Guid.NewGuid()}@example.com",
+                PasswordHash = "hash",
+                Role = "Owner",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Pending Payment Test",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var pricebook = TestPricebookPaths.LoadV3();
+            var account = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                pricebook.CurrentPricebookId
+            );
+            account.PendingPaymentPlan = pendingPlan;
+            account.PendingPaymentCadence = pendingPlan == null ? null : "monthly";
+            account.PendingPaymentCustomConfigJson = pendingCustomJson;
+            account.PendingPaymentFailedAtUtc = pendingPlan == null ? null : DateTime.UtcNow;
+            context.BillingAccounts.Add(account);
+            await context.SaveChangesAsync();
+            return restaurant.Id;
+        }
+
+        private static BillingCreditsService BuildPendingRetryService(
+            ApplicationDbContext context,
+            IFirstPaidConversionPaySession firstPaid
+        )
+        {
+            var sellerVat = new TummlySellerVatSettings();
+            return new BillingCreditsService(
+                context,
+                TestPricebookPaths.LoadV3(),
+                new StubCreditBalanceSnapshot(),
+                new StubBillingAccountLifecycle(),
+                new PlanChangeService(context, TestPricebookPaths.LoadV3(), TimeProvider.System),
+                new AlwaysReadyRevolutMerchantCreateGate(),
+                firstPaid,
+                new ThrowingSameCadenceUpgradePaySession(),
+                new ThrowingPaymentMethodUpdatePaySession(),
+                new ThrowingCreditTopUpPaySession(),
+                new EmptyTummlyVatInvoiceService(),
+                new RecordingCycleEndPlanChange(),
+                new NoOpCreditLedger(),
+                Options.Create(sellerVat),
+                new EmailServiceStubBase(),
+                new CustomPlanCycleBillingService(
+                    context,
+                    new NoOpRevolutMerchantForCustomPlan(),
+                    TimeProvider.System,
+                    Options.Create(sellerVat)
+                ),
+                new ConfigurationBuilder()
+                    .AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["Frontend:BaseUrl"] = "https://app.test",
+                        }
+                    )
+                    .Build()
             );
         }
 
@@ -236,6 +552,7 @@ namespace TummlyBackend.Tests.Services
             context.BillingAccounts.Add(account);
             await context.SaveChangesAsync();
 
+            var cycleEndPlanChange = new RecordingCycleEndPlanChange();
             var service = new BillingCreditsService(
                 context,
                 pricebook,
@@ -248,13 +565,32 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingPaymentMethodUpdatePaySession(),
                 new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
-                new NoOpCycleEndPlanChange(),
-                new NoOpCycleEndPlanCancel(),
+                cycleEndPlanChange,
                 new NoOpCreditLedger(),
                 Options.Create(sellerVat),
-                new EmailServiceStubBase()
+                new EmailServiceStubBase(),
+                new CustomPlanCycleBillingService(
+                    context,
+                    new NoOpRevolutMerchantForCustomPlan(),
+                    TimeProvider.System,
+                    Options.Create(sellerVat)
+                ),
+                new ConfigurationBuilder()
+                    .AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["Frontend:BaseUrl"] = "https://app.test",
+                        }
+                    )
+                    .Build()
             );
-            return new Harness(context, service, restaurant.Id, owner.Id);
+            return new Harness(
+                context,
+                service,
+                restaurant.Id,
+                owner.Id,
+                cycleEndPlanChange
+            );
         }
 
         private sealed class Harness : IAsyncDisposable
@@ -263,14 +599,18 @@ namespace TummlyBackend.Tests.Services
                 ApplicationDbContext context,
                 BillingCreditsService service,
                 int restaurantId,
-                int ownerUserId
+                int ownerUserId,
+                RecordingCycleEndPlanChange cycleEndPlanChange
             )
             {
                 Context = context;
                 Service = service;
                 RestaurantId = restaurantId;
                 OwnerUserId = ownerUserId;
+                CycleEndPlanChange = cycleEndPlanChange;
             }
+
+            public RecordingCycleEndPlanChange CycleEndPlanChange { get; }
 
             public ApplicationDbContext Context { get; }
 
@@ -313,22 +653,35 @@ namespace TummlyBackend.Tests.Services
             ) => Task.FromResult<(byte[] Content, string FileName)?>(null);
         }
 
-        private sealed class NoOpCycleEndPlanChange : ICycleEndPlanChange
+        private sealed class RecordingCycleEndPlanChange : ICycleEndPlanChange
         {
+            public List<(string Plan, string Cadence, int Extras)> Restores { get; } = [];
+
+            public string? ThrowCode { get; set; }
+
             public Task ApplyRevolutChangePlanIfNeededAsync(
                 int restaurantId,
                 string targetPlan,
                 string targetCadenceApi,
                 CancellationToken cancellationToken = default
             ) => Task.CompletedTask;
-        }
 
-        private sealed class NoOpCycleEndPlanCancel : ICycleEndPlanCancel
-        {
-            public Task ApplyRevolutCancelAtCycleEndIfNeededAsync(
+            public Task RestoreLiveRevolutPlanIfNeededAsync(
                 int restaurantId,
+                string livePlan,
+                string liveCadenceApi,
+                int paidExtraLocationCount,
                 CancellationToken cancellationToken = default
-            ) => Task.CompletedTask;
+            )
+            {
+                if (ThrowCode != null)
+                {
+                    throw new InvalidOperationException(ThrowCode);
+                }
+
+                Restores.Add((livePlan, liveCadenceApi, paidExtraLocationCount));
+                return Task.CompletedTask;
+            }
         }
 
         private sealed class ThrowingFirstPaidConversionPaySession

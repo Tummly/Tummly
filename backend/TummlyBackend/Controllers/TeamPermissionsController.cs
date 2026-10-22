@@ -397,6 +397,7 @@ namespace TummlyBackend.Controllers
                     message = result.Error,
                     cap = result.Cap,
                     current = result.Current,
+                    scheduledChangeMessage = result.ScheduledChangeMessage,
                 });
             }
 
