@@ -16,6 +16,12 @@ namespace TummlyBackend.Interfaces
         /// </summary>
         Task ProvisionFromPendingAsync(Guid pendingSignupId);
 
+        /// <summary>
+        /// Opens the paid signup checkout again when the first Revolut order
+        /// did not start (account still Free, no open pay intent).
+        /// </summary>
+        Task RetryPaidSignupCheckoutAsync(Guid pendingSignupId);
+
         Task GenerateActivationCodeAsync(string inviteToken);
     }
 }

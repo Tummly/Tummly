@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
@@ -717,6 +718,46 @@ namespace TummlyBackend.Tests.Services
             var result = await _service.PauseAsync(CodeCommand(99999));
 
             Assert.Equal(QrLifecycleResultKind.NotFound, result.Kind);
+        }
+
+        [Fact]
+        public async Task Resume_CustomPlan_UsesAccountQrPoolBeyondPerLocationCap()
+        {
+            var restaurant = await _context.Restaurants.SingleAsync();
+            var billing = await _context.BillingAccounts.SingleAsync(b =>
+                b.RestaurantId == restaurant.Id
+            );
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Custom;
+            billing.BillingStatus = BillingStatuses.Active;
+            billing.CustomPlanConfigJson = new CustomPlanConfig
+            {
+                Version = 2,
+                BasePlan = "starter",
+                Cadence = "monthly",
+                Locations = 1,
+                Quantities = new CustomPlanQuantities
+                {
+                    Locations = 1,
+                    QrPlacements = 1,
+                    QrPlacementsAccountExtra = 1,
+                },
+                MonthlyNetPence = 3900,
+                PeriodNetPence = 3900,
+            }.ToJson();
+            await _context.SaveChangesAsync();
+
+            var first = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Paused);
+            var second = await SeedQrAsync(QrType.WindowSticker, QrCodeStatus.Paused);
+
+            var ok1 = await _service.ResumeAsync(CodeCommand(first.Id));
+            Assert.Equal(QrLifecycleResultKind.Ok, ok1.Kind);
+
+            var ok2 = await _service.ResumeAsync(CodeCommand(second.Id));
+            Assert.Equal(QrLifecycleResultKind.Ok, ok2.Kind);
+
+            var third = await SeedQrAsync(QrType.TableTalker, QrCodeStatus.Paused);
+            var denied = await _service.ResumeAsync(CodeCommand(third.Id));
+            Assert.Equal(QrLifecycleResultKind.Conflict, denied.Kind);
         }
 
         public void Dispose()

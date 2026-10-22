@@ -19,9 +19,13 @@ function readApiError(error: unknown, fallback: string): string {
           code?: unknown
           cap?: unknown
           current?: unknown
+          scheduledChangeMessage?: unknown
         }
       | undefined
     if (payload?.code === "location_cap_reached") {
+      if (typeof payload.scheduledChangeMessage === "string") {
+        return payload.scheduledChangeMessage
+      }
       const cap =
         typeof payload.cap === "number" ? payload.cap : undefined
       const current =

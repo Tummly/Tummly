@@ -4,6 +4,9 @@ import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 /** Marketing Pricing page. */
 export const MARKETING_PRICING_PATH = "/pricing"
 
+/** Marketing Build your own (custom) plan page. */
+export const MARKETING_CUSTOM_PLAN_PATH = "/custom-plan"
+
 /** Marketing Product page — Guest Loop product overview. */
 export const MARKETING_PRODUCT_PATH = "/product"
 

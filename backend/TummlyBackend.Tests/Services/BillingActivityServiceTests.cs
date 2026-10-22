@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Configurations;
@@ -115,6 +116,7 @@ namespace TummlyBackend.Tests.Services
             );
             await context.SaveChangesAsync();
 
+            var sellerVat = new TummlySellerVatSettings { IsActive = false };
             var service = new BillingCreditsService(
                 context,
                 new StubPricebookCatalog(),
@@ -132,10 +134,23 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
                 new NoOpCycleEndPlanChange(),
-                new NoOpCycleEndPlanCancel(),
                 new NoOpCreditLedger(),
-                Options.Create(new TummlySellerVatSettings { IsActive = false }),
-                new EmailServiceStubBase()
+                Options.Create(sellerVat),
+                new EmailServiceStubBase(),
+                new CustomPlanCycleBillingService(
+                    context,
+                    new NoOpRevolutMerchantForCustomPlan(),
+                    TimeProvider.System,
+                    Options.Create(sellerVat)
+                ),
+                new ConfigurationBuilder()
+                    .AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["Frontend:BaseUrl"] = "https://app.test",
+                        }
+                    )
+                    .Build()
             );
             return new Harness(context, service, restaurant.Id);
         }
@@ -178,12 +193,12 @@ namespace TummlyBackend.Tests.Services
                 string targetCadenceApi,
                 CancellationToken cancellationToken = default
             ) => Task.CompletedTask;
-        }
 
-        private sealed class NoOpCycleEndPlanCancel : ICycleEndPlanCancel
-        {
-            public Task ApplyRevolutCancelAtCycleEndIfNeededAsync(
+            public Task RestoreLiveRevolutPlanIfNeededAsync(
                 int restaurantId,
+                string livePlan,
+                string liveCadenceApi,
+                int paidExtraLocationCount,
                 CancellationToken cancellationToken = default
             ) => Task.CompletedTask;
         }

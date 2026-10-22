@@ -63,16 +63,6 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
-        /// Schedules subscription cancel at the current cycle end via
-        /// <c>PATCH …/subscriptions/{id}</c> (<c>scheduled_action.type: cancel</c>).
-        /// Needs Merchant API credentials; does not use the create gate.
-        /// </summary>
-        Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
-            string subscriptionId,
-            CancellationToken cancellationToken = default
-        );
-
-        /// <summary>
         /// Cancels a Revolut subscription immediately. Needs Merchant API
         /// credentials; does not use the create gate variation map.
         /// </summary>
@@ -336,7 +326,10 @@ namespace TummlyBackend.Interfaces
         string? PaymentMethodId = null,
         string? CustomerId = null,
         string? ErrorCode = null,
-        string? RawBody = null
+        string? RawBody = null,
+        // True when Revolut holds a pending cycle-end action (e.g. change-plan);
+        // false when none; null when not read.
+        bool? HasScheduledAction = null
     );
 
     public sealed record RevolutSubscriptionCycleRetrieveResult(

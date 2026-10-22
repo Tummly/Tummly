@@ -18,6 +18,7 @@ import { CreditTopUpsSection } from "@/components/dashboard/operator/BillingCred
 import { CancelSubscriptionDialog } from "@/components/dashboard/operator/BillingCredits/CancelSubscriptionDialog"
 import {
   ManagePlanAdditionalGroupLocationSection,
+  ManagePlanCancelPlanControl,
 } from "@/components/dashboard/operator/BillingCredits/ManagePlanGroupActionsSection"
 import { PaymentInvoicesTable } from "@/components/dashboard/operator/BillingCredits/PaymentInvoicesTable"
 import { UpdatePaymentMethodConfirmDialog } from "@/components/dashboard/operator/BillingCredits/UpdatePaymentMethodConfirmDialog"
@@ -1685,6 +1686,12 @@ export function ManagePlanPage() {
         <div className="flex flex-col gap-15">
           <div id="plan-cards">
             <ManagePlanCardsSection snap={snap} pageModule={pageModule} />
+            <ManagePlanCancelPlanControl
+              showCancelPlan={snap.showCancelPlan}
+              cancelEnabled={snap.ownerManagePlanWritesEnabled}
+              pageModule={pageModule}
+              cancelPlanConfirm={snap.cancelPlanConfirm}
+            />
           </div>
 
           {snap.additionalGroupLocation != null ? (

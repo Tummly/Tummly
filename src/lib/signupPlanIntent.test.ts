@@ -1,11 +1,14 @@
 import { describe, expect, it, beforeEach } from "vitest"
 
+import { encodeCustomPlanIntentV2 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import {
+  activeCustomConfig,
   buildSignupPath,
   captureSignupPlanIntentFromSearch,
   clearSignupPlanIntent,
   parseSignupPlanIntent,
   readSignupPlanIntent,
+  saveSignupCustomPlanConfig,
   saveSignupPlanIntent,
 } from "@/lib/signupPlanIntent"
 
@@ -21,17 +24,33 @@ describe("buildSignupPath", () => {
 
   it("builds paid path with cadence", () => {
     expect(
-      buildSignupPath({ plan: "Starter", cadence: "annual" })
+      buildSignupPath({ plan: "Starter", cadence: "annual" }),
     ).toBe("/signup?plan=Starter&cadence=annual")
   })
 
   it("appends email for marketing CTA handoff", () => {
     expect(
-      buildSignupPath({ plan: "Pilot" }, { email: " ops@example.com " })
+      buildSignupPath({ plan: "Pilot" }, { email: " ops@example.com " }),
     ).toBe("/signup?plan=Pilot&email=ops%40example.com")
     expect(buildSignupPath(null, { email: "ops@example.com" })).toBe(
-      "/signup?email=ops%40example.com"
+      "/signup?email=ops%40example.com",
     )
+  })
+
+  it("includes v2 customIntent when config is present", () => {
+    const path = buildSignupPath({
+      plan: "Custom",
+      cadence: "monthly",
+      config: {
+        version: 2,
+        cadence: "monthly",
+        basePlan: "growth",
+        locations: 3,
+        packs: { offers_5: 1 },
+      },
+    })
+    expect(path).toContain("plan=Custom")
+    expect(path).toContain("customIntent=")
   })
 })
 
@@ -42,14 +61,33 @@ describe("parseSignupPlanIntent", () => {
 
   it("parses Pilot", () => {
     expect(
-      parseSignupPlanIntent(new URLSearchParams("plan=Pilot"))
+      parseSignupPlanIntent(new URLSearchParams("plan=Pilot")),
     ).toEqual({ plan: "Pilot" })
   })
 
   it("defaults paid cadence to monthly", () => {
     expect(
-      parseSignupPlanIntent(new URLSearchParams("plan=Growth"))
+      parseSignupPlanIntent(new URLSearchParams("plan=Growth")),
     ).toEqual({ plan: "Growth", cadence: "monthly" })
+  })
+
+  it("decodes v2 customIntent into config", () => {
+    const customIntent = encodeCustomPlanIntentV2({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "growth",
+      locations: 3,
+      packs: { offers_5: 1 },
+    })
+    const parsed = parseSignupPlanIntent(
+      new URLSearchParams(
+        `plan=Custom&cadence=monthly&customIntent=${encodeURIComponent(customIntent)}`,
+      ),
+    )
+    expect(parsed?.plan).toBe("Custom")
+    expect(parsed?.config?.basePlan).toBe("growth")
+    expect(parsed?.config?.locations).toBe(3)
+    expect(parsed?.config?.packs.offers_5).toBe(1)
   })
 })
 
@@ -66,11 +104,56 @@ describe("signupPlanIntent session", () => {
     })
   })
 
-  it("clears stale intent when signup URL has no plan", () => {
-    saveSignupPlanIntent({ plan: "Pilot" })
+  it("round-trips v2 config through sessionStorage", () => {
+    saveSignupCustomPlanConfig({
+      basePlan: "starter",
+      cadence: "monthly",
+      locations: 1,
+      packs: { email_20k: 2 },
+      asCustom: true,
+    })
+    const read = readSignupPlanIntent()
+    expect(read?.plan).toBe("Custom")
+    expect(read?.config).toMatchObject({
+      version: 2,
+      basePlan: "starter",
+      locations: 1,
+      packs: expect.objectContaining({ email_20k: 2 }),
+    })
+  })
+
+  it("keeps the saved intent when signup URL has no plan (OAuth error, different email)", () => {
+    const config = {
+      version: 2 as const,
+      cadence: "monthly" as const,
+      basePlan: "starter" as const,
+      locations: 1,
+      packs: { offers_5: 1 },
+    }
+    saveSignupPlanIntent({ plan: "Custom", cadence: "monthly", config })
     expect(
-      captureSignupPlanIntentFromSearch(new URLSearchParams())
-    ).toBeNull()
-    expect(readSignupPlanIntent()).toBeNull()
+      captureSignupPlanIntentFromSearch(new URLSearchParams("oauthError=x"))?.config,
+    ).toEqual(config)
+    expect(readSignupPlanIntent()?.config).toEqual(config)
+  })
+})
+
+describe("activeCustomConfig", () => {
+  const config = {
+    version: 2 as const,
+    cadence: "monthly" as const,
+    basePlan: "starter" as const,
+    locations: 1,
+    packs: { sms_1000: 1 },
+  }
+
+  it("applies to Custom and to the card on its base plan", () => {
+    expect(activeCustomConfig({ plan: "Custom", config })).toEqual(config)
+    expect(activeCustomConfig({ plan: "Starter", config })).toEqual(config)
+  })
+
+  it("is ignored (but kept) while another card is selected", () => {
+    expect(activeCustomConfig({ plan: "Growth", config })).toBeNull()
+    expect(activeCustomConfig({ plan: "Pilot" })).toBeNull()
   })
 })

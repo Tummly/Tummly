@@ -1,5 +1,6 @@
 import { useState } from "react"
 
+import { AdminCommercialCatalogPanel } from "@/components/dashboard/admin/AdminCommercialCatalogPanel"
 import { AdminShopCatalogPanel } from "@/components/dashboard/admin/AdminShopCatalogPanel"
 import { AdminShopInterestPanel } from "@/components/dashboard/admin/AdminShopInterestPanel"
 import { AdminShopOrdersPanel } from "@/components/dashboard/admin/AdminShopOrdersPanel"
@@ -15,6 +16,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="orders">Shop orders</TabsTrigger>
           <TabsTrigger value="materials">Shop materials</TabsTrigger>
           <TabsTrigger value="interest">Shop interest</TabsTrigger>
+          <TabsTrigger value="billing">Billing catalog</TabsTrigger>
         </TabsList>
         <TabsContent value="orders" className="mt-0">
           <AdminShopOrdersPanel />
@@ -24,6 +26,9 @@ export default function AdminDashboard() {
         </TabsContent>
         <TabsContent value="interest" className="mt-0">
           <AdminShopInterestPanel />
+        </TabsContent>
+        <TabsContent value="billing" className="mt-0">
+          <AdminCommercialCatalogPanel />
         </TabsContent>
       </Tabs>
     </div>
