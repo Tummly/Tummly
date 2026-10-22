@@ -324,7 +324,10 @@ namespace TummlyBackend.Services
             await _provisioningService.ProvisionFromPendingAsync(pending.Id);
         }
 
-        public async Task<object> SessionLoginAsync(Guid sessionToken)
+        public async Task<object> SessionLoginAsync(
+            Guid sessionToken,
+            bool continueOnFree = false
+        )
         {
             var pending = await FindBySessionTokenAsync(sessionToken);
 
@@ -372,7 +375,13 @@ namespace TummlyBackend.Services
             var billing = await _context.BillingAccounts
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
-            if (billing == null || !IsSessionLoginBillingReady(billing))
+            if (
+                billing == null
+                || !(
+                    IsSessionLoginBillingReady(billing)
+                    || (continueOnFree && IsFreeAfterFailedCheckout(billing))
+                )
+            )
             {
                 throw new SignupConflictException(
                     "payment_pending",
@@ -438,6 +447,14 @@ namespace TummlyBackend.Services
             pending.SessionLoginConsumedAtUtc = now;
             pending.UpdatedAtUtc = now;
         }
+
+        private static bool IsFreeAfterFailedCheckout(BillingAccount billing) =>
+            string.Equals(
+                billing.SubscriptionPlan,
+                BillingSubscriptionPlans.Free,
+                StringComparison.Ordinal
+            )
+            && !string.IsNullOrWhiteSpace(billing.PendingPaymentFailureCode);
 
         private static bool IsSessionLoginBillingReady(BillingAccount billing)
         {

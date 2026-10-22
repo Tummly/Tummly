@@ -209,7 +209,10 @@ namespace TummlyBackend.Controllers
         {
             try
             {
-                var data = await _signupService.SessionLoginAsync(dto.SessionToken);
+                var data = await _signupService.SessionLoginAsync(
+                    dto.SessionToken,
+                    dto.ContinueOnFree
+                );
                 return Ok(
                     new
                     {

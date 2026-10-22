@@ -109,6 +109,45 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("payment_pending", ex.Code);
         }
 
+        [Fact]
+        public async Task SessionLogin_ContinueOnFree_AfterFailedCheckout_IssuesTokens()
+        {
+            var (sessionToken, restaurantId) = await SeedCompletePilotAsync();
+            var billing = await _db.BillingAccounts.SingleAsync(b =>
+                b.RestaurantId == restaurantId
+            );
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Free;
+            billing.BillingStatus = BillingStatuses.Free;
+            billing.PendingPaymentFailureCode = "plan_variation_missing";
+            await _db.SaveChangesAsync();
+
+            var refused = await Assert.ThrowsAsync<SignupConflictException>(() =>
+                _sut.SessionLoginAsync(sessionToken)
+            );
+            Assert.Equal("payment_pending", refused.Code);
+
+            var data = await _sut.SessionLoginAsync(sessionToken, continueOnFree: true);
+            using var doc = JsonDocument.Parse(JsonSerializer.Serialize(data));
+            Assert.True(doc.RootElement.TryGetProperty("token", out _));
+        }
+
+        [Fact]
+        public async Task SessionLogin_ContinueOnFree_WithoutFailure_PaymentPending()
+        {
+            var (sessionToken, restaurantId) = await SeedCompletePilotAsync();
+            var billing = await _db.BillingAccounts.SingleAsync(b =>
+                b.RestaurantId == restaurantId
+            );
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Free;
+            billing.BillingStatus = BillingStatuses.Free;
+            await _db.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<SignupConflictException>(() =>
+                _sut.SessionLoginAsync(sessionToken, continueOnFree: true)
+            );
+            Assert.Equal("payment_pending", ex.Code);
+        }
+
         private async Task<(Guid SessionToken, int RestaurantId)> SeedCompletePilotAsync(
             DateTime? completedAt = null
         )

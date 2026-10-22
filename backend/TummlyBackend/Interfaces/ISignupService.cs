@@ -29,8 +29,10 @@ namespace TummlyBackend.Interfaces
         /// <summary>
         /// One-time post-payment session issue (contract §6.5).
         /// Throws <see cref="SignupConflictException"/> for 409 cases.
+        /// <paramref name="continueOnFree"/> also accepts a Free account whose
+        /// paid signup checkout failed (user chose to skip payment for now).
         /// </summary>
-        Task<object> SessionLoginAsync(Guid sessionToken);
+        Task<object> SessionLoginAsync(Guid sessionToken, bool continueOnFree = false);
     }
 
     public sealed class SignupConflictException : Exception

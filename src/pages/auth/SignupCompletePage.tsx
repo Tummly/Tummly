@@ -6,7 +6,6 @@ import {
   getSignupProvisioningStatus,
   signupSessionLogin,
   SignupSessionLoginError,
-  type SignupSessionLoginResult,
 } from "@/api/signupApi"
 import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
 import { Button } from "@/components/ui/button"
@@ -14,10 +13,7 @@ import {
   clearSignupSessionToken,
   readSignupSessionToken,
 } from "@/lib/signupSession"
-import {
-  persistAuthSession,
-  persistSelectedLocation,
-} from "@/pages/utils/authHelpers"
+import { persistSignupLoginSession } from "@/pages/utils/authHelpers"
 
 const POLL_INTERVAL_MS = 2000
 const SESSION_LOGIN_MAX_MS = 120_000
@@ -25,18 +21,6 @@ const SESSION_LOGIN_BACKOFF_START_MS = 1500
 const SESSION_LOGIN_BACKOFF_MAX_MS = 8000
 
 const LOADING_COPY = "Finishing your setup…"
-
-function applySession(session: SignupSessionLoginResult) {
-  persistAuthSession(
-    session.token,
-    "USER",
-    session.accountType,
-    session.refreshToken
-  )
-  if (session.selectedLocationId != null) {
-    persistSelectedLocation(session.selectedLocationId)
-  }
-}
 
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error)) {
@@ -142,7 +126,7 @@ function SignupCompletePage() {
           if (!isCurrent()) {
             return "login"
           }
-          applySession(session)
+          persistSignupLoginSession(session)
           clearSignupSessionToken()
           navigate("/signup/locations", { replace: true })
           return "ok"

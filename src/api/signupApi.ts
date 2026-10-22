@@ -250,12 +250,13 @@ function readConflictCode(payload: unknown): string | null {
  * 409 `payment_pending` / `session_login_used` → SignupSessionLoginError.
  */
 export async function signupSessionLogin(
-  sessionToken: string
+  sessionToken: string,
+  options: { continueOnFree?: boolean } = {}
 ): Promise<SignupSessionLoginResult> {
   try {
     const response = await axiosInstance.post(
       "/Signup/session-login",
-      { sessionToken },
+      { sessionToken, continueOnFree: options.continueOnFree === true },
       skipAuth
     )
     const result = asSignupSessionLogin(requireDataObject(response.data))
