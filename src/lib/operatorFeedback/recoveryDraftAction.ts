@@ -41,7 +41,6 @@ export type RecoveryDraftActionPayload = {
 export const RECOVERY_DRAFT_ACTION_TOASTS = {
   resolved: "This feedback is resolved. Reopen it before starting recovery.",
   noContact: "No contact method available",
-  offersOptOut: "Guest has opted out of offers",
   statusAdvance: "Could not update follow-up status. Please try again.",
   openFailed: "Could not open recovery. Please try again.",
 } as const
@@ -231,9 +230,6 @@ export function recoveryDraftActionGateToast(input: {
 
   if (card.disableReason === "No contact method available") {
     return RECOVERY_DRAFT_ACTION_TOASTS.noContact
-  }
-  if (card.disableReason === "Guest has opted out of offers") {
-    return RECOVERY_DRAFT_ACTION_TOASTS.offersOptOut
   }
   return RECOVERY_DRAFT_ACTION_TOASTS.openFailed
 }

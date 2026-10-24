@@ -160,9 +160,8 @@ describe("createFeedbackDetailsModule", () => {
       ],
       recoveryActions: {
         respondEnabled: true,
-        addOfferEnabled: false,
-        addOfferHelper:
-          "Marketing permission is not available for this guest.",
+        addOfferEnabled: true,
+        addOfferHelper: null,
       },
     })
   })

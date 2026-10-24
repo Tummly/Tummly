@@ -426,7 +426,6 @@ export function RespondWithRecoveryOfferWizard({
             {!isSuccess ? (
               <RecoveryComposerStatusBanner
                 banner={snapshot.statusBanner}
-                eligibilityNotice={snapshot.eligibilityNotice}
                 disabled={locked}
               />
             ) : null}

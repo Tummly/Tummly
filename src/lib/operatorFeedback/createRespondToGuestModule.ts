@@ -48,8 +48,6 @@ import {
 import {
   buildRecoveryComposerStatusBanner,
   mapRecoveryComposerSendFailure,
-  resolveRecoveryComposerMarketingChannelFromDetails,
-  type RecoveryComposerMarketingChannel,
   type RecoveryComposerStatusBanner,
 } from "@/lib/operatorFeedback/recoveryComposerPresentation"
 import {
@@ -279,11 +277,10 @@ export type RespondToGuestSnapshot = {
   paidWrite: RecoveryPaidWriteChrome
   /** Confirm/Send hard-stop for SMS shortfall or Soft lock / Dormant. */
   sendBlocked: boolean
-  /** RC-01 / RC-02 status banner from guest marketing eligibility. */
+  /** Service-reply status banner (marketing is not required). */
   statusBanner: RecoveryComposerStatusBanner | null
-  /** RC-02 — show Add Offer when channel marketing is granted. */
+  /** Add Offer — enabled once the composer is loaded (gated at entry by contact + follow-up). */
   addOfferEnabled: boolean
-  marketingChannel: RecoveryComposerMarketingChannel | null
 }
 
 export type RespondToGuestBackResult = "return-to-shell" | "stayed"
@@ -387,7 +384,6 @@ type SessionState = {
   batchId: number | null
   bulkMemberCount: number | null
   creditChrome: RecoveryCreditChromeContext | null
-  marketingChannel: RecoveryComposerMarketingChannel | null
 }
 
 function emptySession(): SessionState {
@@ -428,7 +424,6 @@ function emptySession(): SessionState {
     batchId: null,
     bulkMemberCount: null,
     creditChrome: null,
-    marketingChannel: null,
   }
 }
 
@@ -552,10 +547,9 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     sendBlocked: credit.sendBlocked,
     statusBanner:
       state.loadStatus === "loaded"
-        ? buildRecoveryComposerStatusBanner(state.marketingChannel)
+        ? buildRecoveryComposerStatusBanner()
         : null,
-    addOfferEnabled: state.marketingChannel != null,
-    marketingChannel: state.marketingChannel,
+    addOfferEnabled: state.loadStatus === "loaded",
   }
 }
 
@@ -808,14 +802,6 @@ export function createRespondToGuestModule(
           response.contactType,
           response.guestContact
         )
-        const marketingChannel = resolveRecoveryComposerMarketingChannelFromDetails({
-          contactType: response.contactType,
-          guestContact: response.guestContact,
-          permissionStates: response.permissionStates,
-          restaurantPermissionEnabled: response.restaurantPermissionEnabled,
-          marketingPreference: response.marketingPreference,
-        })
-
         state = {
           ...state,
           loadStatus: "loaded",
@@ -844,7 +830,6 @@ export function createRespondToGuestModule(
           locationName: response.locationName,
           locationAddress: response.address,
           workflowStatus: parseWorkflowStatus(response.workflowStatus),
-          marketingChannel,
         }
       }
 

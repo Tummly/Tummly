@@ -163,7 +163,7 @@ describe("createStartRecoveryEntryModule", () => {
     })
   })
 
-  it("disables recovery-offer intent when Location Guest offers opt-out", async () => {
+  it("keeps recovery-offer intent enabled when Location Guest marketing is opted out", async () => {
     const adapters = createAdapters({
       details: { ...sampleDetails, marketingPreference: "opted_out" },
     })
@@ -176,10 +176,11 @@ describe("createStartRecoveryEntryModule", () => {
         .getSnapshot()
         .intents.find((intent) => intent.id === "respond-with-recovery-offer")
     ).toMatchObject({
-      enabled: false,
-      disableReason: "Guest has opted out of offers",
+      enabled: true,
+      disableReason: null,
     })
   })
+
 
   it("refuses to keep shell useful when Resolved — all intents disabled", async () => {
     const adapters = createAdapters({

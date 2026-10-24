@@ -15,7 +15,7 @@ allRestaurantOn["sms-marketing"] = true
 allRestaurantOn["feedback-follow-up"] = true
 
 describe("feedbackDetailRecoveryPresentation", () => {
-  it("FD-01: follow-up Available + Marketing Not granted; Respond on, Add Offer off", () => {
+  it("Email, follow-up granted, marketing not granted → respondEnabled and addOfferEnabled true", () => {
     const permissionStates = emptyFeedbackDetailPermissionStates()
     permissionStates["feedback-follow-up"] = "granted"
 
@@ -48,11 +48,10 @@ describe("feedbackDetailRecoveryPresentation", () => {
     })
 
     expect(actions).toEqual({
-      respondEnabled: false,
-      respondDisableReason:
-        FEEDBACK_DETAIL_RECOVERY_COPY.emailMarketingRequiredReason,
-      addOfferEnabled: false,
-      addOfferHelper: FEEDBACK_DETAIL_RECOVERY_COPY.marketingNotAvailableHelper,
+      respondEnabled: true,
+      respondDisableReason: null,
+      addOfferEnabled: true,
+      addOfferHelper: null,
     })
   })
 
@@ -123,7 +122,7 @@ describe("feedbackDetailRecoveryPresentation", () => {
     ])
   })
 
-  it("does not treat SMS grant as marketing eligible for an email contact", () => {
+  it("does not treat SMS grant as marketing eligible for an email contact (summary only)", () => {
     const permissionStates = emptyFeedbackDetailPermissionStates()
     permissionStates["feedback-follow-up"] = "granted"
     permissionStates["sms-marketing"] = "granted"
@@ -145,11 +144,30 @@ describe("feedbackDetailRecoveryPresentation", () => {
       restaurantPermissions: allRestaurantOn,
     })
 
-    expect(actions.addOfferEnabled).toBe(false)
-    expect(actions.respondEnabled).toBe(false)
-    expect(actions.respondDisableReason).toBe(
-      FEEDBACK_DETAIL_RECOVERY_COPY.emailMarketingRequiredReason
-    )
+    expect(actions.addOfferEnabled).toBe(true)
+    expect(actions.respondEnabled).toBe(true)
+    expect(actions.respondDisableReason).toBeNull()
+  })
+
+  it("uses the same disable reason for respond and addOfferHelper when follow-up is unavailable", () => {
+    const permissionStates = emptyFeedbackDetailPermissionStates()
+    permissionStates["feedback-follow-up"] = "withdrawn"
+
+    const actions = deriveFeedbackDetailRecoveryActions({
+      contactType: "Email",
+      guestContact: "guest@example.com",
+      workflowStatus: "in_progress",
+      permissionStates,
+      restaurantPermissions: allRestaurantOn,
+    })
+
+    expect(actions).toEqual({
+      respondEnabled: false,
+      respondDisableReason:
+        FEEDBACK_DETAIL_RECOVERY_COPY.followUpUnavailableReason,
+      addOfferEnabled: false,
+      addOfferHelper: FEEDBACK_DETAIL_RECOVERY_COPY.followUpUnavailableReason,
+    })
   })
 
   it("FD-03: disables Respond when no valid contact", () => {

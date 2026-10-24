@@ -8,7 +8,6 @@ import {
   mapRecoveryComposerSendFailure,
   resolveRecoveryComposerMarketingChannel,
   resolveRecoveryComposerMarketingChannelFromDetails,
-  shouldDetachOfferOnEligibilityLoss,
 } from "./recoveryComposerPresentation"
 import {
   emptyFeedbackDetailPermissionStates,
@@ -36,60 +35,26 @@ describe("recoveryComposerPresentation", () => {
     )
   })
 
-  it("RC-01: service-only banner when marketing is not granted", () => {
-    const permissionStates = emptyFeedbackDetailPermissionStates()
-    permissionStates["feedback-follow-up"] = "granted"
-
-    const channel = resolveRecoveryComposerMarketingChannel({
-      contactType: "Email",
-      guestContact: "guest@example.com",
-      permissionStates,
-      restaurantPermissions: allRestaurantOn,
-    })
-
-    expect(channel).toBeNull()
-    expect(buildRecoveryComposerStatusBanner(channel)).toEqual({
+  it("status banner is always service-reply (marketing not required)", () => {
+    expect(buildRecoveryComposerStatusBanner()).toEqual({
       kind: "service-only",
-      message: RECOVERY_COMPOSER_COPY.serviceOnlyBanner,
+      message: RECOVERY_COMPOSER_COPY.serviceReply,
     })
   })
 
-  it("RC-02 email: marketing eligible banner for Email", () => {
+  it("still resolves marketing channel for informational ledger reads", () => {
     const permissionStates = emptyFeedbackDetailPermissionStates()
     permissionStates["feedback-follow-up"] = "granted"
     permissionStates["email-marketing"] = "granted"
 
-    const channel = resolveRecoveryComposerMarketingChannel({
-      contactType: "Email",
-      guestContact: "guest@example.com",
-      permissionStates,
-      restaurantPermissions: allRestaurantOn,
-    })
-
-    expect(channel).toBe("email")
-    expect(buildRecoveryComposerStatusBanner(channel)).toEqual({
-      kind: "marketing-eligible",
-      message: RECOVERY_COMPOSER_COPY.marketingEligibleEmail,
-    })
-  })
-
-  it("RC-02 sms: marketing eligible banner for SMS", () => {
-    const permissionStates = emptyFeedbackDetailPermissionStates()
-    permissionStates["feedback-follow-up"] = "granted"
-    permissionStates["sms-marketing"] = "granted"
-
-    const channel = resolveRecoveryComposerMarketingChannel({
-      contactType: "Phone",
-      guestContact: "07123456789",
-      permissionStates,
-      restaurantPermissions: allRestaurantOn,
-    })
-
-    expect(channel).toBe("sms")
-    expect(buildRecoveryComposerStatusBanner(channel)).toEqual({
-      kind: "marketing-eligible",
-      message: RECOVERY_COMPOSER_COPY.marketingEligibleSms,
-    })
+    expect(
+      resolveRecoveryComposerMarketingChannel({
+        contactType: "Email",
+        guestContact: "guest@example.com",
+        permissionStates,
+        restaurantPermissions: allRestaurantOn,
+      })
+    ).toBe("email")
   })
 
   it("parses marketing channel from Feedback details wire fields", () => {
@@ -120,39 +85,23 @@ describe("recoveryComposerPresentation", () => {
     ).toBe("email")
   })
 
-  it("RC-03: detaches Offer when marketing eligibility is lost", () => {
+  it("server follow-up denial maps to no_permission", () => {
     expect(
-      shouldDetachOfferOnEligibilityLoss({
-        previousChannel: "email",
-        nextChannel: null,
-        hasAttachedOffer: true,
-      })
-    ).toBe(true)
-
-    expect(
-      shouldDetachOfferOnEligibilityLoss({
-        previousChannel: "email",
-        nextChannel: "email",
-        hasAttachedOffer: true,
-      })
-    ).toBe(false)
-
-    expect(
-      shouldDetachOfferOnEligibilityLoss({
-        previousChannel: "email",
-        nextChannel: null,
-        hasAttachedOffer: false,
-      })
-    ).toBe(false)
-  })
-
-  it("RC-03: maps opted-out send failure to no permission", () => {
-    expect(
-      mapRecoveryComposerSendFailure(new Error("Guest has opted out of offers."))
+      mapRecoveryComposerSendFailure(
+        new Error("Guest has not granted feedback follow-up permission.")
+      )
     ).toEqual({
       kind: "no_permission",
       message: RECOVERY_COMPOSER_COPY.noPermission,
     })
+  })
+
+  it("maps feedback follow-up permission substring case-insensitively", () => {
+    expect(
+      mapRecoveryComposerSendFailure(
+        new Error("Denied: Feedback Follow-Up Permission required")
+      )
+    ).toMatchObject({ kind: "no_permission" })
   })
 
   it("RC-03: maps provider unavailable failures", () => {

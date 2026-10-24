@@ -15,14 +15,12 @@ import {
 
 export const RECOVERY_COMPOSER_COPY = {
   pageTitle: "Respond to guest",
-  serviceOnlyBanner:
-    "Service response only — promotional Offers are unavailable because this guest has not granted marketing permission.",
-  marketingEligibleEmail: "Marketing eligible for Email.",
-  marketingEligibleSms: "Marketing eligible for SMS.",
+  serviceReply:
+    "Service reply to this guest's Feedback. Marketing permission is not needed.",
   addOfferCta: "Add Offer",
   eligibilityChanged:
     "Marketing eligibility changed. The attached Offer was removed. Promotional Offers are unavailable until marketing permission is granted again.",
-  noPermission: "This guest does not have marketing permission for Offers.",
+  noPermission: "This guest has not asked for a reply to their Feedback.",
   providerUnavailable:
     "The message provider is unavailable. Try again later.",
   sendFailed: "Could not send the response. Please try again.",
@@ -128,41 +126,12 @@ export function resolveRecoveryComposerMarketingChannelFromDetails(input: {
   return marketingPreferenceFallbackChannel(input)
 }
 
-/** RC-01 / RC-02 status banner from current marketing channel grant. */
-export function buildRecoveryComposerStatusBanner(
-  marketingChannel: RecoveryComposerMarketingChannel | null
-): RecoveryComposerStatusBanner {
-  if (marketingChannel === "email") {
-    return {
-      kind: "marketing-eligible",
-      message: RECOVERY_COMPOSER_COPY.marketingEligibleEmail,
-    }
-  }
-  if (marketingChannel === "sms") {
-    return {
-      kind: "marketing-eligible",
-      message: RECOVERY_COMPOSER_COPY.marketingEligibleSms,
-    }
-  }
+/** Recovery composer status banner — service reply; marketing is not required. */
+export function buildRecoveryComposerStatusBanner(): RecoveryComposerStatusBanner {
   return {
     kind: "service-only",
-    message: RECOVERY_COMPOSER_COPY.serviceOnlyBanner,
+    message: RECOVERY_COMPOSER_COPY.serviceReply,
   }
-}
-
-/**
- * When marketing grant is lost while an Offer is attached, detach before send.
- */
-export function shouldDetachOfferOnEligibilityLoss(input: {
-  previousChannel: RecoveryComposerMarketingChannel | null
-  nextChannel: RecoveryComposerMarketingChannel | null
-  hasAttachedOffer: boolean
-}): boolean {
-  return (
-    input.hasAttachedOffer
-    && input.previousChannel != null
-    && input.nextChannel == null
-  )
 }
 
 function errorMessage(error: unknown): string {
@@ -178,11 +147,7 @@ export function mapRecoveryComposerSendFailure(
 ): RecoveryComposerSendFailure {
   const message = errorMessage(error).toLowerCase()
 
-  if (
-    message.includes("opted out")
-    || message.includes("marketing permission")
-    || message.includes("not granted marketing")
-  ) {
+  if (message.includes("feedback follow-up permission")) {
     return {
       kind: "no_permission",
       message: RECOVERY_COMPOSER_COPY.noPermission,

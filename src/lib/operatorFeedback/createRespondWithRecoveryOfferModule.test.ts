@@ -1090,17 +1090,18 @@ describe("createRespondWithRecoveryOfferModule", () => {
     expect(module.getSnapshot().sendConfirmOpen).toBe(false)
   })
 
-  it("RC-02: shows marketing-eligible banner from marketingPreference fallback", async () => {
+  it("shows service-reply banner (marketing not required)", async () => {
     const module = createRespondWithRecoveryOfferModule(createAdapters())
     await module.open(2418)
 
     expect(module.getSnapshot().statusBanner).toMatchObject({
-      kind: "marketing-eligible",
-      message: "Marketing eligible for Email.",
+      kind: "service-only",
+      message:
+        "Service reply to this guest's Feedback. Marketing permission is not needed.",
     })
   })
 
-  it("RC-03: detaches Offer when marketing eligibility is lost before send", async () => {
+  it("marketing withdrawn before send keeps the attached Offer", async () => {
     let call = 0
     const adapters = createAdapters({
       getFeedbackDetails: async () => {
@@ -1137,16 +1138,20 @@ describe("createRespondWithRecoveryOfferModule", () => {
     const module = createRespondWithRecoveryOfferModule(adapters)
     await openAtReview(module)
 
+    expect(module.getSnapshot().offer.title).toBe("20% off")
+
     module.openSendConfirm()
     await module.confirmSend()
 
-    expect(adapters.sendAndIssueRecoveryOffer).not.toHaveBeenCalled()
-    expect(module.getSnapshot().offerId).toBeNull()
-    expect(module.getSnapshot().eligibilityNotice).toMatch(/eligibility changed/i)
-    expect(module.getSnapshot().step).toBe("offer")
+    expect(adapters.sendAndIssueRecoveryOffer).toHaveBeenCalled()
+    const sent = adapters.sendAndIssueRecoveryOffer.mock.calls[0]?.[0] as
+      | SendAndIssueRecoveryOfferRequest
+      | undefined
+    expect(sent?.offer.title).toBe("20% off")
+    expect(module.getSnapshot().step).toBe("success")
   })
 
-  it("RC-03: maps opted-out send failure and detaches Offer", async () => {
+  it("maps follow-up denial send failure without detaching Offer", async () => {
     const adapters = createAdapters({
       getFeedbackDetails: async () => ({
         ...sampleDetails,
@@ -1161,17 +1166,22 @@ describe("createRespondWithRecoveryOfferModule", () => {
         },
       }),
       sendAndIssueRecoveryOffer: vi.fn(async () => {
-        throw new Error("Guest has opted out of offers.")
+        throw new Error("Guest has not granted feedback follow-up permission.")
       }),
     })
     const module = createRespondWithRecoveryOfferModule(adapters)
     await openAtReview(module)
 
+    expect(module.getSnapshot().offer.title).toBe("20% off")
     module.openSendConfirm()
     await module.confirmSend()
 
-    expect(module.getSnapshot().offerId).toBeNull()
-    expect(module.getSnapshot().eligibilityNotice).toMatch(/marketing permission/i)
-    expect(module.getSnapshot().step).toBe("offer")
+    expect(module.getSnapshot().offer.title).toBe("20% off")
+    expect(module.getSnapshot().sendError).toMatch(
+      /has not asked for a reply to their Feedback/i
+    )
+    expect(module.getSnapshot().step).toBe("review")
   })
 })
+
+
