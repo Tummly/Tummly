@@ -29,6 +29,7 @@ namespace TummlyBackend.Controllers
         private readonly IRecaptchaVerifier _recaptcha;
         private readonly IConfiguration _configuration;
         private readonly ILogger<ScanController> _logger;
+        private static readonly TimeSpan DuplicateSubmitWindow = TimeSpan.FromMinutes(10);
 
         public ScanController(
             ApplicationDbContext context,
@@ -305,6 +306,69 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            var guestName = dto.GuestName.Trim();
+            var guestContact = dto.GuestContact.Trim();
+            var comment = dto.Comment.Trim();
+            var duplicateSince = DateTime.UtcNow - DuplicateSubmitWindow;
+            var duplicate = await _context.Feedbacks
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantLocationId == location.Id
+                    && row.GuestContact == guestContact
+                    && row.Comment == comment
+                    && row.CreatedAt >= duplicateSince
+                )
+                .OrderByDescending(row => row.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (duplicate != null)
+            {
+                // Same contact + comment within the window: write nothing; re-show
+                // an existing thank-you Offer when LocationGuestId is present.
+                OfferIssue? duplicateIssued = null;
+                var duplicateIssueAt = DateTime.UtcNow;
+                if (duplicate.LocationGuestId is int duplicateGuestId)
+                {
+                    try
+                    {
+                        duplicateIssued = await _offerIssues.IssueOnThankYouSubmitAsync(
+                            location.Id,
+                            duplicateGuestId,
+                            duplicate.Id,
+                            duplicateIssueAt,
+                            allowNewIssue: false
+                        );
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(
+                            ex,
+                            "Thank-you Offer re-show failed for duplicate Feedback {FeedbackId}.",
+                            duplicate.Id
+                        );
+                        duplicateIssued = null;
+                    }
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Feedback submitted successfully.",
+                    offer = duplicateIssued == null
+                        ? null
+                        : new ScanThankYouOfferDto
+                        {
+                            Title = duplicateIssued.Title,
+                            Description = duplicateIssued.Description,
+                            ClaimCode = duplicateIssued.ClaimCode,
+                            ExpiryLabel = FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
+                                duplicateIssued.ExpiryAtUtc
+                            ),
+                            AlreadyClaimed = duplicateIssued.IssuedAtUtc != duplicateIssueAt,
+                        },
+                });
+            }
+
             /*
              =========================================
              PER-TOKEN RATE LIMIT (10 submissions / hour)
@@ -344,9 +408,6 @@ namespace TummlyBackend.Controllers
              =========================================
             */
 
-            var guestName = dto.GuestName.Trim();
-            var guestContact = dto.GuestContact.Trim();
-
             Feedback? feedback = null;
             const int maxPersistAttempts = 2;
 
@@ -385,7 +446,7 @@ namespace TummlyBackend.Controllers
                         GuestName = guestName,
                         GuestContact = guestContact,
                         ContactType = contactType,
-                        Comment = dto.Comment.Trim(),
+                        Comment = comment,
                         OffersOptOut = dto.OffersOptOut,
                         ClassificationStatus = ClassificationStatus.Pending,
                         CreatedAt = submitAt
@@ -421,12 +482,9 @@ namespace TummlyBackend.Controllers
 
             // Catalog thank-you Issue: live Active attach issues the Standard
             // Offer independent of marketing consent. Issue failures keep the
-            // Feedback and return plain success. When issue returns null,
-            // unlockOffer may still be built for the Guest unlock screen
-            // (removed in a later task). Anti-abuse: re-show redeemable codes;
-            // suppress after redeem; cap new issues per token / IP.
+            // Feedback and return plain success. Anti-abuse: re-show redeemable
+            // codes; suppress after redeem; cap new issues per token / IP.
             OfferIssue? issued = null;
-            ScanUnlockThankYouOfferDto? unlockOffer = null;
             // Outside the LocationGuestId branch so thank-you paint can compare
             // IssuedAtUtc for AlreadyClaimed after the if.
             var issueAt = DateTime.UtcNow;
@@ -466,16 +524,6 @@ namespace TummlyBackend.Controllers
                         clientIp
                     );
                 }
-
-                if (issued == null)
-                {
-                    unlockOffer = await TryBuildUnlockOfferAsync(
-                        location,
-                        locationGuestId,
-                        feedback.Id,
-                        contactType
-                    );
-                }
             }
 
             return Ok(new
@@ -494,232 +542,7 @@ namespace TummlyBackend.Controllers
                         ),
                         AlreadyClaimed = issued.IssuedAtUtc != issueAt,
                     },
-                unlockOffer,
             });
-        }
-
-        /// <summary>
-        /// Guest unlock CTA: grant channel marketing + issue thank-you offer.
-        /// </summary>
-        [HttpPost("{token}/thank-you-offer/unlock")]
-        public async Task<IActionResult> UnlockThankYouOffer(
-            string token,
-            [FromBody] UnlockThankYouOfferRequest body
-        )
-        {
-            var normalizedToken = token?.Trim();
-
-            if (string.IsNullOrWhiteSpace(normalizedToken))
-            {
-                return NotFound(new
-                {
-                    success = false,
-                    message = "Invalid link."
-                });
-            }
-
-            var resolution = await _smartGuestLink
-                .ResolveLocationForWriteAsync(normalizedToken);
-
-            if (resolution == null)
-            {
-                return NotFound(new
-                {
-                    success = false,
-                    message = "Link not found."
-                });
-            }
-
-            var location = resolution.Location;
-            if (await IsDemoGuestFormAsync(normalizedToken, location.RestaurantId))
-            {
-                return DemoGuestFormForbidden();
-            }
-
-            var secret = UnsubscribeLink.ResolveSigningSecret(_configuration);
-            if (
-                string.IsNullOrEmpty(secret)
-                || !ThankYouOfferUnlockToken.TryVerify(
-                    body?.UnlockToken ?? string.Empty,
-                    secret,
-                    out var feedbackId,
-                    out var locationGuestId,
-                    out var tokenLocationId,
-                    out var channel,
-                    out _
-                )
-            )
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "This unlock link is invalid or has expired.",
-                });
-            }
-
-            if (tokenLocationId != location.Id)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "This unlock link is invalid or has expired.",
-                });
-            }
-
-            var contactType = channel switch
-            {
-                "email" => ContactType.Email,
-                "sms" => ContactType.Phone,
-                _ => ContactType.Unknown,
-            };
-            if (contactType == ContactType.Unknown)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "This unlock link is invalid or has expired.",
-                });
-            }
-
-            var feedback = await _context.Feedbacks
-                .Include(row => row.LocationGuest)
-                .FirstOrDefaultAsync(row => row.Id == feedbackId);
-
-            if (
-                feedback == null
-                || feedback.RestaurantLocationId != location.Id
-                || feedback.LocationGuestId != locationGuestId
-                || feedback.LocationGuest == null
-            )
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "This unlock link is invalid or has expired.",
-                });
-            }
-
-            var restaurant = await _context.Restaurants
-                .FirstAsync(r => r.Id == location.RestaurantId);
-
-            var unlockAt = DateTime.UtcNow;
-            await _guestFormPermissions.ApplyOnSubmitAsync(
-                feedback.LocationGuest,
-                restaurant,
-                location.Id,
-                location.LocationName,
-                marketingConsentGranted: true,
-                contactType,
-                unlockAt
-            );
-
-            feedback.OffersOptOut = false;
-            // Persist marketing grant before thank-you issue (issue gate reads
-            // ledger + preference from the database).
-            await _context.SaveChangesAsync();
-
-            var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString();
-            var allowNewIssue = ThankYouIssueAbuseCaps.IsUnderCap(
-                _cache,
-                normalizedToken,
-                clientIp
-            );
-
-            var issued = await _offerIssues.IssueOnThankYouSubmitAsync(
-                location.Id,
-                locationGuestId,
-                feedback.Id,
-                unlockAt,
-                allowNewIssue: allowNewIssue
-            );
-
-            if (issued == null)
-            {
-                return Conflict(new
-                {
-                    success = false,
-                    message = "This offer is no longer available.",
-                });
-            }
-
-            if (issued.IssuedAtUtc == unlockAt)
-            {
-                ThankYouIssueAbuseCaps.RecordNewIssue(
-                    _cache,
-                    normalizedToken,
-                    clientIp
-                );
-            }
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                success = true,
-                offer = new ScanThankYouOfferDto
-                {
-                    Title = issued.Title,
-                    Description = issued.Description,
-                    ClaimCode = issued.ClaimCode,
-                    ExpiryLabel = FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
-                        issued.ExpiryAtUtc
-                    ),
-                    AlreadyClaimed = issued.IssuedAtUtc != unlockAt,
-                },
-            });
-        }
-
-        private async Task<ScanUnlockThankYouOfferDto?> TryBuildUnlockOfferAsync(
-            RestaurantLocation location,
-            int locationGuestId,
-            int feedbackId,
-            ContactType contactType
-        )
-        {
-            var channel = contactType switch
-            {
-                ContactType.Email => "email",
-                ContactType.Phone => "sms",
-                _ => null,
-            };
-            if (channel == null)
-            {
-                return null;
-            }
-
-            var title = await _offerIssues.TryGetUnlockableThankYouOfferTitleAsync(
-                location.Id,
-                locationGuestId
-            );
-            if (string.IsNullOrWhiteSpace(title))
-            {
-                return null;
-            }
-
-            var secret = UnsubscribeLink.ResolveSigningSecret(_configuration);
-            if (string.IsNullOrEmpty(secret))
-            {
-                return null;
-            }
-
-            var restaurant = await LoadRestaurantForLocationAsync(location.Id);
-            var unlockToken = ThankYouOfferUnlockToken.Create(
-                feedbackId,
-                locationGuestId,
-                location.Id,
-                channel,
-                DateTime.UtcNow,
-                secret
-            );
-
-            return new ScanUnlockThankYouOfferDto
-            {
-                Title = title,
-                Channel = channel,
-                RestaurantName = restaurant.Name ?? string.Empty,
-                LocationName = location.LocationName ?? string.Empty,
-                UnlockToken = unlockToken,
-            };
         }
 
         /*

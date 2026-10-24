@@ -4,12 +4,10 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Offers;
-using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -501,10 +499,7 @@ namespace TummlyBackend.Tests.Integration
                     offer.GetProperty("claimCode").GetString()
                 )
             );
-            Assert.True(
-                !body.TryGetProperty("unlockOffer", out var unlock)
-                    || unlock.ValueKind == JsonValueKind.Null
-            );
+            Assert.False(body.TryGetProperty("unlockOffer", out _));
 
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -645,86 +640,187 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task UnlockThankYouOffer_AfterOptOutSubmit_IssuesOffer()
+        public async Task UnlockRoute_IsRemoved_Returns404()
         {
-            const string token = "thank-you-unlock-after-optout-1234567890";
+            const string token = "thank-you-unlock-removed-123456789012";
             await SeedGuestLocationWithThankYouOfferAsync(
                 token,
                 offerStatus: "active"
             );
 
-            var submit = await _client.PostAsJsonAsync(
+            var unlock = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/thank-you-offer/unlock",
+                new { unlockToken = "x" }
+            );
+
+            Assert.Equal(HttpStatusCode.NotFound, unlock.StatusCode);
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_Decline_CompletesWithoutSecondAsk()
+        {
+            const string token = "thank-you-decline-no-offer-1234567890";
+            await SeedGuestLocationAsync(
+                token,
+                restaurantName: "Decline Fork",
+                locationName: "Main"
+            );
+
+            var response = await _client.PostAsJsonAsync(
                 $"/api/scan/{token}/feedback",
                 new
                 {
                     guestName = "Alex Guest",
-                    guestContact = "07123456789",
+                    guestContact = "alex-decline@example.com",
                     comment = "A useful visit.",
                     offersOptOut = true
                 }
             );
-            Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
 
-            // Task 2 issues Standard Offer on opt-out; unlockOffer is no longer
-            // returned. Mint a token so this unlock route stays covered until
-            // Task 3 deletes it.
-            string unlockToken;
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.False(body.TryGetProperty("unlockOffer", out _));
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_DuplicateWithinWindow_WritesNothingNew()
+        {
+            const string token = "thank-you-dup-window-12345678901234";
+            await SeedGuestLocationWithThankYouOfferAsync(
+                token,
+                offerStatus: "active"
+            );
+
+            var payload = new
+            {
+                guestName = "Alex Guest",
+                guestContact = "alex-dup@example.com",
+                comment = "Same comment twice.",
+                offersOptOut = false
+            };
+
+            var first = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                payload
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            var firstBody = await ReadJsonAsync(first);
+            var firstCode = firstBody
+                .GetProperty("offer")
+                .GetProperty("claimCode")
+                .GetString();
+            Assert.False(string.IsNullOrWhiteSpace(firstCode));
+
+            int ledgerAfterFirst;
+            int notificationsAfterFirst;
             using (var scope = _factory.Services.CreateScope())
             {
                 var context = scope.ServiceProvider
                     .GetRequiredService<ApplicationDbContext>();
-                var configuration = scope.ServiceProvider
-                    .GetRequiredService<IConfiguration>();
                 var locationId = await context.QrCodes
                     .Where(qrCode => qrCode.Token == token)
                     .Select(qrCode => qrCode.RestaurantLocationId)
                     .SingleAsync();
-                var feedback = await context.Feedbacks
-                    .SingleAsync(item => item.RestaurantLocationId == locationId);
-                var secret = UnsubscribeLink.ResolveSigningSecret(configuration);
-                Assert.False(string.IsNullOrEmpty(secret));
-                unlockToken = ThankYouOfferUnlockToken.Create(
-                    feedback.Id,
-                    feedback.LocationGuestId!.Value,
-                    locationId,
-                    "sms",
-                    DateTime.UtcNow,
-                    secret!
-                );
+                ledgerAfterFirst = await context
+                    .LocationGuestPermissionLedgerEntries
+                    .CountAsync(row => row.RestaurantLocationId == locationId);
+                notificationsAfterFirst = await context.Notifications.CountAsync();
             }
 
-            var unlock = await _client.PostAsJsonAsync(
-                $"/api/scan/{token}/thank-you-offer/unlock",
-                new { unlockToken }
+            var second = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                payload
             );
-            Assert.Equal(HttpStatusCode.OK, unlock.StatusCode);
-            var unlockBody = await ReadJsonAsync(unlock);
-            Assert.True(unlockBody.GetProperty("success").GetBoolean());
-            var offer = unlockBody.GetProperty("offer");
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+            var secondBody = await ReadJsonAsync(second);
+            var secondOffer = secondBody.GetProperty("offer");
             Assert.Equal(
-                "Thanks for visiting",
-                offer.GetProperty("title").GetString()
+                firstCode,
+                secondOffer.GetProperty("claimCode").GetString()
             );
-            Assert.False(
-                string.IsNullOrWhiteSpace(
-                    offer.GetProperty("claimCode").GetString()
-                )
+            Assert.True(secondOffer.GetProperty("alreadyClaimed").GetBoolean());
+            Assert.False(secondBody.TryGetProperty("unlockOffer", out _));
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var locationId = await context.QrCodes
+                    .Where(qrCode => qrCode.Token == token)
+                    .Select(qrCode => qrCode.RestaurantLocationId)
+                    .SingleAsync();
+                Assert.Equal(
+                    1,
+                    await context.Feedbacks.CountAsync(
+                        item => item.RestaurantLocationId == locationId
+                    )
+                );
+                Assert.Equal(
+                    ledgerAfterFirst,
+                    await context.LocationGuestPermissionLedgerEntries
+                        .CountAsync(row => row.RestaurantLocationId == locationId)
+                );
+                Assert.Equal(
+                    1,
+                    await context.OfferIssues.CountAsync(
+                        issue =>
+                            issue.LocationGuest!.RestaurantLocationId
+                                == locationId
+                    )
+                );
+                Assert.Equal(
+                    notificationsAfterFirst,
+                    await context.Notifications.CountAsync()
+                );
+            }
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_SameContactNewComment_IsNotDuplicate()
+        {
+            const string token = "thank-you-new-comment-123456789012";
+            await SeedGuestLocationWithThankYouOfferAsync(
+                token,
+                offerStatus: "active"
             );
 
-            using var assertScope = _factory.Services.CreateScope();
-            var assertContext = assertScope.ServiceProvider
+            var first = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex-newcomment@example.com",
+                    comment = "First comment.",
+                    offersOptOut = false
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            var second = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex-newcomment@example.com",
+                    comment = "Second comment.",
+                    offersOptOut = false
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            var assertLocationId = await assertContext.QrCodes
+            var locationId = await context.QrCodes
                 .Where(qrCode => qrCode.Token == token)
                 .Select(qrCode => qrCode.RestaurantLocationId)
                 .SingleAsync();
-            Assert.Single(
-                await assertContext.OfferIssues
-                    .Where(issue =>
-                        issue.LocationGuest!.RestaurantLocationId
-                            == assertLocationId
-                    )
-                    .ToListAsync()
+            Assert.Equal(
+                2,
+                await context.Feedbacks.CountAsync(
+                    item => item.RestaurantLocationId == locationId
+                )
             );
         }
 
@@ -1022,12 +1118,6 @@ namespace TummlyBackend.Tests.Integration
                 CancellationToken cancellationToken = default,
                 bool allowNewIssue = true
             ) => throw new OfferIssueCodeAllocationException();
-
-            public Task<string?> TryGetUnlockableThankYouOfferTitleAsync(
-                int locationId,
-                int locationGuestId,
-                CancellationToken cancellationToken = default
-            ) => Task.FromResult<string?>(null);
 
             public Task<OfferIssue?> IssueOnRecoverySendAsync(
                 int catalogOfferId,

@@ -160,61 +160,6 @@ namespace TummlyBackend.Services
             );
         }
 
-        public async Task<string?> TryGetUnlockableThankYouOfferTitleAsync(
-            int locationId,
-            int locationGuestId,
-            CancellationToken cancellationToken = default
-        )
-        {
-            if (
-                await IsLocationNotActiveAsync(locationId, cancellationToken)
-            )
-            {
-                return null;
-            }
-
-            var catalogOfferId = await ResolveLiveThankYouCatalogOfferIdAsync(
-                locationId,
-                cancellationToken
-            );
-            if (catalogOfferId is not int offerId)
-            {
-                return null;
-            }
-
-            if (
-                !await IsMarketingOfferBlockedAsync(
-                    locationGuestId,
-                    cancellationToken
-                )
-            )
-            {
-                return null;
-            }
-
-            var existing = await FindExistingThankYouIssueAsync(
-                locationGuestId,
-                offerId,
-                cancellationToken
-            );
-            if (existing != null)
-            {
-                return null;
-            }
-
-            var catalog = await LoadActiveCatalogOfferAsync(
-                offerId,
-                cancellationToken
-            );
-            if (catalog == null)
-            {
-                return null;
-            }
-
-            var title = (catalog.Title ?? string.Empty).Trim();
-            return title.Length == 0 ? null : title;
-        }
-
         public async Task<OfferIssue?> IssueOnRecoverySendAsync(
             int catalogOfferId,
             int locationGuestId,

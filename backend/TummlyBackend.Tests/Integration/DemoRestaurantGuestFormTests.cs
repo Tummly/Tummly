@@ -61,20 +61,6 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task ThankYouOfferUnlock_ToDemoRestaurant_Returns403()
-        {
-            const string token = "demo-guest-form-unlock";
-            await SeedDemoRestaurantAsync(token);
-
-            var response = await _client.PostAsJsonAsync(
-                $"/api/scan/{token}/thank-you-offer/unlock",
-                new { unlockToken = "any-token" }
-            );
-
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        }
-
-        [Fact]
         public async Task GetScan_ForDemoRestaurant_StoresNoScanOrFormOpenEvents()
         {
             const string token = "demo-guest-form-scan-get";

@@ -78,14 +78,16 @@ namespace TummlyBackend.Tests.Integration
                 token,
                 guestName: "Jane Doe",
                 guestContact: "jane@example.com",
-                offersOptOut: true
+                offersOptOut: true,
+                comment: "First visit note."
             );
 
             var second = await PostFeedbackAsync(
                 token,
                 guestName: "Jane D.",
                 guestContact: "jane@example.com",
-                offersOptOut: false
+                offersOptOut: false,
+                comment: "Second visit note."
             );
             Assert.Equal(HttpStatusCode.OK, second.StatusCode);
 
@@ -290,7 +292,8 @@ namespace TummlyBackend.Tests.Integration
             string token,
             string guestName,
             string guestContact,
-            bool offersOptOut
+            bool offersOptOut,
+            string comment = "A useful visit."
         )
         {
             return await _client.PostAsJsonAsync(
@@ -299,7 +302,7 @@ namespace TummlyBackend.Tests.Integration
                 {
                     guestName,
                     guestContact,
-                    comment = "A useful visit.",
+                    comment,
                     offersOptOut
                 }
             );

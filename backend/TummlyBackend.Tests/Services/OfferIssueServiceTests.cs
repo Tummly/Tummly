@@ -214,34 +214,6 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task TryGetUnlockableThankYouOfferTitle_WhenOptOutAndLiveAttach_ReturnsTitle()
-        {
-            var seeded = await SeedLocationGuestAndOfferAsync(offersOptOut: true);
-            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
-
-            var title = await _service.TryGetUnlockableThankYouOfferTitleAsync(
-                seeded.LocationId,
-                seeded.LocationGuestId
-            );
-
-            Assert.Equal("10% off next visit", title);
-        }
-
-        [Fact]
-        public async Task TryGetUnlockableThankYouOfferTitle_WhenMarketingAllowed_ReturnsNull()
-        {
-            var seeded = await SeedLocationGuestAndOfferAsync(offersOptOut: false);
-            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
-
-            var title = await _service.TryGetUnlockableThankYouOfferTitleAsync(
-                seeded.LocationId,
-                seeded.LocationGuestId
-            );
-
-            Assert.Null(title);
-        }
-
-        [Fact]
         public async Task IssueOnThankYouSubmit_WhenPersistedAttachPaused_IsNoOp()
         {
             var seeded = await SeedLocationGuestAndOfferAsync(
@@ -410,40 +382,6 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(second);
             Assert.Equal(first!.ClaimCode, second!.ClaimCode);
             Assert.Equal(1, await _context.OfferIssues.CountAsync());
-        }
-
-        [Fact]
-        public async Task TryGetUnlockableThankYouOfferTitle_WhenThankYouAlreadyIssued_ReturnsNull()
-        {
-            var seeded = await SeedLocationGuestAndOfferAsync(offersOptOut: true);
-            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
-
-            _context.OfferIssues.Add(
-                new OfferIssue
-                {
-                    CatalogOfferId = seeded.CatalogOfferId,
-                    LocationGuestId = seeded.LocationGuestId,
-                    ClaimCode = "TUM-AAAAAA",
-                    IssuedAtUtc = _now,
-                    ClaimedAtUtc = _now,
-                    Source = OfferIssueSources.GuestFormThankYou,
-                    FeedbackId = 11,
-                    ExpiryAtUtc = _now.AddDays(14),
-                    OfferType = CatalogOfferType.PercentageDiscount,
-                    Title = "10% off next visit",
-                    Description = "Valid on your next visit.",
-                    Validity = CatalogOfferValidity.Days14AfterIssue,
-                    DiscountPercentage = 10m,
-                }
-            );
-            await _context.SaveChangesAsync();
-
-            var title = await _service.TryGetUnlockableThankYouOfferTitleAsync(
-                seeded.LocationId,
-                seeded.LocationGuestId
-            );
-
-            Assert.Null(title);
         }
 
         [Fact]
