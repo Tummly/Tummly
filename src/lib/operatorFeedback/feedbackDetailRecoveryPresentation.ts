@@ -41,10 +41,6 @@ export const FEEDBACK_DETAIL_RECOVERY_COPY = {
   permissionSummaryTitle: "Permission summary",
   respondCta: "Respond to guest",
   addOfferCta: "Add Offer",
-  marketingNotAvailableHelper:
-    "Marketing permission is not available for this guest.",
-  emailMarketingRequiredReason:
-    "Email marketing opt-in is required to email this guest.",
   noContactReason: "No valid contact method available.",
   followUpUnavailableReason:
     "Feedback follow-up is not available for this guest.",
@@ -204,6 +200,7 @@ export function buildFeedbackDetailPermissionSummary(input: {
 
 /**
  * FD-01 / FD-02 / FD-03 CTA enablement for Feedback detail.
+ * Contact + Feedback follow-up gate Respond and Add Offer; marketing does not.
  */
 export function deriveFeedbackDetailRecoveryActions(input: {
   contactType: ContactType
@@ -218,7 +215,6 @@ export function deriveFeedbackDetailRecoveryActions(input: {
   const hasContact =
     input.guestContact.trim() !== "" && input.contactType !== "Unknown"
   const followUpAvailable = isFeedbackFollowUpAvailable(input)
-  const marketingChannel = resolveMarketingGrantedChannel(input)
   const accountRestricted = input.accountRestricted === true
 
   if (input.workflowStatus === "resolved") {
@@ -226,7 +222,7 @@ export function deriveFeedbackDetailRecoveryActions(input: {
       respondEnabled: false,
       respondDisableReason: copy.resolvedReason,
       addOfferEnabled: false,
-      addOfferHelper: copy.marketingNotAvailableHelper,
+      addOfferHelper: copy.resolvedReason,
     }
   }
 
@@ -235,7 +231,7 @@ export function deriveFeedbackDetailRecoveryActions(input: {
       respondEnabled: false,
       respondDisableReason: copy.accountRestrictedReason,
       addOfferEnabled: false,
-      addOfferHelper: copy.marketingNotAvailableHelper,
+      addOfferHelper: copy.accountRestrictedReason,
     }
   }
 
@@ -244,7 +240,7 @@ export function deriveFeedbackDetailRecoveryActions(input: {
       respondEnabled: false,
       respondDisableReason: copy.noContactReason,
       addOfferEnabled: false,
-      addOfferHelper: copy.marketingNotAvailableHelper,
+      addOfferHelper: copy.noContactReason,
     }
   }
 
@@ -253,27 +249,7 @@ export function deriveFeedbackDetailRecoveryActions(input: {
       respondEnabled: false,
       respondDisableReason: copy.followUpUnavailableReason,
       addOfferEnabled: false,
-      addOfferHelper: copy.marketingNotAvailableHelper,
-    }
-  }
-
-  // FD-01 / FD-02 — follow-up available + valid contact.
-  // Email channel guest mail also requires email-marketing opt-in.
-  if (input.contactType === "Email" && marketingChannel == null) {
-    return {
-      respondEnabled: false,
-      respondDisableReason: copy.emailMarketingRequiredReason,
-      addOfferEnabled: false,
-      addOfferHelper: copy.marketingNotAvailableHelper,
-    }
-  }
-
-  if (marketingChannel == null) {
-    return {
-      respondEnabled: true,
-      respondDisableReason: null,
-      addOfferEnabled: false,
-      addOfferHelper: copy.marketingNotAvailableHelper,
+      addOfferHelper: copy.followUpUnavailableReason,
     }
   }
 

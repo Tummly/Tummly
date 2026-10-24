@@ -63,38 +63,6 @@ namespace TummlyBackend.Helpers
                 && IsGuestPermissionGranted(states, kind.Value);
         }
 
-        /// <summary>
-        /// Thank-you and recovery Offer issue paths — at least one Enabled
-        /// marketing channel with guest grant (legacy Offers opt-in).
-        /// </summary>
-        public static bool IsMarketingOfferAllowed(
-            Restaurant restaurant,
-            IReadOnlyDictionary<
-                LocationGuestPermissionKind,
-                LocationGuestPermissionState
-            > states
-        )
-        {
-            foreach (
-                var kind in new[]
-                {
-                    LocationGuestPermissionKind.EmailMarketing,
-                    LocationGuestPermissionKind.SmsMarketing,
-                }
-            )
-            {
-                if (
-                    IsRestaurantPermissionEnabled(restaurant, kind)
-                    && IsGuestPermissionGranted(states, kind)
-                )
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         public static IReadOnlyList<LocationGuestPermissionKind> EnabledRestaurantPermissions(
             Restaurant restaurant
         ) =>

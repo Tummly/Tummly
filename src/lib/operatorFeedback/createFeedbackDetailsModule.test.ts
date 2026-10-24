@@ -160,14 +160,13 @@ describe("createFeedbackDetailsModule", () => {
       ],
       recoveryActions: {
         respondEnabled: true,
-        addOfferEnabled: false,
-        addOfferHelper:
-          "Marketing permission is not available for this guest.",
+        addOfferEnabled: true,
+        addOfferHelper: null,
       },
     })
   })
 
-  it("enables Add Offer when channel email marketing is granted", async () => {
+  it("enables Add Offer when contact and Feedback follow-up are available", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {
         ...sampleDetails,

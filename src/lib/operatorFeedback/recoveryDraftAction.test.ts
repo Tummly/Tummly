@@ -98,7 +98,7 @@ describe("recoveryDraftAction", () => {
         guestContact: "a@b.com",
         marketingPreference: "opted_out",
       })
-    ).toBe(RECOVERY_DRAFT_ACTION_TOASTS.offersOptOut)
+    ).toBeNull()
 
     expect(
       recoveryDraftActionGateToast({
@@ -108,7 +108,7 @@ describe("recoveryDraftAction", () => {
         guestContact: "a@b.com",
         marketingPreference: "not_recorded",
       })
-    ).toBe(RECOVERY_DRAFT_ACTION_TOASTS.offersOptOut)
+    ).toBeNull()
 
     expect(
       recoveryDraftActionGateToast({
@@ -118,7 +118,7 @@ describe("recoveryDraftAction", () => {
         guestContact: "a@b.com",
         marketingPreference: undefined,
       })
-    ).toBe(RECOVERY_DRAFT_ACTION_TOASTS.offersOptOut)
+    ).toBeNull()
 
     expect(
       recoveryDraftActionGateToast({
@@ -131,3 +131,4 @@ describe("recoveryDraftAction", () => {
     ).toBeNull()
   })
 })
+

@@ -15,7 +15,7 @@ type GuestFeedbackShellProps = {
   /** When false, screens own their own Powered by placement. */
   showPoweredBy?: boolean
   /**
-   * Bottom bloom — Figma Rectangle 6 (accent thank-you / neutral unlock).
+   * Bottom bloom — Figma Rectangle 6 (accent or neutral thank-you).
    * Painted on the shell root so it spans the full viewport width.
    */
   glow?: GuestFeedbackShellGlow

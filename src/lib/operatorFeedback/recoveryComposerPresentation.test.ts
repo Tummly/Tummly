@@ -2,157 +2,57 @@ import { describe, expect, it } from "vitest"
 
 import {
   RECOVERY_COMPOSER_COPY,
-  RECOVERY_COMPOSER_ELIGIBILITY_NOTICE_CLASS,
   RECOVERY_COMPOSER_STATUS_BANNER_CLASS,
   buildRecoveryComposerStatusBanner,
   mapRecoveryComposerSendFailure,
-  resolveRecoveryComposerMarketingChannel,
-  resolveRecoveryComposerMarketingChannelFromDetails,
-  shouldDetachOfferOnEligibilityLoss,
 } from "./recoveryComposerPresentation"
-import {
-  emptyFeedbackDetailPermissionStates,
-  emptyFeedbackDetailRestaurantPermissions,
-} from "./feedbackDetailRecoveryPresentation"
-
-const allRestaurantOn = emptyFeedbackDetailRestaurantPermissions()
-allRestaurantOn["email-marketing"] = true
-allRestaurantOn["sms-marketing"] = true
-allRestaurantOn["feedback-follow-up"] = true
 
 describe("recoveryComposerPresentation", () => {
-  it("uses theme-aware Main Bg tokens for status and eligibility banners", () => {
+  it("uses theme-aware Main Bg tokens for status banner", () => {
     expect(RECOVERY_COMPOSER_STATUS_BANNER_CLASS).toContain(
       "bg-op-background-primary"
     )
     expect(RECOVERY_COMPOSER_STATUS_BANNER_CLASS).not.toContain(
       "op-color-gray-995"
     )
-    expect(RECOVERY_COMPOSER_ELIGIBILITY_NOTICE_CLASS).toContain(
-      "bg-op-background-primary"
-    )
-    expect(RECOVERY_COMPOSER_ELIGIBILITY_NOTICE_CLASS).not.toContain(
-      "op-color-gray-995"
-    )
   })
 
-  it("RC-01: service-only banner when marketing is not granted", () => {
-    const permissionStates = emptyFeedbackDetailPermissionStates()
-    permissionStates["feedback-follow-up"] = "granted"
-
-    const channel = resolveRecoveryComposerMarketingChannel({
-      contactType: "Email",
-      guestContact: "guest@example.com",
-      permissionStates,
-      restaurantPermissions: allRestaurantOn,
-    })
-
-    expect(channel).toBeNull()
-    expect(buildRecoveryComposerStatusBanner(channel)).toEqual({
+  it("status banner is always service-reply (marketing not required)", () => {
+    expect(buildRecoveryComposerStatusBanner()).toEqual({
       kind: "service-only",
-      message: RECOVERY_COMPOSER_COPY.serviceOnlyBanner,
+      message: RECOVERY_COMPOSER_COPY.serviceReply,
     })
   })
 
-  it("RC-02 email: marketing eligible banner for Email", () => {
-    const permissionStates = emptyFeedbackDetailPermissionStates()
-    permissionStates["feedback-follow-up"] = "granted"
-    permissionStates["email-marketing"] = "granted"
-
-    const channel = resolveRecoveryComposerMarketingChannel({
-      contactType: "Email",
-      guestContact: "guest@example.com",
-      permissionStates,
-      restaurantPermissions: allRestaurantOn,
-    })
-
-    expect(channel).toBe("email")
-    expect(buildRecoveryComposerStatusBanner(channel)).toEqual({
-      kind: "marketing-eligible",
-      message: RECOVERY_COMPOSER_COPY.marketingEligibleEmail,
-    })
-  })
-
-  it("RC-02 sms: marketing eligible banner for SMS", () => {
-    const permissionStates = emptyFeedbackDetailPermissionStates()
-    permissionStates["feedback-follow-up"] = "granted"
-    permissionStates["sms-marketing"] = "granted"
-
-    const channel = resolveRecoveryComposerMarketingChannel({
-      contactType: "Phone",
-      guestContact: "07123456789",
-      permissionStates,
-      restaurantPermissions: allRestaurantOn,
-    })
-
-    expect(channel).toBe("sms")
-    expect(buildRecoveryComposerStatusBanner(channel)).toEqual({
-      kind: "marketing-eligible",
-      message: RECOVERY_COMPOSER_COPY.marketingEligibleSms,
-    })
-  })
-
-  it("parses marketing channel from Feedback details wire fields", () => {
+  it("server follow-up denial maps to no_permission", () => {
     expect(
-      resolveRecoveryComposerMarketingChannelFromDetails({
-        contactType: "Email",
-        guestContact: "guest@example.com",
-        permissionStates: {
-          "feedback-follow-up": "granted",
-          "email-marketing": "granted",
-        },
-        restaurantPermissionEnabled: {
-          "email-marketing": true,
-          "sms-marketing": true,
-          "feedback-follow-up": true,
-        },
-      })
-    ).toBe("email")
-  })
-
-  it("falls back to marketingPreference when ledger wire fields are omitted", () => {
-    expect(
-      resolveRecoveryComposerMarketingChannelFromDetails({
-        contactType: "Email",
-        guestContact: "guest@example.com",
-        marketingPreference: "allowed",
-      })
-    ).toBe("email")
-  })
-
-  it("RC-03: detaches Offer when marketing eligibility is lost", () => {
-    expect(
-      shouldDetachOfferOnEligibilityLoss({
-        previousChannel: "email",
-        nextChannel: null,
-        hasAttachedOffer: true,
-      })
-    ).toBe(true)
-
-    expect(
-      shouldDetachOfferOnEligibilityLoss({
-        previousChannel: "email",
-        nextChannel: "email",
-        hasAttachedOffer: true,
-      })
-    ).toBe(false)
-
-    expect(
-      shouldDetachOfferOnEligibilityLoss({
-        previousChannel: "email",
-        nextChannel: null,
-        hasAttachedOffer: false,
-      })
-    ).toBe(false)
-  })
-
-  it("RC-03: maps opted-out send failure to no permission", () => {
-    expect(
-      mapRecoveryComposerSendFailure(new Error("Guest has opted out of offers."))
+      mapRecoveryComposerSendFailure(
+        new Error("Guest has not granted feedback follow-up permission.")
+      )
     ).toEqual({
       kind: "no_permission",
       message: RECOVERY_COMPOSER_COPY.noPermission,
     })
+  })
+
+  it("maps feedback follow-up permission substring case-insensitively", () => {
+    expect(
+      mapRecoveryComposerSendFailure(
+        new Error("Denied: Feedback Follow-Up Permission required")
+      )
+    ).toMatchObject({ kind: "no_permission" })
+  })
+
+  it("an 'eligibility changed' server message maps to kind failed, not a detach message", () => {
+    const mapped = mapRecoveryComposerSendFailure(
+      new Error("Marketing eligibility changed. Permission changed.")
+    )
+    expect(mapped).toEqual({
+      kind: "failed",
+      message: RECOVERY_COMPOSER_COPY.sendFailed,
+    })
+    expect(mapped.message).not.toMatch(/attached Offer was removed/i)
+    expect(mapped.message).not.toMatch(/marketing permission/i)
   })
 
   it("RC-03: maps provider unavailable failures", () => {

@@ -7,8 +7,6 @@ import {
   fetchScanLocationMetadata,
   getScanApiErrorMessage,
   submitGuestFeedback,
-  unlockGuestThankYouOffer,
-  type GuestUnlockThankYouOffer,
   type ScanLocationMetadata,
 } from "@/api/scanApi"
 import { GuestFeedbackForm } from "@/components/guest-feedback/GuestFeedbackForm"
@@ -16,7 +14,6 @@ import { GuestFeedbackLoading } from "@/components/guest-feedback/GuestFeedbackL
 import { GuestFeedbackNotFound } from "@/components/guest-feedback/GuestFeedbackNotFound"
 import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShell"
 import { GuestFeedbackSuccess } from "@/components/guest-feedback/GuestFeedbackSuccess"
-import { GuestFeedbackUnlockOffer } from "@/components/guest-feedback/GuestFeedbackUnlockOffer"
 import { DemoGuestThankYou } from "@/components/marketing/demo/DemoGuestThankYou"
 import { PRODUCT_DEMO } from "@/content/marketing/productDemoPage"
 import { executeGuestFeedbackRecaptcha } from "@/lib/guestFeedback/executeGuestFeedbackRecaptcha"
@@ -40,7 +37,6 @@ type PagePhase =
   | "loading"
   | "ready"
   | "not-found"
-  | "unlock"
   | "success"
   | "demo-thanks"
 
@@ -59,11 +55,6 @@ export default function GuestFeedbackPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [issuedOffer, setIssuedOffer] =
     useState<GuestPreviewOfferCouponView | null>(null)
-  const [unlockOffer, setUnlockOffer] = useState<GuestUnlockThankYouOffer | null>(
-    null
-  )
-  const [isUnlocking, setIsUnlocking] = useState(false)
-  const [unlockError, setUnlockError] = useState<string | null>(null)
   const [demoTransitionError, setDemoTransitionError] = useState<string | null>(
     null
   )
@@ -89,8 +80,6 @@ export default function GuestFeedbackPage() {
         setMetadata(result)
         setPhase("ready")
         setIssuedOffer(null)
-        setUnlockOffer(null)
-        setUnlockError(null)
       } catch (error) {
         if (cancelled) {
           return
@@ -156,21 +145,11 @@ export default function GuestFeedbackPage() {
         })
         if (result.offer != null) {
           setIssuedOffer(toIssuedGuestOfferCoupon(result.offer))
-          setUnlockOffer(null)
           setPhase("success")
           return
         }
 
-        if (result.unlockOffer != null) {
-          setUnlockOffer(result.unlockOffer)
-          setIssuedOffer(null)
-          setUnlockError(null)
-          setPhase("unlock")
-          return
-        }
-
         setIssuedOffer(null)
-        setUnlockOffer(null)
         setPhase("success")
       } catch (error) {
         setSubmitError(
@@ -190,50 +169,12 @@ export default function GuestFeedbackPage() {
     setSubmitError(null)
   }, [])
 
-  const handleUnlock = useCallback(async () => {
-    if (unlockOffer == null) {
-      return
-    }
-
-    setIsUnlocking(true)
-    setUnlockError(null)
-    try {
-      const offer = await unlockGuestThankYouOffer(
-        token,
-        unlockOffer.unlockToken
-      )
-      setIssuedOffer(toIssuedGuestOfferCoupon(offer))
-      setUnlockOffer(null)
-      setPhase("success")
-    } catch (error) {
-      setUnlockError(
-        getScanApiErrorMessage(
-          error,
-          "We couldn't unlock this offer. Please try again."
-        )
-      )
-    } finally {
-      setIsUnlocking(false)
-    }
-  }, [token, unlockOffer])
-
-  const handleDeclineUnlock = useCallback(() => {
-    setUnlockOffer(null)
-    setIssuedOffer(null)
-    setUnlockError(null)
-    setPhase("success")
-  }, [])
-
   const centeredSuccessChrome =
-    phase === "success" || phase === "unlock"
-      ? "min-h-0 flex-1 justify-stretch pb-6 pt-6 sm:pt-8"
-      : undefined
+    phase === "success" ? "min-h-0 flex-1 justify-stretch pb-6 pt-6 sm:pt-8" : undefined
 
-  const hideShellPoweredBy =
-    phase === "ready" || phase === "success" || phase === "unlock"
+  const hideShellPoweredBy = phase === "ready" || phase === "success"
 
-  const shellGlow =
-    phase === "success" ? "accent" : phase === "unlock" ? "neutral" : "none"
+  const shellGlow = phase === "success" ? "accent" : "none"
 
   return (
     <GuestFeedbackShell
@@ -324,33 +265,6 @@ export default function GuestFeedbackPage() {
                 {demoTransitionError}
               </p>
             ) : null}
-          </motion.div>
-        ) : null}
-
-        {phase === "unlock" && metadata && unlockOffer ? (
-          <motion.div
-            key="unlock"
-            initial={shouldReduceMotion ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={shouldReduceMotion ? undefined : { opacity: 0 }}
-            transition={shouldReduceMotion ? { duration: 0 } : fadeTransition}
-            className="flex min-h-full w-full flex-1 flex-col"
-          >
-            <GuestFeedbackUnlockOffer
-              restaurantName={
-                unlockOffer.restaurantName || metadata.restaurantName
-              }
-              locationName={unlockOffer.locationName || metadata.locationName}
-              brandLogoPublicUrl={metadata.brandLogoPublicUrl}
-              offerTitle={unlockOffer.title}
-              channel={unlockOffer.channel}
-              isUnlocking={isUnlocking}
-              unlockError={unlockError}
-              onUnlock={() => {
-                void handleUnlock()
-              }}
-              onDecline={handleDeclineUnlock}
-            />
           </motion.div>
         ) : null}
 

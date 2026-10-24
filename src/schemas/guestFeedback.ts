@@ -39,7 +39,7 @@ export const guestFeedbackSchema = z.object({
   guestName: z
     .string()
     .min(1, validationMessages.guestFeedback.guestName.required)
-    .max(150, "Name must be 150 characters or fewer."),
+    .max(150, "First name must be 150 characters or fewer."),
   guestContact: guestContactSchema,
   comment: z
     .string()

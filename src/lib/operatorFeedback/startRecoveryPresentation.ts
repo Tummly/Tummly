@@ -2,7 +2,6 @@ import {
   isFeedbackFollowUpAvailable,
   parseFeedbackDetailPermissionStates,
   parseFeedbackDetailRestaurantPermissions,
-  resolveMarketingGrantedChannel,
   type FeedbackDetailPermissionStates,
   type FeedbackDetailRestaurantPermissions,
 } from "@/lib/operatorFeedback/feedbackDetailRecoveryPresentation"
@@ -17,7 +16,6 @@ import type {
   FeedbackWorkflowStatus,
   LocationGuestMarketingPreference,
 } from "@/types/dashboard"
-import { isLocationGuestMarketingIneligible } from "@/lib/operatorGuests/locationGuestMarketingPreference"
 
 export type StartRecoveryContactCapability =
   | "email_available"
@@ -39,9 +37,6 @@ export type StartRecoveryIntentCard = {
 }
 
 const NO_CONTACT_REASON = "No contact method available"
-const OFFERS_OPT_OUT_REASON = "Guest has opted out of offers"
-const MARKETING_NOT_AVAILABLE_REASON =
-  "Marketing permission is not available for this guest."
 const FOLLOW_UP_UNAVAILABLE_REASON =
   "Feedback follow-up is not available for this guest."
 
@@ -107,45 +102,12 @@ export function startRecoveryContactCapabilityLabel(
   }
 }
 
-function contactTypeForCapability(
-  capability: StartRecoveryContactCapability
-): ContactType {
-  if (capability === "email_available") {
-    return "Email"
-  }
-  if (capability === "sms_available") {
-    return "Phone"
-  }
-  return "Unknown"
-}
-
-function isMarketingEligibleForOffer(input: {
-  contactCapability: StartRecoveryContactCapability
-  marketingPreference: LocationGuestMarketingPreference | undefined
-  permissionStates?: FeedbackDetailPermissionStates
-  restaurantPermissions?: FeedbackDetailRestaurantPermissions
-}): boolean {
-  if (
-    input.permissionStates != null
-    && input.restaurantPermissions != null
-  ) {
-    const channel = resolveMarketingGrantedChannel({
-      contactType: contactTypeForCapability(input.contactCapability),
-      guestContact:
-        input.contactCapability === "no_contact" ? "" : "present",
-      permissionStates: input.permissionStates,
-      restaurantPermissions: input.restaurantPermissions,
-    })
-    return channel != null
-  }
-
-  return !isLocationGuestMarketingIneligible(input.marketingPreference)
-}
-
 /**
  * PRD Start recovery intent cards — order, copy, and disable rules.
- * Resolved disables all; No contact gates Respond*; follow-up / marketing
- * gates use ledger states when present (FD), else marketing rollup.
+ * Resolved disables all; No contact gates Respond*; Feedback follow-up
+ * gates Respond* when ledger states are present (FD). Marketing does not
+ * gate. When ledger payloads are absent (legacy fixtures), follow-up is
+ * treated as available.
  */
 export function buildStartRecoveryIntents(input: {
   contactCapability: StartRecoveryContactCapability
@@ -156,7 +118,6 @@ export function buildStartRecoveryIntents(input: {
 }): StartRecoveryIntentCard[] {
   const isResolved = input.workflowStatus === "resolved"
   const hasNoContact = input.contactCapability === "no_contact"
-  const marketingEligible = isMarketingEligibleForOffer(input)
   const followUpAvailable =
     input.permissionStates == null || input.restaurantPermissions == null
       ? true
@@ -182,39 +143,6 @@ export function buildStartRecoveryIntents(input: {
       }
     }
 
-    if (definition.id === "respond-with-recovery-offer") {
-      if (hasNoContact) {
-        return {
-          ...definition,
-          enabled: false,
-          disableReason: NO_CONTACT_REASON,
-        }
-      }
-      if (!followUpAvailable) {
-        return {
-          ...definition,
-          enabled: false,
-          disableReason: FOLLOW_UP_UNAVAILABLE_REASON,
-        }
-      }
-      if (!marketingEligible) {
-        return {
-          ...definition,
-          enabled: false,
-          disableReason:
-            input.permissionStates != null
-              ? MARKETING_NOT_AVAILABLE_REASON
-              : OFFERS_OPT_OUT_REASON,
-        }
-      }
-      return {
-        ...definition,
-        enabled: true,
-        disableReason: null,
-      }
-    }
-
-    // Respond to guest / Respond and record
     if (hasNoContact) {
       return {
         ...definition,
@@ -228,21 +156,6 @@ export function buildStartRecoveryIntents(input: {
         ...definition,
         enabled: false,
         disableReason: FOLLOW_UP_UNAVAILABLE_REASON,
-      }
-    }
-
-    // Email channel guest mail requires email-marketing opt-in.
-    if (
-      input.contactCapability === "email_available"
-      && !marketingEligible
-    ) {
-      return {
-        ...definition,
-        enabled: false,
-        disableReason:
-          input.permissionStates != null
-            ? MARKETING_NOT_AVAILABLE_REASON
-            : OFFERS_OPT_OUT_REASON,
       }
     }
 

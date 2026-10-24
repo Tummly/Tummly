@@ -360,9 +360,9 @@ export function GuestFeedbackForm({
                           <FormControl>
                             <Input
                               {...field}
-                              placeholder="Your name"
+                              placeholder="First name"
                               disabled={isSubmitting}
-                              autoComplete="name"
+                              autoComplete="given-name"
                               aria-invalid={Boolean(fieldState.error)}
                               className={GUEST_FEEDBACK_FIELD_INPUT_CLASS}
                             />

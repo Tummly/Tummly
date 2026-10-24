@@ -9,7 +9,7 @@ type GuestFeedbackTicketCardProps = {
 }
 
 /**
- * Notch-sided thank-you / unlock ticket — Figma Guest-Loop-MVP 6807:1186 / 6818:699.
+ * Notch-sided thank-you ticket — Figma Guest-Loop-MVP 6807:1186 / 6818:699.
  */
 export function GuestFeedbackTicketCard({
   children,

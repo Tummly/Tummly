@@ -121,16 +121,6 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            if (
-                await IsMarketingOfferBlockedAsync(
-                    locationGuestId,
-                    cancellationToken
-                )
-            )
-            {
-                return null;
-            }
-
             var existing = await FindExistingThankYouIssueAsync(
                 locationGuestId,
                 offerId,
@@ -168,61 +158,6 @@ namespace TummlyBackend.Services
                 cancellationToken,
                 preallocatedClaimCode: null
             );
-        }
-
-        public async Task<string?> TryGetUnlockableThankYouOfferTitleAsync(
-            int locationId,
-            int locationGuestId,
-            CancellationToken cancellationToken = default
-        )
-        {
-            if (
-                await IsLocationNotActiveAsync(locationId, cancellationToken)
-            )
-            {
-                return null;
-            }
-
-            var catalogOfferId = await ResolveLiveThankYouCatalogOfferIdAsync(
-                locationId,
-                cancellationToken
-            );
-            if (catalogOfferId is not int offerId)
-            {
-                return null;
-            }
-
-            if (
-                !await IsMarketingOfferBlockedAsync(
-                    locationGuestId,
-                    cancellationToken
-                )
-            )
-            {
-                return null;
-            }
-
-            var existing = await FindExistingThankYouIssueAsync(
-                locationGuestId,
-                offerId,
-                cancellationToken
-            );
-            if (existing != null)
-            {
-                return null;
-            }
-
-            var catalog = await LoadActiveCatalogOfferAsync(
-                offerId,
-                cancellationToken
-            );
-            if (catalog == null)
-            {
-                return null;
-            }
-
-            var title = (catalog.Title ?? string.Empty).Trim();
-            return title.Length == 0 ? null : title;
         }
 
         public async Task<OfferIssue?> IssueOnRecoverySendAsync(
@@ -270,16 +205,6 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (
-                await IsMarketingOfferBlockedAsync(
-                    locationGuestId,
-                    cancellationToken
-                )
-            )
-            {
-                return null;
-            }
-
             if (
                 await IsGuestLocationNotActiveAsync(
                     locationGuestId,
@@ -398,6 +323,52 @@ namespace TummlyBackend.Services
             if (gate != null)
             {
                 return new OfferRedeemMarkResult.Failed(gate);
+            }
+
+            if (_context.Database.IsRelational())
+            {
+                var updated = await _context.OfferIssues
+                    .Where(row =>
+                        row.Id == issue.Id
+                        && row.RedeemedAtUtc == null
+                        && row.CancelledAtUtc == null
+                    )
+                    .ExecuteUpdateAsync(
+                        setters => setters.SetProperty(
+                            row => row.RedeemedAtUtc,
+                            atUtc
+                        ),
+                        cancellationToken
+                    );
+
+                if (updated == 0)
+                {
+                    return new OfferRedeemMarkResult.Failed(
+                        OfferRedeemFailureReasons.AlreadyUsed
+                    );
+                }
+
+                issue.RedeemedAtUtc = atUtc;
+                return new OfferRedeemMarkResult.Ok();
+            }
+
+            var fresh = await _context.OfferIssues
+                .AsNoTracking()
+                .Where(row => row.Id == issue.Id)
+                .Select(row => new
+                {
+                    row.RedeemedAtUtc,
+                    row.CancelledAtUtc,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (fresh == null
+                || fresh.RedeemedAtUtc != null
+                || fresh.CancelledAtUtc != null)
+            {
+                return new OfferRedeemMarkResult.Failed(
+                    OfferRedeemFailureReasons.AlreadyUsed
+                );
             }
 
             issue.RedeemedAtUtc = atUtc;
@@ -589,26 +560,6 @@ namespace TummlyBackend.Services
         protected virtual string GenerateCandidateCode()
         {
             return FeedbackRecoveryOfferMapping.GenerateRedemptionCode();
-        }
-
-        private async Task<bool> IsMarketingOfferBlockedAsync(
-            int locationGuestId,
-            CancellationToken cancellationToken
-        )
-        {
-            var scope = await LoadGuestPermissionScopeAsync(
-                locationGuestId,
-                cancellationToken
-            );
-            if (scope == null)
-            {
-                return true;
-            }
-
-            return !LocationGuestChannelPermissionGate.IsMarketingOfferAllowed(
-                scope.Value.Restaurant,
-                scope.Value.States
-            );
         }
 
         private async Task<bool> IsChannelSendBlockedAsync(

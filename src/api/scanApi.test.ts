@@ -4,7 +4,7 @@ import MockAdapter from "axios-mock-adapter"
 
 import { API_BASE_URL } from "@/config/api"
 
-import { submitGuestFeedback, unlockGuestThankYouOffer } from "./scanApi"
+import { submitGuestFeedback } from "./scanApi"
 
 describe("submitGuestFeedback", () => {
   let mock: MockAdapter
@@ -27,7 +27,6 @@ describe("submitGuestFeedback", () => {
         claimCode: "TUM-ABC234",
         expiryLabel: "Expires: 26 August 2026",
       },
-      unlockOffer: null,
     })
 
     await expect(
@@ -45,7 +44,6 @@ describe("submitGuestFeedback", () => {
         expiryLabel: "Expires: 26 August 2026",
         alreadyClaimed: false,
       },
-      unlockOffer: null,
     })
   })
 
@@ -60,7 +58,6 @@ describe("submitGuestFeedback", () => {
         expiryLabel: "Expires: 26 August 2026",
         alreadyClaimed: true,
       },
-      unlockOffer: null,
     })
 
     await expect(
@@ -75,7 +72,7 @@ describe("submitGuestFeedback", () => {
     })
   })
 
-  it("returns unlockOffer when marketing was not granted", async () => {
+  it("submit result has no unlockOffer key", async () => {
     mock.onPost(`${API_BASE_URL}/scan/guest-token/feedback`).reply(200, {
       success: true,
       message: "Feedback submitted successfully.",
@@ -89,26 +86,18 @@ describe("submitGuestFeedback", () => {
       },
     })
 
-    await expect(
-      submitGuestFeedback("guest-token", {
-        comment: "Great meal",
-        guestName: "Alex Guest",
-        guestContact: "07123456789",
-        acceptsOffers: false,
-      })
-    ).resolves.toEqual({
-      offer: null,
-      unlockOffer: {
-        title: "Free dessert",
-        channel: "sms",
-        restaurantName: "KFC",
-        locationName: "Camden High Street",
-        unlockToken: "payload.sig",
-      },
+    const result = await submitGuestFeedback("guest-token", {
+      comment: "Great meal",
+      guestName: "Alex Guest",
+      guestContact: "07123456789",
+      acceptsOffers: false,
     })
+
+    expect(Object.keys(result)).not.toContain("unlockOffer")
+    expect(result).toEqual({ offer: null })
   })
 
-  it("returns null offer and unlock when neither applies", async () => {
+  it("returns null offer when neither applies", async () => {
     mock.onPost(`${API_BASE_URL}/scan/guest-token/feedback`).reply(200, {
       success: true,
       message: "Feedback submitted successfully.",
@@ -124,7 +113,6 @@ describe("submitGuestFeedback", () => {
       })
     ).resolves.toEqual({
       offer: null,
-      unlockOffer: null,
     })
   })
 
@@ -159,43 +147,6 @@ describe("submitGuestFeedback", () => {
       )
     ).resolves.toEqual({
       offer: null,
-      unlockOffer: null,
-    })
-  })
-})
-
-describe("unlockGuestThankYouOffer", () => {
-  let mock: MockAdapter
-
-  beforeEach(() => {
-    mock = new MockAdapter(axios)
-  })
-
-  afterEach(() => {
-    mock.restore()
-  })
-
-  it("returns the issued offer after unlock", async () => {
-    mock
-      .onPost(`${API_BASE_URL}/scan/guest-token/thank-you-offer/unlock`)
-      .reply(200, {
-        success: true,
-        offer: {
-          title: "Free dessert",
-          description: "Enjoy",
-          claimCode: "TUM-XYZ789",
-          expiryLabel: "Expires: 1 October 2026",
-        },
-      })
-
-    await expect(
-      unlockGuestThankYouOffer("guest-token", "payload.sig")
-    ).resolves.toEqual({
-      title: "Free dessert",
-      description: "Enjoy",
-      claimCode: "TUM-XYZ789",
-      expiryLabel: "Expires: 1 October 2026",
-      alreadyClaimed: false,
     })
   })
 })

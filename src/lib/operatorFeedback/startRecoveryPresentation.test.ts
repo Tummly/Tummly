@@ -97,25 +97,71 @@ describe("startRecoveryPresentation", () => {
     })
   })
 
-  it("disables recovery-offer intent when Location Guest offers opt-out", () => {
+  it("Email contact, follow-up granted, marketing not granted → all Respond intents enabled", () => {
     const intents = buildStartRecoveryIntents({
-      contactCapability: "sms_available",
+      contactCapability: "email_available",
       marketingPreference: "opted_out",
       workflowStatus: "new",
+      permissionStates: {
+        "feedback-follow-up": "granted",
+        "email-marketing": "not_recorded",
+        "sms-marketing": "not_recorded",
+      },
+      restaurantPermissions: {
+        "feedback-follow-up": true,
+        "email-marketing": true,
+        "sms-marketing": true,
+      },
     })
 
     expect(intents.find((i) => i.id === "respond-to-guest")).toMatchObject({
       enabled: true,
+      disableReason: null,
+    })
+    expect(
+      intents.find((i) => i.id === "respond-and-record-internal-action")
+    ).toMatchObject({
+      enabled: true,
+      disableReason: null,
     })
     expect(
       intents.find((i) => i.id === "respond-with-recovery-offer")
     ).toMatchObject({
-      enabled: false,
-      disableReason: "Guest has opted out of offers",
+      enabled: true,
+      disableReason: null,
     })
   })
 
-  it("disables recovery-offer intent when Location Guest preference is missing", () => {
+  it("Follow-up not available → Respond-with-offer disabled with Feedback follow-up is not available for this guest.", () => {
+    const intents = buildStartRecoveryIntents({
+      contactCapability: "email_available",
+      marketingPreference: "allowed",
+      workflowStatus: "new",
+      permissionStates: {
+        "feedback-follow-up": "withdrawn",
+        "email-marketing": "granted",
+        "sms-marketing": "not_recorded",
+      },
+      restaurantPermissions: {
+        "feedback-follow-up": true,
+        "email-marketing": true,
+        "sms-marketing": true,
+      },
+    })
+
+    expect(
+      intents.find((i) => i.id === "respond-with-recovery-offer")
+    ).toMatchObject({
+      enabled: false,
+      disableReason: "Feedback follow-up is not available for this guest.",
+    })
+    expect(intents.find((i) => i.id === "respond-to-guest")).toMatchObject({
+      enabled: false,
+      disableReason: "Feedback follow-up is not available for this guest.",
+    })
+  })
+
+  it("keeps Respond intents enabled when marketing preference is missing (legacy fixtures)", () => {
     const intents = buildStartRecoveryIntents({
       contactCapability: "email_available",
       marketingPreference: undefined,
@@ -125,35 +171,12 @@ describe("startRecoveryPresentation", () => {
     expect(
       intents.find((i) => i.id === "respond-with-recovery-offer")
     ).toMatchObject({
-      enabled: false,
-      disableReason: "Guest has opted out of offers",
+      enabled: true,
+      disableReason: null,
     })
-    expect(
-      intents.find((i) => i.id === "respond-to-guest")
-    ).toMatchObject({
-      enabled: false,
-      disableReason: "Guest has opted out of offers",
-    })
-  })
-
-  it("disables recovery-offer intent when Location Guest preference is not recorded", () => {
-    const intents = buildStartRecoveryIntents({
-      contactCapability: "email_available",
-      marketingPreference: "not_recorded",
-      workflowStatus: "new",
-    })
-
-    expect(
-      intents.find((i) => i.id === "respond-with-recovery-offer")
-    ).toMatchObject({
-      enabled: false,
-      disableReason: "Guest has opted out of offers",
-    })
-    expect(
-      intents.find((i) => i.id === "respond-to-guest")
-    ).toMatchObject({
-      enabled: false,
-      disableReason: "Guest has opted out of offers",
+    expect(intents.find((i) => i.id === "respond-to-guest")).toMatchObject({
+      enabled: true,
+      disableReason: null,
     })
   })
 

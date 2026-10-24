@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -168,6 +169,193 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("wrong_location", body.GetProperty("reason").GetString());
         }
 
+        [Fact]
+        public async Task CheckRedeem_DoesNotRedeem()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-redeem-check-no-redeem");
+            var guestId = await SeedLocationGuestAsync(seeded.LocationId, "Pat");
+            var offerId = await SeedCatalogOfferAsync(seeded.LocationId);
+            var issueId = await SeedOfferIssueAsync(
+                offerId,
+                guestId,
+                claimCode: "TUM-CHKNR1"
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers/redeem/check",
+                seeded.Jwt,
+                new { locationId = seeded.LocationId, code = "TUM-CHKNR1" }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var issue = await context.OfferIssues.FindAsync(issueId);
+            Assert.NotNull(issue);
+            Assert.Null(issue!.RedeemedAtUtc);
+        }
+
+        [Fact]
+        public async Task MarkRedeemed_Voided_Fails()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-redeem-voided");
+            var guestId = await SeedLocationGuestAsync(seeded.LocationId, "Vic");
+            var offerId = await SeedCatalogOfferAsync(seeded.LocationId);
+            var issueId = await SeedOfferIssueAsync(
+                offerId,
+                guestId,
+                claimCode: "TUM-VOIDMK",
+                cancelledAt: DateTime.UtcNow.AddHours(-1)
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers/redeem",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    code = "TUM-VOIDMK",
+                    issueId = issueId.ToString(),
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("voided", body.GetProperty("reason").GetString());
+        }
+
+        [Fact]
+        public async Task MarkRedeemed_Expired_Fails()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-redeem-expired");
+            var guestId = await SeedLocationGuestAsync(seeded.LocationId, "Exp");
+            var offerId = await SeedCatalogOfferAsync(seeded.LocationId);
+            var issueId = await SeedOfferIssueAsync(
+                offerId,
+                guestId,
+                claimCode: "TUM-EXPMK1",
+                expiryAt: DateTime.UtcNow.AddMinutes(-5)
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers/redeem",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    code = "TUM-EXPMK1",
+                    issueId = issueId.ToString(),
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("expired", body.GetProperty("reason").GetString());
+        }
+
+        [Fact]
+        public async Task MarkRedeemed_UnknownCode_Fails()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-redeem-unknown");
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers/redeem",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    code = "TUM-NOSUCH",
+                    issueId = "1",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("invalid", body.GetProperty("reason").GetString());
+        }
+
+        [Fact]
+        public async Task MarkRedeemed_TeamMemberWithoutOffersAccess_Returns403()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "offers-redeem-no-offers-access"
+            );
+            var memberJwt = await SeedMemberJwtAsync(
+                seeded.RestaurantId,
+                "offers-redeem-billing-admin",
+                PermissionRoles.BillingAdmin
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers/redeem",
+                memberJwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    code = "TUM-NOACC1",
+                    issueId = "1",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Theory]
+        [InlineData("email")]
+        [InlineData("phone")]
+        public async Task CheckRedeem_GuestEmailOrPhoneAsCode_ReturnsInvalid(
+            string contactKind
+        )
+        {
+            var email = $"guest-contact-{Guid.NewGuid():N}@example.com";
+            var phone = "+447700900321";
+            var seeded = await SeedOwnerWithLocationAsync(
+                $"offers-redeem-contact-{contactKind}"
+            );
+            var guestId = await SeedLocationGuestAsync(
+                seeded.LocationId,
+                "Contact",
+                email: email,
+                phone: phone
+            );
+            var offerId = await SeedCatalogOfferAsync(seeded.LocationId);
+            await SeedOfferIssueAsync(
+                offerId,
+                guestId,
+                claimCode: "TUM-REAL01"
+            );
+
+            var code = contactKind == "email" ? email : phone;
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers/redeem/check",
+                seeded.Jwt,
+                new { locationId = seeded.LocationId, code }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("invalid", body.GetProperty("reason").GetString());
+        }
+
         private static HttpRequestMessage AuthorizedJson(
             HttpMethod method,
             string url,
@@ -318,7 +506,9 @@ namespace TummlyBackend.Tests.Integration
 
         private async Task<int> SeedLocationGuestAsync(
             int locationId,
-            string name
+            string name,
+            string? email = null,
+            string? phone = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -333,7 +523,8 @@ namespace TummlyBackend.Tests.Integration
             var master = new MasterGuest
             {
                 RestaurantId = location!.RestaurantId,
-                Email = $"redeem-guest-{Guid.NewGuid():N}@example.com",
+                Email = email ?? $"redeem-guest-{Guid.NewGuid():N}@example.com",
+                Mobile = phone,
                 CreatedAt = now,
             };
             context.MasterGuests.Add(master);
@@ -356,7 +547,8 @@ namespace TummlyBackend.Tests.Integration
             int locationGuestId,
             string claimCode,
             DateTime? claimedAt = null,
-            DateTime? expiryAt = null
+            DateTime? expiryAt = null,
+            DateTime? cancelledAt = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -371,6 +563,7 @@ namespace TummlyBackend.Tests.Integration
                 ClaimCode = claimCode,
                 IssuedAtUtc = now.AddDays(-1),
                 ClaimedAtUtc = claimedAt,
+                CancelledAtUtc = cancelledAt,
                 Source = OfferIssueSources.Campaign,
                 ExpiryAtUtc = expiryAt ?? now.AddDays(14),
                 OfferType = CatalogOfferType.FixedDiscount,
@@ -383,6 +576,54 @@ namespace TummlyBackend.Tests.Integration
             context.OfferIssues.Add(issue);
             await context.SaveChangesAsync();
             return issue.Id;
+        }
+
+        private async Task<string> SeedMemberJwtAsync(
+            int restaurantId,
+            string emailLocalPart,
+            string permissionRole
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var member = new User
+            {
+                FullName = "Offers Redeem Member",
+                Email = $"{emailLocalPart}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900999",
+                Role = "Owner",
+                AccountType = "Single",
+                SelectedRestaurantId = restaurantId,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(member);
+            await context.SaveChangesAsync();
+
+            context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = member.Id,
+                    RestaurantId = restaurantId,
+                    PermissionRole = permissionRole,
+                    LocationScope = LocationScopeKind.AllLocations,
+                    NamedLocationIdsJson = "[]",
+                    Status = MembershipStatus.Active,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                member.Id.ToString(),
+                member.Email,
+                member.Role
+            );
         }
     }
 }

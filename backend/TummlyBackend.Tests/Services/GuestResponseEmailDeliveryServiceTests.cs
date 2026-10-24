@@ -238,7 +238,7 @@ namespace TummlyBackend.Tests.Services
         {
             var seeded = await SeedAsync(
                 contactType: ContactType.Phone,
-                guestContact: "07700900111"
+                guestContact: "07911123456"
             );
 
             var result = await _guestResponses.SendAsync(
@@ -311,6 +311,157 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Delivery_SendsWhenMarketingNotGranted_FollowUpGranted()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "follow-up-only@example.com",
+                grantEmailMarketing: false
+            );
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Thanks",
+                body: "Follow-up without marketing.",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            Assert.Equal(0, _emailService.CallCount);
+
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(1, _emailService.CallCount);
+            Assert.Equal("follow-up-only@example.com", _emailService.LastToEmail);
+        }
+
+        [Fact]
+        public async Task Delivery_SkipsWhenFollowUpWithdrawnAfterCompose()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "withdrawn-after@example.com"
+            );
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Thanks",
+                body: "Will be skipped after withdraw.",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            var pending = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Pending,
+                pending.EmailDeliveryStatus
+            );
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .SingleAsync(f => f.Id == seeded.FeedbackId);
+            Assert.NotNull(feedback.LocationGuestId);
+
+            var permissions = new LocationGuestPermissionLedgerService(_context);
+            permissions.RecordEvent(
+                feedback.LocationGuestId!.Value,
+                feedback.RestaurantLocationId,
+                LocationGuestPermissionKind.FeedbackFollowUp,
+                LocationGuestPermissionLedgerEventKinds.Withdraw,
+                LocationGuestPermissionLedgerSources.GuestForm,
+                new DateTime(2026, 10, 24, 14, 0, 0, DateTimeKind.Utc)
+            );
+            await _context.SaveChangesAsync();
+            _context.ChangeTracker.Clear();
+
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(0, _emailService.CallCount);
+
+            var skipped = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.Id == pending.Id);
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Accepted,
+                skipped.EmailDeliveryStatus
+            );
+            Assert.NotNull(skipped.EmailDeliveredAt);
+            Assert.Null(skipped.EmailDeliveryClaimedAt);
+            Assert.Null(skipped.EmailDeliveryRetryAfter);
+        }
+
+        [Fact]
+        public async Task Delivery_ProviderFailure_SchedulesRetry()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "provider-fail@example.com"
+            );
+            _emailService.ThrowOnSend = true;
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Subject",
+                body: "Body",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(1, _emailService.CallCount);
+            var afterFail = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync();
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Pending,
+                afterFail.EmailDeliveryStatus
+            );
+            Assert.Null(afterFail.EmailDeliveryClaimedAt);
+            Assert.NotNull(afterFail.EmailDeliveryRetryAfter);
+        }
+
+        [Fact]
+        public async Task Delivery_RunTwice_SendsOnce()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "once-only@example.com"
+            );
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Thanks",
+                body: "Deliver once.",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            await _deliveryWork.DrainAsync();
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(1, _emailService.CallCount);
+        }
+
+        [Fact]
         public async Task SendAndIssueAsync_Email_PersistsThenDrainDeliversOfferWithIssuedCode()
         {
             var seeded = await SeedAsync(
@@ -376,7 +527,8 @@ namespace TummlyBackend.Tests.Services
         private async Task<(int FeedbackId, int AuthorUserId)> SeedAsync(
             ContactType contactType,
             string guestContact,
-            bool withRecoveryCatalogAttach = false
+            bool withRecoveryCatalogAttach = false,
+            bool grantEmailMarketing = true
         )
         {
             var user = new User
@@ -465,7 +617,7 @@ namespace TummlyBackend.Tests.Services
                 LocationGuestPermissionLedgerSources.GuestForm,
                 grantAt
             );
-            if (contactType == ContactType.Email)
+            if (contactType == ContactType.Email && grantEmailMarketing)
             {
                 permissions.RecordEvent(
                     locationGuest.Id,
