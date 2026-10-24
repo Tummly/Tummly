@@ -236,6 +236,35 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task FireAsync_GuestWithdrawsViaUnsubscribeAfterSchedule_IsExcludedAtSend()
+        {
+            var seeded = await SeedScheduledCampaignAsync(
+                frozenEligibleCount: 2,
+                scheduledAtUtc: _now.AddMinutes(-5)
+            );
+
+            var withdrawn = await _context.LocationGuests.SingleAsync(
+                lg => lg.Id == seeded.FrozenGuestIds[0]
+            );
+            new LocationGuestPermissionLedgerService(_context).RecordEvent(
+                withdrawn.Id,
+                withdrawn.RestaurantLocationId,
+                LocationGuestPermissionKind.EmailMarketing,
+                LocationGuestPermissionLedgerEventKinds.Withdraw,
+                LocationGuestPermissionLedgerSources.EmailUnsubscribe,
+                _now
+            );
+            await _context.SaveChangesAsync();
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var call = Assert.Single(_outbound.Calls);
+            Assert.Equal(seeded.FrozenGuestIds[1], call.LocationGuestId);
+            Assert.Equal("guest1@example.com", call.ToAddress);
+        }
+
+        [Fact]
         public async Task FireAsync_MidSendStopWithAccept_SetsPartiallySent()
         {
             var seeded = await SeedSendingCampaignAsync(frozenEligibleCount: 3);
