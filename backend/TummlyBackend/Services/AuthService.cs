@@ -815,6 +815,8 @@ namespace TummlyBackend.Services
                 );
             }
 
+            await EnsureNotDemoTenantUserAsync(user);
+
             var isValid =
                 otpRecord.Channel == OtpVerification.ChannelSms
                     ? await _smsService.VerifyOtpSmsAsync(
@@ -893,7 +895,7 @@ namespace TummlyBackend.Services
 
             // Product-demo owner never refreshes: a refreshed token would carry
             // no demo claims and escape the demo sandbox (ENG07).
-            if (IsDemoOwner(stored.User))
+            if (await IsDemoTenantUserAsync(stored.User))
             {
                 stored.IsRevoked = true;
                 await _context.SaveChangesAsync();
@@ -921,15 +923,53 @@ namespace TummlyBackend.Services
             };
         }
 
-        private bool IsDemoOwner(User user)
+        /// <summary>
+        /// Owner or member of the public product-demo restaurant. These
+        /// accounts never get a normal operator session or a refresh: such a
+        /// JWT would carry no demo claims and escape the sandbox (ENG07).
+        /// Matches the configured and the seed owner email (fail closed).
+        /// </summary>
+        private async Task<bool> IsDemoTenantUserAsync(User user)
         {
-            var ownerEmail = _demoSession.OwnerEmail?.Trim();
-            return !string.IsNullOrEmpty(ownerEmail)
-                && string.Equals(
-                    user.Email?.Trim(),
-                    ownerEmail,
-                    StringComparison.OrdinalIgnoreCase
+            var demoOwnerEmails = new[]
+                {
+                    _demoSession.OwnerEmail?.Trim().ToLowerInvariant(),
+                    Helpers.DemoSessionClaims.SeedOwnerEmail,
+                }
+                .Where(email => !string.IsNullOrEmpty(email))
+                .Select(email => email!)
+                .ToList();
+
+            if (demoOwnerEmails.Contains((user.Email ?? string.Empty).Trim().ToLowerInvariant()))
+            {
+                return true;
+            }
+
+            return await _context.RestaurantMemberships
+                .Where(m => m.UserId == user.Id)
+                .Join(
+                    _context.Restaurants,
+                    m => m.RestaurantId,
+                    r => r.Id,
+                    (_, r) => r.OwnerUserId
+                )
+                .Join(
+                    _context.Users,
+                    ownerId => ownerId,
+                    owner => owner.Id,
+                    (_, owner) => owner.Email.ToLower()
+                )
+                .AnyAsync(email => demoOwnerEmails.Contains(email));
+        }
+
+        private async Task EnsureNotDemoTenantUserAsync(User user)
+        {
+            if (await IsDemoTenantUserAsync(user))
+            {
+                throw new Exception(
+                    "This account is for the public product demo and cannot sign in."
                 );
+            }
         }
 
         public async Task RevokeRefreshTokenAsync(string refreshToken)
@@ -1400,6 +1440,8 @@ namespace TummlyBackend.Services
             string? deviceToken
         )
         {
+            await EnsureNotDemoTenantUserAsync(user);
+
             var hasValidTrust =
                 !user.IsLocked &&
                 user.HasCompletedFirstSignIn &&

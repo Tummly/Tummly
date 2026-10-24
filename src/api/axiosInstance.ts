@@ -3,6 +3,7 @@ import "./axiosTypes"
 import axios from "axios"
 
 import { API_BASE_URL } from "../config/api"
+import { sessionExpiredRedirectPath } from "@/api/sessionExpiredRedirect"
 import { ensureFreshAccessToken } from "@/api/sessionRefresh"
 import { getAuthToken, getRefreshToken, useAuthStore } from "@/stores/authStore"
 
@@ -15,7 +16,7 @@ const axiosInstance = axios.create({
 
 function redirectToLogin() {
   useAuthStore.getState().clearSession()
-  window.location.href = "/login"
+  window.location.href = sessionExpiredRedirectPath()
 }
 
 axiosInstance.interceptors.request.use(

@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -174,6 +175,135 @@ namespace TummlyBackend.Tests.Integration
             );
 
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task VerifyOtp_ForDemoOwner_IsRejected()
+        {
+            await EnsureDemoOwnerAsync();
+            await SeedEmailOtpAsync(DemoOwnerEmail);
+
+            var response = await _client.PostAsJsonAsync(
+                "/api/auth/verify-otp",
+                new { email = DemoOwnerEmail, otpCode = "123456" }
+            );
+
+            Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task VerifyOtp_ForDemoRestaurantStaff_IsRejected()
+        {
+            await EnsureDemoOwnerAsync();
+            const string staffEmail = "demo-staff@example.com";
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                if (!context.Users.Any(u => u.Email == staffEmail))
+                {
+                    var restaurantId = context.Restaurants
+                        .Where(r => context.Users.Any(u => u.Id == r.OwnerUserId && u.Email == DemoOwnerEmail))
+                        .Select(r => r.Id)
+                        .First();
+                    var staff = new User
+                    {
+                        Email = staffEmail,
+                        FullName = "Demo Staff",
+                        PhoneNumber = "5551234501",
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
+                        Role = "Owner",
+                        AccountType = "Single",
+                        IsEmailVerified = true,
+                        IsApprovedByAdmin = true,
+                        TermsAccepted = true,
+                        HasCompletedFirstSignIn = true,
+                        SelectedRestaurantId = restaurantId,
+                    };
+                    context.Users.Add(staff);
+                    await context.SaveChangesAsync();
+                    context.RestaurantMemberships.Add(
+                        new RestaurantMembership
+                        {
+                            UserId = staff.Id,
+                            RestaurantId = restaurantId,
+                            Status = MembershipStatus.Active,
+                            PermissionRole = PermissionRoles.Staff,
+                        }
+                    );
+                    await context.SaveChangesAsync();
+                }
+            }
+            await SeedEmailOtpAsync(staffEmail);
+
+            var response = await _client.PostAsJsonAsync(
+                "/api/auth/verify-otp",
+                new { email = staffEmail, otpCode = "123456" }
+            );
+
+            Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Refresh_ForSeedDemoOwner_IsRejected_EvenWithoutOwnerEmail()
+        {
+            await using var factory = _factory.WithWebHostBuilder(builder =>
+                builder.ConfigureAppConfiguration((_, config) =>
+                    config.AddInMemoryCollection(
+                        new Dictionary<string, string?> { ["DemoSession:OwnerEmail"] = "" }
+                    )
+                )
+            );
+            string refreshToken;
+            using (var scope = factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var seedOwner = context.Users.FirstOrDefault(u => u.Email == DemoSessionClaims.SeedOwnerEmail);
+                if (seedOwner == null)
+                {
+                    seedOwner = new User
+                    {
+                        Email = DemoSessionClaims.SeedOwnerEmail,
+                        FullName = "Seed Demo Owner",
+                        PhoneNumber = "5551234502",
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
+                        Role = "Owner",
+                        AccountType = "Single",
+                        IsEmailVerified = true,
+                        IsApprovedByAdmin = true,
+                        TermsAccepted = true,
+                        HasCompletedFirstSignIn = true,
+                    };
+                    context.Users.Add(seedOwner);
+                    await context.SaveChangesAsync();
+                }
+                refreshToken = await RefreshTokenHelper.IssueAsync(context, seedOwner.Id);
+                await context.SaveChangesAsync();
+            }
+
+            var response = await factory.CreateClient().PostAsJsonAsync(
+                "/api/auth/refresh",
+                new { refreshToken }
+            );
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        private async Task SeedEmailOtpAsync(string email)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            context.OtpVerifications.Add(
+                new OtpVerification
+                {
+                    Email = email,
+                    OtpCode = "123456",
+                    Channel = OtpVerification.ChannelEmail,
+                    IsUsed = false,
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
         }
 
         private async Task<string> CreateDemoTokenAsync()

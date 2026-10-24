@@ -20,6 +20,12 @@ namespace TummlyBackend.Helpers
         public static readonly TimeSpan DefaultTtl = TimeSpan.FromHours(8);
 
         /// <summary>
+        /// ProductDemoSeed owner (tools/ProductDemoSeed/DemoSeedConstants.cs).
+        /// Treated as demo even when DemoSession:OwnerEmail is unset (fail closed).
+        /// </summary>
+        public const string SeedOwnerEmail = "mavero.demo@qa-seed.tummly.invalid";
+
+        /// <summary>
         /// The only Assistant prompt a demo session may send. Must match
         /// DEMO_TOUR_AI_PROMPT in src/lib/productDemo/demoTourSession.ts.
         /// </summary>
