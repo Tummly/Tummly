@@ -2,11 +2,17 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Offers;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -430,7 +436,9 @@ namespace TummlyBackend.Tests.Integration
                 .SingleAsync();
             var feedback = await context.Feedbacks
                 .SingleAsync(item => item.RestaurantLocationId == locationId);
-            var issue = await context.OfferIssues.SingleAsync();
+            var issue = await context.OfferIssues.SingleAsync(
+                row => row.LocationGuest!.RestaurantLocationId == locationId
+            );
 
             Assert.Equal(OfferIssueSources.GuestFormThankYou, issue.Source);
             Assert.Equal(feedback.Id, issue.FeedbackId);
@@ -462,7 +470,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task SubmitFeedback_WithActiveThankYouAttach_WhenOptOut_ReturnsUnlockOffer()
+        public async Task SubmitFeedback_WithActiveThankYouAttach_WhenOptOut_IssuesStandardOffer()
         {
             const string token = "thank-you-issue-optout-1234567890";
             await SeedGuestLocationWithThankYouOfferAsync(
@@ -485,19 +493,17 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.True(body.GetProperty("success").GetBoolean());
-            Assert.Equal(JsonValueKind.Null, body.GetProperty("offer").ValueKind);
 
-            var unlock = body.GetProperty("unlockOffer");
-            Assert.Equal(JsonValueKind.Object, unlock.ValueKind);
-            Assert.Equal(
-                "Thanks for visiting",
-                unlock.GetProperty("title").GetString()
-            );
-            Assert.Equal("sms", unlock.GetProperty("channel").GetString());
+            var offer = body.GetProperty("offer");
+            Assert.Equal(JsonValueKind.Object, offer.ValueKind);
             Assert.False(
                 string.IsNullOrWhiteSpace(
-                    unlock.GetProperty("unlockToken").GetString()
+                    offer.GetProperty("claimCode").GetString()
                 )
+            );
+            Assert.True(
+                !body.TryGetProperty("unlockOffer", out var unlock)
+                    || unlock.ValueKind == JsonValueKind.Null
             );
 
             using var scope = _factory.Services.CreateScope();
@@ -514,12 +520,127 @@ namespace TummlyBackend.Tests.Integration
                     item => item.RestaurantLocationId == locationId
                 )
             );
-            Assert.Empty(
+            Assert.Single(
                 await context.OfferIssues
                     .Where(issue =>
                         issue.LocationGuest!.RestaurantLocationId == locationId
                     )
                     .ToListAsync()
+            );
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_OfferIssueThrows_KeepsFeedbackAndReturnsPlainSuccess()
+        {
+            const string token = "thank-you-issue-throws-1234567890";
+            await using var factory = _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IOfferIssueService>();
+                    services.AddSingleton<IOfferIssueService>(
+                        new ThrowingOfferIssueService()
+                    );
+                });
+            });
+            using var client = factory.CreateClient();
+
+            await SeedGuestLocationWithThankYouOfferOnAsync(
+                factory.Services,
+                token,
+                offerStatus: "active"
+            );
+
+            var response = await client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex-throws@example.com",
+                    comment = "A useful visit.",
+                    offersOptOut = false
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, body.GetProperty("offer").ValueKind);
+
+            using var scope = factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+            Assert.Equal(
+                1,
+                await context.Feedbacks.CountAsync(
+                    item => item.RestaurantLocationId == locationId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_RepeatSameGuest_ReturnsExistingClaim()
+        {
+            const string token = "thank-you-issue-repeat-1234567890";
+            await SeedGuestLocationWithThankYouOfferAsync(
+                token,
+                offerStatus: "active"
+            );
+
+            var first = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex-repeat@example.com",
+                    comment = "First visit note.",
+                    offersOptOut = false
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            var firstBody = await ReadJsonAsync(first);
+            var firstCode = firstBody
+                .GetProperty("offer")
+                .GetProperty("claimCode")
+                .GetString();
+            Assert.False(string.IsNullOrWhiteSpace(firstCode));
+
+            var second = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex-repeat@example.com",
+                    comment = "Second visit note.",
+                    offersOptOut = false
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+            var secondBody = await ReadJsonAsync(second);
+            var secondOffer = secondBody.GetProperty("offer");
+            Assert.Equal(
+                firstCode,
+                secondOffer.GetProperty("claimCode").GetString()
+            );
+            Assert.True(secondOffer.GetProperty("alreadyClaimed").GetBoolean());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+            Assert.Equal(
+                1,
+                await context.OfferIssues.CountAsync(
+                    issue =>
+                        issue.LocationGuest!.RestaurantLocationId == locationId
+                )
             );
         }
 
@@ -543,12 +664,34 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
             Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
-            var submitBody = await ReadJsonAsync(submit);
-            var unlockToken = submitBody
-                .GetProperty("unlockOffer")
-                .GetProperty("unlockToken")
-                .GetString();
-            Assert.False(string.IsNullOrWhiteSpace(unlockToken));
+
+            // Task 2 issues Standard Offer on opt-out; unlockOffer is no longer
+            // returned. Mint a token so this unlock route stays covered until
+            // Task 3 deletes it.
+            string unlockToken;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var configuration = scope.ServiceProvider
+                    .GetRequiredService<IConfiguration>();
+                var locationId = await context.QrCodes
+                    .Where(qrCode => qrCode.Token == token)
+                    .Select(qrCode => qrCode.RestaurantLocationId)
+                    .SingleAsync();
+                var feedback = await context.Feedbacks
+                    .SingleAsync(item => item.RestaurantLocationId == locationId);
+                var secret = UnsubscribeLink.ResolveSigningSecret(configuration);
+                Assert.False(string.IsNullOrEmpty(secret));
+                unlockToken = ThankYouOfferUnlockToken.Create(
+                    feedback.Id,
+                    feedback.LocationGuestId!.Value,
+                    locationId,
+                    "sms",
+                    DateTime.UtcNow,
+                    secret!
+                );
+            }
 
             var unlock = await _client.PostAsJsonAsync(
                 $"/api/scan/{token}/thank-you-offer/unlock",
@@ -568,17 +711,18 @@ namespace TummlyBackend.Tests.Integration
                 )
             );
 
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider
+            using var assertScope = _factory.Services.CreateScope();
+            var assertContext = assertScope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            var locationId = await context.QrCodes
+            var assertLocationId = await assertContext.QrCodes
                 .Where(qrCode => qrCode.Token == token)
                 .Select(qrCode => qrCode.RestaurantLocationId)
                 .SingleAsync();
             Assert.Single(
-                await context.OfferIssues
+                await assertContext.OfferIssues
                     .Where(issue =>
-                        issue.LocationGuest!.RestaurantLocationId == locationId
+                        issue.LocationGuest!.RestaurantLocationId
+                            == assertLocationId
                     )
                     .ToListAsync()
             );
@@ -613,7 +757,18 @@ namespace TummlyBackend.Tests.Integration
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            Assert.Empty(await context.OfferIssues.ToListAsync());
+            var pausedLocationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+            Assert.Empty(
+                await context.OfferIssues
+                    .Where(issue =>
+                        issue.LocationGuest!.RestaurantLocationId
+                            == pausedLocationId
+                    )
+                    .ToListAsync()
+            );
         }
 
         [Fact]
@@ -642,7 +797,18 @@ namespace TummlyBackend.Tests.Integration
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            Assert.Empty(await context.OfferIssues.ToListAsync());
+            var noneLocationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+            Assert.Empty(
+                await context.OfferIssues
+                    .Where(issue =>
+                        issue.LocationGuest!.RestaurantLocationId
+                            == noneLocationId
+                    )
+                    .ToListAsync()
+            );
         }
 
         [Fact]
@@ -723,7 +889,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(body.GetProperty("success").GetBoolean());
         }
 
-        private async Task SeedGuestLocationAsync(
+        private Task SeedGuestLocationAsync(
             string linkToken,
             string restaurantName,
             string locationName,
@@ -732,7 +898,28 @@ namespace TummlyBackend.Tests.Integration
             string? thankYouOfferStatus = null
         )
         {
-            using var scope = _factory.Services.CreateScope();
+            return SeedGuestLocationOnAsync(
+                _factory.Services,
+                linkToken,
+                restaurantName,
+                locationName,
+                address,
+                status,
+                thankYouOfferStatus
+            );
+        }
+
+        private static async Task SeedGuestLocationOnAsync(
+            IServiceProvider services,
+            string linkToken,
+            string restaurantName,
+            string locationName,
+            string address = "1 High Street",
+            QrCodeStatus status = QrCodeStatus.Active,
+            string? thankYouOfferStatus = null
+        )
+        {
+            using var scope = services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
             var now = DateTime.UtcNow;
@@ -793,12 +980,85 @@ namespace TummlyBackend.Tests.Integration
             string offerStatus
         )
         {
-            return SeedGuestLocationAsync(
+            return SeedGuestLocationWithThankYouOfferOnAsync(
+                _factory.Services,
+                linkToken,
+                offerStatus
+            );
+        }
+
+        private static Task SeedGuestLocationWithThankYouOfferOnAsync(
+            IServiceProvider services,
+            string linkToken,
+            string offerStatus
+        )
+        {
+            return SeedGuestLocationOnAsync(
+                services,
                 linkToken,
                 restaurantName: "Thank You Fork",
                 locationName: "Main",
                 thankYouOfferStatus: offerStatus
             );
+        }
+
+        private sealed class ThrowingOfferIssueService : IOfferIssueService
+        {
+            public Task<OfferIssue?> IssueOnCampaignAcceptedAsync(
+                int campaignId,
+                int locationGuestId,
+                int catalogOfferId,
+                string channel,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default,
+                string? preallocatedClaimCode = null
+            ) => throw new NotImplementedException();
+
+            public Task<OfferIssue?> IssueOnThankYouSubmitAsync(
+                int locationId,
+                int locationGuestId,
+                int? feedbackId,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default,
+                bool allowNewIssue = true
+            ) => throw new OfferIssueCodeAllocationException();
+
+            public Task<string?> TryGetUnlockableThankYouOfferTitleAsync(
+                int locationId,
+                int locationGuestId,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult<string?>(null);
+
+            public Task<OfferIssue?> IssueOnRecoverySendAsync(
+                int catalogOfferId,
+                int locationGuestId,
+                int feedbackId,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<OfferIssue?> StageIssueOnRecoverySendAsync(
+                int catalogOfferId,
+                int locationGuestId,
+                int feedbackId,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<OfferRedeemCheckResult> CheckClaimCodeAsync(
+                int locationId,
+                string code,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<OfferRedeemMarkResult> RedeemClaimCodeAsync(
+                int locationId,
+                string code,
+                string issueId,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
         }
 
         private async Task SeedDigitalGuestLinkAsync(

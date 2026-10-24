@@ -166,7 +166,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task IssueOnThankYouSubmit_OptOut_SkipsIssue()
+        public async Task IssueOnThankYouSubmit_OptOut_StillIssuesStandardOffer()
         {
             var seeded = await SeedLocationGuestAndOfferAsync(offersOptOut: true);
             await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
@@ -178,8 +178,39 @@ namespace TummlyBackend.Tests.Services
                 _now
             );
 
-            Assert.Null(issue);
-            Assert.Empty(await _context.OfferIssues.ToListAsync());
+            Assert.NotNull(issue);
+            Assert.Equal(OfferIssueSources.GuestFormThankYou, issue!.Source);
+            Assert.Equal(1, await _context.OfferIssues.CountAsync());
+        }
+
+        [Fact]
+        public async Task IssueOnThankYouSubmit_MarketingOnAndOff_SameOffer()
+        {
+            var optIn = await SeedLocationGuestAndOfferAsync(offersOptOut: false);
+            await AttachThankYouAsync(optIn.LocationId, optIn.CatalogOfferId);
+            var optOutGuestId = await SeedSecondGuestAsync(
+                optIn.LocationId,
+                offersOptOut: true
+            );
+
+            var issuedOptIn = await _service.IssueOnThankYouSubmitAsync(
+                optIn.LocationId,
+                optIn.LocationGuestId,
+                feedbackId: 11,
+                _now
+            );
+            var issuedOptOut = await _service.IssueOnThankYouSubmitAsync(
+                optIn.LocationId,
+                optOutGuestId,
+                feedbackId: 22,
+                _now.AddMinutes(1)
+            );
+
+            Assert.NotNull(issuedOptIn);
+            Assert.NotNull(issuedOptOut);
+            Assert.Equal(issuedOptIn!.CatalogOfferId, issuedOptOut!.CatalogOfferId);
+            Assert.Equal(issuedOptIn.Title, issuedOptOut.Title);
+            Assert.Equal(2, await _context.OfferIssues.CountAsync());
         }
 
         [Fact]
@@ -501,7 +532,10 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
         }
 
-        private async Task<int> SeedSecondGuestAsync(int locationId)
+        private async Task<int> SeedSecondGuestAsync(
+            int locationId,
+            bool offersOptOut = false
+        )
         {
             var location = await _context.RestaurantLocations
                 .AsNoTracking()
@@ -520,7 +554,10 @@ namespace TummlyBackend.Tests.Services
             {
                 RestaurantLocationId = locationId,
                 MasterGuestId = master.Id,
-                MarketingPreference = LocationGuestMarketingPreference.Allowed,
+                MarketingPreference =
+                    LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(
+                        offersOptOut
+                    ),
                 CreatedAt = _now,
             };
             _context.LocationGuests.Add(lg);

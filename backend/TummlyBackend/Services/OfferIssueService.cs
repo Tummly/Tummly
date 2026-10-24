@@ -121,16 +121,6 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            if (
-                await IsMarketingOfferBlockedAsync(
-                    locationGuestId,
-                    cancellationToken
-                )
-            )
-            {
-                return null;
-            }
-
             var existing = await FindExistingThankYouIssueAsync(
                 locationGuestId,
                 offerId,

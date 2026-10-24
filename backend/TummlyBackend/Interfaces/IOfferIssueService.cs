@@ -26,11 +26,12 @@ namespace TummlyBackend.Interfaces
 
         /// <summary>
         /// Guest form thank-you submit: issue when a live thank-you catalog
-        /// attach exists; otherwise no-op. MVP Claim proxy sets ClaimedAt at
-        /// issue. Scan submit returns the issued offer for thank-you paint.
-        /// One issue per Location Guest + catalog offer: re-shows a redeemable
-        /// pass; suppresses when redeemed, cancelled, or expired. When
-        /// <paramref name="allowNewIssue"/> is false, never creates a new row.
+        /// attach exists; otherwise no-op. Independent of marketing consent.
+        /// MVP Claim proxy sets ClaimedAt at issue. Scan submit returns the
+        /// issued offer for thank-you paint. One issue per Location Guest +
+        /// catalog offer: re-shows a redeemable pass; suppresses when redeemed,
+        /// cancelled, or expired. When <paramref name="allowNewIssue"/> is
+        /// false, never creates a new row.
         /// </summary>
         Task<OfferIssue?> IssueOnThankYouSubmitAsync(
             int locationId,

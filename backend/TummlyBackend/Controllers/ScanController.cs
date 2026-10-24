@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Scan;
@@ -27,6 +28,7 @@ namespace TummlyBackend.Controllers
         private readonly IGuestFormPermissionApplyService _guestFormPermissions;
         private readonly IRecaptchaVerifier _recaptcha;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<ScanController> _logger;
 
         public ScanController(
             ApplicationDbContext context,
@@ -39,7 +41,8 @@ namespace TummlyBackend.Controllers
             IOfferIssueService offerIssues,
             IGuestFormPermissionApplyService guestFormPermissions,
             IRecaptchaVerifier recaptcha,
-            IConfiguration configuration
+            IConfiguration configuration,
+            ILogger<ScanController> logger
         )
         {
             _context = context;
@@ -53,6 +56,7 @@ namespace TummlyBackend.Controllers
             _guestFormPermissions = guestFormPermissions;
             _recaptcha = recaptcha;
             _configuration = configuration;
+            _logger = logger;
         }
 
         /*
@@ -412,11 +416,15 @@ namespace TummlyBackend.Controllers
                 );
             }
 
-            // Catalog thank-you Issue: live Active attach + marketing allowed;
-            // otherwise no-op (submit still succeeds). When marketing blocks a
-            // live attach, return unlockOffer for the Guest unlock screen.
-            // Anti-abuse: re-show redeemable codes; suppress after redeem;
-            // cap new issues per token / IP.
+            // Wake after persist — guest path never awaits the model (ADR-0010).
+            await _classificationWork.NotifyAsync(feedback.Id);
+
+            // Catalog thank-you Issue: live Active attach issues the Standard
+            // Offer independent of marketing consent. Issue failures keep the
+            // Feedback and return plain success. When issue returns null,
+            // unlockOffer may still be built for the Guest unlock screen
+            // (removed in a later task). Anti-abuse: re-show redeemable codes;
+            // suppress after redeem; cap new issues per token / IP.
             OfferIssue? issued = null;
             ScanUnlockThankYouOfferDto? unlockOffer = null;
             // Outside the LocationGuestId branch so thank-you paint can compare
@@ -430,13 +438,25 @@ namespace TummlyBackend.Controllers
                     clientIp
                 );
 
-                issued = await _offerIssues.IssueOnThankYouSubmitAsync(
-                    location.Id,
-                    locationGuestId,
-                    feedback.Id,
-                    issueAt,
-                    allowNewIssue: allowNewIssue
-                );
+                try
+                {
+                    issued = await _offerIssues.IssueOnThankYouSubmitAsync(
+                        location.Id,
+                        locationGuestId,
+                        feedback.Id,
+                        issueAt,
+                        allowNewIssue: allowNewIssue
+                    );
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Thank-you Offer issue failed after Feedback {FeedbackId}; keeping Feedback.",
+                        feedback.Id
+                    );
+                    issued = null;
+                }
 
                 if (issued != null && issued.IssuedAtUtc == issueAt)
                 {
@@ -457,9 +477,6 @@ namespace TummlyBackend.Controllers
                     );
                 }
             }
-
-            // Wake after persist — guest path never awaits the model (ADR-0010).
-            await _classificationWork.NotifyAsync(feedback.Id);
 
             return Ok(new
             {
