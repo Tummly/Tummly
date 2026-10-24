@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Net.Mail;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Helpers
@@ -27,11 +28,13 @@ namespace TummlyBackend.Helpers
 
             var trimmed = contact.Trim();
 
-            if (
-                trimmed.Contains('@')
-                && new EmailAddressAttribute().IsValid(trimmed)
-            )
+            if (trimmed.Contains('@'))
             {
+                if (!IsSingleValidEmail(trimmed))
+                {
+                    return false;
+                }
+
                 contactType = ContactType.Email;
                 return true;
             }
@@ -49,6 +52,40 @@ namespace TummlyBackend.Helpers
             }
 
             return false;
+        }
+
+        private static bool IsSingleValidEmail(string trimmed)
+        {
+            if (
+                trimmed.Any(char.IsWhiteSpace)
+                || trimmed.Contains(',')
+                || trimmed.Contains(';')
+            )
+            {
+                return false;
+            }
+
+            var atCount = 0;
+            foreach (var ch in trimmed)
+            {
+                if (ch == '@')
+                {
+                    atCount++;
+                }
+            }
+
+            if (atCount != 1)
+            {
+                return false;
+            }
+
+            if (!new EmailAddressAttribute().IsValid(trimmed))
+            {
+                return false;
+            }
+
+            return MailAddress.TryCreate(trimmed, out var mail)
+                && mail.Address == trimmed;
         }
     }
 }

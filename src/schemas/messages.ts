@@ -57,7 +57,7 @@ export const validationMessages = {
   },
   guestFeedback: {
     guestName: {
-      required: "Your name is required.",
+      required: "First name is required.",
     },
     contact: {
       required: "Email or phone number is required.",

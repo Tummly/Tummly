@@ -206,7 +206,7 @@ namespace TummlyBackend.Controllers
                 return BadRequest(new
                 {
                     success = false,
-                    message = "Name is required."
+                    message = "First name is required."
                 });
             }
 
@@ -215,7 +215,7 @@ namespace TummlyBackend.Controllers
                 return BadRequest(new
                 {
                     success = false,
-                    message = "Name must be 150 characters or fewer."
+                    message = "First name must be 150 characters or fewer."
                 });
             }
 

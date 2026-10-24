@@ -230,6 +230,61 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SubmitFeedback_BlankName_ReturnsFirstNameRequired()
+        {
+            const string token = "feedback-blank-name-1234567890";
+            await SeedGuestLocationAsync(token, "The Golden Fork", "Main");
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "   ",
+                    guestContact = "alex@example.com",
+                    comment = "A useful visit."
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "First name is required.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_StoresCommentTextUnchanged()
+        {
+            const string token = "feedback-comment-trim-1234567890";
+            await SeedGuestLocationAsync(token, "The Golden Fork", "Main");
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex@example.com",
+                    comment = "  Line one\nLine two — café  "
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+            var feedback = await context.Feedbacks
+                .SingleAsync(item => item.RestaurantLocationId == locationId);
+
+            Assert.Equal("Line one\nLine two — café", feedback.Comment);
+        }
+
+        [Fact]
         public async Task GetLocations_ReturnsEmptyGuestUrl_WhenNoActiveSmartGuestQrCode()
         {
             const string linkToken = "paused-owner-location-token123";
