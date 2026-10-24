@@ -9,14 +9,15 @@ import {
   MARKETING_DEMO_PATH,
   MARKETING_FOOTER_BOTTOM_LINKS,
   MARKETING_FOOTER_COMPANY,
+  MARKETING_FOOTER_COMPANY_DISCLOSURE,
   MARKETING_FOOTER_FHH_URL,
   MARKETING_FOOTER_PRODUCT,
   MARKETING_FOOTER_RESTAURANTS,
   MARKETING_FOOTER_SOCIAL,
   MARKETING_FOOTER_TRUST,
-  MARKETING_FOOTER_TRUST_CREDENTIALS,
   type MarketingNavItem,
 } from "@/constants/marketingNav"
+import { publicFooterTrustCredentials } from "@/content/marketing/publicTrustClaims"
 import { cn } from "@/lib/utils"
 
 const footerLinkClass = "text-sm font-normal leading-normal text-[#141414]"
@@ -72,6 +73,8 @@ function FooterLinkColumn({
 
 /** Figma marketing Footer (`5661:14511`). */
 export default function Footer() {
+  const trustCredentials = publicFooterTrustCredentials()
+
   return (
     <footer className="w-full pt-5">
       <div className="flex w-full flex-col overflow-hidden rounded-tl-[8px] rounded-tr-[8px] px-6.25 pb-12.5 pt-10 sm:px-10 lg:px-[70px] lg:pb-20 lg:pt-10">
@@ -135,26 +138,28 @@ export default function Footer() {
                 />
               ))}
 
-              <div className="flex min-w-0 flex-col gap-5 lg:w-[223px]">
-                <p className={footerHeadingClass}>Built with trust in mind</p>
-                <div className="flex flex-col gap-8">
-                  {MARKETING_FOOTER_TRUST_CREDENTIALS.map((credential) => (
-                    <div
-                      key={credential.id}
-                      className="flex flex-col items-start gap-2.5"
-                    >
-                      <p className="m-0 font-jakarta text-sm font-bold leading-[18px] text-[#141414]">
-                        {credential.title}
-                      </p>
-                      <MarketingNavLink
-                        label={credential.linkLabel}
-                        href={credential.href}
-                        className={footerLinkClass}
-                      />
-                    </div>
-                  ))}
+              {trustCredentials.length > 0 ? (
+                <div className="flex min-w-0 flex-col gap-5 lg:w-[223px]">
+                  <p className={footerHeadingClass}>Built with trust in mind</p>
+                  <div className="flex flex-col gap-8">
+                    {trustCredentials.map((credential) => (
+                      <div
+                        key={credential.id}
+                        className="flex flex-col items-start gap-2.5"
+                      >
+                        <p className="m-0 font-jakarta text-sm font-bold leading-[18px] text-[#141414]">
+                          {credential.title}
+                        </p>
+                        <MarketingNavLink
+                          label={credential.linkLabel}
+                          href={credential.href}
+                          className={footerLinkClass}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
           </div>
 
@@ -176,9 +181,14 @@ export default function Footer() {
             <div className="h-px w-full bg-[#141414]/20" aria-hidden />
 
             <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="m-0 text-sm font-normal leading-normal text-[#141414]">
-                © 2026 Tummly.com Ltd. All rights reserved.
-              </p>
+              <div className="flex flex-col gap-1">
+                <p className="m-0 text-sm font-normal leading-normal text-[#141414]">
+                  © 2026 Tummly.com Ltd. All rights reserved.
+                </p>
+                <p className="m-0 text-xs font-normal leading-normal text-[#141414]/70">
+                  {MARKETING_FOOTER_COMPANY_DISCLOSURE}
+                </p>
+              </div>
 
               <nav
                 aria-label="Legal"

@@ -212,11 +212,29 @@ export const MARKETING_FOOTER_COMPANY: MarketingNavItem[] = [
 ]
 
 export const MARKETING_FOOTER_SOCIAL: MarketingNavItem[] = [
-  { id: "instagram", label: "Instagram", href: { kind: "placeholder" } },
-  { id: "linkedin", label: "LinkedIn", href: { kind: "placeholder" } },
-  { id: "x", label: "X", href: { kind: "placeholder" } },
-  { id: "facebook", label: "Facebook", href: { kind: "placeholder" } },
+  {
+    id: "instagram",
+    label: "Instagram",
+    href: { kind: "external", href: "https://www.instagram.com/tummlycom/" },
+  },
+  {
+    id: "linkedin",
+    label: "LinkedIn",
+    href: {
+      kind: "external",
+      href: "https://www.linkedin.com/company/tummlycom",
+    },
+  },
+  {
+    id: "facebook",
+    label: "Facebook",
+    href: { kind: "external", href: "https://www.facebook.com/Tummlycom" },
+  },
 ]
+
+/** Statutory website disclosure (Trust Footer spec, 22 Oct 2026). */
+export const MARKETING_FOOTER_COMPANY_DISCLOSURE =
+  "TUMMLY.COM LIMITED (trading as Tummly.com). Registered in England and Wales, company no. 16236040. Registered office: 71-75 Shelton Street, Covent Garden, London WC2H 9JQ."
 
 export const MARKETING_FOOTER_COLUMNS = [
   { id: "product", title: "Product", items: MARKETING_FOOTER_PRODUCT },

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Middleware;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
@@ -33,6 +34,21 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (
+                DemoSessionClaims.IsDemoSession(User)
+                && !string.Equals(
+                    body.Message?.Trim(),
+                    DemoSessionClaims.TourAssistantPrompt,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new { message = DemoSessionSideEffectMiddleware.DisabledMessage }
+                );
+            }
+
             var (userId, deniedView) = await GateAssistantViewAsync();
             if (deniedView != null)
             {

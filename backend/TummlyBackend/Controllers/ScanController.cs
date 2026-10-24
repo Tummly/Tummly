@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Scan;
 using TummlyBackend.DTOs.SmartGuestLink;
@@ -104,23 +105,35 @@ namespace TummlyBackend.Controllers
                     // First-party scan + form-open events for Capture / Reports KPIs
                     // (QR, shared Smart Guest Link, and operator Preview form).
                     var openedAt = DateTime.UtcNow;
-                    _context.QrScanEvents.Add(
-                        new QrScanEvent
-                        {
-                            RestaurantLocationId = location.LocationId,
-                            QrCodeId = location.QrCodeId,
-                            CreatedAt = openedAt
-                        }
-                    );
-                    _context.QrFormOpenEvents.Add(
-                        new QrFormOpenEvent
-                        {
-                            RestaurantLocationId = location.LocationId,
-                            QrCodeId = location.QrCodeId,
-                            CreatedAt = openedAt
-                        }
-                    );
-                    await _context.SaveChangesAsync();
+                    var isDemo =
+                        IsMaveroDemoToken(normalizedToken)
+                        || await DemoRestaurant.IsDemoLocationAsync(
+                            _context,
+                            DemoOptions(),
+                            location.LocationId,
+                            HttpContext.RequestAborted
+                        );
+                    // Product-demo QR: visits must not inflate shared KPIs.
+                    if (!isDemo)
+                    {
+                        _context.QrScanEvents.Add(
+                            new QrScanEvent
+                            {
+                                RestaurantLocationId = location.LocationId,
+                                QrCodeId = location.QrCodeId,
+                                CreatedAt = openedAt
+                            }
+                        );
+                        _context.QrFormOpenEvents.Add(
+                            new QrFormOpenEvent
+                            {
+                                RestaurantLocationId = location.LocationId,
+                                QrCodeId = location.QrCodeId,
+                                CreatedAt = openedAt
+                            }
+                        );
+                        await _context.SaveChangesAsync();
+                    }
 
                     var restaurant = await LoadRestaurantForLocationAsync(
                         location.LocationId
@@ -248,6 +261,18 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message = "Enter a valid email or UK mobile number.",
+                });
+            }
+
+            if (await IsDemoGuestFormAsync(normalizedToken, location.RestaurantId))
+            {
+                // Product-demo QR: never store visitor Feedback, identity or
+                // consent, and never issue Offers or send messages (ENG07).
+                return Ok(new
+                {
+                    success = true,
+                    demo = true,
+                    message = DemoRestaurant.NothingSavedMessage,
                 });
             }
 
@@ -489,6 +514,11 @@ namespace TummlyBackend.Controllers
             }
 
             var location = resolution.Location;
+            if (await IsDemoGuestFormAsync(normalizedToken, location.RestaurantId))
+            {
+                return DemoGuestFormForbidden();
+            }
+
             var secret = UnsubscribeLink.ResolveSigningSecret(_configuration);
             if (
                 string.IsNullOrEmpty(secret)
@@ -713,6 +743,16 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (
+                await IsDemoGuestFormAsync(
+                    normalizedToken,
+                    resolution.Location.RestaurantId
+                )
+            )
+            {
+                return DemoGuestFormForbidden();
+            }
+
             if (audio == null || audio.Length == 0)
             {
                 return BadRequest(new
@@ -830,5 +870,41 @@ namespace TummlyBackend.Controllers
                     GuestFormConsentCopy.FeedbackFollowUpWording,
             };
         }
+
+        private DemoSessionOptions DemoOptions()
+            => _configuration
+                .GetSection(DemoSessionOptions.SectionName)
+                .Get<DemoSessionOptions>()
+            ?? new DemoSessionOptions();
+
+        /// <summary>
+        /// The seeded Mavero token is always demo, even if OwnerEmail is unset
+        /// (fail closed).
+        /// </summary>
+        private static bool IsMaveroDemoToken(string token)
+            => string.Equals(
+                token,
+                DemoSessionClaims.MaveroTableTentToken,
+                StringComparison.OrdinalIgnoreCase
+            );
+
+        private async Task<bool> IsDemoGuestFormAsync(string token, int restaurantId)
+            => IsMaveroDemoToken(token)
+                || await DemoRestaurant.IsDemoRestaurantAsync(
+                    _context,
+                    DemoOptions(),
+                    restaurantId,
+                    HttpContext.RequestAborted
+                );
+
+        private ObjectResult DemoGuestFormForbidden()
+            => StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    success = false,
+                    message = DemoRestaurant.NothingSavedMessage,
+                }
+            );
     }
 }

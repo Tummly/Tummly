@@ -106,6 +106,20 @@ namespace TummlyBackend.Services
             string email,
             string role,
             IEnumerable<Claim> extraClaims
+        ) => GenerateToken(
+            userId,
+            email,
+            role,
+            extraClaims,
+            TimeSpan.FromMinutes(_jwtSettings.ExpiryMinutes)
+        );
+
+        public string GenerateToken(
+            string userId,
+            string email,
+            string role,
+            IEnumerable<Claim> extraClaims,
+            TimeSpan lifetime
         )
         {
             var tokenHandler =
@@ -143,9 +157,7 @@ namespace TummlyBackend.Services
                         new ClaimsIdentity(claims),
 
                     Expires =
-                        DateTime.UtcNow.AddMinutes(
-                            _jwtSettings.ExpiryMinutes
-                        ),
+                        DateTime.UtcNow.Add(lifetime),
 
                     Issuer =
                         _jwtSettings.Issuer,
