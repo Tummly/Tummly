@@ -902,9 +902,11 @@ if (useFakeFeedbackClassification)
 }
 else
 {
-    builder.Services.AddSingleton<
+    // Public product-demo sessions use the deterministic twin (ENG07).
+    builder.Services.AddDemoAwareAiProvider<
         IFeedbackClassificationProvider,
-        AzureOpenAIFeedbackClassificationProvider
+        AzureOpenAIFeedbackClassificationProvider,
+        FakeFeedbackClassificationProvider
     >();
 }
 
@@ -945,37 +947,46 @@ if (useFakeFeedbackClassification)
 }
 else
 {
-    builder.Services.AddSingleton<
+    // Public product-demo sessions use the deterministic twins (ENG07).
+    builder.Services.AddDemoAwareAiProvider<
         IFeedbackRecoveryDraftProvider,
-        AzureOpenAIFeedbackRecoveryDraftProvider
+        AzureOpenAIFeedbackRecoveryDraftProvider,
+        FakeFeedbackRecoveryDraftProvider
     >();
-    builder.Services.AddSingleton<
+    builder.Services.AddDemoAwareAiProvider<
         ICampaignRecommendationProvider,
-        AzureOpenAICampaignRecommendationProvider
+        AzureOpenAICampaignRecommendationProvider,
+        FakeCampaignRecommendationProvider
     >();
-    builder.Services.AddSingleton<
+    builder.Services.AddDemoAwareAiProvider<
         IHomeRecommendationProvider,
-        AzureOpenAIHomeRecommendationProvider
+        AzureOpenAIHomeRecommendationProvider,
+        FakeHomeRecommendationProvider
     >();
-    builder.Services.AddSingleton<
+    builder.Services.AddDemoAwareAiProvider<
         IOfferRecommendationProvider,
-        AzureOpenAIOfferRecommendationProvider
+        AzureOpenAIOfferRecommendationProvider,
+        FakeOfferRecommendationProvider
     >();
-    builder.Services.AddSingleton<
+    builder.Services.AddDemoAwareAiProvider<
         IWeeklyBriefProvider,
-        AzureOpenAIWeeklyBriefProvider
+        AzureOpenAIWeeklyBriefProvider,
+        FakeWeeklyBriefProvider
     >();
-    builder.Services.AddSingleton<
+    builder.Services.AddDemoAwareAiProvider<
         ICampaignMessageDraftProvider,
-        AzureOpenAICampaignMessageDraftProvider
+        AzureOpenAICampaignMessageDraftProvider,
+        FakeCampaignMessageDraftProvider
     >();
-    builder.Services.AddSingleton<
+    builder.Services.AddDemoAwareAiProvider<
         IAssistantLiveAnswerProvider,
-        AzureOpenAIAssistantLiveAnswerProvider
+        AzureOpenAIAssistantLiveAnswerProvider,
+        FakeAssistantLiveAnswerProvider
     >();
-    builder.Services.AddSingleton<
+    builder.Services.AddDemoAwareAiProvider<
         IAssistantAdvisoryReasonProvider,
-        AzureOpenAIAssistantAdvisoryReasonProvider
+        AzureOpenAIAssistantAdvisoryReasonProvider,
+        FakeAssistantAdvisoryReasonProvider
     >();
 }
 
@@ -1276,6 +1287,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 
 app.UseCors("AllowFrontend");
 

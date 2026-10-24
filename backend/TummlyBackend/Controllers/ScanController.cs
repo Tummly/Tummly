@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Scan;
 using TummlyBackend.DTOs.SmartGuestLink;
@@ -251,6 +252,18 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (await IsDemoRestaurantAsync(location.RestaurantId))
+            {
+                // Product-demo QR: never store visitor Feedback, identity or
+                // consent, and never issue Offers or send messages (ENG07).
+                return Ok(new
+                {
+                    success = true,
+                    demo = true,
+                    message = DemoRestaurant.NothingSavedMessage,
+                });
+            }
+
             /*
              =========================================
              reCAPTCHA v3 (when Recaptcha:SecretKey is set)
@@ -489,6 +502,11 @@ namespace TummlyBackend.Controllers
             }
 
             var location = resolution.Location;
+            if (await IsDemoRestaurantAsync(location.RestaurantId))
+            {
+                return DemoGuestFormForbidden();
+            }
+
             var secret = UnsubscribeLink.ResolveSigningSecret(_configuration);
             if (
                 string.IsNullOrEmpty(secret)
@@ -713,6 +731,11 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (await IsDemoRestaurantAsync(resolution.Location.RestaurantId))
+            {
+                return DemoGuestFormForbidden();
+            }
+
             if (audio == null || audio.Length == 0)
             {
                 return BadRequest(new
@@ -830,5 +853,30 @@ namespace TummlyBackend.Controllers
                     GuestFormConsentCopy.FeedbackFollowUpWording,
             };
         }
+
+        private Task<bool> IsDemoRestaurantAsync(int restaurantId)
+        {
+            var options =
+                _configuration
+                    .GetSection(DemoSessionOptions.SectionName)
+                    .Get<DemoSessionOptions>()
+                ?? new DemoSessionOptions();
+            return DemoRestaurant.IsDemoRestaurantAsync(
+                _context,
+                options,
+                restaurantId,
+                HttpContext.RequestAborted
+            );
+        }
+
+        private ObjectResult DemoGuestFormForbidden()
+            => StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    success = false,
+                    message = DemoRestaurant.NothingSavedMessage,
+                }
+            );
     }
 }

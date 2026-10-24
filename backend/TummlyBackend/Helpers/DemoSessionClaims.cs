@@ -19,6 +19,13 @@ namespace TummlyBackend.Helpers
 
         public static readonly TimeSpan DefaultTtl = TimeSpan.FromHours(8);
 
+        /// <summary>
+        /// The only Assistant prompt a demo session may send. Must match
+        /// DEMO_TOUR_AI_PROMPT in src/lib/productDemo/demoTourSession.ts.
+        /// </summary>
+        public const string TourAssistantPrompt =
+            "Summarise feedback from the last 30 days and tell me what needs attention.";
+
         public static bool IsDemoSession(ClaimsPrincipal? user)
         {
             if (user?.Identity?.IsAuthenticated != true)

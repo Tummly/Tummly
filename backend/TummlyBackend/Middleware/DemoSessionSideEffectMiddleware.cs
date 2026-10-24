@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -6,21 +7,31 @@ using TummlyBackend.Services;
 namespace TummlyBackend.Middleware
 {
     /// <summary>
-    /// Public product-demo sandbox: block payment/shipment, and divert mutating
-    /// writes that would contaminate the shared seed into a session overlay (§15).
+    /// Public product-demo sandbox (ENG07): writes are default-deny. Tour writes
+    /// that would contaminate the shared seed are diverted into a session
+    /// overlay (§15); only the explicit allow-list reaches a real handler.
     /// </summary>
     public sealed class DemoSessionSideEffectMiddleware
     {
-        private static readonly PathString[] BlockedPrefixes =
+        public const string DisabledMessage =
+            "This action is disabled in the public product demo.";
+
+        /// <summary>
+        /// Writes that run their real handler for a demo session. Each one
+        /// stores nothing shared, or is guarded further in its controller
+        /// (Assistant turns accept only the tour prompt). AI providers are
+        /// routed to deterministic twins for demo sessions.
+        /// </summary>
+        private static readonly Regex[] AllowedWrites =
         [
-            new("/api/billing-credits/payment-method"),
-            new("/api/billing-credits/pending-payment"),
-            new("/api/billing-credits/plan-change"),
-            new("/api/billing-credits/scheduled-change"),
-            new("/api/billing-credits/top-up"),
-            new("/api/billing-credits/extra-location"),
-            new("/api/billing-credits/cancel-plan"),
-            new("/api/shop/orders"),
+            Route("POST", "/api/auth/refresh"),
+            Route("POST", "/api/auth/logout"),
+            Route("POST", "/api/assistant/turns"),
+            Route("POST", "/api/feedback/{id}/recovery-draft"),
+            Route("POST", "/api/home/recommendation"),
+            Route("POST", "/api/campaigns/recommendation"),
+            Route("POST", "/api/campaigns/message-draft"),
+            Route("POST", "/api/offers/{id}/recommendation"),
         ];
 
         private readonly RequestDelegate _next;
@@ -48,22 +59,6 @@ namespace TummlyBackend.Middleware
             }
 
             var path = context.Request.Path;
-
-            if (IsBlocked(path))
-            {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsync(
-                    JsonSerializer.Serialize(
-                        new
-                        {
-                            message =
-                                "This action is disabled in the public product demo.",
-                        }
-                    )
-                );
-                return;
-            }
 
             var sessionId = DemoSessionClaims.TryGetSessionId(context.User);
             if (sessionId is Guid sid && IsContaminatingMutation(path))
@@ -98,14 +93,34 @@ namespace TummlyBackend.Middleware
                 return;
             }
 
-            await _next(context);
+            if (IsAllowed(context.Request.Method, path))
+            {
+                await _next(context);
+                return;
+            }
+
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(
+                JsonSerializer.Serialize(new { message = DisabledMessage })
+            );
         }
 
-        private static bool IsBlocked(PathString path)
+        private static Regex Route(string method, string template)
         {
-            foreach (var prefix in BlockedPrefixes)
+            var pattern = Regex.Escape(template).Replace(@"\{id}", "[0-9]+");
+            return new Regex(
+                $"^{method} {pattern}/?$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+            );
+        }
+
+        private static bool IsAllowed(string method, PathString path)
+        {
+            var request = $"{method.ToUpperInvariant()} {path.Value}";
+            foreach (var route in AllowedWrites)
             {
-                if (path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase))
+                if (route.IsMatch(request))
                 {
                     return true;
                 }
@@ -121,6 +136,17 @@ namespace TummlyBackend.Middleware
             if (value.Contains("/redeem/check", StringComparison.Ordinal))
             {
                 return false;
+            }
+
+            if (value.StartsWith("/api/notifications/", StringComparison.Ordinal)
+                && value.Contains("/read", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (value == "/api/home/weekly-brief/mark-reviewed")
+            {
+                return true;
             }
 
             return value.Contains("/workflow-status", StringComparison.Ordinal)
