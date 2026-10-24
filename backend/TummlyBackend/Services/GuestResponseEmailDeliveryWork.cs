@@ -411,10 +411,10 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
             }
-            catch (GuestResponseEmailMarketingNotGrantedException ex)
+            catch (GuestResponseEmailNotEligibleException ex)
             {
                 _logger.LogInformation(
-                    "Skipping guest response email {GuestResponseId} — email marketing not granted",
+                    "Skipping guest response email {GuestResponseId} — service reply not eligible",
                     ex.GuestResponseId
                 );
 
@@ -563,24 +563,17 @@ namespace TummlyBackend.Services
                     ? null
                     : location.LocationName;
 
-            var permissionStates = await ResolveEffectivePermissionStatesAsync(
-                deps.Context,
-                feedback,
-                cancellationToken
-            );
-
-            // Email channel guest mail only when email-marketing is granted.
+            // Email channel guest mail only when service-reply follow-up is allowed.
             if (
-                !LocationGuestChannelPermissionGate.CanSendOnChannel(
-                    restaurant,
-                    permissionStates,
-                    "email"
+                !await ServiceReplyEligibility.IsAllowedAsync(
+                    deps.Context,
+                    feedback,
+                    FeedbackGuestResponseChannel.Email,
+                    cancellationToken
                 )
             )
             {
-                throw new GuestResponseEmailMarketingNotGrantedException(
-                    row.Id
-                );
+                throw new GuestResponseEmailNotEligibleException(row.Id);
             }
 
             var offer = await ResolveOfferBlockAsync(
@@ -611,44 +604,6 @@ namespace TummlyBackend.Services
                 ),
                 offer: offer,
                 unsubscribeHref: unsubscribeHref
-            );
-        }
-
-        private static async Task<
-            IReadOnlyDictionary<
-                LocationGuestPermissionKind,
-                LocationGuestPermissionState
-            >
-        > ResolveEffectivePermissionStatesAsync(
-            ApplicationDbContext context,
-            Feedback feedback,
-            CancellationToken cancellationToken
-        )
-        {
-            if (feedback.LocationGuestId is not int locationGuestId)
-            {
-                return LocationGuestPermissionKindExtensions.All.ToDictionary(
-                    kind => kind,
-                    _ => LocationGuestPermissionState.NotRecorded
-                );
-            }
-
-            var guest = await context.LocationGuests
-                .AsNoTracking()
-                .Where(g => g.Id == locationGuestId)
-                .Select(g => new { g.MarketingPreference })
-                .FirstOrDefaultAsync(cancellationToken);
-
-            var ledger = new LocationGuestPermissionLedgerService(context);
-            var ledgerStates = await ledger.GetCurrentStatesAsync(
-                locationGuestId,
-                cancellationToken
-            );
-
-            return LocationGuestChannelPermissionGate.ResolveEffectiveStates(
-                guest?.MarketingPreference
-                    ?? LocationGuestMarketingPreference.NotRecorded,
-                ledgerStates
             );
         }
 

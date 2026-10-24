@@ -2,14 +2,14 @@ namespace TummlyBackend.Services
 {
     /// <summary>
     /// Guest response email was claimed but must not send — guest has not
-    /// granted email-marketing for the Email channel.
+    /// granted feedback follow-up for a service reply on Email.
     /// </summary>
-    public sealed class GuestResponseEmailMarketingNotGrantedException
+    public sealed class GuestResponseEmailNotEligibleException
         : InvalidOperationException
     {
-        public GuestResponseEmailMarketingNotGrantedException(int guestResponseId)
+        public GuestResponseEmailNotEligibleException(int guestResponseId)
             : base(
-                $"Guest response {guestResponseId} skipped — email marketing not granted."
+                $"Guest response {guestResponseId} skipped — service reply not eligible."
             )
         {
             GuestResponseId = guestResponseId;
