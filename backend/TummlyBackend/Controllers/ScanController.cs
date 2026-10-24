@@ -105,23 +105,35 @@ namespace TummlyBackend.Controllers
                     // First-party scan + form-open events for Capture / Reports KPIs
                     // (QR, shared Smart Guest Link, and operator Preview form).
                     var openedAt = DateTime.UtcNow;
-                    _context.QrScanEvents.Add(
-                        new QrScanEvent
-                        {
-                            RestaurantLocationId = location.LocationId,
-                            QrCodeId = location.QrCodeId,
-                            CreatedAt = openedAt
-                        }
-                    );
-                    _context.QrFormOpenEvents.Add(
-                        new QrFormOpenEvent
-                        {
-                            RestaurantLocationId = location.LocationId,
-                            QrCodeId = location.QrCodeId,
-                            CreatedAt = openedAt
-                        }
-                    );
-                    await _context.SaveChangesAsync();
+                    var isDemo =
+                        IsMaveroDemoToken(normalizedToken)
+                        || await DemoRestaurant.IsDemoLocationAsync(
+                            _context,
+                            DemoOptions(),
+                            location.LocationId,
+                            HttpContext.RequestAborted
+                        );
+                    // Product-demo QR: visits must not inflate shared KPIs.
+                    if (!isDemo)
+                    {
+                        _context.QrScanEvents.Add(
+                            new QrScanEvent
+                            {
+                                RestaurantLocationId = location.LocationId,
+                                QrCodeId = location.QrCodeId,
+                                CreatedAt = openedAt
+                            }
+                        );
+                        _context.QrFormOpenEvents.Add(
+                            new QrFormOpenEvent
+                            {
+                                RestaurantLocationId = location.LocationId,
+                                QrCodeId = location.QrCodeId,
+                                CreatedAt = openedAt
+                            }
+                        );
+                        await _context.SaveChangesAsync();
+                    }
 
                     var restaurant = await LoadRestaurantForLocationAsync(
                         location.LocationId
@@ -252,7 +264,7 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            if (await IsDemoRestaurantAsync(location.RestaurantId))
+            if (await IsDemoGuestFormAsync(normalizedToken, location.RestaurantId))
             {
                 // Product-demo QR: never store visitor Feedback, identity or
                 // consent, and never issue Offers or send messages (ENG07).
@@ -502,7 +514,7 @@ namespace TummlyBackend.Controllers
             }
 
             var location = resolution.Location;
-            if (await IsDemoRestaurantAsync(location.RestaurantId))
+            if (await IsDemoGuestFormAsync(normalizedToken, location.RestaurantId))
             {
                 return DemoGuestFormForbidden();
             }
@@ -731,7 +743,12 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            if (await IsDemoRestaurantAsync(resolution.Location.RestaurantId))
+            if (
+                await IsDemoGuestFormAsync(
+                    normalizedToken,
+                    resolution.Location.RestaurantId
+                )
+            )
             {
                 return DemoGuestFormForbidden();
             }
@@ -854,20 +871,31 @@ namespace TummlyBackend.Controllers
             };
         }
 
-        private Task<bool> IsDemoRestaurantAsync(int restaurantId)
-        {
-            var options =
-                _configuration
-                    .GetSection(DemoSessionOptions.SectionName)
-                    .Get<DemoSessionOptions>()
-                ?? new DemoSessionOptions();
-            return DemoRestaurant.IsDemoRestaurantAsync(
-                _context,
-                options,
-                restaurantId,
-                HttpContext.RequestAborted
+        private DemoSessionOptions DemoOptions()
+            => _configuration
+                .GetSection(DemoSessionOptions.SectionName)
+                .Get<DemoSessionOptions>()
+            ?? new DemoSessionOptions();
+
+        /// <summary>
+        /// The seeded Mavero token is always demo, even if OwnerEmail is unset
+        /// (fail closed).
+        /// </summary>
+        private static bool IsMaveroDemoToken(string token)
+            => string.Equals(
+                token,
+                DemoSessionClaims.MaveroTableTentToken,
+                StringComparison.OrdinalIgnoreCase
             );
-        }
+
+        private async Task<bool> IsDemoGuestFormAsync(string token, int restaurantId)
+            => IsMaveroDemoToken(token)
+                || await DemoRestaurant.IsDemoRestaurantAsync(
+                    _context,
+                    DemoOptions(),
+                    restaurantId,
+                    HttpContext.RequestAborted
+                );
 
         private ObjectResult DemoGuestFormForbidden()
             => StatusCode(

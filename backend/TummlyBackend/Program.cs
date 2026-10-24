@@ -702,7 +702,14 @@ builder.Services.AddScoped<IShopOrderCancelReorderService, ShopOrderCancelReorde
 builder.Services.AddScoped<IAdminShopOrderFulfilmentService, AdminShopOrderFulfilmentService>();
 builder.Services.AddScoped<IShopOrderEmailNotifier, ShopOrderEmailNotifier>();
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
+builder.Services.AddScoped<CreditLedgerService>();
+// Public product-demo sessions consume no credits (ENG07).
+builder.Services.AddScoped<ICreditLedger>(sp =>
+    DemoSessionCreditLedger.Create(
+        sp.GetRequiredService<CreditLedgerService>(),
+        sp.GetRequiredService<IHttpContextAccessor>()
+    )
+);
 builder.Services.AddScoped<ICreditThresholdEvaluator, CreditThresholdEvaluator>();
 builder.Services.AddScoped<ICreditBalanceSnapshot, CreditBalanceSnapshotService>();
 builder.Services.AddScoped<IIncludedPeriodMintService, IncludedPeriodMintService>();

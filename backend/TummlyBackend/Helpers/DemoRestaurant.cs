@@ -27,7 +27,43 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
-            return await context.Restaurants
+            return await IsOwnedByDemoOwnerAsync(
+                context,
+                ownerEmail,
+                restaurantId,
+                cancellationToken
+            );
+        }
+
+        public static async Task<bool> IsDemoLocationAsync(
+            ApplicationDbContext context,
+            DemoSessionOptions options,
+            int locationId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var restaurantId = await context.RestaurantLocations
+                .Where(l => l.Id == locationId)
+                .Select(l => (int?)l.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return restaurantId is int id
+                && await IsDemoRestaurantAsync(
+                    context,
+                    options,
+                    id,
+                    cancellationToken
+                );
+        }
+
+        private static Task<bool> IsOwnedByDemoOwnerAsync(
+            ApplicationDbContext context,
+            string ownerEmail,
+            int restaurantId,
+            CancellationToken cancellationToken
+        )
+        {
+            return context.Restaurants
                 .Where(r => r.Id == restaurantId)
                 .Join(
                     context.Users,

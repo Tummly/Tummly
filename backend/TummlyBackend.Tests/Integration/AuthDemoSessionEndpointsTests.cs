@@ -41,11 +41,15 @@ namespace TummlyBackend.Tests.Integration
             var data = body.GetProperty("data");
             var accessToken = data.GetProperty("token").GetString();
             var accountType = data.GetProperty("accountType").GetString();
-            var refreshToken = data.GetProperty("refreshToken").GetString();
+            // Demo sessions get no refresh token (a refreshed JWT would lose
+            // the demo claims and escape the sandbox).
+            var refreshToken = data.TryGetProperty("refreshToken", out var refresh)
+                ? refresh.GetString()
+                : null;
 
             Assert.False(string.IsNullOrWhiteSpace(accessToken));
             Assert.Equal("Single", accountType);
-            Assert.False(string.IsNullOrWhiteSpace(refreshToken));
+            Assert.True(string.IsNullOrWhiteSpace(refreshToken));
 
             using var meRequest = new HttpRequestMessage(
                 HttpMethod.Get,

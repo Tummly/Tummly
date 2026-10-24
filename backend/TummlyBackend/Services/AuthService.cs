@@ -891,6 +891,15 @@ namespace TummlyBackend.Services
 
             EnsureOperatorCanSignIn(stored.User);
 
+            // Product-demo owner never refreshes: a refreshed token would carry
+            // no demo claims and escape the demo sandbox (ENG07).
+            if (IsDemoOwner(stored.User))
+            {
+                stored.IsRevoked = true;
+                await _context.SaveChangesAsync();
+                throw new InvalidRefreshTokenException();
+            }
+
             stored.IsRevoked = true;
 
             var nextRefreshToken =
@@ -910,6 +919,17 @@ namespace TummlyBackend.Services
                 token = accessToken,
                 refreshToken = nextRefreshToken,
             };
+        }
+
+        private bool IsDemoOwner(User user)
+        {
+            var ownerEmail = _demoSession.OwnerEmail?.Trim();
+            return !string.IsNullOrEmpty(ownerEmail)
+                && string.Equals(
+                    user.Email?.Trim(),
+                    ownerEmail,
+                    StringComparison.OrdinalIgnoreCase
+                );
         }
 
         public async Task RevokeRefreshTokenAsync(string refreshToken)
@@ -1021,7 +1041,7 @@ namespace TummlyBackend.Services
         private async Task<object> BuildUserSessionPayloadAsync(
             User user,
             string token,
-            string refreshToken,
+            string? refreshToken,
             string? deviceToken = null
         )
         {
@@ -1620,9 +1640,6 @@ namespace TummlyBackend.Services
 
             user.HasCompletedFirstSignIn = true;
 
-            var issuedRefreshToken =
-                await RefreshTokenHelper.IssueAsync(_context, user.Id);
-
             await _context.SaveChangesAsync();
 
             var sessionId = Guid.NewGuid();
@@ -1652,13 +1669,15 @@ namespace TummlyBackend.Services
                             Helpers.DemoSessionClaims.SessionIdClaimType,
                             sessionId.ToString("D")
                         ),
-                    ]
+                    ],
+                    Helpers.DemoSessionClaims.DefaultTtl
                 );
 
+            // No refresh token: the demo access token lasts the demo session.
             return await BuildUserSessionPayloadAsync(
                 user,
                 token,
-                issuedRefreshToken
+                refreshToken: null
             );
         }
 

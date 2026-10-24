@@ -140,6 +140,42 @@ namespace TummlyBackend.Tests.Integration
             Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
+        [Fact]
+        public async Task DemoSession_IssuesNoRefreshToken()
+        {
+            await EnsureDemoOwnerAsync();
+
+            var response = await _client.PostAsync("/api/auth/demo-session", content: null);
+
+            var data = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+            Assert.False(
+                data.TryGetProperty("refreshToken", out var refresh)
+                    && refresh.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrEmpty(refresh.GetString())
+            );
+        }
+
+        [Fact]
+        public async Task Refresh_ForDemoOwner_IsRejected()
+        {
+            await EnsureDemoOwnerAsync();
+            string refreshToken;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var owner = context.Users.Single(u => u.Email == DemoOwnerEmail);
+                refreshToken = await RefreshTokenHelper.IssueAsync(context, owner.Id);
+                await context.SaveChangesAsync();
+            }
+
+            var response = await _client.PostAsJsonAsync(
+                "/api/auth/refresh",
+                new { refreshToken }
+            );
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
         private async Task<string> CreateDemoTokenAsync()
         {
             await EnsureDemoOwnerAsync();
