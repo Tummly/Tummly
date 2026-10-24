@@ -238,7 +238,7 @@ namespace TummlyBackend.Tests.Services
         {
             var seeded = await SeedAsync(
                 contactType: ContactType.Phone,
-                guestContact: "07700900111"
+                guestContact: "07911123456"
             );
 
             var result = await _guestResponses.SendAsync(

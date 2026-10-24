@@ -206,16 +206,6 @@ namespace TummlyBackend.Services
         )
         {
             if (
-                await IsMarketingOfferBlockedAsync(
-                    locationGuestId,
-                    cancellationToken
-                )
-            )
-            {
-                return null;
-            }
-
-            if (
                 await IsGuestLocationNotActiveAsync(
                     locationGuestId,
                     cancellationToken
@@ -524,26 +514,6 @@ namespace TummlyBackend.Services
         protected virtual string GenerateCandidateCode()
         {
             return FeedbackRecoveryOfferMapping.GenerateRedemptionCode();
-        }
-
-        private async Task<bool> IsMarketingOfferBlockedAsync(
-            int locationGuestId,
-            CancellationToken cancellationToken
-        )
-        {
-            var scope = await LoadGuestPermissionScopeAsync(
-                locationGuestId,
-                cancellationToken
-            );
-            if (scope == null)
-            {
-                return true;
-            }
-
-            return !LocationGuestChannelPermissionGate.IsMarketingOfferAllowed(
-                scope.Value.Restaurant,
-                scope.Value.States
-            );
         }
 
         private async Task<bool> IsChannelSendBlockedAsync(

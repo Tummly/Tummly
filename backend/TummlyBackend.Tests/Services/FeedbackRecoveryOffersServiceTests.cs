@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Feedback;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -122,7 +123,7 @@ namespace TummlyBackend.Tests.Services
         {
             var seeded = await SeedFeedbackWithAttachAsync(
                 contactType: ContactType.Phone,
-                guestContact: "+447700900123"
+                guestContact: "+447911123456"
             );
 
             var result = await _service.SendAndIssueAsync(
@@ -167,7 +168,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendAndIssueAsync_Throws_WhenGuestOffersOptOut()
+        public async Task SendAndIssueAsync_Throws_WhenFollowUpWithdrawn()
         {
             var seeded = await SeedFeedbackWithAttachAsync(offersOptOut: true);
 
@@ -180,7 +181,10 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.IsType<ArgumentException>(exception);
-            Assert.Contains("opted out", exception!.Message);
+            Assert.Equal(
+                ServiceReplyEligibility.NotAllowedMessage,
+                exception!.Message
+            );
             Assert.Equal(0, await _context.OfferIssues.CountAsync());
             Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());
         }

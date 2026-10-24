@@ -409,7 +409,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task IssueOnRecoverySend_OptOut_SkipsIssue()
+        public async Task IssueOnRecoverySend_OptOut_StillIssues()
         {
             var seeded = await SeedLocationGuestAndOfferAsync(offersOptOut: true);
 
@@ -420,8 +420,7 @@ namespace TummlyBackend.Tests.Services
                 _now
             );
 
-            Assert.Null(issue);
-            Assert.Empty(await _context.OfferIssues.ToListAsync());
+            Assert.NotNull(issue);
         }
 
         [Fact]

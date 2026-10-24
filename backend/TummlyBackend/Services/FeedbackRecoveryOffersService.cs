@@ -14,20 +14,16 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
         private readonly IOfferIssueService _offerIssues;
-        private readonly ILocationGuestPermissionLedgerService _permissions;
 
         public FeedbackRecoveryOffersService(
             ApplicationDbContext context,
             IGuestResponseEmailDeliveryWork emailDelivery,
-            IOfferIssueService offerIssues,
-            ILocationGuestPermissionLedgerService? permissions = null
+            IOfferIssueService offerIssues
         )
         {
             _context = context;
             _emailDelivery = emailDelivery;
             _offerIssues = offerIssues;
-            _permissions =
-                permissions ?? new LocationGuestPermissionLedgerService(context);
         }
 
         public async Task<SendAndIssueFeedbackRecoveryOfferResultDto?> SendAndIssueAsync(
@@ -101,11 +97,20 @@ namespace TummlyBackend.Services
                 feedback,
                 channel
             );
-            await EnsureChannelSendAllowedAsync(
-                feedback,
-                request.Channel,
-                cancellationToken
-            );
+
+            if (
+                !await ServiceReplyEligibility.IsAllowedAsync(
+                    _context,
+                    feedback,
+                    channel,
+                    cancellationToken
+                )
+            )
+            {
+                throw new ArgumentException(
+                    ServiceReplyEligibility.NotAllowedMessage
+                );
+            }
 
             if (feedback.RecoveryOfferId is not int catalogOfferId)
             {
@@ -292,64 +297,6 @@ namespace TummlyBackend.Services
                 .ThenByDescending(item => item.Id)
                 .Take(MaxListLimit)
                 .ToList();
-        }
-
-        private async Task EnsureChannelSendAllowedAsync(
-            Feedback feedback,
-            string channelWire,
-            CancellationToken cancellationToken
-        )
-        {
-            if (feedback.LocationGuestId is not { } locationGuestId)
-            {
-                return;
-            }
-
-            var guestRow = await _context.LocationGuests
-                .AsNoTracking()
-                .Where(g => g.Id == locationGuestId)
-                .Select(g => new
-                {
-                    g.MarketingPreference,
-                    RestaurantId = g.RestaurantLocation!.RestaurantId,
-                })
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (guestRow == null || guestRow.RestaurantId == 0)
-            {
-                throw new ArgumentException(
-                    "Guest has opted out of offers."
-                );
-            }
-
-            var restaurant = await _context.Restaurants
-                .AsNoTracking()
-                .FirstAsync(r => r.Id == guestRow.RestaurantId, cancellationToken);
-
-            var ledgerStates = (
-                await _permissions.GetCurrentStatesBatchAsync(
-                    [locationGuestId],
-                    cancellationToken
-                )
-            )[locationGuestId];
-
-            var states = LocationGuestChannelPermissionGate.ResolveEffectiveStates(
-                guestRow.MarketingPreference,
-                ledgerStates
-            );
-
-            if (
-                !LocationGuestChannelPermissionGate.CanSendOnChannel(
-                    restaurant,
-                    states,
-                    channelWire
-                )
-            )
-            {
-                throw new ArgumentException(
-                    "Guest has opted out of offers."
-                );
-            }
         }
 
         private void DetachIfTracked(object? entity)

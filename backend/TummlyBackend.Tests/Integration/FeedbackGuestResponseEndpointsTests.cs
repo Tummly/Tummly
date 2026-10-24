@@ -132,7 +132,7 @@ namespace TummlyBackend.Tests.Integration
             var seeded = await SeedOwnerWithFeedbackAsync(
                 "guest-response-sms-tok",
                 ContactType.Phone,
-                "+447700900123",
+                "+447911123456",
                 FeedbackWorkflowStatus.InProgress,
                 email: "sms-owner@example.com"
             );
@@ -155,7 +155,7 @@ namespace TummlyBackend.Tests.Integration
 
             var postBody = await ReadJsonAsync(postResponse);
             Assert.Equal(
-                "••••0123",
+                "••••3456",
                 postBody
                     .GetProperty("activityEvent")
                     .GetProperty("maskedDestination")
@@ -327,7 +327,7 @@ namespace TummlyBackend.Tests.Integration
             var seeded = await SeedOwnerWithFeedbackAsync(
                 "guest-response-sms-unavailable-tok",
                 ContactType.Phone,
-                "+447700900555",
+                "+447911123455",
                 FeedbackWorkflowStatus.InProgress,
                 email: "sms-unavailable-owner@example.com"
             );
@@ -361,7 +361,7 @@ namespace TummlyBackend.Tests.Integration
             var seeded = await SeedOwnerWithFeedbackAsync(
                 "guest-response-sms-hard-stop-tok",
                 ContactType.Phone,
-                "+447700900777",
+                "+447911123457",
                 FeedbackWorkflowStatus.InProgress,
                 email: "sms-hard-stop-owner@example.com",
                 smsCredits: 0
@@ -386,6 +386,104 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.Equal("channel_hard_stopped", body.GetProperty("code").GetString());
             Assert.Equal(CreditChannels.Sms, body.GetProperty("channel").GetString());
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Email_Succeeds_WithoutMarketingOptIn()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-email-no-marketing-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "email-no-marketing-owner@example.com",
+                followUpGranted: true,
+                marketing: null
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            Assert.Equal(
+                0,
+                await context.CreditLedgerEntries.CountAsync(
+                    row =>
+                        row.RestaurantId == restaurantId
+                        && row.Channel == CreditChannels.Email
+                )
+            );
+        }
+
+        [Theory]
+        [InlineData("email", "alex@example.com", ContactType.Email)]
+        [InlineData("sms", "+447911123999", ContactType.Phone)]
+        public async Task SendGuestResponse_Returns400_WhenFollowUpWithdrawn(
+            string channel,
+            string guestContact,
+            ContactType contactType
+        )
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                $"guest-response-followup-withdrawn-{channel}-tok",
+                contactType,
+                guestContact,
+                FeedbackWorkflowStatus.InProgress,
+                email: $"followup-withdrawn-{channel}-owner@example.com",
+                followUpGranted: false,
+                smsCredits: contactType == ContactType.Phone ? 20 : 0
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = channel == "email"
+                ? JsonContent.Create(new
+                {
+                    channel,
+                    subject = "Sorry about your visit",
+                    body = "Thank you for telling us.",
+                    intent = "respond_to_guest",
+                })
+                : JsonContent.Create(new
+                {
+                    channel,
+                    body = "Thanks for your message.",
+                    intent = "respond_to_guest",
+                });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                ServiceReplyEligibility.NotAllowedMessage,
+                body.GetProperty("message").GetString()
+            );
         }
 
         [Fact]
@@ -445,7 +543,7 @@ namespace TummlyBackend.Tests.Integration
             var seeded = await SeedOwnerWithFeedbackAsync(
                 "guest-response-sms-leftover-tok",
                 ContactType.Phone,
-                "+447700900777",
+                "+447911123457",
                 FeedbackWorkflowStatus.InProgress,
                 email: "sms-leftover-owner@example.com",
                 smsCredits: 10,
@@ -520,7 +618,7 @@ namespace TummlyBackend.Tests.Integration
             var seeded = await SeedOwnerWithFeedbackAsync(
                 "guest-response-sms-idempotency-tok",
                 ContactType.Phone,
-                "+447700900888",
+                "+447911123458",
                 FeedbackWorkflowStatus.InProgress,
                 email: "sms-idempotency-owner@example.com",
                 smsCredits: 5
@@ -728,7 +826,9 @@ namespace TummlyBackend.Tests.Integration
             FeedbackWorkflowStatus workflowStatus,
             string email = "guest-response-owner@example.com",
             int smsCredits = 20,
-            IServiceProvider? services = null
+            IServiceProvider? services = null,
+            bool followUpGranted = true,
+            LocationGuestPermissionState? marketing = null
         )
         {
             using var scope = (services ?? _factory.Services).CreateScope();
@@ -783,9 +883,71 @@ namespace TummlyBackend.Tests.Integration
             context.RestaurantLocations.Add(location);
             await context.SaveChangesAsync();
 
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = contactType == ContactType.Email
+                    ? guestContact.Trim().ToLowerInvariant()
+                    : null,
+                NormalizedEmail = contactType == ContactType.Email
+                    ? guestContact.Trim().ToLowerInvariant()
+                    : null,
+                Mobile = contactType == ContactType.Phone ? guestContact : null,
+                NormalizedPhone = contactType == ContactType.Phone
+                    ? new string(guestContact.Where(char.IsDigit).ToArray())
+                    : null,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var locationGuest = new LocationGuest
+            {
+                MasterGuestId = master.Id,
+                RestaurantLocationId = location.Id,
+                Name = "Alex Guest",
+                MarketingPreference = LocationGuestMarketingPreference.NotRecorded,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.LocationGuests.Add(locationGuest);
+            await context.SaveChangesAsync();
+
+            var ledger = new LocationGuestPermissionLedgerService(context);
+            var at = DateTime.UtcNow;
+            ledger.RecordEvent(
+                locationGuest.Id,
+                location.Id,
+                LocationGuestPermissionKind.FeedbackFollowUp,
+                followUpGranted
+                    ? LocationGuestPermissionLedgerEventKinds.Grant
+                    : LocationGuestPermissionLedgerEventKinds.Withdraw,
+                LocationGuestPermissionLedgerSources.GuestForm,
+                at
+            );
+
+            if (marketing is { } marketingState)
+            {
+                var marketingKind = contactType == ContactType.Email
+                    ? LocationGuestPermissionKind.EmailMarketing
+                    : LocationGuestPermissionKind.SmsMarketing;
+                ledger.RecordEvent(
+                    locationGuest.Id,
+                    location.Id,
+                    marketingKind,
+                    marketingState == LocationGuestPermissionState.Granted
+                        ? LocationGuestPermissionLedgerEventKinds.Grant
+                        : LocationGuestPermissionLedgerEventKinds.Withdraw,
+                    LocationGuestPermissionLedgerSources.GuestForm,
+                    at
+                );
+            }
+
+            await context.SaveChangesAsync();
+
             var feedback = new Feedback
             {
                 RestaurantLocationId = location.Id,
+                LocationGuestId = locationGuest.Id,
                 GuestName = "Alex Guest",
                 GuestContact = guestContact,
                 ContactType = contactType,

@@ -17,7 +17,6 @@ namespace TummlyBackend.Services
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
         private readonly IRecoverySmsBillingReserve _smsBilling;
         private readonly IRecoveryGuestSmsDelivery _smsDelivery;
-        private readonly ILocationGuestPermissionLedgerService _permissions;
         private readonly TimeProvider _clock;
 
         public FeedbackGuestResponsesService(
@@ -25,8 +24,7 @@ namespace TummlyBackend.Services
             IGuestResponseEmailDeliveryWork emailDelivery,
             IRecoverySmsBillingReserve smsBilling,
             IRecoveryGuestSmsDelivery smsDelivery,
-            TimeProvider clock,
-            ILocationGuestPermissionLedgerService? permissions = null
+            TimeProvider clock
         )
         {
             _context = context;
@@ -34,8 +32,6 @@ namespace TummlyBackend.Services
             _smsBilling = smsBilling;
             _smsDelivery = smsDelivery;
             _clock = clock;
-            _permissions =
-                permissions ?? new LocationGuestPermissionLedgerService(context);
         }
 
         public async Task<SendFeedbackGuestResponseResultDto?> SendAsync(
@@ -92,16 +88,17 @@ namespace TummlyBackend.Services
                 channel
             );
 
-            await EnsureFeedbackFollowUpAllowedAsync(
-                feedback,
-                cancellationToken
-            );
-
-            if (channel == FeedbackGuestResponseChannel.Email)
-            {
-                await EnsureEmailMarketingAllowedAsync(
+            if (
+                !await ServiceReplyEligibility.IsAllowedAsync(
+                    _context,
                     feedback,
+                    channel,
                     cancellationToken
+                )
+            )
+            {
+                throw new ArgumentException(
+                    ServiceReplyEligibility.NotAllowedMessage
                 );
             }
 
@@ -594,123 +591,6 @@ namespace TummlyBackend.Services
             {
                 _context.RecoverySmsSendIdempotencies.Remove(open);
                 await _context.SaveChangesAsync(cancellationToken);
-            }
-        }
-
-        private async Task EnsureFeedbackFollowUpAllowedAsync(
-            Feedback feedback,
-            CancellationToken cancellationToken
-        )
-        {
-            if (feedback.LocationGuestId is not { } locationGuestId)
-            {
-                throw new ArgumentException(
-                    "Guest has not granted feedback follow-up permission."
-                );
-            }
-
-            var guestRow = await _context.LocationGuests
-                .AsNoTracking()
-                .Where(g => g.Id == locationGuestId)
-                .Select(g => new
-                {
-                    g.MarketingPreference,
-                    RestaurantId = g.RestaurantLocation!.RestaurantId,
-                })
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (guestRow == null || guestRow.RestaurantId == 0)
-            {
-                throw new ArgumentException(
-                    "Guest has not granted feedback follow-up permission."
-                );
-            }
-
-            var restaurant = await _context.Restaurants
-                .AsNoTracking()
-                .FirstAsync(r => r.Id == guestRow.RestaurantId, cancellationToken);
-
-            var ledgerStates = (
-                await _permissions.GetCurrentStatesBatchAsync(
-                    [locationGuestId],
-                    cancellationToken
-                )
-            )[locationGuestId];
-
-            var states = LocationGuestChannelPermissionGate.ResolveEffectiveStates(
-                guestRow.MarketingPreference,
-                ledgerStates
-            );
-
-            if (
-                !LocationGuestChannelPermissionGate.CanSendFeedbackFollowUp(
-                    restaurant,
-                    states
-                )
-            )
-            {
-                throw new ArgumentException(
-                    "Guest has not granted feedback follow-up permission."
-                );
-            }
-        }
-
-        private async Task EnsureEmailMarketingAllowedAsync(
-            Feedback feedback,
-            CancellationToken cancellationToken
-        )
-        {
-            if (feedback.LocationGuestId is not { } locationGuestId)
-            {
-                throw new ArgumentException(
-                    "Guest has not opted in for email marketing."
-                );
-            }
-
-            var guestRow = await _context.LocationGuests
-                .AsNoTracking()
-                .Where(g => g.Id == locationGuestId)
-                .Select(g => new
-                {
-                    g.MarketingPreference,
-                    RestaurantId = g.RestaurantLocation!.RestaurantId,
-                })
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (guestRow == null || guestRow.RestaurantId == 0)
-            {
-                throw new ArgumentException(
-                    "Guest has not opted in for email marketing."
-                );
-            }
-
-            var restaurant = await _context.Restaurants
-                .AsNoTracking()
-                .FirstAsync(r => r.Id == guestRow.RestaurantId, cancellationToken);
-
-            var ledgerStates = (
-                await _permissions.GetCurrentStatesBatchAsync(
-                    [locationGuestId],
-                    cancellationToken
-                )
-            )[locationGuestId];
-
-            var states = LocationGuestChannelPermissionGate.ResolveEffectiveStates(
-                guestRow.MarketingPreference,
-                ledgerStates
-            );
-
-            if (
-                !LocationGuestChannelPermissionGate.CanSendOnChannel(
-                    restaurant,
-                    states,
-                    "email"
-                )
-            )
-            {
-                throw new ArgumentException(
-                    "Guest has not opted in for email marketing."
-                );
             }
         }
 

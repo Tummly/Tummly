@@ -5,8 +5,10 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -336,17 +338,24 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
-        [Fact]
-        public async Task SendAndIssue_Returns400_WhenGuestOffersOptOut()
+        [Theory]
+        [InlineData("email", "alex@example.com", ContactType.Email)]
+        [InlineData("sms", "+447911123460", ContactType.Phone)]
+        public async Task SendAndIssue_Succeeds_WhenMarketingWithdrawnButFollowUpGranted(
+            string channel,
+            string guestContact,
+            ContactType contactType
+        )
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
-                "recovery-offer-optout-tok",
-                ContactType.Email,
-                "alex@example.com",
+                $"recovery-offer-marketing-withdrawn-{channel}-tok",
+                contactType,
+                guestContact,
                 FeedbackWorkflowStatus.InProgress,
-                email: "offer-optout-owner@example.com",
-                offersOptOut: true,
-                withCatalogAttach: true
+                email: $"offer-marketing-withdrawn-{channel}-owner@example.com",
+                withCatalogAttach: true,
+                followUpGranted: true,
+                marketing: LocationGuestPermissionState.Withdrawn
             );
 
             using var post = new HttpRequestMessage(
@@ -355,18 +364,93 @@ namespace TummlyBackend.Tests.Integration
             );
             post.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-            post.Content = JsonContent.Create(new
-            {
-                channel = "email",
-                subject = "Offer",
-                body = "Body",
-                intent = "respond_with_recovery_offer",
-                purpose = "include_a_recovery_offer",
-                tone = "appreciative",
-            });
+            post.Content = channel == "email"
+                ? JsonContent.Create(new
+                {
+                    channel,
+                    subject = "Offer",
+                    body = "Body",
+                    intent = "respond_with_recovery_offer",
+                    purpose = "include_a_recovery_offer",
+                    tone = "appreciative",
+                })
+                : JsonContent.Create(new
+                {
+                    channel,
+                    body = "Body",
+                    intent = "respond_with_recovery_offer",
+                    purpose = "include_a_recovery_offer",
+                    tone = "appreciative",
+                });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                1,
+                await context.OfferIssues.CountAsync(
+                    o =>
+                        o.FeedbackId == seeded.FeedbackId
+                        && o.Source == OfferIssueSources.Recovery
+                )
+            );
+        }
+
+        [Theory]
+        [InlineData("email", "alex@example.com", ContactType.Email)]
+        [InlineData("sms", "+447911123461", ContactType.Phone)]
+        public async Task SendAndIssue_Returns400_WhenFollowUpWithdrawn(
+            string channel,
+            string guestContact,
+            ContactType contactType
+        )
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                $"recovery-offer-followup-withdrawn-{channel}-tok",
+                contactType,
+                guestContact,
+                FeedbackWorkflowStatus.InProgress,
+                email: $"offer-followup-withdrawn-{channel}-owner@example.com",
+                withCatalogAttach: true,
+                followUpGranted: false
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-offers"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = channel == "email"
+                ? JsonContent.Create(new
+                {
+                    channel,
+                    subject = "Offer",
+                    body = "Body",
+                    intent = "respond_with_recovery_offer",
+                    purpose = "include_a_recovery_offer",
+                    tone = "appreciative",
+                })
+                : JsonContent.Create(new
+                {
+                    channel,
+                    body = "Body",
+                    intent = "respond_with_recovery_offer",
+                    purpose = "include_a_recovery_offer",
+                    tone = "appreciative",
+                });
 
             var response = await _client.SendAsync(post);
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                ServiceReplyEligibility.NotAllowedMessage,
+                body.GetProperty("message").GetString()
+            );
         }
 
         private async Task<(
@@ -380,8 +464,9 @@ namespace TummlyBackend.Tests.Integration
             string guestContact,
             FeedbackWorkflowStatus workflowStatus,
             string email = "recovery-offer-owner@example.com",
-            bool offersOptOut = false,
-            bool withCatalogAttach = false
+            bool withCatalogAttach = false,
+            bool followUpGranted = true,
+            LocationGuestPermissionState? marketing = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -431,17 +516,21 @@ namespace TummlyBackend.Tests.Integration
             LocationGuest? locationGuest = null;
             int? catalogOfferId = null;
 
-            if (withCatalogAttach || offersOptOut)
+            if (withCatalogAttach)
             {
                 var masterGuest = new MasterGuest
                 {
                     RestaurantId = restaurant.Id,
-                    Email = string.IsNullOrWhiteSpace(guestContact)
-                        ? null
-                        : guestContact.ToLowerInvariant(),
-                    NormalizedEmail = string.IsNullOrWhiteSpace(guestContact)
-                        ? null
-                        : guestContact.ToLowerInvariant(),
+                    Email = contactType == ContactType.Email
+                        ? guestContact.Trim().ToLowerInvariant()
+                        : null,
+                    NormalizedEmail = contactType == ContactType.Email
+                        ? guestContact.Trim().ToLowerInvariant()
+                        : null,
+                    Mobile = contactType == ContactType.Phone ? guestContact : null,
+                    NormalizedPhone = contactType == ContactType.Phone
+                        ? new string(guestContact.Where(char.IsDigit).ToArray())
+                        : null,
                     CreatedAt = DateTime.UtcNow,
                 };
                 context.MasterGuests.Add(masterGuest);
@@ -452,16 +541,44 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = masterGuest.Id,
                     RestaurantLocationId = location.Id,
                     Name = "Alex Guest",
-                    MarketingPreference = LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(offersOptOut),
-
+                    MarketingPreference = LocationGuestMarketingPreference.NotRecorded,
                     CreatedAt = DateTime.UtcNow,
                 };
                 context.LocationGuests.Add(locationGuest);
                 await context.SaveChangesAsync();
-            }
 
-            if (withCatalogAttach)
-            {
+                var ledger = new LocationGuestPermissionLedgerService(context);
+                var at = DateTime.UtcNow;
+                ledger.RecordEvent(
+                    locationGuest.Id,
+                    location.Id,
+                    LocationGuestPermissionKind.FeedbackFollowUp,
+                    followUpGranted
+                        ? LocationGuestPermissionLedgerEventKinds.Grant
+                        : LocationGuestPermissionLedgerEventKinds.Withdraw,
+                    LocationGuestPermissionLedgerSources.GuestForm,
+                    at
+                );
+
+                if (marketing is { } marketingState)
+                {
+                    var marketingKind = contactType == ContactType.Email
+                        ? LocationGuestPermissionKind.EmailMarketing
+                        : LocationGuestPermissionKind.SmsMarketing;
+                    ledger.RecordEvent(
+                        locationGuest.Id,
+                        location.Id,
+                        marketingKind,
+                        marketingState == LocationGuestPermissionState.Granted
+                            ? LocationGuestPermissionLedgerEventKinds.Grant
+                            : LocationGuestPermissionLedgerEventKinds.Withdraw,
+                        LocationGuestPermissionLedgerSources.GuestForm,
+                        at
+                    );
+                }
+
+                await context.SaveChangesAsync();
+
                 var catalogOffer = new CatalogOffer
                 {
                     RestaurantLocationId = location.Id,
@@ -494,7 +611,6 @@ namespace TummlyBackend.Tests.Integration
                 Sentiment = FeedbackSentiment.Negative,
                 DetectedTagsJson = "[]",
                 WorkflowStatus = workflowStatus,
-                OffersOptOut = offersOptOut,
             };
 
             context.Feedbacks.Add(feedback);
