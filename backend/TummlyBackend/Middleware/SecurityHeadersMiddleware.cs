@@ -1,8 +1,8 @@
 namespace TummlyBackend.Middleware
 {
     /// <summary>
-    /// Baseline security headers on every API response. HSTS is sent only on
-    /// HTTPS requests (scheme comes from forwarded headers behind ingress).
+    /// Baseline security headers on every API response. HSTS is always sent:
+    /// ingress ends TLS, so the app sees HTTP, and browsers ignore HSTS on HTTP.
     /// </summary>
     public sealed class SecurityHeadersMiddleware
     {
@@ -21,11 +21,8 @@ namespace TummlyBackend.Middleware
                 headers["X-Content-Type-Options"] = "nosniff";
                 headers["X-Frame-Options"] = "DENY";
                 headers["Referrer-Policy"] = "no-referrer";
-                if (context.Request.IsHttps)
-                {
-                    headers["Strict-Transport-Security"] =
-                        "max-age=31536000; includeSubDomains";
-                }
+                headers["Strict-Transport-Security"] =
+                    "max-age=31536000; includeSubDomains";
 
                 return Task.CompletedTask;
             });
