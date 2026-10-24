@@ -16,6 +16,7 @@ import {
   HOME_TRUST_CONTROL,
   type HomeTrustBadge,
 } from "@/content/marketing/homePage"
+import { publicHomeTrustBadges } from "@/content/marketing/publicTrustClaims"
 import { cn } from "@/lib/utils"
 
 const BADGE_IMAGES = {
@@ -58,6 +59,7 @@ function TrustBadgeCard({ badge }: { badge: HomeTrustBadge }) {
  */
 export function HomeTrustControl() {
   const defaultOpen = HOME_TRUST_CONTROL.items[0]?.id
+  const badges = publicHomeTrustBadges()
 
   return (
     <section
@@ -119,13 +121,15 @@ export function HomeTrustControl() {
         </div>
 
         {/* Mobile: full-width vertical stack (Figma `6241:18218`). Desktop: row. */}
-        <ul className="m-0 flex w-full list-none flex-col gap-4 p-0 lg:flex-row lg:items-stretch">
-          {HOME_TRUST_CONTROL.badges.map((badge) => (
-            <li key={badge.id} className="flex w-full min-w-0 lg:flex-1">
-              <TrustBadgeCard badge={badge} />
-            </li>
-          ))}
-        </ul>
+        {badges.length > 0 ? (
+          <ul className="m-0 flex w-full list-none flex-col gap-4 p-0 lg:flex-row lg:items-stretch">
+            {badges.map((badge) => (
+              <li key={badge.id} className="flex w-full min-w-0 lg:flex-1">
+                <TrustBadgeCard badge={badge} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
     </section>
   )

@@ -40,6 +40,14 @@ jobs:
           npm ci
           npm run build
 
+      # QA only: keep search engines out. Not access control.
+      - name: Block indexing on QA
+        run: |
+          printf 'User-agent: *\nDisallow: /\n' > dist/robots.txt
+          jq '.globalHeaders["X-Robots-Tag"] = "noindex, nofollow"' \
+            dist/staticwebapp.config.json > dist/staticwebapp.config.tmp
+          mv dist/staticwebapp.config.tmp dist/staticwebapp.config.json
+
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
