@@ -23,13 +23,16 @@ describe("guestFormConsentPresentation", () => {
   })
 
   describe("resolveGuestFormMarketingChannel", () => {
-    it("returns email only after a valid email when Email marketing is enabled", () => {
+    it("Email contact shows only the email channel", () => {
       expect(
         resolveGuestFormMarketingChannel("alex@example.com", GUEST_FORM_CONSENT_DEMO)
       ).toBe("email")
     })
 
-    it("returns sms only after a valid UK mobile when SMS marketing is enabled", () => {
+    it("switching Email → Phone returns sms", () => {
+      expect(
+        resolveGuestFormMarketingChannel("alex@example.com", GUEST_FORM_CONSENT_DEMO)
+      ).toBe("email")
       expect(
         resolveGuestFormMarketingChannel("07123456789", GUEST_FORM_CONSENT_DEMO)
       ).toBe("sms")
