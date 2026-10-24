@@ -27,14 +27,12 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task HttpsResponse_HasHsts()
+        public async Task ResponseBehindTlsIngress_HasHsts()
         {
-            var client = _factory.CreateClient(
-                new WebApplicationFactoryClientOptions
-                {
-                    BaseAddress = new Uri("https://localhost"),
-                }
-            );
+            // Container Apps ingress ends TLS and calls the app over HTTP from a
+            // non-loopback proxy, so Request.IsHttps is false in QA and production.
+            // Browsers ignore HSTS on plain HTTP (RFC 6797 8.1), so always send it.
+            var client = _factory.CreateClient();
 
             var response = await client.GetAsync("/health");
 
