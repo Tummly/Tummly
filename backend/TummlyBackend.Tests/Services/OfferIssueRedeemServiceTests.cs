@@ -194,6 +194,91 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Redeem_SecondConfirm_ReturnsAlreadyUsed()
+        {
+            var seeded = await SeedRedeemableIssueAsync(
+                claimCode: "TUM-TWICE1",
+                claimedAt: null
+            );
+            var firstAt = _now;
+            var secondAt = _now.AddMinutes(1);
+
+            var first = await _service.RedeemClaimCodeAsync(
+                seeded.LocationId,
+                "TUM-TWICE1",
+                seeded.IssueId.ToString(),
+                firstAt
+            );
+            Assert.IsType<OfferRedeemMarkResult.Ok>(first);
+
+            var second = await _service.RedeemClaimCodeAsync(
+                seeded.LocationId,
+                "TUM-TWICE1",
+                seeded.IssueId.ToString(),
+                secondAt
+            );
+            var failed = Assert.IsType<OfferRedeemMarkResult.Failed>(second);
+            Assert.Equal(OfferRedeemFailureReasons.AlreadyUsed, failed.Reason);
+
+            var issue = await _context.OfferIssues.SingleAsync(
+                i => i.Id == seeded.IssueId
+            );
+            Assert.Equal(firstAt, issue.RedeemedAtUtc);
+        }
+
+        [Fact]
+        public async Task Redeem_StaleTrackedIssue_ReturnsAlreadyUsed()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(dbName)
+                .Options;
+
+            await using var seedContext = new ApplicationDbContext(options);
+            var seeded = await SeedRedeemableIssueIntoAsync(
+                seedContext,
+                claimCode: "TUM-STALE1"
+            );
+
+            await using var contextA = new ApplicationDbContext(options);
+            var serviceA = new OfferIssueService(contextA);
+            // Load tracked issue into A (gate would pass on this stale snapshot).
+            var trackedA = await contextA.OfferIssues
+                .Include(i => i.LocationGuest)!
+                    .ThenInclude(g => g!.RestaurantLocation)!
+                        .ThenInclude(l => l!.Restaurant)
+                .FirstAsync(i => i.Id == seeded.IssueId);
+            Assert.Null(trackedA.RedeemedAtUtc);
+
+            await using var contextB = new ApplicationDbContext(options);
+            var serviceB = new OfferIssueService(contextB);
+            var firstAt = _now;
+            var redeemB = await serviceB.RedeemClaimCodeAsync(
+                seeded.LocationId,
+                "TUM-STALE1",
+                seeded.IssueId.ToString(),
+                firstAt
+            );
+            Assert.IsType<OfferRedeemMarkResult.Ok>(redeemB);
+
+            var secondAt = _now.AddMinutes(2);
+            var redeemA = await serviceA.RedeemClaimCodeAsync(
+                seeded.LocationId,
+                "TUM-STALE1",
+                seeded.IssueId.ToString(),
+                secondAt
+            );
+            var failed = Assert.IsType<OfferRedeemMarkResult.Failed>(redeemA);
+            Assert.Equal(OfferRedeemFailureReasons.AlreadyUsed, failed.Reason);
+
+            await using var verifyContext = new ApplicationDbContext(options);
+            var issue = await verifyContext.OfferIssues.SingleAsync(
+                i => i.Id == seeded.IssueId
+            );
+            Assert.Equal(firstAt, issue.RedeemedAtUtc);
+        }
+
+        [Fact]
         public async Task RedeemClaimCode_MismatchedIssueId_FailsAsInvalid()
         {
             var seeded = await SeedRedeemableIssueAsync(claimCode: "TUM-MISMATCH");
@@ -281,7 +366,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(WorkspaceStatus.Active, restaurant.WorkspaceStatus);
         }
 
-        private async Task<(
+        private Task<(
             int LocationId,
             int RestaurantId,
             int LocationGuestId,
@@ -295,7 +380,32 @@ namespace TummlyBackend.Tests.Services
             DateTime? expiryAt = null
         )
         {
-            var seeded = await SeedLocationGuestAndOfferAsync();
+            return SeedRedeemableIssueIntoAsync(
+                _context,
+                claimCode,
+                claimedAt,
+                redeemedAt,
+                cancelledAt,
+                expiryAt
+            );
+        }
+
+        private async Task<(
+            int LocationId,
+            int RestaurantId,
+            int LocationGuestId,
+            int CatalogOfferId,
+            int IssueId
+        )> SeedRedeemableIssueIntoAsync(
+            ApplicationDbContext context,
+            string claimCode,
+            DateTime? claimedAt = null,
+            DateTime? redeemedAt = null,
+            DateTime? cancelledAt = null,
+            DateTime? expiryAt = null
+        )
+        {
+            var seeded = await SeedLocationGuestAndOfferIntoAsync(context);
             var issue = new OfferIssue
             {
                 CatalogOfferId = seeded.CatalogOfferId,
@@ -315,8 +425,8 @@ namespace TummlyBackend.Tests.Services
                 StaffInstructions =
                     "Apply 10% off the order before payment. Tap redeem once the discount has been applied.",
             };
-            _context.OfferIssues.Add(issue);
-            await _context.SaveChangesAsync();
+            context.OfferIssues.Add(issue);
+            await context.SaveChangesAsync();
 
             return (
                 seeded.LocationId,
@@ -327,12 +437,22 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
-        private async Task<(
+        private Task<(
             int LocationId,
             int RestaurantId,
             int LocationGuestId,
             int CatalogOfferId
         )> SeedLocationGuestAndOfferAsync()
+        {
+            return SeedLocationGuestAndOfferIntoAsync(_context);
+        }
+
+        private async Task<(
+            int LocationId,
+            int RestaurantId,
+            int LocationGuestId,
+            int CatalogOfferId
+        )> SeedLocationGuestAndOfferIntoAsync(ApplicationDbContext context)
         {
             var user = new User
             {
@@ -346,8 +466,8 @@ namespace TummlyBackend.Tests.Services
                 ActivatedAt = _now,
                 ActivationExpiresAt = _now.AddDays(30),
             };
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
 
             var restaurant = new Restaurant
             {
@@ -356,8 +476,8 @@ namespace TummlyBackend.Tests.Services
                 OwnerUserId = user.Id,
                 CreatedAt = _now,
             };
-            _context.Restaurants.Add(restaurant);
-            await _context.SaveChangesAsync();
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
 
             var location = new RestaurantLocation
             {
@@ -365,8 +485,8 @@ namespace TummlyBackend.Tests.Services
                 LocationName = "Soho",
                 CreatedAt = _now,
             };
-            _context.RestaurantLocations.Add(location);
-            await _context.SaveChangesAsync();
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
 
             var master = new MasterGuest
             {
@@ -374,8 +494,8 @@ namespace TummlyBackend.Tests.Services
                 Email = $"guest-{Guid.NewGuid():N}@example.com",
                 CreatedAt = _now,
             };
-            _context.MasterGuests.Add(master);
-            await _context.SaveChangesAsync();
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
 
             var lg = new LocationGuest
             {
@@ -384,8 +504,8 @@ namespace TummlyBackend.Tests.Services
                 Name = "Maya",
                 CreatedAt = _now,
             };
-            _context.LocationGuests.Add(lg);
-            await _context.SaveChangesAsync();
+            context.LocationGuests.Add(lg);
+            await context.SaveChangesAsync();
 
             var offer = new CatalogOffer
             {
@@ -401,8 +521,8 @@ namespace TummlyBackend.Tests.Services
                 CreatedAt = _now,
                 UpdatedAt = _now,
             };
-            _context.CatalogOffers.Add(offer);
-            await _context.SaveChangesAsync();
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
 
             return (location.Id, restaurant.Id, lg.Id, offer.Id);
         }

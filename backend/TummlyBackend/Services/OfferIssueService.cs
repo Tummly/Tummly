@@ -325,6 +325,52 @@ namespace TummlyBackend.Services
                 return new OfferRedeemMarkResult.Failed(gate);
             }
 
+            if (_context.Database.IsRelational())
+            {
+                var updated = await _context.OfferIssues
+                    .Where(row =>
+                        row.Id == issue.Id
+                        && row.RedeemedAtUtc == null
+                        && row.CancelledAtUtc == null
+                    )
+                    .ExecuteUpdateAsync(
+                        setters => setters.SetProperty(
+                            row => row.RedeemedAtUtc,
+                            atUtc
+                        ),
+                        cancellationToken
+                    );
+
+                if (updated == 0)
+                {
+                    return new OfferRedeemMarkResult.Failed(
+                        OfferRedeemFailureReasons.AlreadyUsed
+                    );
+                }
+
+                issue.RedeemedAtUtc = atUtc;
+                return new OfferRedeemMarkResult.Ok();
+            }
+
+            var fresh = await _context.OfferIssues
+                .AsNoTracking()
+                .Where(row => row.Id == issue.Id)
+                .Select(row => new
+                {
+                    row.RedeemedAtUtc,
+                    row.CancelledAtUtc,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (fresh == null
+                || fresh.RedeemedAtUtc != null
+                || fresh.CancelledAtUtc != null)
+            {
+                return new OfferRedeemMarkResult.Failed(
+                    OfferRedeemFailureReasons.AlreadyUsed
+                );
+            }
+
             issue.RedeemedAtUtc = atUtc;
             await _context.SaveChangesAsync(cancellationToken);
             return new OfferRedeemMarkResult.Ok();
