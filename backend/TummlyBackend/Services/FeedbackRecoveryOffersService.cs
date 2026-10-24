@@ -149,7 +149,7 @@ namespace TummlyBackend.Services
                 if (issue == null)
                 {
                     throw new ArgumentException(
-                        "Recovery catalog offer must be Active and the guest must not be opted out."
+                        "Recovery catalog offer must be Active and the Location must be active."
                     );
                 }
 

@@ -280,7 +280,9 @@ namespace TummlyBackend.Tests.Integration
                 "alex@example.com",
                 FeedbackWorkflowStatus.InProgress,
                 email: "offer-no-attach-owner@example.com",
-                withCatalogAttach: false
+                withCatalogAttach: false,
+                withLocationGuest: true,
+                followUpGranted: true
             );
 
             using var post = new HttpRequestMessage(
@@ -301,6 +303,12 @@ namespace TummlyBackend.Tests.Integration
 
             var response = await _client.SendAsync(post);
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "A Recovery catalog offer attach is required before send.",
+                body.GetProperty("message").GetString()
+            );
         }
 
         [Fact]
@@ -465,6 +473,7 @@ namespace TummlyBackend.Tests.Integration
             FeedbackWorkflowStatus workflowStatus,
             string email = "recovery-offer-owner@example.com",
             bool withCatalogAttach = false,
+            bool withLocationGuest = false,
             bool followUpGranted = true,
             LocationGuestPermissionState? marketing = null
         )
@@ -516,7 +525,9 @@ namespace TummlyBackend.Tests.Integration
             LocationGuest? locationGuest = null;
             int? catalogOfferId = null;
 
-            if (withCatalogAttach)
+            // Catalog attach implies a Location Guest; callers may also seed a
+            // guest without a RecoveryOfferId (honest no-attach assert).
+            if (withCatalogAttach || withLocationGuest)
             {
                 var masterGuest = new MasterGuest
                 {
@@ -578,7 +589,10 @@ namespace TummlyBackend.Tests.Integration
                 }
 
                 await context.SaveChangesAsync();
+            }
 
+            if (withCatalogAttach)
+            {
                 var catalogOffer = new CatalogOffer
                 {
                     RestaurantLocationId = location.Id,

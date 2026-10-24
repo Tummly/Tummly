@@ -19,7 +19,7 @@ export const guestFeedbackMotionDurations = {
   copiedHoldMs: 1500,
   /** Dictation wash — soft in-place bloom pulse. */
   listeningGradientLoop: 3.2,
-  /** Thank-you / unlock bottom bloom ambient pulse. */
+  /** Thank-you bottom bloom ambient pulse. */
   offerAmbientLoop: 6.5,
 } as const
 

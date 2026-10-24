@@ -49,7 +49,7 @@ export const GUEST_FEEDBACK_FIELD_INPUT_CLASS =
 export const GUEST_FEEDBACK_PRIMARY_BUTTON_CLASS =
   "h-auto min-h-12.5 w-full rounded-[54px] px-4 py-4 text-sm font-medium leading-normal shadow-none lg:min-h-14 lg:py-[1.125rem] lg:text-base"
 
-/** Thank-you / unlock page H1. */
+/** Thank-you page H1. */
 export const GUEST_FEEDBACK_THANK_YOU_TITLE_CLASS =
   "m-0 font-heading text-[clamp(1.75rem,3vw,2.25rem)] font-bold leading-normal text-guest-feedback-text"
 

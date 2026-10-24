@@ -2,35 +2,17 @@ import { describe, expect, it } from "vitest"
 
 import {
   RECOVERY_COMPOSER_COPY,
-  RECOVERY_COMPOSER_ELIGIBILITY_NOTICE_CLASS,
   RECOVERY_COMPOSER_STATUS_BANNER_CLASS,
   buildRecoveryComposerStatusBanner,
   mapRecoveryComposerSendFailure,
-  resolveRecoveryComposerMarketingChannel,
-  resolveRecoveryComposerMarketingChannelFromDetails,
 } from "./recoveryComposerPresentation"
-import {
-  emptyFeedbackDetailPermissionStates,
-  emptyFeedbackDetailRestaurantPermissions,
-} from "./feedbackDetailRecoveryPresentation"
-
-const allRestaurantOn = emptyFeedbackDetailRestaurantPermissions()
-allRestaurantOn["email-marketing"] = true
-allRestaurantOn["sms-marketing"] = true
-allRestaurantOn["feedback-follow-up"] = true
 
 describe("recoveryComposerPresentation", () => {
-  it("uses theme-aware Main Bg tokens for status and eligibility banners", () => {
+  it("uses theme-aware Main Bg tokens for status banner", () => {
     expect(RECOVERY_COMPOSER_STATUS_BANNER_CLASS).toContain(
       "bg-op-background-primary"
     )
     expect(RECOVERY_COMPOSER_STATUS_BANNER_CLASS).not.toContain(
-      "op-color-gray-995"
-    )
-    expect(RECOVERY_COMPOSER_ELIGIBILITY_NOTICE_CLASS).toContain(
-      "bg-op-background-primary"
-    )
-    expect(RECOVERY_COMPOSER_ELIGIBILITY_NOTICE_CLASS).not.toContain(
       "op-color-gray-995"
     )
   })
@@ -40,49 +22,6 @@ describe("recoveryComposerPresentation", () => {
       kind: "service-only",
       message: RECOVERY_COMPOSER_COPY.serviceReply,
     })
-  })
-
-  it("still resolves marketing channel for informational ledger reads", () => {
-    const permissionStates = emptyFeedbackDetailPermissionStates()
-    permissionStates["feedback-follow-up"] = "granted"
-    permissionStates["email-marketing"] = "granted"
-
-    expect(
-      resolveRecoveryComposerMarketingChannel({
-        contactType: "Email",
-        guestContact: "guest@example.com",
-        permissionStates,
-        restaurantPermissions: allRestaurantOn,
-      })
-    ).toBe("email")
-  })
-
-  it("parses marketing channel from Feedback details wire fields", () => {
-    expect(
-      resolveRecoveryComposerMarketingChannelFromDetails({
-        contactType: "Email",
-        guestContact: "guest@example.com",
-        permissionStates: {
-          "feedback-follow-up": "granted",
-          "email-marketing": "granted",
-        },
-        restaurantPermissionEnabled: {
-          "email-marketing": true,
-          "sms-marketing": true,
-          "feedback-follow-up": true,
-        },
-      })
-    ).toBe("email")
-  })
-
-  it("falls back to marketingPreference when ledger wire fields are omitted", () => {
-    expect(
-      resolveRecoveryComposerMarketingChannelFromDetails({
-        contactType: "Email",
-        guestContact: "guest@example.com",
-        marketingPreference: "allowed",
-      })
-    ).toBe("email")
   })
 
   it("server follow-up denial maps to no_permission", () => {
@@ -102,6 +41,18 @@ describe("recoveryComposerPresentation", () => {
         new Error("Denied: Feedback Follow-Up Permission required")
       )
     ).toMatchObject({ kind: "no_permission" })
+  })
+
+  it("an 'eligibility changed' server message maps to kind failed, not a detach message", () => {
+    const mapped = mapRecoveryComposerSendFailure(
+      new Error("Marketing eligibility changed. Permission changed.")
+    )
+    expect(mapped).toEqual({
+      kind: "failed",
+      message: RECOVERY_COMPOSER_COPY.sendFailed,
+    })
+    expect(mapped.message).not.toMatch(/attached Offer was removed/i)
+    expect(mapped.message).not.toMatch(/marketing permission/i)
   })
 
   it("RC-03: maps provider unavailable failures", () => {

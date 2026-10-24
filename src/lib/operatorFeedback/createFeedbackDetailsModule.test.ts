@@ -166,7 +166,7 @@ describe("createFeedbackDetailsModule", () => {
     })
   })
 
-  it("enables Add Offer when channel email marketing is granted", async () => {
+  it("enables Add Offer when contact and Feedback follow-up are available", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {
         ...sampleDetails,
