@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Notifications;
 using TummlyBackend.DTOs.Offers;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Notifications;
@@ -92,12 +93,18 @@ namespace TummlyBackend.Services
             var issue = await _context.OfferIssues
                 .Include(i => i.LocationGuest)!
                     .ThenInclude(g => g!.RestaurantLocation)
+                .Include(i => i.CatalogOffer)!
+                    .ThenInclude(o => o!.RestaurantLocation)
                 .Include(i => i.Campaign)
                 .FirstOrDefaultAsync(i => i.Id == body.IssueId, cancellationToken);
 
+            var issueLocationId =
+                issue?.LocationGuest?.RestaurantLocationId
+                ?? issue?.CatalogOffer?.RestaurantLocationId;
+
             if (issue == null
                 || issue.CatalogOfferId != body.OfferId
-                || issue.LocationGuest?.RestaurantLocationId != body.LocationId)
+                || issueLocationId != body.LocationId)
             {
                 return new OfferVoidCreateResult
                 {
@@ -256,9 +263,13 @@ namespace TummlyBackend.Services
                 .Include(row => row.OfferIssue)!
                     .ThenInclude(i => i!.LocationGuest)!
                         .ThenInclude(g => g!.RestaurantLocation)
+                .Include(row => row.OfferIssue)!
+                    .ThenInclude(i => i!.CatalogOffer)!
+                        .ThenInclude(o => o!.RestaurantLocation)
                 .Include(row => row.OfferIssue)!.ThenInclude(i => i!.Campaign)
                 .Include(row => row.RequestedByUser)
                 .Include(row => row.CatalogOffer)
+                .Include(row => row.RestaurantLocation)
                 .FirstOrDefaultAsync(row => row.Id == requestId, cancellationToken);
 
             if (request?.OfferIssue == null)
@@ -319,6 +330,9 @@ namespace TummlyBackend.Services
                     .ThenInclude(i => i!.LocationGuest)!
                         .ThenInclude(g => g!.RestaurantLocation)
                 .Include(row => row.OfferIssue)!
+                    .ThenInclude(i => i!.CatalogOffer)!
+                        .ThenInclude(o => o!.RestaurantLocation)
+                .Include(row => row.OfferIssue)!
                     .ThenInclude(i => i!.Campaign)
                 .Include(row => row.RequestedByUser)
                 .Include(row => row.CatalogOffer)
@@ -362,9 +376,13 @@ namespace TummlyBackend.Services
             OfferIssue issue
         )
         {
-            var guestName = issue.LocationGuest?.Name?.Trim() ?? string.Empty;
+            var guestName = DeletedGuestDisplay.NameOrDeleted(issue.LocationGuest);
             var locationName =
-                issue.LocationGuest?.RestaurantLocation?.LocationName?.Trim()
+                (
+                    issue.LocationGuest?.RestaurantLocation
+                    ?? issue.CatalogOffer?.RestaurantLocation
+                    ?? request.RestaurantLocation
+                )?.LocationName?.Trim()
                 ?? string.Empty;
             var requestedBy =
                 request.RequestedByUser?.FullName?.Trim() ?? "Operator";

@@ -181,6 +181,12 @@ namespace TummlyBackend.Data
             set;
         }
 
+        public DbSet<GuestContactSuppression> GuestContactSuppressions
+        {
+            get;
+            set;
+        }
+
         public DbSet<QrScanEvent> QrScanEvents { get; set; }
 
         public DbSet<QrFormOpenEvent> QrFormOpenEvents { get; set; }
@@ -1602,6 +1608,48 @@ namespace TummlyBackend.Data
 
             /*
              =========================================
+             GUEST CONTACT SUPPRESSION (WS2a)
+             Cascade from Restaurants only — no Users FK
+             (SQL Server error 1785).
+             =========================================
+            */
+
+            modelBuilder.Entity<GuestContactSuppression>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<GuestContactSuppression>()
+                .Property(row => row.PermissionKind)
+                .HasConversion(
+                    v => v.ToWireString(),
+                    v => LocationGuestPermissionKindExtensions.FromWireString(v)
+                )
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<GuestContactSuppression>()
+                .Property(row => row.ContactHash)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<GuestContactSuppression>()
+                .Property(row => row.Source)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<GuestContactSuppression>()
+                .HasIndex(row => new
+                {
+                    row.RestaurantId,
+                    row.PermissionKind,
+                    row.ContactHash,
+                })
+                .IsUnique();
+
+            /*
+             =========================================
              QR SCAN EVENTS
              =========================================
             */
@@ -2281,7 +2329,8 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<CampaignFrozenRecipient>()
                 .HasIndex(row => new { row.CampaignId, row.LocationGuestId })
-                .IsUnique();
+                .IsUnique()
+                .HasFilter("[LocationGuestId] IS NOT NULL");
 
             modelBuilder.Entity<CampaignRecipientDelivery>()
                 .HasOne(row => row.Campaign)
@@ -2302,7 +2351,8 @@ namespace TummlyBackend.Data
                     row.LocationGuestId,
                     row.Channel,
                 })
-                .IsUnique();
+                .IsUnique()
+                .HasFilter("[LocationGuestId] IS NOT NULL");
 
             modelBuilder.Entity<CampaignRecipientDelivery>()
                 .HasIndex(row => new { row.Outcome, row.AcceptedAtUtc });
@@ -2444,7 +2494,9 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<OfferIssue>()
                 .HasIndex(o => new { o.CampaignId, o.LocationGuestId })
                 .IsUnique()
-                .HasFilter("[CampaignId] IS NOT NULL");
+                .HasFilter(
+                    "[CampaignId] IS NOT NULL AND [LocationGuestId] IS NOT NULL"
+                );
 
             modelBuilder.Entity<OfferIssue>()
                 .HasIndex(o => new { o.LocationGuestId, o.CatalogOfferId })
@@ -2452,7 +2504,9 @@ namespace TummlyBackend.Data
                 .HasDatabaseName(
                     "IX_OfferIssues_ThankYou_LocationGuestId_CatalogOfferId"
                 )
-                .HasFilter("[Source] = N'guest_form_thank_you'");
+                .HasFilter(
+                    "[Source] = N'guest_form_thank_you' AND [LocationGuestId] IS NOT NULL"
+                );
 
             modelBuilder.Entity<OfferIssue>()
                 .Property(o => o.DiscountPercentage)

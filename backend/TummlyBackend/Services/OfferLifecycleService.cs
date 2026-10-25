@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Offers;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -40,6 +41,8 @@ namespace TummlyBackend.Services
                 .Where(i => i.CatalogOfferId == offerId)
                 .Include(i => i.LocationGuest!)
                     .ThenInclude(g => g.RestaurantLocation)
+                .Include(i => i.CatalogOffer!)
+                    .ThenInclude(o => o.RestaurantLocation)
                 .Include(i => i.Campaign)
                 .OrderByDescending(i => i.IssuedAtUtc)
                 .ToListAsync(cancellationToken);
@@ -116,7 +119,8 @@ namespace TummlyBackend.Services
                 .Include(i => i.LocationGuest!)
                     .ThenInclude(g => g.RestaurantLocation)
                 .Include(i => i.Campaign)
-                .Include(i => i.CatalogOffer)
+                .Include(i => i.CatalogOffer!)
+                    .ThenInclude(o => o.RestaurantLocation)
                 .ToListAsync(cancellationToken);
 
             var failedQuery = _context.OfferRedeemFailedAttempts.AsNoTracking();
@@ -160,7 +164,8 @@ namespace TummlyBackend.Services
                 .Include(i => i.LocationGuest!)
                     .ThenInclude(g => g.RestaurantLocation)
                 .Include(i => i.Campaign)
-                .Include(i => i.CatalogOffer)
+                .Include(i => i.CatalogOffer!)
+                    .ThenInclude(o => o.RestaurantLocation)
                 .ToDictionaryAsync(
                     i => NormalizeClaimCode(i.ClaimCode),
                     cancellationToken
@@ -339,9 +344,12 @@ namespace TummlyBackend.Services
             DateTime atUtc
         )
         {
-            var guestName = issue.LocationGuest?.Name?.Trim() ?? string.Empty;
+            var guestName = DeletedGuestDisplay.NameOrDeleted(issue.LocationGuest);
             var locationName =
-                issue.LocationGuest?.RestaurantLocation?.LocationName?.Trim()
+                (
+                    issue.LocationGuest?.RestaurantLocation
+                    ?? issue.CatalogOffer?.RestaurantLocation
+                )?.LocationName?.Trim()
                 ?? string.Empty;
             var (status, statusLabel) = ResolveClaimStatus(issue, atUtc);
             var sourceLabel = FormatIssueSourceLabel(issue);
@@ -371,9 +379,12 @@ namespace TummlyBackend.Services
             OfferIssue issue
         )
         {
-            var guestName = issue.LocationGuest?.Name?.Trim() ?? string.Empty;
+            var guestName = DeletedGuestDisplay.NameOrDeleted(issue.LocationGuest);
             var locationName =
-                issue.LocationGuest?.RestaurantLocation?.LocationName?.Trim()
+                (
+                    issue.LocationGuest?.RestaurantLocation
+                    ?? issue.CatalogOffer?.RestaurantLocation
+                )?.LocationName?.Trim()
                 ?? string.Empty;
             var isVoided = issue.RedemptionVoidedAtUtc != null;
 
@@ -414,11 +425,15 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var guestName =
-                matchedIssue?.LocationGuest?.Name?.Trim() ?? string.Empty;
+            var guestName = matchedIssue is null
+                ? string.Empty
+                : DeletedGuestDisplay.NameOrDeleted(matchedIssue.LocationGuest);
             var locationName =
                 attempt.RestaurantLocation?.LocationName?.Trim()
-                ?? matchedIssue?.LocationGuest?.RestaurantLocation?.LocationName?.Trim()
+                ?? (
+                    matchedIssue?.LocationGuest?.RestaurantLocation
+                    ?? matchedIssue?.CatalogOffer?.RestaurantLocation
+                )?.LocationName?.Trim()
                 ?? string.Empty;
             var reason = attempt.Reason?.Trim() ?? OfferRedeemFailureReasons.Invalid;
             var passReference =

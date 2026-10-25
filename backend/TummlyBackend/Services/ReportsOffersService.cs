@@ -415,10 +415,12 @@ namespace TummlyBackend.Services
                 from i in _context.OfferIssues.AsNoTracking()
                 join o in _context.CatalogOffers.AsNoTracking()
                     on i.CatalogOfferId equals o.Id
-                join g in _context.LocationGuests.AsNoTracking()
-                    on i.LocationGuestId equals g.Id
                 join loc in _context.RestaurantLocations.AsNoTracking()
                     on o.RestaurantLocationId equals loc.Id
+                join g in _context.LocationGuests.AsNoTracking()
+                    on i.LocationGuestId equals g.Id
+                    into guestGroup
+                from g in guestGroup.DefaultIfEmpty()
                 where
                     o.RestaurantLocationId == locationId
                     && i.RedeemedAtUtc != null
@@ -431,7 +433,9 @@ namespace TummlyBackend.Services
                     Id = i.Id,
                     DateTimeUtc = i.RedeemedAtUtc!.Value,
                     OfferTitle = o.Title,
-                    GuestName = g.Name,
+                    GuestName = g != null
+                        ? g.Name
+                        : DeletedGuestDisplay.Name,
                     LocationName = loc.LocationName,
                     Outcome = "redeemed",
                 }

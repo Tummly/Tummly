@@ -145,39 +145,53 @@ namespace TummlyBackend.Services
                 .OrderBy(row => row.Id)
                 .ToListAsync(cancellationToken);
 
+            var alreadyAcceptedCount = await CountOutcomeAsync(
+                entity.Id,
+                AcceptedOutcome,
+                cancellationToken
+            );
+
             var alreadyAccepted = await _context.CampaignRecipientDeliveries
                 .Where(
                     row =>
                         row.CampaignId == entity.Id
                         && row.Outcome == AcceptedOutcome
+                        && row.LocationGuestId != null
                 )
-                .Select(row => row.LocationGuestId)
+                .Select(row => row.LocationGuestId!.Value)
                 .ToListAsync(cancellationToken);
             var alreadyAcceptedSet = alreadyAccepted.ToHashSet();
 
             var alreadyHandled = await _context.CampaignRecipientDeliveries
-                .Where(row => row.CampaignId == entity.Id)
-                .Select(row => row.LocationGuestId)
+                .Where(
+                    row =>
+                        row.CampaignId == entity.Id
+                        && row.LocationGuestId != null
+                )
+                .Select(row => row.LocationGuestId!.Value)
                 .ToListAsync(cancellationToken);
             var handledSet = alreadyHandled.ToHashSet();
 
             // Drop-only: frozen ∩ live eligible; never silent-add.
+            // Unlinked (null guest) frozen rows are skipped only — never sent.
             var sendable = frozenRows
-                .Select(row => row.LocationGuestId)
+                .Where(row => row.LocationGuestId != null)
+                .Select(row => row.LocationGuestId!.Value)
                 .Where(id => liveEligible.Contains(id))
                 .Where(id => !alreadyAcceptedSet.Contains(id))
                 .Distinct()
                 .ToList();
 
             var newlyIneligibleFrozen = frozenRows
-                .Select(row => row.LocationGuestId)
+                .Where(row => row.LocationGuestId != null)
+                .Select(row => row.LocationGuestId!.Value)
                 .Where(id => !liveEligible.Contains(id))
                 .Where(id => !alreadyAcceptedSet.Contains(id))
                 .Distinct()
                 .ToList();
 
             if (
-                alreadyAcceptedSet.Count == 0
+                alreadyAcceptedCount == 0
                 && sendable.Count == 0
             )
             {
@@ -230,14 +244,15 @@ namespace TummlyBackend.Services
                 {
                     Campaign = ToDto(
                         entity,
-                        acceptedCount: alreadyAcceptedSet.Count,
+                        acceptedCount: alreadyAcceptedCount,
                         skippedIneligibleCount: await CountOutcomeAsync(
                             entity.Id,
                             SkippedIneligibleOutcome,
                             cancellationToken
                         ),
                         remainingUnsentCount: frozenRows
-                            .Select(row => row.LocationGuestId)
+                            .Where(row => row.LocationGuestId != null)
+                            .Select(row => row.LocationGuestId!.Value)
                             .Distinct()
                             .Count(id =>
                                 liveEligible.Contains(id)
@@ -451,12 +466,15 @@ namespace TummlyBackend.Services
                 }
             }
 
-            var totalAccepted = alreadyAcceptedSet.Count;
+            // Include unlinked accepted deliveries (alreadyAcceptedCount) plus
+            // accepts this run — CountAsync before SaveChanges would miss Added rows.
+            var totalAccepted = alreadyAcceptedCount + acceptedThisRun;
 
             // Remaining = still eligible frozen guests with no delivery fact yet
             // (mid-send stop). Rejected / skipped are terminal for this run.
             var remainingUnsent = frozenRows
-                .Select(row => row.LocationGuestId)
+                .Where(row => row.LocationGuestId != null)
+                .Select(row => row.LocationGuestId!.Value)
                 .Distinct()
                 .Count(
                     id =>

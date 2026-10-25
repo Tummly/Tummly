@@ -434,6 +434,9 @@ namespace TummlyBackend.Services
                 .Include(i => i.LocationGuest)!
                     .ThenInclude(g => g!.RestaurantLocation)!
                         .ThenInclude(l => l!.Restaurant)
+                .Include(i => i.CatalogOffer)!
+                    .ThenInclude(o => o!.RestaurantLocation)!
+                        .ThenInclude(l => l!.Restaurant)
                 .FirstOrDefaultAsync(
                     i => i.ClaimCode == normalizedCode,
                     cancellationToken
@@ -454,16 +457,19 @@ namespace TummlyBackend.Services
         {
             string? reason = null;
 
-            var workspaceStatus =
-                issue.LocationGuest?.RestaurantLocation?.Restaurant?.WorkspaceStatus;
+            var redeemLocation =
+                issue.LocationGuest?.RestaurantLocation
+                ?? issue.CatalogOffer!.RestaurantLocation;
 
-            var guestLocationId = issue.LocationGuest?.RestaurantLocationId;
+            var workspaceStatus = redeemLocation?.Restaurant?.WorkspaceStatus;
+
+            var issueLocationId = redeemLocation?.Id;
             if (workspaceStatus == WorkspaceStatus.Paused)
             {
                 reason = OfferRedeemFailureReasons.WorkspacePaused;
             }
-            else if (guestLocationId is not int issueLocationId
-                || issueLocationId != locationId)
+            else if (issueLocationId is not int resolvedLocationId
+                || resolvedLocationId != locationId)
             {
                 reason = OfferRedeemFailureReasons.WrongLocation;
             }
@@ -524,9 +530,12 @@ namespace TummlyBackend.Services
 
         private static OfferRedeemConfirmPreviewDto BuildPreview(OfferIssue issue)
         {
-            var guestName = issue.LocationGuest?.Name?.Trim() ?? string.Empty;
+            var guestName = DeletedGuestDisplay.NameOrDeleted(issue.LocationGuest);
             var validAt =
-                issue.LocationGuest?.RestaurantLocation?.LocationName?.Trim()
+                (
+                    issue.LocationGuest?.RestaurantLocation
+                    ?? issue.CatalogOffer?.RestaurantLocation
+                )?.LocationName?.Trim()
                 ?? string.Empty;
 
             return new OfferRedeemConfirmPreviewDto

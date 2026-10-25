@@ -838,7 +838,7 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("FrozenAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("LocationGuestId")
+                    b.Property<int?>("LocationGuestId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -846,7 +846,8 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("LocationGuestId");
 
                     b.HasIndex("CampaignId", "LocationGuestId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[LocationGuestId] IS NOT NULL");
 
                     b.ToTable("CampaignFrozenRecipients");
                 });
@@ -873,7 +874,7 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
-                    b.Property<int>("LocationGuestId")
+                    b.Property<int?>("LocationGuestId")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("OpenedAtUtc")
@@ -902,7 +903,8 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("Outcome", "AcceptedAtUtc");
 
                     b.HasIndex("CampaignId", "LocationGuestId", "Channel")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[LocationGuestId] IS NOT NULL");
 
                     b.ToTable("CampaignRecipientDeliveries");
                 });
@@ -2062,6 +2064,46 @@ namespace TummlyBackend.Migrations
                     b.ToTable("FeedbackWorkflowStatusChanges");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.GuestContactSuppression", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContactHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PermissionKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("WithdrawnAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId", "PermissionKind", "ContactHash")
+                        .IsUnique();
+
+                    b.ToTable("GuestContactSuppressions");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.GuestLoopSetup", b =>
                 {
                     b.Property<int>("Id")
@@ -2781,7 +2823,7 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("IssuedAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("LocationGuestId")
+                    b.Property<int?>("LocationGuestId")
                         .HasColumnType("int");
 
                     b.Property<decimal?>("MinimumSpend")
@@ -2832,12 +2874,12 @@ namespace TummlyBackend.Migrations
 
                     b.HasIndex("CampaignId", "LocationGuestId")
                         .IsUnique()
-                        .HasFilter("[CampaignId] IS NOT NULL");
+                        .HasFilter("[CampaignId] IS NOT NULL AND [LocationGuestId] IS NOT NULL");
 
                     b.HasIndex("LocationGuestId", "CatalogOfferId")
                         .IsUnique()
                         .HasDatabaseName("IX_OfferIssues_ThankYou_LocationGuestId_CatalogOfferId")
-                        .HasFilter("[Source] = N'guest_form_thank_you'");
+                        .HasFilter("[Source] = N'guest_form_thank_you' AND [LocationGuestId] IS NOT NULL");
 
                     b.ToTable("OfferIssues");
                 });
@@ -5622,8 +5664,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
                         .WithMany()
                         .HasForeignKey("LocationGuestId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Campaign");
 
@@ -5641,8 +5682,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
                         .WithMany()
                         .HasForeignKey("LocationGuestId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Campaign");
 
@@ -5993,6 +6033,17 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Feedback");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.GuestContactSuppression", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.GuestLoopSetup", b =>
                 {
                     b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
@@ -6246,8 +6297,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
                         .WithMany()
                         .HasForeignKey("LocationGuestId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Campaign");
 

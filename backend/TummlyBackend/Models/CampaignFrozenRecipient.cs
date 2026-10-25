@@ -14,7 +14,7 @@ namespace TummlyBackend.Models
 
         public Campaign? Campaign { get; set; }
 
-        public int LocationGuestId { get; set; }
+        public int? LocationGuestId { get; set; }
 
         public LocationGuest? LocationGuest { get; set; }
 
