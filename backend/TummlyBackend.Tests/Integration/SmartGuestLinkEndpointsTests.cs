@@ -777,6 +777,133 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SubmitFeedback_DuplicateFresh_WaitsForWinnerClaim()
+        {
+            const string token = "thank-you-dup-race-wait-1234567890";
+            const string contact = "alex-dup-race@example.com";
+            const string comment = "Race: winner Claim arrives late.";
+            const string claimCode = "TUM-RACE01";
+
+            await using var factory = _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IOfferIssueService>();
+                    services.AddSingleton<IOfferIssueService>(
+                        new NullThankYouOfferIssueService()
+                    );
+                });
+            });
+            using var client = factory.CreateClient();
+
+            await SeedGuestLocationWithThankYouOfferOnAsync(
+                factory.Services,
+                token,
+                offerStatus: "active"
+            );
+            var seeded = await SeedDuplicateFeedbackWithoutClaimAsync(
+                factory.Services,
+                token,
+                contact,
+                comment,
+                createdAtUtc: DateTime.UtcNow
+            );
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(400);
+                await InsertThankYouClaimAsync(
+                    factory.Services,
+                    seeded,
+                    claimCode
+                );
+            });
+
+            var response = await client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = contact,
+                    comment,
+                    offersOptOut = false
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                claimCode,
+                body.GetProperty("offer").GetProperty("claimCode").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_DuplicateOlderThan5s_DoesNotWaitForClaim()
+        {
+            const string token = "thank-you-dup-stale-nowait-1234567";
+            const string contact = "alex-dup-stale@example.com";
+            const string comment = "Stale duplicate must not poll.";
+            const string claimCode = "TUM-STALE1";
+
+            await using var factory = _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IOfferIssueService>();
+                    services.AddSingleton<IOfferIssueService>(
+                        new NullThankYouOfferIssueService()
+                    );
+                });
+            });
+            using var client = factory.CreateClient();
+
+            await SeedGuestLocationWithThankYouOfferOnAsync(
+                factory.Services,
+                token,
+                offerStatus: "active"
+            );
+            var seeded = await SeedDuplicateFeedbackWithoutClaimAsync(
+                factory.Services,
+                token,
+                contact,
+                comment,
+                createdAtUtc: DateTime.UtcNow.AddSeconds(-6)
+            );
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(400);
+                await InsertThankYouClaimAsync(
+                    factory.Services,
+                    seeded,
+                    claimCode
+                );
+            });
+
+            var started = DateTime.UtcNow;
+            var response = await client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = contact,
+                    comment,
+                    offersOptOut = false
+                }
+            );
+            var elapsed = DateTime.UtcNow - started;
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(JsonValueKind.Null, body.GetProperty("offer").ValueKind);
+            Assert.True(
+                elapsed < TimeSpan.FromMilliseconds(800),
+                $"Expected immediate return, elapsed {elapsed.TotalMilliseconds}ms."
+            );
+        }
+
+        [Fact]
         public async Task SubmitFeedback_LockTimeout_Returns503()
         {
             const string token = "thank-you-lock-timeout-1234567890";
@@ -1154,6 +1281,107 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        private sealed record SeededDuplicateFeedback(
+            int FeedbackId,
+            int LocationGuestId,
+            int CatalogOfferId
+        );
+
+        private static async Task<SeededDuplicateFeedback> SeedDuplicateFeedbackWithoutClaimAsync(
+            IServiceProvider services,
+            string linkToken,
+            string guestContact,
+            string comment,
+            DateTime createdAtUtc
+        )
+        {
+            using var scope = services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var qr = await context.QrCodes
+                .Include(row => row.RestaurantLocation)
+                .SingleAsync(row => row.Token == linkToken);
+            var location = qr.RestaurantLocation
+                ?? throw new InvalidOperationException("Location missing.");
+            var catalogOfferId = location.ThankYouCatalogOfferId
+                ?? throw new InvalidOperationException("Thank-you offer missing.");
+
+            var master = new MasterGuest
+            {
+                RestaurantId = location.RestaurantId,
+                Email = guestContact,
+                NormalizedEmail = guestContact.ToLowerInvariant(),
+                CreatedAt = createdAtUtc,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var guest = new LocationGuest
+            {
+                MasterGuestId = master.Id,
+                RestaurantLocationId = location.Id,
+                Name = "Alex Guest",
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
+                CreatedAt = createdAtUtc,
+            };
+            context.LocationGuests.Add(guest);
+            await context.SaveChangesAsync();
+
+            var feedback = new Feedback
+            {
+                RestaurantLocationId = location.Id,
+                QrCodeId = qr.Id,
+                LocationGuestId = guest.Id,
+                GuestName = "Alex Guest",
+                GuestContact = guestContact,
+                ContactType = ContactType.Email,
+                Comment = comment,
+                OffersOptOut = false,
+                ClassificationStatus = ClassificationStatus.Pending,
+                CreatedAt = createdAtUtc,
+            };
+            context.Feedbacks.Add(feedback);
+            await context.SaveChangesAsync();
+
+            return new SeededDuplicateFeedback(
+                feedback.Id,
+                guest.Id,
+                catalogOfferId
+            );
+        }
+
+        private static async Task InsertThankYouClaimAsync(
+            IServiceProvider services,
+            SeededDuplicateFeedback seeded,
+            string claimCode
+        )
+        {
+            using var scope = services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+            context.OfferIssues.Add(
+                new OfferIssue
+                {
+                    CatalogOfferId = seeded.CatalogOfferId,
+                    LocationGuestId = seeded.LocationGuestId,
+                    FeedbackId = seeded.FeedbackId,
+                    ClaimCode = claimCode,
+                    IssuedAtUtc = now,
+                    ClaimedAtUtc = now,
+                    Source = OfferIssueSources.GuestFormThankYou,
+                    ExpiryAtUtc = now.AddDays(14),
+                    OfferType = CatalogOfferType.PercentageDiscount,
+                    Title = "Thanks for visiting",
+                    Description = "Guest form thank-you",
+                    Validity = CatalogOfferValidity.Days14AfterIssue,
+                    DiscountPercentage = 10m,
+                }
+            );
+            await context.SaveChangesAsync();
+        }
+
         private sealed class RejectingGuestFormSubmitLock : IGuestFormSubmitLock
         {
             public Task<bool> TryAcquireAsync(
@@ -1162,6 +1390,59 @@ namespace TummlyBackend.Tests.Integration
                 string contactKey,
                 CancellationToken ct = default
             ) => Task.FromResult(false);
+        }
+
+        private sealed class NullThankYouOfferIssueService : IOfferIssueService
+        {
+            public Task<OfferIssue?> IssueOnCampaignAcceptedAsync(
+                int campaignId,
+                int locationGuestId,
+                int catalogOfferId,
+                string channel,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default,
+                string? preallocatedClaimCode = null
+            ) => throw new NotImplementedException();
+
+            public Task<OfferIssue?> IssueOnThankYouSubmitAsync(
+                int locationId,
+                int locationGuestId,
+                int? feedbackId,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default,
+                bool allowNewIssue = true
+            ) => Task.FromResult<OfferIssue?>(null);
+
+            public Task<OfferIssue?> IssueOnRecoverySendAsync(
+                int catalogOfferId,
+                int locationGuestId,
+                int feedbackId,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<OfferIssue?> StageIssueOnRecoverySendAsync(
+                int catalogOfferId,
+                int locationGuestId,
+                int feedbackId,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<OfferRedeemCheckResult> CheckClaimCodeAsync(
+                int locationId,
+                string code,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<OfferRedeemMarkResult> RedeemClaimCodeAsync(
+                int locationId,
+                string code,
+                string issueId,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
         }
 
         private sealed class ThrowingOfferIssueService : IOfferIssueService

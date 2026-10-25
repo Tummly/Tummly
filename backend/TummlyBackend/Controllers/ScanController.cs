@@ -31,6 +31,16 @@ namespace TummlyBackend.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<ScanController> _logger;
         private static readonly TimeSpan DuplicateSubmitWindow = TimeSpan.FromMinutes(10);
+        /// <summary>
+        /// Concurrent loser may re-show before the winner issues the Claim.
+        /// Only poll when the duplicate Feedback is this fresh.
+        /// </summary>
+        private static readonly TimeSpan ConcurrentClaimWaitFreshWindow =
+            TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan ConcurrentClaimPollBudget =
+            TimeSpan.FromSeconds(2);
+        private static readonly TimeSpan ConcurrentClaimPollStep =
+            TimeSpan.FromMilliseconds(150);
 
         public ScanController(
             ApplicationDbContext context,
@@ -175,7 +185,8 @@ namespace TummlyBackend.Controllers
         [HttpPost("{token}/feedback")]
         public async Task<IActionResult> SubmitFeedback(
             string token,
-            [FromBody] FeedbackSubmissionDto dto
+            [FromBody] FeedbackSubmissionDto dto,
+            CancellationToken cancellationToken
         )
         {
             var normalizedToken = token?.Trim();
@@ -335,7 +346,7 @@ namespace TummlyBackend.Controllers
             */
 
             await using var transaction = _context.Database.IsRelational()
-                ? await _context.Database.BeginTransactionAsync()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
                 : null;
 
             Feedback? duplicate = null;
@@ -346,13 +357,14 @@ namespace TummlyBackend.Controllers
                     !await _submitLock.TryAcquireAsync(
                         _context,
                         location.RestaurantId,
-                        contactKey
+                        contactKey,
+                        cancellationToken
                     )
                 )
                 {
                     if (transaction != null)
                     {
-                        await transaction.RollbackAsync();
+                        await transaction.RollbackAsync(cancellationToken);
                     }
 
                     return StatusCode(
@@ -375,7 +387,7 @@ namespace TummlyBackend.Controllers
                         && row.CreatedAt >= duplicateSince
                     )
                     .OrderByDescending(row => row.CreatedAt)
-                    .FirstOrDefaultAsync();
+                    .FirstOrDefaultAsync(cancellationToken);
 
                 if (duplicate == null)
                 {
@@ -488,6 +500,7 @@ namespace TummlyBackend.Controllers
             {
                 // Same contact + comment within the window: write nothing; re-show
                 // an existing thank-you Offer when LocationGuestId is present.
+                // Never issue a new Claim on this path (allowNewIssue: false).
                 OfferIssue? duplicateIssued = null;
                 var duplicateIssueAt = DateTime.UtcNow;
                 if (duplicate.LocationGuestId is int duplicateGuestId)
@@ -499,6 +512,7 @@ namespace TummlyBackend.Controllers
                             duplicateGuestId,
                             duplicate.Id,
                             duplicateIssueAt,
+                            cancellationToken,
                             allowNewIssue: false
                         );
                     }
@@ -510,6 +524,20 @@ namespace TummlyBackend.Controllers
                             duplicate.Id
                         );
                         duplicateIssued = null;
+                    }
+
+                    // Concurrent winner may still be issuing after commit; poll
+                    // briefly when the duplicate Feedback is fresh.
+                    if (
+                        duplicateIssued == null
+                        && DateTime.UtcNow - duplicate.CreatedAt
+                            < ConcurrentClaimWaitFreshWindow
+                    )
+                    {
+                        duplicateIssued = await WaitForThankYouClaimAsync(
+                            duplicate.Id,
+                            cancellationToken
+                        );
                     }
                 }
 
@@ -723,6 +751,45 @@ namespace TummlyBackend.Controllers
                     }
                 )
             };
+        }
+
+        /// <summary>
+        /// Poll for a thank-you OfferIssue the concurrent winner may still be
+        /// writing. Write-free: never creates a Claim.
+        /// </summary>
+        private async Task<OfferIssue?> WaitForThankYouClaimAsync(
+            int feedbackId,
+            CancellationToken cancellationToken
+        )
+        {
+            var deadline = DateTime.UtcNow + ConcurrentClaimPollBudget;
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var issue = await _context.OfferIssues
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        row => row.FeedbackId == feedbackId,
+                        cancellationToken
+                    );
+                if (issue != null)
+                {
+                    return issue;
+                }
+
+                var remaining = deadline - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    return null;
+                }
+
+                var delay =
+                    ConcurrentClaimPollStep < remaining
+                        ? ConcurrentClaimPollStep
+                        : remaining;
+                await Task.Delay(delay, cancellationToken);
+            }
         }
 
         private static string TruncateTranscript(string text)
