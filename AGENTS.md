@@ -52,4 +52,4 @@ Only report to me in ASD-STE100 Simplified Technical English.
 
 ### Sub Agents:
 
-Only use Cursor Auto Subagents no Opus / GPT e.t.c. models to call sub agents.
+Almost always use Claude Haiku 5.5 with effort high for sub agents (T3 target: provider `claudeAgent`, model `claude-haiku-5-5`, effort `high`). Use a stronger model only for a hard task (for example a final whole-branch review), and say so in the report.
