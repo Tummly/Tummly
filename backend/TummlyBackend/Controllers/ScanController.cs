@@ -414,7 +414,7 @@ namespace TummlyBackend.Controllers
                     {
                         if (transaction != null)
                         {
-                            await transaction.RollbackAsync();
+                            await transaction.RollbackAsync(cancellationToken);
                         }
 
                         return StatusCode(
@@ -478,19 +478,19 @@ namespace TummlyBackend.Controllers
                         feedback,
                         feedback.CreatedAt
                     );
-                    await _context.SaveChangesAsync();
+                    await _context.SaveChangesAsync(cancellationToken);
                 }
 
                 if (transaction != null)
                 {
-                    await transaction.CommitAsync();
+                    await transaction.CommitAsync(cancellationToken);
                 }
             }
             catch
             {
                 if (transaction != null)
                 {
-                    await transaction.RollbackAsync();
+                    await transaction.RollbackAsync(cancellationToken);
                 }
 
                 throw;
