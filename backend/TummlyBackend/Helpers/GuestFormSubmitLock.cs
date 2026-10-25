@@ -93,7 +93,15 @@ namespace TummlyBackend.Helpers
 
             await command.ExecuteNonQueryAsync(ct);
 
-            return returnParam.Value is int code && code >= 0;
+            if (
+                returnParam.Value is null
+                || returnParam.Value is DBNull
+            )
+            {
+                return false;
+            }
+
+            return Convert.ToInt32(returnParam.Value) >= 0;
         }
 
         private static DbParameter CreateParameter(
