@@ -43,7 +43,8 @@ namespace TummlyBackend.Tests.Services
             _withdraw = new GuestInitiatedMarketingWithdrawService(
                 _context,
                 _permissions,
-                suppressions
+                suppressions,
+                NullLogger<GuestInitiatedMarketingWithdrawService>.Instance
             );
 
             var settings = Options.Create(

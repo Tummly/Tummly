@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -12,16 +13,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly ILocationGuestPermissionLedgerService _permissions;
         private readonly IGuestContactSuppressionService _suppressions;
+        private readonly ILogger<GuestInitiatedMarketingWithdrawService> _logger;
 
         public GuestInitiatedMarketingWithdrawService(
             ApplicationDbContext context,
             ILocationGuestPermissionLedgerService permissions,
-            IGuestContactSuppressionService suppressions
+            IGuestContactSuppressionService suppressions,
+            ILogger<GuestInitiatedMarketingWithdrawService> logger
         )
         {
             _context = context;
             _permissions = permissions;
             _suppressions = suppressions;
+            _logger = logger;
         }
 
         public async Task<GuestInitiatedWithdrawResult> WithdrawForLocationGuestAsync(
@@ -159,6 +163,22 @@ namespace TummlyBackend.Services
                         cancellationToken
                     );
                 }
+                else if (isEmail)
+                {
+                    _logger.LogWarning(
+                        "Skipped guest contact suppression: contact is not keyable. RestaurantId={RestaurantId} MaskedEmail={MaskedEmail}",
+                        restaurantId,
+                        MaskEmailForLogs(raw)
+                    );
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Skipped guest contact suppression: contact is not keyable. RestaurantId={RestaurantId} MaskedPhone={MaskedPhone}",
+                        restaurantId,
+                        MaskPhoneForLogs(raw)
+                    );
+                }
             }
 
             // SaveChanges here also persists a staged suppression when no guests
@@ -251,6 +271,29 @@ namespace TummlyBackend.Services
             }
 
             return false;
+        }
+
+        private static string MaskPhoneForLogs(string value)
+        {
+            var digits = new string(value.Where(char.IsDigit).ToArray());
+            if (digits.Length < 4)
+            {
+                return "••••";
+            }
+
+            return "••••" + digits[^4..];
+        }
+
+        private static string MaskEmailForLogs(string value)
+        {
+            var trimmed = value.Trim();
+            var at = trimmed.IndexOf('@');
+            if (at <= 0 || at >= trimmed.Length - 1)
+            {
+                return "••••";
+            }
+
+            return trimmed[0] + "•••@" + trimmed[(at + 1)..];
         }
 
         private async Task<GuestInitiatedWithdrawResult> WithdrawGuestsAsync(

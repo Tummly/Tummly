@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -35,7 +37,8 @@ namespace TummlyBackend.Tests.Services
             _sut = new GuestInitiatedMarketingWithdrawService(
                 _context,
                 _permissions,
-                suppressions
+                suppressions,
+                NullLogger<GuestInitiatedMarketingWithdrawService>.Instance
             );
         }
 
@@ -333,6 +336,63 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(_context.GuestContactSuppressions);
         }
 
+        [Fact]
+        public async Task WithdrawForRestaurantContact_NoGuest_UnkeyablePhone_LogsWarning_WritesNoRow()
+        {
+            // Twilio reserved-range From: lenient E.164 match resolve succeeds;
+            // strict GuestContactKey.TryCreate (UK PhoneNumberHelper) fails.
+            const string reservedFrom = "+15005550006";
+            var restaurant = await SeedRestaurantAsync("Unkeyable STOP Venue");
+            var logger = new CapturingLogger<GuestInitiatedMarketingWithdrawService>();
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                _hasher
+            );
+            var sut = new GuestInitiatedMarketingWithdrawService(
+                _context,
+                _permissions,
+                suppressions,
+                logger
+            );
+
+            var result = await sut.WithdrawForRestaurantContactAsync(
+                restaurant.Id,
+                reservedFrom,
+                isEmail: false,
+                LocationGuestPermissionKind.SmsMarketing,
+                LocationGuestPermissionLedgerSources.SmsStop
+            );
+
+            Assert.Equal(0, result.GuestsTouched);
+            Assert.Empty(_context.GuestContactSuppressions);
+
+            var warning = Assert.Single(
+                logger.Entries,
+                e => e.Level == LogLevel.Warning
+            );
+            Assert.Contains(
+                restaurant.Id.ToString(),
+                warning.Message,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("••••0006", warning.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                reservedFrom,
+                warning.Message,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "{Phone}",
+                warning.Message,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "{To}",
+                warning.Message,
+                StringComparison.Ordinal
+            );
+        }
+
         private async Task<Restaurant> SeedRestaurantAsync(string name)
         {
             var restaurant = new Restaurant
@@ -485,6 +545,28 @@ namespace TummlyBackend.Tests.Services
             int LocationId,
             int LocationGuestId
         );
+
+        private sealed class CapturingLogger<T> : ILogger<T>
+        {
+            public List<(LogLevel Level, string Message)> Entries { get; } =
+                new();
+
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter
+            )
+            {
+                Entries.Add((logLevel, formatter(state, exception)));
+            }
+        }
 
         public void Dispose()
         {
