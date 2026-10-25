@@ -26,6 +26,7 @@ namespace TummlyBackend.Controllers
         private readonly ISpeechToTextProvider _speechToText;
         private readonly IOfferIssueService _offerIssues;
         private readonly IGuestFormPermissionApplyService _guestFormPermissions;
+        private readonly IGuestFormSubmitLock _submitLock;
         private readonly IRecaptchaVerifier _recaptcha;
         private readonly IConfiguration _configuration;
         private readonly ILogger<ScanController> _logger;
@@ -41,6 +42,7 @@ namespace TummlyBackend.Controllers
             ISpeechToTextProvider speechToText,
             IOfferIssueService offerIssues,
             IGuestFormPermissionApplyService guestFormPermissions,
+            IGuestFormSubmitLock submitLock,
             IRecaptchaVerifier recaptcha,
             IConfiguration configuration,
             ILogger<ScanController> logger
@@ -55,6 +57,7 @@ namespace TummlyBackend.Controllers
             _speechToText = speechToText;
             _offerIssues = offerIssues;
             _guestFormPermissions = guestFormPermissions;
+            _submitLock = submitLock;
             _recaptcha = recaptcha;
             _configuration = configuration;
             _logger = logger;
@@ -306,20 +309,180 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (
+                !GuestContactKey.TryCreate(
+                    dto.GuestContact,
+                    contactType,
+                    out var contactKey
+                )
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Enter a valid email or UK mobile number.",
+                });
+            }
+
             var guestName = dto.GuestName.Trim();
             var guestContact = dto.GuestContact.Trim();
             var comment = dto.Comment.Trim();
-            var duplicateSince = DateTime.UtcNow - DuplicateSubmitWindow;
-            var duplicate = await _context.Feedbacks
-                .AsNoTracking()
-                .Where(row =>
-                    row.RestaurantLocationId == location.Id
-                    && row.GuestContact == guestContact
-                    && row.Comment == comment
-                    && row.CreatedAt >= duplicateSince
+
+            /*
+             =========================================
+             PER-CONTACT LOCK (serialise concurrent submits)
+             =========================================
+            */
+
+            await using var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
+            Feedback? duplicate = null;
+            Feedback? feedback = null;
+            try
+            {
+                if (
+                    !await _submitLock.TryAcquireAsync(
+                        _context,
+                        location.RestaurantId,
+                        contactKey
+                    )
                 )
-                .OrderByDescending(row => row.CreatedAt)
-                .FirstOrDefaultAsync();
+                {
+                    if (transaction != null)
+                    {
+                        await transaction.RollbackAsync();
+                    }
+
+                    return StatusCode(
+                        StatusCodes.Status503ServiceUnavailable,
+                        new
+                        {
+                            success = false,
+                            message = "Please try again.",
+                        }
+                    );
+                }
+
+                var duplicateSince = DateTime.UtcNow - DuplicateSubmitWindow;
+                duplicate = await _context.Feedbacks
+                    .AsNoTracking()
+                    .Where(row =>
+                        row.RestaurantLocationId == location.Id
+                        && row.GuestContact == guestContact
+                        && row.Comment == comment
+                        && row.CreatedAt >= duplicateSince
+                    )
+                    .OrderByDescending(row => row.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (duplicate == null)
+                {
+                    /*
+                     =========================================
+                     PER-TOKEN RATE LIMIT (10 submissions / hour)
+                     =========================================
+                    */
+
+                    var rateLimitKey = $"feedback_rate:{normalizedToken}";
+
+                    var submissions = _cache.GetOrCreate(
+                        rateLimitKey,
+                        entry =>
+                        {
+                            entry.AbsoluteExpirationRelativeToNow =
+                                TimeSpan.FromHours(1);
+
+                            return new List<DateTime>();
+                        }
+                    );
+
+                    if (submissions!.Count >= 10)
+                    {
+                        if (transaction != null)
+                        {
+                            await transaction.RollbackAsync();
+                        }
+
+                        return StatusCode(
+                            StatusCodes.Status429TooManyRequests,
+                            new
+                            {
+                                success = false,
+                                message = "Too many submissions from this link. Please try again later."
+                            }
+                        );
+                    }
+
+                    submissions.Add(DateTime.UtcNow);
+
+                    /*
+                     =========================================
+                     CREATE FEEDBACK ROW (+ Master/Location Guest upsert)
+                     =========================================
+                    */
+
+                    var locationGuest = await _guestUpsert.ResolveOrCreateAsync(
+                        location.RestaurantId,
+                        location.Id,
+                        guestName,
+                        guestContact,
+                        contactType,
+                        dto.OffersOptOut
+                    );
+
+                    var restaurant = await _context.Restaurants
+                        .FirstAsync(r => r.Id == location.RestaurantId);
+
+                    var submitAt = DateTime.UtcNow;
+                    await _guestFormPermissions.ApplyOnSubmitAsync(
+                        locationGuest,
+                        restaurant,
+                        location.Id,
+                        location.LocationName,
+                        !dto.OffersOptOut,
+                        contactType,
+                        submitAt
+                    );
+
+                    feedback = new Feedback
+                    {
+                        RestaurantLocationId = location.Id,
+                        QrCodeId = resolution.QrCodeId,
+                        LocationGuest = locationGuest,
+                        GuestName = guestName,
+                        GuestContact = guestContact,
+                        ContactType = contactType,
+                        Comment = comment,
+                        OffersOptOut = dto.OffersOptOut,
+                        ClassificationStatus = ClassificationStatus.Pending,
+                        CreatedAt = submitAt
+                    };
+
+                    _context.Feedbacks.Add(feedback);
+                    _recorder.RecordFeedback(
+                        locationGuest,
+                        feedback,
+                        feedback.CreatedAt
+                    );
+                    await _context.SaveChangesAsync();
+                }
+
+                if (transaction != null)
+                {
+                    await transaction.CommitAsync();
+                }
+            }
+            catch
+            {
+                if (transaction != null)
+                {
+                    await transaction.RollbackAsync();
+                }
+
+                throw;
+            }
 
             if (duplicate != null)
             {
@@ -369,116 +532,8 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            /*
-             =========================================
-             PER-TOKEN RATE LIMIT (10 submissions / hour)
-             =========================================
-            */
-
-            var rateLimitKey = $"feedback_rate:{normalizedToken}";
-
-            var submissions = _cache.GetOrCreate(
-                rateLimitKey,
-                entry =>
-                {
-                    entry.AbsoluteExpirationRelativeToNow =
-                        TimeSpan.FromHours(1);
-
-                    return new List<DateTime>();
-                }
-            );
-
-            if (submissions!.Count >= 10)
-            {
-                return StatusCode(
-                    StatusCodes.Status429TooManyRequests,
-                    new
-                    {
-                        success = false,
-                        message = "Too many submissions from this link. Please try again later."
-                    }
-                );
-            }
-
-            submissions.Add(DateTime.UtcNow);
-
-            /*
-             =========================================
-             CREATE FEEDBACK ROW (+ Master/Location Guest upsert)
-             =========================================
-            */
-
-            Feedback? feedback = null;
-            const int maxPersistAttempts = 2;
-
-            for (var attempt = 1; attempt <= maxPersistAttempts; attempt++)
-            {
-                try
-                {
-                    var locationGuest = await _guestUpsert.ResolveOrCreateAsync(
-                        location.RestaurantId,
-                        location.Id,
-                        guestName,
-                        guestContact,
-                        contactType,
-                        dto.OffersOptOut
-                    );
-
-                    var restaurant = await _context.Restaurants
-                        .FirstAsync(r => r.Id == location.RestaurantId);
-
-                    var submitAt = DateTime.UtcNow;
-                    await _guestFormPermissions.ApplyOnSubmitAsync(
-                        locationGuest,
-                        restaurant,
-                        location.Id,
-                        location.LocationName,
-                        !dto.OffersOptOut,
-                        contactType,
-                        submitAt
-                    );
-
-                    feedback = new Feedback
-                    {
-                        RestaurantLocationId = location.Id,
-                        QrCodeId = resolution.QrCodeId,
-                        LocationGuest = locationGuest,
-                        GuestName = guestName,
-                        GuestContact = guestContact,
-                        ContactType = contactType,
-                        Comment = comment,
-                        OffersOptOut = dto.OffersOptOut,
-                        ClassificationStatus = ClassificationStatus.Pending,
-                        CreatedAt = submitAt
-                    };
-
-                    _context.Feedbacks.Add(feedback);
-                    _recorder.RecordFeedback(
-                        locationGuest,
-                        feedback,
-                        feedback.CreatedAt
-                    );
-                    await _context.SaveChangesAsync();
-                    break;
-                }
-                catch (DbUpdateException) when (attempt < maxPersistAttempts)
-                {
-                    foreach (var entry in _context.ChangeTracker.Entries().ToList())
-                    {
-                        entry.State = EntityState.Detached;
-                    }
-                }
-            }
-
-            if (feedback == null)
-            {
-                throw new InvalidOperationException(
-                    "Failed to persist feedback after guest upsert retries."
-                );
-            }
-
             // Wake after persist — guest path never awaits the model (ADR-0010).
-            await _classificationWork.NotifyAsync(feedback.Id);
+            await _classificationWork.NotifyAsync(feedback!.Id);
 
             // Catalog thank-you Issue: live Active attach issues the Standard
             // Offer independent of marketing consent. Issue failures keep the

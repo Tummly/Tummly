@@ -777,6 +777,62 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SubmitFeedback_LockTimeout_Returns503()
+        {
+            const string token = "thank-you-lock-timeout-1234567890";
+            await using var factory = _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IGuestFormSubmitLock>();
+                    services.AddSingleton<IGuestFormSubmitLock>(
+                        new RejectingGuestFormSubmitLock()
+                    );
+                });
+            });
+            using var client = factory.CreateClient();
+
+            await SeedGuestLocationWithThankYouOfferOnAsync(
+                factory.Services,
+                token,
+                offerStatus: "active"
+            );
+
+            var response = await client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex-lock-timeout@example.com",
+                    comment = "Lock timeout path.",
+                    offersOptOut = false
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Please try again.",
+                body.GetProperty("message").GetString()
+            );
+
+            using var scope = factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+            Assert.Equal(
+                0,
+                await context.Feedbacks.CountAsync(
+                    item => item.RestaurantLocationId == locationId
+                )
+            );
+        }
+
+        [Fact]
         public async Task SubmitFeedback_SameContactNewComment_IsNotDuplicate()
         {
             const string token = "thank-you-new-comment-123456789012";
@@ -1096,6 +1152,16 @@ namespace TummlyBackend.Tests.Integration
                 locationName: "Main",
                 thankYouOfferStatus: offerStatus
             );
+        }
+
+        private sealed class RejectingGuestFormSubmitLock : IGuestFormSubmitLock
+        {
+            public Task<bool> TryAcquireAsync(
+                ApplicationDbContext context,
+                int restaurantId,
+                string contactKey,
+                CancellationToken ct = default
+            ) => Task.FromResult(false);
         }
 
         private sealed class ThrowingOfferIssueService : IOfferIssueService

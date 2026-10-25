@@ -347,6 +347,8 @@ builder.Services.AddScoped<IQrCodeProvisioningService, QrCodeProvisioningService
 
 builder.Services.AddScoped<IGuestUpsertService, GuestUpsertService>();
 
+builder.Services.AddScoped<IGuestFormSubmitLock, GuestFormSubmitLock>();
+
 builder.Services.AddSingleton<IGuestContactHasher>(sp =>
     GuestContactHasher.FromConfiguration(
         sp.GetRequiredService<IConfiguration>(),
