@@ -347,6 +347,17 @@ builder.Services.AddScoped<IQrCodeProvisioningService, QrCodeProvisioningService
 
 builder.Services.AddScoped<IGuestUpsertService, GuestUpsertService>();
 
+builder.Services.AddSingleton<IGuestContactHasher>(sp =>
+    GuestContactHasher.FromConfiguration(
+        sp.GetRequiredService<IConfiguration>(),
+        sp.GetRequiredService<IHostEnvironment>()
+    )
+);
+builder.Services.AddScoped<
+    IGuestContactSuppressionService,
+    GuestContactSuppressionService
+>();
+
 builder.Services.AddScoped<GuestsListService>();
 builder.Services.AddScoped<IGuestsListService>(sp =>
     sp.GetRequiredService<GuestsListService>()
@@ -1292,6 +1303,10 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Resolve once so a missing GuestSuppression:HashKey fails start outside
+// Development/Testing (never log the key).
+_ = app.Services.GetRequiredService<IGuestContactHasher>();
 
 app.UseForwardedHeaders();
 app.UseMiddleware<SecurityHeadersMiddleware>();
