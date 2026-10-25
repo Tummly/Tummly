@@ -14,6 +14,7 @@ namespace TummlyBackend.Tests.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ILocationGuestPermissionLedgerService _permissions;
+        private readonly IGuestContactHasher _hasher;
         private readonly IGuestInitiatedMarketingWithdrawService _sut;
 
         public GuestInitiatedMarketingWithdrawServiceTests()
@@ -24,9 +25,17 @@ namespace TummlyBackend.Tests.Services
 
             _context = new ApplicationDbContext(options);
             _permissions = new LocationGuestPermissionLedgerService(_context);
+            _hasher = new GuestContactHasher(
+                GuestContactHasher.TestingFallbackKey
+            );
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                _hasher
+            );
             _sut = new GuestInitiatedMarketingWithdrawService(
                 _context,
-                _permissions
+                _permissions,
+                suppressions
             );
         }
 
@@ -179,12 +188,156 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task WithdrawForRestaurantContact_Sms_MatchesDigitsOnlyNormalizedPhone()
         {
-            const string e164 = "+447700900111";
+            const string e164 = "+447123456789";
             var digits = new string(e164.Where(char.IsDigit).ToArray());
 
+            var seeded = await SeedGrantedSmsGuestAsync(
+                mobile: e164,
+                normalizedPhone: digits,
+                restaurantName: "SMS Venue"
+            );
+
+            var result = await _sut.WithdrawForRestaurantContactAsync(
+                seeded.RestaurantId,
+                e164,
+                isEmail: false,
+                LocationGuestPermissionKind.SmsMarketing,
+                LocationGuestPermissionLedgerSources.SmsStop
+            );
+
+            Assert.Equal(1, result.GuestsTouched);
+            Assert.Equal(1, result.WithdrawalsWritten);
+
+            var states = await _permissions.GetCurrentStatesAsync(
+                seeded.LocationGuestId
+            );
+            Assert.Equal(
+                LocationGuestPermissionState.Withdrawn,
+                states[LocationGuestPermissionKind.SmsMarketing]
+            );
+        }
+
+        [Fact]
+        public async Task WithdrawForRestaurantContact_MatchesNationalFormatGuest()
+        {
+            // Guest typed national 07…; Twilio STOP From is E.164 +44…
+            const string national = "07123456789";
+            const string stopFrom = "+447123456789";
+
+            var seeded = await SeedGrantedSmsGuestAsync(
+                mobile: national,
+                normalizedPhone: national,
+                restaurantName: "National Format Venue"
+            );
+
+            var result = await _sut.WithdrawForRestaurantContactAsync(
+                seeded.RestaurantId,
+                stopFrom,
+                isEmail: false,
+                LocationGuestPermissionKind.SmsMarketing,
+                LocationGuestPermissionLedgerSources.SmsStop
+            );
+
+            Assert.Equal(1, result.GuestsTouched);
+            Assert.Equal(1, result.WithdrawalsWritten);
+
+            var states = await _permissions.GetCurrentStatesAsync(
+                seeded.LocationGuestId
+            );
+            Assert.Equal(
+                LocationGuestPermissionState.Withdrawn,
+                states[LocationGuestPermissionKind.SmsMarketing]
+            );
+            Assert.Empty(_context.GuestContactSuppressions);
+        }
+
+        [Fact]
+        public async Task WithdrawForRestaurantContact_NoGuest_WritesSuppressionRow()
+        {
+            var restaurant = await SeedRestaurantAsync("No Guest Venue");
+
+            var emailResult = await _sut.WithdrawForRestaurantContactAsync(
+                restaurant.Id,
+                "unknown@example.com",
+                isEmail: true,
+                LocationGuestPermissionKind.EmailMarketing,
+                LocationGuestPermissionLedgerSources.EmailUnsubscribe
+            );
+            Assert.Equal(0, emailResult.GuestsTouched);
+
+            var smsResult = await _sut.WithdrawForRestaurantContactAsync(
+                restaurant.Id,
+                "+447123456789",
+                isEmail: false,
+                LocationGuestPermissionKind.SmsMarketing,
+                LocationGuestPermissionLedgerSources.SmsStop
+            );
+            Assert.Equal(0, smsResult.GuestsTouched);
+
+            var rows = await _context.GuestContactSuppressions
+                .OrderBy(r => r.PermissionKind)
+                .ToListAsync();
+            Assert.Equal(2, rows.Count);
+
+            var emailRow = Assert.Single(
+                rows,
+                r =>
+                    r.PermissionKind
+                    == LocationGuestPermissionKind.EmailMarketing
+            );
+            Assert.Equal(
+                GuestContactSuppressionSources.EmailUnsubscribe,
+                emailRow.Source
+            );
+            Assert.Equal(
+                _hasher.Hash("email:unknown@example.com"),
+                emailRow.ContactHash
+            );
+            Assert.DoesNotContain("@", emailRow.ContactHash);
+
+            var smsRow = Assert.Single(
+                rows,
+                r =>
+                    r.PermissionKind
+                    == LocationGuestPermissionKind.SmsMarketing
+            );
+            Assert.Equal(
+                GuestContactSuppressionSources.SmsStop,
+                smsRow.Source
+            );
+            Assert.Equal(
+                _hasher.Hash("phone:+447123456789"),
+                smsRow.ContactHash
+            );
+            Assert.DoesNotContain("447123456789", smsRow.ContactHash);
+        }
+
+        [Fact]
+        public async Task WithdrawForRestaurantContact_GuestFound_WritesNoSuppressionRow()
+        {
+            var seeded = await SeedGrantedEmailGuestAsync(
+                email: "known@example.com",
+                restaurantName: "Known Guest Venue"
+            );
+
+            var result = await _sut.WithdrawForRestaurantContactAsync(
+                seeded.RestaurantId,
+                "known@example.com",
+                isEmail: true,
+                LocationGuestPermissionKind.EmailMarketing,
+                LocationGuestPermissionLedgerSources.EmailUnsubscribe
+            );
+
+            Assert.Equal(1, result.GuestsTouched);
+            Assert.Equal(1, result.WithdrawalsWritten);
+            Assert.Empty(_context.GuestContactSuppressions);
+        }
+
+        private async Task<Restaurant> SeedRestaurantAsync(string name)
+        {
             var restaurant = new Restaurant
             {
-                Name = "SMS Venue",
+                Name = name,
                 AccountType = "Single",
                 OwnerUserId = 1,
                 BillingContactUserId = 1,
@@ -197,11 +350,21 @@ namespace TummlyBackend.Tests.Services
             };
             _context.Restaurants.Add(restaurant);
             await _context.SaveChangesAsync();
+            return restaurant;
+        }
+
+        private async Task<SeededGuest> SeedGrantedSmsGuestAsync(
+            string mobile,
+            string normalizedPhone,
+            string restaurantName
+        )
+        {
+            var restaurant = await SeedRestaurantAsync(restaurantName);
 
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LocationName = "Main",
+                LocationName = $"{restaurantName} Main",
                 CreatedAt = DateTime.UtcNow,
             };
             _context.RestaurantLocations.Add(location);
@@ -210,8 +373,8 @@ namespace TummlyBackend.Tests.Services
             var masterGuest = new MasterGuest
             {
                 RestaurantId = restaurant.Id,
-                Mobile = e164,
-                NormalizedPhone = digits,
+                Mobile = mobile,
+                NormalizedPhone = normalizedPhone,
                 CreatedAt = DateTime.UtcNow,
             };
             _context.MasterGuests.Add(masterGuest);
@@ -239,21 +402,10 @@ namespace TummlyBackend.Tests.Services
             );
             await _context.SaveChangesAsync();
 
-            var result = await _sut.WithdrawForRestaurantContactAsync(
+            return new SeededGuest(
                 restaurant.Id,
-                e164,
-                isEmail: false,
-                LocationGuestPermissionKind.SmsMarketing,
-                LocationGuestPermissionLedgerSources.SmsStop
-            );
-
-            Assert.Equal(1, result.GuestsTouched);
-            Assert.Equal(1, result.WithdrawalsWritten);
-
-            var states = await _permissions.GetCurrentStatesAsync(guest.Id);
-            Assert.Equal(
-                LocationGuestPermissionState.Withdrawn,
-                states[LocationGuestPermissionKind.SmsMarketing]
+                location.Id,
+                guest.Id
             );
         }
 

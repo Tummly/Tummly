@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -10,14 +11,17 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ILocationGuestPermissionLedgerService _permissions;
+        private readonly IGuestContactSuppressionService _suppressions;
 
         public GuestInitiatedMarketingWithdrawService(
             ApplicationDbContext context,
-            ILocationGuestPermissionLedgerService permissions
+            ILocationGuestPermissionLedgerService permissions,
+            IGuestContactSuppressionService suppressions
         )
         {
             _context = context;
             _permissions = permissions;
+            _suppressions = suppressions;
         }
 
         public async Task<GuestInitiatedWithdrawResult> WithdrawForLocationGuestAsync(
@@ -65,19 +69,8 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var normalized = (normalizedEmailOrE164 ?? string.Empty).Trim();
-            if (!isEmail)
-            {
-                // MasterGuest.NormalizedPhone is digits-only (GuestUpsertService).
-                // Twilio STOP From is E.164 (+…). Strip to digits before match.
-                normalized = new string(normalized.Where(char.IsDigit).ToArray());
-            }
-            else
-            {
-                normalized = normalized.ToLowerInvariant();
-            }
-
-            if (normalized.Length == 0)
+            var raw = (normalizedEmailOrE164 ?? string.Empty).Trim();
+            if (raw.Length == 0)
             {
                 return new GuestInitiatedWithdrawResult(
                     GuestsTouched: 0,
@@ -94,23 +87,82 @@ namespace TummlyBackend.Services
                     && lg.RestaurantLocation.RestaurantId == restaurantId
                 );
 
+            List<LocationGuest> guests;
+
             if (isEmail)
             {
-                query = query.Where(lg =>
-                    lg.MasterGuest != null
-                    && lg.MasterGuest.NormalizedEmail == normalized
-                );
+                var normalized = raw.ToLowerInvariant();
+                guests = await query
+                    .Where(lg =>
+                        lg.MasterGuest != null
+                        && lg.MasterGuest.NormalizedEmail == normalized
+                    )
+                    .ToListAsync(cancellationToken);
             }
             else
             {
-                query = query.Where(lg =>
-                    lg.MasterGuest != null
-                    && lg.MasterGuest.NormalizedPhone == normalized
+                if (!TryResolveComparableE164(raw, out var inputE164))
+                {
+                    return new GuestInitiatedWithdrawResult(
+                        GuestsTouched: 0,
+                        WithdrawalsWritten: 0,
+                        ActivityEmitted: false
+                    );
+                }
+
+                var inputDigits = new string(
+                    inputE164.Where(char.IsDigit).ToArray()
                 );
+                var last9 =
+                    inputDigits.Length >= 9
+                        ? inputDigits[^9..]
+                        : inputDigits;
+
+                var candidates = await query
+                    .Where(lg =>
+                        lg.MasterGuest != null
+                        && lg.MasterGuest.NormalizedPhone != null
+                        && lg.MasterGuest.NormalizedPhone.EndsWith(last9)
+                    )
+                    .ToListAsync(cancellationToken);
+
+                guests = candidates
+                    .Where(lg =>
+                        MasterGuestMatchesE164(lg.MasterGuest!, inputE164)
+                    )
+                    .ToList();
             }
 
-            var guests = await query.ToListAsync(cancellationToken);
+            if (guests.Count == 0)
+            {
+                var contactType = isEmail
+                    ? ContactType.Email
+                    : ContactType.Phone;
+                var source = isEmail
+                    ? GuestContactSuppressionSources.EmailUnsubscribe
+                    : GuestContactSuppressionSources.SmsStop;
 
+                if (
+                    GuestContactKey.TryCreate(
+                        raw,
+                        contactType,
+                        out var contactKey
+                    )
+                )
+                {
+                    await _suppressions.StageAsync(
+                        restaurantId,
+                        contactKey,
+                        kind,
+                        DateTime.UtcNow,
+                        source,
+                        cancellationToken
+                    );
+                }
+            }
+
+            // SaveChanges here also persists a staged suppression when no guests
+            // matched (WithdrawGuestsAsync always saves).
             return await WithdrawGuestsAsync(
                 guests,
                 restaurantId,
@@ -118,6 +170,87 @@ namespace TummlyBackend.Services
                 ledgerSource,
                 cancellationToken
             );
+        }
+
+        private static bool MasterGuestMatchesE164(
+            MasterGuest master,
+            string inputE164
+        )
+        {
+            if (
+                TryResolveComparableE164(master.Mobile, out var fromMobile)
+                && string.Equals(
+                    fromMobile,
+                    inputE164,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return true;
+            }
+
+            return TryResolveComparableE164(
+                    master.NormalizedPhone,
+                    out var fromNormalized
+                )
+                && string.Equals(
+                    fromNormalized,
+                    inputE164,
+                    StringComparison.Ordinal
+                );
+        }
+
+        /// <summary>
+        /// Prefer <see cref="PhoneNumberHelper.TryNormalizeToE164"/>; accept
+        /// Twilio-style <c>+digits</c> when libphonenumber rejects (test ranges).
+        /// Digits-only values that start with 44 are treated as E.164 without +.
+        /// </summary>
+        private static bool TryResolveComparableE164(
+            string? raw,
+            out string e164
+        )
+        {
+            e164 = string.Empty;
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return false;
+            }
+
+            if (
+                PhoneNumberHelper.TryNormalizeToE164(
+                    raw,
+                    PhoneNumberHelper.DefaultRegion,
+                    out var normalized
+                )
+                && !string.IsNullOrEmpty(normalized)
+            )
+            {
+                e164 = normalized;
+                return true;
+            }
+
+            var trimmed = raw.Trim();
+            if (
+                trimmed.StartsWith('+')
+                && trimmed.Length >= 10
+                && trimmed[1..].All(char.IsDigit)
+            )
+            {
+                e164 = trimmed;
+                return true;
+            }
+
+            var digits = new string(trimmed.Where(char.IsDigit).ToArray());
+            if (
+                digits.Length >= 10
+                && digits.StartsWith("44", StringComparison.Ordinal)
+            )
+            {
+                e164 = "+" + digits;
+                return true;
+            }
+
+            return false;
         }
 
         private async Task<GuestInitiatedWithdrawResult> WithdrawGuestsAsync(
