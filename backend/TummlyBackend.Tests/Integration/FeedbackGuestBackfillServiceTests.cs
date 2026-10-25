@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -16,6 +17,114 @@ namespace TummlyBackend.Tests.Integration
         )
         {
             _factory = factory;
+        }
+
+        [Fact]
+        public async Task BackfillAsync_NewGuest_WithEmailMarketingSuppression_RollsUpOptedOut()
+        {
+            const string contact = "suppressed-backfill@example.com";
+            var withdrawnAt = new DateTime(
+                2026,
+                6,
+                1,
+                10,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
+
+            int restaurantId;
+            int locationId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var restaurant = new Restaurant
+                {
+                    Name = "Suppression Backfill Bistro",
+                    AccountType = "Single",
+                    OwnerUserId = 888_101,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.Restaurants.Add(restaurant);
+                await context.SaveChangesAsync();
+                restaurantId = restaurant.Id;
+
+                var location = new RestaurantLocation
+                {
+                    RestaurantId = restaurant.Id,
+                    LocationName = "Main",
+                    Address = "2 High Street",
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.RestaurantLocations.Add(location);
+                await context.SaveChangesAsync();
+                locationId = location.Id;
+
+                context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = location.Id,
+                        GuestName = "Suppressed Guest",
+                        GuestContact = contact,
+                        ContactType = ContactType.Email,
+                        Comment = "Historical visit.",
+                        OffersOptOut = true,
+                        ClassificationStatus = ClassificationStatus.Pending,
+                        CreatedAt = new DateTime(
+                            2026,
+                            7,
+                            1,
+                            12,
+                            0,
+                            0,
+                            DateTimeKind.Utc
+                        ),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            Assert.True(
+                GuestContactKey.TryCreate(
+                    contact,
+                    ContactType.Email,
+                    out var key
+                )
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var suppressions = scope.ServiceProvider
+                    .GetRequiredService<IGuestContactSuppressionService>();
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                await suppressions.StageAsync(
+                    restaurantId,
+                    key,
+                    LocationGuestPermissionKind.EmailMarketing,
+                    withdrawnAt,
+                    GuestContactSuppressionSources.GuestDelete
+                );
+                await context.SaveChangesAsync();
+            }
+
+            await RunBackfillAsync();
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var locationGuest = await context.LocationGuests
+                    .SingleAsync(lg => lg.RestaurantLocationId == locationId);
+
+                Assert.Equal(
+                    LocationGuestMarketingPreference.OptedOut,
+                    locationGuest.MarketingPreference
+                );
+            }
         }
 
         [Fact]

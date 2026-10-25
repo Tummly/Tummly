@@ -188,6 +188,10 @@ namespace TummlyBackend.Tests.Integration
                 LocationGuestPermissionState.Withdrawn,
                 states[LocationGuestPermissionKind.EmailMarketing]
             );
+            Assert.Equal(
+                LocationGuestMarketingPreference.OptedOut,
+                locationGuest.MarketingPreference
+            );
             Assert.DoesNotContain(
                 await context.LocationGuestPermissionLedgerEntries
                     .Where(e => e.LocationGuestId == locationGuest.Id)

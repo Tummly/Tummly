@@ -110,6 +110,14 @@ namespace TummlyBackend.Services
                     row.WithdrawnAtUtc
                 );
             }
+
+            if (rows.Count > 0)
+            {
+                await _ledger.SyncMarketingPreferenceRollupAsync(
+                    locationGuest,
+                    cancellationToken
+                );
+            }
         }
 
         private async Task<MasterGuest> ResolveOrCreateMasterGuestAsync(
