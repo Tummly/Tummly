@@ -503,8 +503,12 @@ namespace TummlyBackend.Services
             );
             if (!settleResult.Succeeded)
             {
+                // Linked-only completeness (same as close-fail): NULL-guest
+                // frozen rows are never sendable, so do not compare against
+                // frozenRows.Count — that would mark partially-sent after erasure
+                // left an unsent NULL row even when every linked recipient is done.
                 entity.Status =
-                    remainingUnsent >= 1 || totalAccepted < frozenRows.Count
+                    remainingUnsent >= 1
                         ? PartiallySentStatus
                         : SendingStatus;
                 if (entity.Status == PartiallySentStatus)

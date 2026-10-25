@@ -158,7 +158,9 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task Fire_SkipsUnlinkedFrozenRecipient_KeepsAcceptedDeliveryCount()
         {
-            var seeded = await SeedFireCampaignWithOneLinkedAndOneUnlinkedAsync();
+            var seeded = await SeedFireCampaignWithOneLinkedAndOneUnlinkedAsync(
+                withUnlinkedAcceptedDelivery: true
+            );
 
             var result = await _fire.FireAsync(seeded.CampaignId);
 
@@ -172,6 +174,44 @@ namespace TummlyBackend.Tests.Services
                 2,
                 _reserve.SettleCalls.Sum(call => call.AcceptedUnits)
             );
+        }
+
+        [Fact]
+        public async Task Fire_UnlinkedFrozenWithoutDelivery_MarksSentWhenLinkedAccepts()
+        {
+            var seeded = await SeedFireCampaignWithOneLinkedAndOneUnlinkedAsync(
+                withUnlinkedAcceptedDelivery: false
+            );
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            var ok = Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Equal(CampaignFireService.SentStatus, ok.Campaign.Status);
+            Assert.Equal(1, ok.Campaign.AcceptedCount);
+            Assert.Equal(0, ok.Campaign.RemainingUnsentCount);
+            Assert.Single(_outbound.Calls);
+            Assert.Equal(seeded.LinkedGuestId, _outbound.Calls[0].LocationGuestId);
+        }
+
+        [Fact]
+        public async Task Fire_UnlinkedFrozenWithoutDelivery_SettleFail_KeepsSendingNotPartiallySent()
+        {
+            var seeded = await SeedFireCampaignWithOneLinkedAndOneUnlinkedAsync(
+                withUnlinkedAcceptedDelivery: false
+            );
+            _reserve.FailNextSettle = true;
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            var ok = Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Equal(CampaignFireService.SendingStatus, ok.Campaign.Status);
+            Assert.NotEqual(
+                CampaignFireService.PartiallySentStatus,
+                ok.Campaign.Status
+            );
+            Assert.Equal(1, ok.Campaign.AcceptedCount);
+            Assert.Equal(0, ok.Campaign.RemainingUnsentCount);
+            Assert.Equal("res-unlinked-1", ok.Campaign.BillingReservationRef);
         }
 
         private async Task<(
@@ -218,7 +258,9 @@ namespace TummlyBackend.Tests.Services
         private async Task<(
             int CampaignId,
             int LinkedGuestId
-        )> SeedFireCampaignWithOneLinkedAndOneUnlinkedAsync()
+        )> SeedFireCampaignWithOneLinkedAndOneUnlinkedAsync(
+            bool withUnlinkedAcceptedDelivery = true
+        )
         {
             var baseSeed = await SeedRestaurantLocationOfferAsync(
                 withOffer: false
@@ -280,18 +322,22 @@ namespace TummlyBackend.Tests.Services
                 }
             );
 
-            _context.CampaignRecipientDeliveries.Add(
-                new CampaignRecipientDelivery
-                {
-                    CampaignId = campaign.Id,
-                    LocationGuestId = null,
-                    Channel = "email",
-                    Outcome = CampaignFireService.AcceptedOutcome,
-                    AcceptedAtUtc = _now.AddHours(-2),
-                    AcceptedUnits = 1,
-                    UpdatedAtUtc = _now.AddHours(-2),
-                }
-            );
+            if (withUnlinkedAcceptedDelivery)
+            {
+                _context.CampaignRecipientDeliveries.Add(
+                    new CampaignRecipientDelivery
+                    {
+                        CampaignId = campaign.Id,
+                        LocationGuestId = null,
+                        Channel = "email",
+                        Outcome = CampaignFireService.AcceptedOutcome,
+                        AcceptedAtUtc = _now.AddHours(-2),
+                        AcceptedUnits = 1,
+                        UpdatedAtUtc = _now.AddHours(-2),
+                    }
+                );
+            }
+
             await _context.SaveChangesAsync();
 
             return (campaign.Id, linked.Id);
@@ -409,6 +455,8 @@ namespace TummlyBackend.Tests.Services
         {
             public bool IsLive { get; set; }
 
+            public bool FailNextSettle { get; set; }
+
             public List<CampaignBillingSettleRequest> SettleCalls { get; } = [];
 
             public Task<CampaignBillingReserveResult> ReserveAsync(
@@ -428,6 +476,16 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 SettleCalls.Add(request);
+                if (FailNextSettle)
+                {
+                    return Task.FromResult<CampaignBillingSettleResult>(
+                        new CampaignBillingSettleResult.Failed
+                        {
+                            Message = "settle_failed",
+                        }
+                    );
+                }
+
                 return Task.FromResult<CampaignBillingSettleResult>(
                     new CampaignBillingSettleResult.Ok()
                 );
