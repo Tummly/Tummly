@@ -15,7 +15,7 @@ namespace TummlyBackend.Models
 
         public CatalogOffer? CatalogOffer { get; set; }
 
-        public int LocationGuestId { get; set; }
+        public int? LocationGuestId { get; set; }
 
         public LocationGuest? LocationGuest { get; set; }
 

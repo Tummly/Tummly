@@ -59,6 +59,21 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Prefer this when the Location Guest may be unsaved (Id == 0).
+        /// Derives current states from persisted rows plus pending
+        /// Added/Modified ledger entries tracked for this guest.
+        /// </summary>
+        Task<
+            IReadOnlyDictionary<
+                LocationGuestPermissionKind,
+                LocationGuestPermissionState
+            >
+        > GetCurrentStatesAsync(
+            LocationGuest locationGuest,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
         /// Recomputes and writes the legacy
         /// <see cref="LocationGuest.MarketingPreference"/> rollup from the
         /// permission ledger current state (persisted rows plus pending

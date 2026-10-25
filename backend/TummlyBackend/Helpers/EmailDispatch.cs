@@ -25,7 +25,7 @@ namespace TummlyBackend.Helpers
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, failureMessage, args);
+                logger.LogProviderSendFailure(ex, failureMessage, args);
                 return false;
             }
         }

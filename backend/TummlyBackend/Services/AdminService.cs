@@ -92,7 +92,7 @@
                     catch (Exception ex)
                     {
                         failedCount++;
-                        _logger.LogError(
+                        _logger.LogProviderSendFailure(
                             ex,
                             "Failed to send Operator Setup invitation reminder for trial request {TrialRequestId}",
                             trialRequestId

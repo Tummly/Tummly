@@ -26,10 +26,21 @@ namespace TummlyBackend.Controllers
         private readonly ISpeechToTextProvider _speechToText;
         private readonly IOfferIssueService _offerIssues;
         private readonly IGuestFormPermissionApplyService _guestFormPermissions;
+        private readonly IGuestFormSubmitLock _submitLock;
         private readonly IRecaptchaVerifier _recaptcha;
         private readonly IConfiguration _configuration;
         private readonly ILogger<ScanController> _logger;
         private static readonly TimeSpan DuplicateSubmitWindow = TimeSpan.FromMinutes(10);
+        /// <summary>
+        /// Concurrent loser may re-show before the winner issues the Claim.
+        /// Only poll when the duplicate Feedback is this fresh.
+        /// </summary>
+        private static readonly TimeSpan ConcurrentClaimWaitFreshWindow =
+            TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan ConcurrentClaimPollBudget =
+            TimeSpan.FromSeconds(2);
+        private static readonly TimeSpan ConcurrentClaimPollStep =
+            TimeSpan.FromMilliseconds(150);
 
         public ScanController(
             ApplicationDbContext context,
@@ -41,6 +52,7 @@ namespace TummlyBackend.Controllers
             ISpeechToTextProvider speechToText,
             IOfferIssueService offerIssues,
             IGuestFormPermissionApplyService guestFormPermissions,
+            IGuestFormSubmitLock submitLock,
             IRecaptchaVerifier recaptcha,
             IConfiguration configuration,
             ILogger<ScanController> logger
@@ -55,6 +67,7 @@ namespace TummlyBackend.Controllers
             _speechToText = speechToText;
             _offerIssues = offerIssues;
             _guestFormPermissions = guestFormPermissions;
+            _submitLock = submitLock;
             _recaptcha = recaptcha;
             _configuration = configuration;
             _logger = logger;
@@ -172,7 +185,8 @@ namespace TummlyBackend.Controllers
         [HttpPost("{token}/feedback")]
         public async Task<IActionResult> SubmitFeedback(
             string token,
-            [FromBody] FeedbackSubmissionDto dto
+            [FromBody] FeedbackSubmissionDto dto,
+            CancellationToken cancellationToken
         )
         {
             var normalizedToken = token?.Trim();
@@ -306,115 +320,121 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var guestName = dto.GuestName.Trim();
-            var guestContact = dto.GuestContact.Trim();
-            var comment = dto.Comment.Trim();
-            var duplicateSince = DateTime.UtcNow - DuplicateSubmitWindow;
-            var duplicate = await _context.Feedbacks
-                .AsNoTracking()
-                .Where(row =>
-                    row.RestaurantLocationId == location.Id
-                    && row.GuestContact == guestContact
-                    && row.Comment == comment
-                    && row.CreatedAt >= duplicateSince
+            if (
+                !GuestContactKey.TryCreate(
+                    dto.GuestContact,
+                    contactType,
+                    out var contactKey
                 )
-                .OrderByDescending(row => row.CreatedAt)
-                .FirstOrDefaultAsync();
-
-            if (duplicate != null)
+            )
             {
-                // Same contact + comment within the window: write nothing; re-show
-                // an existing thank-you Offer when LocationGuestId is present.
-                OfferIssue? duplicateIssued = null;
-                var duplicateIssueAt = DateTime.UtcNow;
-                if (duplicate.LocationGuestId is int duplicateGuestId)
+                return BadRequest(new
                 {
-                    try
-                    {
-                        duplicateIssued = await _offerIssues.IssueOnThankYouSubmitAsync(
-                            location.Id,
-                            duplicateGuestId,
-                            duplicate.Id,
-                            duplicateIssueAt,
-                            allowNewIssue: false
-                        );
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        _logger.LogWarning(
-                            ex,
-                            "Thank-you Offer re-show failed for duplicate Feedback {FeedbackId}.",
-                            duplicate.Id
-                        );
-                        duplicateIssued = null;
-                    }
-                }
-
-                return Ok(new
-                {
-                    success = true,
-                    message = "Feedback submitted successfully.",
-                    offer = duplicateIssued == null
-                        ? null
-                        : new ScanThankYouOfferDto
-                        {
-                            Title = duplicateIssued.Title,
-                            Description = duplicateIssued.Description,
-                            ClaimCode = duplicateIssued.ClaimCode,
-                            ExpiryLabel = FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
-                                duplicateIssued.ExpiryAtUtc
-                            ),
-                            AlreadyClaimed = duplicateIssued.IssuedAtUtc != duplicateIssueAt,
-                        },
+                    success = false,
+                    message = "Enter a valid email or UK mobile number.",
                 });
             }
 
-            /*
-             =========================================
-             PER-TOKEN RATE LIMIT (10 submissions / hour)
-             =========================================
-            */
-
-            var rateLimitKey = $"feedback_rate:{normalizedToken}";
-
-            var submissions = _cache.GetOrCreate(
-                rateLimitKey,
-                entry =>
-                {
-                    entry.AbsoluteExpirationRelativeToNow =
-                        TimeSpan.FromHours(1);
-
-                    return new List<DateTime>();
-                }
-            );
-
-            if (submissions!.Count >= 10)
-            {
-                return StatusCode(
-                    StatusCodes.Status429TooManyRequests,
-                    new
-                    {
-                        success = false,
-                        message = "Too many submissions from this link. Please try again later."
-                    }
-                );
-            }
-
-            submissions.Add(DateTime.UtcNow);
+            var guestName = dto.GuestName.Trim();
+            var guestContact = dto.GuestContact.Trim();
+            var comment = dto.Comment.Trim();
 
             /*
              =========================================
-             CREATE FEEDBACK ROW (+ Master/Location Guest upsert)
+             PER-CONTACT LOCK (serialise concurrent submits)
              =========================================
             */
 
+            await using var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+
+            Feedback? duplicate = null;
             Feedback? feedback = null;
-            const int maxPersistAttempts = 2;
-
-            for (var attempt = 1; attempt <= maxPersistAttempts; attempt++)
+            try
             {
-                try
+                if (
+                    !await _submitLock.TryAcquireAsync(
+                        _context,
+                        location.RestaurantId,
+                        contactKey,
+                        cancellationToken
+                    )
+                )
                 {
+                    if (transaction != null)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                    }
+
+                    return StatusCode(
+                        StatusCodes.Status503ServiceUnavailable,
+                        new
+                        {
+                            success = false,
+                            message = "Please try again.",
+                        }
+                    );
+                }
+
+                var duplicateSince = DateTime.UtcNow - DuplicateSubmitWindow;
+                duplicate = await _context.Feedbacks
+                    .AsNoTracking()
+                    .Where(row =>
+                        row.RestaurantLocationId == location.Id
+                        && row.GuestContact == guestContact
+                        && row.Comment == comment
+                        && row.CreatedAt >= duplicateSince
+                    )
+                    .OrderByDescending(row => row.CreatedAt)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (duplicate == null)
+                {
+                    /*
+                     =========================================
+                     PER-TOKEN RATE LIMIT (10 submissions / hour)
+                     =========================================
+                    */
+
+                    var rateLimitKey = $"feedback_rate:{normalizedToken}";
+
+                    var submissions = _cache.GetOrCreate(
+                        rateLimitKey,
+                        entry =>
+                        {
+                            entry.AbsoluteExpirationRelativeToNow =
+                                TimeSpan.FromHours(1);
+
+                            return new List<DateTime>();
+                        }
+                    );
+
+                    if (submissions!.Count >= 10)
+                    {
+                        if (transaction != null)
+                        {
+                            await transaction.RollbackAsync(cancellationToken);
+                        }
+
+                        return StatusCode(
+                            StatusCodes.Status429TooManyRequests,
+                            new
+                            {
+                                success = false,
+                                message = "Too many submissions from this link. Please try again later."
+                            }
+                        );
+                    }
+
+                    submissions.Add(DateTime.UtcNow);
+
+                    /*
+                     =========================================
+                     CREATE FEEDBACK ROW (+ Master/Location Guest upsert)
+                     =========================================
+                    */
+
                     var locationGuest = await _guestUpsert.ResolveOrCreateAsync(
                         location.RestaurantId,
                         location.Id,
@@ -458,27 +478,90 @@ namespace TummlyBackend.Controllers
                         feedback,
                         feedback.CreatedAt
                     );
-                    await _context.SaveChangesAsync();
-                    break;
+                    await _context.SaveChangesAsync(cancellationToken);
                 }
-                catch (DbUpdateException) when (attempt < maxPersistAttempts)
+
+                if (transaction != null)
                 {
-                    foreach (var entry in _context.ChangeTracker.Entries().ToList())
-                    {
-                        entry.State = EntityState.Detached;
-                    }
+                    await transaction.CommitAsync(cancellationToken);
                 }
             }
-
-            if (feedback == null)
+            catch
             {
-                throw new InvalidOperationException(
-                    "Failed to persist feedback after guest upsert retries."
-                );
+                if (transaction != null)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                }
+
+                throw;
+            }
+
+            if (duplicate != null)
+            {
+                // Same contact + comment within the window: write nothing; re-show
+                // an existing thank-you Offer when LocationGuestId is present.
+                // Never issue a new Claim on this path (allowNewIssue: false).
+                OfferIssue? duplicateIssued = null;
+                var duplicateIssueAt = DateTime.UtcNow;
+                if (duplicate.LocationGuestId is int duplicateGuestId)
+                {
+                    try
+                    {
+                        duplicateIssued = await _offerIssues.IssueOnThankYouSubmitAsync(
+                            location.Id,
+                            duplicateGuestId,
+                            duplicate.Id,
+                            duplicateIssueAt,
+                            cancellationToken,
+                            allowNewIssue: false
+                        );
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(
+                            ex,
+                            "Thank-you Offer re-show failed for duplicate Feedback {FeedbackId}.",
+                            duplicate.Id
+                        );
+                        duplicateIssued = null;
+                    }
+
+                    // Concurrent winner may still be issuing after commit; poll
+                    // briefly when the duplicate Feedback is fresh.
+                    if (
+                        duplicateIssued == null
+                        && DateTime.UtcNow - duplicate.CreatedAt
+                            < ConcurrentClaimWaitFreshWindow
+                    )
+                    {
+                        duplicateIssued = await WaitForThankYouClaimAsync(
+                            duplicate.Id,
+                            cancellationToken
+                        );
+                    }
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Feedback submitted successfully.",
+                    offer = duplicateIssued == null
+                        ? null
+                        : new ScanThankYouOfferDto
+                        {
+                            Title = duplicateIssued.Title,
+                            Description = duplicateIssued.Description,
+                            ClaimCode = duplicateIssued.ClaimCode,
+                            ExpiryLabel = FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
+                                duplicateIssued.ExpiryAtUtc
+                            ),
+                            AlreadyClaimed = duplicateIssued.IssuedAtUtc != duplicateIssueAt,
+                        },
+                });
             }
 
             // Wake after persist — guest path never awaits the model (ADR-0010).
-            await _classificationWork.NotifyAsync(feedback.Id);
+            await _classificationWork.NotifyAsync(feedback!.Id);
 
             // Catalog thank-you Issue: live Active attach issues the Standard
             // Offer independent of marketing consent. Issue failures keep the
@@ -668,6 +751,45 @@ namespace TummlyBackend.Controllers
                     }
                 )
             };
+        }
+
+        /// <summary>
+        /// Poll for a thank-you OfferIssue the concurrent winner may still be
+        /// writing. Write-free: never creates a Claim.
+        /// </summary>
+        private async Task<OfferIssue?> WaitForThankYouClaimAsync(
+            int feedbackId,
+            CancellationToken cancellationToken
+        )
+        {
+            var deadline = DateTime.UtcNow + ConcurrentClaimPollBudget;
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var issue = await _context.OfferIssues
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        row => row.FeedbackId == feedbackId,
+                        cancellationToken
+                    );
+                if (issue != null)
+                {
+                    return issue;
+                }
+
+                var remaining = deadline - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    return null;
+                }
+
+                var delay =
+                    ConcurrentClaimPollStep < remaining
+                        ? ConcurrentClaimPollStep
+                        : remaining;
+                await Task.Delay(delay, cancellationToken);
+            }
         }
 
         private static string TruncateTranscript(string text)

@@ -25,9 +25,17 @@ namespace TummlyBackend.Services
         {
             // Cheap satisfied gate: skip heavy catch-up when every Feedback
             // already has a LocationGuestId (EXISTS-style AnyAsync).
+            // Erasure-shaped rows (blank GuestContact after guest delete) stay
+            // unlinked on purpose — exclude them so restarts do not re-create
+            // phantom "Deleted guest" profiles.
             var hasUnlinked = await _context.Feedbacks
                 .AsNoTracking()
-                .AnyAsync(f => f.LocationGuestId == null, cancellationToken);
+                .AnyAsync(
+                    f =>
+                        f.LocationGuestId == null
+                        && !string.IsNullOrWhiteSpace(f.GuestContact),
+                    cancellationToken
+                );
 
             if (!hasUnlinked)
             {
@@ -36,7 +44,10 @@ namespace TummlyBackend.Services
 
             var unlinked = await _context.Feedbacks
                 .AsNoTracking()
-                .Where(f => f.LocationGuestId == null)
+                .Where(f =>
+                    f.LocationGuestId == null
+                    && !string.IsNullOrWhiteSpace(f.GuestContact)
+                )
                 .OrderBy(f => f.CreatedAt)
                 .Select(f => f.Id)
                 .ToListAsync(cancellationToken);

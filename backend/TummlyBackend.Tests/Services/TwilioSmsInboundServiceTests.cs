@@ -33,9 +33,18 @@ namespace TummlyBackend.Tests.Services
                 .Options;
             _context = new ApplicationDbContext(options);
             _permissions = new LocationGuestPermissionLedgerService(_context);
+            var hasher = new GuestContactHasher(
+                GuestContactHasher.TestingFallbackKey
+            );
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                hasher
+            );
             _withdraw = new GuestInitiatedMarketingWithdrawService(
                 _context,
-                _permissions
+                _permissions,
+                suppressions,
+                NullLogger<GuestInitiatedMarketingWithdrawService>.Instance
             );
 
             var settings = Options.Create(

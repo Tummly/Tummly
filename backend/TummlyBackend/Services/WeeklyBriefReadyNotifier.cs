@@ -176,7 +176,7 @@ namespace TummlyBackend.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(
+                    _logger.LogProviderSendFailure(
                         ex,
                         "Failed to send Weekly Brief email for user {UserId} location {LocationId} week {WeekKey}",
                         recipient.UserId,

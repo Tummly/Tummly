@@ -38,32 +38,32 @@ namespace TummlyBackend.Services
                 _ => (LocationGuestPermissionKind?)null,
             };
 
-            var currentMarketingState = LocationGuestPermissionState.NotRecorded;
-            if (marketingKind != null)
-            {
-                var ledgerStates =
-                    locationGuest.Id == 0
-                        ? LocationGuestPermissionKindExtensions.All.ToDictionary(
-                            kind => kind,
-                            _ => LocationGuestPermissionState.NotRecorded
-                        )
-                        : await _ledger.GetCurrentStatesAsync(
-                            locationGuest.Id,
-                            cancellationToken
-                        );
-                var effectiveStates =
-                    LocationGuestChannelPermissionGate.ResolveEffectiveStates(
-                        locationGuest.MarketingPreference,
-                        ledgerStates
-                    );
-                currentMarketingState = effectiveStates[marketingKind.Value];
-            }
+            var ledgerStates = await _ledger.GetCurrentStatesAsync(
+                locationGuest,
+                cancellationToken
+            );
+
+            var effectiveStates =
+                LocationGuestChannelPermissionGate.ResolveEffectiveStates(
+                    locationGuest.MarketingPreference,
+                    ledgerStates
+                );
+
+            var currentMarketingState =
+                marketingKind != null
+                    ? effectiveStates[marketingKind.Value]
+                    : LocationGuestPermissionState.NotRecorded;
+
+            var currentFeedbackFollowUpState = effectiveStates[
+                LocationGuestPermissionKind.FeedbackFollowUp
+            ];
 
             var events = LocationGuestChannelPermissionGate.LedgerEventsForGuestFormSubmit(
                 restaurant,
                 marketingConsentGranted,
                 contactType,
-                currentMarketingState
+                currentMarketingState,
+                currentFeedbackFollowUpState
             );
 
             foreach (var (kind, eventKind) in events)

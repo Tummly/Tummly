@@ -78,6 +78,8 @@ namespace TummlyBackend.Helpers
             bool marketingConsentGranted,
             ContactType contactType,
             LocationGuestPermissionState currentMarketingState =
+                LocationGuestPermissionState.NotRecorded,
+            LocationGuestPermissionState currentFeedbackFollowUpState =
                 LocationGuestPermissionState.NotRecorded
         )
         {
@@ -85,11 +87,14 @@ namespace TummlyBackend.Helpers
 
             // Feedback follow-up has no guest checkbox — providing contact grants
             // it when the restaurant permission is Enabled (GF handoff).
+            // R3.1: do not re-grant when the current state is already Withdrawn.
             if (
                 IsRestaurantPermissionEnabled(
                     restaurant,
                     LocationGuestPermissionKind.FeedbackFollowUp
                 )
+                && currentFeedbackFollowUpState
+                    != LocationGuestPermissionState.Withdrawn
             )
             {
                 events.Add(

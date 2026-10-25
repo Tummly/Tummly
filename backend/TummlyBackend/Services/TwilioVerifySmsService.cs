@@ -37,8 +37,8 @@ namespace TummlyBackend.Services
             )
             {
                 _logger.LogInformation(
-                    "Demo side-effect suppression: skipped Twilio Verify OTP to {Phone}",
-                    MaskForLogs(phoneNumber)
+                    "Demo side-effect suppression: skipped Twilio Verify OTP to {MaskedPhone}",
+                    LogContactMask.Phone(phoneNumber)
                 );
                 return;
             }
@@ -70,10 +70,10 @@ namespace TummlyBackend.Services
             }
             catch (ApiException ex)
             {
-                _logger.LogError(
+                _logger.LogProviderSendFailure(
                     ex,
-                    "Twilio Verify send failed for {Phone}",
-                    MaskForLogs(e164)
+                    "Twilio Verify send failed for {MaskedPhone}",
+                    LogContactMask.Phone(e164)
                 );
 
                 throw new InvalidOperationException(
@@ -118,10 +118,11 @@ namespace TummlyBackend.Services
             }
             catch (ApiException ex)
             {
-                _logger.LogWarning(
+                _logger.LogProviderSendFailure(
+                    LogLevel.Warning,
                     ex,
-                    "Twilio Verify check failed for {Phone}",
-                    MaskForLogs(e164)
+                    "Twilio Verify check failed for {MaskedPhone}",
+                    LogContactMask.Phone(e164)
                 );
 
                 throw new InvalidOperationException(
@@ -154,16 +155,6 @@ namespace TummlyBackend.Services
                 phoneNumber,
                 _settings.ResolvedDefaultRegion
             );
-        }
-
-        private static string MaskForLogs(string e164)
-        {
-            if (e164.Length <= 4)
-            {
-                return "••••";
-            }
-
-            return $"••••{e164[^4..]}";
         }
 
         private static string MapTwilioError(ApiException ex)

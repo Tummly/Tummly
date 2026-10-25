@@ -181,7 +181,7 @@ namespace TummlyBackend.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(
+                _logger.LogProviderSendFailure(
                     ex,
                     "Failed to send Pilot ending soon email for user {UserId}",
                     userId

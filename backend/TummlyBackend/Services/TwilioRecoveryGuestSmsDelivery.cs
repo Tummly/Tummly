@@ -34,8 +34,8 @@ namespace TummlyBackend.Services
             if (_demoSideEffects.ShouldSuppressDestination(phoneNumber))
             {
                 _logger.LogInformation(
-                    "Demo side-effect suppression: skipped Recovery SMS to {Phone}",
-                    MaskForLogs(phoneNumber)
+                    "Demo side-effect suppression: skipped Recovery SMS to {MaskedPhone}",
+                    LogContactMask.Phone(phoneNumber)
                 );
                 return new RecoveryGuestSmsDeliveryResult.Accepted
                 {
@@ -78,10 +78,10 @@ namespace TummlyBackend.Services
             }
             catch (ApiException ex)
             {
-                _logger.LogError(
+                _logger.LogProviderSendFailure(
                     ex,
-                    "Twilio Recovery SMS send failed for {Phone}",
-                    MaskForLogs(e164)
+                    "Twilio Recovery SMS send failed for {MaskedPhone}",
+                    LogContactMask.Phone(e164)
                 );
 
                 return new RecoveryGuestSmsDeliveryResult.Failed
@@ -89,16 +89,6 @@ namespace TummlyBackend.Services
                     Message = "Unable to send Recovery SMS.",
                 };
             }
-        }
-
-        private static string MaskForLogs(string e164)
-        {
-            if (e164.Length <= 4)
-            {
-                return "••••";
-            }
-
-            return $"••••{e164[^4..]}";
         }
     }
 }

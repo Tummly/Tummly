@@ -165,7 +165,7 @@ namespace TummlyBackend.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(
+                _logger.LogProviderSendFailure(
                     ex,
                     "Guest response email delivery pass aborted for {GuestResponseId} — leaving Pending for reclaim",
                     exactGuestResponseId ?? 0
@@ -445,7 +445,7 @@ namespace TummlyBackend.Services
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogError(
+                _logger.LogProviderSendFailure(
                     ex,
                     "Resend failed for guest response {GuestResponseId} — staying Pending",
                     row.Id

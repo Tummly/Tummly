@@ -173,6 +173,24 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<
+            IReadOnlyDictionary<
+                LocationGuestPermissionKind,
+                LocationGuestPermissionState
+            >
+        > GetCurrentStatesAsync(
+            LocationGuest locationGuest,
+            CancellationToken cancellationToken = default
+        )
+        {
+            ArgumentNullException.ThrowIfNull(locationGuest);
+            return await GetCurrentStatesCoreAsync(
+                locationGuest.Id,
+                locationGuest,
+                cancellationToken
+            );
+        }
+
         public async Task<LocationGuestMarketingPreference> SyncMarketingPreferenceRollupAsync(
             int locationGuestId,
             CancellationToken cancellationToken = default

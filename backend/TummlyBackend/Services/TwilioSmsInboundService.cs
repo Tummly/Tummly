@@ -86,8 +86,8 @@ namespace TummlyBackend.Services
             )
             {
                 _logger.LogWarning(
-                    "Twilio SMS STOP for unmapped To number {To}; no withdraw.",
-                    MaskForLogs(to)
+                    "Twilio SMS STOP for unmapped To number {MaskedPhone}; no withdraw.",
+                    LogContactMask.Phone(to)
                 );
                 return TwilioSmsInboundStatus.Accepted;
             }
@@ -310,16 +310,6 @@ namespace TummlyBackend.Services
                 parameters,
                 twilioSignature
             );
-        }
-
-        private static string MaskForLogs(string value)
-        {
-            if (string.IsNullOrEmpty(value) || value.Length <= 4)
-            {
-                return "••••";
-            }
-
-            return $"••••{value[^4..]}";
         }
     }
 }

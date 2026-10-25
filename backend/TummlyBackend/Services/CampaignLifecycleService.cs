@@ -517,9 +517,11 @@ namespace TummlyBackend.Services
 
             var frozenIds = await _context.CampaignFrozenRecipients
                 .Where(row =>
-                    row.CampaignId == entity.Id && row.AcceptedAtUtc == null
+                    row.CampaignId == entity.Id
+                    && row.AcceptedAtUtc == null
+                    && row.LocationGuestId != null
                 )
-                .Select(row => row.LocationGuestId)
+                .Select(row => row.LocationGuestId!.Value)
                 .ToListAsync(cancellationToken);
 
             if (frozenIds.Count == 0)
@@ -625,7 +627,8 @@ namespace TummlyBackend.Services
             {
                 var dropRows = _context.CampaignFrozenRecipients.Where(row =>
                     row.CampaignId == entity.Id
-                    && dropIds.Contains(row.LocationGuestId)
+                    && row.LocationGuestId != null
+                    && dropIds.Contains(row.LocationGuestId.Value)
                     && row.AcceptedAtUtc == null
                 );
                 _context.CampaignFrozenRecipients.RemoveRange(dropRows);
@@ -717,9 +720,11 @@ namespace TummlyBackend.Services
 
             var frozenIds = await _context.CampaignFrozenRecipients
                 .Where(row =>
-                    row.CampaignId == entity.Id && row.AcceptedAtUtc == null
+                    row.CampaignId == entity.Id
+                    && row.AcceptedAtUtc == null
+                    && row.LocationGuestId != null
                 )
-                .Select(row => row.LocationGuestId)
+                .Select(row => row.LocationGuestId!.Value)
                 .ToListAsync(cancellationToken);
 
             if (frozenIds.Count == 0)
@@ -763,7 +768,8 @@ namespace TummlyBackend.Services
             {
                 var dropRows = _context.CampaignFrozenRecipients.Where(row =>
                     row.CampaignId == entity.Id
-                    && dropIds.Contains(row.LocationGuestId)
+                    && row.LocationGuestId != null
+                    && dropIds.Contains(row.LocationGuestId.Value)
                     && row.AcceptedAtUtc == null
                 );
                 _context.CampaignFrozenRecipients.RemoveRange(dropRows);
