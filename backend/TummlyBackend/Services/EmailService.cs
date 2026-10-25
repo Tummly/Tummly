@@ -107,8 +107,8 @@ namespace TummlyBackend.Services
             )
             {
                 _logger.LogInformation(
-                    "Demo side-effect suppression: skipped Email to {ToEmail} subject={Subject}",
-                    toEmail,
+                    "Demo side-effect suppression: skipped Email to {MaskedEmail} subject={Subject}",
+                    LogContactMask.Email(toEmail),
                     subject
                 );
                 return "demo-suppressed";

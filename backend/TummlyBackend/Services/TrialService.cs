@@ -409,8 +409,8 @@ namespace TummlyBackend.Services
                     verifiedTrial.BusinessName
                 ),
                 _logger,
-                "Failed to send Trial request received email for {Email}",
-                verifiedTrial.Email
+                "Failed to send Trial request received email for {MaskedEmail}",
+                LogContactMask.Email(verifiedTrial.Email)
             );
 
             return new TrialVerifyOtpResult(

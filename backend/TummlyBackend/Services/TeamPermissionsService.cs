@@ -1043,9 +1043,10 @@ namespace TummlyBackend.Services
             catch (Exception ex)
             {
                 _logger.LogError(
-                    ex,
-                    "Team invitation email failed for {Email}",
-                    invite.Email
+                    "Team invitation email failed for {MaskedEmail} ExceptionType={ExceptionType} Message={ScrubbedMessage}",
+                    LogContactMask.Email(invite.Email),
+                    ex.GetType().Name,
+                    LogContactMask.Scrub(ex.Message)
                 );
             }
         }

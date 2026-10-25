@@ -168,7 +168,7 @@ namespace TummlyBackend.Services
                     _logger.LogWarning(
                         "Skipped guest contact suppression: contact is not keyable. RestaurantId={RestaurantId} MaskedEmail={MaskedEmail}",
                         restaurantId,
-                        MaskEmailForLogs(raw)
+                        LogContactMask.Email(raw)
                     );
                 }
                 else
@@ -176,7 +176,7 @@ namespace TummlyBackend.Services
                     _logger.LogWarning(
                         "Skipped guest contact suppression: contact is not keyable. RestaurantId={RestaurantId} MaskedPhone={MaskedPhone}",
                         restaurantId,
-                        MaskPhoneForLogs(raw)
+                        LogContactMask.Phone(raw)
                     );
                 }
             }
@@ -271,29 +271,6 @@ namespace TummlyBackend.Services
             }
 
             return false;
-        }
-
-        private static string MaskPhoneForLogs(string value)
-        {
-            var digits = new string(value.Where(char.IsDigit).ToArray());
-            if (digits.Length < 4)
-            {
-                return "••••";
-            }
-
-            return "••••" + digits[^4..];
-        }
-
-        private static string MaskEmailForLogs(string value)
-        {
-            var trimmed = value.Trim();
-            var at = trimmed.IndexOf('@');
-            if (at <= 0 || at >= trimmed.Length - 1)
-            {
-                return "••••";
-            }
-
-            return trimmed[0] + "•••@" + trimmed[(at + 1)..];
         }
 
         private async Task<GuestInitiatedWithdrawResult> WithdrawGuestsAsync(

@@ -432,27 +432,10 @@ namespace TummlyBackend.Services
                 !string.IsNullOrWhiteSpace(user.PhoneNumber);
         }
 
-        private static string MaskPhone(string phoneNumber)
-        {
-            var digits =
-                new string(
-                    phoneNumber
-                        .Where(char.IsDigit)
-                        .ToArray()
-                );
-
-            if (digits.Length < 4)
-            {
-                return "••••";
-            }
-
-            return $"••••{digits[^4..]}";
-        }
-
         private static string? GetMaskedPhoneIfVerified(User user)
         {
             return UserHasVerifiedPhone(user)
-                ? MaskPhone(user.PhoneNumber)
+                ? LogContactMask.Phone(user.PhoneNumber)
                 : null;
         }
 
@@ -1508,9 +1491,9 @@ namespace TummlyBackend.Services
                     );
                 },
                 _logger,
-                "Failed to send new device sign-in email for user {UserId} ({Email})",
+                "Failed to send new device sign-in email for user {UserId} ({MaskedEmail})",
                 user.Id,
-                user.Email
+                LogContactMask.Email(user.Email)
             );
 
             await TryProduceAccountNoticeAsync(
