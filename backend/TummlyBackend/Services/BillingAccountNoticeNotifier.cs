@@ -330,7 +330,7 @@ namespace TummlyBackend.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(
+                    _logger.LogProviderSendFailure(
                         ex,
                         "Failed to send billing alert email to user {UserId}",
                         recipient.UserId

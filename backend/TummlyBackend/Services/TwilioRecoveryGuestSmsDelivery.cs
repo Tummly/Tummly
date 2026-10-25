@@ -78,12 +78,10 @@ namespace TummlyBackend.Services
             }
             catch (ApiException ex)
             {
-                _logger.LogError(
-                    "Twilio Recovery SMS send failed for {MaskedPhone} ExceptionType={ExceptionType} Code={Code} Message={ScrubbedMessage}",
-                    LogContactMask.Phone(e164),
-                    ex.GetType().Name,
-                    ex.Code,
-                    LogContactMask.Scrub(ex.Message)
+                _logger.LogProviderSendFailure(
+                    ex,
+                    "Twilio Recovery SMS send failed for {MaskedPhone}",
+                    LogContactMask.Phone(e164)
                 );
 
                 return new RecoveryGuestSmsDeliveryResult.Failed

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Twilio.Exceptions;
 using TummlyBackend.Helpers;
 
 namespace TummlyBackend.Tests.Helpers
@@ -73,6 +75,88 @@ namespace TummlyBackend.Tests.Helpers
         public void Scrub_NullOrEmpty_ReturnsEmpty(string? input, string expected)
         {
             Assert.Equal(expected, LogContactMask.Scrub(input));
+        }
+
+        [Fact]
+        public void LogProviderSendFailure_OmitsExceptionObject_AndScrubsMessage()
+        {
+            var logger = new CapturingLogger();
+            var ex = new InvalidOperationException(
+                "Resend rejected alice@example.com +447911123456"
+            );
+
+            logger.LogProviderSendFailure(
+                ex,
+                "Provider send failed for {GuestResponseId}",
+                42
+            );
+
+            Assert.Single(logger.Entries);
+            var entry = logger.Entries[0];
+            Assert.Equal(LogLevel.Error, entry.Level);
+            Assert.Null(entry.Exception);
+            Assert.DoesNotContain("alice@example.com", entry.Message);
+            Assert.DoesNotContain("+447911123456", entry.Message);
+            Assert.DoesNotContain("447911123456", entry.Message);
+            Assert.Contains("a•••@example.com", entry.Message);
+            Assert.Contains("••••3456", entry.Message);
+            Assert.Contains("InvalidOperationException", entry.Message);
+            Assert.Contains("42", entry.Message);
+        }
+
+        [Fact]
+        public void LogProviderSendFailure_IncludesTwilioProviderCode()
+        {
+            var logger = new CapturingLogger();
+            var ex = new ApiException(
+                21211,
+                400,
+                "Unable to create record for +447911123456",
+                moreInfo: null,
+                details: null,
+                exception: null
+            );
+
+            logger.LogProviderSendFailure(
+                LogLevel.Warning,
+                ex,
+                "Twilio Verify check failed for {MaskedPhone}",
+                LogContactMask.Phone("+447911123456")
+            );
+
+            Assert.Single(logger.Entries);
+            var entry = logger.Entries[0];
+            Assert.Equal(LogLevel.Warning, entry.Level);
+            Assert.Null(entry.Exception);
+            Assert.Contains("21211", entry.Message);
+            Assert.Contains("ApiException", entry.Message);
+            Assert.DoesNotContain("+447911123456", entry.Message);
+            Assert.Contains("••••3456", entry.Message);
+        }
+
+        private sealed class CapturingLogger : ILogger
+        {
+            public List<(
+                LogLevel Level,
+                Exception? Exception,
+                string Message
+            )> Entries { get; } = new();
+
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter
+            )
+            {
+                Entries.Add((logLevel, exception, formatter(state, exception)));
+            }
         }
     }
 }

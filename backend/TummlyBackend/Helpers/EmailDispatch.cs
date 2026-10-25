@@ -25,15 +25,7 @@ namespace TummlyBackend.Helpers
             }
             catch (Exception ex)
             {
-                var allArgs = new object?[args.Length + 2];
-                Array.Copy(args, allArgs, args.Length);
-                allArgs[^2] = ex.GetType().Name;
-                allArgs[^1] = LogContactMask.Scrub(ex.Message);
-                logger.LogError(
-                    failureMessage
-                        + " ExceptionType={ExceptionType} Message={ScrubbedMessage}",
-                    allArgs
-                );
+                logger.LogProviderSendFailure(ex, failureMessage, args);
                 return false;
             }
         }

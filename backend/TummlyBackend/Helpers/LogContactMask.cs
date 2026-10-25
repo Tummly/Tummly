@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
+using Twilio.Exceptions;
 
 namespace TummlyBackend.Helpers
 {
@@ -81,6 +83,63 @@ namespace TummlyBackend.Helpers
 
                     return Phone(digits);
                 }
+            );
+        }
+    }
+
+    /// <summary>
+    /// Shared log shape for email / SMS provider send failures (R4.3):
+    /// exception type, optional provider code, scrubbed message — never the
+    /// exception object (which may embed contact data in <c>Message</c>).
+    /// </summary>
+    public static class LogProviderSendFailureExtensions
+    {
+        public static void LogProviderSendFailure(
+            this ILogger logger,
+            Exception exception,
+            string messageTemplate,
+            params object?[] args
+        )
+        {
+            logger.LogProviderSendFailure(
+                LogLevel.Error,
+                exception,
+                messageTemplate,
+                args
+            );
+        }
+
+        public static void LogProviderSendFailure(
+            this ILogger logger,
+            LogLevel logLevel,
+            Exception exception,
+            string messageTemplate,
+            params object?[] args
+        )
+        {
+            ArgumentNullException.ThrowIfNull(logger);
+            ArgumentNullException.ThrowIfNull(exception);
+            ArgumentNullException.ThrowIfNull(messageTemplate);
+
+            object? providerCode = exception is ApiException apiException
+                ? apiException.Code
+                : null;
+
+            var allArgs = new object?[(args?.Length ?? 0) + 3];
+            if (args is { Length: > 0 })
+            {
+                Array.Copy(args, allArgs, args.Length);
+            }
+
+            allArgs[^3] = exception.GetType().Name;
+            allArgs[^2] = providerCode;
+            allArgs[^1] = LogContactMask.Scrub(exception.Message);
+
+            logger.Log(
+                logLevel,
+                messageTemplate
+                    + " ExceptionType={ExceptionType} ProviderCode={ProviderCode} Message={ScrubbedMessage}",
+                allArgs
             );
         }
     }

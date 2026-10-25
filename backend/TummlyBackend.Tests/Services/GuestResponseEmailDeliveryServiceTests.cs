@@ -26,6 +26,7 @@ namespace TummlyBackend.Tests.Services
         private readonly ServiceProvider _services;
         private readonly ApplicationDbContext _context;
         private readonly TrackingGuestResponseEmailService _emailService;
+        private readonly CapturingLogger<GuestResponseEmailDeliveryWork> _deliveryLogger;
         private readonly IGuestResponseEmailDeliveryWork _deliveryWork;
         private readonly FeedbackGuestResponsesService _guestResponses;
         private readonly FeedbackRespondAndRecordService _respondAndRecord;
@@ -34,6 +35,7 @@ namespace TummlyBackend.Tests.Services
         public GuestResponseEmailDeliveryServiceTests()
         {
             _emailService = new TrackingGuestResponseEmailService();
+            _deliveryLogger = new CapturingLogger<GuestResponseEmailDeliveryWork>();
 
             var collection = new ServiceCollection();
             collection.AddDbContext<ApplicationDbContext>(options =>
@@ -59,7 +61,7 @@ namespace TummlyBackend.Tests.Services
             );
             collection.AddSingleton<IHostEnvironment>(new TestHostEnvironment());
             collection.AddSingleton<ILogger<GuestResponseEmailDeliveryWork>>(
-                NullLogger<GuestResponseEmailDeliveryWork>.Instance
+                _deliveryLogger
             );
             collection.AddSingleton<
                 IGuestResponseEmailDeliveryWork,
@@ -436,6 +438,53 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Delivery_ProviderFailure_LogOmitsExceptionObjectAndRawEmail()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "provider-fail@example.com"
+            );
+            _emailService.ThrowOnSend = true;
+            _emailService.ThrowMessage =
+                "Resend rejected recipient provider-fail@example.com";
+            _deliveryLogger.Entries.Clear();
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Subject",
+                body: "Body",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            await _deliveryWork.DrainAsync();
+
+            var failureLogs = _deliveryLogger.Entries
+                .Where(e =>
+                    e.Level == LogLevel.Error
+                    && e.Message.Contains(
+                        "Resend failed",
+                        StringComparison.Ordinal
+                    )
+                )
+                .ToList();
+            Assert.NotEmpty(failureLogs);
+            foreach (var entry in failureLogs)
+            {
+                Assert.Null(entry.Exception);
+                Assert.DoesNotContain(
+                    "provider-fail@example.com",
+                    entry.Message
+                );
+                Assert.Contains("InvalidOperationException", entry.Message);
+            }
+        }
+
+        [Fact]
         public async Task Delivery_RunTwice_SendsOnce()
         {
             var seeded = await SeedAsync(
@@ -720,6 +769,8 @@ namespace TummlyBackend.Tests.Services
 
             public bool ThrowOnSend { get; set; }
 
+            public string ThrowMessage { get; set; } = "Resend failed";
+
             public override Task SendGuestResponseEmailAsync(
                 string toEmail,
                 string subject,
@@ -745,10 +796,35 @@ namespace TummlyBackend.Tests.Services
 
                 if (ThrowOnSend)
                 {
-                    throw new InvalidOperationException("Resend failed");
+                    throw new InvalidOperationException(ThrowMessage);
                 }
 
                 return Task.CompletedTask;
+            }
+        }
+
+        private sealed class CapturingLogger<T> : ILogger<T>
+        {
+            public List<(
+                LogLevel Level,
+                Exception? Exception,
+                string Message
+            )> Entries { get; } = new();
+
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter
+            )
+            {
+                Entries.Add((logLevel, exception, formatter(state, exception)));
             }
         }
 

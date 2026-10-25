@@ -184,7 +184,7 @@ namespace TummlyBackend.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(
+                _logger.LogProviderSendFailure(
                     ex,
                     "Post-commit email dispatch failed for TrialRequest {TrialRequestId} decision {Decision}. State is persisted.",
                     trialRequest.Id,

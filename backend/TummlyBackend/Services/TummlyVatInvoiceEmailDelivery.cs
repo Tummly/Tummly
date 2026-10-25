@@ -46,7 +46,7 @@ namespace TummlyBackend.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(
+                _logger.LogProviderSendFailure(
                     ex,
                     "Failed to email Tummly VAT invoice {DocumentNumber} for restaurant {RestaurantId}",
                     invoice.DocumentNumber,

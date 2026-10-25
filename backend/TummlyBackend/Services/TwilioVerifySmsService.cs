@@ -70,12 +70,10 @@ namespace TummlyBackend.Services
             }
             catch (ApiException ex)
             {
-                _logger.LogError(
-                    "Twilio Verify send failed for {MaskedPhone} ExceptionType={ExceptionType} Code={Code} Message={ScrubbedMessage}",
-                    LogContactMask.Phone(e164),
-                    ex.GetType().Name,
-                    ex.Code,
-                    LogContactMask.Scrub(ex.Message)
+                _logger.LogProviderSendFailure(
+                    ex,
+                    "Twilio Verify send failed for {MaskedPhone}",
+                    LogContactMask.Phone(e164)
                 );
 
                 throw new InvalidOperationException(
@@ -120,12 +118,11 @@ namespace TummlyBackend.Services
             }
             catch (ApiException ex)
             {
-                _logger.LogWarning(
-                    "Twilio Verify check failed for {MaskedPhone} ExceptionType={ExceptionType} Code={Code} Message={ScrubbedMessage}",
-                    LogContactMask.Phone(e164),
-                    ex.GetType().Name,
-                    ex.Code,
-                    LogContactMask.Scrub(ex.Message)
+                _logger.LogProviderSendFailure(
+                    LogLevel.Warning,
+                    ex,
+                    "Twilio Verify check failed for {MaskedPhone}",
+                    LogContactMask.Phone(e164)
                 );
 
                 throw new InvalidOperationException(
