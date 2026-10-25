@@ -3,6 +3,8 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Tests.Integration
@@ -19,6 +21,161 @@ namespace TummlyBackend.Tests.Integration
         {
             _factory = factory;
             _client = factory.CreateClient();
+        }
+
+        [Fact]
+        public async Task NewGuest_WithSuppression_GetsWithdrawEntriesWithOriginalDates()
+        {
+            const string token = "guest-upsert-suppression-replay";
+            const string contact = "returning@example.com";
+            var withdrawnAt = new DateTime(
+                2026,
+                3,
+                15,
+                10,
+                30,
+                0,
+                DateTimeKind.Utc
+            );
+
+            var seeded = await SeedRestaurantWithLocationAsync(
+                token,
+                locationName: "Main"
+            );
+
+            await StageSuppressionAsync(
+                seeded.RestaurantId,
+                contact,
+                ContactType.Email,
+                LocationGuestPermissionKind.EmailMarketing,
+                withdrawnAt
+            );
+            await StageSuppressionAsync(
+                seeded.RestaurantId,
+                contact,
+                ContactType.Email,
+                LocationGuestPermissionKind.FeedbackFollowUp,
+                withdrawnAt
+            );
+
+            var response = await PostFeedbackAsync(
+                token,
+                guestName: "Returning Guest",
+                guestContact: contact,
+                offersOptOut: true
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var locationGuest = await context.LocationGuests
+                .SingleAsync(lg => lg.RestaurantLocationId == seeded.LocationId);
+
+            var suppressionWithdraws = await context
+                .LocationGuestPermissionLedgerEntries
+                .Where(e =>
+                    e.LocationGuestId == locationGuest.Id
+                    && e.Source
+                        == LocationGuestPermissionLedgerSources.Suppression
+                    && e.EventKind
+                        == LocationGuestPermissionLedgerEventKinds.Withdraw
+                )
+                .ToListAsync();
+
+            Assert.Equal(2, suppressionWithdraws.Count);
+            Assert.All(
+                suppressionWithdraws,
+                e => Assert.Equal(withdrawnAt, e.OccurredAt)
+            );
+            Assert.Contains(
+                suppressionWithdraws,
+                e =>
+                    e.PermissionKind
+                    == LocationGuestPermissionKind.EmailMarketing
+            );
+            Assert.Contains(
+                suppressionWithdraws,
+                e =>
+                    e.PermissionKind
+                    == LocationGuestPermissionKind.FeedbackFollowUp
+            );
+            Assert.Equal(
+                "Earlier withdrawal",
+                LocationGuestPermissionPresentation.SourceLabel(
+                    LocationGuestPermissionLedgerSources.Suppression
+                )
+            );
+        }
+
+        [Fact]
+        public async Task ExistingGuest_IgnoresSuppressionRows()
+        {
+            const string token = "guest-upsert-ignore-suppression";
+            const string contact = "existing-ignore@example.com";
+
+            var seeded = await SeedRestaurantWithLocationAsync(
+                token,
+                locationName: "Main"
+            );
+
+            var first = await PostFeedbackAsync(
+                token,
+                guestName: "Existing Guest",
+                guestContact: contact,
+                offersOptOut: false
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            var withdrawnAt = new DateTime(
+                2026,
+                4,
+                1,
+                8,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
+            await StageSuppressionAsync(
+                seeded.RestaurantId,
+                contact,
+                ContactType.Email,
+                LocationGuestPermissionKind.EmailMarketing,
+                withdrawnAt
+            );
+            await StageSuppressionAsync(
+                seeded.RestaurantId,
+                contact,
+                ContactType.Email,
+                LocationGuestPermissionKind.SmsMarketing,
+                withdrawnAt
+            );
+
+            var second = await PostFeedbackAsync(
+                token,
+                guestName: "Existing Guest",
+                guestContact: contact,
+                offersOptOut: false,
+                comment: "Second visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var locationGuest = await context.LocationGuests
+                .SingleAsync(lg => lg.RestaurantLocationId == seeded.LocationId);
+
+            Assert.False(
+                await context.LocationGuestPermissionLedgerEntries.AnyAsync(
+                    e =>
+                        e.LocationGuestId == locationGuest.Id
+                        && e.Source
+                            == LocationGuestPermissionLedgerSources.Suppression
+                )
+            );
         }
 
         [Fact]
@@ -286,6 +443,34 @@ namespace TummlyBackend.Tests.Integration
                 Assert.Equal(LocationGuestMarketingPreference.Allowed, firstLg.MarketingPreference);
                 Assert.Equal(LocationGuestMarketingPreference.OptedOut, secondLg.MarketingPreference);
             }
+        }
+
+        private async Task StageSuppressionAsync(
+            int restaurantId,
+            string contact,
+            ContactType contactType,
+            LocationGuestPermissionKind kind,
+            DateTime withdrawnAtUtc
+        )
+        {
+            Assert.True(
+                GuestContactKey.TryCreate(contact, contactType, out var key)
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var suppressions = scope.ServiceProvider
+                .GetRequiredService<IGuestContactSuppressionService>();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            await suppressions.StageAsync(
+                restaurantId,
+                key,
+                kind,
+                withdrawnAtUtc,
+                GuestContactSuppressionSources.GuestDelete
+            );
+            await context.SaveChangesAsync();
         }
 
         private async Task<HttpResponseMessage> PostFeedbackAsync(

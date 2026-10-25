@@ -25,7 +25,7 @@ namespace TummlyBackend.Tests.Services
 
             _context = new ApplicationDbContext(options);
             _ledger = new LocationGuestPermissionLedgerService(_context);
-            _apply = new GuestFormPermissionApplyService(_ledger);
+            _apply = new GuestFormPermissionApplyService(_context, _ledger);
         }
 
         [Fact]

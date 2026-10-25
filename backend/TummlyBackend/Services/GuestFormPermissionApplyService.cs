@@ -1,3 +1,4 @@
+using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -11,12 +12,15 @@ namespace TummlyBackend.Services
     public sealed class GuestFormPermissionApplyService
         : IGuestFormPermissionApplyService
     {
+        private readonly ApplicationDbContext _context;
         private readonly ILocationGuestPermissionLedgerService _ledger;
 
         public GuestFormPermissionApplyService(
+            ApplicationDbContext context,
             ILocationGuestPermissionLedgerService ledger
         )
         {
+            _context = context;
             _ledger = ledger;
         }
 
@@ -38,32 +42,35 @@ namespace TummlyBackend.Services
                 _ => (LocationGuestPermissionKind?)null,
             };
 
-            var currentMarketingState = LocationGuestPermissionState.NotRecorded;
-            if (marketingKind != null)
-            {
-                var ledgerStates =
-                    locationGuest.Id == 0
-                        ? LocationGuestPermissionKindExtensions.All.ToDictionary(
-                            kind => kind,
-                            _ => LocationGuestPermissionState.NotRecorded
-                        )
-                        : await _ledger.GetCurrentStatesAsync(
-                            locationGuest.Id,
-                            cancellationToken
-                        );
-                var effectiveStates =
-                    LocationGuestChannelPermissionGate.ResolveEffectiveStates(
-                        locationGuest.MarketingPreference,
-                        ledgerStates
+            var ledgerStates =
+                locationGuest.Id == 0
+                    ? CurrentStatesFromLocal(locationGuest)
+                    : await _ledger.GetCurrentStatesAsync(
+                        locationGuest.Id,
+                        cancellationToken
                     );
-                currentMarketingState = effectiveStates[marketingKind.Value];
-            }
+
+            var effectiveStates =
+                LocationGuestChannelPermissionGate.ResolveEffectiveStates(
+                    locationGuest.MarketingPreference,
+                    ledgerStates
+                );
+
+            var currentMarketingState =
+                marketingKind != null
+                    ? effectiveStates[marketingKind.Value]
+                    : LocationGuestPermissionState.NotRecorded;
+
+            var currentFeedbackFollowUpState = effectiveStates[
+                LocationGuestPermissionKind.FeedbackFollowUp
+            ];
 
             var events = LocationGuestChannelPermissionGate.LedgerEventsForGuestFormSubmit(
                 restaurant,
                 marketingConsentGranted,
                 contactType,
-                currentMarketingState
+                currentMarketingState,
+                currentFeedbackFollowUpState
             );
 
             foreach (var (kind, eventKind) in events)
@@ -92,6 +99,42 @@ namespace TummlyBackend.Services
                 locationGuest,
                 cancellationToken
             );
+        }
+
+        /// <summary>
+        /// Mirrors <c>GetCurrentStatesCoreAsync</c> ordering for pending Local
+        /// ledger rows on an unsaved Location Guest (Id == 0).
+        /// </summary>
+        private IReadOnlyDictionary<
+            LocationGuestPermissionKind,
+            LocationGuestPermissionState
+        > CurrentStatesFromLocal(LocationGuest locationGuest)
+        {
+            var latestEvents = _context.LocationGuestPermissionLedgerEntries
+                .Local
+                .Where(e => ReferenceEquals(e.LocationGuest, locationGuest))
+                .GroupBy(e => e.PermissionKind)
+                .Select(g =>
+                    g.OrderByDescending(e => e.OccurredAt)
+                        .ThenByDescending(e => e.Id)
+                        .First()
+                );
+
+            var states = LocationGuestPermissionKindExtensions.All.ToDictionary(
+                kind => kind,
+                _ => LocationGuestPermissionState.NotRecorded
+            );
+
+            foreach (var entry in latestEvents)
+            {
+                states[entry.PermissionKind] =
+                    entry.EventKind
+                        == LocationGuestPermissionLedgerEventKinds.Grant
+                        ? LocationGuestPermissionState.Granted
+                        : LocationGuestPermissionState.Withdrawn;
+            }
+
+            return states;
         }
 
         private static PermissionLedgerEvidence BuildEvidence(

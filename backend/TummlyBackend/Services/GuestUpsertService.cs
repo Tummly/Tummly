@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -9,14 +10,20 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ILocationGuestActivityRecorder _recorder;
+        private readonly IGuestContactSuppressionService _suppressions;
+        private readonly ILocationGuestPermissionLedgerService _ledger;
 
         public GuestUpsertService(
             ApplicationDbContext context,
-            ILocationGuestActivityRecorder recorder
+            ILocationGuestActivityRecorder recorder,
+            IGuestContactSuppressionService suppressions,
+            ILocationGuestPermissionLedgerService ledger
         )
         {
             _context = context;
             _recorder = recorder;
+            _suppressions = suppressions;
+            _ledger = ledger;
         }
 
         public async Task<LocationGuest> ResolveOrCreateAsync(
@@ -51,7 +58,58 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            if (_context.Entry(locationGuest).State == EntityState.Added)
+            {
+                await ReplaySuppressionsAsync(
+                    restaurantId,
+                    restaurantLocationId,
+                    locationGuest,
+                    trimmedContact,
+                    contactType,
+                    cancellationToken
+                );
+            }
+
             return locationGuest;
+        }
+
+        private async Task ReplaySuppressionsAsync(
+            int restaurantId,
+            int restaurantLocationId,
+            LocationGuest locationGuest,
+            string trimmedContact,
+            ContactType contactType,
+            CancellationToken cancellationToken
+        )
+        {
+            if (
+                !GuestContactKey.TryCreate(
+                    trimmedContact,
+                    contactType,
+                    out var contactKey
+                )
+            )
+            {
+                return;
+            }
+
+            var rows = await _suppressions.FindAsync(
+                restaurantId,
+                contactKey,
+                cancellationToken
+            );
+
+            foreach (var row in rows)
+            {
+                _ledger.RecordEvent(
+                    locationGuest,
+                    restaurantLocationId,
+                    row.PermissionKind,
+                    LocationGuestPermissionLedgerEventKinds.Withdraw,
+                    LocationGuestPermissionLedgerSources.Suppression,
+                    row.WithdrawnAtUtc
+                );
+            }
         }
 
         private async Task<MasterGuest> ResolveOrCreateMasterGuestAsync(

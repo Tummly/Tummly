@@ -27,6 +27,282 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task NewGuest_SuppressedAndTicked_GrantsMarketing_KeepsFollowUpWithdrawn()
+        {
+            const string token = "guest-form-suppressed-ticked";
+            const string contact = "suppressed-tick@example.com";
+            var withdrawnAt = new DateTime(
+                2026,
+                2,
+                10,
+                14,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
+
+            var restaurantId = await SeedGuestLocationAsync(
+                token,
+                emailEnabled: true,
+                smsEnabled: true,
+                feedbackFollowUpEnabled: true
+            );
+
+            await StageSuppressionAsync(
+                restaurantId,
+                contact,
+                ContactType.Email,
+                LocationGuestPermissionKind.EmailMarketing,
+                withdrawnAt
+            );
+            await StageSuppressionAsync(
+                restaurantId,
+                contact,
+                ContactType.Email,
+                LocationGuestPermissionKind.FeedbackFollowUp,
+                withdrawnAt
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Returning Tick Guest",
+                    guestContact = contact,
+                    comment = "Back again.",
+                    offersOptOut = false,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var ledger = scope.ServiceProvider
+                .GetRequiredService<ILocationGuestPermissionLedgerService>();
+
+            var locationId = await context.QrCodes
+                .Where(q => q.Token == token)
+                .Select(q => q.RestaurantLocationId)
+                .SingleAsync();
+
+            var locationGuest = await context.LocationGuests
+                .Where(lg => lg.RestaurantLocationId == locationId)
+                .SingleAsync();
+
+            var states = await ledger.GetCurrentStatesAsync(locationGuest.Id);
+
+            Assert.Equal(
+                LocationGuestPermissionState.Granted,
+                states[LocationGuestPermissionKind.EmailMarketing]
+            );
+            Assert.Equal(
+                LocationGuestPermissionState.Withdrawn,
+                states[LocationGuestPermissionKind.FeedbackFollowUp]
+            );
+
+            Assert.Contains(
+                await context.LocationGuestPermissionLedgerEntries
+                    .Where(e => e.LocationGuestId == locationGuest.Id)
+                    .ToListAsync(),
+                e =>
+                    e.PermissionKind
+                        == LocationGuestPermissionKind.EmailMarketing
+                    && e.EventKind
+                        == LocationGuestPermissionLedgerEventKinds.Grant
+                    && e.Source
+                        == LocationGuestPermissionLedgerSources.GuestForm
+            );
+            Assert.DoesNotContain(
+                await context.LocationGuestPermissionLedgerEntries
+                    .Where(e => e.LocationGuestId == locationGuest.Id)
+                    .ToListAsync(),
+                e =>
+                    e.PermissionKind
+                        == LocationGuestPermissionKind.FeedbackFollowUp
+                    && e.EventKind
+                        == LocationGuestPermissionLedgerEventKinds.Grant
+            );
+        }
+
+        [Fact]
+        public async Task NewGuest_SuppressedNoTick_StaysWithdrawn()
+        {
+            const string token = "guest-form-suppressed-no-tick";
+            const string contact = "suppressed-no-tick@example.com";
+            var withdrawnAt = new DateTime(
+                2026,
+                5,
+                1,
+                9,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
+
+            var restaurantId = await SeedGuestLocationAsync(
+                token,
+                emailEnabled: true,
+                smsEnabled: true,
+                feedbackFollowUpEnabled: true
+            );
+
+            await StageSuppressionAsync(
+                restaurantId,
+                contact,
+                ContactType.Email,
+                LocationGuestPermissionKind.EmailMarketing,
+                withdrawnAt
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "No Tick Guest",
+                    guestContact = contact,
+                    comment = "Fine visit.",
+                    offersOptOut = true,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var ledger = scope.ServiceProvider
+                .GetRequiredService<ILocationGuestPermissionLedgerService>();
+
+            var locationId = await context.QrCodes
+                .Where(q => q.Token == token)
+                .Select(q => q.RestaurantLocationId)
+                .SingleAsync();
+
+            var locationGuest = await context.LocationGuests
+                .Where(lg => lg.RestaurantLocationId == locationId)
+                .SingleAsync();
+
+            var states = await ledger.GetCurrentStatesAsync(locationGuest.Id);
+
+            Assert.Equal(
+                LocationGuestPermissionState.Withdrawn,
+                states[LocationGuestPermissionKind.EmailMarketing]
+            );
+            Assert.DoesNotContain(
+                await context.LocationGuestPermissionLedgerEntries
+                    .Where(e => e.LocationGuestId == locationGuest.Id)
+                    .ToListAsync(),
+                e =>
+                    e.PermissionKind
+                        == LocationGuestPermissionKind.EmailMarketing
+                    && e.EventKind
+                        == LocationGuestPermissionLedgerEventKinds.Grant
+            );
+        }
+
+        [Fact]
+        public async Task ExistingGuest_FollowUpWithdrawnByOperator_NotRegrantedOnSubmit()
+        {
+            const string token = "guest-form-ffu-operator-withdraw";
+            const string contact = "ffu-withdraw@example.com";
+
+            await SeedGuestLocationAsync(
+                token,
+                emailEnabled: true,
+                smsEnabled: true,
+                feedbackFollowUpEnabled: true
+            );
+
+            var first = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Follow Up Guest",
+                    guestContact = contact,
+                    comment = "First visit.",
+                    offersOptOut = false,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var ledger = scope.ServiceProvider
+                    .GetRequiredService<ILocationGuestPermissionLedgerService>();
+
+                var locationId = await context.QrCodes
+                    .Where(q => q.Token == token)
+                    .Select(q => q.RestaurantLocationId)
+                    .SingleAsync();
+
+                var locationGuest = await context.LocationGuests
+                    .Where(lg => lg.RestaurantLocationId == locationId)
+                    .SingleAsync();
+
+                ledger.RecordEvent(
+                    locationGuest.Id,
+                    locationId,
+                    LocationGuestPermissionKind.FeedbackFollowUp,
+                    LocationGuestPermissionLedgerEventKinds.Withdraw,
+                    LocationGuestPermissionLedgerSources.Operator,
+                    DateTime.UtcNow
+                );
+                await context.SaveChangesAsync();
+            }
+
+            var second = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Follow Up Guest",
+                    guestContact = contact,
+                    comment = "Second visit.",
+                    offersOptOut = false,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var ledger = scope.ServiceProvider
+                    .GetRequiredService<ILocationGuestPermissionLedgerService>();
+
+                var locationId = await context.QrCodes
+                    .Where(q => q.Token == token)
+                    .Select(q => q.RestaurantLocationId)
+                    .SingleAsync();
+
+                var locationGuest = await context.LocationGuests
+                    .Where(lg => lg.RestaurantLocationId == locationId)
+                    .SingleAsync();
+
+                var states = await ledger.GetCurrentStatesAsync(
+                    locationGuest.Id
+                );
+                Assert.Equal(
+                    LocationGuestPermissionState.Withdrawn,
+                    states[LocationGuestPermissionKind.FeedbackFollowUp]
+                );
+
+                var followUpGrants = await context
+                    .LocationGuestPermissionLedgerEntries
+                    .Where(e =>
+                        e.LocationGuestId == locationGuest.Id
+                        && e.PermissionKind
+                            == LocationGuestPermissionKind.FeedbackFollowUp
+                        && e.EventKind
+                            == LocationGuestPermissionLedgerEventKinds.Grant
+                    )
+                    .CountAsync();
+                Assert.Equal(1, followUpGrants);
+            }
+        }
+
+        [Fact]
         public async Task GetScan_ReturnsGuestFormConsentFromRestaurantTogglesAndWording()
         {
             const string token = "guest-form-consent-read";
@@ -448,7 +724,35 @@ namespace TummlyBackend.Tests.Integration
             return JsonDocument.Parse(json).RootElement.Clone();
         }
 
-        private async Task SeedGuestLocationAsync(
+        private async Task StageSuppressionAsync(
+            int restaurantId,
+            string contact,
+            ContactType contactType,
+            LocationGuestPermissionKind kind,
+            DateTime withdrawnAtUtc
+        )
+        {
+            Assert.True(
+                GuestContactKey.TryCreate(contact, contactType, out var key)
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var suppressions = scope.ServiceProvider
+                .GetRequiredService<IGuestContactSuppressionService>();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            await suppressions.StageAsync(
+                restaurantId,
+                key,
+                kind,
+                withdrawnAtUtc,
+                GuestContactSuppressionSources.GuestDelete
+            );
+            await context.SaveChangesAsync();
+        }
+
+        private async Task<int> SeedGuestLocationAsync(
             string linkToken,
             bool emailEnabled,
             bool smsEnabled,
@@ -498,6 +802,8 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
             await context.SaveChangesAsync();
+
+            return restaurant.Id;
         }
 
         private async Task<OwnerSeed> SeedOwnerLocationWithGuestAsync(
