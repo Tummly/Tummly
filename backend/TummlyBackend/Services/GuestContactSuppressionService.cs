@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -37,10 +38,8 @@ namespace TummlyBackend.Services
             ArgumentException.ThrowIfNullOrEmpty(source);
 
             var hash = _hasher.Hash(contactKey);
-            var withdrawn =
-                withdrawnAtUtc.Kind == DateTimeKind.Utc
-                    ? withdrawnAtUtc
-                    : withdrawnAtUtc.ToUniversalTime();
+            // Unspecified (SQL/datetime2) keeps wall time as UTC; Local converts.
+            var withdrawn = GuestsDateWindows.EnsureUtc(withdrawnAtUtc);
 
             var existing = await FindExistingAsync(
                 restaurantId,
@@ -65,7 +64,10 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            if (withdrawn > existing.WithdrawnAtUtc)
+            var existingWithdrawn = GuestsDateWindows.EnsureUtc(
+                existing.WithdrawnAtUtc
+            );
+            if (withdrawn > existingWithdrawn)
             {
                 existing.WithdrawnAtUtc = withdrawn;
                 existing.Source = source;

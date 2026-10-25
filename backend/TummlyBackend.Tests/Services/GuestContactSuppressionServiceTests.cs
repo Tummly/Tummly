@@ -168,5 +168,45 @@ namespace TummlyBackend.Tests.Services
             Assert.DoesNotContain("07123456789", row.ContactHash);
             Assert.Equal(64, row.ContactHash.Length);
         }
+
+        [Fact]
+        public async Task StageAsync_UnspecifiedWithdrawnAt_StoredAsThatWallTimeUtc()
+        {
+            // Unspecified is common from SQL datetime2 / new DateTime(...).
+            // ToUniversalTime() would treat it as local and shift the instant
+            // (e.g. Asia/Karachi UTC+5: 12:00 → 07:00 UTC).
+            var unspecified = new DateTime(
+                2026,
+                6,
+                15,
+                12,
+                0,
+                0,
+                DateTimeKind.Unspecified
+            );
+            var expectedUtc = new DateTime(
+                2026,
+                6,
+                15,
+                12,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
+
+            await _sut.StageAsync(
+                restaurantId: 1,
+                ContactKey,
+                LocationGuestPermissionKind.EmailMarketing,
+                unspecified,
+                GuestContactSuppressionSources.GuestDelete
+            );
+
+            var row = Assert.Single(
+                _context.GuestContactSuppressions.Local
+            );
+            Assert.Equal(DateTimeKind.Utc, row.WithdrawnAtUtc.Kind);
+            Assert.Equal(expectedUtc, row.WithdrawnAtUtc);
+        }
     }
 }
