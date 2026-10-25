@@ -14,16 +14,19 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IAdminAuditService _audit;
+        private readonly IGuestContactSuppressionService _suppressions;
         private readonly ILogger<GuestRetentionPurgeService> _logger;
 
         public GuestRetentionPurgeService(
             ApplicationDbContext context,
             IAdminAuditService audit,
+            IGuestContactSuppressionService suppressions,
             ILogger<GuestRetentionPurgeService> logger
         )
         {
             _context = context;
             _audit = audit;
+            _suppressions = suppressions;
             _logger = logger;
         }
 
@@ -142,7 +145,10 @@ namespace TummlyBackend.Services
 
                     await LocationGuestHardDelete.ApplyAsync(
                         _context,
+                        _suppressions,
                         guest,
+                        GuestContactSuppressionSources.RetentionPurge,
+                        nowUtc,
                         cancellationToken
                     );
                     deleted++;

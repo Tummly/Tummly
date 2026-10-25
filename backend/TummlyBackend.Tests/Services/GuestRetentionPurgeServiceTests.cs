@@ -35,9 +35,14 @@ namespace TummlyBackend.Tests.Services
 
             _context = new ApplicationDbContext(options);
             _audit = new AdminAuditService(_context, TimeProvider.System);
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                new GuestContactHasher("test-key")
+            );
             _purge = new GuestRetentionPurgeService(
                 _context,
                 _audit,
+                suppressions,
                 NullLogger<GuestRetentionPurgeService>.Instance
             );
         }
@@ -176,6 +181,41 @@ namespace TummlyBackend.Tests.Services
         /// GuestRetentionPurgedAtUtc and retention.guest_purge stay unset.
         /// </summary>
         [Fact]
+        public async Task Purge_WritesSuppressionWithRetentionSource()
+        {
+            var seeded = await SeedRestaurantAsync(
+                dormantEnteredAt: NowUtc.AddDays(-90),
+                guestCount: 1
+            );
+
+            var guest = await _context.LocationGuests.SingleAsync(lg =>
+                lg.RestaurantLocationId == seeded.LocationId
+            );
+            guest.MarketingPreference = LocationGuestMarketingPreference.OptedOut;
+            await _context.SaveChangesAsync();
+
+            var result = await _purge.ProcessOnceAsync(NowUtc);
+
+            Assert.Equal(1, result.Purged);
+            Assert.Equal(1, result.GuestsDeleted);
+
+            var rows = await _context.GuestContactSuppressions.ToListAsync();
+            Assert.NotEmpty(rows);
+            Assert.All(
+                rows,
+                row =>
+                {
+                    Assert.Equal(
+                        GuestContactSuppressionSources.RetentionPurge,
+                        row.Source
+                    );
+                    Assert.Equal(seeded.RestaurantId, row.RestaurantId);
+                    Assert.Equal(NowUtc, row.WithdrawnAtUtc);
+                }
+            );
+        }
+
+        [Fact]
         public async Task ProcessOnce_WhenAuditAppendThrows_LeavesStampNullAndWritesNoAudit()
         {
             var seeded = await SeedRestaurantAsync(
@@ -186,6 +226,10 @@ namespace TummlyBackend.Tests.Services
             var purge = new GuestRetentionPurgeService(
                 _context,
                 new ThrowingAdminAuditService(),
+                new GuestContactSuppressionService(
+                    _context,
+                    new GuestContactHasher("test-key")
+                ),
                 NullLogger<GuestRetentionPurgeService>.Instance
             );
 
