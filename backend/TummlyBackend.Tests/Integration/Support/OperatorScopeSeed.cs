@@ -86,7 +86,7 @@ namespace TummlyBackend.Tests.Integration.Support
                 Email = $"ws2b-member-{Guid.NewGuid():N}@example.com",
                 PasswordHash = "hash",
                 PhoneNumber = "07700900213",
-                Role = "Owner",
+                Role = "User",
                 AccountType = "Multi",
                 IsEmailVerified = true,
                 IsApprovedByAdmin = true,

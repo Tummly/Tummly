@@ -42,6 +42,10 @@ namespace TummlyBackend.Tests.Integration
                 Assert.Equal(seeded.RestaurantId, inScope.RestaurantId);
                 Assert.Equal(seeded.RestaurantId, outOfScope.RestaurantId);
                 Assert.NotEqual(seeded.RestaurantId, otherTenant.RestaurantId);
+
+                var member = context.Users
+                    .Single(u => u.Id == seeded.MemberUserId);
+                Assert.NotEqual("Owner", member.Role);
             }
 
             var inScopeResponse = await GetGuestsAsync(
