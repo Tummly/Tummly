@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Billing.CustomPlan;
-using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.DTOs.Signup;
@@ -803,31 +802,6 @@ namespace TummlyBackend.Services
                             ),
                         }
                     );
-                    // Group with up to 30 Locations and no packs stays a standard
-                    // Group: its extras renew through the fixed Revolut variation,
-                    // which is exact up to 30 (decision 26 Oct). Above 30 the quote
-                    // stores Custom with the banded amount.
-                    if (
-                        string.Equals(
-                            chosen,
-                            BillingSubscriptionPlans.Group,
-                            StringComparison.Ordinal
-                        )
-                        && string.Equals(
-                            quote.StoredAsPlan,
-                            BillingSubscriptionPlans.Custom,
-                            StringComparison.Ordinal
-                        )
-                        && quote.Locations <= LocationCap.GroupSelfServeMax
-                        && quote.Packs.Count == 0
-                    )
-                    {
-                        pending.ChosenPlan = BillingSubscriptionPlans.Group;
-                        pending.ChosenCadence = quote.Cadence;
-                        pending.CustomPlanConfigJson = null;
-                        return;
-                    }
-
                     pending.ChosenPlan = quote.StoredAsPlan;
                     pending.ChosenCadence = quote.Cadence;
                     pending.CustomPlanConfigJson = string.Equals(

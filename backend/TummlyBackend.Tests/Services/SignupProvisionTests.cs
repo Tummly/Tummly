@@ -233,7 +233,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SaveOnboarding_Group30Locations_StaysGroup()
+        public async Task SaveOnboarding_Group30Locations_SavedAsCustomWithBandedAmount()
         {
             await SeedVerifiedPendingAsync();
             var dto = BuildValidOnboardingDto();
@@ -253,8 +253,11 @@ namespace TummlyBackend.Tests.Services
             await _signup.SaveOnboardingAsync(_sessionToken, dto);
             await _db.Entry(_pending).ReloadAsync();
 
-            Assert.Equal(BillingSubscriptionPlans.Group, _pending.ChosenPlan);
-            Assert.Null(_pending.CustomPlanConfigJson);
+            Assert.Equal(BillingSubscriptionPlans.Custom, _pending.ChosenPlan);
+            var config = CustomPlanConfig.TryParse(_pending.CustomPlanConfigJson);
+            Assert.NotNull(config);
+            Assert.Equal(30, config!.Locations);
+            Assert.Equal(117400, config.PeriodNetPence);
         }
 
         [Fact]
