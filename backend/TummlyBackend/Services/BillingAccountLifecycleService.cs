@@ -14,6 +14,18 @@ namespace TummlyBackend.Services
 
         public const int PilotDormantHours = 15 * 24;
 
+        public const string PilotExtensionInvalidDaysCode = "pilot_extension_invalid_days";
+
+        public const string PilotExtensionNotAllowedCode = "pilot_extension_not_allowed";
+
+        public const string PilotExtensionLimitCode = "pilot_extension_limit";
+
+        public const int PilotExtensionMaxCount = 2;
+
+        public const int PilotExtensionMaxDaysTotal = 90;
+
+        public static readonly int[] PilotExtensionDayOptions = [14, 30];
+
         public const int DunningSoftLockHours = 10 * 24;
 
         public const int DunningDormantHours = 24 * 24;
@@ -180,45 +192,39 @@ namespace TummlyBackend.Services
             );
         }
 
-        public async Task<BillingLifecycleCommandResult> ExtendPilotActivationAsync(
+        public async Task<PilotExtensionResult> ExtendPilotAsync(
             int restaurantId,
-            DateTime newPeriodEnd,
+            int days,
+            string? idempotencyKey,
             DateTime now,
             CancellationToken cancellationToken = default
         )
         {
-            BillingLifecycleCommandResult? result = null;
-            await MutateAsync(
-                restaurantId,
-                cancellationToken,
-                account =>
+            // Joins an ambient transaction (Admin audit commits with it) when one
+            // is open. Otherwise opens and commits its own.
+            var ownTransaction =
+                _context.Database.IsRelational()
+                && _context.Database.CurrentTransaction == null
+                    ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                    : null;
+
+            await using (ownTransaction)
+            {
+                var result = await ExtendPilotLockedAsync(
+                    restaurantId,
+                    days,
+                    idempotencyKey,
+                    now,
+                    cancellationToken
+                );
+
+                if (ownTransaction != null)
                 {
-                    var lockedUnpaidPilot =
-                        IsPilotPlan(account)
-                        && (
-                            account.BillingStatus == BillingStatuses.SoftLock
-                            || account.BillingStatus == BillingStatuses.Dormant
-                        );
-
-                    if (!lockedUnpaidPilot)
-                    {
-                        result = BillingLifecycleCommandResult.Refuse("not-extendable");
-                        return Task.FromResult(new List<LifecycleEvent>());
-                    }
-
-                    account.PilotPeriodEnd = newPeriodEnd;
-                    account.BillingStatus = BillingStatuses.Pilot;
-                    account.SoftLockEnteredAt = null;
-                    account.DormantEnteredAt = null;
-                    account.GuestRetentionPurgedAtUtc = null;
-                    account.PilotSoftLockNotified = false;
-                    account.PilotDormantNotified = false;
-                    result = BillingLifecycleCommandResult.Ok();
-                    return Task.FromResult(new List<LifecycleEvent>());
+                    await ownTransaction.CommitAsync(cancellationToken);
                 }
-            );
 
-            return result ?? BillingLifecycleCommandResult.NoOp();
+                return result;
+            }
         }
 
         public async Task SetChargebackRestrictionAsync(
@@ -274,6 +280,120 @@ namespace TummlyBackend.Services
             billingAccount.PilotDormantNotified = false;
             return BillingLifecycleCommandResult.Ok();
         }
+
+        private async Task<PilotExtensionResult> ExtendPilotLockedAsync(
+            int restaurantId,
+            int days,
+            string? idempotencyKey,
+            DateTime now,
+            CancellationToken cancellationToken
+        )
+        {
+            var account = await LoadForUpdateAsync(restaurantId, cancellationToken);
+            if (account == null)
+            {
+                return RefusedPilotExtension(PilotExtensionNotAllowedCode, null, 0, 0);
+            }
+
+            var key = string.IsNullOrWhiteSpace(idempotencyKey)
+                ? null
+                : idempotencyKey.Trim();
+            if (
+                key != null
+                && string.Equals(
+                    account.LastPilotExtensionKey,
+                    key,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return new PilotExtensionResult(
+                    "replayed",
+                    null,
+                    null,
+                    account.PilotPeriodEnd,
+                    account.PilotExtensionCount,
+                    account.PilotExtensionDaysTotal
+                );
+            }
+
+            var oldEnd = account.PilotPeriodEnd;
+
+            if (!PilotExtensionDayOptions.Contains(days))
+            {
+                return RefusedPilotExtension(
+                    PilotExtensionInvalidDaysCode,
+                    oldEnd,
+                    account.PilotExtensionCount,
+                    account.PilotExtensionDaysTotal
+                );
+            }
+
+            var unpaidPilotOpen =
+                IsPilotPlan(account)
+                && (
+                    account.BillingStatus == BillingStatuses.Pilot
+                    || account.BillingStatus == BillingStatuses.SoftLock
+                );
+            if (!unpaidPilotOpen)
+            {
+                return RefusedPilotExtension(
+                    PilotExtensionNotAllowedCode,
+                    oldEnd,
+                    account.PilotExtensionCount,
+                    account.PilotExtensionDaysTotal
+                );
+            }
+
+            if (
+                account.PilotExtensionCount >= PilotExtensionMaxCount
+                || account.PilotExtensionDaysTotal + days > PilotExtensionMaxDaysTotal
+            )
+            {
+                return RefusedPilotExtension(
+                    PilotExtensionLimitCode,
+                    oldEnd,
+                    account.PilotExtensionCount,
+                    account.PilotExtensionDaysTotal
+                );
+            }
+
+            var basis = oldEnd is { } currentEnd && currentEnd > now ? currentEnd : now;
+            var newEnd = basis.AddDays(days);
+
+            account.PilotPeriodEnd = newEnd;
+            account.BillingStatus = BillingStatuses.Pilot;
+            account.SoftLockEnteredAt = null;
+            account.GuestRetentionPurgedAtUtc = null;
+            account.PilotSoftLockNotified = false;
+            account.PilotDormantNotified = false;
+            account.PilotExtensionCount += 1;
+            account.PilotExtensionDaysTotal += days;
+            account.LastPilotExtensionKey = key;
+            await PilotClockSync.SetForRestaurantAsync(
+                _context,
+                restaurantId,
+                newEnd,
+                cancellationToken
+            );
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return new PilotExtensionResult(
+                "extended",
+                null,
+                oldEnd,
+                newEnd,
+                account.PilotExtensionCount,
+                account.PilotExtensionDaysTotal
+            );
+        }
+
+        private static PilotExtensionResult RefusedPilotExtension(
+            string code,
+            DateTime? oldEnd,
+            int countAfter,
+            int daysTotalAfter
+        ) => new("refused", code, oldEnd, null, countAfter, daysTotalAfter);
 
         private async Task<List<LifecycleEvent>> MutateAsync(
             int restaurantId,

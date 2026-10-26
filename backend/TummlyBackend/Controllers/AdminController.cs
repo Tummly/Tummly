@@ -230,7 +230,7 @@ namespace TummlyBackend.Controllers
                 }
 
                 var result =
-                    await _adminService.ExtendActivationAsync(
+                    await _adminService.ExtendPilotAsync(
                         userId,
                         dto,
                         staffId,
@@ -246,10 +246,26 @@ namespace TummlyBackend.Controllers
                     });
                 }
 
+                if (result.Outcome == "refused")
+                {
+                    var refusal = new
+                    {
+                        success = false,
+                        code = result.Code,
+                        message = PilotExtensionRefusalMessage(result.Code),
+                    };
+
+                    return result.Code
+                        == BillingAccountLifecycleService.PilotExtensionInvalidDaysCode
+                            ? BadRequest(refusal)
+                            : Conflict(refusal);
+                }
+
+                var account = await _adminService.GetPilotAccountAsync(userId);
                 return Ok(new
                 {
                     success = true,
-                    data = result,
+                    data = account,
                 });
             }
             catch (ArgumentException ex)
@@ -261,6 +277,29 @@ namespace TummlyBackend.Controllers
                 });
             }
         }
+
+        [HttpGet("pilot-accounts")]
+        public async Task<IActionResult> ListPilotAccounts()
+        {
+            var accounts = await _adminService.ListPilotAccountsAsync();
+
+            return Ok(new
+            {
+                success = true,
+                data = accounts,
+            });
+        }
+
+        private static string PilotExtensionRefusalMessage(string? code) =>
+            code switch
+            {
+                BillingAccountLifecycleService.PilotExtensionInvalidDaysCode =>
+                    "Choose 14 or 30 days.",
+                BillingAccountLifecycleService.PilotExtensionLimitCode =>
+                    $"This Pilot has used its extensions. The limit is {BillingAccountLifecycleService.PilotExtensionMaxCount} extensions and {BillingAccountLifecycleService.PilotExtensionMaxDaysTotal} days in total.",
+                _ =>
+                    "Only a Pilot that is active or locked can be extended.",
+            };
 
         [HttpGet("operators/{userId}/activation-download")]
         public async Task<IActionResult> DownloadActivationAsset(int userId)

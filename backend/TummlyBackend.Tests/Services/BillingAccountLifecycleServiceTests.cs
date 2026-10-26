@@ -562,33 +562,268 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ExtendPilotActivation_ClearsGuestRetentionPurgedAt()
+        public async Task ExtendPilot_Active14_MovesEndFromCurrentEnd()
         {
-            var periodEnd = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc);
-            var dormantAt = periodEnd.AddHours(
-                BillingAccountLifecycleService.PilotDormantHours
-            );
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
             var seeded = await SeedPilotAsync(periodEnd);
-            await _lifecycle.TickAsync(seeded.RestaurantId, dormantAt);
 
-            var account = await ReloadAsync(seeded.RestaurantId);
-            account.GuestRetentionPurgedAtUtc = dormantAt.AddDays(90);
-            await _context.SaveChangesAsync();
-
-            var now = dormantAt.AddDays(91);
-            var newPeriodEnd = now.AddDays(30);
-            var result = await _lifecycle.ExtendPilotActivationAsync(
+            var result = await _lifecycle.ExtendPilotAsync(
                 seeded.RestaurantId,
-                newPeriodEnd,
+                14,
+                "key-active-14",
                 now
             );
 
-            Assert.True(result.Applied);
+            Assert.Equal("extended", result.Outcome);
+            Assert.Null(result.Code);
+            Assert.Equal(periodEnd, result.OldEndUtc);
+            Assert.Equal(periodEnd.AddDays(14), result.NewEndUtc);
+            Assert.Equal(1, result.CountAfter);
+            Assert.Equal(14, result.DaysTotalAfter);
+
             var after = await ReloadAsync(seeded.RestaurantId);
             Assert.Equal(BillingStatuses.Pilot, after.BillingStatus);
-            Assert.Null(after.GuestRetentionPurgedAtUtc);
-            Assert.Null(after.DormantEnteredAt);
-            Assert.Equal(newPeriodEnd, after.PilotPeriodEnd);
+            Assert.Equal(periodEnd.AddDays(14), after.PilotPeriodEnd);
+            Assert.Equal(1, after.PilotExtensionCount);
+            Assert.Equal(14, after.PilotExtensionDaysTotal);
+            Assert.Equal("key-active-14", after.LastPilotExtensionKey);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_SoftLocked30_MovesEndFromNow_LiftsLock()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(-3);
+            var seeded = await SeedPilotAsync(periodEnd);
+            var locked = await ReloadAsync(seeded.RestaurantId);
+            locked.BillingStatus = BillingStatuses.SoftLock;
+            locked.SoftLockEnteredAt = periodEnd;
+            locked.PilotSoftLockNotified = true;
+            await _context.SaveChangesAsync();
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                30,
+                "key-lock-30",
+                now
+            );
+
+            Assert.Equal("extended", result.Outcome);
+            Assert.Equal(now.AddDays(30), result.NewEndUtc);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.Pilot, after.BillingStatus);
+            Assert.Equal(now.AddDays(30), after.PilotPeriodEnd);
+            Assert.Null(after.SoftLockEnteredAt);
+            Assert.False(after.PilotSoftLockNotified);
+            Assert.False(after.PilotDormantNotified);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_InvalidDays7_Refused()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(periodEnd);
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                7,
+                "key-days-7",
+                now
+            );
+
+            Assert.Equal("refused", result.Outcome);
+            Assert.Equal("pilot_extension_invalid_days", result.Code);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(periodEnd, after.PilotPeriodEnd);
+            Assert.Equal(0, after.PilotExtensionCount);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_Third_RefusedLimit()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(
+                periodEnd,
+                extensionCount: 2,
+                extensionDaysTotal: 28
+            );
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-third",
+                now
+            );
+
+            Assert.Equal("refused", result.Outcome);
+            Assert.Equal("pilot_extension_limit", result.Code);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(periodEnd, after.PilotPeriodEnd);
+            Assert.Equal(2, after.PilotExtensionCount);
+            Assert.Equal(28, after.PilotExtensionDaysTotal);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_TotalOver90_RefusedLimit()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(
+                periodEnd,
+                extensionCount: 1,
+                extensionDaysTotal: 75
+            );
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                30,
+                "key-total-105",
+                now
+            );
+
+            Assert.Equal("refused", result.Outcome);
+            Assert.Equal("pilot_extension_limit", result.Code);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(1, after.PilotExtensionCount);
+            Assert.Equal(75, after.PilotExtensionDaysTotal);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_Dormant_RefusedNotAllowed()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(-20);
+            var seeded = await SeedPilotAsync(
+                periodEnd,
+                status: BillingStatuses.Dormant
+            );
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-dormant",
+                now
+            );
+
+            Assert.Equal("refused", result.Outcome);
+            Assert.Equal("pilot_extension_not_allowed", result.Code);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.Dormant, after.BillingStatus);
+            Assert.Equal(0, after.PilotExtensionCount);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_PaidPlan_RefusedNotAllowed()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedPaidAsync();
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-paid",
+                now
+            );
+
+            Assert.Equal("refused", result.Outcome);
+            Assert.Equal("pilot_extension_not_allowed", result.Code);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Growth, after.SubscriptionPlan);
+            Assert.Equal(0, after.PilotExtensionCount);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_SameKeyTwice_ExtendsOnce()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(periodEnd);
+
+            var first = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "same-key",
+                now
+            );
+            var second = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "same-key",
+                now
+            );
+
+            Assert.Equal("extended", first.Outcome);
+            Assert.Equal("replayed", second.Outcome);
+            Assert.Equal(1, second.CountAfter);
+            Assert.Equal(14, second.DaysTotalAfter);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(periodEnd.AddDays(14), after.PilotPeriodEnd);
+            Assert.Equal(1, after.PilotExtensionCount);
+            Assert.Equal(14, after.PilotExtensionDaysTotal);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_KeepsStart()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var startedAt = now.AddDays(-20);
+            var seeded = await SeedPilotAsync(
+                now.AddDays(-6),
+                startedAt: startedAt,
+                status: BillingStatuses.SoftLock
+            );
+
+            await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-start", now);
+
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(startedAt, after.PilotStartedAtUtc);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_SyncsMembersClock()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(periodEnd);
+            var memberId = await AddActiveMemberAsync(seeded.RestaurantId, periodEnd);
+
+            await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-members", now);
+
+            _context.ChangeTracker.Clear();
+            var owner = await _context.Users.SingleAsync(row => row.Id == seeded.OwnerId);
+            var member = await _context.Users.SingleAsync(row => row.Id == memberId);
+            Assert.Equal(periodEnd.AddDays(14), owner.ActivationExpiresAt);
+            Assert.Equal(periodEnd.AddDays(14), member.ActivationExpiresAt);
+        }
+
+        private async Task<int> AddActiveMemberAsync(int restaurantId, DateTime clock)
+        {
+            var member = new User
+            {
+                FullName = "Pilot Member",
+                Email = $"member-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "hash",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                ActivationExpiresAt = clock,
+            };
+            _context.Users.Add(member);
+            await _context.SaveChangesAsync();
+
+            _context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = member.Id,
+                    RestaurantId = restaurantId,
+                    PermissionRole = PermissionRoles.Staff,
+                    Status = MembershipStatus.Active,
+                }
+            );
+            await _context.SaveChangesAsync();
+            return member.Id;
         }
 
         [Fact]
@@ -643,7 +878,13 @@ namespace TummlyBackend.Tests.Services
             Assert.Single(_notifier.PilotDormantEnters);
         }
 
-        private async Task<SeededAccount> SeedPilotAsync(DateTime periodEnd)
+        private async Task<SeededAccount> SeedPilotAsync(
+            DateTime periodEnd,
+            string status = BillingStatuses.Pilot,
+            DateTime? startedAt = null,
+            int extensionCount = 0,
+            int extensionDaysTotal = 0
+        )
         {
             var owner = new User
             {
@@ -677,10 +918,13 @@ namespace TummlyBackend.Tests.Services
                 {
                     RestaurantId = restaurant.Id,
                     SubscriptionPlan = BillingSubscriptionPlans.Pilot,
-                    BillingStatus = BillingStatuses.Pilot,
+                    BillingStatus = status,
                     ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
                     StarterKitState = StarterKitStates.Unused,
                     PilotPeriodEnd = periodEnd,
+                    PilotStartedAtUtc = startedAt,
+                    PilotExtensionCount = extensionCount,
+                    PilotExtensionDaysTotal = extensionDaysTotal,
                 }
             );
             await _context.SaveChangesAsync();

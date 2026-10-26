@@ -86,10 +86,5 @@ namespace TummlyBackend.Helpers
         {
             return activatedAt.AddDays(ActivationPeriodDays);
         }
-
-        public static DateTime ComputeDefaultExtensionExpiresAt()
-        {
-            return DateTime.UtcNow.AddDays(ActivationPeriodDays);
-        }
     }
 }

@@ -34,12 +34,13 @@ namespace TummlyBackend.Tests.Helpers
             CancellationToken cancellationToken = default
         ) => Task.CompletedTask;
 
-        public Task<BillingLifecycleCommandResult> ExtendPilotActivationAsync(
+        public Task<PilotExtensionResult> ExtendPilotAsync(
             int restaurantId,
-            DateTime newPeriodEnd,
+            int days,
+            string? idempotencyKey,
             DateTime now,
             CancellationToken cancellationToken = default
-        ) => Task.FromResult(BillingLifecycleCommandResult.NoOp());
+        ) => Task.FromResult(new PilotExtensionResult("refused", "pilot_extension_not_allowed", null, null, 0, 0));
 
         public Task SetChargebackRestrictionAsync(
             int restaurantId,
