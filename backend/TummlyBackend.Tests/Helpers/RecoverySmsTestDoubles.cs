@@ -75,6 +75,12 @@ namespace TummlyBackend.Tests.Helpers
 
         /// <summary>Make the post-acceptance reply save throw.</summary>
         public bool FailSave { get; set; }
+
+        /// <summary>Make the save of the Pending reply row (before the provider call) throw.</summary>
+        public bool FailPendingSave { get; set; }
+
+        /// <summary>Make the save that moves the reply to Failed throw.</summary>
+        public bool FailFailedSave { get; set; }
     }
 
     /// <summary>
@@ -110,6 +116,26 @@ namespace TummlyBackend.Tests.Helpers
             }
 
             return base.CompleteAsync(reservation, row, cancellationToken);
+        }
+
+        protected override Task SavePendingChangesAsync(CancellationToken cancellationToken)
+        {
+            if (_faults.FailPendingSave)
+            {
+                throw new InvalidOperationException("Test fault: pending reply save.");
+            }
+
+            return base.SavePendingChangesAsync(cancellationToken);
+        }
+
+        protected override Task SaveFailedChangesAsync(CancellationToken cancellationToken)
+        {
+            if (_faults.FailFailedSave)
+            {
+                throw new InvalidOperationException("Test fault: failed reply save.");
+            }
+
+            return base.SaveFailedChangesAsync(cancellationToken);
         }
 
         protected override Task SaveReplyChangesAsync(CancellationToken cancellationToken)

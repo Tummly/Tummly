@@ -165,10 +165,18 @@ namespace TummlyBackend.Services
         {
             try
             {
-                await _context.SaveChangesAsync(cancellationToken);
+                await SavePendingChangesAsync(cancellationToken);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(
+                    "Recovery SMS pending reply could not be saved before the send. ExceptionType {ExceptionType} FeedbackId {FeedbackId} RestaurantId {RestaurantId} ReservationRef {ReservationRef}",
+                    ex.GetType().Name,
+                    reservation.FeedbackId,
+                    reservation.RestaurantId,
+                    reservation.ReservationRef
+                );
+
                 // Nothing was sent yet. Drop the unsaved row and give the credits back.
                 var entry = _context.Entry(row);
                 if (entry.State != EntityState.Detached)
@@ -189,14 +197,19 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                throw;
+                if (ex is OperationCanceledException)
+                {
+                    throw;
+                }
+
+                // Not an InvalidOperationException, so the controller does not return 401.
+                throw new GuestReplySmsSendFailedException();
             }
         }
 
         public async Task SaveFailedReplyAsync(
             FeedbackGuestResponse row,
-            DateTime atUtc,
-            CancellationToken cancellationToken
+            DateTime atUtc
         )
         {
             GuestReplyDeliveryStateMachine.TryAdvance(
@@ -204,7 +217,35 @@ namespace TummlyBackend.Services
                 GuestReplyDeliveryState.Failed,
                 atUtc
             );
-            await _context.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                // No request token: a client disconnect must not leave the row Pending.
+                await SaveFailedChangesAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                // The row stays Pending and blocks a retry for 10 minutes. The caller
+                // still returns the failed result (502).
+                _logger.LogError(
+                    "Recovery SMS reply could not be moved to Failed. ExceptionType {ExceptionType} FeedbackId {FeedbackId} GuestResponseId {GuestResponseId}",
+                    ex.GetType().Name,
+                    row.FeedbackId,
+                    row.Id
+                );
+            }
+        }
+
+        /// <summary>The Pending reply save. A seam for tests that inject a save failure.</summary>
+        protected virtual Task SavePendingChangesAsync(CancellationToken cancellationToken)
+        {
+            return _context.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>The Failed reply save. A seam for tests that inject a save failure.</summary>
+        protected virtual Task SaveFailedChangesAsync(CancellationToken cancellationToken)
+        {
+            return _context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<GuestReplySmsOutcome> SendAndSettleAsync(

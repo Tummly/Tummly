@@ -1146,6 +1146,105 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ReplySms_ProviderFailed_FailedSaveThrows_Returns502()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Failed
+                {
+                    Message = "Provider down.",
+                }
+            );
+            var faults = new SmsStepFaults { FailFailedSave = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-failed-save-throws-tok",
+                ContactType.Phone,
+                "+447911123515",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-failed-save-throws-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("sms_send_failed", body.GetProperty("code").GetString());
+            Assert.Single(delivery.Calls);
+        }
+
+        [Fact]
+        public async Task ReplySms_PendingSaveFails_ReleasesHold_Returns502()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            var faults = new SmsStepFaults { FailPendingSave = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-pending-save-fails-tok",
+                ContactType.Phone,
+                "+447911123516",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-pending-save-fails-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("sms_send_failed", body.GetProperty("code").GetString());
+            Assert.Empty(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.FeedbackGuestResponses.CountAsync(r =>
+                    r.FeedbackId == seeded.FeedbackId
+                )
+            );
+            Assert.Equal(
+                0,
+                await context.RecoverySmsSendIdempotencies.CountAsync(row =>
+                    row.FeedbackId == seeded.FeedbackId
+                )
+            );
+
+            var snapshot = scope.ServiceProvider
+                .GetRequiredService<ICreditBalanceSnapshot>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var account = await snapshot.GetAccountAsync(restaurantId);
+            var sms = Assert.Single(
+                account!.Channels,
+                row => row.Channel == CreditChannels.Sms
+            );
+            Assert.Equal(0, sms.Held);
+            Assert.Equal(10, sms.Remaining);
+        }
+
+        [Fact]
         public async Task SendGuestResponse_Sms_SameIdempotencyKeyBeforeTtlDoesNotDoubleBurn()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(

@@ -254,7 +254,7 @@ namespace TummlyBackend.Services
 
             if (outcome.Kind == GuestReplySmsOutcomeKind.Failed)
             {
-                await _smsSend.SaveFailedReplyAsync(guestResponse, now, cancellationToken);
+                await _smsSend.SaveFailedReplyAsync(guestResponse, now);
                 throw new GuestReplySmsSendFailedException();
             }
 

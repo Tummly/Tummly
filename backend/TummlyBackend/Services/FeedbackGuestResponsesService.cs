@@ -298,7 +298,7 @@ namespace TummlyBackend.Services
             {
                 // The provider refused the text and the hold is released. The row
                 // moves to Failed, so the duplicate rule lets a retry through.
-                await _smsSend.SaveFailedReplyAsync(row, now, cancellationToken);
+                await _smsSend.SaveFailedReplyAsync(row, now);
                 throw new GuestReplySmsSendFailedException();
             }
 

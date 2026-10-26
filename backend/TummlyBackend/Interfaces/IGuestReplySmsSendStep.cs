@@ -34,7 +34,9 @@ namespace TummlyBackend.Interfaces
         /// <summary>
         /// Saves the reply row (Pending, no SID) before the provider call. The row makes
         /// the duplicate rule see the send even if a later save fails. When the save
-        /// fails, the row is detached, the hold is released and the exception is rethrown.
+        /// fails, the row is detached, the hold is released and
+        /// <see cref="Services.GuestReplySmsSendFailedException"/> is thrown (cancellation
+        /// is rethrown as is).
         /// The caller has added the row to the context.
         /// </summary>
         Task SavePendingReplyAsync(
@@ -46,11 +48,12 @@ namespace TummlyBackend.Interfaces
         /// <summary>
         /// After a failed send (the hold is already released): moves the saved reply to
         /// Failed and saves. The duplicate rule ignores Failed rows, so a retry is allowed.
+        /// The save ignores the request token. A save failure is logged and not thrown,
+        /// so the caller still returns the failed result.
         /// </summary>
         Task SaveFailedReplyAsync(
             FeedbackGuestResponse row,
-            DateTime atUtc,
-            CancellationToken cancellationToken
+            DateTime atUtc
         );
 
         /// <summary>
