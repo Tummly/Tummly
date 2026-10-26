@@ -303,18 +303,19 @@ namespace TummlyBackend.Services
                 // record is kept.
                 _smsSend.ApplyUnknownOutcome(row, reservation, now);
                 _context.FeedbackGuestResponses.Add(row);
-                await _context.SaveChangesAsync(CancellationToken.None);
+                await _smsSend.SaveRecordedUnknownReplyAsync(reservation, CancellationToken.None);
 
                 throw new GuestReplySmsSendFailedException();
             }
 
             _smsSend.ApplyAccepted(row, reservation, outcome.Accepted!, now);
             _context.FeedbackGuestResponses.Add(row);
-            if (outcome.Settled)
-            {
-                await _smsSend.CompleteAsync(reservation, row, cancellationToken);
-            }
-            await _context.SaveChangesAsync(cancellationToken);
+            await _smsSend.SaveAcceptedReplyAsync(
+                reservation,
+                outcome.Settled,
+                row,
+                cancellationToken
+            );
 
             return BuildResult(feedback, row);
         }

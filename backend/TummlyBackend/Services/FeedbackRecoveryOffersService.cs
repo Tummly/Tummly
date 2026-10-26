@@ -413,17 +413,18 @@ namespace TummlyBackend.Services
                     // Keep the Claim open. The save ignores cancellation so the
                     // record is kept.
                     _smsSend.ApplyUnknownOutcome(guestResponse, reservation, now);
-                    await _context.SaveChangesAsync(CancellationToken.None);
+                    await _smsSend.SaveRecordedUnknownReplyAsync(reservation, CancellationToken.None);
 
                     throw new GuestReplySmsSendFailedException();
             }
 
             _smsSend.ApplyAccepted(guestResponse, reservation, outcome.Accepted!, now);
-            if (outcome.Settled)
-            {
-                await _smsSend.CompleteAsync(reservation, guestResponse, cancellationToken);
-            }
-            await _context.SaveChangesAsync(cancellationToken);
+            await _smsSend.SaveAcceptedReplyAsync(
+                reservation,
+                outcome.Settled,
+                guestResponse,
+                cancellationToken
+            );
         }
 
         private void DetachIfTracked(object? entity)

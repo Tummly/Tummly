@@ -961,6 +961,88 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ReplySms_CompleteFailsAfterAccept_ReturnsSuccess()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            var faults = new SmsStepFaults { FailComplete = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-complete-fail-tok",
+                ContactType.Phone,
+                "+447911123500",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-complete-fail-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply.DeliveryState);
+            Assert.StartsWith("SMrecorded-", reply.ProviderMessageId);
+        }
+
+        [Fact]
+        public async Task ReplySms_FinalSaveFailsAfterAccept_Returns502NotUnauthorized()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            var faults = new SmsStepFaults { FailSave = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-final-save-fail-tok",
+                ContactType.Phone,
+                "+447911123501",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-final-save-fail-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("sms_send_failed", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "The reply was not confirmed as sent. Check its status before trying again.",
+                body.GetProperty("message").GetString()
+            );
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.FeedbackGuestResponses.CountAsync(r => r.FeedbackId == seeded.FeedbackId)
+            );
+        }
+
+        [Fact]
         public async Task SendGuestResponse_Sms_SameIdempotencyKeyBeforeTtlDoesNotDoubleBurn()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
@@ -1654,7 +1736,8 @@ namespace TummlyBackend.Tests.Integration
 
         private WebApplicationFactory<Program> CreateFactoryWithSmsDelivery(
             IRecoveryGuestSmsDelivery delivery,
-            bool settleFails = false
+            bool settleFails = false,
+            SmsStepFaults? faults = null
         )
         {
             return _factory.WithWebHostBuilder(builder =>
@@ -1671,6 +1754,10 @@ namespace TummlyBackend.Tests.Integration
                     }
 
                     services.AddSingleton<IRecoveryGuestSmsDelivery>(delivery);
+                    if (faults != null)
+                    {
+                        RecoverySmsTestServices.UseFaultySmsStep(services, faults);
+                    }
                     if (settleFails)
                     {
                         ReplaceWithSettleFailingBilling(services);

@@ -10,7 +10,7 @@ namespace TummlyBackend.Services
     /// Reserve, send and settle for guest-reply SMS. The same steps run for a
     /// plain reply, a Recovery Offer and a Respond-and-Record send.
     /// </summary>
-    public sealed class GuestReplySmsSendStep : IGuestReplySmsSendStep
+    public class GuestReplySmsSendStep : IGuestReplySmsSendStep
     {
         private static readonly string TrackingKeyAnonymousPrefix = "anon:";
 
@@ -244,22 +244,8 @@ namespace TummlyBackend.Services
                     );
                     return false;
                 }
-
-                // Lock 05 / ticket 22: settle accepted units, then release unused hold
-                // (same close order as CampaignBillingClose). Release fail must not
-                // withhold the guest-response fact; leftover hold stays for the sweeper.
-                await _smsBilling.ReleaseAsync(
-                    new RecoverySmsBillingReleaseRequest
-                    {
-                        FeedbackId = reservation.FeedbackId,
-                        ReservationRef = reservation.ReservationRef,
-                    },
-                    cancellationToken
-                );
-
-                return true;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(
                     "Recovery SMS settle threw {ExceptionType} after provider accept. Hold left for the sweeper. ReservationRef {ReservationRef}",
@@ -268,6 +254,101 @@ namespace TummlyBackend.Services
                 );
                 return false;
             }
+
+            // Lock 05 / ticket 22: settle accepted units, then release unused hold.
+            // If the release throws, the hold stays open for the sweeper.
+            try
+            {
+                await _smsBilling.ReleaseAsync(
+                    new RecoverySmsBillingReleaseRequest
+                    {
+                        FeedbackId = reservation.FeedbackId,
+                        ReservationRef = reservation.ReservationRef,
+                    },
+                    cancellationToken
+                );
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(
+                    "Recovery SMS hold release threw {ExceptionType} after settle. Hold left for the sweeper. ReservationRef {ReservationRef}",
+                    ex.GetType().Name,
+                    reservation.ReservationRef
+                );
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Saves the reply after the provider accepted it. A settled reply completes its
+        /// idempotency record first. A completion failure is logged and the reply is still
+        /// saved. A save failure throws <see cref="GuestReplySmsSendFailedException"/>, never
+        /// an InvalidOperationException, so the controller does not return 401.
+        /// </summary>
+        public async Task SaveAcceptedReplyAsync(
+            GuestReplySmsReservation reservation,
+            bool settled,
+            FeedbackGuestResponse row,
+            CancellationToken cancellationToken
+        )
+        {
+            if (settled)
+            {
+                try
+                {
+                    await CompleteAsync(reservation, row, cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(
+                        "Recovery SMS idempotency completion threw {ExceptionType} after provider accept. The reply is saved without completion. FeedbackId {FeedbackId} RestaurantId {RestaurantId} ReservationRef {ReservationRef}",
+                        ex.GetType().Name,
+                        reservation.FeedbackId,
+                        reservation.RestaurantId,
+                        reservation.ReservationRef
+                    );
+                }
+            }
+
+            await SaveReplyOrFailAsync(reservation, cancellationToken);
+        }
+
+        public Task SaveRecordedUnknownReplyAsync(
+            GuestReplySmsReservation reservation,
+            CancellationToken cancellationToken
+        )
+        {
+            return SaveReplyOrFailAsync(reservation, cancellationToken);
+        }
+
+        private async Task SaveReplyOrFailAsync(
+            GuestReplySmsReservation reservation,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                await SaveReplyChangesAsync(cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(
+                    "Recovery SMS reply could not be saved after provider accept. ExceptionType {ExceptionType} FeedbackId {FeedbackId} RestaurantId {RestaurantId} ReservationRef {ReservationRef}",
+                    ex.GetType().Name,
+                    reservation.FeedbackId,
+                    reservation.RestaurantId,
+                    reservation.ReservationRef
+                );
+                throw new GuestReplySmsSendFailedException();
+            }
+        }
+
+        /// <summary>The reply save. A seam for tests that inject a save failure.</summary>
+        protected virtual Task SaveReplyChangesAsync(CancellationToken cancellationToken)
+        {
+            return _context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task ReleaseFailedAsync(
@@ -329,7 +410,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        public async Task CompleteAsync(
+        public virtual async Task CompleteAsync(
             GuestReplySmsReservation reservation,
             FeedbackGuestResponse row,
             CancellationToken cancellationToken

@@ -66,6 +66,27 @@ namespace TummlyBackend.Interfaces
             CancellationToken cancellationToken
         );
 
+        /// <summary>
+        /// Saves the reply after an accepted send. Completes the idempotency record when
+        /// settled. Throws <see cref="Services.GuestReplySmsSendFailedException"/> only
+        /// when the reply cannot be saved. Never throws InvalidOperationException.
+        /// </summary>
+        Task SaveAcceptedReplyAsync(
+            GuestReplySmsReservation reservation,
+            bool settled,
+            FeedbackGuestResponse row,
+            CancellationToken cancellationToken
+        );
+
+        /// <summary>
+        /// Saves the reply after an unknown outcome. Throws
+        /// <see cref="Services.GuestReplySmsSendFailedException"/> when the save fails.
+        /// </summary>
+        Task SaveRecordedUnknownReplyAsync(
+            GuestReplySmsReservation reservation,
+            CancellationToken cancellationToken
+        );
+
         /// <summary>Releases the whole hold and clears its open row. Saves.</summary>
         Task ReleaseFailedAsync(
             GuestReplySmsReservation reservation,

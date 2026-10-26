@@ -1161,10 +1161,104 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task RecoveryOfferSms_CompleteFailsAfterAccept_ReturnsSuccess()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            var faults = new SmsStepFaults { FailComplete = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-sms-complete-fail-tok",
+                ContactType.Phone,
+                "+447911123502",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-sms-complete-fail-owner@example.com",
+                withCatalogAttach: true,
+                services: customized.Services
+            );
+
+            var response = await SendRecoverySmsOfferAsync(
+                client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply.DeliveryState);
+            Assert.StartsWith("SMrecorded-", reply.ProviderMessageId);
+            Assert.Single(
+                await context.OfferIssues
+                    .AsNoTracking()
+                    .Where(o =>
+                        o.FeedbackId == seeded.FeedbackId
+                        && o.CancelledAtUtc == null
+                    )
+                    .ToListAsync()
+            );
+        }
+
+        [Fact]
+        public async Task RecoveryOfferSms_FinalSaveFailsAfterAccept_Returns502NotUnauthorized()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            var faults = new SmsStepFaults { FailSave = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-sms-final-save-fail-tok",
+                ContactType.Phone,
+                "+447911123503",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-sms-final-save-fail-owner@example.com",
+                withCatalogAttach: true,
+                services: customized.Services
+            );
+
+            var response = await SendRecoverySmsOfferAsync(
+                client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("sms_send_failed", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "The reply was not confirmed as sent. Check its status before trying again.",
+                body.GetProperty("message").GetString()
+            );
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            // The reply was saved before the send, but its accepted state was not.
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Pending, reply.DeliveryState);
+            Assert.Null(reply.ProviderMessageId);
+        }
+
         private WebApplicationFactory<Program> CreateFactoryWithSmsDelivery(
             IRecoveryGuestSmsDelivery delivery,
             bool billingLive = true,
-            bool settleFails = false
+            bool settleFails = false,
+            SmsStepFaults? faults = null
         )
         {
             return _factory.WithWebHostBuilder(builder =>
@@ -1185,6 +1279,10 @@ namespace TummlyBackend.Tests.Integration
                     }
 
                     services.AddSingleton<IRecoveryGuestSmsDelivery>(delivery);
+                    if (faults != null)
+                    {
+                        RecoverySmsTestServices.UseFaultySmsStep(services, faults);
+                    }
                     if (!billingLive)
                     {
                         services.AddScoped<

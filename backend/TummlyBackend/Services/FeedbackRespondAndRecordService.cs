@@ -253,7 +253,7 @@ namespace TummlyBackend.Services
                 _smsSend.ApplyUnknownOutcome(guestResponse, reservation, now);
                 _context.FeedbackGuestResponses.Add(guestResponse);
                 _context.FeedbackInternalActions.Add(internalAction);
-                await _context.SaveChangesAsync(CancellationToken.None);
+                await _smsSend.SaveRecordedUnknownReplyAsync(reservation, CancellationToken.None);
 
                 throw new GuestReplySmsSendFailedException();
             }
@@ -261,11 +261,12 @@ namespace TummlyBackend.Services
             _smsSend.ApplyAccepted(guestResponse, reservation, outcome.Accepted!, now);
             _context.FeedbackGuestResponses.Add(guestResponse);
             _context.FeedbackInternalActions.Add(internalAction);
-            if (outcome.Settled)
-            {
-                await _smsSend.CompleteAsync(reservation, guestResponse, cancellationToken);
-            }
-            await _context.SaveChangesAsync(cancellationToken);
+            await _smsSend.SaveAcceptedReplyAsync(
+                reservation,
+                outcome.Settled,
+                guestResponse,
+                cancellationToken
+            );
 
             return BuildResult(feedback, guestResponse, internalAction);
         }
