@@ -1,6 +1,7 @@
 import axiosInstance from "./axiosInstance";
 import type {
   AdminOperatorLocation,
+  AdminPilotAccount,
   AdminTrialRequest,
   AdminTrialRequestsResponse,
   AdminTrialReviewTransitionResponse,
@@ -179,18 +180,21 @@ export const deleteTrialRequest = async (id: number): Promise<void> => {
   await axiosInstance.delete(`/admin/trial-requests/${id}`);
 };
 
-export const extendActivation = async (
+export const getPilotAccounts = async (): Promise<AdminPilotAccount[]> => {
+  const response = await axiosInstance.get("/admin/pilot-accounts");
+  return response.data.data as AdminPilotAccount[];
+};
+
+export const extendPilot = async (
   userId: number,
-  payload: ExtendActivationPayload = {}
-): Promise<AdminTrialRequest> => {
+  payload: ExtendActivationPayload
+): Promise<AdminPilotAccount> => {
   const response = await axiosInstance.post(
     `/admin/operators/${userId}/extend-activation`,
     payload
   );
 
-  return normalizeTrialRequest(
-    response.data.data as Record<string, unknown>
-  );
+  return response.data.data as AdminPilotAccount;
 };
 
 export const downloadActivationAsset = async (userId: number) => {
