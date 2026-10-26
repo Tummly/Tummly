@@ -27,6 +27,7 @@ import {
   chosenPlanToBasePlan,
   minBasePlanForLocations,
   normalizePackCounts,
+  quotePackLineAmount,
   quotePlanName,
   type CustomPlanBasePlanKey,
   type CustomPlanPackCounts,
@@ -259,7 +260,8 @@ export function CustomPlanCalculator({
   const teamPrice = packMonthlyPrice("team_users_5")
   const offerPrice = packMonthlyPrice("offers_5")
   const qrPrice = packMonthlyPrice("qr_10")
-  const qrExtraNetPence = qrPrice != null ? qrPrice * packCounts.qr_10 : null
+  // QR cost comes from the ready quote's pack line only; no browser arithmetic.
+  const qrExtraCost = quotePackLineAmount(readyQuote, "qr_10")
 
   const continueHref =
     !contactSales && continuePayload != null && continueHrefFor != null
@@ -498,8 +500,8 @@ export function CustomPlanCalculator({
                             {steps.capacity.qrExtraCostLabel}
                           </p>
                           <p className="m-0 font-sans text-[22px] font-normal leading-none">
-                            {qrExtraNetPence != null
-                              ? `${formatPenceGbp(qrExtraNetPence)}/mo`
+                            {qrExtraCost != null
+                              ? `${formatPenceGbp(qrExtraCost.netPence)}${qrExtraCost.suffix}`
                               : "—"}
                           </p>
                         </div>

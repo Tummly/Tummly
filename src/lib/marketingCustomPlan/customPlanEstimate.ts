@@ -196,6 +196,32 @@ export function chosenPlanToBasePlan(
   return parseBasePlanKey(plan)
 }
 
+/** Period suffix for a quote total: "/ per month" or "/ per year". */
+export function quoteCadenceSuffix(cadence: string): string {
+  return cadence === "annual" ? "/ per year" : "/ per month"
+}
+
+/**
+ * The server line for one pack: its amount and the suffix for the quote's
+ * cadence. Null without a quote or without that line. The browser adds no price.
+ */
+export function quotePackLineAmount(
+  quote: CustomPlanQuoteResult | null,
+  packKey: CustomPlanPackKey,
+): { netPence: number; suffix: string } | null {
+  if (quote == null) {
+    return null
+  }
+  const line = quote.lines.find((entry) => entry.key === `pack:${packKey}`)
+  if (line == null) {
+    return null
+  }
+  return {
+    netPence: line.netPence,
+    suffix: quote.cadence === "annual" ? "/ per year" : "/mo",
+  }
+}
+
 /** "starter" or "Starter" from the server → "Starter". */
 export function quotePlanName(quote: CustomPlanQuoteResult): string {
   const key = quote.basePlan.trim().toLowerCase()
@@ -311,8 +337,8 @@ export function decodeCustomPlanIntentV2(
       version: 2,
       cadence,
       basePlan,
-      // Not clamped: an invalid count is rejected where the config is saved.
-      locations: Number(parsed.locations ?? 1),
+      // Not clamped and no default: a missing or invalid count is rejected where the config is saved.
+      locations: Number(parsed.locations),
       packs: normalizePackCounts(packsRaw),
       ...(quoteHash != null ? { quoteHash } : {}),
     }

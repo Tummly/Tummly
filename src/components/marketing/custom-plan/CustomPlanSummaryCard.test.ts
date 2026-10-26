@@ -1,0 +1,69 @@
+import { createElement } from "react"
+import { renderToStaticMarkup } from "react-dom/server"
+import { MemoryRouter } from "react-router-dom"
+import { describe, expect, it } from "vitest"
+
+import type { CustomPlanQuoteResult } from "@/api/adminCommercialCatalogApi"
+import { CustomPlanSummaryCard } from "@/components/marketing/custom-plan/CustomPlanSummaryCard"
+
+const MONTHLY_QUOTE: CustomPlanQuoteResult = {
+  version: 2,
+  catalogPublicId: "cat-1",
+  cadence: "monthly",
+  basePlan: "starter",
+  locations: 1,
+  packs: {},
+  quantities: {
+    locations: 1,
+    teamUsers: 3,
+    qrPlacements: 10,
+    qrPlacementsAccountExtra: 0,
+    offers: 3,
+    emailCredits: 2500,
+    smsCredits: 100,
+    aiCredits: 100,
+  },
+  monthlyNetPence: 3900,
+  periodNetPence: 3900,
+  lines: [{ key: "base:starter", label: "Starter", quantity: 1, netPence: 3900 }],
+  basePlanChanged: false,
+  requestedBasePlan: null,
+  storedAsPlan: "Starter",
+  quoteHash: "0123456789abcdef0123456789abcdef",
+  vatRateBps: 0,
+}
+
+function renderCard(cadence: "monthly" | "annual", quote = MONTHLY_QUOTE) {
+  return renderToStaticMarkup(
+    createElement(
+      MemoryRouter,
+      null,
+      createElement(CustomPlanSummaryCard, {
+        quote,
+        cadence,
+        // The cadence toggle renders only with a change handler.
+        onCadenceChange: () => undefined,
+      }),
+    ),
+  )
+}
+
+function cadenceButton(html: string, label: string): string {
+  const buttons = html.match(/<button[^>]*>[\s\S]*?<\/button>/g) ?? []
+  return buttons.find((button) => button.includes(label)) ?? ""
+}
+
+describe("CustomPlanSummaryCard total", () => {
+  it("uses the quote cadence for the total suffix, not the selected toggle", () => {
+    const html = renderCard("annual")
+    expect(html).toContain("£39")
+    expect(html).toContain("/ per month")
+    expect(html).not.toContain("/ per year")
+  })
+
+  it("keeps the selected toggle highlight on the chosen cadence", () => {
+    const html = renderCard("annual")
+    expect(cadenceButton(html, "Annual")).toContain('aria-pressed="true"')
+    expect(cadenceButton(html, "Monthly")).toContain('aria-pressed="false"')
+  })
+})

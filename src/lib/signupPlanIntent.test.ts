@@ -188,6 +188,43 @@ describe("quoteHash and invalid counts", () => {
   })
 })
 
+describe("invalid Location count in a shared link", () => {
+  beforeEach(() => {
+    clearSignupPlanIntent()
+  })
+
+  function captureRaw(json: string) {
+    return captureSignupPlanIntentFromSearch(
+      new URLSearchParams(
+        `plan=Custom&cadence=monthly&customIntent=${encodeURIComponent(json)}`,
+      ),
+    )
+  }
+
+  it("drops the config when locations is missing", () => {
+    const json = JSON.stringify({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "growth",
+      packs: {},
+    })
+    expect(captureRaw(json)?.config).toBeUndefined()
+    expect(readSignupPlanIntent()?.config).toBeUndefined()
+  })
+
+  it("drops the config when locations is fractional", () => {
+    const json = JSON.stringify({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "growth",
+      locations: 2.5,
+      packs: {},
+    })
+    expect(captureRaw(json)?.config).toBeUndefined()
+    expect(readSignupPlanIntent()?.config).toBeUndefined()
+  })
+})
+
 describe("activeCustomConfig", () => {
   const config = {
     version: 2 as const,

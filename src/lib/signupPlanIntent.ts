@@ -196,7 +196,8 @@ export function captureSignupPlanIntentFromSearch(
   const intent = parseSignupPlanIntent(searchParams)
   if (intent != null) {
     saveSignupPlanIntent(intent)
-    return intent
+    // Return what was stored, so an invalid config is not handed back.
+    return readSignupPlanIntent()
   }
   return readSignupPlanIntent()
 }

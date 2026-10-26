@@ -8,7 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PRICING_CADENCE_COPY } from "@/content/marketing/pricingPage"
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
-import { quotePlanName } from "@/lib/marketingCustomPlan/customPlanEstimate"
+import {
+  quoteCadenceSuffix,
+  quotePlanName,
+} from "@/lib/marketingCustomPlan/customPlanEstimate"
 import { formatPenceGbp } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
@@ -106,8 +109,8 @@ export function CustomPlanSummaryCard({
   badgeLabel = "Selected",
   className,
 }: CustomPlanSummaryCardProps) {
-  const totalSuffix =
-    cadence === "annual" ? "/ per year" : "/ per month"
+  // The suffix follows the quote the amount came from, not the toggle.
+  const totalSuffix = quoteCadenceSuffix(quote.cadence)
   const planName = quotePlanName(quote)
   const q = quote.quantities
 
