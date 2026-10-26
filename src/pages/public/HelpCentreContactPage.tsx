@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { isAxiosError } from "axios"
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
 import {
   createHelpCentreQuery,
@@ -25,6 +25,7 @@ import { getFetchErrorMessage } from "@/lib/apiEnvelope"
 import {
   buildHelpCentreContactMessage,
   getContactTopicFieldFlags,
+  readHelpCentreContactSearchPrefill,
   resolveHelpCentreContactBusinessName,
 } from "@/lib/helpCentreContactForm"
 import type { HelpCentreContactSuccessState } from "@/lib/helpCentreContactSuccess"
@@ -64,6 +65,11 @@ export default function HelpCentreContactPage() {
   const token = useAuthStore((state) => state.token)
   const role = useAuthStore((state) => state.role)
   const isOperator = Boolean(token && role === "USER")
+  const [searchParams] = useSearchParams()
+  // Links (e.g. the Custom plan calculator) can fill the topic, Locations and message.
+  const [searchPrefill] = useState(() =>
+    readHelpCentreContactSearchPrefill(searchParams)
+  )
 
   const form = useForm<HelpCentreContactFormValues>({
     resolver: zodResolver(helpCentreContactFormSchema),
@@ -77,6 +83,7 @@ export default function HelpCentreContactPage() {
       alreadyUsingTummly: "",
       alternateEmail: "",
       message: "",
+      ...searchPrefill,
     },
   })
 

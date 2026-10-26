@@ -2,11 +2,11 @@ import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import { MARKETING_FAQS_PATH } from "@/constants/marketingNav"
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 
-/** Figma Custom Plan hero `6657:37873`. */
+/** Figma Custom Plan hero `6738:14851`. */
 export const CUSTOM_PLAN_HERO = {
   eyebrow: "Build your own plan",
   title: "A Tummly plan built around your restaurants.",
-  body: "Start from a base package, choose your Locations, then add fixed capacity and credit packs. Included allowances stay covered — you only pay for the extras you need.",
+  body: "Choose your Locations, adjust your team and QR capacity, and add the Email, SMS or AI allowances you need. See what's included and how your subscription price is calculated.",
 } as const
 
 export const CUSTOM_PLAN_SECTION_INSET = "px-5 lg:px-[60px]"
@@ -111,39 +111,40 @@ export const CUSTOM_PLAN_FAQS = {
   items: [
     {
       id: "add-offers",
-      question: "Can I add more Offers without upgrading?",
+      question: "Can I add more Offers without upgrading my plan?",
       answer:
-        "Yes. With an eligible paid plan, you can add extra active-Offer capacity without changing your subscription package, subject to the available add-ons.",
+        "Yes. You can add extra active Offers individually without moving to a higher plan. You can also add team members and QR placements as needed.",
     },
     {
       id: "included-allowances",
-      question: "What happens to the allowances included in my plan?",
+      question: "Will I pay again for what's already included in my plan?",
       answer:
-        "They're automatically counted in your configuration. You only pay for additional capacity above your plan's included allowances.",
+        "No. Your plan's included allowances are counted first. You only pay for the extras you choose to add.",
     },
     {
       id: "fewer-credits",
-      question: "Can I use fewer credits than my plan includes?",
+      question: "What happens if I don't use all my included credits?",
       answer:
-        "Yes. You don't have to use all of your included credits, but unused included allowances don't reduce your subscription price or carry over to the next month.",
+        "You can use as many as you need within your allowance. Unused monthly credits don't carry over or reduce your subscription price.",
     },
     {
       id: "add-locations-later",
-      question: "Can I add more restaurant Locations later?",
+      question: "Can I add more restaurants later?",
       answer:
-        "Yes. Your subscription can be expanded to support additional Locations, subject to the applicable plan, pricing and activation requirements.",
+        "Yes. You can add more restaurants as your business grows, up to 500 Locations. You'll see the updated subscription price before confirming.",
     },
     {
       id: "recurring-vs-topups",
-      question: "What's the difference between recurring credits and top-ups?",
+      question:
+        "What's the difference between monthly credits and one-off top-ups?",
       answer:
-        "Recurring allowances are available each billing month while the subscription or booster is active.\n\nOne-off top-ups are purchased separately and follow their own expiry rules.",
+        "Monthly credits refresh each month, even with annual billing. One-off top-ups are purchased separately, remain valid for 12 months and are used after your included credits. Top-ups are available on paid plans only.",
     },
     {
       id: "change-after-subscribe",
       question: "Can I change my custom plan after subscribing?",
       answer:
-        "You can request changes through Billing. Additional capacity, upgrades and reductions follow the applicable effective-date and billing rules. Any change in price is shown before confirmation.",
+        "Yes. You can add more restaurants, team members, Offers or QR placements during your subscription, with any additional cost shown before confirmation. Reductions and billing-period changes normally take effect at your next renewal.",
     },
   ] satisfies CustomPlanFaqItem[],
 } as const

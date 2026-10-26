@@ -29,16 +29,17 @@ export function PricingFaqs() {
       >
         <header
           className={cn(
-            "flex w-full shrink-0 flex-col lg:sticky lg:w-137 lg:max-w-137",
+            // Figma py-20 on the title: a gap under the nav while it sticks.
+            "flex w-full shrink-0 flex-col lg:sticky lg:w-137 lg:max-w-137 lg:py-5",
             marketingHeaderStickyTopClass,
           )}
         >
-          <h2 className={cn("m-0", PRICING_SECTION_HEADING)}>
+          <h2 className={cn("m-0", PRICING_SECTION_HEADING, "leading-[normal]")}>
             {PRICING_FAQS.title}
           </h2>
         </header>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-7.5">
+        <div className="flex min-w-0 flex-1 flex-col gap-7.5 lg:pt-5">
           <Accordion
             type="single"
             collapsible
@@ -51,13 +52,14 @@ export function PricingFaqs() {
                 value={item.id}
                 question={item.question}
                 answer={item.answer}
+                variant="compact"
               />
             ))}
           </Accordion>
 
           <div className="flex flex-col gap-7 pb-5">
             <div className="flex flex-col gap-3">
-              <h3 className="m-0 font-jakarta text-[28px] font-medium leading-none text-black sm:text-[36px]">
+              <h3 className="m-0 font-jakarta text-[28px] font-medium leading-[normal] text-black sm:text-[36px]">
                 {PRICING_FAQS.moreTitle}
               </h3>
               <p className="m-0 text-base font-normal leading-[21px] text-[#141414]">

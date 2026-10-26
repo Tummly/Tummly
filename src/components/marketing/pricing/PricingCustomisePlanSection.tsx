@@ -15,13 +15,13 @@ export function PricingCustomisePlanSection() {
       <div className="mx-auto w-full max-w-[1668px]">
         <div className="flex flex-col items-center gap-[42px] overflow-hidden rounded-lg bg-[#f4f4f4] px-8 py-12">
           <div className="flex w-full max-w-[548px] flex-col items-center gap-[18px] text-center text-black">
-            <p className="font-sans text-sm font-medium uppercase leading-normal">
+            <p className="font-sans text-sm leading-4 font-medium tracking-[1.12px] text-[#4a4a4a] uppercase">
               {PRICING_CUSTOMISE_PLAN.eyebrow}
             </p>
             <div className="flex w-full flex-col items-center gap-[22px]">
               <h2
                 id="pricing-customise-plan-heading"
-                className="font-jakarta text-4xl font-semibold leading-normal"
+                className="font-jakarta text-4xl font-semibold leading-[normal]"
               >
                 {PRICING_CUSTOMISE_PLAN.title}
               </h2>

@@ -28,12 +28,12 @@ export function PricingQrMaterials() {
         <div className="flex w-full max-w-[578px] flex-col items-start justify-between gap-10 lg:min-h-[538px] lg:flex-1 lg:gap-0">
           <div className="flex flex-col gap-[22px]">
             <div className="flex flex-col gap-3.5">
-              <p className="m-0 font-sans text-sm font-normal uppercase leading-4 text-[#141414]">
+              <p className="m-0 font-sans text-sm leading-4 font-normal tracking-[1.12px] text-[#4a4a4a] uppercase">
                 {PRICING_QR_MATERIALS.eyebrow}
               </p>
               <h2
                 id="pricing-qr-materials-heading"
-                className="m-0 font-jakarta text-[34px] font-[500] leading-normal text-black lg:text-[46px]"
+                className="m-0 font-jakarta text-[34px] font-[500] leading-[normal] text-black lg:text-[46px]"
               >
                 {PRICING_QR_MATERIALS.title}
               </h2>

@@ -14,7 +14,7 @@ export const CUSTOM_PLAN_QUOTE_COPY = {
   locationOverLimitHelp:
     "Reduce the count to continue online, or contact us about your requirements.",
   contactUs: "Contact us",
-  contactUsHref: "/help-center/contact?topic=multi-location-setup",
+  contactUsHref: "/help-center/contact?topic=plans-and-pricing",
   locationEmpty: "Add at least 1 Location to customise your estimate.",
   noPaymentTaken:
     "No payment is taken until you confirm your subscription and payment details at checkout.",

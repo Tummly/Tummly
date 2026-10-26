@@ -26,11 +26,13 @@ export function CustomPlanQuoteStatus({
   showRetry = false,
   onRetry,
   showContact = false,
+  contactHref = CUSTOM_PLAN_QUOTE_COPY.contactUsHref,
 }: {
   message: string
   showRetry?: boolean
   onRetry?: () => void
   showContact?: boolean
+  contactHref?: string
 }) {
   return (
     <div className="flex flex-col items-start gap-3">
@@ -46,7 +48,7 @@ export function CustomPlanQuoteStatus({
             {CUSTOM_PLAN_QUOTE_COPY.locationOverLimitHelp}
           </p>
           <MarketingButton asChild variant="dark" className="w-fit">
-            <Link to={CUSTOM_PLAN_QUOTE_COPY.contactUsHref}>
+            <Link to={contactHref}>
               {CUSTOM_PLAN_QUOTE_COPY.contactUs}
             </Link>
           </MarketingButton>
@@ -84,6 +86,11 @@ export type CustomPlanSummaryCardProps = {
   /** Doc 08 VAT line, passed only when the quote carries VAT. */
   taxText?: string | null
   badgeLabel?: string
+  /**
+   * Sticky use: cap the card at the viewport height so the cadence toggle and
+   * the total stay in view; the plan details scroll inside the card.
+   */
+  fitViewport?: boolean
   className?: string
 }
 
@@ -107,6 +114,7 @@ export function CustomPlanSummaryCard({
   showContact = false,
   taxText = null,
   badgeLabel = "Selected",
+  fitViewport = false,
   className,
 }: CustomPlanSummaryCardProps) {
   // The suffix follows the quote the amount came from, not the toggle.
@@ -118,12 +126,13 @@ export function CustomPlanSummaryCard({
     <aside
       className={cn(
         "flex w-full max-w-[581px] flex-col gap-[26px] pt-6",
+        fitViewport && "lg:max-h-[calc(100dvh-106px)]",
         className,
       )}
     >
       {showCadenceToggle && onCadenceChange != null ? (
         <div
-          className="flex w-full items-center gap-2.5 rounded-[10px] border border-[rgba(38,38,38,0.21)] bg-[#f4f4f4] p-2"
+          className="flex w-full shrink-0 items-center gap-2.5 rounded-[10px] border border-[rgba(38,38,38,0.21)] bg-[#f4f4f4] p-2"
           role="group"
           aria-label="Billing cadence"
         >
@@ -161,96 +170,113 @@ export function CustomPlanSummaryCard({
         </div>
       ) : null}
 
-      <div className="flex w-full flex-col gap-[26px]">
-        <div className="overflow-hidden rounded-xl">
-          <div className="flex flex-col gap-8 rounded-t-lg bg-[#dfebe3] p-7">
-            <div className="flex items-center justify-between gap-3">
-              <p className="m-0 font-jakarta text-base font-medium uppercase text-black">
-                Your estimated plan
-              </p>
-              <Badge className="rounded-[20px] border-0 bg-[#b6d1bf] px-3 py-1.5 font-jakarta text-xs font-semibold text-black hover:bg-[#b6d1bf]">
-                {badgeLabel}
-              </Badge>
-            </div>
-            <div className="flex flex-col gap-2 text-black">
-              <p className="m-0 font-jakarta text-[34px] font-bold leading-none">
-                {planName}
-              </p>
-              {planDescription != null && planDescription !== "" ? (
-                <p className="m-0 max-w-[379px] font-jakarta text-sm font-normal">
-                  {planDescription}
+      <div
+        className={cn(
+          "flex w-full flex-col gap-[26px]",
+          fitViewport && "lg:min-h-0",
+        )}
+      >
+        <div
+          className={cn(
+            "overflow-hidden rounded-xl",
+            fitViewport && "lg:flex lg:min-h-0 lg:flex-col",
+          )}
+        >
+          <div
+            className={cn(
+              fitViewport &&
+                "lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain",
+            )}
+          >
+            <div className="flex flex-col gap-8 rounded-t-lg bg-[#dfebe3] p-7">
+              <div className="flex items-center justify-between gap-3">
+                <p className="m-0 font-jakarta text-base font-medium uppercase text-black">
+                  Your estimated plan
                 </p>
-              ) : null}
-            </div>
-            <div className="flex flex-col gap-3.5">
-              <div className="flex flex-wrap gap-x-10 gap-y-3 font-jakarta text-xs font-semibold">
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[#707070]">Locations</span>
-                  <span className="text-black">{formatCount(q.locations)}</span>
+                <Badge className="rounded-[20px] border-0 bg-[#b6d1bf] px-3 py-1.5 font-jakarta text-xs font-semibold text-black hover:bg-[#b6d1bf]">
+                  {badgeLabel}
+                </Badge>
+              </div>
+              <div className="flex flex-col gap-2 text-black">
+                <p className="m-0 font-jakarta text-[34px] font-bold leading-none">
+                  {planName}
+                </p>
+                {planDescription != null && planDescription !== "" ? (
+                  <p className="m-0 max-w-[379px] font-jakarta text-sm font-normal">
+                    {planDescription}
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-3.5">
+                <div className="flex flex-wrap gap-x-10 gap-y-3 font-jakarta text-xs font-semibold">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[#707070]">Locations</span>
+                    <span className="text-black">{formatCount(q.locations)}</span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[#707070]">Team users</span>
+                    <span className="text-black">{formatCount(q.teamUsers)}</span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[#707070]">Active QR</span>
+                    <span className="text-black">
+                      {formatCount(q.qrPlacements)} per Location
+                      {q.qrPlacementsAccountExtra > 0
+                        ? ` + ${formatCount(q.qrPlacementsAccountExtra)} account`
+                        : ""}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[#707070]">Active Offers</span>
+                    <span className="text-black">
+                      {formatCount(q.offers)} account-wide
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[#707070]">Team users</span>
-                  <span className="text-black">{formatCount(q.teamUsers)}</span>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[#707070]">Active QR</span>
-                  <span className="text-black">
-                    {formatCount(q.qrPlacements)} per Location
-                    {q.qrPlacementsAccountExtra > 0
-                      ? ` + ${formatCount(q.qrPlacementsAccountExtra)} account`
-                      : ""}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[#707070]">Active Offers</span>
-                  <span className="text-black">
-                    {formatCount(q.offers)} account-wide
-                  </span>
+                <hr className="m-0 border-[#c9c9c9]" />
+                <div className="flex flex-wrap gap-x-10 gap-y-3 font-jakarta text-xs font-semibold">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[#707070]">Email</span>
+                    <span className="text-black">
+                      {formatCount(q.emailCredits)}/mo
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[#707070]">SMS</span>
+                    <span className="text-black">
+                      {formatCount(q.smsCredits)}/mo
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[#707070]">AI</span>
+                    <span className="text-black">
+                      {formatCount(q.aiCredits)}/mo
+                    </span>
+                  </div>
                 </div>
               </div>
-              <hr className="m-0 border-[#c9c9c9]" />
-              <div className="flex flex-wrap gap-x-10 gap-y-3 font-jakarta text-xs font-semibold">
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[#707070]">Email</span>
-                  <span className="text-black">
-                    {formatCount(q.emailCredits)}/mo
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[#707070]">SMS</span>
-                  <span className="text-black">
-                    {formatCount(q.smsCredits)}/mo
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[#707070]">AI</span>
-                  <span className="text-black">
-                    {formatCount(q.aiCredits)}/mo
-                  </span>
-                </div>
-              </div>
             </div>
+
+            {quote.lines.length > 0 ? (
+              <div className="bg-[#efefef] p-7">
+                <ul className="m-0 flex list-none flex-col gap-[18px] p-0 font-sans text-base text-black">
+                  {quote.lines.map((line) => (
+                    <li
+                      key={line.key}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span className="leading-[18px]">{line.label}</span>
+                      <span className="leading-[18px]">
+                        {formatPenceGbp(line.netPence)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
 
-          {quote.lines.length > 0 ? (
-            <div className="bg-[#efefef] p-7">
-              <ul className="m-0 flex list-none flex-col gap-[18px] p-0 font-sans text-base text-black">
-                {quote.lines.map((line) => (
-                  <li
-                    key={line.key}
-                    className="flex items-center justify-between gap-3"
-                  >
-                    <span className="leading-[18px]">{line.label}</span>
-                    <span className="leading-[18px]">
-                      {formatPenceGbp(line.netPence)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          <div className="flex flex-col gap-8 bg-[#e5e5e5] p-7">
+          <div className="flex shrink-0 flex-col gap-8 bg-[#e5e5e5] p-7">
             <div className="flex items-center justify-between gap-4">
               <p className="m-0 font-sans text-lg text-black">Estimated total</p>
               <p className="m-0 text-[#141414]">
@@ -268,6 +294,7 @@ export function CustomPlanSummaryCard({
                 showRetry={showRetry}
                 onRetry={onRetry}
                 showContact={showContact}
+                contactHref={contactHref}
               />
             ) : null}
             {taxText != null && taxText !== "" ? (
@@ -309,7 +336,7 @@ export function CustomPlanSummaryCard({
         </div>
 
         {checkoutNote != null && checkoutNote !== "" ? (
-          <p className="m-0 font-sans text-sm font-normal leading-5 text-[#676767]">
+          <p className="m-0 shrink-0 font-sans text-sm font-normal leading-5 text-[#676767]">
             {checkoutNote}
           </p>
         ) : null}
@@ -353,6 +380,46 @@ export function CustomPlanQuotePlaceholder({
           showContact={showContact}
         />
       ) : null}
+    </aside>
+  )
+}
+
+/**
+ * Over the online limit the server gives no price: the message, the help line
+ * and a full-width Contact us take the place of the total and Continue.
+ */
+export function CustomPlanContactCard({
+  message,
+  contactHref,
+  className,
+}: {
+  message: string
+  contactHref: string
+  className?: string
+}) {
+  return (
+    <aside
+      className={cn(
+        "flex w-full max-w-[581px] flex-col gap-[26px] pt-6",
+        className,
+      )}
+    >
+      <div className="flex flex-col gap-8 rounded-xl bg-[#e5e5e5] p-7">
+        <div className="flex flex-col gap-3">
+          <p
+            role="status"
+            className="m-0 font-sans text-lg font-normal leading-6 text-black"
+          >
+            {message}
+          </p>
+          <p className="m-0 font-sans text-sm font-normal leading-5 text-[#141414]">
+            {CUSTOM_PLAN_QUOTE_COPY.locationOverLimitHelp}
+          </p>
+        </div>
+        <MarketingButton asChild variant="dark" className="w-full">
+          <Link to={contactHref}>{CUSTOM_PLAN_QUOTE_COPY.contactUs}</Link>
+        </MarketingButton>
+      </div>
     </aside>
   )
 }

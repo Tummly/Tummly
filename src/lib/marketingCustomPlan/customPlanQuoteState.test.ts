@@ -220,7 +220,7 @@ describe("quoteView", () => {
 
   it("exposes the doc 08 copy in one object", () => {
     expect(CUSTOM_PLAN_QUOTE_COPY.contactUsHref).toBe(
-      "/help-center/contact?topic=multi-location-setup",
+      "/help-center/contact?topic=plans-and-pricing",
     )
     expect(CUSTOM_PLAN_QUOTE_COPY.contactUs).toBe("Contact us")
     expect(CUSTOM_PLAN_QUOTE_COPY.retry).toBe("Try again")

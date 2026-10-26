@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
 
 import {
   fetchPublicCustomUnitRates,
@@ -7,18 +6,18 @@ import {
   type PublicCatalogPackMetaDto,
 } from "@/api/adminCommercialCatalogApi"
 import qrPlacementsCardTop from "@/assets/images/marketing/custom-plan/qr-placements-card-top.png"
+import customisePlanIllustration from "@/assets/svg/marketing/custom-plan/customise-plan-illustration.svg"
 import mapPinIcon from "@/assets/svg/marketing/custom-plan/map-pin.svg"
 import creditsTipIcon from "@/assets/svg/marketing/pricing/usage/credits-badge-icon.svg"
 import { CustomPlanStepper } from "@/components/marketing/custom-plan/CustomPlanStepper"
 import {
+  CustomPlanContactCard,
   CustomPlanQuotePlaceholder,
   CustomPlanSummaryCard,
 } from "@/components/marketing/custom-plan/CustomPlanSummaryCard"
-import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import { CUSTOM_PLAN_STEPS } from "@/content/marketing/customPlanPage"
 import {
-  CUSTOM_PLAN_MAX_LOCATIONS,
   CUSTOM_PLAN_MAX_PACK_COUNT,
   CUSTOM_PLAN_PACKS,
   EMPTY_PACK_COUNTS,
@@ -40,10 +39,17 @@ import {
   lastQuote,
   quoteView,
 } from "@/lib/marketingCustomPlan/customPlanQuoteState"
+import { buildCustomPlanContactHref } from "@/lib/marketingCustomPlan/customPlanContactLink"
 import { useServerCustomPlanQuote } from "@/lib/marketingCustomPlan/useServerCustomPlanQuote"
 import { toPublicCatalogPlanSummaries } from "@/lib/marketingCustomPlan/publicCatalogPlans"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
+
+/**
+ * Typing limit only. Over `CUSTOM_PLAN_MAX_LOCATIONS` no quote is requested,
+ * but the real count still goes into the Contact us message.
+ */
+const LOCATION_INPUT_MAX = 99_999
 
 function StepBadge({ label }: { label: string }) {
   return (
@@ -89,6 +95,27 @@ function IncludedLine({
   )
 }
 
+/** Figma `6661:39099`: green panel in place of the summary at 0 Locations. */
+function CustomPlanEmptyPanel({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "flex aspect-[610/660] w-full max-w-[610px] items-center justify-center overflow-hidden rounded-lg bg-[#dfebe3]",
+        className,
+      )}
+    >
+      <img
+        src={customisePlanIllustration}
+        alt=""
+        aria-hidden
+        width={512}
+        height={512}
+        className="h-auto w-[84%]"
+      />
+    </div>
+  )
+}
+
 function formatCount(n: number): string {
   return Math.max(0, n).toLocaleString("en-GB")
 }
@@ -125,9 +152,19 @@ export type CustomPlanCalculatorProps = {
   initialLocations?: number
   initialPacks?: Partial<CustomPlanPackCounts>
   initialCadence?: BillingCadence
+  /** Lowest Location count the stepper allows (marketing starts at 0). */
+  minLocations?: number
+  /** At 0 Locations, fade steps 2–3 and show the illustration panel (Figma `6661:38889`). */
+  showEmptyState?: boolean
+  /** Signup shows the "Make {plan} work…" heading; the marketing page does not. */
+  showHeading?: boolean
   headingTitle?: string
   headingBody?: string
-  continueLabel?: string
+  /** A label, or a function of the quoted plan name ("Continue with Group"). */
+  continueLabel?: string | ((planName: string) => string)
+  badgeLabel?: string
+  /** Keep the toggle and total in view while the sticky summary is taller than the screen. */
+  fitSummaryToViewport?: boolean
   /** Marketing page passes an href builder; signup uses onContinue. */
   continueHrefFor?: (payload: CustomPlanCalculatorContinue) => string
   onContinue?: (payload: CustomPlanCalculatorContinue) => void
@@ -140,9 +177,14 @@ export function CustomPlanCalculator({
   initialLocations = 1,
   initialPacks,
   initialCadence = "monthly",
+  minLocations = 1,
+  showEmptyState = false,
+  showHeading = true,
   headingTitle,
   headingBody,
   continueLabel = "Continue",
+  badgeLabel,
+  fitSummaryToViewport = false,
   continueHrefFor,
   onContinue,
   className,
@@ -152,7 +194,7 @@ export function CustomPlanCalculator({
   const [packMeta, setPackMeta] = useState<PublicCatalogPackMetaDto[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [locations, setLocations] = useState(() =>
-    Math.max(1, initialLocations),
+    Math.max(minLocations, initialLocations),
   )
   const [requestedBasePlan] = useState<CustomPlanBasePlanKey | null>(
     initialBasePlan ?? null,
@@ -202,7 +244,16 @@ export function CustomPlanCalculator({
   const quote = lastQuote(state)
   const view = quoteView({ check, state, changed: false })
   const contactSales = view.showContact
-  const readyQuote = state.status === "ready" ? state.quote : null
+  const emptyState = showEmptyState && check === "empty"
+  // An invalid or over-limit count sends no request: old totals must not show.
+  const countedQuote = check === "ok" ? quote : null
+  const readyQuote =
+    check === "ok" && state.status === "ready" ? state.quote : null
+  const contactHref = buildCustomPlanContactHref({
+    locations,
+    cadence,
+    packs: packCounts,
+  })
   const continuePayload =
     readyQuote != null && view.continueEnabled
       ? toContinuePayload(readyQuote)
@@ -243,7 +294,7 @@ export function CustomPlanCalculator({
     sms: basePlanRow?.creditsMonthlySms ?? 0,
     ai: basePlanRow?.creditsMonthlyAi ?? 0,
   }
-  const q = quote?.quantities ?? null
+  const q = countedQuote?.quantities ?? null
   /** Server totals; a dash while no quote has arrived. */
   function total(pick: (quantities: NonNullable<typeof q>) => number): string {
     return q != null ? formatCount(pick(q)) : "—"
@@ -268,9 +319,17 @@ export function CustomPlanCalculator({
       ? continueHrefFor(continuePayload)
       : undefined
 
-  /** The Location message sits under the stepper while the count is invalid or over the limit. */
+  /**
+   * The Location message sits under the stepper while the count is invalid.
+   * Over the limit it shows in the contact card; the empty state shows its
+   * own message over steps 2–3.
+   */
   const locationMessage =
-    check !== "ok" || contactSales ? view.message : null
+    !emptyState && !contactSales && check !== "ok" ? view.message : null
+  const resolvedContinueLabel =
+    typeof continueLabel === "function"
+      ? continueLabel(planDisplayName)
+      : continueLabel
   /** Quote status sits in the summary card once the count is valid. */
   const summaryStatus = check === "ok" && !contactSales ? view.message : null
 
@@ -282,17 +341,19 @@ export function CustomPlanCalculator({
       )}
     >
       <div className="relative isolate flex w-full max-w-[660px] flex-col gap-10 py-6 lg:gap-[60px]">
-        <header className="flex flex-col gap-3">
-          <p className="m-0 font-sans text-sm font-medium uppercase tracking-wide text-[#141414]">
-            Customise your subscription
-          </p>
-          <h2 className="m-0 font-jakarta text-[28px] font-semibold leading-tight text-[#141414] lg:text-[34px]">
-            {defaultHeadingTitle}
-          </h2>
-          <p className="m-0 font-sans text-base font-normal leading-[22px] text-[#141414]">
-            {defaultHeadingBody}
-          </p>
-        </header>
+        {showHeading ? (
+          <header className="flex flex-col gap-3">
+            <p className="m-0 font-sans text-sm font-medium uppercase tracking-wide text-[#141414]">
+              Customise your subscription
+            </p>
+            <h2 className="m-0 font-jakarta text-[28px] font-semibold leading-tight text-[#141414] lg:text-[34px]">
+              {defaultHeadingTitle}
+            </h2>
+            <p className="m-0 font-sans text-base font-normal leading-[22px] text-[#141414]">
+              {defaultHeadingBody}
+            </p>
+          </header>
+        ) : null}
 
         {loadError ? (
           <p className="m-0 text-sm text-red-600">{loadError}</p>
@@ -323,10 +384,10 @@ export function CustomPlanCalculator({
               </p>
             </div>
             <CustomPlanStepper
-              value={Math.min(locations, CUSTOM_PLAN_MAX_LOCATIONS + 1)}
+              value={locations}
               onChange={handleLocationsChange}
-              min={1}
-              max={CUSTOM_PLAN_MAX_LOCATIONS + 1}
+              min={minLocations}
+              max={LOCATION_INPUT_MAX}
               label={steps.locations.locationLabel}
             />
           </div>
@@ -358,19 +419,20 @@ export function CustomPlanCalculator({
           </div>
         ) : null}
 
-        {contactSales ? (
-          <div className="flex flex-col gap-4 rounded-xl border border-[#cacaca] bg-[#f4f4f4] p-6">
-            <p className="m-0 font-sans text-sm text-[#141414]">
-              {CUSTOM_PLAN_QUOTE_COPY.locationOverLimitHelp}
-            </p>
-            <MarketingButton asChild variant="dark" className="w-fit">
-              <Link to={CUSTOM_PLAN_QUOTE_COPY.contactUsHref}>
-                {CUSTOM_PLAN_QUOTE_COPY.contactUs}
-              </Link>
-            </MarketingButton>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-[60px]">
+        <div
+          className={cn(
+            "relative",
+            emptyState && "max-h-[574px] overflow-hidden",
+          )}
+        >
+          <div
+            inert={emptyState}
+            aria-hidden={emptyState || undefined}
+            className={cn(
+              "flex flex-col gap-[60px]",
+              emptyState && "opacity-50 select-none",
+            )}
+        >
             <section className="flex flex-col gap-8">
               <div className="flex items-center gap-4">
                 <StepBadge label={steps.capacity.step} />
@@ -614,17 +676,42 @@ export function CustomPlanCalculator({
               </div>
             </section>
           </div>
-        )}
+          {emptyState ? (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[linear-gradient(180.8deg,rgba(255,255,255,0)_48.36%,#fff_75.87%)]"
+            />
+          ) : null}
+          {emptyState ? (
+            <p
+              role="status"
+              className="absolute top-[calc(50%-20px)] left-1/2 m-0 w-max max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-[30px] border border-[#e5e5e5] bg-white px-5 py-[15px] text-center font-sans text-base leading-[normal] font-normal text-black shadow-[0px_6px_6.5px_rgba(0,0,0,0.05),0px_23px_11.5px_rgba(0,0,0,0.05),0px_53px_16px_rgba(0,0,0,0.03)]"
+            >
+              {CUSTOM_PLAN_QUOTE_COPY.locationEmpty}
+            </p>
+          ) : null}
+        </div>
       </div>
 
-      {!contactSales && quote != null ? (
+      {emptyState ? <CustomPlanEmptyPanel /> : null}
+      {!emptyState && contactSales ? (
+        <CustomPlanContactCard
+          className={cn("lg:sticky lg:top-0", summaryClassName)}
+          message={view.message ?? CUSTOM_PLAN_QUOTE_COPY.locationOverLimit}
+          contactHref={contactHref}
+        />
+      ) : null}
+      {!emptyState && !contactSales && quote != null ? (
         <CustomPlanSummaryCard
           // Sticky only beside the long calculator column.
           className={cn("lg:sticky lg:top-0", summaryClassName)}
+          fitViewport={fitSummaryToViewport}
           quote={quote}
           cadence={cadence}
           onCadenceChange={setCadence}
-          continueLabel={continueLabel}
+          continueLabel={resolvedContinueLabel}
+          contactHref={contactHref}
+          badgeLabel={badgeLabel}
           continueHref={continueHref}
           continueDisabled={!view.continueEnabled}
           onContinue={
@@ -639,7 +726,7 @@ export function CustomPlanCalculator({
           planDescription={`Manage your restaurants with ${planDisplayName} features and shared allowances.`}
         />
       ) : null}
-      {!contactSales && quote == null ? (
+      {!emptyState && !contactSales && quote == null ? (
         <CustomPlanQuotePlaceholder
           className={cn("lg:sticky lg:top-0", summaryClassName)}
           loading={state.status === "loading"}

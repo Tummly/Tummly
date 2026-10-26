@@ -42,12 +42,12 @@ export function PricingHowUsageWorks() {
         <div className="flex w-full max-w-[592px] shrink-0 flex-col gap-[46px]">
           <div className="flex max-w-[559px] flex-col gap-[22px]">
             <div className="flex flex-col gap-3.5">
-              <p className="m-0 font-sans text-sm font-normal uppercase leading-4 text-[#141414]">
+              <p className="m-0 font-sans text-sm leading-4 font-normal tracking-[1.12px] text-[#4a4a4a] uppercase">
                 {PRICING_HOW_USAGE_WORKS.eyebrow}
               </p>
               <h2
                 id="pricing-how-usage-heading"
-                className="m-0 max-w-[548px] font-jakarta text-[34px] font-semibold leading-normal text-black lg:text-[46px]"
+                className="m-0 max-w-[548px] font-jakarta text-[34px] font-semibold leading-[normal] text-black lg:text-[46px]"
               >
                 {PRICING_HOW_USAGE_WORKS.title}
               </h2>
@@ -106,7 +106,7 @@ export function PricingHowUsageWorks() {
                       />
                       <div className="flex min-w-0 flex-1 flex-col gap-2">
                         <div className="flex flex-wrap items-center gap-3">
-                          <h3 className="m-0 font-jakarta text-sm font-semibold leading-normal text-[#262626]">
+                          <h3 className="m-0 font-jakarta text-sm font-semibold leading-[normal] text-[#262626]">
                             {channel.title}
                           </h3>
                           <span className="inline-flex items-center gap-1 rounded-[30px] bg-[#ccc] px-2 py-1.5">
@@ -118,7 +118,7 @@ export function PricingHowUsageWorks() {
                               className="size-3 shrink-0"
                               aria-hidden
                             />
-                            <span className="font-jakarta text-[10px] font-medium leading-normal text-[#262626] sm:text-[11px]">
+                            <span className="font-jakarta text-[10px] font-medium leading-[normal] text-[#262626] sm:text-[11px]">
                               {channel.badge}
                             </span>
                           </span>
