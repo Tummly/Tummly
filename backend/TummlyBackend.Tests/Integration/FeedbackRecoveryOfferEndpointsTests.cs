@@ -937,9 +937,12 @@ namespace TummlyBackend.Tests.Integration
                 "Please enjoy 20% off your next visit."
             );
             Assert.NotEqual(HttpStatusCode.OK, failed.StatusCode);
+            Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
             var failedBody = await ReadJsonAsync(failed);
+            Assert.False(failedBody.GetProperty("success").GetBoolean());
+            Assert.Equal("sms_send_failed", failedBody.GetProperty("code").GetString());
             Assert.Equal(
-                "Unable to send Recovery SMS.",
+                "The reply was not confirmed as sent. Check its status before trying again.",
                 failedBody.GetProperty("message").GetString()
             );
             Assert.Single(delivery.Calls);
@@ -989,6 +992,58 @@ namespace TummlyBackend.Tests.Integration
                 "Please enjoy a free dessert on your next visit."
             );
             Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        }
+
+        [Fact]
+        public async Task RecoveryOfferSms_AfterProviderFailure_IdenticalRetryAllowed()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Failed
+                {
+                    Message = "Provider down.",
+                }
+            );
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-sms-identical-retry-tok",
+                ContactType.Phone,
+                "+447911123475",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-sms-identical-retry-owner@example.com",
+                withCatalogAttach: true,
+                services: customized.Services
+            );
+
+            const string body = "Please enjoy 20% off your next visit.";
+            var failed = await SendRecoverySmsOfferAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
+
+            var retry = await SendRecoverySmsOfferAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+            Assert.Equal(2, delivery.Calls.Count);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var replies = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .Where(r => r.FeedbackId == seeded.FeedbackId)
+                .OrderBy(r => r.Id)
+                .ToListAsync();
+            Assert.Equal(2, replies.Count);
+            Assert.Equal(GuestReplyDeliveryState.Failed, replies[0].DeliveryState);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, replies[1].DeliveryState);
+
+            var issues = await context.OfferIssues
+                .AsNoTracking()
+                .Where(o =>
+                    o.FeedbackId == seeded.FeedbackId
+                    && o.Source == OfferIssueSources.Recovery
+                )
+                .ToListAsync();
+            Assert.Equal(2, issues.Count);
+            Assert.Single(issues, o => o.CancelledAtUtc == null);
         }
 
         private WebApplicationFactory<Program> CreateFactoryWithSmsDelivery(

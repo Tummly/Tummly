@@ -278,9 +278,7 @@ namespace TummlyBackend.Services
                 // move to Failed. The error is returned and the reply is not recorded.
                 await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
 
-                throw new InvalidOperationException(
-                    "Unable to send Recovery SMS."
-                );
+                throw new GuestReplySmsSendFailedException();
             }
 
             var accepted = (RecoveryGuestSmsDeliveryResult.Accepted)delivery;

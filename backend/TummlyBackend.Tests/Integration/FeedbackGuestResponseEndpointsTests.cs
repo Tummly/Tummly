@@ -11,6 +11,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -758,6 +759,99 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ReplySms_ProviderFailed_Returns502SmsSendFailed()
+        {
+            await using var customized = CreateFactoryWithRecordingSmsDelivery(
+                new RecordingRecoveryGuestSmsDelivery(
+                    new RecoveryGuestSmsDeliveryResult.Failed
+                    {
+                        Message = "Provider down.",
+                    }
+                )
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-502-tok",
+                ContactType.Phone,
+                "+447911123490",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-502-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("sms_send_failed", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "The reply was not confirmed as sent. Check its status before trying again.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task ReplySms_AfterProviderFailure_IdenticalRetryAllowed()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Failed
+                {
+                    Message = "Provider down.",
+                }
+            );
+            await using var customized = CreateFactoryWithRecordingSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-identical-retry-tok",
+                ContactType.Phone,
+                "+447911123491",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-identical-retry-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            const string body = "Thanks for your message.";
+            var failed = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
+
+            var retry = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+            Assert.Equal(2, delivery.Calls.Count);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var replies = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .Where(r => r.FeedbackId == seeded.FeedbackId)
+                .ToListAsync();
+            var reply = Assert.Single(replies);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply.DeliveryState);
+
+            var snapshot = scope.ServiceProvider
+                .GetRequiredService<ICreditBalanceSnapshot>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var account = await snapshot.GetAccountAsync(restaurantId);
+            var sms = Assert.Single(
+                account!.Channels,
+                row => row.Channel == CreditChannels.Sms
+            );
+            Assert.Equal(0, sms.Held);
+            Assert.Equal(9, sms.Remaining);
+        }
+
+        [Fact]
         public async Task SendGuestResponse_Sms_SameIdempotencyKeyBeforeTtlDoesNotDoubleBurn()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
@@ -1425,6 +1519,50 @@ namespace TummlyBackend.Tests.Integration
         {
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
             return body;
+        }
+
+        private async Task<HttpResponseMessage> PostSmsReplyAsync(
+            HttpClient client,
+            (string Jwt, int LocationId, int FeedbackId) seeded,
+            string body
+        )
+        {
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body,
+                intent = "respond_to_guest",
+            });
+
+            return await client.SendAsync(post);
+        }
+
+        private WebApplicationFactory<Program> CreateFactoryWithRecordingSmsDelivery(
+            RecordingRecoveryGuestSmsDelivery delivery
+        )
+        {
+            return _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    foreach (
+                        var descriptor in services
+                            .Where(d => d.ServiceType == typeof(IRecoveryGuestSmsDelivery))
+                            .ToList()
+                    )
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    services.AddSingleton<IRecoveryGuestSmsDelivery>(delivery);
+                });
+            });
         }
 
         private HttpClient CreateClientWithUnavailableRecoveryBilling()

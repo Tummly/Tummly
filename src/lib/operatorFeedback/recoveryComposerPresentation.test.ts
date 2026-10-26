@@ -100,4 +100,31 @@ describe("mapRecoveryComposerSendFailure refusals", () => {
       message: "This reply was already sent to the guest.",
     })
   })
+
+  it("502 SMS send failure keeps the server message for the user", () => {
+    const error = new AxiosError(
+      "Request failed with status code 502",
+      AxiosError.ERR_BAD_RESPONSE,
+      undefined,
+      undefined,
+      {
+        status: 502,
+        statusText: "Bad Gateway",
+        headers: {},
+        config: {} as never,
+        data: {
+          success: false,
+          code: "sms_send_failed",
+          message:
+            "The reply was not confirmed as sent. Check its status before trying again.",
+        },
+      }
+    )
+
+    expect(mapRecoveryComposerSendFailure(error)).toEqual({
+      kind: "refused",
+      message:
+        "The reply was not confirmed as sent. Check its status before trying again.",
+    })
+  })
 })

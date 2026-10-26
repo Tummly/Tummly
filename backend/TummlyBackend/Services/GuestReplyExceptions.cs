@@ -38,6 +38,24 @@ namespace TummlyBackend.Services
     }
 
     /// <summary>
+    /// The SMS provider did not accept the reply. Nothing was sent, so the
+    /// reply is not confirmed as sent.
+    /// </summary>
+    public sealed class GuestReplySmsSendFailedException : Exception
+    {
+        public const string ErrorCode = "sms_send_failed";
+
+        public GuestReplySmsSendFailedException()
+            : base(
+                "The reply was not confirmed as sent. Check its status before trying again."
+            )
+        {
+        }
+
+        public string Code => ErrorCode;
+    }
+
+    /// <summary>
     /// The per-Feedback guest reply lock was not granted in time.
     /// </summary>
     public sealed class GuestReplyLockUnavailableException : Exception

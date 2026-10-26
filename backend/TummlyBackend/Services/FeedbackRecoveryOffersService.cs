@@ -405,9 +405,7 @@ namespace TummlyBackend.Services
                 await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
                 await _context.SaveChangesAsync(cancellationToken);
 
-                throw new InvalidOperationException(
-                    "Unable to send Recovery SMS."
-                );
+                throw new GuestReplySmsSendFailedException();
             }
 
             var accepted = (RecoveryGuestSmsDeliveryResult.Accepted)delivery;

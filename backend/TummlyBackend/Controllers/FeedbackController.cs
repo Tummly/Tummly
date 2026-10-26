@@ -1641,6 +1641,18 @@ namespace TummlyBackend.Controllers
                     }
                 );
             }
+            catch (GuestReplySmsSendFailedException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Message,
+                    }
+                );
+            }
             catch (InvalidOperationException ex)
             {
                 return Unauthorized(new
@@ -2243,6 +2255,18 @@ namespace TummlyBackend.Controllers
                     }
                 );
             }
+            catch (GuestReplySmsSendFailedException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Message,
+                    }
+                );
+            }
             catch (InvalidOperationException ex)
             {
                 return Unauthorized(new
@@ -2548,6 +2572,18 @@ namespace TummlyBackend.Controllers
                     new
                     {
                         success = false,
+                        message = ex.Message,
+                    }
+                );
+            }
+            catch (GuestReplySmsSendFailedException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
                         message = ex.Message,
                     }
                 );

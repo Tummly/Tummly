@@ -54,7 +54,9 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// Refuses when the same text was already sent to this Feedback on this
-        /// channel within <see cref="DuplicateWindow"/>.
+        /// channel within <see cref="DuplicateWindow"/>. A reply whose send failed
+        /// (<see cref="GuestReplyDeliveryState.Failed"/>) was not sent, so it does
+        /// not count and a retry is allowed.
         /// </summary>
         public static async Task EnsureNotDuplicateAsync(
             ApplicationDbContext context,
@@ -72,6 +74,7 @@ namespace TummlyBackend.Helpers
                     row.FeedbackId == feedbackId
                     && row.Channel == channel
                     && row.CreatedAt >= since
+                    && row.DeliveryState != GuestReplyDeliveryState.Failed
                 )
                 .Select(row => new { row.Body, row.Intent })
                 .ToListAsync(cancellationToken);

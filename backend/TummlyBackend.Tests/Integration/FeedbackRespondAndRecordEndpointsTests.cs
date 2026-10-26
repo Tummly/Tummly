@@ -619,7 +619,14 @@ namespace TummlyBackend.Tests.Integration
                 seeded,
                 "Thanks for telling us. We have briefed the team."
             );
-            Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var failedBody = await ReadJsonAsync(response);
+            Assert.False(failedBody.GetProperty("success").GetBoolean());
+            Assert.Equal("sms_send_failed", failedBody.GetProperty("code").GetString());
+            Assert.Equal(
+                "The reply was not confirmed as sent. Check its status before trying again.",
+                failedBody.GetProperty("message").GetString()
+            );
             Assert.Single(delivery.Calls);
 
             using var scope = customized.Services.CreateScope();
