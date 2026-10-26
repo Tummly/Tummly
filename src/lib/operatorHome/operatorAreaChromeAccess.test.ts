@@ -5,6 +5,7 @@ import {
   isDeniedOperatorSidebarActiveId,
   resolveHiddenOperatorSidebarNavIds,
 } from "@/lib/operatorHome/operatorAreaChromeAccess"
+import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
 
 describe("buildOperatorSidebarAreaAccess", () => {
   it("maps workspace chrome fields onto SideNav ids", () => {
@@ -96,5 +97,59 @@ describe("isDeniedOperatorSidebarActiveId", () => {
 
   it("allows Guests when access is omitted", () => {
     expect(isDeniedOperatorSidebarActiveId("guests", {})).toBe(false)
+  })
+})
+
+describe("Staff Settings routes (WS2b Task 11)", () => {
+  const allManage = {
+    guestsAccess: "manage",
+    captureAccess: "manage",
+    feedbackAccess: "manage",
+    campaignsAccess: "manage",
+    offersAccess: "manage",
+    reportsAccess: "manage",
+    accountWorkspaceAccess: "manage",
+    locationsAccess: "manage",
+    teamPermissionsAccess: "manage",
+    billingCreditsAccess: "manage",
+    privacyConsentAccess: "manage",
+    tummlyShopAccess: "manage",
+  } as const
+
+  it("denies the Locations settings route when locationsAccess is none", () => {
+    expect(
+      isDeniedOperatorSidebarActiveId(
+        resolveOperatorSidebarActiveId("/single-dashboard/settings/locations/7"),
+        buildOperatorSidebarAreaAccess({ ...allManage, locationsAccess: "none" })
+      )
+    ).toBe(true)
+  })
+
+  it("denies the account workspace settings route when accountWorkspaceAccess is none", () => {
+    expect(
+      isDeniedOperatorSidebarActiveId(
+        resolveOperatorSidebarActiveId(
+          "/single-dashboard/settings/account-workspace"
+        ),
+        buildOperatorSidebarAreaAccess({
+          ...allManage,
+          accountWorkspaceAccess: "none",
+        })
+      )
+    ).toBe(true)
+  })
+
+  it("keeps Offers allowed for a Staff-shaped access map", () => {
+    expect(
+      isDeniedOperatorSidebarActiveId(
+        resolveOperatorSidebarActiveId("/single-dashboard/offers"),
+        buildOperatorSidebarAreaAccess({
+          ...allManage,
+          locationsAccess: "none",
+          accountWorkspaceAccess: "none",
+          offersAccess: "view",
+        })
+      )
+    ).toBe(false)
   })
 })

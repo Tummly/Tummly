@@ -67,11 +67,8 @@ function guestMatchesSearch(
     return true
   }
 
-  return (
-    guest.name.toLowerCase().includes(query) ||
-    guest.email.toLowerCase().includes(query) ||
-    (guest.mobile?.toLowerCase().includes(query) ?? false)
-  )
+  // Contact search is exact-match on the server; the client filters by name only.
+  return guest.name.toLowerCase().includes(query)
 }
 
 function sortGuests(

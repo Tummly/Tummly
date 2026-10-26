@@ -617,6 +617,8 @@ function DashboardContent({ mode }: DashboardProps) {
             offersAccess: workspace.snapshot.offersAccess,
             captureAccess: workspace.snapshot.captureAccess,
             privacyConsentAccess: workspace.snapshot.privacyConsentAccess,
+            locationsAccess: workspace.snapshot.locationsAccess,
+            accountWorkspaceAccess: workspace.snapshot.accountWorkspaceAccess,
             selectedLocationId,
             locations: workspace.snapshot.locations,
             brandLogoPublicUrl: workspace.snapshot.brandLogoPublicUrl ?? null,
@@ -679,6 +681,16 @@ export type DashboardOutletContext = {
   captureAccess: "none" | "view" | "manage"
   /** Privacy consent Area chrome — omit/manage keeps Guest consent export visible. */
   privacyConsentAccess: "none" | "view" | "manage"
+  /**
+   * Locations Area chrome. Add / Import need Manage (not view or none).
+   * Omit keeps them (CODING_STANDARDS chrome omit).
+   */
+  locationsAccess: "none" | "view" | "manage"
+  /**
+   * Account workspace Area chrome. Upload logo needs Manage (not view or none).
+   * Omit keeps it (CODING_STANDARDS chrome omit).
+   */
+  accountWorkspaceAccess: "none" | "view" | "manage"
   selectedLocationId: number
   locations: Array<{
     id: number

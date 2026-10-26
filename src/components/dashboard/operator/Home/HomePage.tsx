@@ -50,8 +50,11 @@ export function HomePage({
 }: HomePageProps) {
   const home = useHomePageModule()
   const navigate = useNavigate()
-  const { locations, reloadWorkspace } =
+  const { locations, reloadWorkspace, accountWorkspaceAccess } =
     useOutletContext<DashboardOutletContext>()
+  // Upload logo edits the account workspace: hide for View and None; omit keeps it.
+  const canUploadLogo =
+    accountWorkspaceAccess !== "view" && accountWorkspaceAccess !== "none"
   const heroMode = resolveOperatorHomeHeroMode(subscriptionPlan)
   const choosePlanHref =
     selectedLocationId != null
@@ -275,15 +278,19 @@ export function HomePage({
         }}
         previewBusy={home.snapshot.previewBusy}
         onPreviewGuestForm={home.previewGuestForm}
-        onUploadLogo={() => {
-          navigate(
-            operatorDashboardNavPath(
-              mode,
-              "account-workspace",
-              selectedLocationId
-            )
-          )
-        }}
+        onUploadLogo={
+          canUploadLogo
+            ? () => {
+                navigate(
+                  operatorDashboardNavPath(
+                    mode,
+                    "account-workspace",
+                    selectedLocationId
+                  )
+                )
+              }
+            : undefined
+        }
         onViewPlacementGuide={() => {
           home.acknowledgeQrPlacementGuide()
           navigate(HELP_CENTRE_URL)

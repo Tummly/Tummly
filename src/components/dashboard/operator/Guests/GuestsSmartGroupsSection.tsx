@@ -32,7 +32,6 @@ import {
 import { getOperatorInitials } from "@/lib/operatorHome/operatorProfile"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
-import { formatPhoneForDisplay } from "@/lib/phoneNumber"
 import {
   GUESTS_MARKETING_STATUS_BADGE_CLASS,
   GUESTS_PAGINATION_BUTTON_CLASS,
@@ -77,7 +76,6 @@ import {
   GUESTS_TABLIST_SCROLL_CLASS,
   GUESTS_TOOLBAR_ACTIONS_CLASS,
   GUESTS_TOOLBAR_ROW_CLASS,
-  OPERATOR_GUEST_CONTACT_LINK_CLASS,
   OPERATOR_GUEST_SORT_LABELS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
@@ -433,23 +431,9 @@ export function GuestsSmartGroupsSection({
                         </div>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        {row.email.trim() ? (
-                          <a
-                            href={`mailto:${row.email}`}
-                            className={OPERATOR_GUEST_CONTACT_LINK_CLASS}
-                          >
-                            {row.email}
-                          </a>
-                        ) : row.mobile ? (
-                          <a
-                            href={`tel:${row.mobile}`}
-                            className={OPERATOR_GUEST_CONTACT_LINK_CLASS}
-                          >
-                            {formatPhoneForDisplay(row.mobile)}
-                          </a>
-                        ) : (
-                          <span className={GUESTS_TABLE_LOCATION_CLASS}>—</span>
-                        )}
+                        <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                          {row.email.trim() || row.mobile || "—"}
+                        </span>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <Badge

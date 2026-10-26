@@ -114,7 +114,6 @@ describe("createGuestDetailsModule", () => {
         marketingStatusLabel: "Eligible — Email",
         identitySubtitle:
           "Guest since 12 May 2026 · Last activity 12 minutes ago",
-        email: "mohamed@email.com",
         emailDisplay: "mohamed@email.com",
         mobileDisplay: "Not provided",
         emailMarketingLabel: "Opted in",
@@ -418,8 +417,8 @@ describe("createGuestDetailsModule", () => {
 
     await details.open({ guestId: 42, locationId: 7 })
 
+    expect(details.getSnapshot().details).not.toHaveProperty("email")
     expect(details.getSnapshot().details).toMatchObject({
-      email: null,
       emailDisplay: "Not provided",
       mobileDisplay: "Not provided",
       emailMarketingLabel: "Not opted in",

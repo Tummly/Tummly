@@ -68,8 +68,11 @@ export function LocationsPage() {
   )
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { mode } = useOutletContext<DashboardOutletContext>()
+  const { mode, locationsAccess } = useOutletContext<DashboardOutletContext>()
   const copy = LOCATIONS_PAGE_COPY
+  // Add / Import write locations: hide for View and None; omit keeps them.
+  const canWriteLocations =
+    locationsAccess !== "view" && locationsAccess !== "none"
 
   useWriteActiveTabToSearchParams(snap.activeTabId)
 
@@ -78,7 +81,7 @@ export function LocationsPage() {
   const [addError, setAddError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (searchParams.get("add") !== "1") {
+    if (!canWriteLocations || searchParams.get("add") !== "1") {
       return
     }
     setAddError(null)
@@ -86,7 +89,7 @@ export function LocationsPage() {
     const next = new URLSearchParams(searchParams)
     next.delete("add")
     setSearchParams(next, { replace: true })
-  }, [searchParams, setSearchParams])
+  }, [canWriteLocations, searchParams, setSearchParams])
 
   const [importOpen, setImportOpen] = useState(false)
   const [importBusy, setImportBusy] = useState(false)
@@ -212,27 +215,29 @@ export function LocationsPage() {
             {copy.subtitle}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="op-primary"
-            className={LOCATIONS_PAGE_PRIMARY_BUTTON_CLASS}
-            onClick={() => {
-              setAddError(null)
-              setAddOpen(true)
-            }}
-          >
-            {copy.addLocation}
-          </Button>
-          <Button
-            type="button"
-            variant="op-secondary"
-            className={LOCATIONS_PAGE_SECONDARY_BUTTON_CLASS}
-            onClick={() => setImportOpen(true)}
-          >
-            {copy.importLocations}
-          </Button>
-        </div>
+        {canWriteLocations ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="op-primary"
+              className={LOCATIONS_PAGE_PRIMARY_BUTTON_CLASS}
+              onClick={() => {
+                setAddError(null)
+                setAddOpen(true)
+              }}
+            >
+              {copy.addLocation}
+            </Button>
+            <Button
+              type="button"
+              variant="op-secondary"
+              className={LOCATIONS_PAGE_SECONDARY_BUTTON_CLASS}
+              onClick={() => setImportOpen(true)}
+            >
+              {copy.importLocations}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <Tabs

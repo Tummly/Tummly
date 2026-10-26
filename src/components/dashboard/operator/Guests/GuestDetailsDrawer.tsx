@@ -84,25 +84,15 @@ function Section({
 function DetailRow({
   label,
   value,
-  href,
   stacked = false,
 }: {
   label: string
   value: ReactNode
-  href?: string
   stacked?: boolean
 }) {
-  const valueNode =
-    href != null ? (
-      <a
-        href={href}
-        className="text-sm font-medium text-muted-foreground underline"
-      >
-        {value}
-      </a>
-    ) : (
-      <span className="text-sm font-medium text-muted-foreground">{value}</span>
-    )
+  const valueNode = (
+    <span className="text-sm font-medium text-muted-foreground">{value}</span>
+  )
 
   if (stacked) {
     return (
@@ -305,13 +295,7 @@ function LoadedBody({
         title="Contact and permissions"
         demoTourTarget="guest-permissions"
       >
-        <DetailRow
-          label="Email:"
-          value={details.emailDisplay}
-          href={
-            details.email != null ? `mailto:${details.email}` : undefined
-          }
-        />
+        <DetailRow label="Email:" value={details.emailDisplay} />
         <DetailRow label="Mobile:" value={details.mobileDisplay} />
         <DetailRow
           label="Email marketing:"
