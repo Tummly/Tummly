@@ -15,24 +15,21 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
-        private readonly IRecoverySmsBillingReserve _smsBilling;
-        private readonly IRecoveryGuestSmsDelivery _smsDelivery;
+        private readonly IGuestReplySmsSendStep _smsSend;
         private readonly TimeProvider _clock;
         private readonly IGuestReplyLock _replyLock;
 
         public FeedbackGuestResponsesService(
             ApplicationDbContext context,
             IGuestResponseEmailDeliveryWork emailDelivery,
-            IRecoverySmsBillingReserve smsBilling,
-            IRecoveryGuestSmsDelivery smsDelivery,
+            IGuestReplySmsSendStep smsSend,
             TimeProvider clock,
             IGuestReplyLock replyLock
         )
         {
             _context = context;
             _emailDelivery = emailDelivery;
-            _smsBilling = smsBilling;
-            _smsDelivery = smsDelivery;
+            _smsSend = smsSend;
             _clock = clock;
             _replyLock = replyLock;
         }
@@ -105,7 +102,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            await EnsureOperatorBillingAllowsSendAsync(
+            await _smsSend.EnsureOperatorBillingAllowsSendAsync(
                 feedback.RestaurantLocationId,
                 cancellationToken
             );
@@ -230,10 +227,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (!_smsBilling.IsLive)
-            {
-                throw new RecoverySmsBillingUnavailableException();
-            }
+            _smsSend.EnsureBillingLive();
 
             var restaurantId = await _context.RestaurantLocations
                 .AsNoTracking()
@@ -265,65 +259,15 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            var estimate = CampaignSmsSegmentCalculator.CountSegments(content.Body);
-            await ReleaseExpiredOpenHoldForKeyAsync(
-                restaurantId,
-                feedback.Id,
+            var reservation = await _smsSend.ReserveAsync(
+                feedback,
                 normalizedKey,
+                content.Body,
                 cancellationToken
             );
 
-            var reservationRef = await ResolveOpenReservationRefAsync(
-                restaurantId,
-                feedback.Id,
-                normalizedKey,
-                estimate,
-                cancellationToken
-            );
-
-            if (reservationRef == null)
-            {
-                var reserve = await _smsBilling.ReserveAsync(
-                    new RecoverySmsBillingReserveRequest
-                    {
-                        FeedbackId = feedback.Id,
-                        LocationId = feedback.RestaurantLocationId,
-                        Units = estimate,
-                    },
-                    cancellationToken
-                );
-
-                if (reserve is RecoverySmsBillingReserveResult.Failed failed)
-                {
-                    throw new RecoverySmsCreditRefusedException(
-                        failed.Code,
-                        failed.Remaining,
-                        failed.Requested
-                    );
-                }
-
-                reservationRef =
-                    ((RecoverySmsBillingReserveResult.Ok)reserve).ReservationRef;
-
-                var now = _clock.GetUtcNow().UtcDateTime;
-                _context.RecoverySmsSendIdempotencies.Add(
-                    new RecoverySmsSendIdempotency
-                    {
-                        RestaurantId = restaurantId,
-                        FeedbackId = feedback.Id,
-                        IdempotencyKey = TrackingKey(normalizedKey, reservationRef),
-                        ReservationRef = reservationRef,
-                        ReservedUnits = estimate,
-                        ReservedAtUtc = now,
-                        HoldExpiresAtUtc = now
-                            + CreditReservationSweeperBackgroundService.HoldTtl,
-                    }
-                );
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-
-            var delivery = await _smsDelivery.SendAsync(
-                feedback.GuestContact,
+            var delivery = await _smsSend.SendAsync(
+                feedback,
                 content.Body,
                 cancellationToken
             );
@@ -332,20 +276,7 @@ namespace TummlyBackend.Services
             {
                 // No reply row is saved on a failed send, so there is no state to
                 // move to Failed. The error is returned and the reply is not recorded.
-                await _smsBilling.ReleaseAsync(
-                    new RecoverySmsBillingReleaseRequest
-                    {
-                        FeedbackId = feedback.Id,
-                        ReservationRef = reservationRef,
-                    },
-                    cancellationToken
-                );
-                await ClearOpenHoldAsync(
-                    restaurantId,
-                    normalizedKey,
-                    reservationRef,
-                    cancellationToken
-                );
+                await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
 
                 throw new InvalidOperationException(
                     "Unable to send Recovery SMS."
@@ -353,51 +284,16 @@ namespace TummlyBackend.Services
             }
 
             var accepted = (RecoveryGuestSmsDeliveryResult.Accepted)delivery;
-            var settle = await _smsBilling.SettleAsync(
-                new RecoverySmsBillingSettleRequest
-                {
-                    FeedbackId = feedback.Id,
-                    ReservationRef = reservationRef,
-                    AcceptedUnits = accepted.AcceptedSegments,
-                },
-                cancellationToken
-            );
-
-            if (settle is RecoverySmsBillingSettleResult.Failed)
+            if (!await _smsSend.SettleAcceptedAsync(reservation, accepted, cancellationToken))
             {
-                await _smsBilling.ReleaseAsync(
-                    new RecoverySmsBillingReleaseRequest
-                    {
-                        FeedbackId = feedback.Id,
-                        ReservationRef = reservationRef,
-                    },
-                    cancellationToken
-                );
-                await ClearOpenHoldAsync(
-                    restaurantId,
-                    normalizedKey,
-                    reservationRef,
-                    cancellationToken
-                );
+                await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
 
                 throw new InvalidOperationException(
                     "Unable to settle Recovery SMS credits."
                 );
             }
 
-            // Lock 05 / ticket 22: settle accepted units, then release unused hold
-            // (same close order as CampaignBillingClose). Provider already accepted
-            // and settle already committed — Release fail must not withhold the
-            // guest-response fact; leftover hold stays for the TTL sweeper.
-            await _smsBilling.ReleaseAsync(
-                new RecoverySmsBillingReleaseRequest
-                {
-                    FeedbackId = feedback.Id,
-                    ReservationRef = reservationRef,
-                },
-                cancellationToken
-            );
-
+            var now = _clock.GetUtcNow().UtcDateTime;
             var row = FeedbackGuestResponseComposer.Build(
                 feedback,
                 FeedbackGuestResponseChannel.Sms,
@@ -408,79 +304,16 @@ namespace TummlyBackend.Services
                 includeNotes,
                 authorUserId,
                 authorDisplayName,
-                _clock.GetUtcNow().UtcDateTime
+                now
             );
             row.EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.NotApplicable;
-            row.BillingReservationRef = reservationRef;
-            row.ProviderMessageId = accepted.ProviderMessageId;
-
-            // Accepted only when Twilio will call back with a status for this SID.
-            // Without a callback or a SID, the send cannot be confirmed: Unavailable.
-            var callbackCanConfirm =
-                accepted.StatusCallbackSet
-                && !string.IsNullOrWhiteSpace(accepted.ProviderMessageId);
-            GuestReplyDeliveryStateMachine.TryAdvance(
-                row,
-                callbackCanConfirm
-                    ? GuestReplyDeliveryState.Accepted
-                    : GuestReplyDeliveryState.Unavailable,
-                _clock.GetUtcNow().UtcDateTime
-            );
+            _smsSend.ApplyAccepted(row, reservation, accepted, now);
 
             _context.FeedbackGuestResponses.Add(row);
-            await MarkIdempotencyCompletedAsync(
-                restaurantId,
-                normalizedKey,
-                reservationRef,
-                row,
-                cancellationToken
-            );
+            await _smsSend.CompleteAsync(reservation, row, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
 
             return BuildResult(feedback, row);
-        }
-
-        private static string TrackingKey(string clientKey, string reservationRef)
-            => clientKey.Length > 0 ? clientKey : $"anon:{reservationRef}";
-
-        private async Task ReleaseExpiredOpenHoldForKeyAsync(
-            int restaurantId,
-            int feedbackId,
-            string idempotencyKey,
-            CancellationToken cancellationToken
-        )
-        {
-            if (idempotencyKey.Length == 0)
-            {
-                return;
-            }
-
-            var now = _clock.GetUtcNow().UtcDateTime;
-            var expired = await _context.RecoverySmsSendIdempotencies
-                .FirstOrDefaultAsync(
-                    row =>
-                        row.RestaurantId == restaurantId
-                        && row.IdempotencyKey == idempotencyKey
-                        && row.CompletedGuestResponseId == null
-                        && row.HoldExpiresAtUtc <= now,
-                    cancellationToken
-                );
-
-            if (expired == null)
-            {
-                return;
-            }
-
-            await _smsBilling.ReleaseAsync(
-                new RecoverySmsBillingReleaseRequest
-                {
-                    FeedbackId = feedbackId,
-                    ReservationRef = expired.ReservationRef,
-                },
-                cancellationToken
-            );
-            _context.RecoverySmsSendIdempotencies.Remove(expired);
-            await _context.SaveChangesAsync(cancellationToken);
         }
 
         private async Task<SendFeedbackGuestResponseResultDto?> TryReplayCompletedAsync(
@@ -520,172 +353,6 @@ namespace TummlyBackend.Services
             }
 
             return BuildResult(feedback, row);
-        }
-
-        private async Task<string?> ResolveOpenReservationRefAsync(
-            int restaurantId,
-            int feedbackId,
-            string idempotencyKey,
-            int estimate,
-            CancellationToken cancellationToken
-        )
-        {
-            if (idempotencyKey.Length == 0)
-            {
-                return null;
-            }
-
-            var now = _clock.GetUtcNow().UtcDateTime;
-            var open = await _context.RecoverySmsSendIdempotencies
-                .FirstOrDefaultAsync(
-                    row =>
-                        row.RestaurantId == restaurantId
-                        && row.IdempotencyKey == idempotencyKey
-                        && row.CompletedGuestResponseId == null
-                        && row.HoldExpiresAtUtc > now,
-                    cancellationToken
-                );
-
-            if (open == null)
-            {
-                return null;
-            }
-
-            if (open.FeedbackId != feedbackId || open.ReservedUnits != estimate)
-            {
-                return null;
-            }
-
-            return open.ReservationRef;
-        }
-
-        private async Task MarkIdempotencyCompletedAsync(
-            int restaurantId,
-            string idempotencyKey,
-            string reservationRef,
-            FeedbackGuestResponse row,
-            CancellationToken cancellationToken
-        )
-        {
-            var trackingKey = TrackingKey(idempotencyKey, reservationRef);
-            var open = await _context.RecoverySmsSendIdempotencies
-                .FirstOrDefaultAsync(
-                    item =>
-                        item.RestaurantId == restaurantId
-                        && item.IdempotencyKey == trackingKey
-                        && item.CompletedGuestResponseId == null,
-                    cancellationToken
-                );
-
-            if (open == null)
-            {
-                open = await _context.RecoverySmsSendIdempotencies
-                    .FirstOrDefaultAsync(
-                        item =>
-                            item.RestaurantId == restaurantId
-                            && item.ReservationRef == reservationRef
-                            && item.CompletedGuestResponseId == null,
-                        cancellationToken
-                    );
-            }
-
-            if (open == null)
-            {
-                if (idempotencyKey.Length == 0)
-                {
-                    return;
-                }
-
-                _context.RecoverySmsSendIdempotencies.Add(
-                    new RecoverySmsSendIdempotency
-                    {
-                        RestaurantId = restaurantId,
-                        FeedbackId = row.FeedbackId,
-                        IdempotencyKey = idempotencyKey,
-                        ReservationRef = reservationRef,
-                        ReservedUnits = CampaignSmsSegmentCalculator.CountSegments(
-                            row.Body
-                        ),
-                        ReservedAtUtc = row.CreatedAt,
-                        HoldExpiresAtUtc = row.CreatedAt,
-                        CompletedGuestResponse = row,
-                        CompletedAtUtc = _clock.GetUtcNow().UtcDateTime,
-                    }
-                );
-                return;
-            }
-
-            if (idempotencyKey.Length == 0)
-            {
-                _context.RecoverySmsSendIdempotencies.Remove(open);
-                return;
-            }
-
-            open.CompletedGuestResponse = row;
-            open.CompletedAtUtc = _clock.GetUtcNow().UtcDateTime;
-        }
-
-        private async Task ClearOpenHoldAsync(
-            int restaurantId,
-            string idempotencyKey,
-            string reservationRef,
-            CancellationToken cancellationToken
-        )
-        {
-            var trackingKey = TrackingKey(idempotencyKey, reservationRef);
-            var open = await _context.RecoverySmsSendIdempotencies
-                .FirstOrDefaultAsync(
-                    item =>
-                        item.RestaurantId == restaurantId
-                        && (
-                            item.IdempotencyKey == trackingKey
-                            || item.ReservationRef == reservationRef
-                        )
-                        && item.CompletedGuestResponseId == null,
-                    cancellationToken
-                );
-
-            if (open != null)
-            {
-                _context.RecoverySmsSendIdempotencies.Remove(open);
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-        }
-
-        private async Task EnsureOperatorBillingAllowsSendAsync(
-            int locationId,
-            CancellationToken cancellationToken
-        )
-        {
-            var restaurantId = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(row => row.Id == locationId)
-                .Select(row => row.RestaurantId)
-                .FirstOrDefaultAsync(cancellationToken);
-            if (restaurantId == 0)
-            {
-                return;
-            }
-
-            var account = await _context.BillingAccounts
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    row => row.RestaurantId == restaurantId,
-                    cancellationToken
-                );
-            if (account == null)
-            {
-                return;
-            }
-
-            var deny = OperatorBillingLockEvaluator.EvaluateSendOrReserveDeny(
-                OperatorBillingLockEvaluator.FromBillingAccount(account),
-                _clock.GetUtcNow().UtcDateTime
-            );
-            if (deny != null)
-            {
-                throw new OperatorBillingLockedException(deny);
-            }
         }
 
         private static SendFeedbackGuestResponseResultDto BuildResult(

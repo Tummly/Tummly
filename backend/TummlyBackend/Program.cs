@@ -735,6 +735,7 @@ builder.Services.AddScoped<
     IRecoverySmsBillingReserve,
     LiveRecoverySmsBillingReserve
 >();
+builder.Services.AddScoped<IGuestReplySmsSendStep, GuestReplySmsSendStep>();
 if (builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddScoped<

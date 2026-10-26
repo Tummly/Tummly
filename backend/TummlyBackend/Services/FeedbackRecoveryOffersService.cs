@@ -15,18 +15,21 @@ namespace TummlyBackend.Services
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
         private readonly IOfferIssueService _offerIssues;
         private readonly IGuestReplyLock _replyLock;
+        private readonly IGuestReplySmsSendStep _smsSend;
 
         public FeedbackRecoveryOffersService(
             ApplicationDbContext context,
             IGuestResponseEmailDeliveryWork emailDelivery,
             IOfferIssueService offerIssues,
-            IGuestReplyLock replyLock
+            IGuestReplyLock replyLock,
+            IGuestReplySmsSendStep smsSend
         )
         {
             _context = context;
             _emailDelivery = emailDelivery;
             _offerIssues = offerIssues;
             _replyLock = replyLock;
+            _smsSend = smsSend;
         }
 
         public async Task<SendAndIssueFeedbackRecoveryOfferResultDto?> SendAndIssueAsync(
@@ -154,11 +157,24 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            var isSms = channel == FeedbackGuestResponseChannel.Sms;
+            if (isSms)
+            {
+                _smsSend.EnsureBillingLive();
+                await _smsSend.EnsureOperatorBillingAllowsSendAsync(
+                    feedback.RestaurantLocationId,
+                    cancellationToken
+                );
+            }
+
             OfferIssue? issue = null;
             FeedbackGuestResponse? guestResponse = null;
+            GuestReplySmsReservation? reservation = null;
 
             // Stage Offer issue + guest-response, then one SaveChanges so both
-            // facts commit together (ADR 0026 / ticket 05 atomic Send).
+            // facts commit together (ADR 0026 / ticket 05 atomic Send). SMS
+            // reserves credits for the final text (claim code included) before
+            // that save, and the send happens only after it.
             for (var attempt = 1; ; attempt++)
             {
                 DetachIfTracked(issue);
@@ -179,9 +195,23 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                var bodyForChannel = channel == FeedbackGuestResponseChannel.Sms
+                var bodyForChannel = isSms
                     ? AppendClaimCodeText(content.Body, issue.ClaimCode)
                     : content.Body;
+
+                if (isSms)
+                {
+                    // The reserve saves the shared context. Keep the staged Offer
+                    // out of that save so a refused reserve leaves no issue behind.
+                    DetachIfTracked(issue);
+                    reservation = await _smsSend.ReserveAsync(
+                        feedback,
+                        string.Empty,
+                        bodyForChannel,
+                        cancellationToken
+                    );
+                    _context.OfferIssues.Add(issue);
+                }
 
                 guestResponse = FeedbackGuestResponseComposer.Build(
                     feedback,
@@ -200,23 +230,10 @@ namespace TummlyBackend.Services
                 );
 
                 guestResponse.EmailDeliveryStatus =
-                    channel == FeedbackGuestResponseChannel.Email
-                        ? GuestResponseEmailDeliveryStatus.Pending
-                        : GuestResponseEmailDeliveryStatus.NotApplicable;
-                if (channel == FeedbackGuestResponseChannel.Email)
-                {
-                    guestResponse.DeliveryState = GuestReplyDeliveryState.Pending;
-                }
-                else
-                {
-                    // This path does not call the SMS provider. No provider id, so the
-                    // state cannot be confirmed.
-                    GuestReplyDeliveryStateMachine.TryAdvance(
-                        guestResponse,
-                        GuestReplyDeliveryState.Unavailable,
-                        issuedAt
-                    );
-                }
+                    isSms
+                        ? GuestResponseEmailDeliveryStatus.NotApplicable
+                        : GuestResponseEmailDeliveryStatus.Pending;
+                guestResponse.DeliveryState = GuestReplyDeliveryState.Pending;
 
                 _context.FeedbackGuestResponses.Add(guestResponse);
 
@@ -227,11 +244,30 @@ namespace TummlyBackend.Services
                 }
                 catch (DbUpdateException)
                 {
+                    DetachIfTracked(issue);
+                    DetachIfTracked(guestResponse);
+                    if (reservation != null)
+                    {
+                        await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
+                        reservation = null;
+                    }
+
                     if (attempt >= OfferIssueService.MaxCodeAttempts)
                     {
                         throw new OfferIssueCodeAllocationException();
                     }
                 }
+            }
+
+            if (isSms)
+            {
+                await SendSmsAndSettleAsync(
+                    feedback,
+                    issue!,
+                    guestResponse!,
+                    reservation!,
+                    cancellationToken
+                );
             }
 
             if (
@@ -337,6 +373,63 @@ namespace TummlyBackend.Services
                 .ThenByDescending(item => item.Id)
                 .Take(MaxListLimit)
                 .ToList();
+        }
+
+        /// <summary>
+        /// Sends the saved Offer SMS, then settles its credits. A failed send
+        /// cancels the Offer so a retry is allowed and records the reply as Failed.
+        /// </summary>
+        private async Task SendSmsAndSettleAsync(
+            Feedback feedback,
+            OfferIssue issue,
+            FeedbackGuestResponse guestResponse,
+            GuestReplySmsReservation reservation,
+            CancellationToken cancellationToken
+        )
+        {
+            var delivery = await _smsSend.SendAsync(
+                feedback,
+                guestResponse.Body,
+                cancellationToken
+            );
+            var now = DateTime.UtcNow;
+
+            if (delivery is RecoveryGuestSmsDeliveryResult.Failed)
+            {
+                issue.CancelledAtUtc = now;
+                GuestReplyDeliveryStateMachine.TryAdvance(
+                    guestResponse,
+                    GuestReplyDeliveryState.Failed,
+                    now
+                );
+                await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
+                await _context.SaveChangesAsync(cancellationToken);
+
+                throw new InvalidOperationException(
+                    "Unable to send Recovery SMS."
+                );
+            }
+
+            var accepted = (RecoveryGuestSmsDeliveryResult.Accepted)delivery;
+            var settled = await _smsSend.SettleAcceptedAsync(
+                reservation,
+                accepted,
+                cancellationToken
+            );
+            _smsSend.ApplyAccepted(guestResponse, reservation, accepted, now);
+
+            if (!settled)
+            {
+                await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
+                await _context.SaveChangesAsync(cancellationToken);
+
+                throw new InvalidOperationException(
+                    "Unable to settle Recovery SMS credits."
+                );
+            }
+
+            await _smsSend.CompleteAsync(reservation, guestResponse, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         private void DetachIfTracked(object? entity)

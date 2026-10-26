@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
@@ -9,6 +10,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -713,6 +715,345 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task RecoveryOfferSms_CallsProvider_StoresSidAndAccepted()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-sms-sid-tok",
+                ContactType.Phone,
+                "+447911123470",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-sms-sid-owner@example.com",
+                withCatalogAttach: true,
+                services: customized.Services
+            );
+
+            var response = await SendRecoverySmsOfferAsync(
+                client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var sent = Assert.Single(delivery.Calls);
+            Assert.Equal("+447911123470", sent.PhoneNumber);
+
+            var body = await ReadJsonAsync(response);
+            var code = body
+                .GetProperty("recoveryOffer")
+                .GetProperty("redemptionCode")
+                .GetString();
+            Assert.Contains(code!, sent.Body);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var guestResponse = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(sent.Body, guestResponse.Body);
+            Assert.StartsWith("SMrecorded-", guestResponse.ProviderMessageId);
+            Assert.Equal(
+                GuestReplyDeliveryState.Accepted,
+                guestResponse.DeliveryState
+            );
+        }
+
+        [Fact]
+        public async Task RecoveryOfferSms_ReservesAndChargesSegments()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-sms-segments-tok",
+                ContactType.Phone,
+                "+447911123471",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-sms-segments-owner@example.com",
+                withCatalogAttach: true,
+                services: customized.Services
+            );
+
+            var response = await SendRecoverySmsOfferAsync(
+                client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var sent = Assert.Single(delivery.Calls);
+            var segments = CampaignSmsSegmentCalculator.CountSegments(sent.Body);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var snapshot = scope.ServiceProvider
+                .GetRequiredService<ICreditBalanceSnapshot>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var guestResponse = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+
+            Assert.Equal(
+                segments,
+                await context.CreditLedgerEntries
+                    .Where(row =>
+                        row.RestaurantId == restaurantId
+                        && row.EntryType == CreditLedgerEntryTypes.Consumption
+                        && row.Channel == CreditChannels.Sms
+                        && row.ReservationRef == guestResponse.BillingReservationRef
+                    )
+                    .SumAsync(row => row.Quantity)
+            );
+
+            var account = await snapshot.GetAccountAsync(restaurantId);
+            var sms = Assert.Single(
+                account!.Channels,
+                row => row.Channel == CreditChannels.Sms
+            );
+            Assert.Equal(0, sms.Held);
+            Assert.Equal(20 - segments, sms.Remaining);
+        }
+
+        [Fact]
+        public async Task RecoveryOfferSms_InsufficientCredits_RefusedWithoutIssueOrRow()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-sms-hard-stop-tok",
+                ContactType.Phone,
+                "+447911123472",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-sms-hard-stop-owner@example.com",
+                withCatalogAttach: true,
+                smsCredits: 0,
+                services: customized.Services
+            );
+
+            var response = await SendRecoverySmsOfferAsync(
+                client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(CreditChannels.Sms, body.GetProperty("channel").GetString());
+
+            Assert.Empty(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.OfferIssues.CountAsync(o => o.FeedbackId == seeded.FeedbackId)
+            );
+            Assert.Equal(
+                0,
+                await context.FeedbackGuestResponses.CountAsync(r => r.FeedbackId == seeded.FeedbackId)
+            );
+        }
+
+        [Fact]
+        public async Task RecoveryOfferSms_BillingNotLive_Refused()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                billingLive: false
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-sms-billing-down-tok",
+                ContactType.Phone,
+                "+447911123473",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-sms-billing-down-owner@example.com",
+                withCatalogAttach: true,
+                services: customized.Services
+            );
+
+            var response = await SendRecoverySmsOfferAsync(
+                client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "billing_reserve_unavailable",
+                body.GetProperty("code").GetString()
+            );
+
+            Assert.Empty(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.OfferIssues.CountAsync(o => o.FeedbackId == seeded.FeedbackId)
+            );
+            Assert.Equal(
+                0,
+                await context.FeedbackGuestResponses.CountAsync(r => r.FeedbackId == seeded.FeedbackId)
+            );
+        }
+
+        [Fact]
+        public async Task RecoveryOfferSms_ProviderFails_ReleasesCredits_CancelsIssue_ReplyFailed()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Failed
+                {
+                    Message = "Unable to send Recovery SMS.",
+                }
+            );
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-sms-failed-tok",
+                ContactType.Phone,
+                "+447911123474",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-sms-failed-owner@example.com",
+                withCatalogAttach: true,
+                services: customized.Services
+            );
+
+            var failed = await SendRecoverySmsOfferAsync(
+                client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.NotEqual(HttpStatusCode.OK, failed.StatusCode);
+            var failedBody = await ReadJsonAsync(failed);
+            Assert.Equal(
+                "Unable to send Recovery SMS.",
+                failedBody.GetProperty("message").GetString()
+            );
+            Assert.Single(delivery.Calls);
+
+            using (var scope = customized.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var snapshot = scope.ServiceProvider
+                    .GetRequiredService<ICreditBalanceSnapshot>();
+
+                var issue = await context.OfferIssues
+                    .AsNoTracking()
+                    .SingleAsync(o => o.FeedbackId == seeded.FeedbackId);
+                Assert.NotNull(issue.CancelledAtUtc);
+
+                var reply = await context.FeedbackGuestResponses
+                    .AsNoTracking()
+                    .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+                Assert.Equal(GuestReplyDeliveryState.Failed, reply.DeliveryState);
+
+                Assert.Equal(
+                    0,
+                    await context.RecoverySmsSendIdempotencies.CountAsync(row =>
+                        row.FeedbackId == seeded.FeedbackId
+                    )
+                );
+
+                var restaurantId = await context.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row => row.Id == seeded.LocationId)
+                    .Select(row => row.RestaurantId)
+                    .SingleAsync();
+                var account = await snapshot.GetAccountAsync(restaurantId);
+                var sms = Assert.Single(
+                    account!.Channels,
+                    row => row.Channel == CreditChannels.Sms
+                );
+                Assert.Equal(0, sms.Held);
+                Assert.Equal(20, sms.Remaining);
+            }
+
+            // Retry after the cancelled Offer: the open-Offer rule no longer refuses.
+            var retry = await SendRecoverySmsOfferAsync(
+                client,
+                seeded,
+                "Please enjoy a free dessert on your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        }
+
+        private WebApplicationFactory<Program> CreateFactoryWithSmsDelivery(
+            RecordingRecoveryGuestSmsDelivery delivery,
+            bool billingLive = true
+        )
+        {
+            return _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    foreach (
+                        var descriptor in services
+                            .Where(d =>
+                                d.ServiceType == typeof(IRecoveryGuestSmsDelivery)
+                                || (!billingLive
+                                    && d.ServiceType == typeof(IRecoverySmsBillingReserve))
+                            )
+                            .ToList()
+                    )
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    services.AddSingleton<IRecoveryGuestSmsDelivery>(delivery);
+                    if (!billingLive)
+                    {
+                        services.AddScoped<
+                            IRecoverySmsBillingReserve,
+                            UnavailableRecoverySmsBillingReserve
+                        >();
+                    }
+                });
+            });
+        }
+
+        private static async Task<HttpResponseMessage> SendRecoverySmsOfferAsync(
+            HttpClient client,
+            (
+                string Jwt,
+                int LocationId,
+                int FeedbackId,
+                int? CatalogOfferId
+            ) seeded,
+            string body
+        )
+        {
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-offers"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body,
+                intent = "respond_with_recovery_offer",
+                purpose = "include_a_recovery_offer",
+                tone = "warm_and_apologetic",
+            });
+
+            return await client.SendAsync(post);
+        }
+
         private static async Task<HttpResponseMessage> SendRecoveryOfferAsync(
             HttpClient client,
             (string Jwt, int LocationId, int FeedbackId, int? CatalogOfferId) seeded,
@@ -767,10 +1108,12 @@ namespace TummlyBackend.Tests.Integration
             bool withCatalogAttach = false,
             bool withLocationGuest = false,
             bool followUpGranted = true,
-            LocationGuestPermissionState? marketing = null
+            LocationGuestPermissionState? marketing = null,
+            int smsCredits = 20,
+            IServiceProvider? services = null
         )
         {
-            using var scope = _factory.Services.CreateScope();
+            using var scope = (services ?? _factory.Services).CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
             var jwtService = scope.ServiceProvider
@@ -812,6 +1155,14 @@ namespace TummlyBackend.Tests.Integration
             };
 
             context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
             await context.SaveChangesAsync();
 
             LocationGuest? locationGuest = null;
@@ -921,6 +1272,23 @@ namespace TummlyBackend.Tests.Integration
 
             context.Feedbacks.Add(feedback);
             await context.SaveChangesAsync();
+
+            if (contactType == ContactType.Phone && smsCredits > 0)
+            {
+                context.CreditLedgerEntries.Add(
+                    new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = restaurant.Id,
+                        Channel = CreditChannels.Sms,
+                        EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                        Quantity = smsCredits,
+                        PricebookVersion = "TUMMLY-UK-GBP-2026-08-V3",
+                        CreatedAtUtc = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
 
             var jwt = jwtService.GenerateToken(
                 user.Id.ToString(),

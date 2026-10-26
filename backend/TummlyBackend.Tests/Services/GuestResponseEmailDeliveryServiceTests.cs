@@ -79,9 +79,8 @@ namespace TummlyBackend.Tests.Services
                     )
                     .Options
             );
-            _guestResponses = new FeedbackGuestResponsesService(
+            var smsSend = new GuestReplySmsSendStep(
                 _context,
-                _deliveryWork,
                 new LiveRecoverySmsBillingReserve(
                     _context,
                     new CreditLedgerService(
@@ -93,18 +92,27 @@ namespace TummlyBackend.Tests.Services
                     new CreditBalanceSnapshotService(_context, TimeProvider.System)
                 ),
                 new NoOpRecoveryGuestSmsDelivery(),
+                TimeProvider.System
+            );
+            _guestResponses = new FeedbackGuestResponsesService(
+                _context,
+                _deliveryWork,
+                smsSend,
                 TimeProvider.System,
                 new GatedGuestReplyLock()
             );
             _respondAndRecord = new FeedbackRespondAndRecordService(
                 _context,
-                _deliveryWork
+                _deliveryWork,
+                new GatedGuestReplyLock(),
+                smsSend
             );
             _recoveryOffers = new FeedbackRecoveryOffersService(
                 _context,
                 _deliveryWork,
                 new OfferIssueService(_context),
-                new GatedGuestReplyLock()
+                new GatedGuestReplyLock(),
+                smsSend
             );
         }
 

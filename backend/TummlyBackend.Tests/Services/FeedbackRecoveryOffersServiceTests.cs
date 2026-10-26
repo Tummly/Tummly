@@ -33,7 +33,13 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 NoOpGuestResponseEmailDeliveryWork.Instance,
                 _offerIssues,
-                new GatedGuestReplyLock()
+                new GatedGuestReplyLock(),
+                new GuestReplySmsSendStep(
+                    _context,
+                    new AcceptingRecoverySmsBilling(),
+                    new RecordingRecoveryGuestSmsDelivery(),
+                    TimeProvider.System
+                )
             );
         }
 
@@ -149,9 +155,10 @@ namespace TummlyBackend.Tests.Services
                 guestResponse.Channel
             );
             Assert.Equal(
-                GuestReplyDeliveryState.Unavailable,
+                GuestReplyDeliveryState.Accepted,
                 guestResponse.DeliveryState
             );
+            Assert.StartsWith("SMrecorded-", guestResponse.ProviderMessageId);
         }
 
         [Fact]
@@ -242,7 +249,13 @@ namespace TummlyBackend.Tests.Services
                 failingContext,
                 NoOpGuestResponseEmailDeliveryWork.Instance,
                 offerIssues,
-                new GatedGuestReplyLock()
+                new GatedGuestReplyLock(),
+                new GuestReplySmsSendStep(
+                    failingContext,
+                    new AcceptingRecoverySmsBilling(),
+                    new RecordingRecoveryGuestSmsDelivery(),
+                    TimeProvider.System
+                )
             );
 
             var seeded = await SeedFeedbackWithAttachIntoAsync(failingContext);
@@ -512,6 +525,36 @@ namespace TummlyBackend.Tests.Services
 
                 return base.SaveChangesAsync(cancellationToken);
             }
+        }
+
+        /// <summary>Live Recovery SMS billing that accepts every reserve, settle and release.</summary>
+        private sealed class AcceptingRecoverySmsBilling : IRecoverySmsBillingReserve
+        {
+            public bool IsLive => true;
+
+            public Task<RecoverySmsBillingReserveResult> ReserveAsync(
+                RecoverySmsBillingReserveRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult<RecoverySmsBillingReserveResult>(
+                new RecoverySmsBillingReserveResult.Ok
+                {
+                    ReservationRef = "res-" + Guid.NewGuid().ToString("N"),
+                }
+            );
+
+            public Task<RecoverySmsBillingSettleResult> SettleAsync(
+                RecoverySmsBillingSettleRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult<RecoverySmsBillingSettleResult>(
+                new RecoverySmsBillingSettleResult.Ok()
+            );
+
+            public Task<RecoverySmsBillingReleaseResult> ReleaseAsync(
+                RecoverySmsBillingReleaseRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult<RecoverySmsBillingReleaseResult>(
+                new RecoverySmsBillingReleaseResult.Ok()
+            );
         }
 
         private sealed class NoOpGuestResponseEmailDeliveryWork

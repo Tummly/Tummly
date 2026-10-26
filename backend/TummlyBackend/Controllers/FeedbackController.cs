@@ -2183,6 +2183,66 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+            catch (GuestReplyDuplicateException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ex.Code,
+                    message = ex.Message,
+                });
+            }
+            catch (GuestReplyLockUnavailableException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message,
+                    }
+                );
+            }
+            catch (RecoverySmsBillingUnavailableException)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        code = "billing_reserve_unavailable",
+                        message =
+                            "Billing Reserve is not available. Recovery SMS send stays blocked.",
+                    }
+                );
+            }
+            catch (RecoverySmsCreditRefusedException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Message,
+                        channel = CreditChannels.Sms,
+                        remaining = ex.Remaining,
+                        requested = ex.Requested,
+                    }
+                );
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Code,
+                    }
+                );
+            }
             catch (InvalidOperationException ex)
             {
                 return Unauthorized(new
@@ -2427,6 +2487,46 @@ namespace TummlyBackend.Controllers
                     {
                         success = false,
                         message = ex.Message,
+                    }
+                );
+            }
+            catch (RecoverySmsBillingUnavailableException)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        code = "billing_reserve_unavailable",
+                        message =
+                            "Billing Reserve is not available. Recovery SMS send stays blocked.",
+                    }
+                );
+            }
+            catch (RecoverySmsCreditRefusedException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Message,
+                        channel = CreditChannels.Sms,
+                        remaining = ex.Remaining,
+                        requested = ex.Requested,
+                    }
+                );
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Code,
                     }
                 );
             }

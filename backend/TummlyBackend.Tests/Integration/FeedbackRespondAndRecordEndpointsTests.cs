@@ -3,12 +3,15 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -356,10 +359,12 @@ namespace TummlyBackend.Tests.Integration
             ContactType contactType,
             string guestContact,
             FeedbackWorkflowStatus workflowStatus,
-            string email = "respond-and-record-owner@example.com"
+            string email = "respond-and-record-owner@example.com",
+            int smsCredits = 20,
+            IServiceProvider? services = null
         )
         {
-            using var scope = _factory.Services.CreateScope();
+            using var scope = (services ?? _factory.Services).CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
             var jwtService = scope.ServiceProvider
@@ -410,9 +415,46 @@ namespace TummlyBackend.Tests.Integration
             context.RestaurantLocations.Add(location);
             await context.SaveChangesAsync();
 
+            // SMS replies need an eligible Location Guest (follow-up granted).
+            LocationGuest? locationGuest = null;
+            if (contactType == ContactType.Phone)
+            {
+                var masterGuest = new MasterGuest
+                {
+                    RestaurantId = restaurant.Id,
+                    Mobile = guestContact,
+                    NormalizedPhone = new string(guestContact.Where(char.IsDigit).ToArray()),
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.MasterGuests.Add(masterGuest);
+                await context.SaveChangesAsync();
+
+                locationGuest = new LocationGuest
+                {
+                    MasterGuestId = masterGuest.Id,
+                    RestaurantLocationId = location.Id,
+                    Name = "Alex Guest",
+                    MarketingPreference = LocationGuestMarketingPreference.NotRecorded,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.LocationGuests.Add(locationGuest);
+                await context.SaveChangesAsync();
+
+                new LocationGuestPermissionLedgerService(context).RecordEvent(
+                    locationGuest.Id,
+                    location.Id,
+                    LocationGuestPermissionKind.FeedbackFollowUp,
+                    LocationGuestPermissionLedgerEventKinds.Grant,
+                    LocationGuestPermissionLedgerSources.GuestForm,
+                    DateTime.UtcNow
+                );
+                await context.SaveChangesAsync();
+            }
+
             var feedback = new Feedback
             {
                 RestaurantLocationId = location.Id,
+                LocationGuestId = locationGuest?.Id,
                 GuestName = "Alex Guest",
                 GuestContact = guestContact,
                 ContactType = contactType,
@@ -441,6 +483,23 @@ namespace TummlyBackend.Tests.Integration
             );
             await context.SaveChangesAsync();
 
+            if (contactType == ContactType.Phone && smsCredits > 0)
+            {
+                context.CreditLedgerEntries.Add(
+                    new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = restaurant.Id,
+                        Channel = CreditChannels.Sms,
+                        EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                        Quantity = smsCredits,
+                        PricebookVersion = PricebookId,
+                        CreatedAtUtc = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
             var jwt = jwtService.GenerateToken(
                 user.Id.ToString(),
                 user.Email,
@@ -448,6 +507,195 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id, feedback.Id);
+        }
+
+        [Fact]
+        public async Task RespondAndRecordSms_CallsProvider_StoresSidAndAccepted()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "respond-and-record-sms-sid-tok",
+                ContactType.Phone,
+                "+447911123480",
+                FeedbackWorkflowStatus.InProgress,
+                email: "respond-and-record-sms-sid-owner@example.com",
+                services: customized.Services
+            );
+
+            var response = await SendRespondAndRecordSmsAsync(
+                client,
+                seeded,
+                "Thanks for telling us. We have briefed the team."
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var sent = Assert.Single(delivery.Calls);
+            Assert.Equal("+447911123480", sent.PhoneNumber);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var guestResponse = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(sent.Body, guestResponse.Body);
+            Assert.StartsWith("SMrecorded-", guestResponse.ProviderMessageId);
+            Assert.Equal(
+                GuestReplyDeliveryState.Accepted,
+                guestResponse.DeliveryState
+            );
+            Assert.Equal(
+                1,
+                await context.FeedbackInternalActions.CountAsync(a =>
+                    a.FeedbackId == seeded.FeedbackId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task RespondAndRecordSms_InsufficientCredits_Refused()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "respond-and-record-sms-hard-stop-tok",
+                ContactType.Phone,
+                "+447911123481",
+                FeedbackWorkflowStatus.InProgress,
+                email: "respond-and-record-sms-hard-stop-owner@example.com",
+                smsCredits: 0,
+                services: customized.Services
+            );
+
+            var response = await SendRespondAndRecordSmsAsync(
+                client,
+                seeded,
+                "Thanks for telling us. We have briefed the team."
+            );
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(CreditChannels.Sms, body.GetProperty("channel").GetString());
+
+            Assert.Empty(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.FeedbackGuestResponses.CountAsync(r => r.FeedbackId == seeded.FeedbackId)
+            );
+            Assert.Equal(
+                0,
+                await context.FeedbackInternalActions.CountAsync(a => a.FeedbackId == seeded.FeedbackId)
+            );
+        }
+
+        [Fact]
+        public async Task RespondAndRecordSms_ProviderFails_ReleasesCredits()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Failed
+                {
+                    Message = "Unable to send Recovery SMS.",
+                }
+            );
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "respond-and-record-sms-failed-tok",
+                ContactType.Phone,
+                "+447911123482",
+                FeedbackWorkflowStatus.InProgress,
+                email: "respond-and-record-sms-failed-owner@example.com",
+                services: customized.Services
+            );
+
+            var response = await SendRespondAndRecordSmsAsync(
+                client,
+                seeded,
+                "Thanks for telling us. We have briefed the team."
+            );
+            Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var snapshot = scope.ServiceProvider
+                .GetRequiredService<ICreditBalanceSnapshot>();
+            Assert.Equal(
+                0,
+                await context.FeedbackGuestResponses.CountAsync(r => r.FeedbackId == seeded.FeedbackId)
+            );
+            Assert.Equal(
+                0,
+                await context.FeedbackInternalActions.CountAsync(a => a.FeedbackId == seeded.FeedbackId)
+            );
+
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var account = await snapshot.GetAccountAsync(restaurantId);
+            var sms = Assert.Single(
+                account!.Channels,
+                row => row.Channel == CreditChannels.Sms
+            );
+            Assert.Equal(0, sms.Held);
+            Assert.Equal(20, sms.Remaining);
+        }
+
+        private WebApplicationFactory<Program> CreateFactoryWithSmsDelivery(
+            RecordingRecoveryGuestSmsDelivery delivery
+        )
+        {
+            return _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    foreach (
+                        var descriptor in services
+                            .Where(d => d.ServiceType == typeof(IRecoveryGuestSmsDelivery))
+                            .ToList()
+                    )
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    services.AddSingleton<IRecoveryGuestSmsDelivery>(delivery);
+                });
+            });
+        }
+
+        private static async Task<HttpResponseMessage> SendRespondAndRecordSmsAsync(
+            HttpClient client,
+            (string Jwt, int LocationId, int FeedbackId) seeded,
+            string body
+        )
+        {
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/respond-and-record-internal-action"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body,
+                intent = "respond_and_record_internal_action",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                category = "team_briefed",
+                note = "Briefed the floor team.",
+            });
+
+            return await client.SendAsync(post);
         }
 
         private async Task<string> SeedOtherOwnerJwtAsync(string linkToken)
