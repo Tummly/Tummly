@@ -3,6 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 using TummlyBackend.Tests.Integration.Support;
 
@@ -112,6 +115,10 @@ namespace TummlyBackend.Tests.Integration
                 _factory,
                 PermissionRoles.Staff
             );
+            var issueId = await SeedClaimAsync(
+                seeded.InScopeLocationId,
+                "TUM-STAFF01"
+            );
 
             var response = await PostJsonAsync(
                 seeded.MemberJwt,
@@ -119,10 +126,105 @@ namespace TummlyBackend.Tests.Integration
                 new
                 {
                     locationId = seeded.InScopeLocationId,
-                    code = "TUM-STAFF01",
+                    code = "tum-staff01",
                 }
             );
-            Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                issueId.ToString(),
+                body.GetProperty("preview").GetProperty("issueId").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task StaffRedeemCheck_UnknownCode_ReturnsInvalid()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.Staff
+            );
+
+            var response = await PostJsonAsync(
+                seeded.MemberJwt,
+                "/api/offers/redeem/check",
+                new
+                {
+                    locationId = seeded.InScopeLocationId,
+                    code = "TUM-NOSUCH",
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("invalid", body.GetProperty("reason").GetString());
+        }
+
+        private async Task<int> SeedClaimAsync(int locationId, string claimCode)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = locationId,
+                Status = "active",
+                OfferType = CatalogOfferType.FixedDiscount,
+                Title = "£5 off",
+                Description = "Seeded for Staff redeem test.",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountAmount = 5m,
+                StaffInstructions = "Apply £5 off before payment.",
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
+
+            var master = new MasterGuest
+            {
+                RestaurantId = context.RestaurantLocations
+                    .Single(row => row.Id == locationId)
+                    .RestaurantId,
+                Email = $"staff-redeem-{Guid.NewGuid():N}@example.com",
+                CreatedAt = now,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var guest = new LocationGuest
+            {
+                RestaurantLocationId = locationId,
+                MasterGuestId = master.Id,
+                Name = "Staff Redeem Guest",
+                CreatedAt = now,
+            };
+            context.LocationGuests.Add(guest);
+            await context.SaveChangesAsync();
+
+            var issue = new OfferIssue
+            {
+                CatalogOfferId = offer.Id,
+                LocationGuestId = guest.Id,
+                ClaimCode = claimCode,
+                IssuedAtUtc = now.AddDays(-1),
+                Source = OfferIssueSources.Campaign,
+                ExpiryAtUtc = now.AddDays(14),
+                OfferType = CatalogOfferType.FixedDiscount,
+                Title = "£5 off",
+                Description = "Seeded issue",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountAmount = 5m,
+                StaffInstructions = "Apply £5 off before payment.",
+            };
+            context.OfferIssues.Add(issue);
+            await context.SaveChangesAsync();
+            return issue.Id;
         }
 
         private async Task<HttpResponseMessage> GetAsync(string jwt, string url)
