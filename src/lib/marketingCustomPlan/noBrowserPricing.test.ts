@@ -54,4 +54,47 @@ describe("no browser price maths in src", () => {
     ).map((file) => file.path)
     expect(inScope).toEqual([])
   })
+
+  describe("marketing price sources", () => {
+    /** Marketing copy that shows plan prices or the For Groups calculator (Task 9). */
+    const MARKETING_PRICE_SOURCES = /^(content\/marketing\/(pricingPage|aiAssistantPage|forGroupsPage|faqsPage)\.ts$|components\/marketing\/(pricing|ai-assistant|for-groups|faqs)\/)/
+
+    const marketingSources = SOURCES.filter((file) =>
+      MARKETING_PRICE_SOURCES.test(file.path),
+    )
+
+    it("covers the marketing price files", () => {
+      expect(marketingSources.map((file) => file.path)).toEqual(
+        expect.arrayContaining([
+          "content/marketing/pricingPage.ts",
+          "content/marketing/aiAssistantPage.ts",
+          "content/marketing/forGroupsPage.ts",
+          "content/marketing/faqsPage.ts",
+          "components/marketing/pricing/PricingHeroPlans.tsx",
+          "components/marketing/for-groups/ForGroupsPricing.tsx",
+        ]),
+      )
+    })
+
+    it("has no paid plan price literals (Pilot £0 stays)", () => {
+      const paidPrice = /£(39|99|199|398|1,010|2,030)\b|\b(2030|398)\b/
+      expect(
+        marketingSources.filter((file) => paidPrice.test(file.text)).map((file) => file.path),
+      ).toEqual([])
+    })
+
+    it("has no VAT wording; tax copy comes from the server quote", () => {
+      expect(
+        marketingSources.filter((file) => /\bVAT\b/.test(file.text)).map((file) => file.path),
+      ).toEqual([])
+    })
+
+    it("has no self-serve limit or 30-Location copy", () => {
+      expect(
+        marketingSources
+          .filter((file) => /self-serve limit|30-Location/.test(file.text))
+          .map((file) => file.path),
+      ).toEqual([])
+    })
+  })
 })

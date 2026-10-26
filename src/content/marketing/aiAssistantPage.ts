@@ -127,9 +127,11 @@ export type AiAssistantPlanStripCard = {
   id: "Pilot" | "Starter" | "Growth" | "Group"
   name: string
   description: string
-  priceAmount: string
+  /** Pilot only. Paid plan prices come from the published catalogue. */
+  priceAmount?: string
   priceSuffix: string
-  subline: string
+  /** Pilot only. Paid plan sublines come from the published catalogue. */
+  subline?: string
   ctaLabel: string
   aiAllowance: string
   isHighlighted: boolean
@@ -160,9 +162,7 @@ export const AI_ASSISTANT_PLANS = {
       name: "Starter",
       description:
         "For one Location ready to collect private Feedback, build a guest list and bring guests back.",
-      priceAmount: "£39",
       priceSuffix: "/ month",
-      subline: "£398/year",
       ctaLabel: "Choose Starter",
       aiAllowance: "100 / month",
       isHighlighted: false,
@@ -172,9 +172,7 @@ export const AI_ASSISTANT_PLANS = {
       name: "Growth",
       description:
         "For growing restaurants and small groups that need more reach and multi-Location visibility.",
-      priceAmount: "£99",
       priceSuffix: "/ month",
-      subline: "£1,010/year",
       ctaLabel: "Choose Growth",
       aiAllowance: "500 / month",
       isHighlighted: true,
@@ -184,9 +182,7 @@ export const AI_ASSISTANT_PLANS = {
       name: "Group",
       description:
         "For growing restaurant groups that need more Locations, control and consolidated reporting.",
-      priceAmount: "£199",
       priceSuffix: "/ month",
-      subline: "£2,030/year",
       ctaLabel: "Choose Group",
       aiAllowance: "1,500 / month",
       isHighlighted: false,

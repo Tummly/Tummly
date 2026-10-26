@@ -1,6 +1,8 @@
 import { Accordion } from "@/components/ui/accordion"
 import { FaqsAccordionItem } from "@/components/marketing/faqs/FaqsAccordionItem"
 import type { FaqsPageSection } from "@/content/marketing/faqsPage"
+import { buildPlanCostAnswer } from "@/lib/marketingCustomPlan/publicPlanPrices"
+import { usePublicPlanPrices } from "@/lib/marketingCustomPlan/usePublicPlanPrices"
 import {
   marketingChromeContentInset,
   marketingHeaderScrollMarginClass,
@@ -23,6 +25,7 @@ export function FaqsTopicSection({
     defaultOpenValue?.startsWith(`${section.id}::`) === true
       ? defaultOpenValue
       : undefined
+  const { prices } = usePublicPlanPrices()
 
   return (
     <section
@@ -58,7 +61,11 @@ export function FaqsTopicSection({
               key={item.id}
               value={`${section.id}::${item.id}`}
               question={item.question}
-              answer={item.answer}
+              answer={
+                item.catalogBinding === "plan-cost"
+                  ? (buildPlanCostAnswer(prices) ?? item.answer)
+                  : item.answer
+              }
               cta={item.cta}
             />
           ))}

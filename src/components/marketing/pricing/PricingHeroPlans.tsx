@@ -2,6 +2,10 @@ import { CheckIcon, ChevronDownIcon, CoinsIcon, MailIcon, MessageSquareIcon } fr
 import type { MouseEvent } from "react"
 
 import { MarketingButton } from "@/components/marketing/MarketingButton"
+import {
+  PublicPlanPriceFallback,
+  PublicPlanPricesStatusMessage,
+} from "@/components/marketing/PublicPlanPricesStatus"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import {
   PRICING_CADENCE_COPY,
@@ -26,6 +30,11 @@ import {
   type PricingFeatureRow,
   type PricingPlanCard,
 } from "@/content/marketing/pricingPage"
+import type { PublicPlanPrices } from "@/lib/marketingCustomPlan/publicPlanPrices"
+import {
+  usePublicPlanPrices,
+  type PublicPlanPricesStatus,
+} from "@/lib/marketingCustomPlan/usePublicPlanPrices"
 import type { BillingCadence, PlanFeatureIcon } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import {
   MANAGE_PLAN_COMPLETE_LIST_TRIGGER_CLASS,
@@ -94,11 +103,15 @@ function PlanFeatureRow({ row }: { row: PricingFeatureRow }) {
 function PricingPlanCardView({
   card,
   cadence,
+  prices,
+  status,
 }: {
   card: PricingPlanCard
   cadence: BillingCadence
+  prices: PublicPlanPrices
+  status: PublicPlanPricesStatus
 }) {
-  const price = pricingPlanPrice(card, cadence)
+  const price = pricingPlanPrice(card, cadence, prices)
   const planIntent =
     card.id === "Pilot"
       ? ({ plan: "Pilot" } as const)
@@ -135,13 +148,19 @@ function PricingPlanCardView({
 
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-0.5">
-          <p className="m-0 text-[#141414]">
-            <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>{price.amount}</span>
-            <span className={PRICING_PLAN_PRICE_SUFFIX_CLASS}>{price.suffix}</span>
-          </p>
-          <p className={cn(PRICING_PLAN_PRICE_SUBLINE_CLASS, "lg:hidden")}>
-            {price.sublineMobile}
-          </p>
+          {price.amount != null ? (
+            <p className="m-0 text-[#141414]">
+              <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>{price.amount}</span>
+              <span className={PRICING_PLAN_PRICE_SUFFIX_CLASS}>{price.suffix}</span>
+            </p>
+          ) : (
+            <PublicPlanPriceFallback status={status} />
+          )}
+          {price.sublineMobile != null ? (
+            <p className={cn(PRICING_PLAN_PRICE_SUBLINE_CLASS, "lg:hidden")}>
+              {price.sublineMobile}
+            </p>
+          ) : null}
           <p className={cn(PRICING_PLAN_PRICE_SUBLINE_CLASS, "hidden lg:block")}>
             {price.subline}
           </p>
@@ -186,6 +205,7 @@ export function PricingHeroPlans({
   cadence,
   onCadenceChange,
 }: PricingHeroPlansProps) {
+  const { status, prices, retry } = usePublicPlanPrices()
   // Keep header chrome gap (`py-5`) so top radius reads on `#CBCBCB` — do not use `-mt-5`.
   return (
     <section className="w-full overflow-hidden rounded-tl-[8px] rounded-tr-[8px] bg-white">
@@ -272,10 +292,19 @@ export function PricingHeroPlans({
           </div>
         </div>
 
-        <div className={PRICING_PLAN_CARDS_GRID_CLASS}>
-          {PRICING_PLAN_CARDS.map((card) => (
-            <PricingPlanCardView key={card.id} card={card} cadence={cadence} />
-          ))}
+        <div className="flex flex-col gap-6">
+          <PublicPlanPricesStatusMessage status={status} onRetry={retry} />
+          <div className={PRICING_PLAN_CARDS_GRID_CLASS}>
+            {PRICING_PLAN_CARDS.map((card) => (
+              <PricingPlanCardView
+                key={card.id}
+                card={card}
+                cadence={cadence}
+                prices={prices}
+                status={status}
+              />
+            ))}
+          </div>
         </div>
 
         <div className="flex justify-center pt-2">
