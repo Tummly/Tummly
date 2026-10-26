@@ -58,10 +58,10 @@ export function SignInChooseWorkspaceStep({
       className={`flex w-full max-w-[490px] shrink-0 flex-col gap-6 rounded-[6px] border border-[#d2d2d2] bg-white px-[clamp(1.25rem,4vw,1.875rem)] py-[clamp(1.25rem,4vw,2.375rem)] sm:gap-7 lg:gap-16 ${cardShadow}`}
     >
       <header className="flex flex-col gap-4 text-[#232323]">
-        <h1 className="m-0 text-[clamp(1.625rem,4vw,2rem)] font-bold leading-normal tracking-[-0.64px]">
+        <h1 className="m-0 font-jakarta text-[clamp(1.75rem,4vw,2.25rem)] font-medium leading-[normal]">
           Choose workspace
         </h1>
-        <p className="m-0 text-sm leading-normal">
+        <p className="m-0 text-sm leading-[normal]">
           Select the Tummly workspace you want to open.
         </p>
       </header>
@@ -112,7 +112,7 @@ export function SignInChooseWorkspaceStep({
       ) : null}
 
       {!loading && workspaces.length === 0 && !error ? (
-        <p className="m-0 text-sm leading-normal text-[#232323]">
+        <p className="m-0 text-sm leading-[normal] text-[#232323]">
           No workspaces are available yet. Contact support if this looks wrong.
         </p>
       ) : null}

@@ -160,7 +160,8 @@ export const signupOnboardingDefaultValues: SignupOnboardingFormValues = {
   password: "",
   confirmPassword: "",
   restaurantName: "",
-  businessCategory: "takeaway",
+  // No default: the user must choose a Restaurant type.
+  businessCategory: "",
   businessLink: "",
   phone: "",
   locationName: "",

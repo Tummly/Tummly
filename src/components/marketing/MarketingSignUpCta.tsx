@@ -296,7 +296,7 @@ export function MarketingSignUpCta({
                     className="size-4 shrink-0 text-[#727272]"
                     strokeWidth={2}
                   />
-                  <p className="m-0 text-xs font-inter font-medium leading-normal text-[#727272]">
+                  <p className="m-0 text-xs font-inter font-medium leading-[normal] text-[#727272]">
                     {badge}
                   </p>
                 </div>
@@ -340,7 +340,7 @@ export function MarketingSignUpCta({
 
                 <div className="flex w-full items-center gap-2.5">
                   <div className="h-px min-w-0 flex-1 bg-[#4e4e4e]" />
-                  <span className="shrink-0 text-sm leading-normal text-[#4e4e4e]">
+                  <span className="shrink-0 text-sm leading-[normal] text-[#4e4e4e]">
                     or
                   </span>
                   <div className="h-px min-w-0 flex-1 bg-[#4e4e4e]" />

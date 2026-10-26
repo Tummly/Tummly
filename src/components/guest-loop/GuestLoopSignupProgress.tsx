@@ -44,10 +44,10 @@ export function GuestLoopSignupProgress({
       </div>
 
       <div className="flex flex-col items-start gap-3 text-[#141414]">
-        <p className="m-0 text-lg font-medium leading-normal text-black">
+        <p className="m-0 text-lg font-medium leading-[normal] text-black">
           {activeStep} of 3 · {stepLabel}
         </p>
-        <h1 className="m-0 text-[36px] font-medium leading-normal tracking-normal">
+        <h1 className="m-0 text-[36px] font-medium leading-[normal] tracking-normal">
           {title}
         </h1>
         {typeof description === "string" ? (

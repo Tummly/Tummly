@@ -40,7 +40,7 @@ export function HelpCentreHero({ search, onSearchChange }: HelpCentreHeroProps) 
           )}
         >
           <div className="flex max-w-[730px] flex-col gap-[22px]">
-            <h1 className="m-0 text-[36px] font-bold leading-normal lg:text-[46px]">
+            <h1 className="m-0 text-[36px] font-bold leading-[normal] lg:text-[46px]">
               How can we help?
             </h1>
             <p className="m-0 text-base font-medium leading-6 text-white lg:text-lg lg:leading-6">

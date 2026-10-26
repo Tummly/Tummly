@@ -44,7 +44,7 @@ export function ForgotPasswordEmailSentStep({
 
       <div className="flex flex-col gap-9">
         <div className="flex flex-col gap-1.5">
-          <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">
+          <p className="m-0 flex flex-wrap items-center gap-2.5 font-inter text-sm font-medium tracking-[0.4px] text-[#232323]">
             <span>Didn&apos;t get it?</span>
             <Button
               type="button"

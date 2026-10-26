@@ -81,8 +81,8 @@ export function MarketingPlaceStepVisual() {
                 "absolute left-1/2 z-10 -translate-x-1/2 cursor-pointer rounded-[30px] border border-[#363636] bg-transparent px-[18px] py-2 font-jakarta font-semibold uppercase text-white",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
                 active
-                  ? "bottom-8 text-sm leading-normal lg:bottom-10"
-                  : "top-1/2 -translate-y-1/2 text-xs leading-normal",
+                  ? "bottom-8 text-sm leading-[normal] lg:bottom-10"
+                  : "top-1/2 -translate-y-1/2 text-xs leading-[normal]",
               )}
             >
               {item.label}

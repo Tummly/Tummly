@@ -97,7 +97,7 @@ export function GuestLoopGroupStep({
           liveValidate={Boolean(businessLink?.trim())}
         />
 
-        <p className="m-0 text-base leading-[21px] tracking-[-0.32px] text-[#232323]">
+        <p className="m-0 text-base leading-[21px] text-[#232323]">
           You can add your first rollout locations now and add more later from
           your workspace.
         </p>

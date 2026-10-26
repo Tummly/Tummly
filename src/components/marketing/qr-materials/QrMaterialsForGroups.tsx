@@ -28,7 +28,7 @@ export function QrMaterialsForGroups() {
         )}
       >
         <header className="flex w-full max-w-[714px] flex-col gap-[18px]">
-          <p className="m-0 font-sans text-base font-medium uppercase leading-normal text-black">
+          <p className="m-0 font-sans text-base font-medium uppercase leading-[normal] text-black">
             {QR_MATERIALS_FOR_GROUPS.eyebrow}
           </p>
           <h2

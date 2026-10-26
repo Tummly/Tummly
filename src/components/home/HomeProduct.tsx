@@ -81,7 +81,7 @@ function FeatureCard({
             "m-0 font-jakarta font-medium",
             isScroll
               ? "text-lg leading-[23px]"
-              : "text-lg leading-[23px] lg:text-xl lg:leading-normal",
+              : "text-lg leading-[23px] lg:text-xl lg:leading-[normal]",
           )}
         >
           {feature.title}
@@ -91,7 +91,7 @@ function FeatureCard({
             "m-0 font-sans font-normal",
             isScroll
               ? "text-sm leading-[18px]"
-              : "text-sm leading-[18px] lg:text-base lg:leading-normal",
+              : "text-sm leading-[18px] lg:text-base lg:leading-[normal]",
           )}
         >
           {feature.body}

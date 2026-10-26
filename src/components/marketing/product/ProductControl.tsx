@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 function ControlPoint({ point }: { point: ProductFeaturePoint }) {
   return (
     <div className="flex w-full flex-col gap-2 text-[#141414]">
-      <h3 className="m-0 font-jakarta text-lg font-bold leading-normal">
+      <h3 className="m-0 font-jakarta text-lg font-bold leading-[normal]">
         {point.title}
       </h3>
       <p className="m-0 font-sans text-sm font-normal leading-5">{point.body}</p>
@@ -37,7 +37,7 @@ export function ProductControl() {
         )}
       >
         <header className="flex w-full max-w-[692px] flex-col gap-[18px]">
-          <p className="m-0 font-sans text-base font-medium uppercase leading-normal text-black">
+          <p className="m-0 font-sans text-base font-medium uppercase leading-[normal] text-black">
             {PRODUCT_CONTROL.eyebrow}
           </p>
           <h2

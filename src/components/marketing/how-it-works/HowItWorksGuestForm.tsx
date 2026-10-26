@@ -101,7 +101,7 @@ function StepRow({
           tabIndex={active ? 0 : -1}
           onClick={onSelect}
           className={cn(
-            "m-0 w-full cursor-pointer border-0 bg-transparent p-0 text-left font-sans text-sm font-medium leading-normal sm:text-base lg:text-lg",
+            "m-0 w-full cursor-pointer border-0 bg-transparent p-0 text-left font-sans text-sm font-medium leading-[normal] sm:text-base lg:text-lg",
             "transition-colors duration-200 ease-out motion-reduce:transition-none",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f0f0f0]",
             active ? "text-black" : "text-[#7c7c7c]",
@@ -133,7 +133,7 @@ function StepRow({
               className="w-full overflow-hidden"
             >
               <div className="flex w-full flex-col gap-2.5 lg:gap-3.5">
-                <h3 className="m-0 max-w-[615px] font-jakarta text-[22px] font-medium leading-normal text-black sm:text-[28px] lg:text-[42px]">
+                <h3 className="m-0 max-w-[615px] font-jakarta text-[22px] font-medium leading-[normal] text-black sm:text-[28px] lg:text-[42px]">
                   {step.title}
                 </h3>
                 <p

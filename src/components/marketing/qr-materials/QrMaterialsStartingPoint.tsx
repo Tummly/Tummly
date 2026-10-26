@@ -47,7 +47,7 @@ export function QrMaterialsStartingPoint() {
         )}
       >
         <header className="flex w-full max-w-[900px] flex-col gap-[18px]">
-          <p className="m-0 font-sans text-base font-medium uppercase leading-normal text-black">
+          <p className="m-0 font-sans text-base font-medium uppercase leading-[normal] text-black">
             {QR_MATERIALS_STARTING_POINT.eyebrow}
           </p>
           <h2

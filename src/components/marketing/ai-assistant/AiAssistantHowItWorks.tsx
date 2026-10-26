@@ -87,7 +87,7 @@ export function AiAssistantHowItWorks() {
         )}
       >
         <header className="mx-auto flex w-full max-w-141 flex-col items-center gap-4.5 text-center">
-          <p className="m-0 font-sans text-base font-normal uppercase leading-normal text-black">
+          <p className="m-0 font-sans text-base font-normal uppercase leading-[normal] text-black">
             {AI_ASSISTANT_HOW_IT_WORKS.eyebrow}
           </p>
           <h2 className={cn("m-0", AI_ASSISTANT_SECTION_HEADING)}>

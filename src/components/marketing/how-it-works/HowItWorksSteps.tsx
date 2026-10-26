@@ -106,7 +106,7 @@ function StepCopy({
           className="flex w-full flex-col items-start gap-5 text-[#141414] sm:gap-8 lg:gap-[52px]"
         >
           <div className="flex w-full flex-col gap-3 sm:gap-[18px]">
-            <h3 className="m-0 w-full max-w-[501px] font-jakarta text-[22px] font-medium leading-normal sm:text-[28px] lg:text-[42px]">
+            <h3 className="m-0 w-full max-w-[501px] font-jakarta text-[22px] font-medium leading-[normal] sm:text-[28px] lg:text-[42px]">
               {step.title}
             </h3>
             <p className={cn("m-0 w-full max-w-[570px]", HOW_IT_WORKS_SECTION_BODY)}>

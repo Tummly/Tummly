@@ -12,7 +12,7 @@ const linkTitle =
   "font-jakarta text-[20px] font-medium leading-none text-[#141414] lg:text-[22px]"
 
 const linkDescription =
-  "text-base font-normal leading-normal text-[#141414]"
+  "text-base font-normal leading-[normal] text-[#141414]"
 
 const linkActionClass =
   "inline-flex shrink-0 items-center gap-2 rounded-[4px] text-sm font-medium leading-5 text-[#141414] no-underline transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30"

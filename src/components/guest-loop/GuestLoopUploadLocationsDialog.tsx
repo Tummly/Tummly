@@ -359,7 +359,7 @@ export function GuestLoopUploadLocationsDialog({
                   >
                     <AccordionTrigger className="items-center py-0 hover:no-underline [&>svg]:size-4 [&>svg]:text-[#232323]">
                       <div className="flex items-center gap-3">
-                        <span className="truncate text-lg font-semibold leading-5 tracking-[-0.36px] text-[#232323]">
+                        <span className="truncate text-lg font-semibold leading-5 text-[#232323]">
                           {locationLabel}
                         </span>
                         <Badge

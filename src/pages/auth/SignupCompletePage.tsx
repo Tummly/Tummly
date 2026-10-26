@@ -257,6 +257,7 @@ function SignupCompletePage() {
       <GuestLoopShell
         contentAlign="center"
         contentMaxWidthClassName="max-w-none"
+        fullBleed
         showBackButton={false}
       >
         <div className="mx-auto flex w-full max-w-[473px] flex-col gap-6">
@@ -282,6 +283,7 @@ function SignupCompletePage() {
     <GuestLoopShell
       contentAlign="center"
       contentMaxWidthClassName="max-w-none"
+      fullBleed
       showBackButton={false}
     >
       {error ? (

@@ -25,7 +25,7 @@ export function SignupModalShell({
   return (
     <div
       className={cn(
-        "relative flex min-h-dvh w-full items-center justify-center overflow-auto p-4 sm:p-6",
+        "marketing-controls scrollbar-none relative flex min-h-dvh w-full items-center justify-center overflow-auto p-4 sm:p-6",
         className
       )}
     >
@@ -33,7 +33,8 @@ export function SignupModalShell({
         <img
           src={signupModalBackdrop}
           alt=""
-          className="absolute inset-0 size-full object-cover"
+          // Figma `4974:20029`: anchored top-left so the dashboard top bar shows.
+          className="absolute inset-0 size-full object-cover object-left-top"
         />
         <div className="absolute inset-0 bg-[rgba(20,20,20,0.38)] backdrop-blur-[7px]" />
       </div>

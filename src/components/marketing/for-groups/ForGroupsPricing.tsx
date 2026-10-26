@@ -135,7 +135,7 @@ export function ForGroupsPricing() {
       >
         <header className="flex w-full max-w-[656px] flex-col items-center gap-[22px] text-center">
           <div className="flex w-full flex-col items-center gap-3.5">
-            <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px] text-black">
+            <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px] text-black">
               {FOR_GROUPS_PRICING.eyebrow}
             </p>
             <h2
@@ -221,7 +221,7 @@ export function ForGroupsPricing() {
           <aside className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[12px]">
             <div className="flex flex-col gap-8 rounded-tl-[8px] rounded-tr-[8px] bg-[#dfebe3] px-8 py-7">
               <div className="flex max-w-[548px] flex-col gap-[18px] text-black">
-                <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px]">
+                <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px]">
                   {calculator.eyebrow}
                 </p>
                 <div className="flex flex-col gap-3.5">
@@ -239,7 +239,7 @@ export function ForGroupsPricing() {
                   <p className="m-0 font-sans text-[26px] font-normal leading-none text-[#141414]">
                     {calculator.locationLabel}
                   </p>
-                  <p className="m-0 font-sans text-sm font-medium leading-normal text-[#7c7c7c]">
+                  <p className="m-0 font-sans text-sm font-medium leading-[normal] text-[#7c7c7c]">
                     {calculator.locationHint}
                   </p>
                 </div>
@@ -369,7 +369,7 @@ export function ForGroupsPricing() {
                   )}
                 </div>
                 {view.taxText != null ? (
-                  <p className="m-0 font-sans text-sm font-normal leading-normal text-black">
+                  <p className="m-0 font-sans text-sm font-normal leading-[normal] text-black">
                     {view.taxText}
                   </p>
                 ) : null}

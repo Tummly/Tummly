@@ -42,12 +42,12 @@ export function SignInChooseMethodStep({
       className={`flex w-full max-w-[490px] shrink-0 flex-col gap-6 rounded-[6px] border border-[#d2d2d2] bg-white px-[clamp(1.25rem,4vw,1.875rem)] py-[clamp(1.25rem,4vw,2.375rem)] sm:gap-7 lg:gap-16 ${cardShadow}`}
     >
       <header className="flex flex-col gap-4 text-[#232323]">
-        <h1 className="m-0 text-[clamp(1.625rem,4vw,2rem)] font-bold leading-normal tracking-[-0.64px]">
+        <h1 className="m-0 font-jakarta text-[clamp(1.75rem,4vw,2.25rem)] font-medium leading-[normal]">
           Choose another way to
           <br />
           sign in
         </h1>
-        <p className="m-0 text-sm leading-normal">
+        <p className="m-0 text-sm leading-[normal]">
           Select a method linked to your Tummly account.
         </p>
       </header>
@@ -76,7 +76,7 @@ export function SignInChooseMethodStep({
         ) : null}
       </div>
 
-      <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">
+      <p className="m-0 flex flex-wrap items-center gap-2.5 font-inter text-sm font-medium tracking-[0.4px] text-[#232323]">
         <span>Can&apos;t access these methods?</span>
         <Button
           variant="link"

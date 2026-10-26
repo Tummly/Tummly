@@ -53,7 +53,7 @@ function ArticleListItem({
 
     <Link to={to} className="group flex flex-col gap-2.5 no-underline">
 
-      <span className="text-xl font-bold leading-normal text-[#141414] group-hover:underline">
+      <span className="text-xl font-bold leading-[normal] text-[#141414] group-hover:underline">
 
         {title}
 

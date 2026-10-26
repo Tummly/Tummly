@@ -14,7 +14,7 @@ export function HelpCentreContactCta() {
       <div className={`${helpCentreHubSectionShell} ${helpCentreSectionPadding}`}>
         <div className={`${helpCentreHubSectionInner} flex flex-col gap-[52px]`}>
           <div className="flex flex-col gap-2.5">
-            <h2 className="m-0 text-[28px] font-bold leading-normal text-[#141414] lg:text-[32px]">
+            <h2 className="m-0 text-[28px] font-bold leading-[normal] text-[#141414] lg:text-[32px]">
               Still can&apos;t find what you want?
             </h2>
             <p className="m-0 max-w-[440px] text-base leading-[22px] text-[#141414]">

@@ -109,7 +109,7 @@ function IndustryList({
               <span className="font-jakarta text-[22px] font-medium leading-[28px] text-[#141414]">
                 {item.title}
               </span>
-              <span className="font-sans text-sm font-normal leading-4 text-[#141414] lg:text-base lg:leading-normal">
+              <span className="font-sans text-sm font-normal leading-4 text-[#141414] lg:text-base lg:leading-[normal]">
                 {item.body}
               </span>
             </button>

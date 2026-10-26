@@ -102,7 +102,7 @@ export function ForGroupsHero() {
 
         {trustBadges.length > 0 ? (
           <div className="flex w-full flex-col items-center gap-10">
-            <p className="m-0 text-center font-sans text-lg font-medium leading-normal text-black">
+            <p className="m-0 text-center font-sans text-lg font-medium leading-[normal] text-black">
               {FOR_GROUPS_HERO_TRUST.title}
             </p>
             <ul className="m-0 flex w-full list-none flex-wrap items-start justify-center gap-x-4 gap-y-8 p-0 lg:flex-nowrap lg:justify-between lg:gap-0">

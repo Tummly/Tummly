@@ -30,7 +30,7 @@ export function PilotHero() {
         <div className="flex w-full min-w-0 flex-1 flex-col items-start gap-[46px]">
           <div className="flex w-full flex-col items-start gap-8">
             <div className="flex w-full flex-col items-start gap-3.5 text-black">
-              <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px] lg:text-sm">
+              <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px] lg:text-sm">
                 {PILOT_HERO.eyebrow}
               </p>
               <h1
@@ -65,7 +65,7 @@ export function PilotHero() {
             {PILOT_HERO.trustItems.map((item) => (
               <p
                 key={item}
-                className="m-0 flex items-center gap-2 text-xs font-inter font-medium leading-normal text-[#727272]"
+                className="m-0 flex items-center gap-2 text-xs font-inter font-medium leading-[normal] text-[#727272]"
               >
                 <CircleCheckBig
                   aria-hidden

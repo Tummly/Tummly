@@ -35,7 +35,7 @@ function SignInFooterLink({
   const prefetch = () => onLinkHover?.()
 
   return (
-    <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">
+    <p className="m-0 flex flex-wrap items-center gap-2.5 font-inter text-sm font-medium tracking-[0.4px] text-[#232323]">
       <span>{label}</span>
       {to ? (
         <Button
@@ -101,7 +101,7 @@ export function SignInForm({ form, onSubmit }: SignInFormProps) {
 
       <div className="flex flex-col gap-10">
         <div className="flex flex-col gap-3 text-[#141414]">
-          <h1 className="m-0 font-jakarta text-[clamp(1.75rem,4vw,2.25rem)] font-medium leading-none">
+          <h1 className="m-0 font-jakarta text-[clamp(1.75rem,4vw,2.25rem)] font-medium leading-[normal]">
             Welcome back
           </h1>
           <p className="m-0 text-base leading-[22px]">

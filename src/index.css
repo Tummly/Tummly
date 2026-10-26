@@ -788,6 +788,25 @@ html.op :is(
   font-family: var(--font-heading);
 }
 
+/*
+ * Marketing controls (docs/agents/typography.md — Inter exception): every CTA
+ * on public and auth pages uses Inter with 0 tracking, whatever font or
+ * tracking class the page sets. Text links (variant="link") keep the body font.
+ */
+.marketing-controls [data-slot="button"]:not([data-variant="link"]) {
+  font-family: var(--font-inter);
+  letter-spacing: 0;
+}
+
+/* Auth and signup scroll areas still scroll, but show no scrollbar. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

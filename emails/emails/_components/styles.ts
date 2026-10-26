@@ -54,11 +54,14 @@ export const emailBodyStyle: CSSProperties = {
   fontFamily: fontFunctional,
 }
 
-/** Full-width content card. */
+/**
+ * White (transactional / brand) card — 600px column, centred on the white
+ * body (Figma "Tummly verification" `4974:19894`). Guest cards stay full width.
+ */
 export const emailContainerStyle: CSSProperties = {
   margin: "0 auto",
   width: "100%",
-  maxWidth: "100%",
+  maxWidth: "600px",
   backgroundColor: colors.white,
 }
 

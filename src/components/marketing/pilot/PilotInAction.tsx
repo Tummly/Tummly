@@ -155,7 +155,7 @@ function PanelChrome({
               }}
               className="flex w-full flex-col items-start gap-[18px] text-[#141414]"
             >
-              <h3 className="m-0 max-w-[466px] font-jakarta text-[28px] font-medium leading-normal lg:text-[36px]">
+              <h3 className="m-0 max-w-[466px] font-jakarta text-[28px] font-medium leading-[normal] lg:text-[36px]">
                 {activeTab.title}
               </h3>
               <p className="m-0 max-w-[541px] font-sans text-base font-normal leading-5">
@@ -346,7 +346,7 @@ export function PilotInAction() {
         )}
       >
         <div className="flex w-full flex-col items-center gap-3.5 text-black">
-          <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px]">
+          <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px]">
             {PILOT_IN_ACTION.eyebrow}
           </p>
           <h2

@@ -49,12 +49,12 @@ export function PilotFirstThirtyDays() {
       >
         <header className="flex w-full max-w-[656px] flex-col items-center gap-[22px] text-center">
           <div className="flex w-full flex-col items-center gap-3.5 text-black">
-            <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px]">
+            <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px]">
               {PILOT_FIRST_THIRTY_DAYS.eyebrow}
             </p>
             <h2
               id="pilot-first-thirty-days-heading"
-              className="m-0 w-full max-w-[519px] font-jakarta text-[28px] font-medium leading-normal text-black lg:text-[36px]"
+              className="m-0 w-full max-w-[519px] font-jakarta text-[28px] font-medium leading-[normal] text-black lg:text-[36px]"
             >
               {PILOT_FIRST_THIRTY_DAYS.title}
             </h2>
@@ -84,7 +84,7 @@ export function PilotFirstThirtyDays() {
                     draggable={false}
                   />
                   <div className="flex w-full flex-col items-start gap-3.5 text-[#141414]">
-                    <h3 className="m-0 font-jakarta text-xl font-semibold leading-normal">
+                    <h3 className="m-0 font-jakarta text-xl font-semibold leading-[normal]">
                       {card.title}
                     </h3>
                     <p className="m-0 font-sans text-sm font-normal leading-[18px]">

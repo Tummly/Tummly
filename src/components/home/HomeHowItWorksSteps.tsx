@@ -130,7 +130,7 @@ function StepCopy({
           className="flex w-full flex-col items-start gap-10 text-[#141414] lg:gap-[52px]"
         >
           <div className="flex w-full flex-col gap-[18px]">
-            <h3 className="m-0 w-full max-w-[467px] font-jakarta text-[28px] font-medium leading-normal lg:text-[36px]">
+            <h3 className="m-0 w-full max-w-[467px] font-jakarta text-[28px] font-medium leading-[normal] lg:text-[36px]">
               {step.title}
             </h3>
             <p className="m-0 w-full max-w-[542px] font-sans text-base font-normal leading-5">
@@ -203,8 +203,8 @@ function PlaceStepVisual({ reduceMotion }: { reduceMotion: boolean | null }) {
                 "absolute left-1/2 z-10 -translate-x-1/2 cursor-pointer rounded-[30px] border border-[#363636] bg-transparent px-[18px] py-2 font-jakarta font-semibold uppercase text-white",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
                 active
-                  ? "bottom-8 text-sm leading-normal lg:bottom-10"
-                  : "top-1/2 -translate-y-1/2 text-xs leading-normal",
+                  ? "bottom-8 text-sm leading-[normal] lg:bottom-10"
+                  : "top-1/2 -translate-y-1/2 text-xs leading-[normal]",
               )}
             >
               {item.label}

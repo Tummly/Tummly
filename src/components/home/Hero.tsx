@@ -77,7 +77,7 @@ function Hero() {
       >
         <div className="flex w-full max-w-[1428px] flex-col items-center gap-[26px]">
           <div className="inline-flex max-w-full flex-nowrap items-center justify-center gap-2 rounded-[80px] bg-[#141414] px-5 py-3">
-            <p className="m-0 shrink-0 text-[10px] font-medium leading-[13px] whitespace-nowrap text-[#f4f4f4] lg:text-sm lg:leading-normal">
+            <p className="m-0 shrink-0 text-[10px] font-medium leading-[13px] whitespace-nowrap text-[#f4f4f4] lg:text-sm lg:leading-[normal]">
               {HOME_HERO.groupsPrompt}
             </p>
             <HeroGroupsCtaLink />

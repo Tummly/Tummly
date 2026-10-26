@@ -103,7 +103,7 @@ function FeatureCopy({
           }}
           className="flex w-full flex-col gap-3 text-[#141414] sm:gap-[18px]"
         >
-          <h3 className="m-0 w-full max-w-[593px] font-jakarta text-[22px] font-medium leading-normal sm:text-[28px] lg:text-[42px]">
+          <h3 className="m-0 w-full max-w-[593px] font-jakarta text-[22px] font-medium leading-[normal] sm:text-[28px] lg:text-[42px]">
             {feature.title}
           </h3>
           {feature.body.map((paragraph) => (

@@ -153,7 +153,7 @@ export function GuestLoopPasswordStep({
 
             <PasswordStrengthMeter password={password ?? ""} />
 
-            <p className="m-0 text-sm font-medium tracking-[-0.28px] text-[#232323]">
+            <p className="m-0 text-sm font-medium text-[#232323]">
               {PASSWORD_REQUIREMENTS_HINT}
             </p>
           </div>

@@ -162,6 +162,16 @@ export function activeCustomConfig(
     : null
 }
 
+/**
+ * After the first Location: a plan already built on the Custom plan page goes
+ * straight to review; a standard plan (or none) goes to Choose plan.
+ */
+export function signupStepAfterLocation(
+  intent: SignupPlanIntent | null | undefined,
+): "review" | "choosePlan" {
+  return activeCustomConfig(intent) != null ? "review" : "choosePlan"
+}
+
 export function saveSignupPlanIntent(intent: SignupPlanIntent): void {
   const normalized = normalizeIntent(intent)
   if (normalized == null) {

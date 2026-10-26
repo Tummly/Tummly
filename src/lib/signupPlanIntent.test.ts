@@ -10,6 +10,7 @@ import {
   readSignupPlanIntent,
   saveSignupCustomPlanConfig,
   saveSignupPlanIntent,
+  signupStepAfterLocation,
 } from "@/lib/signupPlanIntent"
 
 describe("buildSignupPath", () => {
@@ -258,5 +259,26 @@ describe("activeCustomConfig", () => {
   it("is ignored (but kept) while another card is selected", () => {
     expect(activeCustomConfig({ plan: "Growth", config })).toBeNull()
     expect(activeCustomConfig({ plan: "Pilot" })).toBeNull()
+  })
+})
+
+describe("signupStepAfterLocation", () => {
+  const config = {
+    version: 2 as const,
+    cadence: "monthly" as const,
+    basePlan: "group" as const,
+    locations: 8,
+    packs: { team_users_5: 2 },
+  }
+
+  it("goes to review when the plan was built on the Custom plan page", () => {
+    expect(signupStepAfterLocation({ plan: "Group", config })).toBe("review")
+    expect(signupStepAfterLocation({ plan: "Custom", config })).toBe("review")
+  })
+
+  it("goes to choose a plan for a standard plan or no plan", () => {
+    expect(signupStepAfterLocation({ plan: "Starter" })).toBe("choosePlan")
+    expect(signupStepAfterLocation({ plan: "Pilot" })).toBe("choosePlan")
+    expect(signupStepAfterLocation(null)).toBe("choosePlan")
   })
 })

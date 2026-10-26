@@ -16,14 +16,14 @@ export function SignupPlanPrice({
   return (
     <div className="flex flex-col gap-2 text-[#141414]">
       <p className="m-0 whitespace-nowrap font-jakarta font-medium">
-        <span className={cn("text-[36px] leading-normal", amountClassName)}>
+        <span className={cn("text-[36px] leading-[normal]", amountClassName)}>
           {price?.amount ?? "—"}
         </span>
-        <span className="text-sm leading-normal">{price?.suffix ?? ""}</span>
+        <span className="text-sm leading-[normal]">{price?.suffix ?? ""}</span>
       </p>
       <p
         className={cn(
-          "m-0 font-sans text-sm font-medium leading-normal text-[#7c7c7c]",
+          "m-0 font-sans text-sm font-medium leading-[normal] text-[#7c7c7c]",
           sublineClassName,
         )}
       >

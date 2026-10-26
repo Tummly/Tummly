@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 function TouchpointCard({ card }: { card: QrMaterialsTouchpointCard }) {
   return (
     <article className="flex min-w-0 flex-1 flex-col gap-4 bg-white p-[26px]">
-      <h3 className="m-0 font-jakarta text-base font-bold leading-normal text-[#141414]">
+      <h3 className="m-0 font-jakarta text-base font-bold leading-[normal] text-[#141414]">
         {card.title}
       </h3>
       <p className="m-0 font-sans text-sm font-normal leading-5 text-[#141414]">
