@@ -243,7 +243,7 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var decision = await GateRestaurantAsync(PermissionLevel.View);
+            var decision = await GateRestaurantAsync(PermissionLevel.Manage);
             var forbidden = decision.ToForbiddenResult();
             if (forbidden != null)
             {
@@ -282,7 +282,7 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var decision = await GateRestaurantAsync(PermissionLevel.View);
+            var decision = await GateRestaurantAsync(PermissionLevel.Manage);
             var forbidden = decision.ToForbiddenResult();
             if (forbidden != null)
             {

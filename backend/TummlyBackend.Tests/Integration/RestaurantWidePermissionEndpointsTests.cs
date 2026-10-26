@@ -51,7 +51,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task AccountWorkspace_Returns200_WhenNamedLocationScopeAndView()
         {
             var seeded = await SeedOwnerAndMemberAsync(
-                PermissionRoles.Staff,
+                PermissionRoles.LocationManager,
                 namedInScopeOnly: true
             );
 
@@ -63,6 +63,24 @@ namespace TummlyBackend.Tests.Integration
 
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task AccountWorkspace_Staff_Returns403()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Staff,
+                namedInScopeOnly: true
+            );
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/account-workspace",
+                seeded.MemberJwt
+            );
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         [Fact]
