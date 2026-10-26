@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Data;
 using TummlyBackend.Models;
@@ -135,6 +136,18 @@ namespace TummlyBackend.Billing.Pricebook
             // Placeholder unit rates (Admin replaces with signed sheet).
             // Pack sizes match Figma full calculator `6657:37518`.
             AddRate(version, CommercialCustomUnitRateKeys.Location, 1, 3900, 39800);
+            foreach (var band in LocationBandPricing.Bands.Where(b => b.Index > 1))
+            {
+                var rate = LocationBandPricing.ProvisionalRates[band.Index];
+                AddRate(
+                    version,
+                    band.RateKey,
+                    1,
+                    rate.MonthlyNetPence,
+                    rate.AnnualNetPence
+                );
+            }
+
             AddRate(version, CommercialCustomUnitRateKeys.TeamUser, 5, 1500, null);
             AddRate(version, CommercialCustomUnitRateKeys.QrPlacement, 10, 600, null);
             AddRate(version, CommercialCustomUnitRateKeys.Offer, 5, 1200, null);
