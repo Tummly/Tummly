@@ -7,5 +7,7 @@ namespace TummlyBackend.DTOs.AccountWorkspace
         public required string ContentType { get; init; }
 
         public required byte[] Content { get; init; }
+
+        public int RowCount { get; init; }
     }
 }

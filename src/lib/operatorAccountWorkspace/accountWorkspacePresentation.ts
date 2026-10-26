@@ -353,6 +353,8 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
   exportGuestDataPreparing: "Preparing download…",
   exportGuestDataSuccess: "Guest data exported.",
   exportGuestDataError: "Could not export guest data. Please try again.",
+  exportGuestDataOwnerOnlyHelper:
+    "Only the account owner can export guest data.",
   dangerZoneTitle: "Danger zone",
   dangerZoneSubtitle:
     "These actions can affect access, guest forms, campaigns and account data. Only account owners can make these changes.",

@@ -316,7 +316,7 @@ namespace TummlyBackend.Controllers
         )
         {
             var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out _);
+                OperatorAuth.TryRequireUserId(User, out var userId);
 
             if (unauthorized != null)
             {
@@ -333,6 +333,7 @@ namespace TummlyBackend.Controllers
             var (result, error, statusCode) =
                 await _guestDataExport.ExportAsync(
                     decision.RestaurantId,
+                    userId,
                     format
                 );
 

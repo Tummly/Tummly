@@ -146,7 +146,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GuestDataExport_DumpsAllLocations_WhenManageAndNamedScope()
+        public async Task GuestDataExport_Returns403_WhenManageButNotOwner()
         {
             var seeded = await SeedOwnerAndMemberAsync(
                 PermissionRoles.Admin,
@@ -161,11 +161,7 @@ namespace TummlyBackend.Tests.Integration
             );
 
             var response = await _client.SendAsync(request);
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-            var csv = await response.Content.ReadAsStringAsync();
-            Assert.Contains("In Scope Guest", csv);
-            Assert.Contains("Out Of Scope Guest", csv);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         [Fact]
