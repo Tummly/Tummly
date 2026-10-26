@@ -1046,9 +1046,125 @@ namespace TummlyBackend.Tests.Integration
             Assert.Single(issues, o => o.CancelledAtUtc == null);
         }
 
+        [Fact]
+        public async Task RecoveryOfferSms_SettleFailsAfterAccept_ReturnsSuccess_ReplySaved()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                settleFails: true
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-sms-settle-fail-tok",
+                ContactType.Phone,
+                "+447911123494",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-sms-settle-fail-owner@example.com",
+                withCatalogAttach: true,
+                services: customized.Services
+            );
+
+            var response = await SendRecoverySmsOfferAsync(
+                client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply.DeliveryState);
+            Assert.StartsWith("SMrecorded-", reply.ProviderMessageId);
+
+            // The guest got the text, so the Claim stays open.
+            Assert.Single(
+                await context.OfferIssues
+                    .AsNoTracking()
+                    .Where(o =>
+                        o.FeedbackId == seeded.FeedbackId
+                        && o.CancelledAtUtc == null
+                    )
+                    .ToListAsync()
+            );
+            Assert.Equal(
+                1,
+                await context.RecoverySmsSendIdempotencies.CountAsync(row =>
+                    row.FeedbackId == seeded.FeedbackId
+                    && row.CompletedGuestResponseId == null
+                )
+            );
+        }
+
+        [Fact]
+        public async Task RecoveryOfferSms_ProviderThrows_ReplyUnavailable_Returns502_IdenticalRetryBlocked()
+        {
+            var delivery = new ThrowingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-sms-provider-throws-tok",
+                ContactType.Phone,
+                "+447911123495",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-sms-provider-throws-owner@example.com",
+                withCatalogAttach: true,
+                services: customized.Services
+            );
+
+            const string body = "Please enjoy 20% off your next visit.";
+            var first = await SendRecoverySmsOfferAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.BadGateway, first.StatusCode);
+            var firstBody = await ReadJsonAsync(first);
+            Assert.Equal("sms_send_failed", firstBody.GetProperty("code").GetString());
+            Assert.Equal(
+                "The reply was not confirmed as sent. Check its status before trying again.",
+                firstBody.GetProperty("message").GetString()
+            );
+
+            var retry = await SendRecoverySmsOfferAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.Conflict, retry.StatusCode);
+            var retryBody = await ReadJsonAsync(retry);
+            Assert.Equal("duplicate_reply", retryBody.GetProperty("code").GetString());
+            Assert.Equal(1, delivery.CallCount);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Unavailable, reply.DeliveryState);
+            Assert.Null(reply.ProviderMessageId);
+
+            // The Claim stays open: the guest may already hold the code.
+            Assert.Single(
+                await context.OfferIssues
+                    .AsNoTracking()
+                    .Where(o =>
+                        o.FeedbackId == seeded.FeedbackId
+                        && o.CancelledAtUtc == null
+                    )
+                    .ToListAsync()
+            );
+            Assert.Equal(
+                1,
+                await context.RecoverySmsSendIdempotencies.CountAsync(row =>
+                    row.FeedbackId == seeded.FeedbackId
+                    && row.CompletedGuestResponseId == null
+                )
+            );
+        }
+
         private WebApplicationFactory<Program> CreateFactoryWithSmsDelivery(
-            RecordingRecoveryGuestSmsDelivery delivery,
-            bool billingLive = true
+            IRecoveryGuestSmsDelivery delivery,
+            bool billingLive = true,
+            bool settleFails = false
         )
         {
             return _factory.WithWebHostBuilder(builder =>
@@ -1075,6 +1191,18 @@ namespace TummlyBackend.Tests.Integration
                             IRecoverySmsBillingReserve,
                             UnavailableRecoverySmsBillingReserve
                         >();
+                    }
+                    else if (settleFails)
+                    {
+                        services.AddScoped<IRecoverySmsBillingReserve>(sp =>
+                            new SettleFailingRecoverySmsBilling(
+                                new LiveRecoverySmsBillingReserve(
+                                    sp.GetRequiredService<ApplicationDbContext>(),
+                                    sp.GetRequiredService<ICreditLedger>(),
+                                    sp.GetRequiredService<ICreditBalanceSnapshot>()
+                                )
+                            )
+                        );
                     }
                 });
             });

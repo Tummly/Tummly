@@ -266,29 +266,18 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            var delivery = await _smsSend.SendAsync(
+            var outcome = await _smsSend.SendAndSettleAsync(
+                reservation,
                 feedback,
                 content.Body,
                 cancellationToken
             );
 
-            if (delivery is RecoveryGuestSmsDeliveryResult.Failed)
+            if (outcome.Kind == GuestReplySmsOutcomeKind.Failed)
             {
-                // No reply row is saved on a failed send, so there is no state to
-                // move to Failed. The error is returned and the reply is not recorded.
-                await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
-
+                // The provider refused the text. No reply row is saved, so there
+                // is no state to move to Failed.
                 throw new GuestReplySmsSendFailedException();
-            }
-
-            var accepted = (RecoveryGuestSmsDeliveryResult.Accepted)delivery;
-            if (!await _smsSend.SettleAcceptedAsync(reservation, accepted, cancellationToken))
-            {
-                await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
-
-                throw new InvalidOperationException(
-                    "Unable to settle Recovery SMS credits."
-                );
             }
 
             var now = _clock.GetUtcNow().UtcDateTime;
@@ -305,10 +294,26 @@ namespace TummlyBackend.Services
                 now
             );
             row.EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.NotApplicable;
-            _smsSend.ApplyAccepted(row, reservation, accepted, now);
 
+            if (outcome.Kind == GuestReplySmsOutcomeKind.Unknown)
+            {
+                // The provider may have sent the text. Record the reply as
+                // Unavailable, keep the hold for the sweeper, and block a repeat
+                // with the duplicate rule. The save ignores cancellation so the
+                // record is kept.
+                _smsSend.ApplyUnknownOutcome(row, reservation, now);
+                _context.FeedbackGuestResponses.Add(row);
+                await _context.SaveChangesAsync(CancellationToken.None);
+
+                throw new GuestReplySmsSendFailedException();
+            }
+
+            _smsSend.ApplyAccepted(row, reservation, outcome.Accepted!, now);
             _context.FeedbackGuestResponses.Add(row);
-            await _smsSend.CompleteAsync(reservation, row, cancellationToken);
+            if (outcome.Settled)
+            {
+                await _smsSend.CompleteAsync(reservation, row, cancellationToken);
+            }
             await _context.SaveChangesAsync(cancellationToken);
 
             return BuildResult(feedback, row);

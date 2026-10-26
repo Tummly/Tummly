@@ -11,7 +11,6 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
-using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -657,8 +656,106 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(20, sms.Remaining);
         }
 
+        [Fact]
+        public async Task RespondAndRecordSms_SettleFailsAfterAccept_ReturnsSuccess_ReplySaved()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                settleFails: true
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "respond-and-record-sms-settle-fail-tok",
+                ContactType.Phone,
+                "+447911123496",
+                FeedbackWorkflowStatus.InProgress,
+                email: "respond-and-record-sms-settle-fail-owner@example.com",
+                services: customized.Services
+            );
+
+            var response = await SendRespondAndRecordSmsAsync(
+                client,
+                seeded,
+                "Thanks for telling us. We have briefed the team."
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply.DeliveryState);
+            Assert.StartsWith("SMrecorded-", reply.ProviderMessageId);
+            Assert.Equal(
+                1,
+                await context.FeedbackInternalActions.CountAsync(a =>
+                    a.FeedbackId == seeded.FeedbackId
+                )
+            );
+            Assert.Equal(
+                1,
+                await context.RecoverySmsSendIdempotencies.CountAsync(row =>
+                    row.FeedbackId == seeded.FeedbackId
+                    && row.CompletedGuestResponseId == null
+                )
+            );
+        }
+
+        [Fact]
+        public async Task RespondAndRecordSms_ProviderThrows_ReplyUnavailable_Returns502_IdenticalRetryBlocked()
+        {
+            var delivery = new ThrowingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "respond-and-record-sms-provider-throws-tok",
+                ContactType.Phone,
+                "+447911123497",
+                FeedbackWorkflowStatus.InProgress,
+                email: "respond-and-record-sms-provider-throws-owner@example.com",
+                services: customized.Services
+            );
+
+            const string body = "Thanks for telling us. We have briefed the team.";
+            var first = await SendRespondAndRecordSmsAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.BadGateway, first.StatusCode);
+            var firstBody = await ReadJsonAsync(first);
+            Assert.Equal("sms_send_failed", firstBody.GetProperty("code").GetString());
+            Assert.Equal(
+                "The reply was not confirmed as sent. Check its status before trying again.",
+                firstBody.GetProperty("message").GetString()
+            );
+
+            var retry = await SendRespondAndRecordSmsAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.Conflict, retry.StatusCode);
+            var retryBody = await ReadJsonAsync(retry);
+            Assert.Equal("duplicate_reply", retryBody.GetProperty("code").GetString());
+            Assert.Equal(1, delivery.CallCount);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Unavailable, reply.DeliveryState);
+            Assert.Null(reply.ProviderMessageId);
+            Assert.Equal(
+                1,
+                await context.RecoverySmsSendIdempotencies.CountAsync(row =>
+                    row.FeedbackId == seeded.FeedbackId
+                    && row.CompletedGuestResponseId == null
+                )
+            );
+        }
+
         private WebApplicationFactory<Program> CreateFactoryWithSmsDelivery(
-            RecordingRecoveryGuestSmsDelivery delivery
+            IRecoveryGuestSmsDelivery delivery,
+            bool settleFails = false
         )
         {
             return _factory.WithWebHostBuilder(builder =>
@@ -675,6 +772,27 @@ namespace TummlyBackend.Tests.Integration
                     }
 
                     services.AddSingleton<IRecoveryGuestSmsDelivery>(delivery);
+                    if (settleFails)
+                    {
+                        foreach (
+                            var descriptor in services
+                                .Where(d => d.ServiceType == typeof(IRecoverySmsBillingReserve))
+                                .ToList()
+                        )
+                        {
+                            services.Remove(descriptor);
+                        }
+
+                        services.AddScoped<IRecoverySmsBillingReserve>(sp =>
+                            new SettleFailingRecoverySmsBilling(
+                                new LiveRecoverySmsBillingReserve(
+                                    sp.GetRequiredService<ApplicationDbContext>(),
+                                    sp.GetRequiredService<ICreditLedger>(),
+                                    sp.GetRequiredService<ICreditBalanceSnapshot>()
+                                )
+                            )
+                        );
+                    }
                 });
             });
         }

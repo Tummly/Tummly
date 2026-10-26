@@ -376,8 +376,9 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Sends the saved Offer SMS, then settles its credits. A failed send
-        /// cancels the Offer so a retry is allowed and records the reply as Failed.
+        /// Sends the saved Offer SMS. A refused send cancels the Offer so a retry is
+        /// allowed. An unknown outcome keeps the Offer, because the guest may hold the
+        /// claim code. Both record the reply and throw. An accepted send is saved.
         /// </summary>
         private async Task SendSmsAndSettleAsync(
             Feedback feedback,
@@ -387,46 +388,41 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var delivery = await _smsSend.SendAsync(
+            var outcome = await _smsSend.SendAndSettleAsync(
+                reservation,
                 feedback,
                 guestResponse.Body,
                 cancellationToken
             );
             var now = DateTime.UtcNow;
 
-            if (delivery is RecoveryGuestSmsDeliveryResult.Failed)
+            switch (outcome.Kind)
             {
-                issue.CancelledAtUtc = now;
-                GuestReplyDeliveryStateMachine.TryAdvance(
-                    guestResponse,
-                    GuestReplyDeliveryState.Failed,
-                    now
-                );
-                await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
-                await _context.SaveChangesAsync(cancellationToken);
+                case GuestReplySmsOutcomeKind.Failed:
+                    issue.CancelledAtUtc = now;
+                    GuestReplyDeliveryStateMachine.TryAdvance(
+                        guestResponse,
+                        GuestReplyDeliveryState.Failed,
+                        now
+                    );
+                    await _context.SaveChangesAsync(cancellationToken);
 
-                throw new GuestReplySmsSendFailedException();
+                    throw new GuestReplySmsSendFailedException();
+
+                case GuestReplySmsOutcomeKind.Unknown:
+                    // Keep the Claim open. The save ignores cancellation so the
+                    // record is kept.
+                    _smsSend.ApplyUnknownOutcome(guestResponse, reservation, now);
+                    await _context.SaveChangesAsync(CancellationToken.None);
+
+                    throw new GuestReplySmsSendFailedException();
             }
 
-            var accepted = (RecoveryGuestSmsDeliveryResult.Accepted)delivery;
-            var settled = await _smsSend.SettleAcceptedAsync(
-                reservation,
-                accepted,
-                cancellationToken
-            );
-            _smsSend.ApplyAccepted(guestResponse, reservation, accepted, now);
-
-            if (!settled)
+            _smsSend.ApplyAccepted(guestResponse, reservation, outcome.Accepted!, now);
+            if (outcome.Settled)
             {
-                await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
-                await _context.SaveChangesAsync(cancellationToken);
-
-                throw new InvalidOperationException(
-                    "Unable to settle Recovery SMS credits."
-                );
+                await _smsSend.CompleteAsync(reservation, guestResponse, cancellationToken);
             }
-
-            await _smsSend.CompleteAsync(reservation, guestResponse, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
         }
 

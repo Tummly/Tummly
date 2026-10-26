@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Helpers;
@@ -38,7 +39,8 @@ namespace TummlyBackend.Tests.Services
                     _context,
                     new AcceptingRecoverySmsBilling(),
                     new RecordingRecoveryGuestSmsDelivery(),
-                    TimeProvider.System
+                    TimeProvider.System,
+                    NullLogger<GuestReplySmsSendStep>.Instance
                 )
             );
         }
@@ -254,7 +256,8 @@ namespace TummlyBackend.Tests.Services
                     failingContext,
                     new AcceptingRecoverySmsBilling(),
                     new RecordingRecoveryGuestSmsDelivery(),
-                    TimeProvider.System
+                    TimeProvider.System,
+                    NullLogger<GuestReplySmsSendStep>.Instance
                 )
             );
 

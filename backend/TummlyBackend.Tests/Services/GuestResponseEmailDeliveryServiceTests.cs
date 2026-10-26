@@ -92,7 +92,8 @@ namespace TummlyBackend.Tests.Services
                     new CreditBalanceSnapshotService(_context, TimeProvider.System)
                 ),
                 new NoOpRecoveryGuestSmsDelivery(),
-                TimeProvider.System
+                TimeProvider.System,
+                NullLogger<GuestReplySmsSendStep>.Instance
             );
             _guestResponses = new FeedbackGuestResponsesService(
                 _context,

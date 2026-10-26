@@ -18,18 +18,21 @@ namespace TummlyBackend.Services
         private readonly IRecoverySmsBillingReserve _smsBilling;
         private readonly IRecoveryGuestSmsDelivery _smsDelivery;
         private readonly TimeProvider _clock;
+        private readonly ILogger<GuestReplySmsSendStep> _logger;
 
         public GuestReplySmsSendStep(
             ApplicationDbContext context,
             IRecoverySmsBillingReserve smsBilling,
             IRecoveryGuestSmsDelivery smsDelivery,
-            TimeProvider clock
+            TimeProvider clock,
+            ILogger<GuestReplySmsSendStep> logger
         )
         {
             _context = context;
             _smsBilling = smsBilling;
             _smsDelivery = smsDelivery;
             _clock = clock;
+            _logger = logger;
         }
 
         public void EnsureBillingLive()
@@ -154,50 +157,117 @@ namespace TummlyBackend.Services
             );
         }
 
-        public Task<RecoveryGuestSmsDeliveryResult> SendAsync(
+        public async Task<GuestReplySmsOutcome> SendAndSettleAsync(
+            GuestReplySmsReservation reservation,
             Feedback feedback,
             string body,
             CancellationToken cancellationToken
         )
         {
-            return _smsDelivery.SendAsync(feedback.GuestContact, body, cancellationToken);
+            RecoveryGuestSmsDeliveryResult delivery;
+            try
+            {
+                delivery = await _smsDelivery.SendAsync(
+                    feedback.GuestContact,
+                    body,
+                    cancellationToken
+                );
+            }
+            catch (Exception ex)
+            {
+                // Timeout or network failure: the provider may have accepted the
+                // text. Log the type only (no phone, no message text).
+                _logger.LogError(
+                    "Recovery SMS provider call threw {ExceptionType}. Outcome unknown. ReservationRef {ReservationRef}",
+                    ex.GetType().Name,
+                    reservation.ReservationRef
+                );
+                return new GuestReplySmsOutcome(
+                    GuestReplySmsOutcomeKind.Unknown,
+                    null,
+                    false
+                );
+            }
+
+            if (delivery is RecoveryGuestSmsDeliveryResult.Failed)
+            {
+                await ReleaseFailedAsync(reservation, cancellationToken);
+
+                return new GuestReplySmsOutcome(
+                    GuestReplySmsOutcomeKind.Failed,
+                    null,
+                    false
+                );
+            }
+
+            var accepted = (RecoveryGuestSmsDeliveryResult.Accepted)delivery;
+            var settled = await TrySettleAcceptedAsync(
+                reservation,
+                accepted,
+                cancellationToken
+            );
+
+            return new GuestReplySmsOutcome(
+                GuestReplySmsOutcomeKind.Accepted,
+                accepted,
+                settled
+            );
         }
 
-        public async Task<bool> SettleAcceptedAsync(
+        /// <summary>
+        /// Settles the accepted units, then releases the unused hold. A failure is
+        /// logged and returns false. The hold stays open, so the sweeper releases it.
+        /// </summary>
+        private async Task<bool> TrySettleAcceptedAsync(
             GuestReplySmsReservation reservation,
             RecoveryGuestSmsDeliveryResult.Accepted accepted,
             CancellationToken cancellationToken
         )
         {
-            var settle = await _smsBilling.SettleAsync(
-                new RecoverySmsBillingSettleRequest
-                {
-                    FeedbackId = reservation.FeedbackId,
-                    ReservationRef = reservation.ReservationRef,
-                    AcceptedUnits = accepted.AcceptedSegments,
-                },
-                cancellationToken
-            );
-
-            if (settle is RecoverySmsBillingSettleResult.Failed)
+            try
             {
+                var settle = await _smsBilling.SettleAsync(
+                    new RecoverySmsBillingSettleRequest
+                    {
+                        FeedbackId = reservation.FeedbackId,
+                        ReservationRef = reservation.ReservationRef,
+                        AcceptedUnits = accepted.AcceptedSegments,
+                    },
+                    cancellationToken
+                );
+
+                if (settle is RecoverySmsBillingSettleResult.Failed)
+                {
+                    _logger.LogError(
+                        "Recovery SMS settle refused after provider accept. Hold left for the sweeper. ReservationRef {ReservationRef}",
+                        reservation.ReservationRef
+                    );
+                    return false;
+                }
+
+                // Lock 05 / ticket 22: settle accepted units, then release unused hold
+                // (same close order as CampaignBillingClose). Release fail must not
+                // withhold the guest-response fact; leftover hold stays for the sweeper.
+                await _smsBilling.ReleaseAsync(
+                    new RecoverySmsBillingReleaseRequest
+                    {
+                        FeedbackId = reservation.FeedbackId,
+                        ReservationRef = reservation.ReservationRef,
+                    },
+                    cancellationToken
+                );
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    "Recovery SMS settle threw {ExceptionType} after provider accept. Hold left for the sweeper. ReservationRef {ReservationRef}",
+                    ex.GetType().Name,
+                    reservation.ReservationRef
+                );
                 return false;
             }
-
-            // Lock 05 / ticket 22: settle accepted units, then release unused hold
-            // (same close order as CampaignBillingClose). Provider already accepted
-            // and settle already committed — Release fail must not withhold the
-            // guest-response fact; leftover hold stays for the TTL sweeper.
-            await _smsBilling.ReleaseAsync(
-                new RecoverySmsBillingReleaseRequest
-                {
-                    FeedbackId = reservation.FeedbackId,
-                    ReservationRef = reservation.ReservationRef,
-                },
-                cancellationToken
-            );
-
-            return true;
         }
 
         public async Task ReleaseFailedAsync(
@@ -218,6 +288,20 @@ namespace TummlyBackend.Services
                 reservation.IdempotencyKey,
                 reservation.ReservationRef,
                 cancellationToken
+            );
+        }
+
+        public void ApplyUnknownOutcome(
+            FeedbackGuestResponse row,
+            GuestReplySmsReservation reservation,
+            DateTime atUtc
+        )
+        {
+            row.BillingReservationRef = reservation.ReservationRef;
+            GuestReplyDeliveryStateMachine.TryAdvance(
+                row,
+                GuestReplyDeliveryState.Unavailable,
+                atUtc
             );
         }
 

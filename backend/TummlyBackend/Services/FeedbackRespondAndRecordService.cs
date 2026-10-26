@@ -209,27 +209,17 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            var delivery = await _smsSend.SendAsync(
+            var outcome = await _smsSend.SendAndSettleAsync(
+                reservation,
                 feedback,
                 content.Body,
                 cancellationToken
             );
 
-            if (delivery is RecoveryGuestSmsDeliveryResult.Failed)
+            if (outcome.Kind == GuestReplySmsOutcomeKind.Failed)
             {
-                await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
-
+                // Nothing is saved on a refused send.
                 throw new GuestReplySmsSendFailedException();
-            }
-
-            var accepted = (RecoveryGuestSmsDeliveryResult.Accepted)delivery;
-            if (!await _smsSend.SettleAcceptedAsync(reservation, accepted, cancellationToken))
-            {
-                await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
-
-                throw new InvalidOperationException(
-                    "Unable to settle Recovery SMS credits."
-                );
             }
 
             var guestResponse = FeedbackGuestResponseComposer.Build(
@@ -245,7 +235,6 @@ namespace TummlyBackend.Services
                 now
             );
             guestResponse.EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.NotApplicable;
-            _smsSend.ApplyAccepted(guestResponse, reservation, accepted, now);
 
             var internalAction = BuildInternalAction(
                 feedback.Id,
@@ -256,9 +245,26 @@ namespace TummlyBackend.Services
                 now
             );
 
+            if (outcome.Kind == GuestReplySmsOutcomeKind.Unknown)
+            {
+                // The provider may have sent the text. Record the reply as
+                // Unavailable and the internal action with it. The duplicate rule
+                // then blocks a repeat. The save ignores cancellation.
+                _smsSend.ApplyUnknownOutcome(guestResponse, reservation, now);
+                _context.FeedbackGuestResponses.Add(guestResponse);
+                _context.FeedbackInternalActions.Add(internalAction);
+                await _context.SaveChangesAsync(CancellationToken.None);
+
+                throw new GuestReplySmsSendFailedException();
+            }
+
+            _smsSend.ApplyAccepted(guestResponse, reservation, outcome.Accepted!, now);
             _context.FeedbackGuestResponses.Add(guestResponse);
             _context.FeedbackInternalActions.Add(internalAction);
-            await _smsSend.CompleteAsync(reservation, guestResponse, cancellationToken);
+            if (outcome.Settled)
+            {
+                await _smsSend.CompleteAsync(reservation, guestResponse, cancellationToken);
+            }
             await _context.SaveChangesAsync(cancellationToken);
 
             return BuildResult(feedback, guestResponse, internalAction);
