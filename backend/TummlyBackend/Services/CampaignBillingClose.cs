@@ -120,12 +120,18 @@ namespace TummlyBackend.Services
             return (true, null, unbilled);
         }
 
-        public static int AcceptedUnitsForDelivery(string channel, string? messageBody)
+        public static int AcceptedUnitsForDelivery(
+            string channel,
+            string restaurantName,
+            string? messageBody
+        )
         {
             var normalized = (channel ?? string.Empty).Trim().ToLowerInvariant();
             if (normalized == "sms")
             {
-                return CampaignSmsSegmentCalculator.CountSegments(messageBody);
+                return CampaignSmsSegmentCalculator.CountSegments(
+                    GuestSmsText.ForCampaign(restaurantName, messageBody ?? string.Empty)
+                );
             }
 
             return 1;

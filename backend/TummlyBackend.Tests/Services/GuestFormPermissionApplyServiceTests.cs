@@ -25,7 +25,7 @@ namespace TummlyBackend.Tests.Services
 
             _context = new ApplicationDbContext(options);
             _ledger = new LocationGuestPermissionLedgerService(_context);
-            _apply = new GuestFormPermissionApplyService(_ledger);
+            _apply = new GuestFormPermissionApplyService(_ledger, _context);
         }
 
         [Fact]
@@ -150,6 +150,63 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.False(string.IsNullOrWhiteSpace(withdraw.WordingSnapshot));
             Assert.Contains("email me", withdraw.WordingSnapshot);
+        }
+
+        [Fact]
+        public async Task GuestForm_NewSmsGrant_ClearsStop()
+        {
+            var (guest, restaurant) = await SeedGuestAsync(
+                restaurantName: "Cafe",
+                marketingPreference: LocationGuestMarketingPreference.NotRecorded
+            );
+            guest.MasterGuest!.SmsStoppedAtUtc = new DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc);
+
+            await _apply.ApplyOnSubmitAsync(
+                guest,
+                restaurant,
+                guest.RestaurantLocationId,
+                locationName: "Camden",
+                marketingConsentGranted: true,
+                ContactType.Phone,
+                new DateTime(2026, 10, 20, 12, 0, 0, DateTimeKind.Utc)
+            );
+
+            Assert.Contains(
+                PendingLedgerEntries(),
+                e =>
+                    e.PermissionKind == LocationGuestPermissionKind.SmsMarketing
+                    && e.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
+            );
+            Assert.Null(guest.MasterGuest.SmsStoppedAtUtc);
+        }
+
+        [Fact]
+        public async Task GuestForm_EmailGrant_DoesNotClearStop()
+        {
+            var (guest, restaurant) = await SeedGuestAsync(
+                restaurantName: "Cafe",
+                marketingPreference: LocationGuestMarketingPreference.NotRecorded
+            );
+            var stoppedAt = new DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc);
+            guest.MasterGuest!.SmsStoppedAtUtc = stoppedAt;
+
+            await _apply.ApplyOnSubmitAsync(
+                guest,
+                restaurant,
+                guest.RestaurantLocationId,
+                locationName: "Camden",
+                marketingConsentGranted: true,
+                ContactType.Email,
+                new DateTime(2026, 10, 20, 12, 0, 0, DateTimeKind.Utc)
+            );
+
+            Assert.Contains(
+                PendingLedgerEntries(),
+                e =>
+                    e.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+                    && e.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
+            );
+            Assert.Equal(stoppedAt, guest.MasterGuest.SmsStoppedAtUtc);
         }
 
         private List<LocationGuestPermissionLedgerEntry> PendingLedgerEntries() =>

@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -892,6 +893,64 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        private async Task<bool> IsTopupMintedAsync(
+            int restaurantId,
+            string orderId,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.CreditLedgerEntries
+                .AsNoTracking()
+                .AnyAsync(
+                    row =>
+                        row.RestaurantId == restaurantId
+                        && row.SourcePaymentRef == orderId
+                        && row.EntryType == CreditLedgerEntryTypes.TopupAllocation,
+                    cancellationToken
+                );
+        }
+
+        private async Task DiscardFailedTopupMintAsync(
+            string orderId,
+            CancellationToken cancellationToken
+        )
+        {
+            foreach (var entry in _context.ChangeTracker.Entries<CreditLedgerEntry>().ToList())
+            {
+                if (
+                    entry.State == EntityState.Added
+                    && entry.Entity.EntryType == CreditLedgerEntryTypes.TopupAllocation
+                    && entry.Entity.SourcePaymentRef == orderId
+                )
+                {
+                    entry.State = EntityState.Detached;
+                }
+            }
+
+            // The failed SaveChanges also left threshold watermark changes
+            // pending. Drop them so a later SaveChanges cannot persist values
+            // computed from the lost mint.
+            foreach (var entry in _context.ChangeTracker.Entries<CreditWarningState>().ToList())
+            {
+                if (entry.State == EntityState.Added)
+                {
+                    entry.State = EntityState.Detached;
+                }
+                else if (entry.State == EntityState.Modified)
+                {
+                    await entry.ReloadAsync(cancellationToken);
+                }
+            }
+        }
+
+        private static bool IsUniqueConstraintViolation(DbUpdateException exception)
+        {
+            return exception.InnerException is SqlException
+            {
+                Number: 2601 or 2627,
+            };
+        }
+
         private async Task ApplyTopupAsync(
             RevolutOrderIntent intent,
             CancellationToken cancellationToken
@@ -910,34 +969,60 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("invalid_topup_intent");
             }
 
-            var alreadyMinted = await _context.CreditLedgerEntries
-                .AsNoTracking()
-                .AnyAsync(
-                    row =>
-                        row.RestaurantId == restaurantId
-                        && row.SourcePaymentRef == intent.OrderId
-                        && row.EntryType == CreditLedgerEntryTypes.TopupAllocation,
-                    cancellationToken
-                );
-
-            if (!alreadyMinted)
+            // Only the apply that inserts the allocation does the invoice and
+            // activity work. An apply that finds the mint already present, or
+            // loses the insert race, only closes the intent. This keeps the
+            // post-mint work once per order under concurrency.
+            var mintedElsewhere = await IsTopupMintedAsync(
+                restaurantId,
+                intent.OrderId,
+                cancellationToken
+            );
+            var lostMintRace = false;
+            if (!mintedElsewhere)
             {
-                var mintResult = await _creditLedger.MintTopupAllocationAsync(
-                    new CreditLedgerMintTopupRequest
-                    {
-                        RestaurantId = restaurantId,
-                        Channel = channel,
-                        Quantity = quantity,
-                        SourcePaymentRef = intent.OrderId,
-                    },
-                    cancellationToken
-                );
-                if (!mintResult.Succeeded)
+                try
                 {
-                    throw new InvalidOperationException(
-                        mintResult.Code ?? "topup_allocate_failed"
+                    var mintResult = await _creditLedger.MintTopupAllocationAsync(
+                        new CreditLedgerMintTopupRequest
+                        {
+                            RestaurantId = restaurantId,
+                            Channel = channel,
+                            Quantity = quantity,
+                            SourcePaymentRef = intent.OrderId,
+                        },
+                        cancellationToken
                     );
+                    if (!mintResult.Succeeded)
+                    {
+                        throw new InvalidOperationException(
+                            mintResult.Code ?? "topup_allocate_failed"
+                        );
+                    }
                 }
+                catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+                {
+                    // A concurrent apply of this order minted first. Drop the
+                    // failed mint. Rethrow if the row is not there.
+                    await DiscardFailedTopupMintAsync(intent.OrderId, cancellationToken);
+                    if (!await IsTopupMintedAsync(restaurantId, intent.OrderId, cancellationToken))
+                    {
+                        throw;
+                    }
+
+                    lostMintRace = true;
+                }
+            }
+
+            if (mintedElsewhere || lostMintRace)
+            {
+                if (intent.IsOpen)
+                {
+                    intent.IsOpen = false;
+                }
+
+                await _context.SaveChangesAsync(cancellationToken);
+                return;
             }
 
             var nowUtc = _clock.GetUtcNow().UtcDateTime;

@@ -475,9 +475,11 @@ namespace TummlyBackend.Services
 
             if (!DefaultPermissionMatrix.Meets(cell, minimum))
             {
-                return denyLocation
-                    ? RestaurantPermissionDecision.DenyLocation()
-                    : RestaurantPermissionDecision.Deny();
+                // Role refusal (R7.2). Location-set and tenant refusals keep
+                // their own text.
+                return RestaurantPermissionDecision.DenyWith(
+                    "You do not have permission to use this feature."
+                );
             }
 
             return RestaurantPermissionDecision.AllowSet(

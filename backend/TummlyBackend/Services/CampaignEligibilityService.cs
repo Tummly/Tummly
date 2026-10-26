@@ -89,7 +89,8 @@ namespace TummlyBackend.Services
                     lg.Id,
                     lg.MarketingPreference,
                     lg.MasterGuest!.Email,
-                    lg.MasterGuest.Mobile
+                    lg.MasterGuest.Mobile,
+                    lg.MasterGuest.SmsStoppedAtUtc
                 ))
                 .ToListAsync(cancellationToken);
 
@@ -158,7 +159,8 @@ namespace TummlyBackend.Services
                     lg.Id,
                     lg.MarketingPreference,
                     lg.MasterGuest!.Email,
-                    lg.MasterGuest.Mobile
+                    lg.MasterGuest.Mobile,
+                    lg.MasterGuest.SmsStoppedAtUtc
                 ))
                 .ToListAsync(cancellationToken);
 
@@ -505,17 +507,35 @@ namespace TummlyBackend.Services
                     LocationGuestPermissionState
                 >
             > permissionStates
-        ) =>
-            LocationGuestChannelPermissionGate.ResolveEffectiveStates(
+        )
+        {
+            var states = LocationGuestChannelPermissionGate.ResolveEffectiveStates(
                 guest.MarketingPreference,
                 permissionStates[guest.LocationGuestId]
             );
+            if (guest.SmsStoppedAtUtc == null)
+            {
+                return states;
+            }
+
+            // R4.5: a guest who sent STOP to this restaurant is excluded from SMS
+            // like a withdrawn guest. Email is not affected.
+            return new Dictionary<
+                LocationGuestPermissionKind,
+                LocationGuestPermissionState
+            >(states)
+            {
+                [LocationGuestPermissionKind.SmsMarketing] =
+                    LocationGuestPermissionState.Withdrawn,
+            };
+        }
 
         private readonly record struct GuestEligibilityRow(
             int LocationGuestId,
             LocationGuestMarketingPreference MarketingPreference,
             string? Email,
-            string? Mobile
+            string? Mobile,
+            DateTime? SmsStoppedAtUtc
         );
     }
 }

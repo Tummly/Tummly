@@ -54,6 +54,8 @@ export type BuildResponseSetupChannelCardsInput = {
   >
   /** Current guest-response body — drives SMS estimate after body (lock 09). */
   messageBody?: string
+  /** Restaurant display name for the SMS prefix in the estimate. */
+  restaurantName?: string | null
 }
 
 function destinationForChannel(
@@ -91,6 +93,7 @@ export function buildResponseSetupChannelCards(
     availabilityLine: recoveryChannelAvailabilityLine({
       channel,
       messageBody,
+      restaurantName: input.restaurantName,
     }),
     selected: input.selectedChannel === channel,
   }))

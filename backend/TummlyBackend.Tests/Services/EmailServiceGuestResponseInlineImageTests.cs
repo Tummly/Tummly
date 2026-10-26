@@ -59,6 +59,35 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendGuestResponseEmailAsync_DemoSuppressed_ReturnsSuppressedWithoutCallingResend()
+        {
+            var handler = new CapturingHandler();
+            var service = CreateService(
+                handler,
+                demoOptions: new TummlyBackend.Configurations.DemoSessionOptions
+                {
+                    Enabled = true,
+                    SuppressSideEffects = true,
+                    OwnerEmail = "guest@example.test",
+                }
+            );
+
+            var result = await service.SendGuestResponseEmailAsync(
+                "guest@example.test",
+                "Thanks for your visit",
+                "Burger House",
+                null,
+                "12 High Street, London",
+                "Hello",
+                brandLogoUrl: null
+            );
+
+            Assert.True(result.Suppressed);
+            Assert.Null(result.ProviderMessageId);
+            Assert.Null(handler.LastBody);
+        }
+
+        [Fact]
         public async Task SendGuestResponseEmailAsync_InjectsQaBanner_InsideBody()
         {
             var handler = new CapturingHandler();
@@ -103,7 +132,8 @@ namespace TummlyBackend.Tests.Services
 
         private static EmailService CreateService(
             CapturingHandler handler,
-            string? qaRedirectTo = null
+            string? qaRedirectTo = null,
+            TummlyBackend.Configurations.DemoSessionOptions? demoOptions = null
         )
         {
             var httpClient = new HttpClient(handler)
@@ -140,11 +170,12 @@ namespace TummlyBackend.Tests.Services
                 },
                 new TummlyBackend.Helpers.DemoSideEffectGuard(
                     Microsoft.Extensions.Options.Options.Create(
-                        new TummlyBackend.Configurations.DemoSessionOptions
-                        {
-                            Enabled = false,
-                            SuppressSideEffects = false,
-                        }
+                        demoOptions
+                            ?? new TummlyBackend.Configurations.DemoSessionOptions
+                            {
+                                Enabled = false,
+                                SuppressSideEffects = false,
+                            }
                     )
                 ),
                 new Microsoft.AspNetCore.Http.HttpContextAccessor()

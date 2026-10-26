@@ -590,7 +590,7 @@ namespace TummlyBackend.Tests.Services
 
         private sealed class TrackingGuestResponseEmailService : EmailServiceStubBase
         {
-            public override Task SendGuestResponseEmailAsync(
+            public override Task<GuestResponseEmailSendResult> SendGuestResponseEmailAsync(
                 string toEmail,
                 string subject,
                 string brandTitle,
@@ -603,7 +603,7 @@ namespace TummlyBackend.Tests.Services
                 string? ticketSubject = null
             )
             {
-                return Task.CompletedTask;
+                return Task.FromResult(new GuestResponseEmailSendResult(null, Suppressed: false));
             }
         }
     }

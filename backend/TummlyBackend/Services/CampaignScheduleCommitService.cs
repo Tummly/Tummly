@@ -181,17 +181,16 @@ namespace TummlyBackend.Services
                 return new CampaignScheduleCommitResult.ZeroEligible();
             }
 
-            var estimatedUnits = CampaignCreditEstimate.EstimateUnits(
-                channel,
-                entity.MessageBody,
-                eligibleIds.Count
-            );
-
-            var restaurantId = await _context.RestaurantLocations
+            var location = await _context.RestaurantLocations
                 .AsNoTracking()
                 .Where(row => row.Id == entity.RestaurantLocationId)
-                .Select(row => row.RestaurantId)
+                .Select(row => new
+                {
+                    row.RestaurantId,
+                    RestaurantName = row.Restaurant!.Name,
+                })
                 .FirstOrDefaultAsync(cancellationToken);
+            var restaurantId = location?.RestaurantId ?? 0;
             if (restaurantId == 0)
             {
                 return new CampaignScheduleCommitResult.NotReviewReady
@@ -199,6 +198,13 @@ namespace TummlyBackend.Services
                     Message = "Campaign location was not found.",
                 };
             }
+
+            var estimatedUnits = CampaignCreditEstimate.EstimateUnits(
+                channel,
+                location?.RestaurantName ?? string.Empty,
+                entity.MessageBody,
+                eligibleIds.Count
+            );
 
             var lockDeny = await EvaluateOperatorBillingLockAsync(
                 restaurantId,

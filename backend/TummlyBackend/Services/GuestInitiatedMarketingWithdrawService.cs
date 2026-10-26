@@ -192,7 +192,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        private static bool MasterGuestMatchesE164(
+        internal static bool MasterGuestMatchesE164(
             MasterGuest master,
             string inputE164
         )

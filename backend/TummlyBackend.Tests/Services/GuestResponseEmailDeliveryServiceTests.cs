@@ -79,9 +79,8 @@ namespace TummlyBackend.Tests.Services
                     )
                     .Options
             );
-            _guestResponses = new FeedbackGuestResponsesService(
+            var smsSend = new GuestReplySmsSendStep(
                 _context,
-                _deliveryWork,
                 new LiveRecoverySmsBillingReserve(
                     _context,
                     new CreditLedgerService(
@@ -94,17 +93,27 @@ namespace TummlyBackend.Tests.Services
                 ),
                 new NoOpRecoveryGuestSmsDelivery(),
                 TimeProvider.System,
+                NullLogger<GuestReplySmsSendStep>.Instance
+            );
+            _guestResponses = new FeedbackGuestResponsesService(
+                _context,
+                _deliveryWork,
+                smsSend,
+                TimeProvider.System,
                 new GatedGuestReplyLock()
             );
             _respondAndRecord = new FeedbackRespondAndRecordService(
                 _context,
-                _deliveryWork
+                _deliveryWork,
+                new GatedGuestReplyLock(),
+                smsSend
             );
             _recoveryOffers = new FeedbackRecoveryOffersService(
                 _context,
                 _deliveryWork,
                 new OfferIssueService(_context),
-                new GatedGuestReplyLock()
+                new GatedGuestReplyLock(),
+                smsSend
             );
         }
 
@@ -371,22 +380,7 @@ namespace TummlyBackend.Tests.Services
                 pending.EmailDeliveryStatus
             );
 
-            var feedback = await _context.Feedbacks
-                .AsNoTracking()
-                .SingleAsync(f => f.Id == seeded.FeedbackId);
-            Assert.NotNull(feedback.LocationGuestId);
-
-            var permissions = new LocationGuestPermissionLedgerService(_context);
-            permissions.RecordEvent(
-                feedback.LocationGuestId!.Value,
-                feedback.RestaurantLocationId,
-                LocationGuestPermissionKind.FeedbackFollowUp,
-                LocationGuestPermissionLedgerEventKinds.Withdraw,
-                LocationGuestPermissionLedgerSources.GuestForm,
-                new DateTime(2026, 10, 24, 14, 0, 0, DateTimeKind.Utc)
-            );
-            await _context.SaveChangesAsync();
-            _context.ChangeTracker.Clear();
+            await WithdrawFollowUpAsync(seeded.FeedbackId);
 
             await _deliveryWork.DrainAsync();
 
@@ -396,10 +390,11 @@ namespace TummlyBackend.Tests.Services
                 .AsNoTracking()
                 .SingleAsync(r => r.Id == pending.Id);
             Assert.Equal(
-                GuestResponseEmailDeliveryStatus.Accepted,
+                GuestResponseEmailDeliveryStatus.Abandoned,
                 skipped.EmailDeliveryStatus
             );
-            Assert.NotNull(skipped.EmailDeliveredAt);
+            Assert.Equal(GuestReplyDeliveryState.Failed, skipped.DeliveryState);
+            Assert.Null(skipped.EmailDeliveredAt);
             Assert.Null(skipped.EmailDeliveryClaimedAt);
             Assert.Null(skipped.EmailDeliveryRetryAfter);
         }
@@ -573,6 +568,192 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Equal(0, await _context.FeedbackRecoveryOffers.CountAsync());
             Assert.Equal(1, await _context.OfferIssues.CountAsync());
+        }
+
+        [Fact]
+        public async Task Worker_Accepted_SetsProviderIdAndAccepted()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "accepted-id@example.com"
+            );
+            _emailService.ProviderMessageIdToReturn = "re_123";
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Thanks",
+                body: "Accepted by Resend.",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            await _deliveryWork.DrainAsync();
+
+            var row = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync();
+            Assert.Equal("re_123", row.ProviderMessageId);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, row.DeliveryState);
+            Assert.NotNull(row.DeliveryStateAtUtc);
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Accepted,
+                row.EmailDeliveryStatus
+            );
+        }
+
+        [Fact]
+        public async Task Worker_NotEligible_SetsFailed()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "not-eligible@example.com"
+            );
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Thanks",
+                body: "Will not be eligible.",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            await WithdrawFollowUpAsync(seeded.FeedbackId);
+
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(0, _emailService.CallCount);
+
+            var row = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync();
+            Assert.Equal(GuestReplyDeliveryState.Failed, row.DeliveryState);
+            Assert.NotNull(row.DeliveryStateAtUtc);
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Abandoned,
+                row.EmailDeliveryStatus
+            );
+
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(0, _emailService.CallCount);
+        }
+
+        [Fact]
+        public async Task Worker_FiveFailures_SetsFailedAndStops()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "five-failures@example.com"
+            );
+            _emailService.ThrowOnSend = true;
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Subject",
+                body: "Body that keeps failing.",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                await _deliveryWork.DrainAsync();
+
+                // Make the row claimable again without waiting on backoff.
+                _context.ChangeTracker.Clear();
+                var tracked = await _context.FeedbackGuestResponses.SingleAsync();
+                tracked.EmailDeliveryRetryAfter = null;
+                await _context.SaveChangesAsync();
+            }
+
+            Assert.Equal(5, _emailService.CallCount);
+
+            var row = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync();
+            Assert.Equal(GuestReplyDeliveryState.Failed, row.DeliveryState);
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Abandoned,
+                row.EmailDeliveryStatus
+            );
+            Assert.Null(row.EmailDeliveryClaimedAt);
+
+            _emailService.ThrowOnSend = false;
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(5, _emailService.CallCount);
+        }
+
+        [Fact]
+        public async Task Worker_DemoSuppressed_SetsUnavailableWithoutProviderId()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "demo-suppressed@example.com"
+            );
+            _emailService.SuppressSend = true;
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Thanks",
+                body: "Suppressed by demo mode.",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            await _deliveryWork.DrainAsync();
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(1, _emailService.CallCount);
+
+            var row = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync();
+            Assert.Equal(GuestReplyDeliveryState.Unavailable, row.DeliveryState);
+            Assert.NotNull(row.DeliveryStateAtUtc);
+            Assert.Null(row.ProviderMessageId);
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Abandoned,
+                row.EmailDeliveryStatus
+            );
+            Assert.Null(row.EmailDeliveredAt);
+            Assert.Null(row.EmailDeliveryClaimedAt);
+        }
+
+        private async Task WithdrawFollowUpAsync(int feedbackId)
+        {
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .SingleAsync(f => f.Id == feedbackId);
+            Assert.NotNull(feedback.LocationGuestId);
+
+            var permissions = new LocationGuestPermissionLedgerService(_context);
+            permissions.RecordEvent(
+                feedback.LocationGuestId!.Value,
+                feedback.RestaurantLocationId,
+                LocationGuestPermissionKind.FeedbackFollowUp,
+                LocationGuestPermissionLedgerEventKinds.Withdraw,
+                LocationGuestPermissionLedgerSources.GuestForm,
+                new DateTime(2026, 10, 24, 14, 0, 0, DateTimeKind.Utc)
+            );
+            await _context.SaveChangesAsync();
+            _context.ChangeTracker.Clear();
         }
 
         private async Task<(int FeedbackId, int AuthorUserId)> SeedAsync(
@@ -773,7 +954,11 @@ namespace TummlyBackend.Tests.Services
 
             public string ThrowMessage { get; set; } = "Resend failed";
 
-            public override Task SendGuestResponseEmailAsync(
+            public string? ProviderMessageIdToReturn { get; set; } = "re_123";
+
+            public bool SuppressSend { get; set; }
+
+            public override Task<GuestResponseEmailSendResult> SendGuestResponseEmailAsync(
                 string toEmail,
                 string subject,
                 string brandTitle,
@@ -801,7 +986,11 @@ namespace TummlyBackend.Tests.Services
                     throw new InvalidOperationException(ThrowMessage);
                 }
 
-                return Task.CompletedTask;
+                return Task.FromResult(
+                    SuppressSend
+                        ? new GuestResponseEmailSendResult(null, Suppressed: true)
+                        : new GuestResponseEmailSendResult(ProviderMessageIdToReturn, Suppressed: false)
+                );
             }
         }
 

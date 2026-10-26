@@ -435,6 +435,15 @@ namespace TummlyBackend.Controllers
                         success = false,
                         message = "Unexpected owned-location resolve status.",
                     }),
+                AssistantTurnOutcome.ScopeNotAllowed => StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = "scope_not_allowed",
+                        message = "This item is outside your authorised Location scope.",
+                    }
+                ),
                 AssistantTurnOutcome.CreditSpendDenied denied => StatusCode(
                     StatusCodes.Status403Forbidden,
                     new

@@ -4,6 +4,7 @@ namespace TummlyBackend.Helpers
     {
         public static int EstimateUnits(
             string channel,
+            string restaurantName,
             string? messageBody,
             int recipientCount
         )
@@ -21,8 +22,9 @@ namespace TummlyBackend.Helpers
 
             if (normalized == "sms")
             {
-                return CampaignSmsSegmentCalculator.CountSegments(messageBody)
-                    * recipientCount;
+                return CampaignSmsSegmentCalculator.CountSegments(
+                    GuestSmsText.ForCampaign(restaurantName, messageBody ?? string.Empty)
+                ) * recipientCount;
             }
 
             return recipientCount;

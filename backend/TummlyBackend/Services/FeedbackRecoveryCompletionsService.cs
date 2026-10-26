@@ -51,7 +51,9 @@ namespace TummlyBackend.Services
             var hasGuestResponse = await _context.FeedbackGuestResponses
                 .AsNoTracking()
                 .AnyAsync(
-                    r => r.FeedbackId == feedbackId,
+                    r =>
+                        r.FeedbackId == feedbackId
+                        && r.DeliveryState != GuestReplyDeliveryState.Failed,
                     cancellationToken
                 );
 

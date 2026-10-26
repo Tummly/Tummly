@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -12,12 +14,15 @@ namespace TummlyBackend.Services
         : IGuestFormPermissionApplyService
     {
         private readonly ILocationGuestPermissionLedgerService _ledger;
+        private readonly ApplicationDbContext _context;
 
         public GuestFormPermissionApplyService(
-            ILocationGuestPermissionLedgerService ledger
+            ILocationGuestPermissionLedgerService ledger,
+            ApplicationDbContext context
         )
         {
             _ledger = ledger;
+            _context = context;
         }
 
         public async Task ApplyOnSubmitAsync(
@@ -86,12 +91,41 @@ namespace TummlyBackend.Services
                     occurredAt,
                     evidence
                 );
+
+                if (
+                    kind == LocationGuestPermissionKind.SmsMarketing
+                    && eventKind == LocationGuestPermissionLedgerEventKinds.Grant
+                )
+                {
+                    await ClearSmsStopAsync(locationGuest, cancellationToken);
+                }
             }
 
             await _ledger.SyncMarketingPreferenceRollupAsync(
                 locationGuest,
                 cancellationToken
             );
+        }
+
+        /// <summary>
+        /// A new SMS marketing grant on the Guest Form lifts the STOP block for this
+        /// restaurant (R4.6). Email permissions are not touched.
+        /// </summary>
+        private async Task ClearSmsStopAsync(
+            LocationGuest locationGuest,
+            CancellationToken cancellationToken
+        )
+        {
+            var master =
+                locationGuest.MasterGuest
+                ?? await _context.MasterGuests.FirstOrDefaultAsync(
+                    row => row.Id == locationGuest.MasterGuestId,
+                    cancellationToken
+                );
+            if (master != null)
+            {
+                master.SmsStoppedAtUtc = null;
+            }
         }
 
         private static PermissionLedgerEvidence BuildEvidence(

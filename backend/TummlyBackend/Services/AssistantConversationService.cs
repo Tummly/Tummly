@@ -149,9 +149,26 @@ namespace TummlyBackend.Services
                 return authorized.Error;
             }
 
+            AssistantConversation? existing = null;
+            if (request.ConversationId is int conversationId)
+            {
+                existing = await LoadOwnedConversationAsync(
+                    ownerUserId,
+                    conversationId,
+                    cancellationToken
+                );
+
+                if (existing is null)
+                {
+                    return new AssistantTurnOutcome.NotFound();
+                }
+            }
+
             var cached = await TryReplayIdempotentTurnAsync(
+                ownerUserId,
                 request.AnalysisScope,
                 idempotencyKey,
+                existing?.Id,
                 cancellationToken
             );
             if (cached is not null)
@@ -162,19 +179,8 @@ namespace TummlyBackend.Services
             var locationName = authorized.LocationName;
             AssistantConversation conversation;
 
-            if (request.ConversationId is int conversationId)
+            if (existing is not null)
             {
-                var existing = await LoadOwnedConversationAsync(
-                    ownerUserId,
-                    conversationId,
-                    cancellationToken
-                );
-
-                if (existing is null)
-                {
-                    return new AssistantTurnOutcome.NotFound();
-                }
-
                 conversation = existing;
             }
             else
@@ -275,8 +281,10 @@ namespace TummlyBackend.Services
             }
 
             var cached = await TryReplayIdempotentTurnAsync(
+                ownerUserId,
                 sendScope,
                 idempotencyKey,
+                conversation.Id,
                 cancellationToken
             );
             if (cached is not null)
@@ -332,23 +340,6 @@ namespace TummlyBackend.Services
                 if (locationResult.Status != OwnedLocationResolveStatus.Found)
                 {
                     return new AssistantTurnOutcome.LocationDenied(locationResult);
-                }
-            }
-            else
-            {
-                // An "all" conversation is readable only with all-Location access
-                // (PRD R6.2). Same not-found result as the list hides it.
-                var access = await _permissions.AuthorizeUserAsync(
-                    ownerUserId,
-                    OperatorAreaIds.AiAssistant,
-                    PermissionLevel.View
-                );
-                var allowed = access.Status == RestaurantPermissionStatus.Allowed
-                    ? access.LocationIds
-                    : [];
-                if (!await HasAllLocationsAccessAsync(allowed, cancellationToken))
-                {
-                    return new AssistantTurnOutcome.NotFound();
                 }
             }
 
@@ -7851,6 +7842,14 @@ namespace TummlyBackend.Services
         {
             if (AssistantAnalysisScope.IsAll(scope))
             {
+                if (!await CanReadAllScopeAsync(ownerUserId, cancellationToken))
+                {
+                    return new ScopeAuthorizeResult(
+                        string.Empty,
+                        new AssistantTurnOutcome.ScopeNotAllowed()
+                    );
+                }
+
                 var owned = await LoadOwnedLocationsAsync(
                     null,
                     ownerUserId,
@@ -9091,9 +9090,18 @@ namespace TummlyBackend.Services
             AssistantTurnOutcome? Error
         );
 
+        /// <summary>
+        /// Returns the cached outcome for a repeated Idempotency-Key. The cache is
+        /// keyed by restaurant and key only, so a replay must not widen access: when
+        /// a conversation is addressed, the cached outcome must be that conversation,
+        /// and the caller must be able to load it now (R9.1). A failed check returns
+        /// not-found.
+        /// </summary>
         private async Task<AssistantTurnOutcome?> TryReplayIdempotentTurnAsync(
+            int ownerUserId,
             AssistantAnalysisScopeDto scope,
             string? idempotencyKey,
+            int? addressedConversationId,
             CancellationToken cancellationToken
         )
         {
@@ -9117,8 +9125,23 @@ namespace TummlyBackend.Services
                 idempotencyKey,
                 cancellationToken
             );
-            return cached is null
-                ? null
+            if (cached is null)
+            {
+                return null;
+            }
+
+            if (addressedConversationId is int addressedId && cached.Id != addressedId)
+            {
+                return new AssistantTurnOutcome.NotFound();
+            }
+
+            var replayable = await LoadOwnedConversationAsync(
+                ownerUserId,
+                cached.Id,
+                cancellationToken
+            );
+            return replayable is null
+                ? new AssistantTurnOutcome.NotFound()
                 : new AssistantTurnOutcome.Ok(cached);
         }
 
@@ -9381,13 +9404,18 @@ namespace TummlyBackend.Services
                 && liveLocationIds.ToHashSet().SetEquals(allowed);
         }
 
+        /// <summary>
+        /// Loads one owned conversation for every action. An "all" conversation
+        /// is returned only with all-Location access (PRD R6.2, R9.1); otherwise
+        /// the result is null, which every caller maps to not-found.
+        /// </summary>
         private async Task<AssistantConversation?> LoadOwnedConversationAsync(
             int ownerUserId,
             int conversationId,
             CancellationToken cancellationToken
         )
         {
-            return await _context.AssistantConversations
+            var conversation = await _context.AssistantConversations
                 .Include(conversation => conversation.Messages)
                 .FirstOrDefaultAsync(
                     conversation =>
@@ -9395,6 +9423,31 @@ namespace TummlyBackend.Services
                         && conversation.OwnerUserId == ownerUserId,
                     cancellationToken
                 );
+
+            if (conversation is null || !AssistantAnalysisScope.IsAll(conversation))
+            {
+                return conversation;
+            }
+
+            return await CanReadAllScopeAsync(ownerUserId, cancellationToken)
+                ? conversation
+                : null;
+        }
+
+        private async Task<bool> CanReadAllScopeAsync(
+            int ownerUserId,
+            CancellationToken cancellationToken
+        )
+        {
+            var access = await _permissions.AuthorizeUserAsync(
+                ownerUserId,
+                OperatorAreaIds.AiAssistant,
+                PermissionLevel.View
+            );
+            var allowed = access.Status == RestaurantPermissionStatus.Allowed
+                ? access.LocationIds
+                : [];
+            return await HasAllLocationsAccessAsync(allowed, cancellationToken);
         }
 
         private async Task<AssistantTurnOutcome?> TryFinishExplainWhyFollowUpAsync(

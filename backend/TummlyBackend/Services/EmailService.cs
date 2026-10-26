@@ -99,19 +99,10 @@ namespace TummlyBackend.Services
             IReadOnlyDictionary<string, string>? tags = null
         )
         {
-            if (
-                DemoSessionClaims.IsDemoSession(
-                    _httpContextAccessor.HttpContext?.User
-                )
-                || _demoSideEffects.ShouldSuppressDestination(toEmail)
-            )
+            if (TrySuppressDemoSend(toEmail, subject))
             {
-                _logger.LogInformation(
-                    "Demo side-effect suppression: skipped Email to {MaskedEmail} subject={Subject}",
-                    LogContactMask.Email(toEmail),
-                    subject
-                );
-                return "demo-suppressed";
+                // Nothing was sent, so there is no provider id.
+                return null;
             }
 
             var (html, images) = EmbedLoopbackChromeImages(
@@ -139,6 +130,29 @@ namespace TummlyBackend.Services
                 fileAttachments
             );
             return null;
+        }
+
+        /// <summary>
+        /// True when demo side-effect suppression skips this send. Logs the skip.
+        /// </summary>
+        private bool TrySuppressDemoSend(string toEmail, string subject)
+        {
+            if (
+                !DemoSessionClaims.IsDemoSession(
+                    _httpContextAccessor.HttpContext?.User
+                )
+                && !_demoSideEffects.ShouldSuppressDestination(toEmail)
+            )
+            {
+                return false;
+            }
+
+            _logger.LogInformation(
+                "Demo side-effect suppression: skipped Email to {MaskedEmail} subject={Subject}",
+                LogContactMask.Email(toEmail),
+                subject
+            );
+            return true;
         }
 
         /// <summary>
@@ -934,7 +948,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        public async Task SendGuestResponseEmailAsync(
+        public async Task<GuestResponseEmailSendResult> SendGuestResponseEmailAsync(
             string toEmail,
             string subject,
             string brandTitle,
@@ -947,6 +961,11 @@ namespace TummlyBackend.Services
             string? ticketSubject = null
         )
         {
+            if (TrySuppressDemoSend(toEmail, subject))
+            {
+                return new GuestResponseEmailSendResult(null, Suppressed: true);
+            }
+
             var htmlBody = GuestResponseEmailTemplate.Generate(
                 _environment,
                 brandTitle,
@@ -961,7 +980,8 @@ namespace TummlyBackend.Services
                 emailAssetsBaseUrl: GetEmailChromeBaseUrl()
             );
 
-            _ = await SendEmailAsync(toEmail, subject, htmlBody);
+            var providerMessageId = await SendEmailAsync(toEmail, subject, htmlBody);
+            return new GuestResponseEmailSendResult(providerMessageId, Suppressed: false);
         }
 
         public async Task<string?> SendCampaignGuestEmailAsync(

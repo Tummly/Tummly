@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from "axios"
 import { describe, expect, it, vi } from "vitest"
 
 import {
@@ -5,6 +6,16 @@ import {
   createInMemoryFinishSettingUpAcksAdapters,
   type FinishSettingUpAcksAdapters,
 } from "./createFinishSettingUpAcksModule"
+
+function forbiddenError(): AxiosError {
+  return new AxiosError(
+    "Request failed with status code 403",
+    "ERR_BAD_REQUEST",
+    undefined,
+    undefined,
+    { status: 403, data: {} } as AxiosResponse
+  )
+}
 
 describe("createFinishSettingUpAcksModule", () => {
   it("loads raw Finish-setting-up acknowledgements for an Owned location", async () => {
@@ -169,5 +180,49 @@ describe("createFinishSettingUpAcksModule", () => {
     listener.mockClear()
     acks.reset()
     expect(listener).not.toHaveBeenCalled()
+  })
+
+  it("getChecklistAcks 403 hides the checklist without an error", async () => {
+    const adapters: FinishSettingUpAcksAdapters = {
+      ...createInMemoryFinishSettingUpAcksAdapters(),
+      getChecklistAcks: async () => {
+        throw forbiddenError()
+      },
+    }
+    const acks = createFinishSettingUpAcksModule(adapters)
+
+    await acks.load(1)
+
+    expect(acks.getSnapshot()).toMatchObject({
+      loadStatus: "forbidden",
+      acknowledgeError: null,
+    })
+  })
+
+  it("setChecklistAcks 403 hides the checklist without an error", async () => {
+    const adapters: FinishSettingUpAcksAdapters = {
+      ...createInMemoryFinishSettingUpAcksAdapters({
+        1: {
+          guestFormPreviewed: false,
+          qrPlacementGuideViewed: false,
+          logoUploaded: false,
+        },
+      }),
+      setChecklistAcks: async () => {
+        throw forbiddenError()
+      },
+    }
+    const acks = createFinishSettingUpAcksModule(adapters)
+    await acks.load(1)
+
+    acks.acknowledge("guestFormPreviewed")
+
+    await vi.waitFor(() => {
+      expect(acks.getSnapshot().acknowledgeBusy).toBe(false)
+    })
+    expect(acks.getSnapshot()).toMatchObject({
+      loadStatus: "forbidden",
+      acknowledgeError: null,
+    })
   })
 })

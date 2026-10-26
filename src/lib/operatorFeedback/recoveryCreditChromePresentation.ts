@@ -41,6 +41,8 @@ export type RecoveryCreditChromeContext = {
   permissionRole: string
   mode: OperatorDashboardMode
   locationId: number
+  /** Restaurant display name for the SMS prefix. Null when the session has none. */
+  restaurantName?: string | null
 }
 
 export type RecoveryChannelCreditCta = {
@@ -109,18 +111,26 @@ function changePlanHref(context: RecoveryCreditChromeContext): string {
 
 /**
  * Paint-only SMS credit estimate for one recovery recipient until Reserve
- * estimate exists. Empty body → floor of 1. Body → segments of 160 chars.
+ * estimate exists. The sent text is `${restaurantName}: ${body}` when the
+ * restaurant name is known; callers without it pass null. Empty body → floor
+ * of 1. Text → segments of 160 chars.
  */
-export function resolveRecoverySmsEstimateCredits(messageBody: string): number {
+export function resolveRecoverySmsEstimateCredits(
+  messageBody: string,
+  restaurantName?: string | null
+): number {
   const trimmed = messageBody.trim()
   if (trimmed === "") {
     return 1
   }
-  return Math.max(1, Math.ceil(trimmed.length / 160))
+  const name = restaurantName?.trim() ?? ""
+  const sentText = name === "" ? trimmed : `${name}: ${trimmed}`
+  return Math.max(1, Math.ceil(sentText.length / 160))
 }
 
 export function recoverySmsAvailabilityLine(input: {
   messageBody: string
+  restaurantName?: string | null
   estimateCredits?: number
 }): string {
   const trimmed = input.messageBody.trim()
@@ -128,18 +138,23 @@ export function recoverySmsAvailabilityLine(input: {
     return RECOVERY_SMS_AVAILABILITY_FLOOR_LINE
   }
   const estimate =
-    input.estimateCredits ?? resolveRecoverySmsEstimateCredits(trimmed)
+    input.estimateCredits ??
+    resolveRecoverySmsEstimateCredits(trimmed, input.restaurantName)
   return `Estimated usage: ${formatCreditCount(estimate)} SMS credits`
 }
 
 export function recoveryChannelAvailabilityLine(input: {
   channel: RespondToGuestChannel
   messageBody: string
+  restaurantName?: string | null
 }): string {
   if (input.channel === "email") {
     return RECOVERY_EMAIL_AVAILABILITY_LINE
   }
-  return recoverySmsAvailabilityLine({ messageBody: input.messageBody })
+  return recoverySmsAvailabilityLine({
+    messageBody: input.messageBody,
+    restaurantName: input.restaurantName,
+  })
 }
 
 /** Email recovery is never credit-blocked. */
@@ -150,6 +165,7 @@ export function isRecoveryEmailCreditBlocked(): boolean {
 export function resolveRecoverySmsShortfall(input: {
   channel: RespondToGuestChannel | null
   messageBody: string
+  restaurantName?: string | null
   smsRemaining: number | null
   context: RecoveryCreditChromeContext | null
 }): RecoverySmsShortfallChrome {
@@ -157,7 +173,10 @@ export function resolveRecoverySmsShortfall(input: {
     return { blocked: false, buyCta: null, changePlanCta: null }
   }
 
-  const estimate = resolveRecoverySmsEstimateCredits(input.messageBody)
+  const estimate = resolveRecoverySmsEstimateCredits(
+    input.messageBody,
+    input.restaurantName
+  )
   const remaining = input.smsRemaining
   const blocked = remaining != null && remaining < estimate
 
@@ -298,6 +317,7 @@ export function isRecoverySendBlocked(input: {
   return resolveRecoverySmsShortfall({
     channel: input.channel,
     messageBody: input.messageBody,
+    restaurantName: input.context?.restaurantName ?? null,
     smsRemaining: input.context?.smsRemaining ?? null,
     context: input.context,
   }).blocked

@@ -277,6 +277,7 @@ export function HomePage({
           void home.retryLoad()
         }}
         previewBusy={home.snapshot.previewBusy}
+        setupChecklistHidden={home.snapshot.setupChecklistHidden}
         onPreviewGuestForm={home.previewGuestForm}
         onUploadLogo={
           canUploadLogo

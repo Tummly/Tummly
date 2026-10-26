@@ -1,3 +1,5 @@
+import { isAxiosError } from "axios"
+
 import type {
   ChecklistAcksResponse,
   UpdateChecklistAcksRequest,
@@ -9,7 +11,8 @@ export type FinishSettingUpAckField =
   | "qrPlacementGuideViewed"
 
 export type FinishSettingUpAcksSnapshot = {
-  loadStatus: "idle" | "loading" | "loaded" | "error"
+  /** "forbidden": the user has no Location access; Home hides the checklist. */
+  loadStatus: "idle" | "loading" | "loaded" | "error" | "forbidden"
   guestFormPreviewed: boolean
   qrPlacementGuideViewed: boolean
   logoUploaded: boolean
@@ -42,6 +45,10 @@ const EMPTY_ACKS: OperatorHomeChecklistAcks = {
 const ACKNOWLEDGE_ERROR =
   "Could not save checklist progress. Please try again."
 
+function isForbiddenError(error: unknown): boolean {
+  return isAxiosError(error) && error.response?.status === 403
+}
+
 type AcksState = FinishSettingUpAcksSnapshot & {
   locationId: number | null
   loadGeneration: number
@@ -58,6 +65,7 @@ type AcksAction =
       logoUploaded: boolean
     }
   | { type: "load_failed"; generation: number }
+  | { type: "load_forbidden"; generation: number }
   | {
       type: "acknowledge_optimistic"
       field: FinishSettingUpAckField
@@ -74,6 +82,12 @@ type AcksAction =
       qrPlacementGuideViewed: boolean
       logoUploaded: boolean
       error: string
+    }
+  | {
+      type: "acknowledge_forbidden"
+      guestFormPreviewed: boolean
+      qrPlacementGuideViewed: boolean
+      logoUploaded: boolean
     }
   | { type: "acknowledge_busy"; busy: boolean }
 
@@ -123,6 +137,28 @@ function reduce(state: AcksState, action: AcksAction): AcksState {
         guestFormPreviewed: false,
         qrPlacementGuideViewed: false,
         logoUploaded: false,
+      }
+    case "load_forbidden":
+      if (action.generation !== state.loadGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        loadStatus: "forbidden",
+        guestFormPreviewed: false,
+        qrPlacementGuideViewed: false,
+        logoUploaded: false,
+        acknowledgeError: null,
+      }
+    case "acknowledge_forbidden":
+      return {
+        ...state,
+        loadStatus: "forbidden",
+        guestFormPreviewed: action.guestFormPreviewed,
+        qrPlacementGuideViewed: action.qrPlacementGuideViewed,
+        logoUploaded: action.logoUploaded,
+        acknowledgeBusy: false,
+        acknowledgeError: null,
       }
     case "acknowledge_optimistic":
       return {
@@ -280,8 +316,12 @@ export function createFinishSettingUpAcksModule(
           qrPlacementGuideViewed: result.qrPlacementGuideViewed,
           logoUploaded: result.logoUploaded,
         })
-      } catch {
-        dispatch({ type: "load_failed", generation })
+      } catch (error) {
+        dispatch(
+          isForbiddenError(error)
+            ? { type: "load_forbidden", generation }
+            : { type: "load_failed", generation }
+        )
       }
     },
     acknowledge: (field) => {
@@ -312,7 +352,16 @@ export function createFinishSettingUpAcksModule(
             logoUploaded: result.logoUploaded,
           })
         })
-        .catch(() => {
+        .catch((error: unknown) => {
+          if (isForbiddenError(error)) {
+            dispatch({
+              type: "acknowledge_forbidden",
+              guestFormPreviewed: previous.guestFormPreviewed,
+              qrPlacementGuideViewed: previous.qrPlacementGuideViewed,
+              logoUploaded: previous.logoUploaded,
+            })
+            return
+          }
           dispatch({
             type: "acknowledge_rolled_back",
             guestFormPreviewed: previous.guestFormPreviewed,

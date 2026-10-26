@@ -160,10 +160,57 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("TUM-ABC123", exception.Message);
         }
 
+        [Fact]
+        public async Task EnsureNotDuplicate_FailedRow_DoesNotBlockRetry()
+        {
+            SeedGuestResponse(
+                FeedbackRecoveryIntent.RespondWithRecoveryOffer,
+                FeedbackGuestResponseChannel.Sms,
+                "Hi\n\n" + ClaimLine,
+                GuestReplyDeliveryState.Failed
+            );
+
+            await GuestReplyRules.EnsureNotDuplicateAsync(
+                _context,
+                feedbackId: 1,
+                FeedbackGuestResponseChannel.Sms,
+                "Hi",
+                _now
+            );
+        }
+
+        [Theory]
+        [InlineData(GuestReplyDeliveryState.Pending)]
+        [InlineData(GuestReplyDeliveryState.Accepted)]
+        [InlineData(GuestReplyDeliveryState.Delivered)]
+        [InlineData(GuestReplyDeliveryState.Unavailable)]
+        public async Task EnsureNotDuplicate_SentStates_StillBlockRepeat(
+            GuestReplyDeliveryState state
+        )
+        {
+            SeedGuestResponse(
+                FeedbackRecoveryIntent.RespondToGuest,
+                FeedbackGuestResponseChannel.Sms,
+                "Hi",
+                state
+            );
+
+            await Assert.ThrowsAsync<GuestReplyDuplicateException>(() =>
+                GuestReplyRules.EnsureNotDuplicateAsync(
+                    _context,
+                    feedbackId: 1,
+                    FeedbackGuestResponseChannel.Sms,
+                    "Hi",
+                    _now
+                )
+            );
+        }
+
         private void SeedGuestResponse(
             FeedbackRecoveryIntent intent,
             FeedbackGuestResponseChannel channel,
-            string body
+            string body,
+            GuestReplyDeliveryState deliveryState = GuestReplyDeliveryState.Pending
         )
         {
             _context.FeedbackGuestResponses.Add(
@@ -176,6 +223,7 @@ namespace TummlyBackend.Tests.Helpers
                     MaskedDestination = "a••@example.com",
                     AuthorDisplayName = "Owner",
                     CreatedAt = _now.AddMinutes(-1),
+                    DeliveryState = deliveryState,
                 }
             );
             _context.SaveChanges();

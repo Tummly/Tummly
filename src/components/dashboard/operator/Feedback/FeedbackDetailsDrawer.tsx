@@ -12,6 +12,7 @@ import { OperatorNoteDeleteDialog } from "@/components/dashboard/operator/Operat
 import { FeedbackCloseOutDialog } from "@/components/dashboard/operator/Feedback/FeedbackCloseOutDialog"
 import { FeedbackCorrectClassificationDialog } from "@/components/dashboard/operator/Feedback/FeedbackCorrectClassificationDialog"
 import { FeedbackEditIssueTagsDialog } from "@/components/dashboard/operator/Feedback/FeedbackEditIssueTagsDialog"
+import { ServiceReplyHistorySection } from "@/components/dashboard/operator/Feedback/ServiceReplyHistorySection"
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -46,6 +47,7 @@ import { formatGuestProfileAbsoluteDateTime } from "@/lib/operatorGuestProfile/m
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
 import { feedbackClosedOutActivityLabel } from "@/lib/operatorFeedback/feedbackCloseOutPresentation"
 import { recoveryOfferIssuedActivityLabel } from "@/lib/operatorFeedback/feedbackDetailsActivityPresentation"
+import { SERVICE_REPLY_HISTORY_COPY } from "@/lib/operatorFeedback/serviceReplyHistoryPresentation"
 import {
   FEEDBACK_INTERNAL_NOTE_EDIT,
   OPERATOR_NOTE_ACTIONS,
@@ -194,6 +196,18 @@ function activityLabel(
         fromWorkflowStatus: event.fromWorkflowStatus,
         toWorkflowStatus: event.toWorkflowStatus,
       })
+    case "guest_response_not_sent": {
+      const channelLabel =
+        event.channel === "sms"
+          ? "SMS"
+          : event.channel === "email"
+            ? "Email"
+            : "Guest response"
+      if (event.maskedDestination != null && event.maskedDestination !== "") {
+        return `Guest response not sent (${channelLabel} · ${event.maskedDestination})`
+      }
+      return `Guest response not sent (${channelLabel})`
+    }
     case "guest_response_sent": {
       const channelLabel =
         event.channel === "sms"
@@ -1054,6 +1068,10 @@ function LoadedBody({
           </Button>
         </div>
       </section>
+
+      <Section title={SERVICE_REPLY_HISTORY_COPY.heading}>
+        <ServiceReplyHistorySection events={details.activityHistory} />
+      </Section>
 
       <Section title="Activity history">
         {details.activityHistory.map((event) => (

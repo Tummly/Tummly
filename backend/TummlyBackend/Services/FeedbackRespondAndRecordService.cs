@@ -12,14 +12,20 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
+        private readonly IGuestReplyLock _replyLock;
+        private readonly IGuestReplySmsSendStep _smsSend;
 
         public FeedbackRespondAndRecordService(
             ApplicationDbContext context,
-            IGuestResponseEmailDeliveryWork emailDelivery
+            IGuestResponseEmailDeliveryWork emailDelivery,
+            IGuestReplyLock replyLock,
+            IGuestReplySmsSendStep smsSend
         )
         {
             _context = context;
             _emailDelivery = emailDelivery;
+            _replyLock = replyLock;
+            _smsSend = smsSend;
         }
 
         public async Task<RespondAndRecordInternalActionResultDto?> SendAndRecordAsync(
@@ -82,6 +88,22 @@ namespace TummlyBackend.Services
                 channel
             );
 
+            if (channel == FeedbackGuestResponseChannel.Sms)
+            {
+                return await SendSmsAndRecordAsync(
+                    feedback,
+                    authorUserId,
+                    author.FullName,
+                    category,
+                    trimmedNote,
+                    content,
+                    purpose,
+                    tone,
+                    includeNotes,
+                    cancellationToken
+                );
+            }
+
             var createdAt = DateTime.UtcNow;
             var intent = FeedbackRecoveryIntent.RespondAndRecordInternalAction;
 
@@ -98,39 +120,195 @@ namespace TummlyBackend.Services
                 createdAt
             );
 
-            guestResponse.EmailDeliveryStatus =
-                channel == FeedbackGuestResponseChannel.Email
-                    ? GuestResponseEmailDeliveryStatus.Pending
-                    : GuestResponseEmailDeliveryStatus.NotApplicable;
+            guestResponse.EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.Pending;
+            guestResponse.DeliveryState = GuestReplyDeliveryState.Pending;
 
-            var internalAction = new FeedbackInternalAction
+            var internalAction = BuildInternalAction(
+                feedbackId,
+                category,
+                trimmedNote,
+                authorUserId,
+                author.FullName,
+                createdAt
+            );
+
+            _context.FeedbackGuestResponses.Add(guestResponse);
+            _context.FeedbackInternalActions.Add(internalAction);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await _emailDelivery.NotifyAsync(
+                guestResponse.Id,
+                cancellationToken
+            );
+
+            return BuildResult(feedback, guestResponse, internalAction);
+        }
+
+        /// <summary>
+        /// Reserves, sends and settles like a plain reply SMS. The reply and the
+        /// internal action are saved only after the provider accepts the text, so a
+        /// refused or failed send leaves neither behind.
+        /// </summary>
+        private async Task<RespondAndRecordInternalActionResultDto> SendSmsAndRecordAsync(
+            Feedback feedback,
+            int authorUserId,
+            string authorDisplayName,
+            FeedbackInternalActionCategory category,
+            string trimmedNote,
+            FeedbackGuestResponseComposer.ValidatedContent content,
+            string? purpose,
+            string? tone,
+            string? includeNotes,
+            CancellationToken cancellationToken
+        )
+        {
+            const FeedbackGuestResponseChannel channel = FeedbackGuestResponseChannel.Sms;
+            var intent = FeedbackRecoveryIntent.RespondAndRecordInternalAction;
+
+            if (
+                !await ServiceReplyEligibility.IsAllowedAsync(
+                    _context,
+                    feedback,
+                    channel,
+                    cancellationToken
+                )
+            )
+            {
+                throw new ArgumentException(
+                    ServiceReplyEligibility.NotAllowedMessage
+                );
+            }
+
+            _smsSend.EnsureBillingLive();
+            await _smsSend.EnsureOperatorBillingAllowsSendAsync(
+                feedback.RestaurantLocationId,
+                cancellationToken
+            );
+
+            // Held until the send finishes. Duplicate check and save run under it.
+            await using var replyLease = await _replyLock.TryAcquireAsync(
+                _context,
+                feedback.Id,
+                cancellationToken
+            ) ?? throw new GuestReplyLockUnavailableException();
+
+            var now = DateTime.UtcNow;
+            await GuestReplyRules.EnsureNotDuplicateAsync(
+                _context,
+                feedback.Id,
+                channel,
+                content.Body,
+                now,
+                cancellationToken
+            );
+
+            var reservation = await _smsSend.ReserveAsync(
+                feedback,
+                string.Empty,
+                content.Body,
+                cancellationToken
+            );
+
+            // Save the reply (Pending, no SID) before the provider call, still under
+            // the reply lock. If a later save fails after the provider accepted the
+            // text, this row stays and the duplicate rule blocks an identical retry.
+            var guestResponse = FeedbackGuestResponseComposer.Build(
+                feedback,
+                channel,
+                intent,
+                content,
+                purpose,
+                tone,
+                includeNotes,
+                authorUserId,
+                authorDisplayName,
+                now
+            );
+            guestResponse.EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.NotApplicable;
+            guestResponse.DeliveryState = GuestReplyDeliveryState.Pending;
+            _context.FeedbackGuestResponses.Add(guestResponse);
+            await _smsSend.SavePendingReplyAsync(
+                reservation,
+                guestResponse,
+                cancellationToken
+            );
+
+            // The internal action is saved together with the final reply state
+            // (Accepted or Unavailable), never before the provider answers. A failed
+            // send therefore leaves a Failed reply and no internal action.
+            var internalAction = BuildInternalAction(
+                feedback.Id,
+                category,
+                trimmedNote,
+                authorUserId,
+                authorDisplayName,
+                now
+            );
+
+            var outcome = await _smsSend.SendAndSettleAsync(
+                reservation,
+                feedback,
+                cancellationToken
+            );
+
+            if (outcome.Kind == GuestReplySmsOutcomeKind.Failed)
+            {
+                await _smsSend.SaveFailedReplyAsync(guestResponse, now);
+                throw new GuestReplySmsSendFailedException();
+            }
+
+            if (outcome.Kind == GuestReplySmsOutcomeKind.Unknown)
+            {
+                // The provider may have sent the text. Move the saved reply to
+                // Unavailable and save the internal action with it. The duplicate
+                // rule then blocks a repeat. The save ignores cancellation.
+                _smsSend.ApplyUnknownOutcome(guestResponse, reservation, now);
+                _context.FeedbackInternalActions.Add(internalAction);
+                await _smsSend.SaveRecordedUnknownReplyAsync(reservation);
+
+                throw new GuestReplySmsSendFailedException();
+            }
+
+            _smsSend.ApplyAccepted(guestResponse, reservation, outcome.Accepted!, now);
+            _context.FeedbackInternalActions.Add(internalAction);
+            await _smsSend.SaveAcceptedReplyAsync(
+                reservation,
+                outcome.Settled,
+                guestResponse
+            );
+
+            return BuildResult(feedback, guestResponse, internalAction);
+        }
+
+        private static FeedbackInternalAction BuildInternalAction(
+            int feedbackId,
+            FeedbackInternalActionCategory category,
+            string trimmedNote,
+            int authorUserId,
+            string authorDisplayName,
+            DateTime createdAt
+        )
+        {
+            return new FeedbackInternalAction
             {
                 FeedbackId = feedbackId,
                 Category = category,
                 CategoryLabel =
                     FeedbackInternalActionMapping.ToCategoryLabel(category),
                 Note = trimmedNote,
-                Intent = intent,
+                Intent = FeedbackRecoveryIntent.RespondAndRecordInternalAction,
                 AuthorUserId = authorUserId,
-                AuthorDisplayName = author.FullName,
+                AuthorDisplayName = authorDisplayName,
                 CreatedAt = createdAt,
             };
+        }
 
-            _context.FeedbackGuestResponses.Add(guestResponse);
-            _context.FeedbackInternalActions.Add(internalAction);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            if (
-                guestResponse.EmailDeliveryStatus
-                    == GuestResponseEmailDeliveryStatus.Pending
-            )
-            {
-                await _emailDelivery.NotifyAsync(
-                    guestResponse.Id,
-                    cancellationToken
-                );
-            }
-
+        private static RespondAndRecordInternalActionResultDto BuildResult(
+            Feedback feedback,
+            FeedbackGuestResponse guestResponse,
+            FeedbackInternalAction internalAction
+        )
+        {
             return new RespondAndRecordInternalActionResultDto
             {
                 WorkflowStatus =
@@ -151,6 +329,10 @@ namespace TummlyBackend.Services
                     Body = guestResponse.Body,
                     AuthorDisplayName = guestResponse.AuthorDisplayName,
                     CreatedAt = guestResponse.CreatedAt,
+                    DeliveryState = GuestReplyDeliveryStateMachine.ToDto(
+                        guestResponse.DeliveryState
+                    ),
+                    DeliveryStateAt = guestResponse.DeliveryStateAtUtc,
                 },
                 InternalAction = new FeedbackInternalActionItemDto
                 {

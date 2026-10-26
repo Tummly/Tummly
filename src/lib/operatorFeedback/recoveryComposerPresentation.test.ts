@@ -90,14 +90,68 @@ describe("mapRecoveryComposerSendFailure refusals", () => {
         data: {
           success: false,
           code: "duplicate_reply",
-          message: "This reply was already sent to the guest.",
+          message: "This reply has already been submitted. Check its delivery status.",
         },
       }
     )
 
     expect(mapRecoveryComposerSendFailure(error)).toEqual({
       kind: "refused",
-      message: "This reply was already sent to the guest.",
+      message: "This reply has already been submitted. Check its delivery status.",
+    })
+  })
+
+  it("409 sms_stopped shows the server message", () => {
+    const serverMessage =
+      "This message cannot be sent for the selected purpose or recipient. Review the reason."
+    const error = new AxiosError(
+      "Request failed with status code 409",
+      AxiosError.ERR_BAD_REQUEST,
+      undefined,
+      undefined,
+      {
+        status: 409,
+        statusText: "Conflict",
+        headers: {},
+        config: {} as never,
+        data: {
+          success: false,
+          code: "sms_stopped",
+          message: serverMessage,
+        },
+      }
+    )
+
+    expect(mapRecoveryComposerSendFailure(error)).toEqual({
+      kind: "refused",
+      message: serverMessage,
+    })
+  })
+
+  it("502 SMS send failure keeps the server message for the user", () => {
+    const error = new AxiosError(
+      "Request failed with status code 502",
+      AxiosError.ERR_BAD_RESPONSE,
+      undefined,
+      undefined,
+      {
+        status: 502,
+        statusText: "Bad Gateway",
+        headers: {},
+        config: {} as never,
+        data: {
+          success: false,
+          code: "sms_send_failed",
+          message:
+            "The reply was not confirmed as sent. Check its status before trying again.",
+        },
+      }
+    )
+
+    expect(mapRecoveryComposerSendFailure(error)).toEqual({
+      kind: "refused",
+      message:
+        "The reply was not confirmed as sent. Check its status before trying again.",
     })
   })
 })

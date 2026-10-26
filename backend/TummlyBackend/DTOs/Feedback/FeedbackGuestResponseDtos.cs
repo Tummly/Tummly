@@ -74,6 +74,16 @@ namespace TummlyBackend.DTOs.Feedback
             = string.Empty;
 
         public DateTime CreatedAt { get; init; }
+
+        /// <summary>
+        /// Wire delivery state: <c>pending</c> | <c>accepted</c> | <c>delivered</c> |
+        /// <c>failed</c> | <c>unavailable</c>.
+        /// </summary>
+        public string DeliveryState { get; init; }
+            = string.Empty;
+
+        /// <summary>UTC when <see cref="DeliveryState"/> last changed.</summary>
+        public DateTime? DeliveryStateAt { get; init; }
     }
 
     public sealed class SendFeedbackGuestResponseResultDto

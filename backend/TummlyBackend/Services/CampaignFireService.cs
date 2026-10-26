@@ -271,8 +271,16 @@ namespace TummlyBackend.Services
                 0,
                 (entity.ReservedEstimate ?? 0) - entity.SettledUnits
             );
+            var restaurantName =
+                await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row => row.Id == entity.RestaurantLocationId)
+                    .Select(row => row.Restaurant!.Name)
+                    .FirstOrDefaultAsync(cancellationToken)
+                ?? string.Empty;
             var perRecipientEstimate = CampaignBillingClose.AcceptedUnitsForDelivery(
                 channel,
+                restaurantName,
                 entity.MessageBody
             );
 
@@ -347,6 +355,27 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
+                // R4.5: a guest who texted STOP after the eligibility snapshot is skipped.
+                if (
+                    string.Equals(channel, "sms", StringComparison.Ordinal)
+                    && await IsSmsStoppedAsync(guestId, cancellationToken)
+                )
+                {
+                    await UpsertDeliveryAsync(
+                        entity.Id,
+                        guestId,
+                        channel,
+                        SkippedIneligibleOutcome,
+                        acceptedAtUtc: null,
+                        acceptedUnits: null,
+                        now,
+                        cancellationToken
+                    );
+                    skippedThisRun++;
+                    handledSet.Add(guestId);
+                    continue;
+                }
+
                 if (perRecipientEstimate > localRemaining)
                 {
                     // Not-attempted: leave without a delivery fact for retry.
@@ -381,6 +410,13 @@ namespace TummlyBackend.Services
                                     cancellationToken
                                 );
                         }
+                    }
+
+                    if (string.Equals(channel, "sms", StringComparison.Ordinal))
+                    {
+                        // The final text: restaurant prefix, operator body (with any
+                        // claim code), STOP footer.
+                        outboundBody = GuestSmsText.ForCampaign(restaurantName, outboundBody);
                     }
 
                     sendResult = await _outbound.SendAsync(
@@ -674,6 +710,20 @@ namespace TummlyBackend.Services
                 ),
             };
         }
+
+        private async Task<bool> IsSmsStoppedAsync(
+            int locationGuestId,
+            CancellationToken cancellationToken
+        ) =>
+            await _context.LocationGuests
+                .AsNoTracking()
+                .AnyAsync(
+                    lg =>
+                        lg.Id == locationGuestId
+                        && lg.MasterGuest != null
+                        && lg.MasterGuest.SmsStoppedAtUtc != null,
+                    cancellationToken
+                );
 
         private async Task UpsertDeliveryAsync(
             int campaignId,

@@ -95,6 +95,11 @@ namespace TummlyBackend.Interfaces
         public sealed record LocationDenied(OwnedLocationResult Location)
             : AssistantTurnOutcome;
 
+        /// <summary>
+        /// Start or switch to scope "all" without all-Location access (R9.1).
+        /// </summary>
+        public sealed record ScopeNotAllowed() : AssistantTurnOutcome;
+
         public sealed record CreditSpendDenied(
             string Code,
             string Channel,

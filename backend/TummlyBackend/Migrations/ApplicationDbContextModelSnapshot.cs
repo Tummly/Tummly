@@ -1346,6 +1346,10 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("RestaurantId", "SourcePaymentRef")
                         .HasFilter("[SourcePaymentRef] IS NOT NULL");
 
+                    b.HasIndex("RestaurantId", "SourcePaymentRef", "EntryType")
+                        .IsUnique()
+                        .HasFilter("[SourcePaymentRef] IS NOT NULL AND [EntryType] = N'topup_allocation'");
+
                     b.ToTable("CreditLedgerEntries", t =>
                         {
                             t.HasCheckConstraint("CK_CreditLedgerEntries_QuantityPositive", "[Quantity] > 0");
@@ -1743,6 +1747,12 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("DeliveryState")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeliveryStateAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("EmailDeliveredAt")
                         .HasColumnType("datetime2");
 
@@ -1773,6 +1783,10 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("ProviderMessageId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<string>("Purpose")
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
@@ -1788,6 +1802,9 @@ namespace TummlyBackend.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("ProviderMessageId")
+                        .HasFilter("[ProviderMessageId] IS NOT NULL");
 
                     b.HasIndex("EmailDeliveryStatus", "EmailDeliveryRetryAfter");
 
@@ -2666,6 +2683,9 @@ namespace TummlyBackend.Migrations
 
                     b.Property<int>("RestaurantId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("SmsStoppedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
