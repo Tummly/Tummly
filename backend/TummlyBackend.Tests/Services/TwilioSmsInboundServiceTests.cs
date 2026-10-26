@@ -3,9 +3,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 using TummlyBackend.Tests.Integration;
 
 namespace TummlyBackend.Tests.Services
@@ -101,8 +104,20 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task Stop_CampaignSmsUnknownOutcome_Counts()
         {
-            // An unknown-outcome send may have reached the phone. No accepted time is set.
-            var guest = await SeedGuestAsync("Unknown Venue", GuestFrom, SmsTouch.CampaignSendUnknownOutcome);
+            // The guest has no earlier SMS. The only SMS row comes from a real fire whose
+            // provider call throws (the send may have reached the phone). The row is rejected.
+            var guest = await SeedGuestAsync("Unknown Venue", GuestFrom, SmsTouch.None);
+            await FireSmsCampaignToGuestAsync(
+                guest,
+                new ScriptedCampaignSmsDelivery(
+                    () => throw new TimeoutException("The provider did not answer in time.")
+                )
+            );
+            var row = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .SingleAsync(d => d.LocationGuestId == guest.LocationGuestId);
+            Assert.Equal(CampaignFireService.RejectedOutcome, row.Outcome);
+            Assert.Null(row.AcceptedAtUtc);
 
             await HandleSignedStopAsync(GuestFrom);
 
@@ -180,6 +195,80 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(TwilioSmsInboundStatus.Forbidden, status);
             await AssertNotStoppedAsync(guest);
+        }
+
+        /// <summary>
+        /// Schedules one SMS campaign to the guest and runs the real fire path with the
+        /// given provider double, through the real outbound channel sender.
+        /// </summary>
+        private async Task FireSmsCampaignToGuestAsync(
+            SeededGuest guest,
+            ScriptedCampaignSmsDelivery sms
+        )
+        {
+            var locationId = await _context.LocationGuests
+                .Where(lg => lg.Id == guest.LocationGuestId)
+                .Select(lg => lg.RestaurantLocationId)
+                .SingleAsync();
+
+            var campaign = new Campaign
+            {
+                RestaurantLocationId = locationId,
+                Name = "STOP campaign",
+                Status = CampaignFireService.ScheduledStatus,
+                GoalId = "thank-recent-guests",
+                AudienceKey = "all-eligible-guests",
+                Channel = "sms",
+                OfferStance = "no-offer",
+                MessageBody = "Hello",
+                ScheduleMode = "schedule-later",
+                ScheduledAtUtc = _now.AddMinutes(-5),
+                ScheduleTimeZone = "Europe/London",
+                BillingReservationRef = "res-stop-fire",
+                ReservedEstimate = 10,
+                CreatedAt = _now,
+                UpdatedAt = _now,
+            };
+            _context.Campaigns.Add(campaign);
+            await _context.SaveChangesAsync();
+
+            _context.CampaignFrozenRecipients.Add(
+                new CampaignFrozenRecipient
+                {
+                    CampaignId = campaign.Id,
+                    LocationGuestId = guest.LocationGuestId,
+                    FrozenAtUtc = _now.AddHours(-1),
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var outbound = new CampaignOutboundChannelSender(
+                new UnusedCampaignEmailOutbound(),
+                sms,
+                new DemoSideEffectGuard(
+                    Options.Create(
+                        new DemoSessionOptions
+                        {
+                            Enabled = false,
+                            SuppressSideEffects = false,
+                        }
+                    )
+                )
+                ,
+                NullLogger<CampaignOutboundChannelSender>.Instance
+            );
+            var fire = new CampaignFireService(
+                _context,
+                new CampaignEligibilityService(_context),
+                new PassiveCampaignBillingReserve(),
+                outbound,
+                new ClearCampaignSendStartGateDouble(),
+                utcNow: () => _now
+            );
+
+            // One rejected recipient and no accepted send: the campaign closes as failed.
+            // The test checks the delivery row that the fire wrote.
+            await fire.FireAsync(campaign.Id);
         }
 
         private Task HandleSignedStopAsync(string from)

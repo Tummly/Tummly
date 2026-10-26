@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Helpers;
@@ -32,7 +33,8 @@ namespace TummlyBackend.Tests.Services
             var sender = new CampaignOutboundChannelSender(
                 email: new RejectingEmailOutbound(),
                 smsDelivery: sms,
-                demoSideEffects: NoSuppressGuard()
+                demoSideEffects: NoSuppressGuard(),
+                logger: NullLogger<CampaignOutboundChannelSender>.Instance
             );
 
             var result = await sender.SendAsync(
@@ -69,7 +71,8 @@ namespace TummlyBackend.Tests.Services
             var sender = new CampaignOutboundChannelSender(
                 email: new RejectingEmailOutbound(),
                 smsDelivery: sms,
-                demoSideEffects: NoSuppressGuard()
+                demoSideEffects: NoSuppressGuard(),
+                logger: NullLogger<CampaignOutboundChannelSender>.Instance
             );
 
             var result = await sender.SendAsync(
@@ -107,6 +110,8 @@ namespace TummlyBackend.Tests.Services
                         }
                     )
                 )
+                ,
+                logger: NullLogger<CampaignOutboundChannelSender>.Instance
             );
 
             var result = await sender.SendAsync(
@@ -139,7 +144,8 @@ namespace TummlyBackend.Tests.Services
             var sender = new CampaignOutboundChannelSender(
                 email: new RejectingEmailOutbound(),
                 smsDelivery: sms,
-                demoSideEffects: NoSuppressGuard()
+                demoSideEffects: NoSuppressGuard(),
+                logger: NullLogger<CampaignOutboundChannelSender>.Instance
             );
 
             var result = await sender.SendAsync(
@@ -169,7 +175,8 @@ namespace TummlyBackend.Tests.Services
             var sender = new CampaignOutboundChannelSender(
                 email: email,
                 smsDelivery: sms,
-                demoSideEffects: NoSuppressGuard()
+                demoSideEffects: NoSuppressGuard(),
+                logger: NullLogger<CampaignOutboundChannelSender>.Instance
             );
 
             var result = await sender.SendAsync(

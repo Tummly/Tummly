@@ -603,7 +603,8 @@ builder.Services.AddScoped<ICampaignOutboundSender>(sp =>
     new CampaignOutboundChannelSender(
         sp.GetRequiredService<CampaignOutboundEmailSender>(),
         sp.GetRequiredService<IRecoveryGuestSmsDelivery>(),
-        sp.GetRequiredService<DemoSideEffectGuard>()
+        sp.GetRequiredService<DemoSideEffectGuard>(),
+        sp.GetRequiredService<ILogger<CampaignOutboundChannelSender>>()
     )
 );
 builder.Services.AddScoped<

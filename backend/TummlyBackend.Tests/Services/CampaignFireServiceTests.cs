@@ -1,11 +1,13 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -115,6 +117,70 @@ namespace TummlyBackend.Tests.Services
                 );
             Assert.Equal(CampaignFireService.SkippedIneligibleOutcome, skipped.Outcome);
             Assert.Null(skipped.AcceptedAtUtc);
+        }
+
+        [Fact]
+        public async Task CampaignFire_SmsProviderThrows_RecordsRejectedRow_ContinuesLoop()
+        {
+            var seeded = await SeedCommittedCampaignAsync(
+                status: CampaignFireService.ScheduledStatus,
+                scheduleMode: "schedule-later",
+                scheduledAtUtc: _now.AddMinutes(-5),
+                frozenEligibleCount: 2,
+                withCatalogOffer: false,
+                channel: "sms"
+            );
+
+            // The first provider call times out with no response. The second is accepted.
+            var sms = new ScriptedCampaignSmsDelivery(
+                () => throw new TimeoutException("The provider did not answer in time.")
+            );
+            var outbound = new CampaignOutboundChannelSender(
+                new UnusedCampaignEmailOutbound(),
+                sms,
+                new DemoSideEffectGuard(
+                    Microsoft.Extensions.Options.Options.Create(
+                        new TummlyBackend.Configurations.DemoSessionOptions
+                        {
+                            Enabled = false,
+                            SuppressSideEffects = false,
+                        }
+                    )
+                )
+                ,
+                NullLogger<CampaignOutboundChannelSender>.Instance
+            );
+            var fire = new CampaignFireService(
+                _context,
+                _eligibility,
+                _reserve,
+                outbound,
+                _gate,
+                utcNow: () => _now
+            );
+
+            var result = await fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Equal(2, sms.Phones.Count);
+
+            var first = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .SingleAsync(d =>
+                    d.CampaignId == seeded.CampaignId
+                    && d.LocationGuestId == seeded.FrozenGuestIds[0]
+                );
+            Assert.Equal(CampaignFireService.RejectedOutcome, first.Outcome);
+            Assert.Null(first.AcceptedUnits);
+
+            var second = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .SingleAsync(d =>
+                    d.CampaignId == seeded.CampaignId
+                    && d.LocationGuestId == seeded.FrozenGuestIds[1]
+                );
+            Assert.Equal(CampaignFireService.AcceptedOutcome, second.Outcome);
+            Assert.Equal(1, second.AcceptedUnits);
         }
 
         public void Dispose()
