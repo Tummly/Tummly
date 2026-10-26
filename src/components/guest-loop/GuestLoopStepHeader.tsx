@@ -11,15 +11,15 @@ export function GuestLoopStepHeader({
 }: GuestLoopStepHeaderProps) {
   return (
     <header className="flex flex-col items-center gap-3.5 text-center text-[#232323]">
-      <h1 className="m-0 text-[clamp(1.75rem,4vw,2.25rem)] font-bold leading-normal tracking-[-0.72px]">
+      <h1 className="m-0 font-jakarta text-[clamp(1.75rem,4vw,2.25rem)] font-semibold leading-[normal]">
         {title}
       </h1>
       {typeof description === "string" ? (
-        <p className="m-0 max-w-[32rem] text-[clamp(1rem,2.5vw,1.125rem)] leading-6 tracking-[-0.36px]">
+        <p className="m-0 max-w-[32rem] text-[clamp(1rem,2.5vw,1.125rem)] leading-6">
           {description}
         </p>
       ) : (
-        <div className="m-0 max-w-[32rem] text-[clamp(1rem,2.5vw,1.125rem)] leading-6 tracking-[-0.36px]">
+        <div className="m-0 max-w-[32rem] text-[clamp(1rem,2.5vw,1.125rem)] leading-6">
           {description}
         </div>
       )}

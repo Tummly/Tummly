@@ -34,7 +34,7 @@ export function GuestLoopBackButton({
       >
         <ChevronLeftIcon className="size-4" aria-hidden />
       </span>
-      <span className="text-lg font-medium leading-6 tracking-[-0.36px]">
+      <span className="text-lg font-medium leading-6">
         Back
       </span>
     </button>

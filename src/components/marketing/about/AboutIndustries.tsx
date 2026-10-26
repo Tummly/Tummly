@@ -73,7 +73,7 @@ function IndustryCard({ industry }: { industry: AboutIndustry }) {
         aria-hidden
       />
       <div className="relative flex w-full flex-col items-start justify-center gap-[18px] text-white">
-        <h3 className="m-0 font-jakarta text-2xl font-semibold leading-normal">
+        <h3 className="m-0 font-jakarta text-2xl font-semibold leading-[normal]">
           {industry.title}
         </h3>
         <p className="m-0 font-sans text-sm font-normal leading-[18px]">

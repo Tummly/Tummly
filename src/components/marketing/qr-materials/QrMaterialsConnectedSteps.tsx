@@ -11,10 +11,10 @@ import { cn } from "@/lib/utils"
 function ConnectedStep({ step }: { step: QrMaterialsConnectedStep }) {
   return (
     <div className="flex w-full flex-col gap-2 text-[#141414]">
-      <p className="m-0 font-sans text-xs font-bold leading-normal">
+      <p className="m-0 font-sans text-xs font-bold leading-[normal]">
         {step.stepLabel}
       </p>
-      <h3 className="m-0 font-jakarta text-lg font-bold leading-normal">
+      <h3 className="m-0 font-jakarta text-lg font-bold leading-[normal]">
         {step.title}
       </h3>
       <p className="m-0 max-w-[520px] font-sans text-sm font-normal leading-5">
@@ -42,7 +42,7 @@ export function QrMaterialsConnectedSteps() {
         )}
       >
         <header className="flex w-full max-w-[776px] flex-col gap-[18px]">
-          <p className="m-0 font-sans text-base font-medium uppercase leading-normal text-black">
+          <p className="m-0 font-sans text-base font-medium uppercase leading-[normal] text-black">
             {QR_MATERIALS_CONNECTED.eyebrow}
           </p>
           <h2

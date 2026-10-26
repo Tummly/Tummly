@@ -20,7 +20,7 @@ import {
 import { publicFooterTrustCredentials } from "@/content/marketing/publicTrustClaims"
 import { cn } from "@/lib/utils"
 
-const footerLinkClass = "text-sm font-normal leading-normal text-[#141414]"
+const footerLinkClass = "text-sm font-normal leading-[normal] text-[#141414]"
 const footerHeadingClass =
   "m-0 font-jakarta text-base font-bold leading-5 text-[#141414]"
 
@@ -182,10 +182,10 @@ export default function Footer() {
 
             <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-col gap-1">
-                <p className="m-0 text-sm font-normal leading-normal text-[#141414]">
+                <p className="m-0 text-sm font-normal leading-[normal] text-[#141414]">
                   © 2026 Tummly.com Ltd. All rights reserved.
                 </p>
-                <p className="m-0 text-xs font-normal leading-normal text-[#141414]/70">
+                <p className="m-0 text-xs font-normal leading-[normal] text-[#141414]/70">
                   {MARKETING_FOOTER_COMPANY_DISCLOSURE}
                 </p>
               </div>

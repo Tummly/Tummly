@@ -177,7 +177,7 @@ export function SignupReviewPlanStep({
   return (
     <div className="mx-auto flex w-full max-w-[581px] flex-col gap-10">
       <header className="flex flex-col gap-3 text-[#141414]">
-        <h1 className="m-0 font-jakarta text-[36px] font-medium leading-normal">
+        <h1 className="m-0 font-jakarta text-[36px] font-medium leading-[normal]">
           Review your subscription
         </h1>
         <p className="m-0 max-w-[640px] font-sans text-base leading-[22px]">

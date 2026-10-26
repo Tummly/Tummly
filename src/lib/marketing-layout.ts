@@ -17,6 +17,8 @@ export const marketingHeaderChromePadding = "px-[30px] py-5";
  * (chrome `py-5` + nav row ≈ 86px — Figma Header `5700:25213`).
  */
 export const marketingHeaderStickyTopClass = "top-[86px]";
+/** Same offset from `lg` up, for panels that are sticky on desktop only. */
+export const marketingHeaderStickyTopLgClass = "lg:top-[86px]";
 export const marketingHeaderScrollMarginClass = "scroll-mt-[86px]";
 
 /**

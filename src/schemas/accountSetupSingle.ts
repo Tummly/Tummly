@@ -131,7 +131,8 @@ export const accountSetupSingleDefaultValues: AccountSetupSingleFormValues = {
   addressOverridden: false,
   phone: "",
   businessLink: "",
-  businessCategory: "takeaway",
+  // No default: the user must choose a Restaurant type.
+  businessCategory: "",
   numLocations: "",
 }
 

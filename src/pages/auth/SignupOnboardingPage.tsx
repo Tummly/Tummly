@@ -28,6 +28,7 @@ import {
   clearSignupPlanIntent,
   readSignupPlanIntent,
   saveSignupPlanIntent,
+  signupStepAfterLocation,
 } from "@/lib/signupPlanIntent"
 import {
   signupAccountStepFields,
@@ -159,7 +160,10 @@ function SignupOnboardingWizard({ prefill }: SignupOnboardingWizardProps) {
       signupLocationStepSchema,
     )
     if (!valid) return
-    setStep(4)
+    // A plan built on the Custom plan page needs no second customise pass.
+    setStep(
+      signupStepAfterLocation(readSignupPlanIntent()) === "review" ? 6 : 4,
+    )
   }
 
   const saveOnboarding = async () => {

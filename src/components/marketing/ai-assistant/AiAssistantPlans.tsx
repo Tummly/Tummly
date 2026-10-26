@@ -114,7 +114,7 @@ function PlanCard({
             <PublicPlanPriceFallback status={status} />
           )}
           {price.subline != null ? (
-            <p className="m-0 text-sm font-normal leading-normal text-[#7c7c7c]">
+            <p className="m-0 text-sm font-normal leading-[normal] text-[#7c7c7c]">
               {price.subline}
             </p>
           ) : null}
@@ -193,7 +193,7 @@ export function AiAssistantPlans({
                 "m-0 font-medium text-[#141414]",
                 compactHeader
                   ? "font-jakarta text-xs leading-[14px] lg:text-sm lg:leading-4"
-                  : "font-sans text-sm uppercase leading-normal tracking-[1.12px] text-black",
+                  : "font-sans text-sm uppercase leading-[normal] tracking-[1.12px] text-black",
               )}
             >
               {content.eyebrow}

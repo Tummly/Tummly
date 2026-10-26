@@ -31,7 +31,7 @@ function RealityCard({ item }: { item: AboutRealityItem }) {
         "px-[26px] py-9",
       )}
     >
-      <h3 className="m-0 w-full max-w-[300px] text-center font-jakarta text-2xl font-semibold leading-normal text-[#0e0e0e]">
+      <h3 className="m-0 w-full max-w-[300px] text-center font-jakarta text-2xl font-semibold leading-[normal] text-[#0e0e0e]">
         {item.title}
       </h3>
       <AiAssistantMutedVideo

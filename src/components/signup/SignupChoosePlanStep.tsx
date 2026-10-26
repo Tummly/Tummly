@@ -149,7 +149,7 @@ export function SignupChoosePlanStep({
     <div className="flex w-full flex-col items-center gap-[50px]">
       <div className="flex w-full flex-col gap-6 lg:flex-row lg:items-start lg:justify-center lg:gap-[50px]">
         <header className="flex min-w-0 flex-1 flex-col gap-3 text-[#141414]">
-          <h1 className="m-0 font-jakarta text-[28px] font-semibold leading-normal lg:text-[36px]">
+          <h1 className="m-0 font-jakarta text-[28px] font-semibold leading-[normal] lg:text-[36px]">
             {SIGNUP_PLAN_STEP_COPY.title}
           </h1>
           <p className="m-0 font-sans text-base leading-[22px]">
@@ -219,7 +219,7 @@ export function SignupChoosePlanStep({
               )}
             >
               <div className="flex flex-col gap-3 text-[#141414]">
-                <h2 className="m-0 font-jakarta text-[30px] font-medium leading-normal">
+                <h2 className="m-0 font-jakarta text-[30px] font-medium leading-[normal]">
                   {planId}
                 </h2>
                 <p className="m-0 max-w-[300px] font-sans text-sm leading-[19px]">

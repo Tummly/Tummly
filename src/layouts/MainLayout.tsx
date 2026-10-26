@@ -49,7 +49,12 @@ function MainLayout() {
   }
 
   return (
-    <div className={cn("flex min-h-dvh flex-col", marketingChromeBackground)}>
+    <div
+      className={cn(
+        "marketing-controls flex min-h-dvh flex-col",
+        marketingChromeBackground,
+      )}
+    >
       <div
         className={cn(
           "flex min-h-dvh w-full flex-1 flex-col",

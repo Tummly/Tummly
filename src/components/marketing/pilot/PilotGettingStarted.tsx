@@ -33,7 +33,7 @@ export function PilotGettingStarted() {
           <div className="flex w-full max-w-[502px] flex-col items-start gap-[60px] lg:shrink-0">
             <div className="flex w-full max-w-[448px] flex-col items-start gap-[18px]">
               <div className="flex w-full flex-col items-start gap-3.5 text-black">
-                <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px]">
+                <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px]">
                   {PILOT_GETTING_STARTED.eyebrow}
                 </p>
                 <h2

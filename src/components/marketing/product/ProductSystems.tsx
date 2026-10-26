@@ -22,7 +22,7 @@ export function ProductSystems() {
         )}
       >
         <header className="flex w-full max-w-[747px] flex-col gap-[18px]">
-          <p className="m-0 font-sans text-base font-medium uppercase leading-normal text-black">
+          <p className="m-0 font-sans text-base font-medium uppercase leading-[normal] text-black">
             {PRODUCT_SYSTEMS.eyebrow}
           </p>
           <h2

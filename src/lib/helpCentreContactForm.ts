@@ -2,6 +2,7 @@ import type { HelpCentreQueryTopicSlug } from "@/content/helpCentre/queryTopics"
 import {
   HELP_CENTRE_ALREADY_USING_OPTIONS,
   HELP_CENTRE_LOCATION_COUNT_OPTIONS,
+  HELP_CENTRE_QUERY_TOPICS,
 } from "@/content/helpCentre/queryTopics"
 import type { HelpCentreContactFormValues } from "@/schemas/helpCentreContact"
 
@@ -155,4 +156,41 @@ export function resolveHelpCentreContactBusinessName(
   }
 
   return values.businessName.trim()
+}
+
+/** Form message limit; matches `helpCentreContactFormSchema`. */
+const CONTACT_MESSAGE_MAX_LENGTH = 5000
+
+export type HelpCentreContactSearchPrefill = Partial<
+  Pick<HelpCentreContactFormValues, "topic" | "locationCount" | "message">
+>
+
+/**
+ * Values a link can fill in (`?topic=&locations=&message=`), e.g. from the
+ * Custom plan calculator. Unknown topics and Location ranges are dropped.
+ */
+export function readHelpCentreContactSearchPrefill(
+  params: URLSearchParams
+): HelpCentreContactSearchPrefill {
+  const prefill: HelpCentreContactSearchPrefill = {}
+
+  const topic = params.get("topic")
+  if (topic != null && HELP_CENTRE_QUERY_TOPICS.some((t) => t.slug === topic)) {
+    prefill.topic = topic
+  }
+
+  const locations = params.get("locations")
+  if (
+    locations != null &&
+    HELP_CENTRE_LOCATION_COUNT_OPTIONS.some((o) => o.value === locations)
+  ) {
+    prefill.locationCount = locations
+  }
+
+  const message = params.get("message")?.trim()
+  if (message) {
+    prefill.message = message.slice(0, CONTACT_MESSAGE_MAX_LENGTH)
+  }
+
+  return prefill
 }

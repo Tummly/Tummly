@@ -211,7 +211,7 @@ function ProvisioningPhaseItem({
                 initial={reduced ? false : { opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ ...spring, delay: reduced ? 0 : 0.05 }}
-                className="text-sm font-semibold leading-normal tracking-[-0.28px] text-primary"
+                className="text-sm font-semibold leading-[normal] text-primary"
               >
                 {readyLabel}
               </motion.span>
@@ -233,14 +233,14 @@ function ProvisioningPhaseItem({
               fontWeight: isPending ? 500 : 700,
             }}
             transition={fade}
-            className="m-0 text-xl leading-normal tracking-[-0.4px]"
+            className="m-0 text-xl leading-[normal]"
           >
             {title}
           </motion.h3>
           <motion.p
             animate={{ color: textColor }}
             transition={fade}
-            className="m-0 text-sm leading-[18px] tracking-[-0.28px]"
+            className="m-0 text-sm leading-[18px]"
           >
             {description}
           </motion.p>

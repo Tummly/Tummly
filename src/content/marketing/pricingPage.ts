@@ -275,7 +275,7 @@ export const PRICING_PLAN_PRICE_SUFFIX_CLASS =
 
 /** Price subline — *functional* Helvetica Neue Medium 14 / `#7c7c7c`. */
 export const PRICING_PLAN_PRICE_SUBLINE_CLASS =
-  "m-0 min-h-10 font-sans text-sm font-medium leading-normal text-[#7c7c7c]"
+  "m-0 min-h-10 font-sans text-sm font-medium leading-[normal] text-[#7c7c7c]"
 
 export const PRICING_PLAN_FEATURE_ROW_CLASS =
   "flex items-center justify-between gap-3 font-sans text-sm whitespace-nowrap text-[#141414]"
@@ -563,15 +563,6 @@ export const PRICING_GUEST_RELATIONSHIPS = {
 
 export type PricingGuestRelationshipsCardId =
   (typeof PRICING_GUEST_RELATIONSHIPS.cards)[number]["id"]
-
-/** Figma Pricing Sign up CTA (`5661:14510` / `4151:3811`). */
-export const PRICING_SIGN_UP_CTA = {
-  title: "Ready to see Guest Loop in a real restaurant?",
-  body: "Start with one Location and see how Guest Loop works with real guests.",
-  primaryLabel: "Start 30-day Pilot",
-  badge: "No payment card required",
-  planIntent: { plan: "Pilot" as const },
-} as const
 
 export const PRICING_FAQS = {
   title: "Frequently asked questions",

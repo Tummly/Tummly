@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 function PrincipleCard({ card }: { card: QrMaterialsPrincipleCard }) {
   return (
     <article className="flex min-w-0 flex-1 flex-col gap-2 text-[#141414]">
-      <h3 className="m-0 font-jakarta text-lg font-bold leading-normal">
+      <h3 className="m-0 font-jakarta text-lg font-bold leading-[normal]">
         {card.title}
       </h3>
       <p className="m-0 max-w-[498px] font-sans text-sm font-normal leading-5">
@@ -38,7 +38,7 @@ export function QrMaterialsGuestExperience() {
         )}
       >
         <header className="flex w-full max-w-[748px] flex-col gap-[18px]">
-          <p className="m-0 font-sans text-base font-medium uppercase leading-normal text-black">
+          <p className="m-0 font-sans text-base font-medium uppercase leading-[normal] text-black">
             {QR_MATERIALS_GUEST_EXPERIENCE.eyebrow}
           </p>
           <h2

@@ -47,7 +47,7 @@ export function PilotWhyZero() {
             {PILOT_WHY_ZERO.trustItems.map((item) => (
               <p
                 key={item}
-                className="m-0 flex items-center gap-2 text-xs font-inter font-medium leading-normal text-[#727272]"
+                className="m-0 flex items-center gap-2 text-xs font-inter font-medium leading-[normal] text-[#727272]"
               >
                 <CircleCheckBig
                   aria-hidden
@@ -61,7 +61,7 @@ export function PilotWhyZero() {
         </div>
       }
     >
-      <p className="m-0 font-sans text-sm font-medium uppercase leading-normal text-black lg:text-base">
+      <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] text-black lg:text-base">
         {PILOT_WHY_ZERO.eyebrow}
       </p>
       <h2

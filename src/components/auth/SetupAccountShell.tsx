@@ -6,7 +6,7 @@ interface SetupAccountShellProps {
 
 function SetupAccountShell({ children }: SetupAccountShellProps) {
   return (
-    <div className="flex min-h-dvh flex-col bg-[#FAFAFA] text-[#111827]">
+    <div className="marketing-controls flex min-h-dvh flex-col bg-[#FAFAFA] text-[#111827]">
       {children}
     </div>
   )

@@ -59,7 +59,7 @@ export function ForGroupsProduct() {
                   videoClassName="bg-[#e1dfdb] object-cover object-center"
                 />
                 <div className="flex w-full shrink-0 flex-col items-center gap-3.5 px-2.5 text-center text-[#141414]">
-                  <h3 className="m-0 font-jakarta text-xl font-bold leading-normal">
+                  <h3 className="m-0 font-jakarta text-xl font-bold leading-[normal]">
                     {card.title}
                   </h3>
                   <p className="m-0 max-w-[323px] font-sans text-sm font-normal leading-5">

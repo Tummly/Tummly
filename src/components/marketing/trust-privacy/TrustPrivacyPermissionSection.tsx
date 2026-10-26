@@ -39,7 +39,7 @@ export function TrustPrivacyPermissionSection() {
                 <h3 className="m-0 text-lg font-medium leading-6 text-[#141414]">
                   {record.title}
                 </h3>
-                <p className="m-0 text-base font-normal leading-normal text-[#141414] lg:text-lg lg:leading-6">
+                <p className="m-0 text-base font-normal leading-[normal] text-[#141414] lg:text-lg lg:leading-6">
                   {record.body}
                 </p>
               </div>

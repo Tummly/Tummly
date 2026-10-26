@@ -27,7 +27,7 @@ export function ProductCapture() {
       >
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <header className="flex max-w-[548px] flex-col gap-[18px]">
-            <p className="m-0 font-sans text-base font-medium uppercase leading-normal text-black">
+            <p className="m-0 font-sans text-base font-medium uppercase leading-[normal] text-black">
               {PRODUCT_CAPTURE.eyebrow}
             </p>
             <h2

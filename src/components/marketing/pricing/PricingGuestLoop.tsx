@@ -4,7 +4,6 @@ import listenIllustration from "@/assets/images/marketing/pricing/guest-loop/lis
 import understandIllustration from "@/assets/images/marketing/pricing/guest-loop/understand.png"
 import {
   PRICING_GUEST_LOOP,
-  PRICING_SECTION_BODY,
   PRICING_SECTION_INSET,
   PRICING_SECTION_Y,
   type PricingGuestLoopCardId,
@@ -37,11 +36,12 @@ export function PricingGuestLoop() {
         <div className="flex w-full max-w-[566px] flex-col items-center gap-[18px] text-center">
           <h2
             id="pricing-guest-loop-heading"
-            className="m-0 max-w-[496px] font-jakarta text-[36px] font-[500] leading-normal text-black"
+            className="m-0 max-w-[496px] font-jakarta text-[36px] font-[500] leading-[normal] text-black"
           >
             {PRICING_GUEST_LOOP.title}
           </h2>
-          <p className={cn("m-0", PRICING_SECTION_BODY)}>
+          {/* Figma `5661:14072`: 16/22 at every width. */}
+          <p className="m-0 font-sans text-base leading-[22px] font-normal text-[#141414]">
             {PRICING_GUEST_LOOP.body}
           </p>
         </div>

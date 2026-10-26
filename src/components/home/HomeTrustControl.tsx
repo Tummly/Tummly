@@ -106,12 +106,12 @@ export function HomeTrustControl() {
                 className="border-0 border-b border-[#7c7c7c] pb-5"
               >
                 <AccordionTrigger className={accordionTriggerClassName}>
-                  <span className="m-0 min-w-0 flex-1 text-left font-jakarta text-xl font-medium leading-[25px] text-[#141414] lg:text-2xl lg:leading-normal">
+                  <span className="m-0 min-w-0 flex-1 text-left font-jakarta text-xl font-medium leading-[25px] text-[#141414] lg:text-2xl lg:leading-[normal]">
                     {item.title}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="pt-[18px] pb-0">
-                  <p className="m-0 font-sans text-sm font-normal leading-[18px] text-[#141414] lg:text-base lg:leading-normal">
+                  <p className="m-0 font-sans text-sm font-normal leading-[18px] text-[#141414] lg:text-base lg:leading-[normal]">
                     {item.body}
                   </p>
                 </AccordionContent>

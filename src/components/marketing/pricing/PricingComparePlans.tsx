@@ -15,10 +15,7 @@ import {
   pricingPlanPrice,
   type PricingPlanId,
 } from "@/content/marketing/pricingPage"
-import {
-  marketingHeaderScrollMarginClass,
-  marketingHeaderStickyTopClass,
-} from "@/lib/marketing-layout"
+import { marketingHeaderScrollMarginClass } from "@/lib/marketing-layout"
 import type { PublicPlanPrices } from "@/lib/marketingCustomPlan/publicPlanPrices"
 import {
   usePublicPlanPrices,
@@ -69,7 +66,7 @@ function ComparisonPlanHeader({
               <span className="font-sans text-[28px] font-[500] leading-none">
                 {price.amount}
               </span>
-              <span className="font-sans text-sm font-medium leading-normal">
+              <span className="font-sans text-sm font-medium leading-[normal]">
                 {price.suffix}
               </span>
             </p>
@@ -161,8 +158,8 @@ export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
               syncHorizontalScroll("header", event)
             }}
             className={cn(
-              "sticky z-20 -mx-5 overflow-x-auto overscroll-x-contain bg-[#f8f8f8] sm:mx-0",
-              marketingHeaderStickyTopClass,
+              // 20px below the nav; the white shadow fills the gap so rows do not show through.
+              "sticky top-[106px] z-20 -mx-5 overflow-x-auto overscroll-x-contain bg-[#f8f8f8] shadow-[0_-20px_0_0_#fff] sm:mx-0",
             )}
           >
             <div className="flex min-w-[960px] items-end gap-[22px] p-6">

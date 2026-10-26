@@ -90,7 +90,7 @@ function MaterialListItem({
       <span
         className={cn(
           /* Mobile Figma `6241:18095`: 24px / ~30px. Desktop keeps 32px. */
-          "font-jakarta text-2xl leading-[30px] whitespace-nowrap sm:text-[28px] sm:leading-normal lg:text-[32px]",
+          "font-jakarta text-2xl leading-[30px] whitespace-nowrap sm:text-[28px] sm:leading-[normal] lg:text-[32px]",
           active
             ? "font-semibold text-black"
             : "font-medium text-[#9d9d9d]",

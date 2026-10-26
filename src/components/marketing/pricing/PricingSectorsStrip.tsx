@@ -45,7 +45,7 @@ export function PricingSectorsStrip() {
       >
         <p
           id="pricing-sectors-heading"
-          className="m-0 text-center font-sans text-base font-normal leading-normal text-[#141414]"
+          className="m-0 text-center font-sans text-base font-normal leading-[normal] text-[#141414]"
         >
           {PRICING_SECTORS.title}
         </p>
@@ -66,7 +66,7 @@ export function PricingSectorsStrip() {
                       )}
                     />
                   </span>
-                  <span className="whitespace-nowrap font-sans text-xs font-medium leading-normal text-[#3b3834]">
+                  <span className="whitespace-nowrap font-sans text-xs font-medium leading-[normal] text-[#3b3834]">
                     {item.label}
                   </span>
                 </div>

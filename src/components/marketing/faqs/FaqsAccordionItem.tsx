@@ -5,6 +5,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { cn } from "@/lib/utils"
 
 /** Figma FAQ row: chevron chip #dbdbdb, 2px radius, 10px pad, 14px glyph. */
 const faqTriggerClassName =
@@ -19,8 +20,20 @@ const faqContentClassName =
 const faqAnswerClassName =
   "m-0 whitespace-pre-line font-sans text-base font-normal leading-5.25 tracking-normal text-[#141414]"
 
+/**
+ * Pricing / Custom Plan FAQ (`4974:29501`, `6661:39170`): question 18px
+ * SemiBold, answer 14/18, 30px from answer to the divider.
+ */
+const faqQuestionCompactClassName =
+  "m-0 min-w-0 flex-1 text-left font-sans text-lg font-semibold leading-[normal] tracking-normal text-[#141414]"
+
+const faqAnswerCompactClassName =
+  "m-0 whitespace-pre-line font-sans text-sm font-normal leading-[18px] tracking-normal text-[#141414]"
+
 const faqCtaClassName =
   "m-0 font-sans text-base font-normal leading-5.25 tracking-normal text-[#141414] underline underline-offset-2 hover:opacity-80"
+
+type FaqsAccordionItemVariant = "default" | "compact"
 
 type FaqsAccordionItemProps = {
   value: string
@@ -30,21 +43,30 @@ type FaqsAccordionItemProps = {
     label: string
     to: string
   }
+  variant?: FaqsAccordionItemVariant
 }
 
 function FaqAnswerBody({
   answer,
   cta,
+  variant,
 }: {
   answer: string
   cta?: FaqsAccordionItemProps["cta"]
+  variant: FaqsAccordionItemVariant
 }) {
   const blocks = answer.split(/\n\n/).filter((block) => block.length > 0)
+  const compact = variant === "compact"
 
   return (
-    <div className="flex flex-col gap-5.25">
+    <div
+      className={cn("flex flex-col", compact ? "gap-[18px]" : "gap-5.25")}
+    >
       {blocks.map((block, index) => (
-        <p key={index} className={faqAnswerClassName}>
+        <p
+          key={index}
+          className={compact ? faqAnswerCompactClassName : faqAnswerClassName}
+        >
           {block}
         </p>
       ))}
@@ -64,17 +86,29 @@ export function FaqsAccordionItem({
   question,
   answer,
   cta,
+  variant = "default",
 }: FaqsAccordionItemProps) {
+  const compact = variant === "compact"
+
   return (
     <AccordionItem
       value={value}
-      className="border-0 border-b border-[#e0e0e0] pb-3.5"
+      className={cn(
+        "border-0 border-b border-[#e0e0e0]",
+        compact ? "pb-7.5" : "pb-3.5",
+      )}
     >
       <AccordionTrigger className={faqTriggerClassName}>
-        <span className={faqQuestionClassName}>{question}</span>
+        <span
+          className={
+            compact ? faqQuestionCompactClassName : faqQuestionClassName
+          }
+        >
+          {question}
+        </span>
       </AccordionTrigger>
       <AccordionContent className={faqContentClassName}>
-        <FaqAnswerBody answer={answer} cta={cta} />
+        <FaqAnswerBody answer={answer} cta={cta} variant={variant} />
       </AccordionContent>
     </AccordionItem>
   )

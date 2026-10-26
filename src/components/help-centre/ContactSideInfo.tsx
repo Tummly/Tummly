@@ -111,7 +111,7 @@ export function ContactSideInfo({
     >
       <div className="flex w-full flex-col gap-8">
         <div className="flex flex-col gap-[18px]">
-          <h1 className="m-0 font-jakarta text-[34px] font-medium leading-normal text-black lg:text-[60px]">
+          <h1 className="m-0 font-jakarta text-[34px] font-medium leading-[normal] text-black lg:text-[60px]">
             Tell us what you need.
           </h1>
           <p className="m-0 text-base leading-[22px] text-[#141414] lg:text-lg lg:leading-6">

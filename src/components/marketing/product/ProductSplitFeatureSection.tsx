@@ -29,7 +29,7 @@ function FeaturePoint({
 }) {
   const copy = (
     <>
-      <h3 className="m-0 font-jakarta text-base font-bold leading-normal">
+      <h3 className="m-0 font-jakarta text-base font-bold leading-[normal]">
         {point.title}
       </h3>
       <p className="m-0 max-w-[641px] font-sans text-sm font-normal leading-5">
@@ -153,7 +153,7 @@ export function ProductSplitFeatureSection({
         {balanceToMedia ? (
           <div className="flex w-full flex-col gap-3.5">
             {eyebrow != null && eyebrow !== "" ? (
-              <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px] text-black">
+              <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px] text-black">
                 {eyebrow}
               </p>
             ) : null}
@@ -170,7 +170,7 @@ export function ProductSplitFeatureSection({
         ) : (
           <>
             {eyebrow != null && eyebrow !== "" ? (
-              <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px] text-black">
+              <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px] text-black">
                 {eyebrow}
               </p>
             ) : null}

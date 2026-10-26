@@ -191,7 +191,7 @@ function SignupLocationsPage() {
                 CUSTOMISE YOUR SUBSCRIPTION
               </p>
               <div className="flex flex-col gap-5">
-                <h1 className="m-0 font-jakarta text-[clamp(1.75rem,3vw,2.25rem)] font-semibold leading-normal">
+                <h1 className="m-0 font-jakarta text-[clamp(1.75rem,3vw,2.25rem)] font-semibold leading-[normal]">
                   Add your restaurant Locations
                 </h1>
                 <p className="m-0 max-w-[688px] font-sans text-base leading-[22px]">

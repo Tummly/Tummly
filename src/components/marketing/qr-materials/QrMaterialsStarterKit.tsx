@@ -27,7 +27,7 @@ export function QrMaterialsStarterKit() {
         )}
       >
         <header className="flex w-full max-w-[748px] flex-col gap-[18px]">
-          <p className="m-0 font-sans text-base font-medium uppercase leading-normal text-black">
+          <p className="m-0 font-sans text-base font-medium uppercase leading-[normal] text-black">
             {QR_MATERIALS_STARTER_KIT.eyebrow}
           </p>
           <h2
@@ -49,7 +49,7 @@ export function QrMaterialsStarterKit() {
               {QR_MATERIALS_STARTER_KIT.ctaLabel}
             </RequestTrialLink>
           </MarketingButton>
-          <p className="m-0 text-xs font-inter font-medium leading-normal text-[#727272]">
+          <p className="m-0 text-xs font-inter font-medium leading-[normal] text-[#727272]">
             {QR_MATERIALS_STARTER_KIT.note}
           </p>
         </div>

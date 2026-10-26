@@ -34,7 +34,7 @@ export function GuestLoopLocationCard({
         <button
           type="button"
           onClick={onToggle}
-          className="min-w-0 flex-1 cursor-pointer truncate text-left text-lg font-semibold leading-5 tracking-[-0.36px] text-[#232323]"
+          className="min-w-0 flex-1 cursor-pointer truncate text-left text-lg font-semibold leading-5 text-[#232323]"
           aria-expanded={isExpanded}
         >
           {locationLabel}

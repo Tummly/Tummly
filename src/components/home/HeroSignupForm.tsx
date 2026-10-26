@@ -78,7 +78,7 @@ export function HeroSignupForm({
             className="size-[13px] shrink-0 text-[#727272] lg:size-4"
             strokeWidth={2}
           />
-          <p className="m-0 text-[10px] font-inter font-medium leading-[12px] text-[#727272] lg:text-xs lg:leading-normal">
+          <p className="m-0 text-[10px] font-inter font-medium leading-[12px] text-[#727272] lg:text-xs lg:leading-[normal]">
             {trustBadge}
           </p>
         </div>
@@ -114,7 +114,7 @@ export function HeroSignupForm({
 
         <div className="flex w-full items-center gap-2.5">
           <div className="h-px min-w-0 flex-1 bg-[#d0d0d0]" />
-          <span className="shrink-0 text-sm leading-normal text-[#707070]">
+          <span className="shrink-0 text-sm leading-[normal] text-[#707070]">
             or
           </span>
           <div className="h-px min-w-0 flex-1 bg-[#d0d0d0]" />

@@ -13,7 +13,7 @@ type GuestLoopStepButtonProps = {
 }
 
 const guestLoopStepButtonLayoutClassName =
-  "h-[50px] min-h-[50px] w-full rounded-[54px] border-0 text-base font-medium leading-normal shadow-none disabled:opacity-100"
+  "h-[50px] min-h-[50px] w-full rounded-[54px] border-0 text-base font-medium leading-[normal] shadow-none disabled:opacity-100"
 
 const guestLoopStepButtonDisabledClassName =
   "bg-[#e0e0e0] text-[#7d7d7d] hover:bg-[#e0e0e0]"

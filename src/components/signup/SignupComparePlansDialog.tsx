@@ -42,7 +42,7 @@ export function SignupComparePlansDialog({
         className="flex max-h-[92vh] w-[calc(100vw-2.5rem)] max-w-[1442px] flex-col gap-[45px] overflow-hidden rounded-xl border-0 bg-white p-6 sm:max-w-[1442px] lg:p-[42px]"
       >
         <div className="flex items-start justify-between gap-4">
-          <DialogTitle className="m-0 font-jakarta text-[32px] font-medium leading-normal text-black lg:text-[46px]">
+          <DialogTitle className="m-0 font-jakarta text-[32px] font-medium leading-[normal] text-black lg:text-[46px]">
             Compare plans
           </DialogTitle>
           <DialogClose asChild>

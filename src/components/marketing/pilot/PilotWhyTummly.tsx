@@ -89,7 +89,7 @@ function WhyCard({ card }: { card: PilotWhyCard }) {
         "lg:h-[470px] lg:w-[min(100%,395px)] lg:shrink-0 lg:px-8",
       )}
     >
-      <h3 className="m-0 max-w-[286px] shrink-0 text-center font-jakarta text-2xl font-semibold leading-normal text-[#141414]">
+      <h3 className="m-0 max-w-[286px] shrink-0 text-center font-jakarta text-2xl font-semibold leading-[normal] text-[#141414]">
         {card.title}
       </h3>
       <div className="flex min-h-0 w-full flex-1 items-center justify-center py-3">
@@ -132,7 +132,7 @@ export function PilotWhyTummly() {
         <div className="flex w-full max-w-[1270px] flex-col items-center gap-10 lg:gap-14">
           <header className="flex w-full max-w-[670px] flex-col items-center gap-[18px] text-center">
             <div className="flex w-full flex-col items-center gap-3.5 text-black">
-              <p className="m-0 font-sans text-sm font-medium uppercase leading-normal tracking-[1.12px]">
+              <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px]">
                 {PILOT_WHY_TUMMLY.eyebrow}
               </p>
               <h2

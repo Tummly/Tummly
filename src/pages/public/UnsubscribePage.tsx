@@ -40,7 +40,7 @@ export default function UnsubscribePage() {
       <main className="w-full bg-white text-[#141414]">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 sm:py-12 md:px-10 lg:px-16 lg:py-16">
           <header className="flex flex-col gap-3">
-            <h1 className="m-0 text-[clamp(2rem,5vw,2.875rem)] font-bold leading-normal">
+            <h1 className="m-0 text-[clamp(2rem,5vw,2.875rem)] font-bold leading-[normal]">
               Unsubscribe
             </h1>
             <p className="m-0 text-base font-medium leading-6 sm:text-lg">

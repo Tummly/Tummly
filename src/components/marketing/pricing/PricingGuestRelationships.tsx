@@ -34,7 +34,7 @@ export function PricingGuestRelationships() {
         <div className="flex w-full max-w-[592px] flex-col items-center gap-[22px] text-center">
           <h2
             id="pricing-guest-relationships-heading"
-            className="m-0 max-w-[579px] font-jakarta text-[36px] font-semibold leading-normal text-black"
+            className="m-0 max-w-[579px] font-jakarta text-[36px] font-semibold leading-[normal] text-black"
           >
             {PRICING_GUEST_RELATIONSHIPS.title}
           </h2>

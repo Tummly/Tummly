@@ -64,7 +64,7 @@ export function ProductHero() {
               {PRODUCT_HERO.trustItems.map((item) => (
                 <p
                   key={item}
-                  className="m-0 flex items-center gap-1.5 text-xs font-inter font-medium leading-normal text-[#727272]"
+                  className="m-0 flex items-center gap-1.5 text-xs font-inter font-medium leading-[normal] text-[#727272]"
                 >
                   <CheckIcon
                     className="size-3 shrink-0 text-[#14a74a]"

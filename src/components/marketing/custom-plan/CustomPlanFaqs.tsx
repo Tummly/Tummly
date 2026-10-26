@@ -26,16 +26,19 @@ export function CustomPlanFaqs() {
       >
         <header
           className={cn(
-            "flex w-full shrink-0 flex-col lg:sticky lg:w-137 lg:max-w-137",
+            // Figma py-20 on the title: a gap under the nav while it sticks.
+            "flex w-full shrink-0 flex-col lg:sticky lg:w-137 lg:max-w-137 lg:py-5",
             marketingHeaderStickyTopClass,
           )}
         >
-          <h2 className={cn("m-0", CUSTOM_PLAN_SECTION_HEADING)}>
+          <h2
+            className={cn("m-0", CUSTOM_PLAN_SECTION_HEADING, "leading-[normal]")}
+          >
             {CUSTOM_PLAN_FAQS.title}
           </h2>
         </header>
 
-        <div className="flex min-w-0 w-full flex-1 flex-col gap-7.5 lg:max-w-[746px]">
+        <div className="flex min-w-0 w-full flex-1 flex-col gap-7.5 lg:pt-5 lg:max-w-[746px]">
           <Accordion
             type="single"
             collapsible
@@ -48,13 +51,14 @@ export function CustomPlanFaqs() {
                 value={item.id}
                 question={item.question}
                 answer={item.answer}
+                variant="compact"
               />
             ))}
           </Accordion>
 
           <div className="flex flex-col gap-7 pb-5">
             <div className="flex flex-col gap-3">
-              <h3 className="m-0 font-jakarta text-lg font-semibold leading-normal text-black">
+              <h3 className="m-0 font-jakarta text-lg font-semibold leading-[normal] text-black">
                 {CUSTOM_PLAN_FAQS.moreTitle}
               </h3>
               <p className="m-0 font-sans text-base font-normal leading-[21px] text-[#141414]">

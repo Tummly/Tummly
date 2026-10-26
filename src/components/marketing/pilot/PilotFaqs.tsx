@@ -67,7 +67,7 @@ export function PilotFaqs() {
 
           <div className="flex flex-col gap-7 pb-5">
             <div className="flex flex-col gap-2">
-              <h3 className="m-0 font-jakarta text-lg font-semibold leading-normal text-black">
+              <h3 className="m-0 font-jakarta text-lg font-semibold leading-[normal] text-black">
                 {PILOT_FAQS.moreTitle}
               </h3>
               <p className="m-0 font-sans text-sm font-normal leading-[19px] text-[#141414]">

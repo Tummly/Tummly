@@ -39,7 +39,7 @@ export default function HelpCentreArticlePage() {
           <div className={`${helpCentreArticleSectionInner} flex flex-col gap-[42px]`}>
             <Link
               to={HELP_CENTRE_URL}
-              className="inline-flex items-center gap-3 text-lg font-medium tracking-[-0.36px] text-[#232323] no-underline hover:underline"
+              className="inline-flex items-center gap-3 text-lg font-medium text-[#232323] no-underline hover:underline"
             >
               <span className="flex items-center rounded-[40px] bg-[#f4f4f4] p-2.5">
                 <ArrowLeft className="size-4" aria-hidden />
@@ -48,7 +48,7 @@ export default function HelpCentreArticlePage() {
             </Link>
 
             <div className="flex flex-col gap-[22px] text-base leading-[22px] text-[#141414]">
-              <h1 className="m-0 text-[28px] font-bold leading-normal text-[#141414]">
+              <h1 className="m-0 text-[28px] font-bold leading-[normal] text-[#141414]">
                 {article.title}
               </h1>
               <HelpCentreArticleIntro blocks={introBlocks} />

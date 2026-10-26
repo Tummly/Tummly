@@ -33,10 +33,16 @@ interface GuestLoopShellProps {
    */
   backButtonPlacement?: "content" | "top"
   /**
-   * Wide signup chrome (Figma Plans `6775:39425`): 70px gutters, divider under
-   * the header, and a bordered footer bar filled via `GuestLoopShellFooter`.
+   * Wide signup chrome (Figma Plans `6775:39425`, Add locations `6777:41139`):
+   * full-screen panel with no grey frame, 70px gutters, divider under the
+   * header, and a bordered footer bar filled via `GuestLoopShellFooter`.
    */
   wide?: boolean
+  /**
+   * Full-screen panel with no grey frame, rounded corners or AuthFooter, for
+   * post-payment pages. Always on with `wide`.
+   */
+  fullBleed?: boolean
 }
 
 const GuestLoopShellFooterContext = createContext<HTMLDivElement | null>(null)
@@ -53,6 +59,7 @@ export function GuestLoopShellFooter({ children }: { children: ReactNode }) {
 /**
  * Full-viewport Guest Loop chrome — grey pad, #fafafa rounded panel,
  * logo + Contact support header, AuthFooter outside the panel.
+ * `wide` / `fullBleed` drop the grey pad, the rounded corners and the AuthFooter.
  */
 export function GuestLoopShell({
   children,
@@ -64,7 +71,9 @@ export function GuestLoopShell({
   onBack,
   backButtonPlacement = "content",
   wide = false,
+  fullBleed = false,
 }: GuestLoopShellProps) {
+  const fullScreen = wide || fullBleed
   const backButton =
     showBackButton && onBack ? (
       <GuestLoopBackButton
@@ -79,11 +88,17 @@ export function GuestLoopShell({
     <GuestLoopShellFooterContext.Provider value={footerTarget}>
     <div
       className={cn(
-        "flex h-dvh min-h-0 flex-col overflow-hidden bg-[#cbcbcb] p-5 text-[#232323]",
+        "marketing-controls flex h-dvh min-h-0 flex-col overflow-hidden text-[#232323]",
+        fullScreen ? "bg-[#fafafa]" : "bg-[#cbcbcb] p-5",
         className
       )}
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-[#fafafa]">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden bg-[#fafafa]",
+          !fullScreen && "rounded-xl",
+        )}
+      >
         <header
           className={cn(
             "flex shrink-0 items-center justify-between px-10 pt-10",
@@ -125,7 +140,7 @@ export function GuestLoopShell({
 
         <main
           className={cn(
-            "flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-10 pb-10 pt-6",
+            "scrollbar-none flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-10 pb-10 pt-6",
             wide && "lg:px-[70px] lg:pt-[70px]",
             contentAlign === "start" ? "justify-start" : "justify-center"
           )}
@@ -145,7 +160,9 @@ export function GuestLoopShell({
         ) : null}
       </div>
 
-      <AuthFooter className="px-10 pb-0 pt-3 sm:px-10 lg:px-10 lg:pb-0" />
+      {fullScreen ? null : (
+        <AuthFooter className="px-10 pb-0 pt-3 sm:px-10 lg:px-10 lg:pb-0" />
+      )}
     </div>
     </GuestLoopShellFooterContext.Provider>
   )

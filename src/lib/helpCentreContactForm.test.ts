@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildHelpCentreContactMessage,
   getContactTopicFieldFlags,
+  readHelpCentreContactSearchPrefill,
   resolveHelpCentreContactBusinessName,
 } from "@/lib/helpCentreContactForm"
 import type { HelpCentreContactFormValues } from "@/schemas/helpCentreContact"
@@ -93,5 +94,33 @@ describe("resolveHelpCentreContactBusinessName", () => {
         })
       )
     ).toBe("")
+  })
+})
+
+describe("readHelpCentreContactSearchPrefill", () => {
+  it("reads a known topic, Location range and message", () => {
+    const params = new URLSearchParams({
+      topic: "plans-and-pricing",
+      locations: "30+",
+      message: "I would like a Tummly plan for 650 Locations.",
+    })
+
+    expect(readHelpCentreContactSearchPrefill(params)).toEqual({
+      topic: "plans-and-pricing",
+      locationCount: "30+",
+      message: "I would like a Tummly plan for 650 Locations.",
+    })
+  })
+
+  it("ignores an unknown topic and an unknown Location range", () => {
+    const params = new URLSearchParams({ topic: "nope", locations: "999" })
+
+    expect(readHelpCentreContactSearchPrefill(params)).toEqual({})
+  })
+
+  it("keeps the message within the form limit", () => {
+    const params = new URLSearchParams({ message: "a".repeat(6000) })
+
+    expect(readHelpCentreContactSearchPrefill(params).message).toHaveLength(5000)
   })
 })

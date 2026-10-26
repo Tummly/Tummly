@@ -54,7 +54,7 @@ export function AiAssistantHero() {
               className="size-4 shrink-0 text-[#727272]"
               strokeWidth={2}
             />
-            <p className="m-0 text-xs font-normal leading-normal text-[#727272]">
+            <p className="m-0 text-xs font-normal leading-[normal] text-[#727272]">
               {AI_ASSISTANT_HERO.badge}
             </p>
           </div>

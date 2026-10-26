@@ -26,10 +26,10 @@ function HeroTrialSuccessStep({
     <div className="relative z-[2] flex min-h-full w-full flex-col text-[#232323]">
       <div className="flex flex-col gap-7 sm:gap-8 lg:gap-[34px]">
         <header className="flex flex-col gap-3 lg:gap-3">
-          <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-none tracking-[-0.56px]">
+          <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-none">
             Email verified
           </h2>
-          <p className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] sm:text-base">
+          <p className="m-0 text-sm font-medium leading-[21px] sm:text-base">
             Thanks. We&apos;ve verified your email and received your guided
             trial request.
             <br />
@@ -38,7 +38,7 @@ function HeroTrialSuccessStep({
           </p>
           {confirmationEmailSent === false ? (
             <p
-              className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] text-amber-800"
+              className="m-0 text-sm font-medium leading-[21px] text-amber-800"
               role="status"
             >
               You&apos;re verified — your confirmation email may be delayed.
@@ -47,10 +47,10 @@ function HeroTrialSuccessStep({
         </header>
 
         <section className="flex flex-col gap-2">
-          <h3 className="m-0 text-base font-bold leading-none tracking-[-0.32px]">
+          <h3 className="m-0 text-base font-bold leading-none">
             What happens next
           </h3>
-          <ol className="m-0 list-decimal pl-[21px] text-sm font-medium leading-[22px] tracking-[-0.28px]">
+          <ol className="m-0 list-decimal pl-[21px] text-sm font-medium leading-[22px]">
             {NEXT_STEPS.map((step, index) => (
               <li
                 key={step}
