@@ -28,6 +28,14 @@ namespace TummlyBackend.Models
 
         public const string AiCredit = "ai_credit";
 
+        public const string ExtraLocationBand2 = "extra_location_band_2";
+
+        public const string ExtraLocationBand3 = "extra_location_band_3";
+
+        public const string ExtraLocationBand4 = "extra_location_band_4";
+
+        public const string ExtraLocationBand5 = "extra_location_band_5";
+
         public static readonly IReadOnlyList<string> All =
         [
             Location,
@@ -37,6 +45,10 @@ namespace TummlyBackend.Models
             EmailCredit,
             SmsCredit,
             AiCredit,
+            ExtraLocationBand2,
+            ExtraLocationBand3,
+            ExtraLocationBand4,
+            ExtraLocationBand5,
         ];
     }
 

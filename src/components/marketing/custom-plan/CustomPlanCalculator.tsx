@@ -1,36 +1,46 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 
 import {
   fetchPublicCustomUnitRates,
-  type AdminCommercialCustomUnitRate,
-  type PublicExtraLocationSummaryDto,
+  type CustomPlanQuoteResult,
+  type PublicCatalogPackMetaDto,
 } from "@/api/adminCommercialCatalogApi"
 import qrPlacementsCardTop from "@/assets/images/marketing/custom-plan/qr-placements-card-top.png"
 import mapPinIcon from "@/assets/svg/marketing/custom-plan/map-pin.svg"
 import creditsTipIcon from "@/assets/svg/marketing/pricing/usage/credits-badge-icon.svg"
 import { CustomPlanStepper } from "@/components/marketing/custom-plan/CustomPlanStepper"
-import { CustomPlanSummaryCard } from "@/components/marketing/custom-plan/CustomPlanSummaryCard"
+import {
+  CustomPlanQuotePlaceholder,
+  CustomPlanSummaryCard,
+} from "@/components/marketing/custom-plan/CustomPlanSummaryCard"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
+import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import { CUSTOM_PLAN_STEPS } from "@/content/marketing/customPlanPage"
-import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import {
   CUSTOM_PLAN_MAX_LOCATIONS,
   CUSTOM_PLAN_MAX_PACK_COUNT,
   CUSTOM_PLAN_PACKS,
   EMPTY_PACK_COUNTS,
   basePlanRank,
-  estimateCustomPlanV2,
+  basePlanToChosenPlan,
+  chosenPlanToBasePlan,
   minBasePlanForLocations,
-  formatPenceGbp,
-  packMonthlyNetPence,
+  normalizePackCounts,
+  quotePackLineAmount,
+  quotePlanName,
   type CustomPlanBasePlanKey,
   type CustomPlanPackCounts,
   type CustomPlanPackKey,
   type CustomPlanV2ConfigInput,
-  type CustomPlanV2Estimate,
   type PublicCatalogPlanSummary,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
+import {
+  formatPenceGbp,
+  lastQuote,
+  quoteView,
+} from "@/lib/marketingCustomPlan/customPlanQuoteState"
+import { useServerCustomPlanQuote } from "@/lib/marketingCustomPlan/useServerCustomPlanQuote"
 import { toPublicCatalogPlanSummaries } from "@/lib/marketingCustomPlan/publicCatalogPlans"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
@@ -43,16 +53,17 @@ function StepBadge({ label }: { label: string }) {
   )
 }
 
+/** Pack size, plus the server pack price when the catalogue has one. */
 function packHint(
-  monthlyPackPence: number,
+  monthlyPackPence: number | null,
   unitLabel: string,
   packSize: number,
-  fallback: string,
 ): string {
-  if (monthlyPackPence <= 0) {
-    return fallback
+  const size = `${packSize.toLocaleString("en-GB")} ${unitLabel} per pack`
+  if (monthlyPackPence == null) {
+    return size
   }
-  return `${packSize.toLocaleString("en-GB")} ${unitLabel} per pack · ${formatPenceGbp(monthlyPackPence)}/month`
+  return `${size} · ${formatPenceGbp(monthlyPackPence)}/month`
 }
 
 /** "Included in Starter: 3 · Your total: 8 users" under a pack row. */
@@ -83,8 +94,29 @@ function formatCount(n: number): string {
 }
 
 export type CustomPlanCalculatorContinue = {
-  estimate: CustomPlanV2Estimate
+  quote: CustomPlanQuoteResult
   config: CustomPlanV2ConfigInput
+}
+
+/** Only a ready server quote can continue. Its hash travels with the config. */
+function toContinuePayload(
+  quote: CustomPlanQuoteResult,
+): CustomPlanCalculatorContinue | null {
+  const basePlan = chosenPlanToBasePlan(quote.basePlan)
+  if (basePlan == null) {
+    return null
+  }
+  return {
+    quote,
+    config: {
+      version: 2,
+      cadence: quote.cadence === "annual" ? "annual" : "monthly",
+      basePlan,
+      locations: quote.locations,
+      packs: normalizePackCounts(quote.packs),
+      quoteHash: quote.quoteHash,
+    },
+  }
 }
 
 export type CustomPlanCalculatorProps = {
@@ -116,10 +148,8 @@ export function CustomPlanCalculator({
   className,
   summaryClassName,
 }: CustomPlanCalculatorProps) {
-  const [rates, setRates] = useState<AdminCommercialCustomUnitRate[]>([])
   const [plans, setPlans] = useState<PublicCatalogPlanSummary[]>([])
-  const [extraLocation, setExtraLocation] =
-    useState<PublicExtraLocationSummaryDto | null>(null)
+  const [packMeta, setPackMeta] = useState<PublicCatalogPackMetaDto[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [locations, setLocations] = useState(() =>
     Math.max(1, initialLocations),
@@ -143,9 +173,8 @@ export function CustomPlanCalculator({
             "Plan allowances are not available right now. Please try again later.",
           )
         }
-        setRates(data.unitRates)
         setPlans(loadedPlans)
-        setExtraLocation(data.extraLocation)
+        setPackMeta(data.packs)
         // Opened from a plan card: start at that plan's included Locations so
         // the selected package shows first (Location count sets the base).
         if (initialBasePlan != null) {
@@ -163,41 +192,21 @@ export function CustomPlanCalculator({
       })
   }, [initialBasePlan])
 
-  const estimate = useMemo(
-    () =>
-      estimateCustomPlanV2({
-        cadence,
-        requestedBasePlan,
-        locations,
-        packs: packCounts,
-        plans,
-        rates,
-        extraLocation,
-      }),
-    [
-      cadence,
-      requestedBasePlan,
-      locations,
-      packCounts,
-      plans,
-      rates,
-      extraLocation,
-    ],
-  )
-
-  const continuePayload = useMemo<CustomPlanCalculatorContinue>(
-    () => ({
-      estimate,
-      config: {
-        version: 2,
-        cadence,
-        basePlan: estimate.basePlan,
-        locations: estimate.locations,
-        packs: estimate.packs,
-      },
-    }),
-    [estimate, cadence],
-  )
+  const { state, check, retry } = useServerCustomPlanQuote({
+    cadence,
+    basePlan: requestedBasePlan,
+    locations,
+    packs: packCounts,
+  })
+  // The last quote stays on screen while a newer one loads or fails.
+  const quote = lastQuote(state)
+  const view = quoteView({ check, state, changed: false })
+  const contactSales = view.showContact
+  const readyQuote = state.status === "ready" ? state.quote : null
+  const continuePayload =
+    readyQuote != null && view.continueEnabled
+      ? toContinuePayload(readyQuote)
+      : null
 
   function setPackCount(packKey: CustomPlanPackKey, value: number) {
     setPackCounts((prev) => ({
@@ -211,17 +220,21 @@ export function CustomPlanCalculator({
   }
 
   const steps = CUSTOM_PLAN_STEPS
-  const contactSales = locations > CUSTOM_PLAN_MAX_LOCATIONS
+  const shownBasePlan = quote != null ? chosenPlanToBasePlan(quote.basePlan) : requestedBasePlan
   const planDisplayName =
-    estimate.basePlan.charAt(0).toUpperCase() + estimate.basePlan.slice(1)
+    quote != null
+      ? quotePlanName(quote)
+      : basePlanToChosenPlan(requestedBasePlan ?? "starter")
   const defaultHeadingTitle =
     headingTitle ?? `Make ${planDisplayName} work for your restaurants.`
   const defaultHeadingBody =
     headingBody ??
     `Your ${planDisplayName} allowances are already included. Add more capacity only where your restaurants need it.`
 
-  const catalogReady = plans.length > 0 && rates.length > 0
-  const basePlanRow = plans.find((plan) => plan.planKey === estimate.basePlan)
+  const basePlanRow =
+    shownBasePlan != null
+      ? plans.find((plan) => plan.planKey === shownBasePlan)
+      : undefined
   const baseIncluded = {
     teamUsers: basePlanRow?.includedTeamMembers ?? 0,
     offers: basePlanRow?.activeOffersAccount ?? 0,
@@ -230,20 +243,36 @@ export function CustomPlanCalculator({
     sms: basePlanRow?.creditsMonthlySms ?? 0,
     ai: basePlanRow?.creditsMonthlyAi ?? 0,
   }
-  const q = estimate.quantities
+  const q = quote?.quantities ?? null
+  /** Server totals; a dash while no quote has arrived. */
+  function total(pick: (quantities: NonNullable<typeof q>) => number): string {
+    return q != null ? formatCount(pick(q)) : "—"
+  }
+
+  /** Catalogue pack price (monthly, net pence); null when the catalogue has none. */
+  function packMonthlyPrice(packKey: CustomPlanPackKey): number | null {
+    return packMeta.find((meta) => meta.packKey === packKey)?.monthlyNetPence ?? null
+  }
 
   const teamPack = CUSTOM_PLAN_PACKS.find((p) => p.packKey === "team_users_5")!
   const offerPack = CUSTOM_PLAN_PACKS.find((p) => p.packKey === "offers_5")!
   const qrPack = CUSTOM_PLAN_PACKS.find((p) => p.packKey === "qr_10")!
-  const teamPrice = packMonthlyNetPence(teamPack, rates)
-  const offerPrice = packMonthlyNetPence(offerPack, rates)
-  const qrPrice = packMonthlyNetPence(qrPack, rates)
-  const qrExtraNetPence = qrPrice * packCounts.qr_10
+  const teamPrice = packMonthlyPrice("team_users_5")
+  const offerPrice = packMonthlyPrice("offers_5")
+  const qrPrice = packMonthlyPrice("qr_10")
+  // QR cost comes from the ready quote's pack line only; no browser arithmetic.
+  const qrExtraCost = quotePackLineAmount(readyQuote, "qr_10")
 
   const continueHref =
-    !contactSales && catalogReady && continueHrefFor != null
+    !contactSales && continuePayload != null && continueHrefFor != null
       ? continueHrefFor(continuePayload)
       : undefined
+
+  /** The Location message sits under the stepper while the count is invalid or over the limit. */
+  const locationMessage =
+    check !== "ok" || contactSales ? view.message : null
+  /** Quote status sits in the summary card once the count is valid. */
+  const summaryStatus = check === "ok" && !contactSales ? view.message : null
 
   return (
     <div
@@ -301,9 +330,14 @@ export function CustomPlanCalculator({
               label={steps.locations.locationLabel}
             />
           </div>
+          {locationMessage != null ? (
+            <p role="status" className="m-0 font-sans text-sm font-normal text-[#141414]">
+              {locationMessage}
+            </p>
+          ) : null}
         </section>
 
-        {estimate.basePlanChanged ? (
+        {quote?.basePlanChanged === true && shownBasePlan != null ? (
           <div
             className="flex flex-col gap-2 rounded-xl border border-[#f0a35e] bg-[#fff4e8] px-5 py-4"
             role="status"
@@ -312,11 +346,11 @@ export function CustomPlanCalculator({
               Your selected plan has changed
             </p>
             <p className="m-0 font-sans text-sm font-normal leading-5 text-[#141414]">
-              {planDisplayName} fits your {estimate.locations} restaurant
+              {planDisplayName} fits your {quote?.locations} restaurant
               Location
-              {estimate.locations === 1 ? "" : "s"}
+              {quote?.locations === 1 ? "" : "s"}
               {requestedBasePlan != null &&
-              basePlanRank(estimate.basePlan) > basePlanRank(requestedBasePlan)
+              basePlanRank(shownBasePlan) > basePlanRank(requestedBasePlan)
                 ? " and includes higher allowances for team users, active Offers and monthly credits."
                 : ". Add packs below if you need more team users, active Offers, QR placements or monthly credits."}{" "}
               Your subscription price has been updated.
@@ -326,15 +360,13 @@ export function CustomPlanCalculator({
 
         {contactSales ? (
           <div className="flex flex-col gap-4 rounded-xl border border-[#cacaca] bg-[#f4f4f4] p-6">
-            <p className="m-0 font-jakarta text-lg font-semibold text-[#141414]">
-              Need more than {CUSTOM_PLAN_MAX_LOCATIONS} Locations?
-            </p>
             <p className="m-0 font-sans text-sm text-[#141414]">
-              Contact us for a tailored plan. Self-serve checkout supports up to{" "}
-              {CUSTOM_PLAN_MAX_LOCATIONS} Locations.
+              {CUSTOM_PLAN_QUOTE_COPY.locationOverLimitHelp}
             </p>
             <MarketingButton asChild variant="dark" className="w-fit">
-              <Link to={HELP_CENTRE_CONTACT_URL}>Contact us</Link>
+              <Link to={CUSTOM_PLAN_QUOTE_COPY.contactUsHref}>
+                {CUSTOM_PLAN_QUOTE_COPY.contactUs}
+              </Link>
             </MarketingButton>
           </div>
         ) : (
@@ -363,18 +395,13 @@ export function CustomPlanCalculator({
                         {teamPack.title}
                       </p>
                       <p className="m-0 font-sans text-sm font-normal text-[#676767]">
-                        {packHint(
-                          teamPrice,
-                          "users",
-                          teamPack.packSize,
-                          steps.capacity.teamUsersHintFallback,
-                        )}
+                        {packHint(teamPrice, "users", teamPack.packSize)}
                       </p>
                       {basePlanRow != null ? (
                         <IncludedLine
                           planName={planDisplayName}
                           included={formatCount(baseIncluded.teamUsers)}
-                          total={formatCount(q.teamUsers)}
+                          total={total((quantities) => quantities.teamUsers)}
                           unit="users"
                         />
                       ) : null}
@@ -393,18 +420,13 @@ export function CustomPlanCalculator({
                         {offerPack.title}
                       </p>
                       <p className="m-0 font-sans text-sm font-normal text-[#676767]">
-                        {packHint(
-                          offerPrice,
-                          "Offers",
-                          offerPack.packSize,
-                          steps.capacity.offersHintFallback,
-                        )}
+                        {packHint(offerPrice, "Offers", offerPack.packSize)}
                       </p>
                       {basePlanRow != null ? (
                         <IncludedLine
                           planName={planDisplayName}
                           included={formatCount(baseIncluded.offers)}
-                          total={formatCount(q.offers)}
+                          total={total((quantities) => quantities.offers)}
                           unit="active Offers"
                         />
                       ) : null}
@@ -440,11 +462,15 @@ export function CustomPlanCalculator({
                         <IncludedLine
                           planName={planDisplayName}
                           included={`${formatCount(baseIncluded.qrPerLocation)} per Location`}
-                          total={`${formatCount(q.qrPlacements)} per Location${
-                            q.qrPlacementsAccountExtra > 0
-                              ? ` + ${formatCount(q.qrPlacementsAccountExtra)} shared`
-                              : ""
-                          }`}
+                          total={
+                            q != null
+                              ? `${formatCount(q.qrPlacements)} per Location${
+                                  q.qrPlacementsAccountExtra > 0
+                                    ? ` + ${formatCount(q.qrPlacementsAccountExtra)} shared`
+                                    : ""
+                                }`
+                              : "—"
+                          }
                           unit="placements"
                         />
                       ) : null}
@@ -457,12 +483,7 @@ export function CustomPlanCalculator({
                               {qrPack.title}
                             </p>
                             <p className="m-0 font-sans text-xs font-normal text-[#676767]">
-                              {packHint(
-                                qrPrice,
-                                "placements",
-                                qrPack.packSize,
-                                steps.capacity.qrPackHintFallback,
-                              )}
+                              {packHint(qrPrice, "placements", qrPack.packSize)}
                             </p>
                           </div>
                           <CustomPlanStepper
@@ -479,7 +500,9 @@ export function CustomPlanCalculator({
                             {steps.capacity.qrExtraCostLabel}
                           </p>
                           <p className="m-0 font-sans text-[22px] font-normal leading-none">
-                            {formatPenceGbp(qrExtraNetPence)}/mo
+                            {qrExtraCost != null
+                              ? `${formatPenceGbp(qrExtraCost.netPence)}${qrExtraCost.suffix}`
+                              : "—"}
                           </p>
                         </div>
                       </div>
@@ -516,11 +539,13 @@ export function CustomPlanCalculator({
                         ? baseIncluded.sms
                         : baseIncluded.ai
                   const channelTotal =
-                    channel.channel === "email"
-                      ? q.emailCredits
-                      : channel.channel === "sms"
-                        ? q.smsCredits
-                        : q.aiCredits
+                    q == null
+                      ? null
+                      : channel.channel === "email"
+                        ? q.emailCredits
+                        : channel.channel === "sms"
+                          ? q.smsCredits
+                          : q.aiCredits
                   return (
                     <div
                       key={channel.channel}
@@ -547,12 +572,16 @@ export function CustomPlanCalculator({
                           <IncludedLine
                             planName={planDisplayName}
                             included={`${formatCount(channelIncluded)}/month`}
-                            total={`${formatCount(channelTotal)}/month`}
+                            total={
+                              channelTotal != null
+                                ? `${formatCount(channelTotal)}/month`
+                                : "—"
+                            }
                             unit="credits"
                           />
                         ) : null}
                         {packs.map((pack) => {
-                          const packPrice = packMonthlyNetPence(pack, rates)
+                          const packPrice = packMonthlyPrice(pack.packKey)
                           return (
                             <div
                               key={pack.packKey}
@@ -563,8 +592,9 @@ export function CustomPlanCalculator({
                                   {pack.title}
                                 </p>
                                 <p className="m-0 font-sans text-sm font-normal text-[#676767]">
-                                  {formatPenceGbp(packPrice)}
-                                  {steps.credits.packPriceSuffix}
+                                  {packPrice != null
+                                    ? `${formatPenceGbp(packPrice)}${steps.credits.packPriceSuffix}`
+                                    : ""}
                                 </p>
                               </div>
                               <CustomPlanStepper
@@ -587,22 +617,35 @@ export function CustomPlanCalculator({
         )}
       </div>
 
-      {!contactSales ? (
+      {!contactSales && quote != null ? (
         <CustomPlanSummaryCard
           // Sticky only beside the long calculator column.
           className={cn("lg:sticky lg:top-0", summaryClassName)}
-          estimate={estimate}
+          quote={quote}
           cadence={cadence}
           onCadenceChange={setCadence}
           continueLabel={continueLabel}
           continueHref={continueHref}
-          continueDisabled={!catalogReady}
+          continueDisabled={!view.continueEnabled}
           onContinue={
-            onContinue != null
+            onContinue != null && continuePayload != null
               ? () => onContinue(continuePayload)
               : undefined
           }
+          statusMessage={summaryStatus}
+          showRetry={view.showRetry}
+          onRetry={retry}
+          taxText={view.taxText}
           planDescription={`Manage your restaurants with ${planDisplayName} features and shared allowances.`}
+        />
+      ) : null}
+      {!contactSales && quote == null ? (
+        <CustomPlanQuotePlaceholder
+          className={cn("lg:sticky lg:top-0", summaryClassName)}
+          loading={state.status === "loading"}
+          message={view.message}
+          showRetry={view.showRetry}
+          onRetry={retry}
         />
       ) : null}
     </div>

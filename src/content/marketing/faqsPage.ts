@@ -13,6 +13,11 @@ export type FaqsPageItem = {
     label: string
     to: string
   }
+  /**
+   * The answer is built from the published catalogue prices. `answer` is the
+   * fallback shown while those prices load or when a plan price is missing.
+   */
+  catalogBinding?: "plan-cost"
 }
 
 export type FaqsPageSection = {
@@ -138,8 +143,8 @@ export const FAQS_PAGE_SECTIONS: FaqsPageSection[] = [
       {
         id: "how-much-cost",
         question: "How much does Tummly cost?",
-        answer:
-          "Current UK monthly plans are:\n\nPilot — £0 for 30 days\nStarter — £39/month\nGrowth — £99/month\nGroup — £199/month\n\nAnnual options are also available for paid plans.",
+        answer: "Compare the current quote before confirming.",
+        catalogBinding: "plan-cost",
         cta: {
           label: "Compare all plans →",
           to: MARKETING_PRICING_PATH,

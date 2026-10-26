@@ -2,6 +2,10 @@ import { Link } from "react-router-dom"
 
 import aiAssistantGlyph from "@/assets/svg/marketing/ai-assistant-glyph.svg"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
+import {
+  PublicPlanPriceFallback,
+  PublicPlanPricesStatusMessage,
+} from "@/components/marketing/PublicPlanPricesStatus"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import {
   AI_ASSISTANT_PLANS,
@@ -11,6 +15,11 @@ import {
   AI_ASSISTANT_SECTION_Y,
   type AiAssistantPlanStripCard,
 } from "@/content/marketing/aiAssistantPage"
+import type { PublicPlanPrices } from "@/lib/marketingCustomPlan/publicPlanPrices"
+import {
+  usePublicPlanPrices,
+  type PublicPlanPricesStatus,
+} from "@/lib/marketingCustomPlan/usePublicPlanPrices"
 import { cn } from "@/lib/utils"
 
 export type MarketingPlansStripContent = {
@@ -39,16 +48,36 @@ type AiAssistantPlansProps = {
   compactHeader?: boolean
 }
 
+/** Pilot keeps its content copy; paid plans read the published catalogue. */
+function planPriceLines(
+  card: AiAssistantPlanStripCard,
+  prices: PublicPlanPrices,
+): { amount: string | null; subline: string | null } {
+  if (card.id === "Pilot") {
+    return { amount: card.priceAmount ?? null, subline: card.subline ?? null }
+  }
+  const planPrice = prices[card.id]
+  return {
+    amount: planPrice?.monthly ?? null,
+    subline: planPrice != null ? `${planPrice.annual}/year` : null,
+  }
+}
+
 function PlanCard({
   card,
   showDivider,
   showAiAllowance,
+  prices,
+  status,
 }: {
   card: AiAssistantPlanStripCard
   /** Right divider between adjacent non-highlighted cards on desktop (skip before Growth). */
   showDivider: boolean
   showAiAllowance: boolean
+  prices: PublicPlanPrices
+  status: PublicPlanPricesStatus
 }) {
+  const price = planPriceLines(card, prices)
   return (
     <div
       className={cn(
@@ -72,17 +101,23 @@ function PlanCard({
 
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
-          <p className="m-0 text-[#141414]">
-            <span className="text-[26px] font-normal leading-none lg:text-[36px]">
-              {card.priceAmount}
-            </span>
-            <span className="text-sm font-normal leading-none">
-              {card.priceSuffix}
-            </span>
-          </p>
-          <p className="m-0 text-sm font-normal leading-normal text-[#7c7c7c]">
-            {card.subline}
-          </p>
+          {price.amount != null ? (
+            <p className="m-0 text-[#141414]">
+              <span className="text-[26px] font-normal leading-none lg:text-[36px]">
+                {price.amount}
+              </span>
+              <span className="text-sm font-normal leading-none">
+                {card.priceSuffix}
+              </span>
+            </p>
+          ) : (
+            <PublicPlanPriceFallback status={status} />
+          )}
+          {price.subline != null ? (
+            <p className="m-0 text-sm font-normal leading-normal text-[#7c7c7c]">
+              {price.subline}
+            </p>
+          ) : null}
         </div>
 
         <MarketingButton
@@ -133,6 +168,7 @@ export function AiAssistantPlans({
 }: AiAssistantPlansProps = {}) {
   const body = content.body?.trim() ?? ""
   const showBody = body.length > 0
+  const { status, prices, retry } = usePublicPlanPrices()
 
   return (
     <section className={cn("w-full", surfaceClassName)}>
@@ -180,20 +216,25 @@ export function AiAssistantPlans({
           ) : null}
         </header>
 
-        <div className="flex w-full flex-col gap-[26px] lg:flex-row lg:gap-[26px]">
-          {content.cards.map((card, index) => {
-            const next = content.cards[index + 1]
-            const showDivider =
-              !card.isHighlighted && next != null && !next.isHighlighted
-            return (
-              <PlanCard
-                key={card.id}
-                card={card}
-                showDivider={showDivider}
-                showAiAllowance={showAiAllowance}
-              />
-            )
-          })}
+        <div className="flex w-full flex-col gap-6">
+          <PublicPlanPricesStatusMessage status={status} onRetry={retry} />
+          <div className="flex w-full flex-col gap-[26px] lg:flex-row lg:gap-[26px]">
+            {content.cards.map((card, index) => {
+              const next = content.cards[index + 1]
+              const showDivider =
+                !card.isHighlighted && next != null && !next.isHighlighted
+              return (
+                <PlanCard
+                  key={card.id}
+                  card={card}
+                  showDivider={showDivider}
+                  showAiAllowance={showAiAllowance}
+                  prices={prices}
+                  status={status}
+                />
+              )
+            })}
+          </div>
         </div>
 
         {content.footnote != null && content.footnote.trim() !== "" ? (

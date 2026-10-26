@@ -3,8 +3,11 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 
 import aiAssistantGlyph from "@/assets/svg/marketing/ai-assistant-glyph.svg"
+import { CustomPlanQuoteStatus } from "@/components/marketing/custom-plan/CustomPlanSummaryCard"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
+import { PublicPlanPriceFallback } from "@/components/marketing/PublicPlanPricesStatus"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   FOR_GROUPS_PRICING,
   FOR_GROUPS_SECTION_BODY,
@@ -22,6 +25,14 @@ import {
   PRICING_PLAN_PRICE_SUFFIX_CLASS,
   type PricingFeatureRow,
 } from "@/content/marketing/pricingPage"
+import {
+  formatPenceGbp,
+  lastQuote,
+  quoteView,
+} from "@/lib/marketingCustomPlan/customPlanQuoteState"
+import { buildForGroupsSignupIntent } from "@/lib/marketingCustomPlan/forGroupsSignupIntent"
+import { useServerCustomPlanQuote } from "@/lib/marketingCustomPlan/useServerCustomPlanQuote"
+import { usePublicPlanPrices } from "@/lib/marketingCustomPlan/usePublicPlanPrices"
 import type {
   BillingCadence,
   PlanFeatureIcon,
@@ -79,33 +90,36 @@ function PlanFeatureRow({ row }: { row: PricingFeatureRow }) {
   )
 }
 
-function formatGbp(amount: number): string {
-  return `£${amount.toLocaleString("en-GB")}`
-}
-
 /**
  * Figma For Groups pricing `5661:22463`.
- * Group plan column + interactive Locations calculator.
+ * Group plan column + Locations calculator. Prices come from the server quote.
  */
 export function ForGroupsPricing() {
   const { calculator } = FOR_GROUPS_PRICING
-  const [locationCount, setLocationCount] = useState(
+  const [locationCount, setLocationCount] = useState<number>(
     FOR_GROUPS_PRICING.includedLocations,
   )
   const [cadence, setCadence] = useState<BillingCadence>("monthly")
-
-  const included = FOR_GROUPS_PRICING.includedLocations
-  const additionalCount = Math.max(0, locationCount - included)
-  const isAnnual = cadence === "annual"
-  const basePrice = isAnnual
-    ? FOR_GROUPS_PRICING.annualPrice
-    : FOR_GROUPS_PRICING.monthlyPrice
-  const extraUnitPrice = isAnnual
-    ? FOR_GROUPS_PRICING.annualExtraLocationPrice
-    : FOR_GROUPS_PRICING.monthlyExtraLocationPrice
-  const additionalTotal = additionalCount * extraUnitPrice
-  const estimatedTotal = basePrice + additionalTotal
-  const totalSuffix = isAnnual ? "/ per year" : "/ per month"
+  const { status: pricesStatus, prices } = usePublicPlanPrices()
+  const { state, check, retry } = useServerCustomPlanQuote({
+    cadence,
+    basePlan: "group",
+    locations: locationCount,
+    packs: {},
+  })
+  const shown = lastQuote(state)
+  // A quote for the other cadence must not show with this cadence's suffix.
+  const shownMatchesCadence = shown != null && shown.cadence === cadence
+  const view = quoteView({ check, state, changed: false })
+  // Above the included Locations, Continue carries the configured plan and quote hash.
+  const continueIntent = buildForGroupsSignupIntent({
+    locations: locationCount,
+    includedLocations: FOR_GROUPS_PRICING.includedLocations,
+    cadence,
+    quote: state.status === "ready" ? state.quote : null,
+  })
+  const groupPrice = prices.Group
+  const totalSuffix = cadence === "annual" ? "/ per year" : "/ per month"
 
   return (
     <section
@@ -155,17 +169,23 @@ export function ForGroupsPricing() {
 
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-2">
-                <p className="m-0 text-[#141414]">
-                  <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>
-                    {FOR_GROUPS_PRICING.priceAmount}
-                  </span>
-                  <span className={PRICING_PLAN_PRICE_SUFFIX_CLASS}>
-                    {FOR_GROUPS_PRICING.priceSuffix}
-                  </span>
-                </p>
-                <p className={cn(PRICING_PLAN_PRICE_SUBLINE_CLASS, "min-h-0")}>
-                  {FOR_GROUPS_PRICING.priceSubline}
-                </p>
+                {groupPrice != null ? (
+                  <p className="m-0 text-[#141414]">
+                    <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>
+                      {groupPrice.monthly}
+                    </span>
+                    <span className={PRICING_PLAN_PRICE_SUFFIX_CLASS}>
+                      {FOR_GROUPS_PRICING.priceSuffix}
+                    </span>
+                  </p>
+                ) : (
+                  <PublicPlanPriceFallback status={pricesStatus} />
+                )}
+                {groupPrice != null ? (
+                  <p className={cn(PRICING_PLAN_PRICE_SUBLINE_CLASS, "min-h-0")}>
+                    {`${groupPrice.annual}/year`}
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex w-full flex-col gap-4">
@@ -306,50 +326,75 @@ export function ForGroupsPricing() {
                   {calculator.estimateHeading}
                 </p>
                 <div className="flex flex-col gap-[18px] font-sans text-base font-normal">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="m-0 leading-[18px]">
-                      Group · {included} included Locations
-                    </p>
-                    <p className="m-0 leading-[18px]">{formatGbp(basePrice)}</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="m-0 leading-[18px]">
-                      Additional Locations · {additionalCount} ×{" "}
-                      {formatGbp(extraUnitPrice)}
-                    </p>
-                    <p className="m-0 leading-[18px]">
-                      {formatGbp(additionalTotal)}
-                    </p>
-                  </div>
+                  {shown?.lines.map((line) => (
+                    <div
+                      key={line.key}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <p className="m-0 leading-[18px]">{line.label}</p>
+                      <p className="m-0 leading-[18px]">
+                        {formatPenceGbp(line.netPence)}
+                      </p>
+                    </div>
+                  ))}
+                  {view.message != null ? (
+                    <CustomPlanQuoteStatus
+                      message={view.message}
+                      showRetry={view.showRetry}
+                      onRetry={retry}
+                      showContact={view.showContact}
+                    />
+                  ) : null}
                 </div>
               </div>
 
               <hr className="m-0 w-full border-[#cfcfcf]" />
 
-              <div className="flex items-center justify-between gap-4">
-                <p className="m-0 font-sans text-[22px] font-normal leading-none text-black">
-                  {calculator.estimatedTotalLabel}
-                </p>
-                <p className="m-0 text-[#141414]">
-                  <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>
-                    {formatGbp(estimatedTotal)}
-                  </span>
-                  <span className={PRICING_PLAN_PRICE_SUFFIX_CLASS}>
-                    {totalSuffix}
-                  </span>
-                </p>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="m-0 font-sans text-[22px] font-normal leading-none text-black">
+                    {calculator.estimatedTotalLabel}
+                  </p>
+                  {shown != null && shownMatchesCadence ? (
+                    <p className="m-0 text-[#141414]">
+                      <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>
+                        {formatPenceGbp(shown.periodNetPence)}
+                      </span>
+                      <span className={PRICING_PLAN_PRICE_SUFFIX_CLASS}>
+                        {totalSuffix}
+                      </span>
+                    </p>
+                  ) : state.status === "failed" ? null : (
+                    <Skeleton className="h-9 w-28" aria-hidden />
+                  )}
+                </div>
+                {view.taxText != null ? (
+                  <p className="m-0 font-sans text-sm font-normal leading-normal text-black">
+                    {view.taxText}
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex w-full flex-col gap-[22px] sm:flex-row sm:items-stretch">
-                <MarketingButton
-                  asChild
-                  variant="dark"
-                  className="w-full flex-1"
-                >
-                  <RequestTrialLink planIntent={{ plan: "Group", cadence }}>
+                {continueIntent != null && view.continueEnabled ? (
+                  <MarketingButton
+                    asChild
+                    variant="dark"
+                    className="w-full flex-1"
+                  >
+                    <RequestTrialLink planIntent={continueIntent}>
+                      {calculator.continueLabel}
+                    </RequestTrialLink>
+                  </MarketingButton>
+                ) : (
+                  <MarketingButton
+                    variant="dark"
+                    className="w-full flex-1"
+                    disabled
+                  >
                     {calculator.continueLabel}
-                  </RequestTrialLink>
-                </MarketingButton>
+                  </MarketingButton>
+                )}
                 <MarketingButton
                   asChild
                   variant="secondary"

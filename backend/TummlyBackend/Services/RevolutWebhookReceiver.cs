@@ -68,6 +68,19 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (
+                !RevolutWebhookTimestamp.IsFresh(
+                    requestTimestamp,
+                    _clock.GetUtcNow(),
+                    TimeSpan.FromMinutes(5)
+                )
+            )
+            {
+                return new RevolutWebhookHandleResult(
+                    RevolutWebhookHandleStatus.BadSignature
+                );
+            }
+
             var payloadHash = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(rawBody ?? string.Empty))
             ).ToLowerInvariant();

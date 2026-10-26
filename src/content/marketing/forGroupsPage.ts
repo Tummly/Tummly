@@ -288,16 +288,10 @@ export const FOR_GROUPS_PRICING = {
   planName: "Group",
   planDescription:
     "For restaurant groups that need wider oversight, coordinated Campaigns and Location-based team access.",
-  monthlyPrice: 199,
-  annualPrice: 2030,
-  monthlyExtraLocationPrice: 39,
-  annualExtraLocationPrice: 398,
   includedLocations: 5,
   minLocations: 5,
-  maxLocations: 30,
-  priceAmount: "£199",
+  maxLocations: 500,
   priceSuffix: "/ month",
-  priceSubline: "£2,030/year",
   ctaLabel: "Choose Group plan",
   compareLabel: "Compare all plans",
   compareTo: MARKETING_PRICING_PATH,
@@ -325,7 +319,7 @@ export const FOR_GROUPS_PRICING = {
   calculator: {
     eyebrow: "BUILD YOUR GROUP PLAN",
     title: "How many Locations do you have?",
-    body: "Choose the number of restaurants you'd like to bring onto Tummly.",
+    body: "Group includes five Locations. From six, add Locations at progressive rates up to 500 online. Adjust users, active offers, QR capacity and recurring credits separately, then review your total.",
     locationLabel: "Restaurant Locations",
     locationHint: "5 included in Group",
     estimateHeading: "YOUR ESTIMATED PLAN",
@@ -355,7 +349,7 @@ export const FOR_GROUPS_FAQS = {
       id: "locations-included",
       question: "How many Locations are included in Group?",
       answer:
-        "Group includes up to 5 Locations. Additional Locations can be added at the current per-Location rate, with self-service Group setup supported up to 30 Locations.",
+        "Group includes up to 5 Locations. Additional Locations can be added at progressive per-Location rates, with self-service setup for up to 500 Locations online.",
     },
     {
       id: "add-locations",
@@ -403,7 +397,7 @@ export const FOR_GROUPS_FAQS = {
       id: "over-30-locations",
       question: "Can I set up more than 30 Locations online?",
       answer:
-        "The current self-service Group limit is 30 Locations. For more than 30, use the assisted rollout route so Tummly can assess the required operating model and current product fit.",
+        "Yes. Configure up to 500 Locations online, review the new price and complete verification and activation for each restaurant.",
     },
   ] satisfies ForGroupsFaqItem[],
 } as const

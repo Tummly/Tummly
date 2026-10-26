@@ -1576,6 +1576,17 @@ static async Task InitializeDatabaseAsync(
             context,
             services.GetRequiredService<IHostEnvironment>()
         );
+        // Own scope and context: a failed save must not leave tracked entries on the shared context.
+        if (
+            await CommercialCatalogBandRatesUpgrade.TryEnsureInOwnScopeAsync(
+                services,
+                logger
+            )
+        )
+        {
+            // Init runs unawaited, so a request may have cached the prior Published version.
+            services.GetRequiredService<DbPricebookCatalog>().InvalidateCache();
+        }
 
         if (!await context.Admins.AnyAsync())
         {

@@ -46,6 +46,12 @@ import {
   type SignupOnboardingFormValues,
 } from "@/schemas/signupOnboarding"
 
+/** Server error code from a rejected request (for example quote_changed). */
+function getApiErrorCode(error: unknown): string | null {
+  const code = (error as { code?: unknown } | null)?.code
+  return typeof code === "string" ? code : null
+}
+
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error)) {
     return error.response?.data?.message ?? fallback
@@ -90,6 +96,8 @@ function SignupOnboardingWizard({ prefill }: SignupOnboardingWizardProps) {
     return Math.min(Math.max(1, Math.floor(draft.step)), 6) as WizardStep
   })
   const [isSaving, setIsSaving] = useState(false)
+  // The saved quote no longer matches the server: stay on review and say so.
+  const [quoteChanged, setQuoteChanged] = useState(false)
 
   const form = useForm<SignupOnboardingFormValues>({
     resolver: zodResolver(
@@ -156,6 +164,7 @@ function SignupOnboardingWizard({ prefill }: SignupOnboardingWizardProps) {
 
   const saveOnboarding = async () => {
     setIsSaving(true)
+    setQuoteChanged(false)
     form.clearErrors("root")
 
     try {
@@ -167,6 +176,10 @@ function SignupOnboardingWizard({ prefill }: SignupOnboardingWizardProps) {
       clearSignupOnboardingDraft(sessionToken)
       navigate("/signup/provisioning", { replace: true })
     } catch (error) {
+      if (getApiErrorCode(error) === "quote_changed") {
+        setQuoteChanged(true)
+        return
+      }
       form.setError("root", {
         type: "server",
         message: getApiErrorMessage(
@@ -328,6 +341,7 @@ function SignupOnboardingWizard({ prefill }: SignupOnboardingWizardProps) {
                 onBack={handleBack}
                 onConfirm={saveOnboarding}
                 isSubmitting={isSaving}
+                quoteChanged={quoteChanged}
               />
             </div>
           </>

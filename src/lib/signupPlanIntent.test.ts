@@ -138,6 +138,109 @@ describe("signupPlanIntent session", () => {
   })
 })
 
+describe("quoteHash and invalid counts", () => {
+  beforeEach(() => {
+    clearSignupPlanIntent()
+  })
+
+  it("drops the config when the Location count is 0", () => {
+    saveSignupPlanIntent({
+      plan: "Custom",
+      cadence: "monthly",
+      config: {
+        version: 2,
+        cadence: "monthly",
+        basePlan: "starter",
+        locations: 0,
+        packs: {},
+      },
+    })
+    expect(readSignupPlanIntent()).toEqual({ plan: "Custom", cadence: "monthly" })
+  })
+
+  it("keeps quoteHash through encode and decode", () => {
+    const customIntent = encodeCustomPlanIntentV2({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "growth",
+      locations: 3,
+      packs: {},
+      quoteHash: "abc",
+    })
+    const parsed = parseSignupPlanIntent(
+      new URLSearchParams(
+        `plan=Custom&cadence=monthly&customIntent=${encodeURIComponent(customIntent)}`,
+      ),
+    )
+    expect(parsed?.config?.quoteHash).toBe("abc")
+  })
+
+  it("keeps quoteHash through sessionStorage", () => {
+    saveSignupCustomPlanConfig({
+      basePlan: "growth",
+      cadence: "monthly",
+      locations: 3,
+      packs: {},
+      asCustom: true,
+      quoteHash: "abc",
+    })
+    expect(readSignupPlanIntent()?.config?.quoteHash).toBe("abc")
+  })
+})
+
+describe("invalid Location count in a shared link", () => {
+  beforeEach(() => {
+    clearSignupPlanIntent()
+  })
+
+  function captureRaw(json: string) {
+    return captureSignupPlanIntentFromSearch(
+      new URLSearchParams(
+        `plan=Custom&cadence=monthly&customIntent=${encodeURIComponent(json)}`,
+      ),
+    )
+  }
+
+  it("drops the config when locations is missing and keeps the plan", () => {
+    const json = JSON.stringify({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "growth",
+      packs: {},
+    })
+    expect(captureRaw(json)?.plan).toBe("Custom")
+    expect(captureRaw(json)?.config).toBeUndefined()
+    expect(readSignupPlanIntent()?.plan).toBe("Custom")
+    expect(readSignupPlanIntent()?.config).toBeUndefined()
+  })
+
+  it("drops the config when locations is a string", () => {
+    const json = JSON.stringify({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "growth",
+      locations: "3",
+      packs: {},
+    })
+    expect(captureRaw(json)?.plan).toBe("Custom")
+    expect(captureRaw(json)?.config).toBeUndefined()
+  })
+
+  it("drops the config when locations is fractional and keeps the plan", () => {
+    const json = JSON.stringify({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "growth",
+      locations: 2.5,
+      packs: {},
+    })
+    expect(captureRaw(json)?.plan).toBe("Custom")
+    expect(captureRaw(json)?.config).toBeUndefined()
+    expect(readSignupPlanIntent()?.plan).toBe("Custom")
+    expect(readSignupPlanIntent()?.config).toBeUndefined()
+  })
+})
+
 describe("activeCustomConfig", () => {
   const config = {
     version: 2 as const,

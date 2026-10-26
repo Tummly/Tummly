@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -22,6 +23,11 @@ namespace TummlyBackend.Tests.Services
             0,
             DateTimeKind.Utc
         );
+        // Signed timestamp inside the receipt window of the fixed clock above.
+        private static readonly string Timestamp = new DateTimeOffset(
+            Now,
+            TimeSpan.Zero
+        ).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
 
         [Fact]
         public async Task Receive_StoresBeforeProcessing_ThenWorkerCompletes()
@@ -40,7 +46,7 @@ namespace TummlyBackend.Tests.Services
                 var result = await receiver.ReceiveAsync(
                     body,
                     Sign(body),
-                    "1710000000",
+                    Timestamp,
                     requestLifetime.Token
                 );
                 requestLifetime.Cancel();
@@ -86,12 +92,12 @@ namespace TummlyBackend.Tests.Services
                 first = await receiver.ReceiveAsync(
                     body,
                     Sign(body),
-                    "1710000000"
+                    Timestamp
                 );
                 second = await receiver.ReceiveAsync(
                     body,
                     Sign(body),
-                    "1710000000"
+                    Timestamp
                 );
             }
 
@@ -116,7 +122,7 @@ namespace TummlyBackend.Tests.Services
             {
                 await scope.ServiceProvider
                     .GetRequiredService<IRevolutWebhookReceiver>()
-                    .ReceiveAsync(body, Sign(body), "1710000000");
+                    .ReceiveAsync(body, Sign(body), Timestamp);
             }
 
             await provider
@@ -172,7 +178,7 @@ namespace TummlyBackend.Tests.Services
         private static string Sign(string body) =>
             RevolutWebhookSignature.SignForTests(
                 SigningSecret,
-                "1710000000",
+                Timestamp,
                 body
             );
 

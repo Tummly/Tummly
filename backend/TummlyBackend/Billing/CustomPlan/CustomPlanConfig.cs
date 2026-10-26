@@ -25,9 +25,13 @@ namespace TummlyBackend.Billing.CustomPlan
         [JsonPropertyName("locations")]
         public int? Locations { get; set; }
 
-        /// <summary>v2: packKey → pack count (0..99).</summary>
+        /// <summary>v2: packKey → pack count (0..MaxPackCount, no clamp).</summary>
         [JsonPropertyName("packs")]
         public Dictionary<string, int>? Packs { get; set; }
+
+        /// <summary>v2: fingerprint of the quote the guest saw. Signup compares it before saving.</summary>
+        [JsonPropertyName("quoteHash")]
+        public string? QuoteHash { get; set; }
 
         [JsonPropertyName("quantities")]
         public CustomPlanQuantities Quantities { get; set; } = new();

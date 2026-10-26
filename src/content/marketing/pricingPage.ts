@@ -4,6 +4,7 @@ import type {
   PlanFeatureIcon,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { MANAGE_PLAN_IDS } from "@/lib/operatorBillingCredits/managePlanPresentation"
+import type { PublicPlanPrices } from "@/lib/marketingCustomPlan/publicPlanPrices"
 import {
   MARKETING_CUSTOM_PLAN_PATH,
   MARKETING_FAQS_PATH,
@@ -21,8 +22,9 @@ export type PricingFeatureRow = {
 export type PricingPlanCard = {
   id: PricingPlanId
   description: string
-  monthlyPrice: string
-  annualPrice: string
+  /** Pilot only. Paid plan prices come from the published catalogue. */
+  monthlyPrice?: string
+  annualPrice?: string
   monthlySubline: string
   annualSubline: string
   ctaLabel: string
@@ -102,8 +104,6 @@ export const PRICING_PLAN_CARDS: PricingPlanCard[] = [
     id: "Starter",
     description:
       "For one Location ready to hear from guests, build a permission-based guest list and start bringing them back.",
-    monthlyPrice: "£39",
-    annualPrice: "£398",
     monthlySubline: "Billed monthly",
     annualSubline: "Billed annually",
     ctaLabel: "Choose Starter",
@@ -134,8 +134,6 @@ export const PRICING_PLAN_CARDS: PricingPlanCard[] = [
     id: "Growth",
     description:
       "For growing restaurants and small groups that need more reach and multi-Location visibility.",
-    monthlyPrice: "£99",
-    annualPrice: "£1,010",
     monthlySubline: "Billed monthly",
     annualSubline: "Billed annually",
     ctaLabel: "Choose Growth",
@@ -166,8 +164,6 @@ export const PRICING_PLAN_CARDS: PricingPlanCard[] = [
     id: "Group",
     description:
       "For restaurant groups that need consolidated reporting, group Campaigns and stronger Location-level control.",
-    monthlyPrice: "£199",
-    annualPrice: "£2,030",
     monthlySubline: "Billed monthly",
     annualSubline: "Billed annually",
     ctaLabel: "Choose Group",
@@ -481,15 +477,6 @@ export const PRICING_COMPARISON_GROUPS: PricingComparisonGroup[] = [
           Group: "Each qualifying Location",
         },
       },
-      {
-        label: "Additional Locations",
-        values: {
-          Pilot: "—",
-          Starter: "—",
-          Growth: "—",
-          Group: "£39/month each",
-        },
-      },
     ],
   },
 ]
@@ -668,9 +655,9 @@ export const PRICING_FAQS = {
     },
     {
       id: "group-locations",
-      question: "How many Locations can Group support?",
+      question: "How are extra Locations priced?",
       answer:
-        "Group includes up to 5 Locations. Additional Locations can be added up to a 30-Location self-serve limit for £39/month each or £398/year each.",
+        "Group includes five Locations. Additional slots are priced progressively: 6–30, 31–50, 51–100, 101–250 and 251–500. Each band applies to those additional slots; earlier slots keep their rate. Your quote shows the calculation.",
     },
     {
       id: "switch-plans",
@@ -687,47 +674,56 @@ export const PRICING_FAQS = {
   ] satisfies PricingFaqItem[],
 }
 
-export function pricingPlanPrice(
-  card: PricingPlanCard,
-  cadence: BillingCadence,
-): {
-  amount: string
+export type PricingPlanPriceView = {
+  /** Null until the catalogue price for a paid plan has loaded. */
+  amount: string | null
   suffix: string
   /** Desktop card subline (e.g. “Billed monthly”). */
   subline: string
-  /** Mobile card subline — annual equivalent when previewing monthly. */
-  sublineMobile: string
-} {
+  /** Mobile card subline; annual equivalent when previewing monthly. Null while loading. */
+  sublineMobile: string | null
+}
+
+export function pricingPlanPrice(
+  card: PricingPlanCard,
+  cadence: BillingCadence,
+  prices: PublicPlanPrices,
+): PricingPlanPriceView {
   if (card.id === "Pilot") {
     return {
-      amount: card.monthlyPrice,
+      amount: card.monthlyPrice ?? null,
       suffix: "/ for 30 days",
       subline: card.monthlySubline,
       sublineMobile: "No payment card required. No automatic paid renewal.",
     }
   }
+  const planPrice = prices[card.id]
   if (cadence === "annual") {
     return {
-      amount: card.annualPrice,
+      amount: planPrice?.annual ?? null,
       suffix: "/ year",
       subline: card.annualSubline,
       sublineMobile: card.annualSubline,
     }
   }
   return {
-    amount: card.monthlyPrice,
+    amount: planPrice?.monthly ?? null,
     suffix: "/ month",
     subline: card.monthlySubline,
-    sublineMobile: `${card.annualPrice}/year`,
+    sublineMobile:
+      planPrice != null ? `${planPrice.annual}/year` : null,
   }
 }
 
-export function pricingCompareAnnualSubline(planId: PricingPlanId): string | null {
+export function pricingCompareAnnualSubline(
+  planId: PricingPlanId,
+  prices: PublicPlanPrices,
+): string | null {
   if (planId === "Pilot") {
     return null
   }
-  const card = PRICING_PLAN_CARDS.find((entry) => entry.id === planId)
-  return card != null ? `${card.annualPrice}/year` : null
+  const annual = prices[planId]?.annual
+  return annual != null ? `${annual}/year` : null
 }
 
 export { MANAGE_PLAN_IDS as PRICING_PLAN_IDS }

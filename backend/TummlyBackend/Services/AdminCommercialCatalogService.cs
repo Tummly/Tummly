@@ -286,11 +286,32 @@ namespace TummlyBackend.Services
                         CreditsMonthlySms = extra.CreditsMonthlySms,
                     },
                 Packs = CustomPlanPacks.All
-                    .Select(p => new PublicCatalogPackMetaDto
+                    .Select(p =>
                     {
-                        PackKey = p.PackKey,
-                        RateKey = p.RateKey,
-                        PackSize = p.PackSize,
+                        var rate = version.CustomUnitRates.FirstOrDefault(r =>
+                            r.RateKey == p.RateKey
+                        );
+                        return new PublicCatalogPackMetaDto
+                        {
+                            PackKey = p.PackKey,
+                            RateKey = p.RateKey,
+                            PackSize = p.PackSize,
+                            MonthlyNetPence = rate == null
+                                ? null
+                                : CustomPlanLineNet.Monthly(
+                                    p.PackSize,
+                                    rate.MonthlyNetPence,
+                                    rate.UnitQuantity
+                                ),
+                            AnnualNetPence = rate == null
+                                ? null
+                                : CustomPlanLineNet.Annual(
+                                    p.PackSize,
+                                    rate.MonthlyNetPence,
+                                    rate.AnnualNetPence,
+                                    rate.UnitQuantity
+                                ),
+                        };
                     })
                     .ToList(),
             };

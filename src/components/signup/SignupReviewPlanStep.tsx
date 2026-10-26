@@ -1,22 +1,27 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
-import {
-  fetchPublicCustomUnitRates,
-  quotePublicCustomPlan,
-  type CustomPlanQuoteResult,
-} from "@/api/adminCommercialCatalogApi"
+import { fetchPublicCustomUnitRates } from "@/api/adminCommercialCatalogApi"
 import { GuestLoopShellFooter } from "@/components/guest-loop/GuestLoopShell"
-import { CustomPlanSummaryCard } from "@/components/marketing/custom-plan/CustomPlanSummaryCard"
+import {
+  CustomPlanQuotePlaceholder,
+  CustomPlanSummaryCard,
+} from "@/components/marketing/custom-plan/CustomPlanSummaryCard"
 import { Button } from "@/components/ui/button"
+import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import {
   chosenPlanToBasePlan,
   EMPTY_PACK_COUNTS,
-  estimateCustomPlanV2,
   normalizePackCounts,
+  quotePlanName,
+  storedPlanFromQuote,
   type CustomPlanBasePlanKey,
-  type CustomPlanV2Estimate,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
-import { toPublicCatalogPlanSummaries } from "@/lib/marketingCustomPlan/publicCatalogPlans"
+import {
+  lastQuote,
+  quoteHashChanged,
+  quoteView,
+} from "@/lib/marketingCustomPlan/customPlanQuoteState"
+import { useServerCustomPlanQuote } from "@/lib/marketingCustomPlan/useServerCustomPlanQuote"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import {
   activeCustomConfig,
@@ -29,47 +34,8 @@ type SignupReviewPlanStepProps = {
   onBack: () => void
   onConfirm: () => void | Promise<void>
   isSubmitting?: boolean
-}
-
-function quoteToEstimate(
-  quote: CustomPlanQuoteResult,
-  requestedBasePlan: CustomPlanBasePlanKey | null,
-): CustomPlanV2Estimate {
-  const basePlan =
-    chosenPlanToBasePlan(quote.basePlan) ?? requestedBasePlan ?? "starter"
-  return {
-    contactSales: false,
-    basePlan,
-    requestedBasePlan,
-    basePlanChanged: quote.basePlanChanged,
-    locations: quote.locations,
-    additionalLocations: 0,
-    packs: normalizePackCounts(quote.packs),
-    quantities: {
-      locations: quote.quantities.locations,
-      teamUsers: quote.quantities.teamUsers,
-      qrPlacements: quote.quantities.qrPlacements,
-      qrPlacementsAccountExtra: quote.quantities.qrPlacementsAccountExtra,
-      offers: quote.quantities.offers,
-      emailCredits: quote.quantities.emailCredits,
-      smsCredits: quote.quantities.smsCredits,
-      aiCredits: quote.quantities.aiCredits,
-    },
-    monthlyNetPence: quote.monthlyNetPence,
-    periodNetPence: quote.periodNetPence,
-    lines: quote.lines.map((line) => ({
-      key: line.key,
-      label: line.label,
-      quantity: line.quantity,
-      netPence: line.netPence,
-    })),
-    storedAsPlan:
-      quote.storedAsPlan === "Starter" ||
-      quote.storedAsPlan === "Growth" ||
-      quote.storedAsPlan === "Group"
-        ? quote.storedAsPlan
-        : "Custom",
-  }
+  /** Set after the server rejected the saved quote hash (quote_changed). */
+  quoteChanged: boolean
 }
 
 /** Review reuses the calculator summary card (no separate Figma frame). */
@@ -77,129 +43,136 @@ export function SignupReviewPlanStep({
   onBack,
   onConfirm,
   isSubmitting = false,
+  quoteChanged,
 }: SignupReviewPlanStepProps) {
-  // Read once: a fresh parse each render would change `packs` identity and
-  // re-run the quote effect in a loop.
+  // Read once: a fresh parse each render would change identities and re-run the quote.
   const [intent] = useState(() => readSignupPlanIntent())
   const config = activeCustomConfig(intent)
-  const cadence: BillingCadence =
-    config?.cadence ?? intent?.cadence ?? "monthly"
-  const basePlan: CustomPlanBasePlanKey =
-    config?.basePlan ?? chosenPlanToBasePlan(intent?.plan) ?? "starter"
+  // No intent, or Pilot: nothing to review. Custom without a restorable config: restore failed.
+  const selection: "ok" | "no_selection" | "restore_failed" =
+    intent == null || intent.plan === "Pilot"
+      ? "no_selection"
+      : intent.plan === "Custom" && config == null
+        ? "restore_failed"
+        : "ok"
+  const selectable = selection === "ok"
+  const basePlan: CustomPlanBasePlanKey | null = selectable
+    ? (config?.basePlan ?? chosenPlanToBasePlan(intent?.plan))
+    : null
   const [packs] = useState(() => config?.packs ?? EMPTY_PACK_COUNTS)
+  const [cadenceState, setCadenceState] = useState<BillingCadence>(
+    config?.cadence ?? intent?.cadence ?? "monthly",
+  )
+
   // Plain card checkout: quote at the plan's included Locations so the
   // Location-count rule keeps the selected package.
   const [plainLocations, setPlainLocations] = useState<number | null>(null)
-  const locations = config?.locations ?? plainLocations
-
-  const [estimate, setEstimate] = useState<CustomPlanV2Estimate | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [cadenceState, setCadenceState] = useState<BillingCadence>(cadence)
+  const [plainFailed, setPlainFailed] = useState(false)
+  const [plainAttempt, setPlainAttempt] = useState(0)
 
   useEffect(() => {
-    if (config != null) return
+    if (config != null || !selectable || basePlan == null) return
     let cancelled = false
     void fetchPublicCustomUnitRates()
       .then((catalog) => {
         if (cancelled) return
         const row = catalog.plans.find((plan) => plan.planKey === basePlan)
-        setPlainLocations(Math.max(1, row?.includedLocations ?? 1))
+        if (row == null) {
+          setPlainFailed(true)
+          return
+        }
+        setPlainLocations(Math.max(1, row.includedLocations))
       })
       .catch(() => {
-        if (!cancelled) setPlainLocations(1)
+        if (!cancelled) setPlainFailed(true)
       })
     return () => {
       cancelled = true
     }
-  }, [config, basePlan])
+  }, [config, basePlan, selectable, plainAttempt])
 
-  const requestBody = useMemo(
-    () => ({
-      cadence: cadenceState,
-      basePlan,
-      locations: locations ?? 1,
-      packs: Object.fromEntries(
-        Object.entries(normalizePackCounts(packs)).filter(([, n]) => n > 0),
-      ),
-    }),
-    [cadenceState, basePlan, locations, packs],
-  )
+  function retryPlainCatalogue() {
+    setPlainFailed(false)
+    setPlainAttempt((n) => n + 1)
+  }
 
+  const locations = config != null ? config.locations : plainLocations
+  const { state, check, retry } = useServerCustomPlanQuote({
+    cadence: cadenceState,
+    basePlan,
+    locations,
+    packs,
+  })
+
+  // A rejected hash means the price moved: re-quote so the new total shows.
   useEffect(() => {
-    if (locations == null) return
-    let cancelled = false
+    if (quoteChanged) retry()
+  }, [quoteChanged, retry])
 
-    void (async () => {
-      try {
-        const quote = await quotePublicCustomPlan(requestBody)
-        if (cancelled) return
-        const next = quoteToEstimate(quote, basePlan)
-        setEstimate(next)
-        setError(null)
-        saveSignupCustomPlanConfig({
-          basePlan: next.basePlan,
-          cadence: cadenceState,
-          locations: next.locations,
-          packs: next.packs,
-          asCustom: next.storedAsPlan === "Custom",
-        })
-      } catch {
-        // Server quote may not be live yet — fall back to client estimate.
-        try {
-          const catalog = await fetchPublicCustomUnitRates()
-          if (cancelled) return
-          const local = estimateCustomPlanV2({
-            cadence: cadenceState,
-            requestedBasePlan: basePlan,
-            locations: locations ?? 1,
-            packs,
-            plans: toPublicCatalogPlanSummaries(catalog.plans),
-            rates: catalog.unitRates,
-            extraLocation: catalog.extraLocation,
-          })
-          setEstimate(local)
-          setError(null)
-          saveSignupCustomPlanConfig({
-            basePlan: local.basePlan,
-            cadence: cadenceState,
-            locations: local.locations,
-            packs: local.packs,
-            asCustom: local.storedAsPlan === "Custom",
-          })
-        } catch {
-          if (!cancelled) {
-            setEstimate(null)
-            setError("Could not load your plan price. Please try again.")
-          }
-        }
+  // The first ready quote can differ from the hash saved earlier. Show the changed state then.
+  const firstReadyChecked = useRef(false)
+  const [restoredHashChanged, setRestoredHashChanged] = useState(false)
+
+  // Every ready quote becomes the saved config, with its hash, so Continue sends the hash on screen.
+  useEffect(() => {
+    if (state.status !== "ready") return
+    const next = state.quote
+    if (!firstReadyChecked.current) {
+      firstReadyChecked.current = true
+      if (quoteHashChanged(config?.quoteHash, next.quoteHash)) {
+        setRestoredHashChanged(true)
       }
-    })()
-
-    return () => {
-      cancelled = true
     }
-  }, [requestBody, basePlan, cadenceState, locations, packs])
+    const nextBasePlan = chosenPlanToBasePlan(next.basePlan)
+    if (nextBasePlan == null) return
+    saveSignupCustomPlanConfig({
+      basePlan: nextBasePlan,
+      cadence: next.cadence === "annual" ? "annual" : "monthly",
+      locations: next.locations,
+      packs: normalizePackCounts(next.packs),
+      asCustom: storedPlanFromQuote(next.storedAsPlan) === "Custom",
+      quoteHash: next.quoteHash,
+    })
+  }, [state])
+
+  const quote = lastQuote(state)
+  const waitingForCatalogue = selectable && config == null && plainLocations == null
+  const view = waitingForCatalogue
+    ? null
+    : quoteView({
+        check,
+        state,
+        changed: quoteChanged || restoredHashChanged,
+      })
+  const continueEnabled = selectable && view?.continueEnabled === true
 
   function handleCadenceChange(next: BillingCadence) {
     setCadenceState(next)
     const current = readSignupPlanIntent()
-    if (current?.plan === "Pilot") return
+    if (current == null || current.plan === "Pilot") return
     saveSignupPlanIntent({
       ...current,
-      plan: current?.plan ?? "Custom",
       cadence: next,
-      config:
-        current?.config != null
-          ? { ...current.config, cadence: next }
-          : {
-              version: 2,
-              cadence: next,
-              basePlan,
-              locations: locations ?? 1,
-              packs,
-            },
+      ...(current.config != null
+        ? { config: { ...current.config, cadence: next } }
+        : {}),
     })
   }
+
+  const selectionMessage =
+    selection === "no_selection"
+      ? CUSTOM_PLAN_QUOTE_COPY.noSelection
+      : selection === "restore_failed"
+        ? CUSTOM_PLAN_QUOTE_COPY.restoreFailed
+        : null
+
+  // Before the first quote, the placeholder shows the catalogue or quote status.
+  const placeholderMessage = waitingForCatalogue
+    ? plainFailed
+      ? CUSTOM_PLAN_QUOTE_COPY.failed
+      : CUSTOM_PLAN_QUOTE_COPY.loading
+    : (view?.message ?? null)
+  const placeholderRetry = waitingForCatalogue ? retryPlainCatalogue : retry
 
   return (
     <div className="mx-auto flex w-full max-w-[581px] flex-col gap-10">
@@ -213,24 +186,36 @@ export function SignupReviewPlanStep({
         </p>
       </header>
 
-      {error != null ? (
-        <p className="m-0 text-sm text-red-600">{error}</p>
-      ) : null}
-
-      {estimate == null && error == null ? (
-        <p className="m-0 font-sans text-sm text-[#676767]">
-          Calculating your price…
+      {selectionMessage != null ? (
+        <p role="status" className="m-0 font-sans text-sm text-[#141414]">
+          {selectionMessage}
         </p>
       ) : null}
 
-      {estimate != null ? (
+      {selectable && quote != null ? (
         <CustomPlanSummaryCard
-          estimate={estimate}
+          quote={quote}
           cadence={cadenceState}
           onCadenceChange={handleCadenceChange}
           showActions={false}
-          checkoutNote="VAT is added at checkout when applicable. No payment is taken until you confirm on the payment page."
-          planDescription={`You are checking out with ${estimate.basePlan.charAt(0).toUpperCase()}${estimate.basePlan.slice(1)}.`}
+          statusMessage={view?.message ?? null}
+          showRetry={view?.showRetry ?? false}
+          onRetry={retry}
+          showContact={view?.showContact ?? false}
+          taxText={view?.taxText ?? null}
+          checkoutNote={CUSTOM_PLAN_QUOTE_COPY.noPaymentTaken}
+          planDescription={`You are checking out with ${quotePlanName(quote)}.`}
+          className="max-w-[581px] pt-0"
+        />
+      ) : null}
+
+      {selectable && quote == null ? (
+        <CustomPlanQuotePlaceholder
+          loading={waitingForCatalogue ? !plainFailed : state.status === "loading"}
+          message={placeholderMessage}
+          showRetry={waitingForCatalogue ? plainFailed : (view?.showRetry ?? false)}
+          onRetry={placeholderRetry}
+          showContact={view?.showContact ?? false}
           className="max-w-[581px] pt-0"
         />
       ) : null}
@@ -248,7 +233,7 @@ export function SignupReviewPlanStep({
           </Button>
           <Button
             type="button"
-            disabled={isSubmitting || estimate == null}
+            disabled={isSubmitting || !continueEnabled}
             onClick={() => void onConfirm()}
             className="h-auto min-w-[180px] rounded-[4px] bg-[#141414] px-[18px] py-3 font-sans text-sm font-medium leading-5 text-white shadow-none hover:bg-[#141414]/90"
           >

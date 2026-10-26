@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -92,7 +94,7 @@ namespace TummlyBackend.Tests.Services
                 _db,
                 new TrackingEmailService(),
                 _provisioning,
-                new CustomPlanQuoteService(_db),
+                new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())),
                 new StubJwtService()
             );
         }

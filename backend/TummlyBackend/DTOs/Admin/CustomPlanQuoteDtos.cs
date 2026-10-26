@@ -10,9 +10,10 @@ namespace TummlyBackend.DTOs.Admin
         /// <summary>starter | growth | group | null (use minimum for locations).</summary>
         public string? BasePlan { get; set; }
 
-        public int Locations { get; set; } = 1;
+        /// <summary>Decimal so a fractional or negative count gets our error code, not a JSON bind failure.</summary>
+        public decimal Locations { get; set; } = 1;
 
-        public Dictionary<string, int>? Packs { get; set; }
+        public Dictionary<string, decimal>? Packs { get; set; }
     }
 
     /// <summary>Full v2 config plus quote metadata (contract §6.2).</summary>
@@ -60,6 +61,13 @@ namespace TummlyBackend.DTOs.Admin
         [JsonPropertyName("storedAsPlan")]
         public string StoredAsPlan { get; set; } = "Custom";
 
+        [JsonPropertyName("vatRateBps")]
+        public int VatRateBps { get; set; }
+
+        /// <summary>32 lower-hex chars; see <see cref="CustomPlanQuoteHash"/>.</summary>
+        [JsonPropertyName("quoteHash")]
+        public string QuoteHash { get; set; } = string.Empty;
+
         public CustomPlanConfig ToConfig()
         {
             return new CustomPlanConfig
@@ -75,6 +83,7 @@ namespace TummlyBackend.DTOs.Admin
                 PeriodNetPence = PeriodNetPence,
                 Lines = Lines,
                 RateSnapshot = RateSnapshot,
+                QuoteHash = QuoteHash,
             };
         }
     }
@@ -122,5 +131,11 @@ namespace TummlyBackend.DTOs.Admin
         public string RateKey { get; set; } = string.Empty;
 
         public int PackSize { get; set; }
+
+        /// <summary>Server price for one pack. Null when the rate row is missing.</summary>
+        public int? MonthlyNetPence { get; set; }
+
+        /// <summary>Server price for one pack. Null when the rate row is missing.</summary>
+        public int? AnnualNetPence { get; set; }
     }
 }

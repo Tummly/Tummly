@@ -1,9 +1,8 @@
-import type { AdminCommercialCustomUnitRate } from "@/api/adminCommercialCatalogApi"
+import type { CustomPlanQuoteResult } from "@/api/adminCommercialCatalogApi"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 
 export const CUSTOM_PLAN_MAX_LOCATIONS = 500
 export const CUSTOM_PLAN_MAX_PACK_COUNT = 99
-export const ANNUAL_FALLBACK_FACTOR = 0.85
 
 export type CustomPlanBasePlanKey = "starter" | "growth" | "group"
 
@@ -117,6 +116,7 @@ export const EMPTY_PACK_COUNTS: CustomPlanPackCounts = {
   ai_2000: 0,
 }
 
+/** Included allowances per paid plan, for the "Included in …" lines. Prices come from the server quote. */
 export type PublicCatalogPlanSummary = {
   planKey: CustomPlanBasePlanKey
   displayName: string
@@ -131,98 +131,14 @@ export type PublicCatalogPlanSummary = {
   creditsMonthlySms: number
 }
 
-export type PublicExtraLocationSummary = {
-  usersAdded: number
-  creditsMonthlyAi: number
-  creditsMonthlyEmail: number
-  creditsMonthlySms: number
-}
-
 export type CustomPlanV2ConfigInput = {
   version: 2
   cadence: BillingCadence
   basePlan: CustomPlanBasePlanKey
   locations: number
   packs: Partial<CustomPlanPackCounts>
-}
-
-export type CustomPlanResolvedQuantities = {
-  locations: number
-  teamUsers: number
-  qrPlacements: number
-  qrPlacementsAccountExtra: number
-  offers: number
-  emailCredits: number
-  smsCredits: number
-  aiCredits: number
-}
-
-export type CustomPlanLine = {
-  key: string
-  label: string
-  quantity: number
-  netPence: number
-}
-
-export type CustomPlanV2Estimate = {
-  contactSales: boolean
-  basePlan: CustomPlanBasePlanKey
-  requestedBasePlan: CustomPlanBasePlanKey | null
-  basePlanChanged: boolean
-  locations: number
-  additionalLocations: number
-  packs: CustomPlanPackCounts
-  quantities: CustomPlanResolvedQuantities
-  monthlyNetPence: number
-  periodNetPence: number
-  lines: CustomPlanLine[]
-  storedAsPlan: "Starter" | "Growth" | "Group" | "Custom"
-}
-
-function monthlyLineNetPence(
-  rate: AdminCommercialCustomUnitRate,
-  quantity: number,
-): number {
-  if (quantity <= 0) {
-    return 0
-  }
-  const unitQty = Math.max(1, rate.unitQuantity)
-  return Math.ceil((quantity * rate.monthlyNetPence) / unitQty)
-}
-
-function annualLineNetPence(
-  rate: AdminCommercialCustomUnitRate,
-  quantity: number,
-): number {
-  if (quantity <= 0) {
-    return 0
-  }
-  const unitQty = Math.max(1, rate.unitQuantity)
-  const annual = rate.annualNetPence
-  if (annual != null && annual > 0) {
-    return Math.ceil((quantity * annual) / unitQty)
-  }
-  return Math.round(monthlyLineNetPence(rate, quantity) * 12 * ANNUAL_FALLBACK_FACTOR)
-}
-
-/** Net pence for `quantity` natural units at the given rate row and cadence. */
-export function lineNetPence(
-  rate: AdminCommercialCustomUnitRate,
-  quantity: number,
-  cadence: BillingCadence = "monthly",
-): number {
-  return cadence === "annual"
-    ? annualLineNetPence(rate, quantity)
-    : monthlyLineNetPence(rate, quantity)
-}
-
-/** £1,010 / £12.50 — thousands grouped; pence shown only when not whole. */
-export function formatPenceGbp(pence: number): string {
-  const whole = pence % 100 === 0
-  return `£${(pence / 100).toLocaleString("en-GB", {
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2,
-  })}`
+  /** Hash of the server quote the customer saw. Sent back at signup. */
+  quoteHash?: string
 }
 
 export function normalizePackCounts(
@@ -280,14 +196,60 @@ export function chosenPlanToBasePlan(
   return parseBasePlanKey(plan)
 }
 
+/** Period suffix for a quote total: "/ per month" or "/ per year". */
+export function quoteCadenceSuffix(cadence: string): string {
+  return cadence === "annual" ? "/ per year" : "/ per month"
+}
+
+/**
+ * The server line for one pack: its amount and the suffix for the quote's
+ * cadence. Null without a quote or without that line. The browser adds no price.
+ */
+export function quotePackLineAmount(
+  quote: CustomPlanQuoteResult | null,
+  packKey: CustomPlanPackKey,
+): { netPence: number; suffix: string } | null {
+  if (quote == null) {
+    return null
+  }
+  const line = quote.lines.find((entry) => entry.key === `pack:${packKey}`)
+  if (line == null) {
+    return null
+  }
+  return {
+    netPence: line.netPence,
+    suffix: quote.cadence === "annual" ? "/ per year" : "/mo",
+  }
+}
+
+/** "starter" or "Starter" from the server → "Starter". */
+export function quotePlanName(quote: CustomPlanQuoteResult): string {
+  const key = quote.basePlan.trim().toLowerCase()
+  return key.charAt(0).toUpperCase() + key.slice(1)
+}
+
+/** The plan name the server stored for a quote. Anything but a paid base plan is Custom. */
+export function storedPlanFromQuote(
+  storedAsPlan: string,
+): "Starter" | "Growth" | "Group" | "Custom" {
+  if (
+    storedAsPlan === "Starter" ||
+    storedAsPlan === "Growth" ||
+    storedAsPlan === "Group"
+  ) {
+    return storedAsPlan
+  }
+  return "Custom"
+}
+
 /**
  * Smallest of starter/growth/group whose IncludedLocations >= n, else group.
- * Contract §2.
+ * Contract §2. Returns null until the catalogue has paid plans.
  */
 export function minBasePlanForLocations(
   locations: number,
   plans: PublicCatalogPlanSummary[],
-): CustomPlanBasePlanKey {
+): CustomPlanBasePlanKey | null {
   const n = Math.max(1, Math.floor(locations))
   const paid = plans
     .filter(
@@ -300,10 +262,7 @@ export function minBasePlanForLocations(
     .sort((a, b) => a.includedLocations - b.includedLocations)
 
   if (paid.length === 0) {
-    // Catalog not loaded yet: same bands as the seeded catalog.
-    if (n <= 1) return "starter"
-    if (n <= 3) return "growth"
-    return "group"
+    return null
   }
   for (const plan of paid) {
     if (plan.includedLocations >= n) {
@@ -313,235 +272,32 @@ export function minBasePlanForLocations(
   return "group"
 }
 
-function findPlan(
-  plans: PublicCatalogPlanSummary[],
-  key: CustomPlanBasePlanKey,
-): PublicCatalogPlanSummary | null {
-  return plans.find((plan) => plan.planKey === key) ?? null
-}
-
-function rateByKey(
-  rates: AdminCommercialCustomUnitRate[],
-  rateKey: string,
-): AdminCommercialCustomUnitRate | undefined {
-  return rates.find((rate) => rate.rateKey === rateKey)
-}
-
-function planPeriodNetPence(
-  plan: PublicCatalogPlanSummary,
-  cadence: BillingCadence,
-): number {
-  if (cadence === "annual") {
-    if (plan.annualNetPence > 0) {
-      return plan.annualNetPence
-    }
-    return Math.round(plan.monthlyNetPence * 12 * ANNUAL_FALLBACK_FACTOR)
-  }
-  return plan.monthlyNetPence
-}
-
-export type EstimateCustomPlanV2Args = {
-  cadence: BillingCadence
-  /** Requested base; null = use minimum for locations. */
-  requestedBasePlan: CustomPlanBasePlanKey | null
-  locations: number
-  packs: Partial<CustomPlanPackCounts> | Record<string, number>
-  plans: PublicCatalogPlanSummary[]
-  rates: AdminCommercialCustomUnitRate[]
-  extraLocation?: PublicExtraLocationSummary | null
-}
-
-/** Client-side mirror of server quote maths (display only; server re-prices). */
-export function estimateCustomPlanV2(
-  args: EstimateCustomPlanV2Args,
-): CustomPlanV2Estimate {
-  const cadence = args.cadence
-  const locations = Math.floor(args.locations)
-  const packs = normalizePackCounts(args.packs)
-
-  if (locations > CUSTOM_PLAN_MAX_LOCATIONS) {
-    const minPlan = minBasePlanForLocations(
-      CUSTOM_PLAN_MAX_LOCATIONS,
-      args.plans,
-    )
-    return {
-      contactSales: true,
-      basePlan: minPlan,
-      requestedBasePlan: args.requestedBasePlan,
-      basePlanChanged: false,
-      locations,
-      additionalLocations: 0,
-      packs,
-      quantities: {
-        locations,
-        teamUsers: 0,
-        qrPlacements: 0,
-        qrPlacementsAccountExtra: 0,
-        offers: 0,
-        emailCredits: 0,
-        smsCredits: 0,
-        aiCredits: 0,
-      },
-      monthlyNetPence: 0,
-      periodNetPence: 0,
-      lines: [],
-      storedAsPlan: "Custom",
-    }
-  }
-
-  const clampedLocations = Math.max(1, locations)
-  const minPlan = minBasePlanForLocations(clampedLocations, args.plans)
-  // Location count alone sets the base package (mirrors CustomPlanQuoteService).
-  const basePlan = minPlan
-
-  const planRow = findPlan(args.plans, basePlan)
-  const basePlanChanged =
-    args.requestedBasePlan != null && args.requestedBasePlan !== basePlan
-
-  const includedLocations = planRow?.includedLocations ?? 0
-  const additionalLocations = Math.max(0, clampedLocations - includedLocations)
-  const extra = args.extraLocation ?? {
-    usersAdded: 0,
-    creditsMonthlyAi: 0,
-    creditsMonthlyEmail: 0,
-    creditsMonthlySms: 0,
-  }
-
-  const teamFromPacks = packs.team_users_5 * 5
-  const offersFromPacks = packs.offers_5 * 5
-  const qrAccountExtra = packs.qr_10 * 10
-  const emailFromPacks =
-    packs.email_20k * 20_000 + packs.email_50k * 50_000
-  const smsFromPacks =
-    packs.sms_500 * 500 + packs.sms_1000 * 1_000 + packs.sms_5000 * 5_000
-  const aiFromPacks = packs.ai_500 * 500 + packs.ai_2000 * 2_000
-
-  const quantities: CustomPlanResolvedQuantities = {
-    locations: clampedLocations,
-    teamUsers:
-      (planRow?.includedTeamMembers ?? 0) +
-      teamFromPacks +
-      additionalLocations * extra.usersAdded,
-    qrPlacements: planRow?.activeQrPlacementsPerLocation ?? 0,
-    qrPlacementsAccountExtra: qrAccountExtra,
-    offers: (planRow?.activeOffersAccount ?? 0) + offersFromPacks,
-    emailCredits:
-      (planRow?.creditsMonthlyEmail ?? 0) +
-      emailFromPacks +
-      additionalLocations * extra.creditsMonthlyEmail,
-    smsCredits:
-      (planRow?.creditsMonthlySms ?? 0) +
-      smsFromPacks +
-      additionalLocations * extra.creditsMonthlySms,
-    aiCredits:
-      (planRow?.creditsMonthlyAi ?? 0) +
-      aiFromPacks +
-      additionalLocations * extra.creditsMonthlyAi,
-  }
-
-  const lines: CustomPlanLine[] = []
-  let monthlyNetPence = 0
-  let periodNetPence = 0
-
-  if (planRow != null) {
-    const monthlyBase = planRow.monthlyNetPence
-    const periodBase = planPeriodNetPence(planRow, cadence)
-    monthlyNetPence += monthlyBase
-    periodNetPence += periodBase
-    lines.push({
-      key: `base:${basePlan}`,
-      label: `${planRow.displayName} · ${includedLocations} included Location${includedLocations === 1 ? "" : "s"}`,
-      quantity: 1,
-      netPence: periodBase,
-    })
-  }
-
-  const locationRate = rateByKey(args.rates, "location")
-  if (additionalLocations > 0 && locationRate != null) {
-    const monthlyExtra = lineNetPence(
-      locationRate,
-      additionalLocations,
-      "monthly",
-    )
-    const periodExtra = lineNetPence(locationRate, additionalLocations, cadence)
-    monthlyNetPence += monthlyExtra
-    periodNetPence += periodExtra
-    lines.push({
-      key: "extra:location",
-      label: `${additionalLocations} additional Location${additionalLocations === 1 ? "" : "s"}`,
-      quantity: additionalLocations,
-      netPence: periodExtra,
-    })
-  }
-
-  for (const def of CUSTOM_PLAN_PACKS) {
-    const count = packs[def.packKey]
-    if (count <= 0) continue
-    const rate = rateByKey(args.rates, def.rateKey)
-    if (rate == null) continue
-    const naturalQty = count * def.packSize
-    const monthlyPack = lineNetPence(rate, naturalQty, "monthly")
-    const periodPack = lineNetPence(rate, naturalQty, cadence)
-    monthlyNetPence += monthlyPack
-    periodNetPence += periodPack
-    lines.push({
-      key: `pack:${def.packKey}`,
-      label: `${def.title} × ${count}`,
-      quantity: count,
-      netPence: periodPack,
-    })
-  }
-
-  const plainCatalog =
-    !packsHaveAny(packs) && additionalLocations === 0 && planRow != null
-
-  return {
-    contactSales: false,
-    basePlan,
-    requestedBasePlan: args.requestedBasePlan,
-    basePlanChanged,
-    locations: clampedLocations,
-    additionalLocations,
-    packs,
-    quantities,
-    monthlyNetPence,
-    periodNetPence,
-    lines,
-    storedAsPlan: plainCatalog
-      ? basePlanToChosenPlan(basePlan)
-      : "Custom",
-  }
-}
-
-export function packMonthlyNetPence(
-  pack: CustomPlanPackDef,
-  rates: AdminCommercialCustomUnitRate[],
-): number {
-  const rate = rateByKey(rates, pack.rateKey)
-  if (rate == null) {
-    return 0
-  }
-  return lineNetPence(rate, pack.packSize, "monthly")
-}
-
 /** Compact v2 intent for query / session / onboarding save. */
 export function encodeCustomPlanIntentV2(config: CustomPlanV2ConfigInput): string {
-  const packs: Record<string, number> = {}
-  const normalized = normalizePackCounts(config.packs)
-  for (const def of CUSTOM_PLAN_PACKS) {
-    const count = normalized[def.packKey]
-    if (count > 0) {
-      packs[def.packKey] = count
-    }
-  }
-  const payload: CustomPlanV2ConfigInput = {
+  const payload = {
     version: 2,
     cadence: config.cadence,
     basePlan: config.basePlan,
-    locations: Math.max(1, Math.floor(config.locations)),
-    packs,
+    locations: config.locations,
+    packs: packCountsForWire(config.packs),
+    ...(config.quoteHash ? { quoteHash: config.quoteHash } : {}),
   }
   return btoa(unescape(encodeURIComponent(JSON.stringify(payload))))
+}
+
+/** Only non-zero packs go on the wire. */
+function packCountsForWire(
+  packs: Partial<CustomPlanPackCounts>,
+): Record<string, number> {
+  const normalized = normalizePackCounts(packs)
+  const wire: Record<string, number> = {}
+  for (const def of CUSTOM_PLAN_PACKS) {
+    const count = normalized[def.packKey]
+    if (count > 0) {
+      wire[def.packKey] = count
+    }
+  }
+  return wire
 }
 
 export function decodeCustomPlanIntentV2(
@@ -569,40 +325,39 @@ export function decodeCustomPlanIntentV2(
       typeof parsed.cadence === "string" ? parsed.cadence.toLowerCase() : ""
     const cadence: BillingCadence =
       cadenceRaw === "annual" ? "annual" : "monthly"
-    const locations = Math.floor(Number(parsed.locations ?? 1))
     const packsRaw =
       parsed.packs != null && typeof parsed.packs === "object"
         ? (parsed.packs as Record<string, number>)
         : {}
+    const quoteHash =
+      typeof parsed.quoteHash === "string" && parsed.quoteHash !== ""
+        ? parsed.quoteHash
+        : undefined
     return {
       version: 2,
       cadence,
       basePlan,
-      locations: Number.isFinite(locations) ? Math.max(1, locations) : 1,
+      // Not clamped and no default: a non-number count is rejected where the config is saved.
+      locations:
+        typeof parsed.locations === "number" ? parsed.locations : Number.NaN,
       packs: normalizePackCounts(packsRaw),
+      ...(quoteHash != null ? { quoteHash } : {}),
     }
   } catch {
     return null
   }
 }
 
-/** JSON body for onboarding save (server re-quotes). */
+/** JSON body for onboarding save. The server re-quotes and checks quoteHash. */
 export function toOnboardingCustomPlanConfigJson(
   config: CustomPlanV2ConfigInput,
 ): string {
-  const packs: Record<string, number> = {}
-  const normalized = normalizePackCounts(config.packs)
-  for (const def of CUSTOM_PLAN_PACKS) {
-    const count = normalized[def.packKey]
-    if (count > 0) {
-      packs[def.packKey] = count
-    }
-  }
   return JSON.stringify({
     version: 2,
     cadence: config.cadence,
     basePlan: config.basePlan,
-    locations: Math.max(1, Math.floor(config.locations)),
-    packs,
+    locations: config.locations,
+    packs: packCountsForWire(config.packs),
+    ...(config.quoteHash ? { quoteHash: config.quoteHash } : {}),
   })
 }

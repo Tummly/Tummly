@@ -1,6 +1,7 @@
 import { useRef, type UIEvent } from "react"
 
 import { MarketingButton } from "@/components/marketing/MarketingButton"
+import { PublicPlanPriceFallback } from "@/components/marketing/PublicPlanPricesStatus"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import {
   PRICING_COMPARE_HEADING,
@@ -18,6 +19,11 @@ import {
   marketingHeaderScrollMarginClass,
   marketingHeaderStickyTopClass,
 } from "@/lib/marketing-layout"
+import type { PublicPlanPrices } from "@/lib/marketingCustomPlan/publicPlanPrices"
+import {
+  usePublicPlanPrices,
+  type PublicPlanPricesStatus,
+} from "@/lib/marketingCustomPlan/usePublicPlanPrices"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
 
@@ -29,18 +35,22 @@ function ComparisonPlanHeader({
   planId,
   cadence,
   showDivider,
+  prices,
+  status,
 }: {
   planId: PricingPlanId
   cadence: BillingCadence
   showDivider: boolean
+  prices: PublicPlanPrices
+  status: PublicPlanPricesStatus
 }) {
   const card = PRICING_PLAN_CARDS.find((entry) => entry.id === planId)
   if (card == null) {
     return null
   }
-  const price = pricingPlanPrice(card, cadence)
+  const price = pricingPlanPrice(card, cadence, prices)
   const annualLine =
-    cadence === "monthly" ? pricingCompareAnnualSubline(planId) : null
+    cadence === "monthly" ? pricingCompareAnnualSubline(planId, prices) : null
 
   return (
     <div
@@ -54,14 +64,18 @@ function ComparisonPlanHeader({
           {card.id}
         </h3>
         <div className="flex flex-col gap-2">
-          <p className="m-0 flex flex-wrap items-baseline text-[#141414]">
-            <span className="font-sans text-[28px] font-[500] leading-none">
-              {price.amount}
-            </span>
-            <span className="font-sans text-sm font-medium leading-normal">
-              {price.suffix}
-            </span>
-          </p>
+          {price.amount != null ? (
+            <p className="m-0 flex flex-wrap items-baseline text-[#141414]">
+              <span className="font-sans text-[28px] font-[500] leading-none">
+                {price.amount}
+              </span>
+              <span className="font-sans text-sm font-medium leading-normal">
+                {price.suffix}
+              </span>
+            </p>
+          ) : (
+            <PublicPlanPriceFallback status={status} />
+          )}
           <p className="m-0 min-h-5 max-w-[200px] text-sm font-medium text-[#7c7c7c]">
             {annualLine ?? price.subline}
           </p>
@@ -99,6 +113,8 @@ type PricingComparePlansProps = {
  * the marketing nav; horizontal scroll stays in sync.
  */
 export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
+  // The hero shows the loading or failed copy once; this table only needs the prices.
+  const { status, prices } = usePublicPlanPrices()
   const headerScrollRef = useRef<HTMLDivElement>(null)
   const bodyScrollRef = useRef<HTMLDivElement>(null)
   const syncLockRef = useRef(false)
@@ -162,6 +178,8 @@ export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
                     planId={planId}
                     cadence={cadence}
                     showDivider={index > 0}
+                    prices={prices}
+                    status={status}
                   />
                 ))}
               </div>
