@@ -430,7 +430,6 @@ export function FeedbackPage() {
           }}
           onScopeChange={feedback.setExportScope}
           onFormatChange={feedback.setExportFormat}
-          onIncludeGuestContactChange={feedback.setExportIncludeGuestContact}
           onDownload={() => {
             void feedback.downloadExport()
           }}

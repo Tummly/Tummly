@@ -115,7 +115,10 @@ namespace TummlyBackend.Controllers
                             kind = "feedback",
                             id = feedback.Id,
                             guestName = feedback.GuestName,
-                            guestContact = feedback.GuestContact,
+                            guestContact = GuestContactMask.MaskOrEmpty(
+                                feedback.ContactType,
+                                feedback.GuestContact
+                            ),
                             contactType = feedback.ContactType.ToString(),
                             comment = feedback.Comment,
                             createdAt = feedback.CreatedAt,

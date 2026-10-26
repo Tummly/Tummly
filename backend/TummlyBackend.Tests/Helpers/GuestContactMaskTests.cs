@@ -68,4 +68,20 @@ public class GuestContactMaskTests
 
         Assert.Equal("••••", result);
     }
+
+    [Fact]
+    public void MaskOrEmpty_Blank_ReturnsEmpty()
+    {
+        Assert.Equal("", GuestContactMask.MaskOrEmpty(ContactType.Email, null));
+        Assert.Equal("", GuestContactMask.MaskOrEmpty(ContactType.Phone, "   "));
+    }
+
+    [Fact]
+    public void MaskOrEmpty_NonBlank_MatchesMask()
+    {
+        Assert.Equal(
+            GuestContactMask.Mask(ContactType.Email, "alex@example.com"),
+            GuestContactMask.MaskOrEmpty(ContactType.Email, "alex@example.com")
+        );
+    }
 }

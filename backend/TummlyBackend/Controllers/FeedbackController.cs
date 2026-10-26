@@ -135,7 +135,10 @@ namespace TummlyBackend.Controllers
                 {
                     id = f.Id,
                     guestName = f.GuestName,
-                    guestContact = f.GuestContact,
+                    guestContact = GuestContactMask.MaskOrEmpty(
+                        f.ContactType,
+                        f.GuestContact
+                    ),
                     contactType = f.ContactType.ToString(),
                     comment = f.Comment,
                     createdAt = f.CreatedAt,
@@ -445,6 +448,7 @@ namespace TummlyBackend.Controllers
             [FromQuery] DateTime? to,
             [FromQuery] string scope = "current",
             [FromQuery] string format = "xlsx",
+            // Kept for old clients. The export always includes masked contact columns.
             [FromQuery] bool includeGuestContact = false,
             [FromQuery] int? feedbackId = null,
             [FromQuery] string tab = "all",
@@ -521,7 +525,6 @@ namespace TummlyBackend.Controllers
                         ToUtc = toUtc,
                         Scope = scope,
                         Format = format,
-                        IncludeGuestContact = includeGuestContact,
                         FeedbackId = feedbackId,
                         Tab = tab,
                         Q = q,
@@ -559,6 +562,7 @@ namespace TummlyBackend.Controllers
             int feedbackId,
             [FromQuery] int locationId,
             [FromQuery] string format = "xlsx",
+            // Kept for old clients. The export always includes masked contact columns.
             [FromQuery] bool includeGuestContact = false
         )
         {
@@ -590,7 +594,6 @@ namespace TummlyBackend.Controllers
                         FeedbackId = feedbackId,
                         Format = format,
                         Scope = "current",
-                        IncludeGuestContact = includeGuestContact,
                     }
                 );
 
@@ -757,7 +760,10 @@ namespace TummlyBackend.Controllers
                 success = true,
                 id = feedback.Id,
                 guestName = feedback.GuestName,
-                guestContact = feedback.GuestContact,
+                guestContact = GuestContactMask.MaskOrEmpty(
+                    feedback.ContactType,
+                    feedback.GuestContact
+                ),
                 contactType = feedback.ContactType.ToString(),
                 comment = feedback.Comment,
                 createdAt = feedback.CreatedAt,

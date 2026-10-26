@@ -20,8 +20,8 @@ describe("exportSingleFeedback", () => {
       expect(config.params).toEqual({
         locationId: 7,
         format: "xlsx",
-        includeGuestContact: false,
       })
+      expect(config.params).not.toHaveProperty("includeGuestContact")
       return [
         200,
         new Blob(["xlsx"]),

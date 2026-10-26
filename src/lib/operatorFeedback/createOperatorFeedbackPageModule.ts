@@ -129,7 +129,6 @@ export type OperatorFeedbackPageSnapshot = {
 export type OperatorFeedbackExportDialogSnapshot = {
   scope: FeedbackExportScope
   format: FeedbackExportFormat
-  includeGuestContact: boolean
   currentResultsCount: number
   allInPeriodCount: number
   selectedCount: number
@@ -223,7 +222,6 @@ export type OperatorFeedbackPageModule = {
   closeExportDialog: () => void
   setExportScope: (scope: FeedbackExportScope) => void
   setExportFormat: (format: FeedbackExportFormat) => void
-  setExportIncludeGuestContact: (include: boolean) => void
   downloadExport: () => Promise<void>
   exportSingleFeedback: (feedbackId: number) => Promise<boolean>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
@@ -478,7 +476,6 @@ type ModuleState = {
   exportDialogOpen: boolean
   exportScope: FeedbackExportScope
   exportFormat: FeedbackExportFormat
-  exportIncludeGuestContact: boolean
   exportPreparing: boolean
   exportErrorMessage: string | null
 }
@@ -531,7 +528,6 @@ function buildExportDialogSnapshot(
   return {
     scope: state.exportScope,
     format: state.exportFormat,
-    includeGuestContact: state.exportIncludeGuestContact,
     currentResultsCount,
     allInPeriodCount,
     selectedCount,
@@ -690,7 +686,6 @@ export function createOperatorFeedbackPageModule(
     exportDialogOpen: false,
     exportScope: "current",
     exportFormat: "xlsx",
-    exportIncludeGuestContact: false,
     exportPreparing: false,
     exportErrorMessage: null,
   }
@@ -1226,7 +1221,6 @@ export function createOperatorFeedbackPageModule(
       exportDialogOpen: false,
       exportScope: "current",
       exportFormat: "xlsx",
-      exportIncludeGuestContact: false,
       exportPreparing: false,
       exportErrorMessage: null,
     }
@@ -1536,7 +1530,6 @@ export function createOperatorFeedbackPageModule(
         exportDialogOpen: true,
         exportScope: "current",
         exportFormat: "xlsx",
-        exportIncludeGuestContact: false,
         exportPreparing: false,
         exportErrorMessage: null,
       }
@@ -1576,17 +1569,6 @@ export function createOperatorFeedbackPageModule(
       }
       publish()
     },
-    setExportIncludeGuestContact(include) {
-      if (!state.exportDialogOpen || state.exportPreparing) {
-        return
-      }
-      state = {
-        ...state,
-        exportIncludeGuestContact: include,
-        exportErrorMessage: null,
-      }
-      publish()
-    },
     async downloadExport() {
       const dialog = buildExportDialogSnapshot(state)
       const locationId = state.workspace?.selectedLocationId
@@ -1620,7 +1602,6 @@ export function createOperatorFeedbackPageModule(
           inboxParams,
           scope: state.exportScope,
           format: state.exportFormat,
-          includeGuestContact: state.exportIncludeGuestContact,
         })
         const result = await adapters.exportFeedback(params)
         adapters.triggerBrowserDownload(result.blob, result.filename)

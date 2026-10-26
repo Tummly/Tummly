@@ -1,7 +1,6 @@
 import { XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import {
   Dialog,
   DialogClose,
@@ -44,7 +43,6 @@ type FeedbackExportDialogProps = {
   onOpenChange: (open: boolean) => void
   onScopeChange: (scope: FeedbackExportScope) => void
   onFormatChange: (format: FeedbackExportFormat) => void
-  onIncludeGuestContactChange: (include: boolean) => void
   onDownload: () => void
 }
 
@@ -64,15 +62,11 @@ export function FeedbackExportDialog({
   onOpenChange,
   onScopeChange,
   onFormatChange,
-  onIncludeGuestContactChange,
   onDownload,
 }: FeedbackExportDialogProps) {
   const copy = FEEDBACK_PAGE_COPY.exportDialog
   const formatSummary =
     dialog.format === "csv" ? copy.formatCsvShort : copy.formatExcelShort
-  const contactSummary = dialog.includeGuestContact
-    ? copy.contactIncluded
-    : copy.contactNotIncluded
 
   return (
     <Dialog
@@ -241,33 +235,7 @@ export function FeedbackExportDialog({
                 {formatSummary}
               </dd>
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <dt className="font-medium text-[var(--op-color-gray-550)]">
-                {copy.summaryContact}
-              </dt>
-              <dd className="m-0 font-medium text-op-text-primary">
-                {contactSummary}
-              </dd>
-            </div>
           </dl>
-
-          <div className={DIVIDER_CLASS} aria-hidden />
-
-          <div className="flex flex-col gap-0.5">
-            <CheckboxLabel
-              checked={dialog.includeGuestContact}
-              disabled={dialog.isPreparing}
-              labelClassName="text-sm font-medium leading-normal text-op-text-primary"
-              onCheckedChange={(checked) => {
-                onIncludeGuestContactChange(checked)
-              }}
-            >
-              {copy.includeContactLabel}
-            </CheckboxLabel>
-            <p className="m-0 pl-7 text-xs font-medium leading-normal text-[var(--op-color-gray-550)]">
-              {copy.includeContactHelper}
-            </p>
-          </div>
 
           {dialog.errorMessage != null ? (
             <p

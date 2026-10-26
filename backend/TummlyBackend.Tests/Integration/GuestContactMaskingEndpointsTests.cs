@@ -170,11 +170,195 @@ namespace TummlyBackend.Tests.Integration
             return await _client.SendAsync(request);
         }
 
+        [Fact]
+        public async Task FeedbackRecent_ReturnsMaskedContact()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.LocationManager
+            );
+
+            var raw = await GetCsvAsync(
+                seeded.OwnerJwt,
+                $"/api/feedback?locationId={seeded.InScopeLocationId}"
+            );
+            AssertNoRawContact(seeded, raw);
+
+            var recent = JsonDocument.Parse(raw).RootElement
+                .GetProperty("recent")
+                .EnumerateArray()
+                .ToList();
+
+            var emailRow = recent.Single(row =>
+                row.GetProperty("guestName").GetString() == "Email Guest"
+            );
+            Assert.Equal(
+                GuestContactMask.MaskEmail(seeded.GuestEmail),
+                emailRow.GetProperty("guestContact").GetString()
+            );
+
+            var phoneRow = recent.Single(row =>
+                row.GetProperty("guestName").GetString() == "Phone Guest"
+            );
+            Assert.Equal(
+                GuestContactMask.MaskPhone(seeded.GuestMobile),
+                phoneRow.GetProperty("guestContact").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task FeedbackDetail_ReturnsMaskedContact()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.LocationManager
+            );
+
+            var emailRaw = await GetCsvAsync(
+                seeded.OwnerJwt,
+                $"/api/feedback/{seeded.EmailFeedbackId}"
+            );
+            AssertNoRawContact(seeded, emailRaw);
+            Assert.Equal(
+                GuestContactMask.MaskEmail(seeded.GuestEmail),
+                JsonDocument.Parse(emailRaw).RootElement
+                    .GetProperty("guestContact")
+                    .GetString()
+            );
+
+            var phoneBody = await GetJsonAsync(
+                seeded.OwnerJwt,
+                $"/api/feedback/{seeded.PhoneFeedbackId}"
+            );
+            Assert.Equal(
+                GuestContactMask.MaskPhone(seeded.GuestMobile),
+                phoneBody.GetProperty("guestContact").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task Export_AlwaysHasMaskedContactColumns()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.LocationManager
+            );
+
+            var csv = await GetCsvAsync(
+                seeded.OwnerJwt,
+                FeedbackExportUrl(seeded.InScopeLocationId)
+            );
+
+            var header = csv.Split('\n', 2)[0].TrimEnd('\r');
+            Assert.EndsWith(",Guest,Email,Mobile", header);
+            AssertMaskedCsv(seeded, csv);
+        }
+
+        [Fact]
+        public async Task Export_IncludeGuestContactTrue_StillMasked()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.LocationManager
+            );
+
+            var csv = await GetCsvAsync(
+                seeded.OwnerJwt,
+                FeedbackExportUrl(
+                    seeded.InScopeLocationId,
+                    "&includeGuestContact=true"
+                )
+            );
+
+            AssertMaskedCsv(seeded, csv);
+        }
+
+        [Fact]
+        public async Task ExportSingle_IsMasked()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.LocationManager
+            );
+
+            var emailCsv = await GetCsvAsync(
+                seeded.OwnerJwt,
+                $"/api/feedback/{seeded.EmailFeedbackId}/export"
+                    + $"?locationId={seeded.InScopeLocationId}&format=csv"
+            );
+            AssertNoRawContact(seeded, emailCsv);
+            Assert.Contains(
+                GuestContactMask.MaskEmail(seeded.GuestEmail)!,
+                emailCsv
+            );
+
+            var phoneCsv = await GetCsvAsync(
+                seeded.OwnerJwt,
+                $"/api/feedback/{seeded.PhoneFeedbackId}/export"
+                    + $"?locationId={seeded.InScopeLocationId}&format=csv"
+            );
+            AssertNoRawContact(seeded, phoneCsv);
+            Assert.Contains(
+                GuestContactMask.MaskPhone(seeded.GuestMobile)!,
+                phoneCsv
+            );
+        }
+
+        [Fact]
+        public async Task HomeLatestActivity_ReturnsMaskedContact()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.LocationManager
+            );
+
+            var raw = await GetCsvAsync(
+                seeded.OwnerJwt,
+                $"/api/home/latest-activity?locationId={seeded.InScopeLocationId}"
+            );
+            AssertNoRawContact(seeded, raw);
+
+            var emailItem = JsonDocument.Parse(raw).RootElement
+                .GetProperty("items")
+                .EnumerateArray()
+                .Single(item =>
+                    item.GetProperty("kind").GetString() == "feedback"
+                    && item.GetProperty("guestName").GetString()
+                        == "Email Guest"
+                );
+            Assert.Equal(
+                GuestContactMask.MaskEmail(seeded.GuestEmail),
+                emailItem.GetProperty("guestContact").GetString()
+            );
+        }
+
         private async Task<JsonElement> GetJsonAsync(string jwt, string url)
         {
             var response = await GetAsync(jwt, url);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+
+        private static string FeedbackExportUrl(int locationId, string extra = "")
+        {
+            var from = Uri.EscapeDataString(
+                DateTime.UtcNow.AddDays(-1).ToString("O")
+            );
+            var to = Uri.EscapeDataString(
+                DateTime.UtcNow.AddDays(1).ToString("O")
+            );
+            return $"/api/feedback/export?locationId={locationId}"
+                + $"&from={from}&to={to}&scope=all-in-period&format=csv"
+                + extra;
+        }
+
+        private static void AssertNoRawContact(
+            OperatorScopeFixture seeded,
+            string body
+        )
+        {
+            Assert.DoesNotContain(seeded.GuestEmail, body);
+            Assert.DoesNotContain(seeded.GuestMobile, body);
         }
 
         private async Task<string> GetCsvAsync(string jwt, string url)

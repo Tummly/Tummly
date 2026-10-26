@@ -21,8 +21,6 @@ namespace TummlyBackend.DTOs.Feedback
         /// </summary>
         public string Format { get; init; } = "xlsx";
 
-        public bool IncludeGuestContact { get; init; }
-
         public int? FeedbackId { get; init; }
 
         public string Tab { get; init; } = "all";

@@ -43,6 +43,15 @@ namespace TummlyBackend.Helpers
             return "••••";
         }
 
+        /// <summary>
+        /// Feedback rows with no stored contact keep an empty string; any
+        /// stored value is masked.
+        /// </summary>
+        public static string MaskOrEmpty(ContactType contactType, string? guestContact)
+            => string.IsNullOrWhiteSpace(guestContact)
+                ? string.Empty
+                : Mask(contactType, guestContact);
+
         public static string? MaskEmail(string? email)
             => string.IsNullOrWhiteSpace(email)
                 ? null
