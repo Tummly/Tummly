@@ -391,7 +391,6 @@ namespace TummlyBackend.Services
             var outcome = await _smsSend.SendAndSettleAsync(
                 reservation,
                 feedback,
-                guestResponse.Body,
                 cancellationToken
             );
             var now = DateTime.UtcNow;

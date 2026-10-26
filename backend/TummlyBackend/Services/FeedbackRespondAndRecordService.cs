@@ -248,7 +248,6 @@ namespace TummlyBackend.Services
             var outcome = await _smsSend.SendAndSettleAsync(
                 reservation,
                 feedback,
-                content.Body,
                 cancellationToken
             );
 

@@ -314,6 +314,7 @@ namespace TummlyBackend.Services
                         ? campaign.Offer.CustomExpiryDate
                         : null,
                     campaign.MessageBody,
+                    RestaurantName = campaign.RestaurantLocation!.Restaurant!.Name,
                     campaign.CreatedByUserId,
                     CreatedByDisplayName = campaign.CreatedByUser != null
                         ? campaign.CreatedByUser.FullName
@@ -475,7 +476,10 @@ namespace TummlyBackend.Services
                         RecipientCount = recipients > 0 ? recipients : null,
                         SmsPartsPerMessage = isSms
                             ? CampaignSmsSegmentCalculator.CountSegments(
-                                campaign.MessageBody
+                                GuestSmsText.ForCampaign(
+                                    campaign.RestaurantName ?? string.Empty,
+                                    campaign.MessageBody ?? string.Empty
+                                )
                             )
                             : null,
                         RowVersion = campaign.RowVersion,

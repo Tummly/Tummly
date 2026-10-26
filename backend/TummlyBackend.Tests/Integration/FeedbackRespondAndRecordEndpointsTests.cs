@@ -539,7 +539,8 @@ namespace TummlyBackend.Tests.Integration
             var guestResponse = await context.FeedbackGuestResponses
                 .AsNoTracking()
                 .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
-            Assert.Equal(sent.Body, guestResponse.Body);
+            // The provider text has the restaurant prefix. The stored reply keeps the operator text.
+            Assert.Equal("Respond And Record Venue: " + guestResponse.Body, sent.Body);
             Assert.StartsWith("SMrecorded-", guestResponse.ProviderMessageId);
             Assert.Equal(
                 GuestReplyDeliveryState.Accepted,

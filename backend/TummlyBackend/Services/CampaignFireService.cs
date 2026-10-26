@@ -271,8 +271,16 @@ namespace TummlyBackend.Services
                 0,
                 (entity.ReservedEstimate ?? 0) - entity.SettledUnits
             );
+            var restaurantName =
+                await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row => row.Id == entity.RestaurantLocationId)
+                    .Select(row => row.Restaurant!.Name)
+                    .FirstOrDefaultAsync(cancellationToken)
+                ?? string.Empty;
             var perRecipientEstimate = CampaignBillingClose.AcceptedUnitsForDelivery(
                 channel,
+                restaurantName,
                 entity.MessageBody
             );
 
@@ -402,6 +410,13 @@ namespace TummlyBackend.Services
                                     cancellationToken
                                 );
                         }
+                    }
+
+                    if (string.Equals(channel, "sms", StringComparison.Ordinal))
+                    {
+                        // The final text: restaurant prefix, operator body (with any
+                        // claim code), STOP footer.
+                        outboundBody = GuestSmsText.ForCampaign(restaurantName, outboundBody);
                     }
 
                     sendResult = await _outbound.SendAsync(

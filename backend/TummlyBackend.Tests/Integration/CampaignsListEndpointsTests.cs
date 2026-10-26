@@ -202,6 +202,39 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task CampaignsList_SmsPartsUseFinalText()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaigns-list-sms-parts");
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            context.Campaigns.Add(new Campaign
+            {
+                RestaurantLocationId = seeded.LocationId,
+                Status = "draft",
+                Name = "Parts push",
+                GoalId = "thank-recent-guests",
+                Channel = "sms",
+                OfferStance = "no-offer",
+                // 150 characters is one part as typed. The sent text is
+                // "Campaigns Venue: " + body + STOP footer, which is two parts.
+                MessageBody = new string('a', 150),
+                CreatedAt = DateTime.UtcNow.AddHours(-1),
+                UpdatedAt = DateTime.UtcNow.AddHours(-1),
+            });
+            await context.SaveChangesAsync();
+
+            using var request = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "all"),
+                seeded.Jwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            var item = Assert.Single(body.GetProperty("items").EnumerateArray());
+            Assert.Equal(2, item.GetProperty("smsPartsPerMessage").GetInt32());
+        }
+
+        [Fact]
         public async Task GetCampaigns_PaginatesUpdatedAtDesc()
         {
             var seeded = await SeedOwnerWithLocationAsync(

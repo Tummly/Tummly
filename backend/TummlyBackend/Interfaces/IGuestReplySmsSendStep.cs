@@ -20,8 +20,9 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
-        /// Reserves credits for <paramref name="body"/> (or reuses an open hold for
-        /// <paramref name="idempotencyKey"/>). Throws
+        /// Reserves credits for the final SMS text of <paramref name="body"/> (the restaurant
+        /// prefix is added here; see <see cref="Helpers.GuestSmsText"/>). Reuses an open hold
+        /// for <paramref name="idempotencyKey"/>. Throws
         /// <see cref="Services.RecoverySmsCreditRefusedException"/> when refused.
         /// </summary>
         Task<GuestReplySmsReservation> ReserveAsync(
@@ -57,7 +58,7 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
-        /// Sends the text, then settles the credits when the provider accepted it.
+        /// Sends the reservation's final text, then settles the credits when the provider accepted it.
         /// A failed send releases the hold. A provider exception leaves the hold
         /// open for the sweeper and reports <see cref="GuestReplySmsOutcomeKind.Unknown"/>.
         /// A settle failure after acceptance is logged and never thrown.
@@ -65,7 +66,6 @@ namespace TummlyBackend.Interfaces
         Task<GuestReplySmsOutcome> SendAndSettleAsync(
             GuestReplySmsReservation reservation,
             Feedback feedback,
-            string body,
             CancellationToken cancellationToken
         );
 
@@ -119,11 +119,15 @@ namespace TummlyBackend.Interfaces
         );
     }
 
+    /// <param name="SmsText">
+    /// The text sent to the guest and counted for the reserve: restaurant prefix plus the operator body.
+    /// </param>
     public sealed record GuestReplySmsReservation(
         int FeedbackId,
         int RestaurantId,
         string IdempotencyKey,
-        string ReservationRef
+        string ReservationRef,
+        string SmsText
     );
 
     public enum GuestReplySmsOutcomeKind

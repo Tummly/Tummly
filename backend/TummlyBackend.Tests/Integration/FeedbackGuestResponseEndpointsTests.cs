@@ -656,6 +656,108 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ReplySms_PrefixCrossesSegment_ReservesTwo()
+        {
+            // 150 characters is one segment. The restaurant prefix makes the sent text
+            // 172 characters, so the reserve must be two segments.
+            var body = new string('a', 150);
+            var delivery = new RecordingRecoveryGuestSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Accepted
+                {
+                    AcceptedSegments = 1,
+                    ProviderMessageId = "SMprefix-1",
+                    StatusCallbackSet = true,
+                }
+            );
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-prefix-tok",
+                ContactType.Phone,
+                "+447911123496",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-prefix-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var sent = Assert.Single(delivery.Calls);
+            Assert.Equal("Guest Response Venue: " + body, sent.Body);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var guestResponse = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+
+            // Reserved 2 segments, accepted 1: one consumed, one released.
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries
+                    .Where(row =>
+                        row.RestaurantId == restaurantId
+                        && row.EntryType == CreditLedgerEntryTypes.Consumption
+                        && row.Channel == CreditChannels.Sms
+                        && row.ReservationRef == guestResponse.BillingReservationRef
+                    )
+                    .SumAsync(row => row.Quantity)
+            );
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries
+                    .Where(row =>
+                        row.RestaurantId == restaurantId
+                        && row.EntryType == CreditLedgerEntryTypes.Release
+                        && row.Channel == CreditChannels.Sms
+                        && row.ReservationRef == guestResponse.BillingReservationRef
+                    )
+                    .SumAsync(row => row.Quantity)
+            );
+        }
+
+        [Fact]
+        public async Task ReplySms_DuplicateRuleStillComparesOperatorBody()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-dup-prefix-tok",
+                ContactType.Phone,
+                "+447911123497",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-dup-prefix-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var first = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            var second = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            var secondBody = await ReadJsonAsync(second);
+            Assert.Equal("duplicate_reply", secondBody.GetProperty("code").GetString());
+            Assert.Single(delivery.Calls);
+        }
+
+        [Fact]
         public async Task ReplySms_NoCallbackConfigured_Unavailable()
         {
             await using var customized = CreateFactoryWithScriptedSmsDelivery(

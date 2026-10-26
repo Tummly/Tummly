@@ -54,6 +54,22 @@ describe("recoveryCreditChromePresentation", () => {
     ).toBe(false)
   })
 
+  it("estimateRecoverySmsSegments adds the restaurant prefix", () => {
+    // 150 characters is one segment. "The Golden Fork: " makes the sent text 167.
+    const body = "x".repeat(150)
+    expect(resolveRecoverySmsEstimateCredits(body)).toBe(1)
+    expect(resolveRecoverySmsEstimateCredits(body, "The Golden Fork")).toBe(2)
+    expect(resolveRecoverySmsEstimateCredits(body, "   ")).toBe(1)
+    expect(resolveRecoverySmsEstimateCredits(body, null)).toBe(1)
+    expect(
+      recoveryChannelAvailabilityLine({
+        channel: "sms",
+        messageBody: body,
+        restaurantName: "The Golden Fork",
+      })
+    ).toBe("Estimated usage: 2 SMS credits")
+  })
+
   it("SMS floor before body; estimate after body; shortfall blocks send", () => {
     expect(
       recoveryChannelAvailabilityLine({ channel: "sms", messageBody: "" })

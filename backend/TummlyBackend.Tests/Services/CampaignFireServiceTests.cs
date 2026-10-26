@@ -650,9 +650,30 @@ namespace TummlyBackend.Tests.Services
             Assert.IsType<CampaignFireResult.Ok>(result);
             var issue = Assert.Single(await _context.OfferIssues.ToListAsync());
             var call = Assert.Single(_outbound.Calls);
-            Assert.StartsWith("Hello from SMS", call.Body);
+            Assert.StartsWith("Fire Test Restaurant: Hello from SMS", call.Body);
             Assert.Contains($"Claim code: {issue.ClaimCode}", call.Body);
             Assert.Contains("Fire offer", call.Body);
+            Assert.EndsWith("\nReply STOP to stop texts.", call.Body);
+        }
+
+        [Fact]
+        public async Task CampaignFire_SmsBodyHasPrefixAndFooter()
+        {
+            var seeded = await SeedSendingCampaignAsync(
+                frozenEligibleCount: 1,
+                withCatalogOffer: false,
+                channel: "sms",
+                messageBody: "Hello from SMS"
+            );
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var call = Assert.Single(_outbound.Calls);
+            Assert.Equal(
+                "Fire Test Restaurant: Hello from SMS\nReply STOP to stop texts.",
+                call.Body
+            );
         }
 
         private async Task<(

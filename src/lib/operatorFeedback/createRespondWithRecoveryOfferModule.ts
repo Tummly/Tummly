@@ -702,6 +702,8 @@ function projectCreditChrome(state: SessionState): {
   const smsShortfall = resolveRecoverySmsShortfall({
     channel: state.draft.channel,
     messageBody: state.draft.message,
+    // No restaurant name in this module yet. The backend sends the final text.
+    restaurantName: null,
     smsRemaining: context?.smsRemaining ?? null,
     context,
   })

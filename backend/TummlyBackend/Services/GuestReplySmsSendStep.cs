@@ -92,13 +92,23 @@ namespace TummlyBackend.Services
         {
             await EnsureGuestNotSmsStoppedAsync(feedback, cancellationToken);
 
-            var restaurantId = await _context.RestaurantLocations
+            var location = await _context.RestaurantLocations
                 .AsNoTracking()
                 .Where(row => row.Id == feedback.RestaurantLocationId)
-                .Select(row => row.RestaurantId)
+                .Select(row => new
+                {
+                    row.RestaurantId,
+                    RestaurantName = row.Restaurant!.Name,
+                })
                 .FirstOrDefaultAsync(cancellationToken);
+            var restaurantId = location?.RestaurantId ?? 0;
 
-            var estimate = CampaignSmsSegmentCalculator.CountSegments(body);
+            // The reserve, the provider call and the reply's segment count all use this text.
+            var smsText = GuestSmsText.ForReply(
+                location?.RestaurantName ?? string.Empty,
+                body
+            );
+            var estimate = CampaignSmsSegmentCalculator.CountSegments(smsText);
             await ReleaseExpiredOpenHoldForKeyAsync(
                 restaurantId,
                 feedback.Id,
@@ -159,7 +169,8 @@ namespace TummlyBackend.Services
                 feedback.Id,
                 restaurantId,
                 idempotencyKey,
-                reservationRef
+                reservationRef,
+                smsText
             );
         }
 
@@ -278,7 +289,6 @@ namespace TummlyBackend.Services
         public async Task<GuestReplySmsOutcome> SendAndSettleAsync(
             GuestReplySmsReservation reservation,
             Feedback feedback,
-            string body,
             CancellationToken cancellationToken
         )
         {
@@ -287,7 +297,7 @@ namespace TummlyBackend.Services
             {
                 delivery = await _smsDelivery.SendAsync(
                     feedback.GuestContact,
-                    body,
+                    reservation.SmsText,
                     cancellationToken
                 );
             }
@@ -575,7 +585,7 @@ namespace TummlyBackend.Services
                         IdempotencyKey = idempotencyKey,
                         ReservationRef = reservationRef,
                         ReservedUnits = CampaignSmsSegmentCalculator.CountSegments(
-                            row.Body
+                            reservation.SmsText
                         ),
                         ReservedAtUtc = row.CreatedAt,
                         HoldExpiresAtUtc = row.CreatedAt,
