@@ -30,6 +30,7 @@ import {
   lastQuote,
   quoteView,
 } from "@/lib/marketingCustomPlan/customPlanQuoteState"
+import { buildForGroupsSignupIntent } from "@/lib/marketingCustomPlan/forGroupsSignupIntent"
 import { useServerCustomPlanQuote } from "@/lib/marketingCustomPlan/useServerCustomPlanQuote"
 import { usePublicPlanPrices } from "@/lib/marketingCustomPlan/usePublicPlanPrices"
 import type {
@@ -110,6 +111,13 @@ export function ForGroupsPricing() {
   // A quote for the other cadence must not show with this cadence's suffix.
   const shownMatchesCadence = shown != null && shown.cadence === cadence
   const view = quoteView({ check, state, changed: false })
+  // Above the included Locations, Continue carries the configured plan and quote hash.
+  const continueIntent = buildForGroupsSignupIntent({
+    locations: locationCount,
+    includedLocations: FOR_GROUPS_PRICING.includedLocations,
+    cadence,
+    quote: state.status === "ready" ? state.quote : null,
+  })
   const groupPrice = prices.Group
   const totalSuffix = cadence === "annual" ? "/ per year" : "/ per month"
 
@@ -368,15 +376,25 @@ export function ForGroupsPricing() {
               </div>
 
               <div className="flex w-full flex-col gap-[22px] sm:flex-row sm:items-stretch">
-                <MarketingButton
-                  asChild
-                  variant="dark"
-                  className="w-full flex-1"
-                >
-                  <RequestTrialLink planIntent={{ plan: "Group", cadence }}>
+                {continueIntent != null && view.continueEnabled ? (
+                  <MarketingButton
+                    asChild
+                    variant="dark"
+                    className="w-full flex-1"
+                  >
+                    <RequestTrialLink planIntent={continueIntent}>
+                      {calculator.continueLabel}
+                    </RequestTrialLink>
+                  </MarketingButton>
+                ) : (
+                  <MarketingButton
+                    variant="dark"
+                    className="w-full flex-1"
+                    disabled
+                  >
                     {calculator.continueLabel}
-                  </RequestTrialLink>
-                </MarketingButton>
+                  </MarketingButton>
+                )}
                 <MarketingButton
                   asChild
                   variant="secondary"

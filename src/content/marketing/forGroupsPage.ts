@@ -349,7 +349,7 @@ export const FOR_GROUPS_FAQS = {
       id: "locations-included",
       question: "How many Locations are included in Group?",
       answer:
-        "Group includes up to 5 Locations. Additional Locations can be added at the current per-Location rate, with self-service setup for up to 500 Locations online.",
+        "Group includes up to 5 Locations. Additional Locations can be added at progressive per-Location rates, with self-service setup for up to 500 Locations online.",
     },
     {
       id: "add-locations",
