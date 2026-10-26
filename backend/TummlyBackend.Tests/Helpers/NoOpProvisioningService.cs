@@ -19,5 +19,8 @@ namespace TummlyBackend.Tests.Helpers
 
         public Task GenerateActivationCodeAsync(string inviteToken) =>
             Task.CompletedTask;
+
+        public Task EnsurePilotForPendingAsync(Guid pendingSignupId) =>
+            Task.CompletedTask;
     }
 }

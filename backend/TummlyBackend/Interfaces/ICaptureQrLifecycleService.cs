@@ -34,5 +34,16 @@ namespace TummlyBackend.Interfaces
         Task<QrLifecycleResult> ActivateLocationCaptureAsync(
             LocationCaptureLifecycleCommand command
         );
+
+        /// <summary>
+        /// After a Pilot or plan start: activates codes the plan had left
+        /// Paused, at Locations whose capture is Active and that the operator
+        /// did not pause, oldest first, up to the per-Location cap. Returns the
+        /// count activated (0 when the cap cannot be resolved).
+        /// </summary>
+        Task<int> ActivatePlanPausedCodesAsync(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        );
     }
 }

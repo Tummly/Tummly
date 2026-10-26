@@ -319,6 +319,17 @@ namespace TummlyBackend.Controllers
                 });
             }
             catch (InvalidOperationException ex) when (
+                ex.Message == "pilot_already_used"
+            )
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = "pilot_already_used",
+                    message = "This account has already used its Pilot.",
+                });
+            }
+            catch (InvalidOperationException ex) when (
                 ex.Message == "idempotency_target_mismatch"
             )
             {

@@ -297,6 +297,9 @@ namespace TummlyBackend.Services
                     );
                 }
 
+                // Provisioned, but the Pilot start may not have run yet.
+                await _provisioningService.EnsurePilotForPendingAsync(pending.Id);
+
                 return;
             }
 

@@ -677,6 +677,93 @@ namespace TummlyBackend.Services
             }
         }
 
+        public async Task<int> ActivatePlanPausedCodesAsync(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var billingAccount = await _context.BillingAccounts.FirstOrDefaultAsync(
+                row => row.RestaurantId == restaurantId,
+                cancellationToken
+            );
+            if (
+                !TryResolveActiveQrCap(
+                    billingAccount,
+                    out var perLocationCap,
+                    out _
+                )
+            )
+            {
+                return 0;
+            }
+
+            var locations = await _context.RestaurantLocations
+                .Where(row =>
+                    row.RestaurantId == restaurantId
+                    && row.CaptureLocationStatus == CaptureLocationStatus.Active
+                )
+                .ToListAsync(cancellationToken);
+            if (locations.Count == 0)
+            {
+                return 0;
+            }
+
+            var locationIds = locations.Select(row => row.Id).ToList();
+            var activeByLocation = await _context.QrCodes
+                .Where(qr =>
+                    locationIds.Contains(qr.RestaurantLocationId)
+                    && qr.Status == QrCodeStatus.Active
+                )
+                .GroupBy(qr => qr.RestaurantLocationId)
+                .Select(g => new { LocationId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(
+                    row => row.LocationId,
+                    row => row.Count,
+                    cancellationToken
+                );
+
+            var pausedCodes = await _context.QrCodes
+                .Where(qr =>
+                    locationIds.Contains(qr.RestaurantLocationId)
+                    && qr.Status == QrCodeStatus.Paused
+                )
+                .OrderBy(qr => qr.CreatedAt)
+                .ThenBy(qr => qr.Id)
+                .ToListAsync(cancellationToken);
+
+            var activated = 0;
+            foreach (var qr in pausedCodes)
+            {
+                var location = locations.First(row =>
+                    row.Id == qr.RestaurantLocationId
+                );
+                var operatorPaused = CaptureLocationPauseRestore
+                    .Parse(location.CaptureLocationPauseRestoreQrCodeIdsJson)
+                    .Contains(qr.Id);
+                if (operatorPaused)
+                {
+                    continue;
+                }
+
+                var active = activeByLocation.GetValueOrDefault(qr.RestaurantLocationId);
+                if (active >= perLocationCap)
+                {
+                    continue;
+                }
+
+                qr.Status = QrCodeStatus.Active;
+                activeByLocation[qr.RestaurantLocationId] = active + 1;
+                activated++;
+            }
+
+            if (activated > 0)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            return activated;
+        }
+
         private Task<QrCode?> FindQrCodeAsync(int qrCodeId, int locationId) =>
             _context.QrCodes.FirstOrDefaultAsync(q =>
                 q.Id == qrCodeId && q.RestaurantLocationId == locationId

@@ -134,9 +134,7 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
                 new NoOpCycleEndPlanChange(),
-                new NoOpCreditLedger(),
                 Options.Create(sellerVat),
-                new EmailServiceStubBase(),
                 new CustomPlanCycleBillingService(
                     context,
                     new NoOpRevolutMerchantForCustomPlan(),
@@ -150,7 +148,15 @@ namespace TummlyBackend.Tests.Services
                             ["Frontend:BaseUrl"] = "https://app.test",
                         }
                     )
-                    .Build()
+                    .Build(),
+                PilotStartTestFactory.Create(
+                    context,
+                    new StubPricebookCatalog(),
+                    new NoOpCreditLedger(),
+                    NoOpComplimentaryStarterShopOrderService.Instance,
+                    NoOpPrintReadyQrMaterialsWork.Instance,
+                    new EmailServiceStubBase()
+                )
             );
             return new Harness(context, service, restaurant.Id);
         }

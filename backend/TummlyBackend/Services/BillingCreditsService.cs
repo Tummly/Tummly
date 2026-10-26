@@ -31,13 +31,10 @@ namespace TummlyBackend.Services
         private readonly ICreditTopUpPaySession _creditTopUpPaySession;
         private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly ICycleEndPlanChange _cycleEndPlanChange;
-        private readonly ICreditLedger _creditLedger;
         private readonly TummlySellerVatSettings _sellerVat;
-        private readonly IEmailService _emailService;
         private readonly CustomPlanCycleBillingService _customPlanCycleBilling;
         private readonly IConfiguration _configuration;
-        private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
-        private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
+        private readonly IPilotStartService _pilotStart;
 
         public BillingCreditsService(
             ApplicationDbContext context,
@@ -52,14 +49,10 @@ namespace TummlyBackend.Services
             ICreditTopUpPaySession creditTopUpPaySession,
             ITummlyVatInvoiceService vatInvoices,
             ICycleEndPlanChange cycleEndPlanChange,
-            ICreditLedger creditLedger,
             IOptions<TummlySellerVatSettings> sellerVat,
-            IEmailService emailService,
             CustomPlanCycleBillingService customPlanCycleBilling,
             IConfiguration configuration,
-            IComplimentaryStarterShopOrderService? complimentaryStarterShopOrders =
-                null,
-            IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null
+            IPilotStartService pilotStart
         )
         {
             _context = context;
@@ -74,17 +67,10 @@ namespace TummlyBackend.Services
             _creditTopUpPaySession = creditTopUpPaySession;
             _vatInvoices = vatInvoices;
             _cycleEndPlanChange = cycleEndPlanChange;
-            _creditLedger = creditLedger;
             _sellerVat = sellerVat.Value;
-            _emailService = emailService;
             _customPlanCycleBilling = customPlanCycleBilling;
             _configuration = configuration;
-            _complimentaryStarterShopOrders =
-                complimentaryStarterShopOrders
-                ?? NoOpComplimentaryStarterShopOrderService.Instance;
-            _printReadyQrMaterialsWork =
-                printReadyQrMaterialsWork
-                ?? NoOpPrintReadyQrMaterialsWork.Instance;
+            _pilotStart = pilotStart;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -563,54 +549,16 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                var nowUtc = DateTime.UtcNow;
+                var pilotStart = await _pilotStart.StartPilotAsync(restaurantId);
+                if (pilotStart.RefusedCode != null)
+                {
+                    throw new InvalidOperationException(pilotStart.RefusedCode);
+                }
+
                 await _firstPaidConversionPaySession.AbandonOpenSessionsAsync(
                     restaurantId
                 );
-                ApplyPilotSignupBilling(billingAccount, nowUtc);
-                var ownerRow = await _context.Users.FirstOrDefaultAsync(row =>
-                    row.Id == restaurant.OwnerUserId
-                );
-                if (ownerRow != null)
-                {
-                    ownerRow.ActivationExpiresAt = nowUtc.AddDays(
-                        ActivationCodeHelper.ActivationPeriodDays
-                    );
-                }
-
-                await _context.SaveChangesAsync();
-
-                var mint = await _creditLedger.MintPilotAtActivationAsync(
-                    restaurantId
-                );
-                if (
-                    !mint.Succeeded
-                    && mint.Code != "pilot_already_minted"
-                )
-                {
-                    throw new InvalidOperationException(
-                        mint.Code ?? "pilot_mint_failed"
-                    );
-                }
-
-                var shopOrderIds =
-                    await _complimentaryStarterShopOrders.EnsureAllActiveLocationsAsync(
-                        restaurantId,
-                        userId,
-                        ownerRow?.FullName ?? string.Empty
-                    );
-                foreach (var shopOrderId in shopOrderIds)
-                {
-                    await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
-                        shopOrderId
-                    );
-                }
-
-                await TrySendPilotStartedEmailAsync(
-                    ownerRow,
-                    restaurant.Name,
-                    billingAccount.PilotPeriodEnd
-                );
+                await _pilotStart.NotifyStartedAsync(restaurantId, pilotStart);
 
                 return new PlanChangeResultDto { Outcome = "applied" };
             }
@@ -2542,36 +2490,6 @@ namespace TummlyBackend.Services
             if (wrote)
             {
                 await _context.SaveChangesAsync();
-            }
-        }
-
-        private async Task TrySendPilotStartedEmailAsync(
-            User? owner,
-            string restaurantName,
-            DateTime? pilotEndUtc
-        )
-        {
-            if (
-                owner == null
-                || string.IsNullOrWhiteSpace(owner.Email)
-                || pilotEndUtc == null
-            )
-            {
-                return;
-            }
-
-            try
-            {
-                await _emailService.SendPilotStartedEmailAsync(
-                    owner.Email,
-                    SignInMetadataResolver.ExtractFirstName(owner.FullName),
-                    restaurantName,
-                    LondonDateFormat.DMmmYyyy(pilotEndUtc.Value)
-                );
-            }
-            catch
-            {
-                // Plan change must not fail when outbound email fails.
             }
         }
     }

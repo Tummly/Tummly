@@ -18,28 +18,24 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IQrCodeProvisioningService _qrCodeProvisioning;
         private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
-        private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
         private readonly IConfiguration _configuration;
         private readonly IPricebookCatalog _pricebookCatalog;
-        private readonly ICreditLedger _creditLedger;
         private readonly IBillingAccountLifecycle _lifecycle;
         private readonly IFirstPaidConversionPaySession _firstPaidConversionPaySession;
         private readonly CustomPlanCycleBillingService _customPlanCycleBilling;
-        private readonly IEmailService _emailService;
+        private readonly IPilotStartService _pilotStart;
         private readonly ILogger<GuestLoopProvisioningService> _logger;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
             IQrCodeProvisioningService qrCodeProvisioning,
             IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
-            IComplimentaryStarterShopOrderService complimentaryStarterShopOrders,
             IConfiguration configuration,
             IPricebookCatalog pricebookCatalog,
-            ICreditLedger creditLedger,
             IBillingAccountLifecycle lifecycle,
             IFirstPaidConversionPaySession firstPaidConversionPaySession,
             CustomPlanCycleBillingService customPlanCycleBilling,
-            IEmailService emailService,
+            IPilotStartService pilotStart,
             ILogger<GuestLoopProvisioningService> logger
         )
         {
@@ -47,14 +43,12 @@ namespace TummlyBackend.Services
             _context = context;
             _qrCodeProvisioning = qrCodeProvisioning;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
-            _complimentaryStarterShopOrders = complimentaryStarterShopOrders;
             _configuration = configuration;
             _pricebookCatalog = pricebookCatalog;
-            _creditLedger = creditLedger;
             _lifecycle = lifecycle;
             _firstPaidConversionPaySession = firstPaidConversionPaySession;
             _customPlanCycleBilling = customPlanCycleBilling;
-            _emailService = emailService;
+            _pilotStart = pilotStart;
         }
 
         public async Task<InviteTokenResult> ValidateInviteTokenAsync(string token)
@@ -128,8 +122,7 @@ namespace TummlyBackend.Services
                     trialRequest.IsAccountCreated = true;
                     trialRequest.Status = TrialRequestStatus.AccountCreated;
                 },
-                mintPilotCredits: true,
-                startsPilotClock: true
+                startsPilot: true
             );
         }
 
@@ -330,8 +323,7 @@ namespace TummlyBackend.Services
                     pending.Status = PendingSignupStatuses.Complete;
                     pending.UpdatedAtUtc = DateTime.UtcNow;
                 },
-                mintPilotCredits: false,
-                startsPilotClock: isPilotPlan
+                startsPilot: false
             );
 
             if (isPilotPlan)
@@ -349,6 +341,27 @@ namespace TummlyBackend.Services
                     pending.CustomPlanConfigJson
                 );
             }
+        }
+
+        public async Task EnsurePilotForPendingAsync(Guid pendingSignupId)
+        {
+            var pending = await _context.PendingSignups
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == pendingSignupId);
+            if (
+                pending == null
+                || pending.Status != PendingSignupStatuses.Complete
+                || !string.Equals(
+                    pending.ChosenPlan?.Trim(),
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return;
+            }
+
+            await ApplyPilotSignupBillingAsync(pending.Email);
         }
 
         private async Task ApplyPilotSignupBillingAsync(string email)
@@ -369,78 +382,8 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            var billing = await _context.BillingAccounts.FirstOrDefaultAsync(
-                x => x.RestaurantId == restaurant.Id
-            );
-            if (billing == null)
-            {
-                return;
-            }
-
-            var nowUtc = DateTime.UtcNow;
-            BillingCreditsService.ApplyPilotSignupBilling(billing, nowUtc);
-            user.ActivationExpiresAt = nowUtc.AddDays(
-                ActivationCodeHelper.ActivationPeriodDays
-            );
-            await _context.SaveChangesAsync();
-
-            var mintResult = await _creditLedger.MintPilotAtActivationAsync(
-                restaurant.Id
-            );
-            if (
-                !mintResult.Succeeded
-                && mintResult.Code != "pilot_already_minted"
-            )
-            {
-                throw new InvalidOperationException(
-                    mintResult.Code ?? "Unable to complete Pilot credit mint."
-                );
-            }
-
-            var shopOrderIds =
-                await _complimentaryStarterShopOrders.EnsureAllActiveLocationsAsync(
-                    restaurant.Id,
-                    user.Id,
-                    user.FullName
-                );
-            foreach (var shopOrderId in shopOrderIds)
-            {
-                await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
-                    shopOrderId
-                );
-            }
-
-            await TrySendPilotStartedEmailAsync(
-                user,
-                restaurant.Name,
-                billing.PilotPeriodEnd ?? user.ActivationExpiresAt
-            );
-        }
-
-        private async Task TrySendPilotStartedEmailAsync(
-            User user,
-            string restaurantName,
-            DateTime? pilotEndUtc
-        )
-        {
-            if (pilotEndUtc == null || string.IsNullOrWhiteSpace(user.Email))
-            {
-                return;
-            }
-
-            try
-            {
-                await _emailService.SendPilotStartedEmailAsync(
-                    user.Email,
-                    SignInMetadataResolver.ExtractFirstName(user.FullName),
-                    restaurantName,
-                    LondonDateFormat.DMmmYyyy(pilotEndUtc.Value)
-                );
-            }
-            catch
-            {
-                // Provisioning must not fail when outbound email fails.
-            }
+            var result = await _pilotStart.StartPilotAsync(restaurant.Id);
+            await _pilotStart.NotifyStartedAsync(restaurant.Id, result);
         }
 
         private async Task StartPaidSignupPaySessionAsync(
@@ -703,19 +646,15 @@ namespace TummlyBackend.Services
         private async Task CreateOperatorAccountAsync(
             ProvisionAccountInput input,
             Action afterUserSaved,
-            bool mintPilotCredits,
-            bool startsPilotClock
+            bool startsPilot
         )
         {
             await using var transaction =
                 await _context.Database.BeginTransactionAsync();
             var provisionedLocations = new List<RestaurantLocation>();
-            var complimentaryOrderIds = new List<Guid>();
             int? restaurantId = null;
             DateTime? activatedAt = null;
-            User? provisionedUser = null;
-            string? provisionedRestaurantName = null;
-            DateTime? provisionedPilotEnd = null;
+            PilotStartResult? pilotStartResult = null;
 
             try
             {
@@ -736,10 +675,6 @@ namespace TummlyBackend.Services
                     FailedLoginAttempts = 0,
                     TermsAccepted = input.TermsAccepted,
                     ActivatedAt = now,
-                    // Paid and Free accounts have no Pilot clock.
-                    ActivationExpiresAt = startsPilotClock
-                        ? ActivationCodeHelper.ComputeActivationExpiresAt(now)
-                        : null,
                 };
 
                 _context.Users.Add(user);
@@ -852,46 +787,13 @@ namespace TummlyBackend.Services
 
                 _context.GuestLoopSetups.Add(guestLoop);
 
-                if (mintPilotCredits)
+                if (startsPilot)
                 {
-                    BillingCreditsService.ApplyPilotSignupBilling(
-                        restaurant.BillingAccount!,
-                        now
-                    );
-                    user.ActivationExpiresAt =
-                        ActivationCodeHelper.ComputeActivationExpiresAt(now);
-
-                    await _context.SaveChangesAsync();
-
-                    var mintResult = await _creditLedger.MintPilotAtActivationAsync(
+                    // Joins this transaction. Post-commit side effects run in
+                    // NotifyStartedAsync below.
+                    pilotStartResult = await _pilotStart.StartPilotAsync(
                         restaurant.Id
                     );
-                    if (!mintResult.Succeeded)
-                    {
-                        throw new InvalidOperationException(
-                            "Unable to complete account activation."
-                        );
-                    }
-
-                    provisionedUser = user;
-                    provisionedRestaurantName = restaurant.Name;
-                    provisionedPilotEnd = restaurant.BillingAccount!.PilotPeriodEnd;
-                }
-
-                // Free accounts skip mint (Ensure gates on plan). Pilot/paid only.
-                foreach (var location in provisionedLocations)
-                {
-                    var complimentary =
-                        await _complimentaryStarterShopOrders.EnsureForLocationAsync(
-                            restaurant.Id,
-                            location.Id,
-                            user.Id,
-                            user.FullName
-                        );
-                    if (complimentary.ShopOrderId != Guid.Empty)
-                    {
-                        complimentaryOrderIds.Add(complimentary.ShopOrderId);
-                    }
                 }
 
                 await _context.SaveChangesAsync();
@@ -914,19 +816,11 @@ namespace TummlyBackend.Services
                 await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
             }
 
-            foreach (var shopOrderId in complimentaryOrderIds)
+            if (restaurantId.HasValue && pilotStartResult != null)
             {
-                await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
-                    shopOrderId
-                );
-            }
-
-            if (provisionedUser != null && provisionedRestaurantName != null)
-            {
-                await TrySendPilotStartedEmailAsync(
-                    provisionedUser,
-                    provisionedRestaurantName,
-                    provisionedPilotEnd ?? provisionedUser.ActivationExpiresAt
+                await _pilotStart.NotifyStartedAsync(
+                    restaurantId.Value,
+                    pilotStartResult
                 );
             }
         }

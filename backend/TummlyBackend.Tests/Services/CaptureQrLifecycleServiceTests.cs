@@ -22,6 +22,7 @@ namespace TummlyBackend.Tests.Services
             new();
         private int _userId;
         private int _locationId;
+        private int _restaurantId;
 
         public CaptureQrLifecycleServiceTests()
         {
@@ -760,6 +761,90 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(QrLifecycleResultKind.Conflict, denied.Kind);
         }
 
+        [Fact]
+        public async Task ActivatePlanPausedCodes_ActivatesWithinCap()
+        {
+            for (var i = 1; i <= 7; i++)
+            {
+                await SeedDigitalAsync($"Plan link {i}", QrCodeStatus.Paused);
+            }
+
+            var activated = await _service.ActivatePlanPausedCodesAsync(
+                _restaurantId
+            );
+
+            // Pilot cap is 5 Active codes per Location.
+            Assert.Equal(5, activated);
+            Assert.Equal(
+                5,
+                await _context.QrCodes.CountAsync(qr =>
+                    qr.RestaurantLocationId == _locationId
+                    && qr.Status == QrCodeStatus.Active
+                )
+            );
+        }
+
+        [Fact]
+        public async Task ActivatePlanPausedCodes_SkipsPausedLocation_StopsAtCap()
+        {
+            // Location A: Active capture, 2 Active codes, 4 plan-paused codes.
+            // Only 3 may activate (2 + 3 = cap 5).
+            await SeedDigitalAsync("Live link", QrCodeStatus.Active);
+            await SeedDigitalAsync("Live link two", QrCodeStatus.Active);
+            for (var i = 1; i <= 4; i++)
+            {
+                await SeedDigitalAsync($"Cap link {i}", QrCodeStatus.Paused);
+            }
+
+            // Location B: operator paused capture. Its codes stay Paused.
+            var pausedLocation = new RestaurantLocation
+            {
+                RestaurantId = _restaurantId,
+                LocationName = "Operator Paused",
+                Address = "2 High Street",
+                CreatedAt = DateTime.UtcNow,
+                CaptureLocationStatus = CaptureLocationStatus.Paused,
+            };
+            _context.RestaurantLocations.Add(pausedLocation);
+            await _context.SaveChangesAsync();
+
+            var pausedCode = new QrCode
+            {
+                RestaurantLocationId = pausedLocation.Id,
+                QrType = QrType.DigitalGuestLink,
+                Token = Guid.NewGuid().ToString("N")[..32],
+                Status = QrCodeStatus.Paused,
+                LinkName = "Operator paused",
+                NormalizedLinkName = DigitalGuestLinkNaming.NormalizeLinkName(
+                    DigitalGuestLinkNaming.FormatLinkName("Operator paused")
+                ),
+                Channel = DigitalGuestLinkChannel.Email,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.QrCodes.Add(pausedCode);
+            await _context.SaveChangesAsync();
+            pausedLocation.CaptureLocationPauseRestoreQrCodeIdsJson =
+                CaptureLocationPauseRestore.Serialize([pausedCode.Id]);
+            await _context.SaveChangesAsync();
+
+            var activated = await _service.ActivatePlanPausedCodesAsync(
+                _restaurantId
+            );
+
+            Assert.Equal(3, activated);
+            Assert.Equal(
+                5,
+                await _context.QrCodes.CountAsync(qr =>
+                    qr.RestaurantLocationId == _locationId
+                    && qr.Status == QrCodeStatus.Active
+                )
+            );
+            var stillPaused = await _context.QrCodes.FirstAsync(qr =>
+                qr.Id == pausedCode.Id
+            );
+            Assert.Equal(QrCodeStatus.Paused, stillPaused.Status);
+        }
+
         public void Dispose()
         {
             _context.Dispose();
@@ -808,6 +893,7 @@ namespace TummlyBackend.Tests.Services
             _context.RestaurantLocations.Add(location);
             _context.SaveChanges();
             _locationId = location.Id;
+            _restaurantId = restaurant.Id;
         }
 
         private async Task<QrCode> SeedQrAsync(

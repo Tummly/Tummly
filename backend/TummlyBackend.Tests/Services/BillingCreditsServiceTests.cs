@@ -420,6 +420,62 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("no_pending_payment", error);
         }
 
+        [Fact]
+        public async Task ChangePlan_FreeToPilot_UsesStartPilot()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings { IsActive = false }
+            );
+
+            var result = await harness.Service.SubmitPlanChangeAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                new PlanChangeRequestDto
+                {
+                    TargetPlan = BillingSubscriptionPlans.Pilot,
+                    TargetCadence = "monthly",
+                }
+            );
+
+            Assert.Equal("applied", result!.Outcome);
+            var account = await harness.Context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == harness.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.NotNull(account.PilotStartedAtUtc);
+            Assert.NotNull(account.PilotPeriodEnd);
+        }
+
+        [Fact]
+        public async Task ChangePlan_FreeToPilot_AlreadyUsed_Throws409Code()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings { IsActive = false }
+            );
+            var account = await harness.Context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == harness.RestaurantId);
+            account.PilotStartedAtUtc = DateTime.UtcNow.AddDays(-60);
+            await harness.Context.SaveChangesAsync();
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                harness.Service.SubmitPlanChangeAsync(
+                    harness.OwnerUserId,
+                    harness.RestaurantId,
+                    new PlanChangeRequestDto
+                    {
+                        TargetPlan = BillingSubscriptionPlans.Pilot,
+                        TargetCadence = "monthly",
+                    }
+                )
+            );
+
+            Assert.Equal("pilot_already_used", error.Message);
+            var reloaded = await harness.Context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == harness.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Free, reloaded.SubscriptionPlan);
+        }
+
         private static int ownerIdOf(ApplicationDbContext context, int restaurantId)
         {
             return context.Restaurants.Single(row => row.Id == restaurantId).OwnerUserId;
@@ -488,9 +544,7 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
                 new RecordingCycleEndPlanChange(),
-                new NoOpCreditLedger(),
                 Options.Create(sellerVat),
-                new EmailServiceStubBase(),
                 new CustomPlanCycleBillingService(
                     context,
                     new NoOpRevolutMerchantForCustomPlan(),
@@ -504,7 +558,15 @@ namespace TummlyBackend.Tests.Services
                             ["Frontend:BaseUrl"] = "https://app.test",
                         }
                     )
-                    .Build()
+                    .Build(),
+                PilotStartTestFactory.Create(
+                    context,
+                    TestPricebookPaths.LoadV3(),
+                    new NoOpCreditLedger(),
+                    NoOpComplimentaryStarterShopOrderService.Instance,
+                    NoOpPrintReadyQrMaterialsWork.Instance,
+                    new EmailServiceStubBase()
+                )
             );
         }
 
@@ -566,9 +628,7 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
                 cycleEndPlanChange,
-                new NoOpCreditLedger(),
                 Options.Create(sellerVat),
-                new EmailServiceStubBase(),
                 new CustomPlanCycleBillingService(
                     context,
                     new NoOpRevolutMerchantForCustomPlan(),
@@ -582,7 +642,15 @@ namespace TummlyBackend.Tests.Services
                             ["Frontend:BaseUrl"] = "https://app.test",
                         }
                     )
-                    .Build()
+                    .Build(),
+                PilotStartTestFactory.Create(
+                    context,
+                    pricebook,
+                    new NoOpCreditLedger(),
+                    NoOpComplimentaryStarterShopOrderService.Instance,
+                    NoOpPrintReadyQrMaterialsWork.Instance,
+                    new EmailServiceStubBase()
+                )
             );
             return new Harness(
                 context,

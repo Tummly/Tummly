@@ -1221,48 +1221,10 @@ namespace TummlyBackend.Services
 
             _cache.Remove(cacheKey);
 
-            var activatedAt = DateTime.UtcNow;
-            user.ActivatedAt = activatedAt;
-
-            // Only Pilot accounts start a Pilot clock here (kept until WS3b
-            // Task 4 moves this to StartPilotAsync). Paid and Free accounts
-            // get no clock and no mint.
-            var pilotRestaurantIds = await _context.Restaurants
-                .Where(row =>
-                    row.OwnerUserId == userId
-                    && row.BillingAccount != null
-                    && row.BillingAccount.SubscriptionPlan
-                        == BillingSubscriptionPlans.Pilot
-                )
-                .Select(row => row.Id)
-                .ToListAsync();
-
-            if (pilotRestaurantIds.Count > 0)
-            {
-                user.ActivationExpiresAt =
-                    ActivationCodeHelper.ComputeActivationExpiresAt(
-                        activatedAt
-                    );
-            }
-
-            await using var transaction =
-                await _context.Database.BeginTransactionAsync();
-
-            foreach (var restaurantId in pilotRestaurantIds)
-            {
-                var mintResult = await _creditLedger.MintPilotAtActivationAsync(
-                    restaurantId
-                );
-                if (!mintResult.Succeeded)
-                {
-                    throw new Exception(
-                        "Unable to complete account activation."
-                    );
-                }
-            }
-
+            // Activation records the account only. It never starts a Pilot
+            // (R1.4); the Pilot clock and credits come from IPilotStartService.
+            user.ActivatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
 
             await TickSelectedRestaurantAsync(user);
 

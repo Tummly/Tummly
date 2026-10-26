@@ -245,6 +245,15 @@ namespace TummlyBackend.Tests.Integration
         {
             var seeded = await SeedPendingActivationWorkspaceAsync();
 
+            // Activation never starts a Pilot. The Pilot start event does.
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var pilotStart = scope.ServiceProvider
+                    .GetRequiredService<IPilotStartService>();
+                var started = await pilotStart.StartPilotAsync(seeded.RestaurantId);
+                Assert.True(started.Started);
+            }
+
             using (var activateRequest = new HttpRequestMessage(
                 HttpMethod.Post,
                 "/api/auth/activate"

@@ -1262,6 +1262,7 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<ITrialReviewTransition, TrialReviewTransition>();
 
 builder.Services.AddScoped<IActivationGate, ActivationGate>();
+builder.Services.AddScoped<IPilotStartService, PilotStartService>();
 
 builder.Services.AddHostedService<
     OperatorSetupInvitationReminderBackgroundService
