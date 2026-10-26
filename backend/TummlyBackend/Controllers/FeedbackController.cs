@@ -1581,6 +1581,26 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+            catch (GuestReplyDuplicateException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ex.Code,
+                    message = ex.Message,
+                });
+            }
+            catch (GuestReplyLockUnavailableException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message,
+                    }
+                );
+            }
             catch (RecoverySmsBillingUnavailableException)
             {
                 return StatusCode(
@@ -2380,6 +2400,35 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message = ex.Message,
                 });
+            }
+            catch (GuestReplyDuplicateException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ex.Code,
+                    message = ex.Message,
+                });
+            }
+            catch (RecoveryOfferOpenException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ex.Code,
+                    message = ex.Message,
+                });
+            }
+            catch (GuestReplyLockUnavailableException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message,
+                    }
+                );
             }
             catch (OfferIssueCodeAllocationException ex)
             {

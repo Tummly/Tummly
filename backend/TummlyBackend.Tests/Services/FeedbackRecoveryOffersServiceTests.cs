@@ -5,6 +5,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -31,7 +32,8 @@ namespace TummlyBackend.Tests.Services
             _service = new FeedbackRecoveryOffersService(
                 _context,
                 NoOpGuestResponseEmailDeliveryWork.Instance,
-                _offerIssues
+                _offerIssues,
+                new GatedGuestReplyLock()
             );
         }
 
@@ -235,7 +237,8 @@ namespace TummlyBackend.Tests.Services
             var service = new FeedbackRecoveryOffersService(
                 failingContext,
                 NoOpGuestResponseEmailDeliveryWork.Instance,
-                offerIssues
+                offerIssues,
+                new GatedGuestReplyLock()
             );
 
             var seeded = await SeedFeedbackWithAttachIntoAsync(failingContext);

@@ -1,6 +1,7 @@
 using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Helpers
 {
@@ -9,6 +10,8 @@ namespace TummlyBackend.Tests.Helpers
         public List<(int FeedbackId, string Body)> Sent { get; } = [];
 
         public HashSet<int> FailFeedbackIds { get; } = [];
+
+        public HashSet<int> DuplicateFeedbackIds { get; } = [];
 
         public Task<SendFeedbackGuestResponseResultDto?> SendAsync(
             int feedbackId,
@@ -27,6 +30,11 @@ namespace TummlyBackend.Tests.Helpers
             if (FailFeedbackIds.Contains(feedbackId))
             {
                 throw new InvalidOperationException("send failed");
+            }
+
+            if (DuplicateFeedbackIds.Contains(feedbackId))
+            {
+                throw new GuestReplyDuplicateException();
             }
 
             Sent.Add((feedbackId, body));

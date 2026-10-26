@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -813,6 +814,250 @@ namespace TummlyBackend.Tests.Integration
 
             var response = await _client.SendAsync(post);
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GuestResponse_IdenticalRepeatWithin10Min_Returns409DuplicateReply()
+        {
+            var notifier = new CountingGuestResponseEmailDeliveryWork();
+            await using var factory = _factory.WithWebHostBuilder(builder =>
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IGuestResponseEmailDeliveryWork>();
+                    services.AddSingleton<IGuestResponseEmailDeliveryWork>(notifier);
+                })
+            );
+            using var client = factory.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-duplicate-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "duplicate-owner@example.com",
+                services: factory.Services
+            );
+
+            var first = await SendGuestReplyAsync(
+                client,
+                seeded,
+                "Sorry about your visit",
+                "Thank you for telling us."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            var second = await SendGuestReplyAsync(
+                client,
+                seeded,
+                "Sorry about your visit",
+                "Thank you for telling us."
+            );
+            Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+
+            var secondBody = await ReadJsonAsync(second);
+            Assert.False(secondBody.GetProperty("success").GetBoolean());
+            Assert.Equal("duplicate_reply", secondBody.GetProperty("code").GetString());
+            Assert.Equal(
+                "This reply was already sent to the guest.",
+                secondBody.GetProperty("message").GetString()
+            );
+
+            using var scope = factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                1,
+                await context.FeedbackGuestResponses.CountAsync(r =>
+                    r.FeedbackId == seeded.FeedbackId
+                )
+            );
+            Assert.Equal(1, notifier.Notified);
+        }
+
+        [Fact]
+        public async Task GuestResponse_SameTextWithExtraSpaces_Returns409()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-spaces-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "spaces-owner@example.com"
+            );
+
+            var first = await SendGuestReplyAsync(
+                _client,
+                seeded,
+                "Sorry about your visit",
+                "Thank you for telling us."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            var second = await SendGuestReplyAsync(
+                _client,
+                seeded,
+                "Sorry about your visit",
+                "  Thank   you\n for   telling us.  "
+            );
+            Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+            var body = await ReadJsonAsync(second);
+            Assert.Equal("duplicate_reply", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task GuestResponse_DifferentText_Allowed()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-different-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "different-owner@example.com"
+            );
+
+            var first = await SendGuestReplyAsync(
+                _client,
+                seeded,
+                "Sorry about your visit",
+                "Thank you for telling us."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            var second = await SendGuestReplyAsync(
+                _client,
+                seeded,
+                "Sorry about your visit",
+                "We have passed your comments to the kitchen."
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                2,
+                await context.FeedbackGuestResponses.CountAsync(r =>
+                    r.FeedbackId == seeded.FeedbackId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task GuestResponse_SameTextAfter10Min_Allowed()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-aged-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "aged-owner@example.com"
+            );
+
+            var first = await SendGuestReplyAsync(
+                _client,
+                seeded,
+                "Sorry about your visit",
+                "Thank you for telling us."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var row = await context.FeedbackGuestResponses.SingleAsync(r =>
+                    r.FeedbackId == seeded.FeedbackId
+                );
+                row.CreatedAt = DateTime.UtcNow.AddMinutes(-11);
+                await context.SaveChangesAsync();
+            }
+
+            var second = await SendGuestReplyAsync(
+                _client,
+                seeded,
+                "Sorry about your visit",
+                "Thank you for telling us."
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        }
+
+        [Fact]
+        public async Task GuestResponse_LockTimeout_Returns503()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-lock-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "lock-owner@example.com"
+            );
+
+            _factory.ReplyLock.RejectAll = true;
+            try
+            {
+                var response = await SendGuestReplyAsync(
+                    _client,
+                    seeded,
+                    "Sorry about your visit",
+                    "Thank you for telling us."
+                );
+                Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+
+                var body = await ReadJsonAsync(response);
+                Assert.False(body.GetProperty("success").GetBoolean());
+                Assert.Equal("Please try again.", body.GetProperty("message").GetString());
+            }
+            finally
+            {
+                _factory.ReplyLock.RejectAll = false;
+            }
+        }
+
+        private static async Task<HttpResponseMessage> SendGuestReplyAsync(
+            HttpClient client,
+            (string Jwt, int LocationId, int FeedbackId) seeded,
+            string subject,
+            string body
+        )
+        {
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject,
+                body,
+                intent = "respond_to_guest",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+            });
+
+            return await client.SendAsync(post);
+        }
+
+        private sealed class CountingGuestResponseEmailDeliveryWork
+            : IGuestResponseEmailDeliveryWork
+        {
+            public int Notified { get; private set; }
+
+            public ValueTask NotifyAsync(
+                int guestResponseId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                Notified += 1;
+                return ValueTask.CompletedTask;
+            }
+
+            public Task RunAsync(CancellationToken stoppingToken) =>
+                Task.CompletedTask;
+
+            public Task DrainAsync(
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
 
         private async Task<(

@@ -128,6 +128,46 @@ public class BulkRecoveryBatchServiceTests : IDisposable
         Assert.Equal("partial", send.Status);
     }
 
+    [Fact]
+    public async Task Send_DuplicateRowIsRecordedPerRow_OtherRowsStillSend()
+    {
+        var (restaurantId, locationId, userId) = await SeedShellAsync();
+        var a = await SeedFeedbackAsync(locationId, "Ada Lovelace", "ada@example.com");
+        var b = await SeedFeedbackAsync(locationId, "Bob Builder", "bob@example.com");
+        var c = await SeedFeedbackAsync(locationId, "Cy Young", "cy@example.com");
+        _guestResponses.DuplicateFeedbackIds.Add(b);
+
+        var draft = await _sut.CreateDraftAsync(
+            restaurantId,
+            locationId,
+            userId,
+            [a, b, c],
+            FeedbackGuestResponseChannel.Email,
+            FeedbackRecoveryIntent.RespondToGuest,
+            null,
+            $"Hi {BulkRecoveryPersonalise.GuestFirstNameToken}, thanks.",
+            null,
+            null,
+            null
+        );
+        Assert.NotNull(draft);
+
+        var send = await _sut.SendAsync(draft!.Id, userId);
+        Assert.NotNull(send);
+        Assert.Equal(2, send!.Sent);
+        Assert.Equal(1, send.Failed);
+        Assert.Equal("partial", send.Status);
+
+        var member = await _context.BulkRecoveryBatchMembers
+            .AsNoTracking()
+            .SingleAsync(m => m.BatchId == draft.Id && m.FeedbackId == b);
+        Assert.Equal(BulkRecoveryBatchMemberStatus.Failed, member.Status);
+        Assert.Equal(
+            "This reply was already sent to the guest.",
+            member.FailureReason
+        );
+    }
+
     private async Task<(int RestaurantId, int LocationId, int UserId)> SeedShellAsync()
     {
         var user = new User
