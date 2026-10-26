@@ -92,16 +92,20 @@ namespace TummlyBackend.Billing.CustomPlan
         {
             netPence = 0;
             missingBand = null;
+            var total = 0;
 
             foreach (var slice in Slice(firstSlot, lastSlot))
             {
-                if (!ratesByBand.TryGetValue(slice.BandIndex, out var rate))
+                if (
+                    !ratesByBand.TryGetValue(slice.BandIndex, out var rate)
+                    || (IsAnnual(cadence) && rate.AnnualNetPence is not > 0)
+                )
                 {
                     missingBand = slice.BandIndex;
                     return false;
                 }
 
-                netPence += CustomPlanLineNet.ForCadence(
+                total += CustomPlanLineNet.ForCadence(
                     cadence,
                     slice.SlotCount,
                     rate.MonthlyNetPence,
@@ -110,8 +114,12 @@ namespace TummlyBackend.Billing.CustomPlan
                 );
             }
 
+            netPence = total;
             return true;
         }
+
+        private static bool IsAnnual(string cadence) =>
+            string.Equals(cadence, "annual", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Band index (1–5) for one Location slot (6–500).

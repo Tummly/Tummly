@@ -795,7 +795,11 @@ namespace TummlyBackend.Services
                             BasePlan = parsed.BasePlan,
                             Locations = parsed.Locations
                                 ?? parsed.Quantities.Locations,
-                            Packs = parsed.Packs,
+                            Packs = parsed.Packs?.ToDictionary(
+                                kv => kv.Key,
+                                kv => (decimal)kv.Value,
+                                StringComparer.Ordinal
+                            ),
                         }
                     );
                     pending.ChosenPlan = quote.StoredAsPlan;

@@ -102,6 +102,26 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void TryPrice_AnnualMissingBand2_ReturnsFalse_WithZeroNetPence()
+        {
+            var rates = RatesWithBand1();
+            rates[2] = new LocationBandRate(2, 3700, null);
+
+            var ok = LocationBandPricing.TryPrice(
+                6,
+                31,
+                "annual",
+                rates,
+                out var netPence,
+                out var missingBand
+            );
+
+            Assert.False(ok);
+            Assert.Equal(2, missingBand);
+            Assert.Equal(0, netPence);
+        }
+
+        [Fact]
         public void TryPrice_MissingBand3_NotNeededUpTo50()
         {
             var rates = RatesWithBand1();

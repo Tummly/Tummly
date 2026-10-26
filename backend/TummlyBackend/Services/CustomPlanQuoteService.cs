@@ -23,12 +23,6 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var version = await LoadPublishedAsync(cancellationToken)
-                ?? throw new CustomPlanQuoteException(
-                    "catalog_not_ready",
-                    "Catalog not ready."
-                );
-
             var cadence = string.Equals(
                 request.Cadence?.Trim(),
                 "annual",
@@ -37,16 +31,16 @@ namespace TummlyBackend.Services
                 ? "annual"
                 : "monthly";
 
-            var locations = request.Locations;
-            if (locations > CustomPlanConfig.MaxLocations)
-            {
-                throw new CustomPlanQuoteException(
-                    "custom_plan_contact_sales",
-                    "More than 500 Locations needs a sales conversation."
-                );
-            }
-
+            // Validate the request before any catalogue read or maths.
+            var locations = ValidateLocations(request.Locations);
             var packs = NormalizePacks(request.Packs);
+
+            var version = await LoadPublishedAsync(cancellationToken)
+                ?? throw new CustomPlanQuoteException(
+                    "catalog_not_ready",
+                    "Catalog not ready."
+                );
+
             var plans = BuildPlanSummaries(version);
             if (plans.Count == 0)
             {
@@ -70,8 +64,7 @@ namespace TummlyBackend.Services
                 StringComparer.Ordinal
             );
 
-            var clampedLocations = Math.Max(1, locations);
-            var minPlan = MinBasePlanForLocations(clampedLocations, plans);
+            var minPlan = MinBasePlanForLocations(locations, plans);
             // Location count alone sets the base package; other capacity is
             // bought as packs on top (never by moving to a higher package).
             var requested = ParseBasePlanKey(request.BasePlan);
@@ -88,12 +81,23 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (
+                packs.GetValueOrDefault("sms_5000") > 0
+                && !string.Equals(basePlan, "group", StringComparison.Ordinal)
+            )
+            {
+                throw new CustomPlanQuoteException(
+                    "sms_pack_requires_approval",
+                    "The 5,000 SMS pack needs a Group plan or sales approval."
+                );
+            }
+
             var basePlanChanged =
                 requested != null
                 && !string.Equals(requested, basePlan, StringComparison.Ordinal);
 
             var includedLocations = planRow.IncludedLocations;
-            var additionalLocations = Math.Max(0, clampedLocations - includedLocations);
+            var additionalLocations = Math.Max(0, locations - includedLocations);
             var extra = version.ExtraLocations.FirstOrDefault();
             var usersAdded = extra?.UsersAdded ?? 0;
             var extraAi = extra?.CreditsMonthlyAi ?? 0;
@@ -116,7 +120,7 @@ namespace TummlyBackend.Services
 
             var quantities = new CustomPlanQuantities
             {
-                Locations = clampedLocations,
+                Locations = locations,
                 TeamUsers =
                     planRow.IncludedTeamMembers
                     + teamFromPacks
@@ -157,35 +161,42 @@ namespace TummlyBackend.Services
                 }
             );
 
-            if (
-                additionalLocations > 0
-                && ratesByKey.TryGetValue(
-                    CommercialCustomUnitRateKeys.Location,
-                    out var locationRate
-                )
+            var ratesByBand = LocationBandRates(ratesByKey);
+            foreach (
+                var slice in LocationBandPricing.Slice(includedLocations + 1, locations)
             )
             {
-                var monthlyExtra = CustomPlanLineNet.Monthly(
-                    additionalLocations,
-                    locationRate.MonthlyNetPence,
-                    locationRate.UnitQuantity
+                if (
+                    !LocationBandPricing.TryPrice(
+                        slice.FirstSlot,
+                        slice.LastSlot,
+                        cadence,
+                        ratesByBand,
+                        out var periodExtra,
+                        out _
+                    )
+                )
+                {
+                    throw new CustomPlanQuoteException(
+                        "catalog_incomplete",
+                        "The Location price is missing from the catalogue."
+                    );
+                }
+
+                var bandRate = ratesByBand[slice.BandIndex];
+                monthlyNetPence += CustomPlanLineNet.Monthly(
+                    slice.SlotCount,
+                    bandRate.MonthlyNetPence,
+                    1
                 );
-                var periodExtra = CustomPlanLineNet.ForCadence(
-                    cadence,
-                    additionalLocations,
-                    locationRate.MonthlyNetPence,
-                    locationRate.AnnualNetPence,
-                    locationRate.UnitQuantity
-                );
-                monthlyNetPence += monthlyExtra;
                 periodNetPence += periodExtra;
                 lines.Add(
                     new CustomPlanLine
                     {
-                        Key = "extra:location",
+                        Key = $"extra:location:band_{slice.BandIndex}",
                         Label =
-                            $"{additionalLocations} additional Location{(additionalLocations == 1 ? "" : "s")}",
-                        Quantity = additionalLocations,
+                            $"{slice.SlotCount} additional Location{(slice.SlotCount == 1 ? "" : "s")} ({slice.FirstSlot}–{slice.LastSlot})",
+                        Quantity = slice.SlotCount,
                         NetPence = periodExtra,
                     }
                 );
@@ -241,13 +252,13 @@ namespace TummlyBackend.Services
                 .Where(kv => kv.Value > 0)
                 .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
 
-            return new CustomPlanQuoteResult
+            var quote = new CustomPlanQuoteResult
             {
                 Version = 2,
                 CatalogPublicId = version.PublicId,
                 Cadence = cadence,
                 BasePlan = basePlan,
-                Locations = clampedLocations,
+                Locations = locations,
                 Packs = storedPacks,
                 Quantities = quantities,
                 MonthlyNetPence = monthlyNetPence,
@@ -257,7 +268,10 @@ namespace TummlyBackend.Services
                 BasePlanChanged = basePlanChanged,
                 RequestedBasePlan = requested,
                 StoredAsPlan = storedAsPlan,
+                VatRateBps = version.VatRateBps,
             };
+            quote.QuoteHash = CustomPlanQuoteHash.Compute(quote);
+            return quote;
         }
 
         private async Task<CommercialCatalogVersion?> LoadPublishedAsync(
@@ -274,8 +288,29 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
+        internal static int ValidateLocations(decimal locations)
+        {
+            if (locations < 1 || locations != decimal.Truncate(locations))
+            {
+                throw new CustomPlanQuoteException(
+                    "invalid_location_count",
+                    "Enter a whole number of Locations."
+                );
+            }
+
+            if (locations > CustomPlanConfig.MaxLocations)
+            {
+                throw new CustomPlanQuoteException(
+                    "custom_plan_contact_sales",
+                    "More than 500 Locations needs a sales conversation."
+                );
+            }
+
+            return (int)locations;
+        }
+
         internal static Dictionary<string, int> NormalizePacks(
-            Dictionary<string, int>? packs
+            Dictionary<string, decimal>? packs
         )
         {
             var next = CustomPlanPacks.All.ToDictionary(
@@ -298,10 +333,42 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                next[key] = Math.Clamp(raw, 0, CustomPlanPacks.MaxPackCount);
+                if (
+                    raw < 0
+                    || raw > CustomPlanPacks.MaxPackCount
+                    || raw != decimal.Truncate(raw)
+                )
+                {
+                    throw new CustomPlanQuoteException(
+                        "invalid_pack_quantity",
+                        $"Pack {key} must be a whole number from 0 to {CustomPlanPacks.MaxPackCount}."
+                    );
+                }
+
+                next[key] = (int)raw;
             }
 
             return next;
+        }
+
+        private static Dictionary<int, LocationBandRate> LocationBandRates(
+            IReadOnlyDictionary<string, CustomPlanRateSnapshot> ratesByKey
+        )
+        {
+            var bands = new Dictionary<int, LocationBandRate>();
+            foreach (var band in LocationBandPricing.Bands)
+            {
+                if (ratesByKey.TryGetValue(band.RateKey, out var rate))
+                {
+                    bands[band.Index] = new LocationBandRate(
+                        band.Index,
+                        rate.MonthlyNetPence,
+                        rate.AnnualNetPence
+                    );
+                }
+            }
+
+            return bands;
         }
 
         internal static string MinBasePlanForLocations(
