@@ -337,8 +337,9 @@ export function decodeCustomPlanIntentV2(
       version: 2,
       cadence,
       basePlan,
-      // Not clamped and no default: a missing or invalid count is rejected where the config is saved.
-      locations: Number(parsed.locations),
+      // Not clamped and no default: a non-number count is rejected where the config is saved.
+      locations:
+        typeof parsed.locations === "number" ? parsed.locations : Number.NaN,
       packs: normalizePackCounts(packsRaw),
       ...(quoteHash != null ? { quoteHash } : {}),
     }

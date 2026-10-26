@@ -201,18 +201,32 @@ describe("invalid Location count in a shared link", () => {
     )
   }
 
-  it("drops the config when locations is missing", () => {
+  it("drops the config when locations is missing and keeps the plan", () => {
     const json = JSON.stringify({
       version: 2,
       cadence: "monthly",
       basePlan: "growth",
       packs: {},
     })
+    expect(captureRaw(json)?.plan).toBe("Custom")
     expect(captureRaw(json)?.config).toBeUndefined()
+    expect(readSignupPlanIntent()?.plan).toBe("Custom")
     expect(readSignupPlanIntent()?.config).toBeUndefined()
   })
 
-  it("drops the config when locations is fractional", () => {
+  it("drops the config when locations is a string", () => {
+    const json = JSON.stringify({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "growth",
+      locations: "3",
+      packs: {},
+    })
+    expect(captureRaw(json)?.plan).toBe("Custom")
+    expect(captureRaw(json)?.config).toBeUndefined()
+  })
+
+  it("drops the config when locations is fractional and keeps the plan", () => {
     const json = JSON.stringify({
       version: 2,
       cadence: "monthly",
@@ -220,7 +234,9 @@ describe("invalid Location count in a shared link", () => {
       locations: 2.5,
       packs: {},
     })
+    expect(captureRaw(json)?.plan).toBe("Custom")
     expect(captureRaw(json)?.config).toBeUndefined()
+    expect(readSignupPlanIntent()?.plan).toBe("Custom")
     expect(readSignupPlanIntent()?.config).toBeUndefined()
   })
 })

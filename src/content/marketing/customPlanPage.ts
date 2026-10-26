@@ -37,7 +37,8 @@ export const CUSTOM_PLAN_STEPS = {
     qrBody:
       "Need more QR placements than your plan includes? Add extra capacity now and assign it to your restaurants after signup.",
     qrPackTitle: "Extra QR placements",
-    qrExtraCostLabel: "Additional monthly cost",
+    /** Cadence-neutral: the amount's suffix carries the period. */
+    qrExtraCostLabel: "Additional cost",
     qrFootnote:
       "Your plan's included QR placements are already covered. You can allocate purchased extra capacity to your Locations after signup.",
   },

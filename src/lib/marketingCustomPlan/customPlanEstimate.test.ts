@@ -92,6 +92,13 @@ describe("encode/decode CustomPlanIntentV2", () => {
   })
 })
 
+describe("capacity copy", () => {
+  it("does not name a period for the QR cost row", async () => {
+    const { CUSTOM_PLAN_STEPS } = await import("@/content/marketing/customPlanPage")
+    expect(CUSTOM_PLAN_STEPS.capacity.qrExtraCostLabel).toBe("Additional cost")
+  })
+})
+
 describe("minBasePlanForLocations without catalogue plans", () => {
   it("returns null instead of a browser-side band guess", () => {
     expect(minBasePlanForLocations(2, [])).toBeNull()
