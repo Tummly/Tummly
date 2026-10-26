@@ -76,7 +76,8 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(5, lines.Count - 1);
 
             var jane = lines.Single(line => line.StartsWith("Jane Doe,"));
-            Assert.Contains("jane@example.com", jane);
+            Assert.Contains("j••••@example.com", jane);
+            Assert.DoesNotContain("jane@example.com", jane);
             Assert.Contains("Camden Street", jane);
             Assert.Contains("Allowed", jane);
             Assert.DoesNotContain("Eligible — Email", jane);
@@ -436,7 +437,8 @@ namespace TummlyBackend.Tests.Integration
 
             var csv = await response.Content.ReadAsStringAsync();
             Assert.Contains("\"Doe, \"\"Jane\"\"\"", csv);
-            Assert.Contains("\"quote\"\"comma@example.com\"", csv);
+            Assert.Contains("q••••@example.com", csv);
+            Assert.DoesNotContain("quote\"comma@example.com", csv);
         }
 
         private static string ExportUrl(int locationId)

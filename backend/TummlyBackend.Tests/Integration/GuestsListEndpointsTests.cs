@@ -222,7 +222,7 @@ namespace TummlyBackend.Tests.Integration
                 r.GetProperty("name").GetString() == "Jane Doe"
             );
             Assert.Equal(seeded.JaneLocationGuestId.ToString(), jane.GetProperty("id").GetString());
-            Assert.Equal("jane@example.com", jane.GetProperty("email").GetString());
+            Assert.Equal("j••••@example.com", jane.GetProperty("email").GetString());
             Assert.True(jane.GetProperty("mobile").ValueKind == JsonValueKind.Null);
             Assert.Equal("Eligible — Email", jane.GetProperty("marketingStatus").GetString());
             Assert.Equal("Camden Street", jane.GetProperty("locationName").GetString());

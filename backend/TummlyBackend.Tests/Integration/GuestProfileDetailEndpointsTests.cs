@@ -201,7 +201,7 @@ namespace TummlyBackend.Tests.Integration
             );
 
             var summary = body.GetProperty("profileSummary");
-            Assert.Equal("amelia@example.com", summary.GetProperty("email").GetString());
+            Assert.Equal("a••••@example.com", summary.GetProperty("email").GetString());
             Assert.Equal(JsonValueKind.Null, summary.GetProperty("mobile").ValueKind);
             Assert.Equal(
                 guestSinceAt,
