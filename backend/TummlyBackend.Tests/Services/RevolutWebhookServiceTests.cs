@@ -80,6 +80,70 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("setup_intent", applier.Last.BillingReason);
         }
 
+        [Fact]
+        public async Task OrderCompleted_Redelivered_AppliesOnce()
+        {
+            await using var context = CreateContext();
+            var merchant = new FixedOrderMerchant(
+                new RevolutOrderRetrieveResult(
+                    Succeeded: true,
+                    Id: "ord_redeliver",
+                    State: "completed",
+                    BillingReason: "setup_intent",
+                    RawBody: """{"id":"ord_redeliver","state":"completed"}"""
+                )
+            );
+            var applier = new RecordingApplier();
+            var service = CreateService(context, merchant, applier);
+            var body = """{"event":"ORDER_COMPLETED","order_id":"ord_redeliver"}""";
+            var timestamp = "1710000000";
+            var signature = RevolutWebhookSignature.SignForTests(
+                "whsec_service",
+                timestamp,
+                body
+            );
+
+            var first = await service.HandleAsync(body, signature, timestamp);
+            var second = await service.HandleAsync(body, signature, timestamp);
+
+            Assert.Equal(RevolutWebhookHandleStatus.Accepted, first.Status);
+            Assert.Equal(RevolutWebhookHandleStatus.Replay, second.Status);
+            // One apply means one plan-started email.
+            Assert.Equal(1, applier.Calls);
+        }
+
+        [Theory]
+        [InlineData("failed")]
+        [InlineData("cancelled")]
+        public async Task OrderCompleted_FailedOrCancelled_DoesNotApply(string state)
+        {
+            await using var context = CreateContext();
+            var merchant = new FixedOrderMerchant(
+                new RevolutOrderRetrieveResult(
+                    Succeeded: true,
+                    Id: "ord_bad",
+                    State: state,
+                    BillingReason: "setup_intent",
+                    RawBody: $$"""{"id":"ord_bad","state":"{{state}}"}"""
+                )
+            );
+            var applier = new RecordingApplier();
+            var service = CreateService(context, merchant, applier);
+            var body = """{"event":"ORDER_COMPLETED","order_id":"ord_bad"}""";
+            var timestamp = "1710000000";
+            var signature = RevolutWebhookSignature.SignForTests(
+                "whsec_service",
+                timestamp,
+                body
+            );
+
+            await service.HandleAsync(body, signature, timestamp);
+
+            // The applier sends plan-started. A failed or cancelled payment must
+            // never reach it.
+            Assert.Null(applier.Last);
+        }
+
         [Theory]
         [InlineData("SUBSCRIPTION_CANCELLED", "sub_cancel_sync")]
         [InlineData("SUBSCRIPTION_FINISHED", "sub_finished_sync")]
@@ -613,12 +677,15 @@ namespace TummlyBackend.Tests.Services
         {
             public RevolutOrderCompletedApplyRequest? Last { get; private set; }
 
+            public int Calls { get; private set; }
+
             public Task ApplyAsync(
                 RevolutOrderCompletedApplyRequest request,
                 CancellationToken cancellationToken = default
             )
             {
                 Last = request;
+                Calls++;
                 return Task.CompletedTask;
             }
         }

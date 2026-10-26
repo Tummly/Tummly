@@ -231,7 +231,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ActivatePaidPlan_ClearsPilotClocks()
+        public async Task ActivatePaidPlan_ClearsOwnerClock_KeepsPilotEnd()
         {
             var now = new DateTime(2026, 8, 28, 12, 0, 0, DateTimeKind.Utc);
             var seeded = await SeedPilotAsync(now.AddHours(-1));
@@ -241,9 +241,29 @@ namespace TummlyBackend.Tests.Services
 
             var account = await ReloadAsync(seeded.RestaurantId);
             Assert.Equal(BillingStatuses.Active, account.BillingStatus);
-            Assert.Null(account.PilotPeriodEnd);
+            Assert.Equal(now.AddHours(-1), account.PilotPeriodEnd);
             Assert.Null(account.SoftLockEnteredAt);
             Assert.False(account.PilotSoftLockNotified);
+            var owner = await _context.Users.AsNoTracking().SingleAsync(
+                row => row.Id == seeded.OwnerId
+            );
+            Assert.Null(owner.ActivationExpiresAt);
+        }
+
+        [Fact]
+        public async Task Tick_PaidAfterPilot_KeptEndDate_StaysActive()
+        {
+            var now = new DateTime(2026, 8, 28, 12, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedPaidAsync();
+            var account = await ReloadAsync(seeded.RestaurantId);
+            account.PilotPeriodEnd = now.AddDays(-30);
+            await _context.SaveChangesAsync();
+
+            await _lifecycle.TickAsync(seeded.RestaurantId, now);
+
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.Active, after.BillingStatus);
+            Assert.Null(after.SoftLockEnteredAt);
         }
 
         [Fact]
@@ -500,7 +520,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ActivatePaidPlan_AfterPostCancelSoftLock_ClearsClocks()
+        public async Task ActivatePaidPlan_AfterPostCancelSoftLock_ClearsLocks_KeepsPilotEnd()
         {
             var renewalEnd = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
             var seeded = await SeedPaidAsync();
@@ -515,7 +535,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(BillingStatuses.Active, after.BillingStatus);
             Assert.Null(after.SoftLockEnteredAt);
             Assert.Null(after.DormantEnteredAt);
-            Assert.Null(after.PilotPeriodEnd);
+            Assert.Equal(renewalEnd, after.PilotPeriodEnd);
         }
 
         [Fact]

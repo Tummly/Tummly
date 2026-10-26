@@ -1,4 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
@@ -35,6 +37,9 @@ namespace TummlyBackend.Services
             private readonly IShopOrderEmailNotifier _shopOrderEmail;
             private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
             private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
+            private readonly IEmailService _emailService;
+            private readonly ICaptureQrLifecycleService _captureQrLifecycle;
+            private readonly ILogger<RevolutOrderCompletedApplier> _logger;
 
             public RevolutOrderCompletedApplier(
                 ApplicationDbContext context,
@@ -46,11 +51,14 @@ namespace TummlyBackend.Services
                 IRevolutMerchantClient merchant,
                 TimeProvider clock,
                 IOptions<TummlySellerVatSettings> sellerVat,
+                IEmailService emailService,
+                ICaptureQrLifecycleService captureQrLifecycle,
                 ITummlyVatInvoiceEmailDelivery? invoiceEmail = null,
                 IShopOrderEmailNotifier? shopOrderEmail = null,
                 IComplimentaryStarterShopOrderService? complimentaryStarterShopOrders =
                     null,
-                IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null
+                IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null,
+                ILogger<RevolutOrderCompletedApplier>? logger = null
             )
             {
                 _context = context;
@@ -63,6 +71,8 @@ namespace TummlyBackend.Services
                 _merchant = merchant;
                 _clock = clock;
                 _sellerVat = sellerVat.Value;
+                _emailService = emailService;
+                _captureQrLifecycle = captureQrLifecycle;
                 _shopOrderEmail = shopOrderEmail ?? NoOpShopOrderEmailNotifier.Instance;
                 _complimentaryStarterShopOrders =
                     complimentaryStarterShopOrders
@@ -70,6 +80,7 @@ namespace TummlyBackend.Services
                 _printReadyQrMaterialsWork =
                     printReadyQrMaterialsWork
                     ?? NoOpPrintReadyQrMaterialsWork.Instance;
+                _logger = logger ?? NullLogger<RevolutOrderCompletedApplier>.Instance;
             }
 
         public static bool IsMintableBillingReason(string? billingReason)
@@ -225,14 +236,20 @@ namespace TummlyBackend.Services
                 nowUtc
             );
 
+            var wasOpen = pending.IsOpen;
             ApplyPaymentFields(
                 billingAccount,
                 pending,
                 isSetup,
                 cycle.RenewalDateUtc
             );
+            await PilotClockSync.ClearForRestaurantAsync(
+                _context,
+                billingAccount.RestaurantId,
+                cancellationToken
+            );
 
-            if (isSetup && pending.IsOpen)
+            if (isSetup && wasOpen)
             {
                 pending.IsOpen = false;
             }
@@ -267,6 +284,11 @@ namespace TummlyBackend.Services
                         );
                     }
                 }
+
+                await _captureQrLifecycle.ActivatePlanPausedCodesAsync(
+                    billingAccount.RestaurantId,
+                    cancellationToken
+                );
             }
 
             var mintResult = await _mint.MintOnOrderCompletedAsync(
@@ -357,6 +379,15 @@ namespace TummlyBackend.Services
                 );
             }
             await _context.SaveChangesAsync(cancellationToken);
+
+            if (isSetup && wasOpen)
+            {
+                await TrySendPlanStartedEmailAsync(
+                    billingAccount.RestaurantId,
+                    billingAccount.SubscriptionPlan,
+                    cancellationToken
+                );
+            }
         }
 
         private async Task ApplyPlanUpgradeProrationAsync(
@@ -444,6 +475,50 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        /// <summary>
+        /// Sends plan-started to the owner. Runs once per first activation, after
+        /// the apply is saved. A send failure is logged by exception type only.
+        /// </summary>
+        private async Task TrySendPlanStartedEmailAsync(
+            int restaurantId,
+            string planName,
+            CancellationToken cancellationToken
+        )
+        {
+            var owner = await _context.Restaurants
+                .AsNoTracking()
+                .Where(row => row.Id == restaurantId)
+                .Select(row => new
+                {
+                    row.Name,
+                    OwnerFullName = row.OwnerUser.FullName,
+                    OwnerEmail = row.OwnerUser.Email,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (owner == null || string.IsNullOrWhiteSpace(owner.OwnerEmail))
+            {
+                return;
+            }
+
+            try
+            {
+                await _emailService.SendPlanStartedEmailAsync(
+                    owner.OwnerEmail,
+                    SignInMetadataResolver.ExtractFirstName(owner.OwnerFullName ?? string.Empty),
+                    planName,
+                    owner.Name
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    "Plan started email failed for restaurant {RestaurantId}: {ExceptionType}",
+                    restaurantId,
+                    ex.GetType().Name
+                );
+            }
+        }
+
         private async Task<string?> ResolveOwnerDisplayNameAsync(
             int restaurantId,
             CancellationToken cancellationToken
@@ -506,7 +581,6 @@ namespace TummlyBackend.Services
             // ticket 24 RecoverDunningAsync.
             billingAccount.BillingStatus = BillingStatuses.Active;
             billingAccount.RenewalDateUtc = renewalDateUtc;
-            billingAccount.PilotPeriodEnd = null;
             billingAccount.SoftLockEnteredAt = null;
             billingAccount.DormantEnteredAt = null;
             billingAccount.GuestRetentionPurgedAtUtc = null;
@@ -566,7 +640,6 @@ namespace TummlyBackend.Services
                 ? 365
                 : 30;
             billingAccount.RenewalDateUtc = nowUtc.AddDays(periodDays);
-            billingAccount.PilotPeriodEnd = null;
             billingAccount.SoftLockEnteredAt = null;
             billingAccount.DormantEnteredAt = null;
             billingAccount.GuestRetentionPurgedAtUtc = null;
@@ -576,8 +649,21 @@ namespace TummlyBackend.Services
             billingAccount.DunningFiredSteps = null;
             billingAccount.DunningOutstandingOrderId = null;
             intent.IsOpen = false;
+            await PilotClockSync.ClearForRestaurantAsync(
+                _context,
+                restaurantId,
+                cancellationToken
+            );
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            if (isFirstPaid)
+            {
+                await _captureQrLifecycle.ActivatePlanPausedCodesAsync(
+                    restaurantId,
+                    cancellationToken
+                );
+            }
 
             await _mint.MintOnOrderCompletedAsync(
                 new IncludedPeriodOrderCompletedRequest
@@ -647,6 +733,15 @@ namespace TummlyBackend.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            if (isFirstPaid)
+            {
+                await TrySendPlanStartedEmailAsync(
+                    restaurantId,
+                    billingAccount.SubscriptionPlan,
+                    cancellationToken
+                );
+            }
         }
 
         private async Task ApplyExtraLocationAsync(

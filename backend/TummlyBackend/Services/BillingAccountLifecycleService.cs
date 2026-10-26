@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -159,16 +160,22 @@ namespace TummlyBackend.Services
             await MutateAsync(
                 restaurantId,
                 cancellationToken,
-                account =>
+                async account =>
                 {
                     account.BillingStatus = BillingStatuses.Active;
-                    account.PilotPeriodEnd = null;
+                    // PilotPeriodEnd stays as Pilot history. The owner and member
+                    // Pilot clock is cleared, so no Pilot notices follow.
                     account.SoftLockEnteredAt = null;
                     account.DormantEnteredAt = null;
                     account.GuestRetentionPurgedAtUtc = null;
                     account.PilotSoftLockNotified = false;
                     account.PilotDormantNotified = false;
-                    return Task.FromResult(new List<LifecycleEvent>());
+                    await PilotClockSync.ClearForRestaurantAsync(
+                        _context,
+                        restaurantId,
+                        cancellationToken
+                    );
+                    return new List<LifecycleEvent>();
                 }
             );
         }

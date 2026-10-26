@@ -1842,7 +1842,6 @@ namespace TummlyBackend.Services
                 ? BillingCycles.Annual
                 : BillingCycles.Monthly;
             billingAccount.BillingStatus = BillingStatuses.Active;
-            billingAccount.PilotPeriodEnd = null;
             billingAccount.SoftLockEnteredAt = null;
             billingAccount.DormantEnteredAt = null;
             billingAccount.GuestRetentionPurgedAtUtc = null;
