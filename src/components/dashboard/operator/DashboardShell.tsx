@@ -63,6 +63,8 @@ import type { OperatorShellPresentation } from "@/types/operatorHome"
 type DashboardShellProps = {
   presentation: OperatorShellPresentation
   onSelectLocation: (locationId: number) => void
+  /** Locations Manage gate for the navbar location switcher Add location control. */
+  canAddLocation: boolean
   onSignOut: () => void
   /** Refresh navbar name + Job title subtitle after My Account profile save. */
   onOperatorProfileChange?: (profile: {
@@ -162,6 +164,7 @@ const SIDEBAR_HOVER_LEAVE_DELAY_MS = 200
 export function DashboardShell({
   presentation,
   onSelectLocation,
+  canAddLocation,
   onSignOut,
   onOperatorProfileChange,
   notifications,
@@ -272,6 +275,7 @@ export function DashboardShell({
       {!isShopPage && (
         <DashboardNavbar
           locationSwitcher={presentation.locationSwitcher}
+          canAddLocation={canAddLocation}
           profileDisplayName={presentation.profileDisplayName}
           profileInitials={presentation.profileInitials}
           profileSelfRoleSubtitle={presentation.profileSelfRoleSubtitle}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildOperatorSidebarAreaAccess,
+  canWriteOperatorArea,
   isDeniedOperatorSidebarActiveId,
   resolveHiddenOperatorSidebarNavIds,
 } from "@/lib/operatorHome/operatorAreaChromeAccess"
@@ -151,5 +152,17 @@ describe("Staff Settings routes (WS2b Task 11)", () => {
         })
       )
     ).toBe(false)
+  })
+})
+
+describe("canWriteOperatorArea (Manage gate for Area write controls)", () => {
+  it("allows Manage and omitted access (omit keeps owner chrome)", () => {
+    expect(canWriteOperatorArea("manage")).toBe(true)
+    expect(canWriteOperatorArea(undefined)).toBe(true)
+  })
+
+  it("hides write controls for View and None", () => {
+    expect(canWriteOperatorArea("view")).toBe(false)
+    expect(canWriteOperatorArea("none")).toBe(false)
   })
 })

@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
 
+import { canWriteOperatorArea } from "@/lib/operatorHome/operatorAreaChromeAccess"
 import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import {
   useNavigate,
@@ -71,8 +72,7 @@ export function LocationsPage() {
   const { mode, locationsAccess } = useOutletContext<DashboardOutletContext>()
   const copy = LOCATIONS_PAGE_COPY
   // Add / Import write locations: hide for View and None; omit keeps them.
-  const canWriteLocations =
-    locationsAccess !== "view" && locationsAccess !== "none"
+  const canWriteLocations = canWriteOperatorArea(locationsAccess)
 
   useWriteActiveTabToSearchParams(snap.activeTabId)
 

@@ -1,6 +1,8 @@
 import { useState } from "react"
+import { useOutletContext } from "react-router-dom"
 import { ChevronDown, MapPin } from "lucide-react"
 
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
   LOCATION_SWITCHER_POPOVER_CONTENT_CLASS,
   LocationSwitcherPanel,
@@ -12,6 +14,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { canWriteOperatorArea } from "@/lib/operatorHome/operatorAreaChromeAccess"
 import {
   operatorDashboardLocationsAddPath,
   type OperatorDashboardMode,
@@ -75,6 +78,7 @@ export function ShopLocationPicker({
   align = variant === "chip" ? "end" : "start",
 }: ShopLocationPickerProps) {
   const [open, setOpen] = useState(false)
+  const { locationsAccess } = useOutletContext<DashboardOutletContext>()
   const interactive = locations.length > 1 && onSelectLocation != null
 
   const chipStaticClass = cn(
@@ -148,6 +152,7 @@ export function ShopLocationPicker({
               brandLogoPublicUrl={brandLogoPublicUrl}
               options={options}
               addLocationPath={addLocationPath}
+              canAddLocation={canWriteOperatorArea(locationsAccess)}
               onSelectLocation={(locationId) => {
                 onSelectLocation(locationId)
                 const selected = locations.find((loc) => loc.id === locationId)

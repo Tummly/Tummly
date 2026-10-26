@@ -39,6 +39,7 @@ import {
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import {
   buildOperatorSidebarAreaAccess,
+  canWriteOperatorArea,
   isDeniedOperatorSidebarActiveId,
   resolveHiddenOperatorSidebarNavIds,
 } from "@/lib/operatorHome/operatorAreaChromeAccess"
@@ -433,6 +434,7 @@ function DashboardContent({ mode }: DashboardProps) {
     <DashboardShell
       presentation={presentation}
       onSelectLocation={handleSelectLocation}
+      canAddLocation={canWriteOperatorArea(workspace.snapshot.locationsAccess)}
       onSignOut={handleSignOut}
       onOperatorProfileChange={workspace.applyOperatorProfile}
       notifications={{

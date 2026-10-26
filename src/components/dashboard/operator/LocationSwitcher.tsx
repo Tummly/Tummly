@@ -37,6 +37,8 @@ function operatorDashboardModeFromPathname(
 type LocationSwitcherProps = {
   locationSwitcher: OperatorShellPresentation["locationSwitcher"]
   onSelectLocation: (locationId: number) => void
+  /** Locations Manage gate for the panel Add location control. */
+  canAddLocation: boolean
   className?: string
 }
 
@@ -84,6 +86,8 @@ export type LocationSwitcherPanelProps = {
   brandLogoPublicUrl: string | null
   options: OperatorHomeLocationOption[]
   addLocationPath: string
+  /** Locations Manage gate: false hides the Add location control. */
+  canAddLocation: boolean
   onSelectLocation: (locationId: number) => void
   onAddLocationNavigate: () => void
 }
@@ -94,6 +98,7 @@ export function LocationSwitcherPanel({
   brandLogoPublicUrl,
   options,
   addLocationPath,
+  canAddLocation,
   onSelectLocation,
   onAddLocationNavigate,
 }: LocationSwitcherPanelProps) {
@@ -210,16 +215,18 @@ export function LocationSwitcherPanel({
           )}
         </div>
 
-        <Button
-          type="button"
-          variant="op-secondary"
-          className="h-10 min-h-10 shrink-0 self-start"
-          asChild
-        >
-          <Link to={addLocationPath} onClick={onAddLocationNavigate}>
-            Add location
-          </Link>
-        </Button>
+        {canAddLocation ? (
+          <Button
+            type="button"
+            variant="op-secondary"
+            className="h-10 min-h-10 shrink-0 self-start"
+            asChild
+          >
+            <Link to={addLocationPath} onClick={onAddLocationNavigate}>
+              Add location
+            </Link>
+          </Button>
+        ) : null}
       </div>
     </div>
   )
@@ -229,6 +236,7 @@ export function LocationSwitcherPanel({
 export function LocationSwitcher({
   locationSwitcher,
   onSelectLocation,
+  canAddLocation,
   className,
 }: LocationSwitcherProps) {
   const [open, setOpen] = useState(false)
@@ -336,6 +344,7 @@ export function LocationSwitcher({
               brandLogoPublicUrl={locationSwitcher.brandLogoPublicUrl}
               options={locationSwitcher.options}
               addLocationPath={addLocationPath}
+              canAddLocation={canAddLocation}
               onSelectLocation={(locationId) => {
                 onSelectLocation(locationId)
                 setOpen(false)

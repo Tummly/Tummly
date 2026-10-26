@@ -9,9 +9,7 @@ describe("Home upload logo CTA chrome (WS2b Task 9 carry)", () => {
   it("passes an upload handler only when accountWorkspaceAccess allows Manage", () => {
     const home = readFileSync(join(homeDir, "HomePage.tsx"), "utf8")
 
-    expect(home).toMatch(
-      /accountWorkspaceAccess\s*!==\s*"view"\s*&&\s*accountWorkspaceAccess\s*!==\s*"none"/
-    )
+    expect(home).toMatch(/canWriteOperatorArea\(accountWorkspaceAccess\)/)
   })
 
   it("hides the upload-logo action when no upload handler is passed", () => {
