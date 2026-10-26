@@ -163,7 +163,10 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task MintDefault_FreeAccount_MintsPaused()
         {
-            var location = await CreateLocationWithPlanAsync(BillingSubscriptionPlans.Free);
+            var location = await CreateLocationWithPlanAsync(
+                BillingSubscriptionPlans.Free,
+                BillingStatuses.Free
+            );
 
             var qrCodes = await _service.MintDefaultQrCodesAsync(location);
 
@@ -172,9 +175,40 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task MintDefault_UnpaidCustomSignup_MintsPaused()
+        {
+            var location = await CreateLocationWithPlanAsync(
+                BillingSubscriptionPlans.Custom,
+                BillingStatuses.Free
+            );
+
+            var qrCodes = await _service.MintDefaultQrCodesAsync(location);
+
+            var minted = Assert.Single(qrCodes);
+            Assert.Equal(QrCodeStatus.Paused, minted.Status);
+        }
+
+        [Fact]
+        public async Task MintDefault_PaidActiveCustom_MintsActive()
+        {
+            var location = await CreateLocationWithPlanAsync(
+                BillingSubscriptionPlans.Custom,
+                BillingStatuses.Active
+            );
+
+            var qrCodes = await _service.MintDefaultQrCodesAsync(location);
+
+            var minted = Assert.Single(qrCodes);
+            Assert.Equal(QrCodeStatus.Active, minted.Status);
+        }
+
+        [Fact]
         public async Task MintDefault_PilotAccount_MintsActive()
         {
-            var location = await CreateLocationWithPlanAsync(BillingSubscriptionPlans.Pilot);
+            var location = await CreateLocationWithPlanAsync(
+                BillingSubscriptionPlans.Pilot,
+                BillingStatuses.Pilot
+            );
 
             var qrCodes = await _service.MintDefaultQrCodesAsync(location);
 
@@ -187,7 +221,10 @@ namespace TummlyBackend.Tests.Services
             _context.Dispose();
         }
 
-        private async Task<RestaurantLocation> CreateLocationWithPlanAsync(string plan)
+        private async Task<RestaurantLocation> CreateLocationWithPlanAsync(
+            string plan,
+            string billingStatus
+        )
         {
             var location = await CreateLocationAsync();
             var account = BillingCreditsService.CreateDefaultBillingAccount(
@@ -195,6 +232,7 @@ namespace TummlyBackend.Tests.Services
                 "TUMMLY-UK-GBP-2026-08-V3"
             );
             account.SubscriptionPlan = plan;
+            account.BillingStatus = billingStatus;
             _context.BillingAccounts.Add(account);
             await _context.SaveChangesAsync();
             return location;

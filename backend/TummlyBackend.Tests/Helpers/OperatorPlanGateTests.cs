@@ -27,8 +27,42 @@ namespace TummlyBackend.Tests.Helpers
         public void HasPlan_FreeIsFalse_PilotAndPaidAreTrue()
         {
             Assert.False(OperatorPlanGate.HasPlan(Account(BillingSubscriptionPlans.Free)));
-            Assert.True(OperatorPlanGate.HasPlan(Account(BillingSubscriptionPlans.Pilot)));
-            Assert.True(OperatorPlanGate.HasPlan(Account(BillingSubscriptionPlans.Starter)));
+            Assert.True(
+                OperatorPlanGate.HasPlan(
+                    Account(BillingSubscriptionPlans.Pilot, BillingStatuses.Pilot)
+                )
+            );
+            Assert.True(
+                OperatorPlanGate.HasPlan(
+                    Account(BillingSubscriptionPlans.Starter, BillingStatuses.Active)
+                )
+            );
+        }
+
+        [Fact]
+        public void HasPlan_UnpaidCustomSignup_IsFalse_PaidCustomIsTrue()
+        {
+            Assert.False(
+                OperatorPlanGate.HasPlan(
+                    Account(BillingSubscriptionPlans.Custom, BillingStatuses.Free)
+                )
+            );
+            Assert.True(
+                OperatorPlanGate.HasPlan(
+                    Account(BillingSubscriptionPlans.Custom, BillingStatuses.Active)
+                )
+            );
+        }
+
+        [Theory]
+        [InlineData(BillingStatuses.PastDue)]
+        [InlineData(BillingStatuses.SoftLock)]
+        [InlineData(BillingStatuses.Dormant)]
+        public void HasPlan_PaidPlanInLockedStatus_IsTrue(string status)
+        {
+            Assert.True(
+                OperatorPlanGate.HasPlan(Account(BillingSubscriptionPlans.Growth, status))
+            );
         }
 
         [Fact]
@@ -38,7 +72,11 @@ namespace TummlyBackend.Tests.Helpers
                 OperatorPlanGate.PlanRequiredCode,
                 OperatorPlanGate.EvaluatePlanDeny(Account(BillingSubscriptionPlans.Free))
             );
-            Assert.Null(OperatorPlanGate.EvaluatePlanDeny(Account(BillingSubscriptionPlans.Pilot)));
+            Assert.Null(
+                OperatorPlanGate.EvaluatePlanDeny(
+                    Account(BillingSubscriptionPlans.Pilot, BillingStatuses.Pilot)
+                )
+            );
         }
 
         [Fact]
@@ -145,10 +183,14 @@ namespace TummlyBackend.Tests.Helpers
             _context.Dispose();
         }
 
-        private static BillingAccount Account(string plan)
+        private static BillingAccount Account(string plan, string? status = null)
         {
             var account = BillingCreditsService.CreateDefaultBillingAccount(1, "TUMMLY-UK-GBP-2026-08-V3");
             account.SubscriptionPlan = plan;
+            if (status != null)
+            {
+                account.BillingStatus = status;
+            }
             return account;
         }
 

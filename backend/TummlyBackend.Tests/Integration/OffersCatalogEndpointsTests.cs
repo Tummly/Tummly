@@ -770,6 +770,76 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task CreateOffer_UnpaidCustomSignup_Returns403PlanRequired()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-catalog-custom-unpaid");
+            await SetPlanAndStatusAsync(
+                seeded.LocationId,
+                BillingSubscriptionPlans.Custom,
+                BillingStatuses.Free
+            );
+
+            var response = await _client.SendAsync(CreateOfferRequest(seeded));
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("plan_required", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task CreateOffer_PaidActiveCustom_Allowed()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-catalog-custom-paid");
+            await SetPlanAndStatusAsync(
+                seeded.LocationId,
+                BillingSubscriptionPlans.Custom,
+                BillingStatuses.Active
+            );
+
+            var response = await _client.SendAsync(CreateOfferRequest(seeded));
+
+            Assert.True(
+                response.StatusCode != HttpStatusCode.Forbidden,
+                $"Unexpected {response.StatusCode}"
+            );
+        }
+
+        private HttpRequestMessage CreateOfferRequest((string Jwt, int LocationId) seeded)
+        {
+            return AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    offerType = "percentage_discount",
+                    title = "Custom plan offer",
+                    description = "Plan gate check.",
+                    validity = "30_days_after_issue",
+                    discountPercentage = 10m,
+                }
+            );
+        }
+
+        private async Task SetPlanAndStatusAsync(int locationId, string plan, string status)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var account = await context.BillingAccounts.SingleAsync(
+                row => row.RestaurantId == restaurantId
+            );
+            account.SubscriptionPlan = plan;
+            account.BillingStatus = status;
+            await context.SaveChangesAsync();
+        }
+
+        [Fact]
         public async Task UpdateOffer_FreePlan_Returns403PlanRequired()
         {
             var seeded = await SeedOwnerWithLocationAsync("offers-catalog-free-update");
@@ -1011,6 +1081,7 @@ namespace TummlyBackend.Tests.Integration
                 "TUMMLY-UK-GBP-2026-08-V3"
             );
             billing.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+            billing.BillingStatus = BillingStatuses.Active;
             context.BillingAccounts.Add(billing);
 
             var location = new RestaurantLocation

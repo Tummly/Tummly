@@ -876,6 +876,50 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task CreateDraft_UnpaidCustomSignup_Returns403PlanRequired()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-custom-unpaid");
+            await SetSubscriptionPlanAsync(
+                seeded.LocationId,
+                BillingSubscriptionPlans.Custom,
+                BillingStatuses.Free
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new { locationId = seeded.LocationId, goalId = "thank-recent-guests" }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("plan_required", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task CreateDraft_PaidActiveCustom_Allowed()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-custom-paid");
+            await SetSubscriptionPlanAsync(
+                seeded.LocationId,
+                BillingSubscriptionPlans.Custom,
+                BillingStatuses.Active
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new { locationId = seeded.LocationId, goalId = "thank-recent-guests" }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        [Fact]
         public async Task PatchDraft_FreePlan_Returns403PlanRequired()
         {
             var seeded = await SeedOwnerWithLocationAsync("campaign-draft-free-patch");
@@ -902,7 +946,11 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("plan_required", body.GetProperty("code").GetString());
         }
 
-        private async Task SetSubscriptionPlanAsync(int locationId, string plan)
+        private async Task SetSubscriptionPlanAsync(
+            int locationId,
+            string plan,
+            string? status = null
+        )
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -925,9 +973,10 @@ namespace TummlyBackend.Tests.Integration
             }
 
             account.SubscriptionPlan = plan;
-            account.BillingStatus = plan == BillingSubscriptionPlans.Free
-                ? BillingStatuses.Free
-                : BillingStatuses.Pilot;
+            account.BillingStatus = status
+                ?? (plan == BillingSubscriptionPlans.Free
+                    ? BillingStatuses.Free
+                    : BillingStatuses.Pilot);
             await context.SaveChangesAsync();
         }
 

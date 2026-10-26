@@ -16,9 +16,14 @@ namespace TummlyBackend.Helpers
         public const string PlanRequiredMessage =
             "Choose a Pilot or paid plan to continue.";
 
+        /// <summary>
+        /// True only when the account has a Pilot or a paid plan. An unpaid Custom
+        /// signup has plan Custom but status Free until payment, so it has no plan yet.
+        /// </summary>
         public static bool HasPlan(BillingAccount account)
         {
-            return account.SubscriptionPlan != BillingSubscriptionPlans.Free;
+            return account.SubscriptionPlan != BillingSubscriptionPlans.Free
+                && account.BillingStatus != BillingStatuses.Free;
         }
 
         public static string? EvaluatePlanDeny(BillingAccount account)

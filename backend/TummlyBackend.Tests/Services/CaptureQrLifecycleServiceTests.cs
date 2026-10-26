@@ -940,6 +940,20 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Resume_UnpaidCustomSignup_DeniedPlanRequired()
+        {
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Custom, BillingStatuses.Free);
+            var service = FreeCapService(cap: 5);
+            var qr = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Paused);
+
+            var result = await service.ResumeAsync(CodeCommand(qr.Id));
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorPlanGate.PlanRequiredCode, result.Code);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(qr.Id)).Status);
+        }
+
+        [Fact]
         public async Task ActivateLocationCapture_FreePlan_DeniedPlanRequired()
         {
             await SetBillingPlanAsync(BillingSubscriptionPlans.Free, BillingStatuses.Free);
