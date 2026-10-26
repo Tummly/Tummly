@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -49,7 +50,8 @@ namespace TummlyBackend.Tests.Helpers
                 complimentaryStarterShopOrders,
                 printReadyQrMaterialsWork,
                 captureQrLifecycle,
-                emailService
+                emailService,
+                NullLogger<PilotStartService>.Instance
             );
         }
     }

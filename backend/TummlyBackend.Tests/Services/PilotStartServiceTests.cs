@@ -186,6 +186,200 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, _email.PilotStartedCalls);
         }
 
+        [Fact]
+        public async Task StartPilot_PaidPlanNullStart_RefusesWithoutChange()
+        {
+            var restaurantId = await SeedFreeRestaurantAsync();
+            var renewal = DateTime.UtcNow.AddDays(20);
+            await SetAccountAsync(restaurantId, account =>
+            {
+                account.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+                account.BillingStatus = BillingStatuses.Active;
+                account.BillingCycle = BillingCycles.Monthly;
+                account.RenewalDateUtc = renewal;
+            });
+
+            var result = await _service.StartPilotAsync(restaurantId);
+
+            Assert.False(result.Started);
+            Assert.Equal("pilot_already_used", result.RefusedCode);
+            var reloaded = await LoadAccountAsync(restaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Growth, reloaded.SubscriptionPlan);
+            Assert.Equal(BillingCycles.Monthly, reloaded.BillingCycle);
+            Assert.Equal(renewal, reloaded.RenewalDateUtc);
+            Assert.Null(reloaded.PilotStartedAtUtc);
+            Assert.Equal(0, await CountPilotGrantRowsAsync(restaurantId));
+        }
+
+        [Fact]
+        public async Task StartPilot_PilotNullStartWithEnd_StampsStartKeepsEnd()
+        {
+            var restaurantId = await SeedFreeRestaurantAsync();
+            var end = DateTime.UtcNow.AddDays(10);
+            var clockBefore = DateTime.UtcNow.AddDays(9);
+            await SetAccountAsync(restaurantId, account =>
+            {
+                account.SubscriptionPlan = BillingSubscriptionPlans.Pilot;
+                account.BillingStatus = BillingStatuses.Pilot;
+                account.PilotPeriodEnd = end;
+            });
+            await SetOwnerClockAsync(restaurantId, clockBefore);
+
+            var result = await _service.StartPilotAsync(restaurantId);
+
+            Assert.False(result.Started);
+            Assert.Null(result.RefusedCode);
+            Assert.Equal(end.AddDays(-30), result.StartedAtUtc);
+            Assert.Equal(end, result.EndsAtUtc);
+            var reloaded = await LoadAccountAsync(restaurantId);
+            Assert.Equal(end.AddDays(-30), reloaded.PilotStartedAtUtc);
+            Assert.Equal(end, reloaded.PilotPeriodEnd);
+            Assert.Equal(0, await CountPilotGrantRowsAsync(restaurantId));
+            Assert.Equal(clockBefore, await LoadOwnerClockAsync(restaurantId));
+        }
+
+        [Fact]
+        public async Task StartPilot_PilotNullStartNullEnd_StampsNowNoEmail()
+        {
+            var restaurantId = await SeedFreeRestaurantAsync();
+            await SetAccountAsync(restaurantId, account =>
+            {
+                account.SubscriptionPlan = BillingSubscriptionPlans.Pilot;
+                account.BillingStatus = BillingStatuses.Pilot;
+                account.PilotPeriodEnd = null;
+            });
+            var before = DateTime.UtcNow;
+
+            var result = await _service.StartPilotAsync(restaurantId);
+            await _service.NotifyStartedAsync(restaurantId, result);
+
+            Assert.False(result.Started);
+            Assert.Null(result.RefusedCode);
+            Assert.NotNull(result.StartedAtUtc);
+            Assert.True(result.StartedAtUtc >= before);
+            Assert.True(result.StartedAtUtc <= DateTime.UtcNow);
+            Assert.Null(result.EndsAtUtc);
+            var reloaded = await LoadAccountAsync(restaurantId);
+            Assert.Equal(result.StartedAtUtc, reloaded.PilotStartedAtUtc);
+            Assert.Null(reloaded.PilotPeriodEnd);
+            Assert.Equal(0, await CountPilotGrantRowsAsync(restaurantId));
+            Assert.Equal(0, _email.PilotStartedCalls);
+        }
+
+        [Fact]
+        public async Task StartPilot_FreeWithPriorPilotMint_RefusesAlreadyUsed()
+        {
+            var restaurantId = await SeedFreeRestaurantAsync();
+            _context.CreditLedgerEntries.Add(new CreditLedgerEntry
+            {
+                Id = Guid.NewGuid(),
+                RestaurantId = restaurantId,
+                Channel = CreditChannels.Email,
+                EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                Quantity = 500,
+                PricebookVersion = "TUMMLY-UK-GBP-2026-08-V3",
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-60),
+            });
+            await _context.SaveChangesAsync();
+
+            var result = await _service.StartPilotAsync(restaurantId);
+
+            Assert.False(result.Started);
+            Assert.Equal("pilot_already_used", result.RefusedCode);
+            var reloaded = await LoadAccountAsync(restaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Free, reloaded.SubscriptionPlan);
+            Assert.Null(reloaded.PilotStartedAtUtc);
+            Assert.Null(reloaded.PilotPeriodEnd);
+            Assert.Equal(1, await CountPilotGrantRowsAsync(restaurantId));
+        }
+
+        [Fact]
+        public async Task NotifyStarted_ShopOrderFailure_DoesNotThrowAndStillSendsEmail()
+        {
+            var restaurantId = await SeedFreeRestaurantAsync();
+            var failingShopOrders = new ThrowingComplimentaryShopOrders();
+            var email = new RecordingPilotStartedEmailService();
+            var service = PilotStartTestFactory.Create(
+                _context,
+                TestPricebookPaths.LoadV3(),
+                new CreditLedgerService(
+                    _context,
+                    TimeProvider.System,
+                    TestPricebookPaths.LoadV3(),
+                    new AdminAuditService(_context, TimeProvider.System)
+                ),
+                failingShopOrders,
+                NoOpPrintReadyQrMaterialsWork.Instance,
+                email
+            );
+            var started = await service.StartPilotAsync(restaurantId);
+
+            await service.NotifyStartedAsync(restaurantId, started);
+
+            Assert.Equal(1, failingShopOrders.Calls);
+            Assert.Equal(1, email.PilotStartedCalls);
+        }
+
+        private async Task SetAccountAsync(
+            int restaurantId,
+            Action<BillingAccount> change
+        )
+        {
+            var account = await _context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == restaurantId);
+            change(account);
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task SetOwnerClockAsync(int restaurantId, DateTime clock)
+        {
+            var ownerId = await _context.Restaurants
+                .Where(row => row.Id == restaurantId)
+                .Select(row => row.OwnerUserId)
+                .SingleAsync();
+            var owner = await _context.Users.SingleAsync(row => row.Id == ownerId);
+            owner.ActivationExpiresAt = clock;
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task<DateTime?> LoadOwnerClockAsync(int restaurantId)
+        {
+            var ownerId = await _context.Restaurants
+                .Where(row => row.Id == restaurantId)
+                .Select(row => row.OwnerUserId)
+                .SingleAsync();
+            return await _context.Users
+                .AsNoTracking()
+                .Where(row => row.Id == ownerId)
+                .Select(row => row.ActivationExpiresAt)
+                .SingleAsync();
+        }
+
+        private sealed class ThrowingComplimentaryShopOrders
+            : IComplimentaryStarterShopOrderService
+        {
+            public int Calls { get; private set; }
+
+            public Task<ComplimentaryStarterShopOrderResult> EnsureForLocationAsync(
+                int restaurantId,
+                int locationId,
+                int placedByUserId,
+                string placedByName,
+                CancellationToken cancellationToken = default
+            ) => throw new InvalidOperationException("shop order store down");
+
+            public Task<IReadOnlyList<Guid>> EnsureAllActiveLocationsAsync(
+                int restaurantId,
+                int placedByUserId,
+                string placedByName,
+                CancellationToken cancellationToken = default
+            )
+            {
+                Calls++;
+                throw new InvalidOperationException("shop order store down");
+            }
+        }
+
         public void Dispose()
         {
             _context.Dispose();

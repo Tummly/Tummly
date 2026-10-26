@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -15,6 +16,7 @@ namespace TummlyBackend.Services
         private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
         private readonly ICaptureQrLifecycleService _captureQrLifecycle;
         private readonly IEmailService _emailService;
+        private readonly ILogger<PilotStartService> _logger;
 
         public PilotStartService(
             ApplicationDbContext context,
@@ -22,9 +24,11 @@ namespace TummlyBackend.Services
             IComplimentaryStarterShopOrderService complimentaryStarterShopOrders,
             IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
             ICaptureQrLifecycleService captureQrLifecycle,
-            IEmailService emailService
+            IEmailService emailService,
+            ILogger<PilotStartService> logger
         )
         {
+            _logger = logger;
             _context = context;
             _creditLedger = creditLedger;
             _complimentaryStarterShopOrders = complimentaryStarterShopOrders;
@@ -87,18 +91,31 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            var shopOrderIds =
-                await _complimentaryStarterShopOrders.EnsureAllActiveLocationsAsync(
-                    restaurantId,
-                    owner.OwnerUserId,
-                    owner.OwnerFullName ?? string.Empty,
-                    cancellationToken
-                );
-            foreach (var shopOrderId in shopOrderIds)
+            // The account already exists. A shop-order failure must not fail
+            // provisioning. Log the exception type only.
+            try
             {
-                await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
-                    shopOrderId,
-                    cancellationToken
+                var shopOrderIds =
+                    await _complimentaryStarterShopOrders.EnsureAllActiveLocationsAsync(
+                        restaurantId,
+                        owner.OwnerUserId,
+                        owner.OwnerFullName ?? string.Empty,
+                        cancellationToken
+                    );
+                foreach (var shopOrderId in shopOrderIds)
+                {
+                    await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
+                        shopOrderId,
+                        cancellationToken
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    "Pilot start shop-order queue failed for restaurant {RestaurantId}: {ExceptionType}",
+                    restaurantId,
+                    ex.GetType().Name
                 );
             }
 
@@ -129,6 +146,8 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("billing_account_missing");
             }
 
+            var nowUtc = DateTime.UtcNow;
+
             if (account.PilotStartedAtUtc != null)
             {
                 var alreadyPilot = string.Equals(
@@ -144,7 +163,62 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var nowUtc = DateTime.UtcNow;
+            var isFree = string.Equals(
+                account.SubscriptionPlan,
+                BillingSubscriptionPlans.Free,
+                StringComparison.Ordinal
+            );
+            var isPilot = string.Equals(
+                account.SubscriptionPlan,
+                BillingSubscriptionPlans.Pilot,
+                StringComparison.Ordinal
+            );
+
+            // Paid plans (Starter, Growth, Group, Custom) never start a Pilot.
+            if (!isFree && !isPilot)
+            {
+                return new PilotStartResult(
+                    Started: false,
+                    RefusedCode: "pilot_already_used",
+                    StartedAtUtc: null,
+                    EndsAtUtc: null
+                );
+            }
+
+            // Legacy Pilot with no start stamp: record the start, keep the end.
+            // No clock sync, no mint, no email.
+            if (isPilot)
+            {
+                account.PilotStartedAtUtc =
+                    account.PilotPeriodEnd?.AddDays(
+                        -ActivationCodeHelper.ActivationPeriodDays
+                    ) ?? nowUtc;
+                await _context.SaveChangesAsync(cancellationToken);
+                return new PilotStartResult(
+                    Started: false,
+                    RefusedCode: null,
+                    StartedAtUtc: account.PilotStartedAtUtc,
+                    EndsAtUtc: account.PilotPeriodEnd
+                );
+            }
+
+            // Legacy Free account that already received a Pilot mint.
+            var hasPriorPilotMint = await _context.CreditLedgerEntries.AnyAsync(
+                row =>
+                    row.RestaurantId == restaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.PilotAllocation,
+                cancellationToken
+            );
+            if (hasPriorPilotMint)
+            {
+                return new PilotStartResult(
+                    Started: false,
+                    RefusedCode: "pilot_already_used",
+                    StartedAtUtc: null,
+                    EndsAtUtc: null
+                );
+            }
+
             BillingCreditsService.ApplyPilotSignupBilling(account, nowUtc);
             account.PilotStartedAtUtc = nowUtc;
             var endsAtUtc = account.PilotPeriodEnd!.Value;
