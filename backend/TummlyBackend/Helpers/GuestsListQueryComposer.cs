@@ -195,6 +195,7 @@ namespace TummlyBackend.Helpers
                 || (
                     phoneForms.Length > 0
                     && lg.MasterGuest!.NormalizedPhone != null
+                    // Explicit Enumerable.Contains: array .Contains binds to the ReadOnlySpan overload on .NET 10, which EF cannot translate.
                     && Enumerable.Contains(phoneForms, lg.MasterGuest.NormalizedPhone)
                 )
             );
