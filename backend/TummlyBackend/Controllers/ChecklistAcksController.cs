@@ -33,7 +33,7 @@ namespace TummlyBackend.Controllers
         {
             var access = await _permissions.AuthorizeLocationAsync(
                 User,
-                OperatorAreaIds.Locations,
+                OperatorAreaIds.Capture,
                 PermissionLevel.View,
                 locationId
             );
@@ -60,8 +60,8 @@ namespace TummlyBackend.Controllers
         {
             var access = await _permissions.AuthorizeLocationAsync(
                 User,
-                OperatorAreaIds.Locations,
-                PermissionLevel.Manage,
+                OperatorAreaIds.Capture,
+                PermissionLevel.Scoped,
                 locationId
             );
             var denied = access.ToHttpResult();
