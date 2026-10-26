@@ -163,7 +163,7 @@ public class BulkRecoveryBatchServiceTests : IDisposable
             .SingleAsync(m => m.BatchId == draft.Id && m.FeedbackId == b);
         Assert.Equal(BulkRecoveryBatchMemberStatus.Failed, member.Status);
         Assert.Equal(
-            "This reply was already sent to the guest.",
+            "This reply has already been submitted. Check its delivery status.",
             member.FailureReason
         );
     }

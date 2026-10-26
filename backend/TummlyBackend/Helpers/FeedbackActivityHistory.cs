@@ -264,6 +264,9 @@ namespace TummlyBackend.Helpers
                 ActorDisplayName = guestResponse.AuthorDisplayName,
                 Channel = guestResponse.Channel,
                 MaskedDestination = guestResponse.MaskedDestination,
+                GuestResponseId = guestResponse.Id,
+                DeliveryState = guestResponse.DeliveryState,
+                DeliveryStateAt = guestResponse.DeliveryStateAt,
             };
         }
 

@@ -9,7 +9,7 @@ namespace TummlyBackend.Services
         public const string ErrorCode = "duplicate_reply";
 
         public GuestReplyDuplicateException()
-            : base("This reply was already sent to the guest.")
+            : base("This reply has already been submitted. Check its delivery status.")
         {
         }
 

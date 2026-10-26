@@ -468,6 +468,8 @@ namespace TummlyBackend.Services
                 Body = row.Body,
                 AuthorDisplayName = row.AuthorDisplayName,
                 CreatedAt = row.CreatedAt,
+                DeliveryState = GuestReplyDeliveryStateMachine.ToDto(row.DeliveryState),
+                DeliveryStateAt = row.DeliveryStateAtUtc,
             };
         }
 

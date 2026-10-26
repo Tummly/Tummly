@@ -330,6 +330,10 @@ namespace TummlyBackend.Services
                     Body = guestResponse.Body,
                     AuthorDisplayName = guestResponse.AuthorDisplayName,
                     CreatedAt = guestResponse.CreatedAt,
+                    DeliveryState = GuestReplyDeliveryStateMachine.ToDto(
+                        guestResponse.DeliveryState
+                    ),
+                    DeliveryStateAt = guestResponse.DeliveryStateAtUtc,
                 },
                 InternalAction = new FeedbackInternalActionItemDto
                 {

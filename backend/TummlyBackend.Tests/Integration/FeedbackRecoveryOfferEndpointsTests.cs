@@ -491,7 +491,7 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(second);
             Assert.Equal("duplicate_reply", body.GetProperty("code").GetString());
             Assert.Equal(
-                "This reply was already sent to the guest.",
+                "This reply has already been submitted. Check its delivery status.",
                 body.GetProperty("message").GetString()
             );
 

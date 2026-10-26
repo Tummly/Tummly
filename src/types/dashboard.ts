@@ -617,6 +617,12 @@ export type FeedbackDetailsActivityEventDto = {
     | null;
   channel?: "email" | "sms" | null;
   maskedDestination?: string | null;
+  /** guest_response_sent only: the reply row this event shows. */
+  guestResponseId?: number | null;
+  /** guest_response_sent only: wire delivery state of the reply. */
+  deliveryState?: "pending" | "accepted" | "delivered" | "failed" | "unavailable" | null;
+  /** guest_response_sent only: UTC when deliveryState last changed. */
+  deliveryStateAt?: string | null;
   recoveryIntent?:
     | "respond_to_guest"
     | "record_internal_action_only"

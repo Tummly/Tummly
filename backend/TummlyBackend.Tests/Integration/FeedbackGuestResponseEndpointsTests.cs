@@ -129,6 +129,63 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task FeedbackDetail_GuestResponseEvent_HasDeliveryState()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-delivery-state-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress
+            );
+
+            var deliveryStateAt = new DateTime(2026, 10, 26, 9, 30, 0, DateTimeKind.Utc);
+            int guestResponseId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var row = new FeedbackGuestResponse
+                {
+                    FeedbackId = seeded.FeedbackId,
+                    Channel = FeedbackGuestResponseChannel.Email,
+                    Intent = FeedbackRecoveryIntent.RespondToGuest,
+                    MaskedDestination = "a••••@example.com",
+                    Subject = "Sorry about your visit",
+                    Body = "Thank you for telling us.",
+                    AuthorDisplayName = "Guest Response Owner",
+                    CreatedAt = DateTime.UtcNow,
+                    DeliveryState = GuestReplyDeliveryState.Delivered,
+                    DeliveryStateAtUtc = deliveryStateAt,
+                };
+                context.FeedbackGuestResponses.Add(row);
+                await context.SaveChangesAsync();
+                guestResponseId = row.Id;
+            }
+
+            using var get = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            get.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var getBody = await ReadJsonAsync(await _client.SendAsync(get));
+            var activity = getBody
+                .GetProperty("activityHistory")
+                .EnumerateArray()
+                .Single(e =>
+                    e.GetProperty("kind").GetString() == "guest_response_sent"
+                );
+
+            Assert.Equal(guestResponseId, activity.GetProperty("guestResponseId").GetInt32());
+            Assert.Equal("delivered", activity.GetProperty("deliveryState").GetString());
+            Assert.Equal(
+                deliveryStateAt,
+                activity.GetProperty("deliveryStateAt").GetDateTime()
+            );
+        }
+
+        [Fact]
         public async Task SendGuestResponse_Sms_OmitsSubject()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
@@ -1590,7 +1647,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.False(secondBody.GetProperty("success").GetBoolean());
             Assert.Equal("duplicate_reply", secondBody.GetProperty("code").GetString());
             Assert.Equal(
-                "This reply was already sent to the guest.",
+                "This reply has already been submitted. Check its delivery status.",
                 secondBody.GetProperty("message").GetString()
             );
 
