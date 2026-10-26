@@ -73,28 +73,35 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            // The account already exists. A lookup or shop-order failure must not
+            // fail provisioning. Log the exception type only.
             // Idempotent: returns existing shop order ids on a repeat call, so
             // a retry after a lost notify still queues the materials.
-            var owner = await _context.Restaurants
-                .AsNoTracking()
-                .Where(row => row.Id == restaurantId)
-                .Select(row => new
-                {
-                    row.Name,
-                    row.OwnerUserId,
-                    OwnerFullName = row.OwnerUser.FullName,
-                    OwnerEmail = row.OwnerUser.Email,
-                })
-                .FirstOrDefaultAsync(cancellationToken);
-            if (owner == null)
-            {
-                return;
-            }
-
-            // The account already exists. A shop-order failure must not fail
-            // provisioning. Log the exception type only.
+            string? ownerEmail = null;
+            string? ownerFullName = null;
+            string? restaurantName = null;
             try
             {
+                var owner = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.Id == restaurantId)
+                    .Select(row => new
+                    {
+                        row.Name,
+                        row.OwnerUserId,
+                        OwnerFullName = row.OwnerUser.FullName,
+                        OwnerEmail = row.OwnerUser.Email,
+                    })
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (owner == null)
+                {
+                    return;
+                }
+
+                ownerEmail = owner.OwnerEmail;
+                ownerFullName = owner.OwnerFullName;
+                restaurantName = owner.Name;
+
                 var shopOrderIds =
                     await _complimentaryStarterShopOrders.EnsureAllActiveLocationsAsync(
                         restaurantId,
@@ -119,15 +126,20 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (!result.Started || result.EndsAtUtc == null)
+            if (
+                !result.Started
+                || result.EndsAtUtc == null
+                || ownerEmail == null
+                || restaurantName == null
+            )
             {
                 return;
             }
 
             await TrySendPilotStartedEmailAsync(
-                owner.OwnerEmail,
-                owner.OwnerFullName,
-                owner.Name,
+                ownerEmail,
+                ownerFullName,
+                restaurantName,
                 result.EndsAtUtc.Value
             );
         }

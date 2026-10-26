@@ -448,6 +448,31 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ChangePlan_FreeToPilot_AbandonFails_StillSendsPilotStartedEmail()
+        {
+            var email = new RecordingPilotStartedEmailService();
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings { IsActive = false },
+                firstPaid: new AbandonThrowsFirstPaidConversionPaySession(),
+                emailService: email
+            );
+
+            await Record.ExceptionAsync(() =>
+                harness.Service.SubmitPlanChangeAsync(
+                    harness.OwnerUserId,
+                    harness.RestaurantId,
+                    new PlanChangeRequestDto
+                    {
+                        TargetPlan = BillingSubscriptionPlans.Pilot,
+                        TargetCadence = "monthly",
+                    }
+                )
+            );
+
+            Assert.Equal(1, email.PilotStartedCalls);
+        }
+
+        [Fact]
         public async Task Overview_Pilot_LabelShowsStartAndEnd()
         {
             await using var harness = await SeedAsync(
@@ -636,7 +661,9 @@ namespace TummlyBackend.Tests.Services
 
         private static async Task<Harness> SeedAsync(
             TummlySellerVatSettings sellerVat,
-            bool paidStarter = false
+            bool paidStarter = false,
+            IFirstPaidConversionPaySession? firstPaid = null,
+            IEmailService? emailService = null
         )
         {
             var context = BillingActivityTestDb.Create();
@@ -686,7 +713,7 @@ namespace TummlyBackend.Tests.Services
                 new StubBillingAccountLifecycle(),
                 new PlanChangeService(context, pricebook, TimeProvider.System),
                 new AlwaysReadyRevolutMerchantCreateGate(),
-                new ThrowingFirstPaidConversionPaySession(),
+                firstPaid ?? new ThrowingFirstPaidConversionPaySession(),
                 new ThrowingSameCadenceUpgradePaySession(),
                 new ThrowingPaymentMethodUpdatePaySession(),
                 new ThrowingCreditTopUpPaySession(),
@@ -713,7 +740,7 @@ namespace TummlyBackend.Tests.Services
                     new NoOpCreditLedger(),
                     NoOpComplimentaryStarterShopOrderService.Instance,
                     NoOpPrintReadyQrMaterialsWork.Instance,
-                    new EmailServiceStubBase()
+                    emailService ?? new EmailServiceStubBase()
                 )
             );
             return new Harness(
@@ -838,6 +865,27 @@ namespace TummlyBackend.Tests.Services
                 int restaurantId,
                 CancellationToken cancellationToken = default
             ) => Task.CompletedTask;
+        }
+
+        private sealed class AbandonThrowsFirstPaidConversionPaySession
+            : IFirstPaidConversionPaySession
+        {
+            public Task<PlanChangeResultDto> StartAsync(
+                BillingAccount billingAccount,
+                User owner,
+                string restaurantAccountType,
+                int locationId,
+                string targetPlan,
+                string targetCadenceApi,
+                string idempotencyKey,
+                CancellationToken cancellationToken = default,
+                string? successRedirectUrl = null
+            ) => throw new NotImplementedException();
+
+            public Task AbandonOpenSessionsAsync(
+                int restaurantId,
+                CancellationToken cancellationToken = default
+            ) => throw new InvalidOperationException("abandon_failed");
         }
 
         private sealed class ThrowingSameCadenceUpgradePaySession

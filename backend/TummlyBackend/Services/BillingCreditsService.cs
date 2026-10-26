@@ -559,10 +559,12 @@ namespace TummlyBackend.Services
                     throw new InvalidOperationException(pilotStart.RefusedCode);
                 }
 
+                // Notify first. The Pilot is already committed, so its email and
+                // shop orders must not depend on the session clean-up below.
+                await _pilotStart.NotifyStartedAsync(restaurantId, pilotStart);
                 await _firstPaidConversionPaySession.AbandonOpenSessionsAsync(
                     restaurantId
                 );
-                await _pilotStart.NotifyStartedAsync(restaurantId, pilotStart);
 
                 return new PlanChangeResultDto { Outcome = "applied" };
             }

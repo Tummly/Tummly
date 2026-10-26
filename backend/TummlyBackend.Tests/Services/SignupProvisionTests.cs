@@ -28,6 +28,8 @@ namespace TummlyBackend.Tests.Services
         private Guid _sessionToken;
         private PendingSignup _pending = null!;
 
+        private readonly RecordingPilotStartedEmailService _pilotEmail = new();
+
         public SignupProvisionTests()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -90,7 +92,7 @@ namespace TummlyBackend.Tests.Services
                         new ShopOrderNumberAllocator(_db)
                     ),
                     new NoOpPrintReadyQrMaterialsWork(),
-                    new EmailServiceStubBase()
+                    _pilotEmail
                 ),
                 NullLogger<GuestLoopProvisioningService>.Instance
             );
@@ -305,6 +307,11 @@ namespace TummlyBackend.Tests.Services
                 1,
                 await _db.ShopOrders.CountAsync(o => o.IsComplimentary)
             );
+            Assert.Equal(1, _pilotEmail.PilotStartedCalls);
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            Assert.Equal(1, _pilotEmail.PilotStartedCalls);
         }
 
         [Fact]
@@ -314,6 +321,7 @@ namespace TummlyBackend.Tests.Services
                 BillingSubscriptionPlans.Pilot
             );
             await _signup.RetryProvisionAsync(_sessionToken);
+            Assert.Equal(1, _pilotEmail.PilotStartedCalls);
 
             // Simulate a Complete signup whose Pilot start never ran.
             var billing = await _db.BillingAccounts.SingleAsync();
@@ -332,6 +340,8 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(billing.PilotStartedAtUtc);
             Assert.Equal(BillingSubscriptionPlans.Pilot, billing.SubscriptionPlan);
             Assert.Equal(mintsBefore + 1, _mintLedger.MintPilotCallCount);
+            // The simulated reset made this a real second start: one more email.
+            Assert.Equal(2, _pilotEmail.PilotStartedCalls);
             var startedAt = billing.PilotStartedAtUtc;
 
             await _signup.RetryProvisionAsync(_sessionToken);
@@ -339,6 +349,7 @@ namespace TummlyBackend.Tests.Services
             billing = await _db.BillingAccounts.AsNoTracking().SingleAsync();
             Assert.Equal(startedAt, billing.PilotStartedAtUtc);
             Assert.Equal(mintsBefore + 1, _mintLedger.MintPilotCallCount);
+            Assert.Equal(2, _pilotEmail.PilotStartedCalls);
         }
 
         [Fact]
