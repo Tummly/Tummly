@@ -135,7 +135,7 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("locationId is required.");
             }
 
-            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+            await OperatorPlanGate.EnsurePlanAndPaidWriteForLocationAsync(
                 _context,
                 request.LocationId,
                 cancellationToken
@@ -189,7 +189,7 @@ namespace TummlyBackend.Services
                 return new CatalogOfferLifecycleResult.NotFound();
             }
 
-            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+            await OperatorPlanGate.EnsurePlanAndPaidWriteForLocationAsync(
                 _context,
                 entity.RestaurantLocationId,
                 cancellationToken
@@ -814,7 +814,7 @@ namespace TummlyBackend.Services
                 return new CatalogOfferLifecycleResult.NotFound();
             }
 
-            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+            await OperatorPlanGate.EnsurePlanAndPaidWriteForLocationAsync(
                 _context,
                 entity.RestaurantLocationId,
                 cancellationToken
@@ -931,7 +931,7 @@ namespace TummlyBackend.Services
                 return new CatalogOfferLifecycleResult.NotFound();
             }
 
-            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+            await OperatorPlanGate.EnsurePlanAndPaidWriteForLocationAsync(
                 _context,
                 entity.RestaurantLocationId,
                 cancellationToken

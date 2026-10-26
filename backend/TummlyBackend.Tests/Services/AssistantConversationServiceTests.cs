@@ -11117,7 +11117,7 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
 
             _context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(
+                PilotBillingAccountSeed.Create(
                     restaurant.Id,
                     "TUMMLY-UK-GBP-2026-08-V3"
                 )

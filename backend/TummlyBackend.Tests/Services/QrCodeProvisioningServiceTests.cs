@@ -160,9 +160,44 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(tokens.Distinct().Count(), tokens.Count);
         }
 
+        [Fact]
+        public async Task MintDefault_FreeAccount_MintsPaused()
+        {
+            var location = await CreateLocationWithPlanAsync(BillingSubscriptionPlans.Free);
+
+            var qrCodes = await _service.MintDefaultQrCodesAsync(location);
+
+            var minted = Assert.Single(qrCodes);
+            Assert.Equal(QrCodeStatus.Paused, minted.Status);
+        }
+
+        [Fact]
+        public async Task MintDefault_PilotAccount_MintsActive()
+        {
+            var location = await CreateLocationWithPlanAsync(BillingSubscriptionPlans.Pilot);
+
+            var qrCodes = await _service.MintDefaultQrCodesAsync(location);
+
+            var minted = Assert.Single(qrCodes);
+            Assert.Equal(QrCodeStatus.Active, minted.Status);
+        }
+
         public void Dispose()
         {
             _context.Dispose();
+        }
+
+        private async Task<RestaurantLocation> CreateLocationWithPlanAsync(string plan)
+        {
+            var location = await CreateLocationAsync();
+            var account = BillingCreditsService.CreateDefaultBillingAccount(
+                location.RestaurantId,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            account.SubscriptionPlan = plan;
+            _context.BillingAccounts.Add(account);
+            await _context.SaveChangesAsync();
+            return location;
         }
 
         private async Task<RestaurantLocation> CreateLocationAsync(

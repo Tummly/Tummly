@@ -147,10 +147,11 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            return OperatorBillingLockEvaluator.EvaluateSendOrReserveDeny(
-                OperatorBillingLockEvaluator.FromBillingAccount(account),
-                _clock.GetUtcNow().UtcDateTime
-            );
+            return OperatorPlanGate.EvaluatePlanDeny(account)
+                ?? OperatorBillingLockEvaluator.EvaluateSendOrReserveDeny(
+                    OperatorBillingLockEvaluator.FromBillingAccount(account),
+                    _clock.GetUtcNow().UtcDateTime
+                );
         }
 
         private async Task<int> ReadAiRemainingAsync(

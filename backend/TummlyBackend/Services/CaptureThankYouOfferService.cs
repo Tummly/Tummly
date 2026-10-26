@@ -94,6 +94,13 @@ namespace TummlyBackend.Services
                 return new CaptureThankYouOfferSetResult.Ok(Empty());
             }
 
+            // Free (no plan) cannot save a thank-you Offer (WS3b plan_required).
+            await OperatorPlanGate.EnsurePlanAndPaidWriteForLocationAsync(
+                _context,
+                locationId,
+                cancellationToken
+            );
+
             var attachable = await _offers.IsAttachableForLocationAsync(
                 offerId.Value,
                 locationId,

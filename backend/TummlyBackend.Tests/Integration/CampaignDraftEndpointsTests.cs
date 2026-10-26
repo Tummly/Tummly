@@ -852,6 +852,85 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
+        [Fact]
+        public async Task CreateDraft_FreePlan_Returns403PlanRequired()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-free-create");
+            await SetSubscriptionPlanAsync(seeded.LocationId, BillingSubscriptionPlans.Free);
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new { locationId = seeded.LocationId, goalId = "thank-recent-guests" }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("plan_required", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "Choose a Pilot or paid plan to continue.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PatchDraft_FreePlan_Returns403PlanRequired()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-free-patch");
+            var created = await CreateDraftAsync(
+                seeded,
+                new { locationId = seeded.LocationId, goalId = "thank-recent-guests" }
+            );
+            await SetSubscriptionPlanAsync(seeded.LocationId, BillingSubscriptionPlans.Free);
+
+            using var request = AuthorizedJson(
+                HttpMethod.Patch,
+                $"/api/campaigns/{created.GetProperty("id").GetInt32()}",
+                seeded.Jwt,
+                new
+                {
+                    rowVersion = created.GetProperty("rowVersion").GetString(),
+                    name = "Blocked rename",
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("plan_required", body.GetProperty("code").GetString());
+        }
+
+        private async Task SetSubscriptionPlanAsync(int locationId, string plan)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+
+            var account = await context.BillingAccounts.SingleOrDefaultAsync(
+                row => row.RestaurantId == restaurantId
+            );
+            if (account == null)
+            {
+                account = BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurantId,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                );
+                context.BillingAccounts.Add(account);
+            }
+
+            account.SubscriptionPlan = plan;
+            account.BillingStatus = plan == BillingSubscriptionPlans.Free
+                ? BillingStatuses.Free
+                : BillingStatuses.Pilot;
+            await context.SaveChangesAsync();
+        }
+
         private async Task SetBillingStatusAsync(
             int locationId,
             string billingStatus,

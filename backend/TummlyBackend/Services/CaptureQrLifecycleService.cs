@@ -435,6 +435,12 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var restoreDeny = await DenyIfPaidWriteLockedAsync(command.LocationId);
+            if (restoreDeny != null)
+            {
+                return restoreDeny;
+            }
+
             if (qrCode.QrType == QrType.DigitalGuestLink)
             {
                 if (qrCode.NormalizedLinkName != null)
@@ -561,6 +567,12 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var activateDeny = await DenyIfPaidWriteLockedAsync(command.LocationId);
+            if (activateDeny != null)
+            {
+                return activateDeny;
+            }
+
             var restoreIds = CaptureLocationPauseRestore.Parse(
                 location.CaptureLocationPauseRestoreQrCodeIdsJson
             );
@@ -675,6 +687,22 @@ namespace TummlyBackend.Services
                     status = qrCode.Status.ToString(),
                 });
             }
+        }
+
+        private async Task<QrLifecycleResult?> DenyIfPaidWriteLockedAsync(
+            int locationId
+        )
+        {
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .FirstOrDefaultAsync();
+            var deny = await OperatorBillingLockGate.EvaluatePaidWriteDenyAsync(
+                _context,
+                restaurantId
+            );
+            return deny == null ? null : QrLifecycleResult.OperatorBillingLocked(deny);
         }
 
         public async Task<int> ActivatePlanPausedCodesAsync(

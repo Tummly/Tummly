@@ -738,6 +738,82 @@ namespace TummlyBackend.Tests.Integration
             }
         }
 
+        [Fact]
+        public async Task CreateOffer_FreePlan_Returns403PlanRequired()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-catalog-free-create");
+            await SetFreePlanAsync(seeded.LocationId);
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    offerType = "percentage_discount",
+                    title = "Blocked on Free",
+                    description = "Should not create without a plan.",
+                    validity = "30_days_after_issue",
+                    discountPercentage = 10m,
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("plan_required", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "Choose a Pilot or paid plan to continue.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task UpdateOffer_FreePlan_Returns403PlanRequired()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-catalog-free-update");
+            var offerId = await CreateOfferAsync(seeded, "Before Free");
+            await SetFreePlanAsync(seeded.LocationId);
+
+            using var request = AuthorizedJson(
+                HttpMethod.Put,
+                $"/api/offers/{offerId}",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    offerType = "fixed_discount",
+                    title = "Blocked edit",
+                    description = "Should not save without a plan.",
+                    validity = "30_days_after_issue",
+                    discountAmount = 8m,
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("plan_required", body.GetProperty("code").GetString());
+        }
+
+        private async Task SetFreePlanAsync(int locationId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var account = await context.BillingAccounts.SingleAsync(
+                row => row.RestaurantId == restaurantId
+            );
+            account.SubscriptionPlan = BillingSubscriptionPlans.Free;
+            account.BillingStatus = BillingStatuses.Free;
+            await context.SaveChangesAsync();
+        }
+
         private async Task<int> CreateOfferAsync(
             (string Jwt, int LocationId) seeded,
             string title

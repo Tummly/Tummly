@@ -896,6 +896,48 @@ namespace TummlyBackend.Tests.Services
             _restaurantId = restaurant.Id;
         }
 
+        [Fact]
+        public async Task Restore_SoftLock_DeniedBillingLocked()
+        {
+            var qr = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Archived);
+            await SetBillingStatusAsync(BillingStatuses.SoftLock);
+
+            var result = await _service.RestoreAsync(CodeCommand(qr.Id));
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorBillingLockEvaluator.SoftLock, result.Code);
+            Assert.Equal(QrCodeStatus.Archived, (await ReloadAsync(qr.Id)).Status);
+        }
+
+        [Fact]
+        public async Task ActivateLocationCapture_SoftLock_DeniedBillingLocked()
+        {
+            await SetLocationStatusAsync(CaptureLocationStatus.Paused);
+            await SetBillingStatusAsync(BillingStatuses.SoftLock);
+
+            var result = await _service.ActivateLocationCaptureAsync(LocationCommand());
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorBillingLockEvaluator.SoftLock, result.Code);
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .FirstAsync(l => l.Id == _locationId);
+            Assert.Equal(CaptureLocationStatus.Paused, location.CaptureLocationStatus);
+        }
+
+        private async Task SetBillingStatusAsync(string billingStatus)
+        {
+            var account = await _context.BillingAccounts.FirstAsync(
+                row => row.RestaurantId == _restaurantId
+            );
+            account.BillingStatus = billingStatus;
+            if (billingStatus == BillingStatuses.SoftLock)
+            {
+                account.SoftLockEnteredAt = DateTime.UtcNow.AddDays(-1);
+            }
+            await _context.SaveChangesAsync();
+        }
+
         private async Task<QrCode> SeedQrAsync(
             QrType qrType,
             QrCodeStatus status

@@ -605,7 +605,7 @@ namespace TummlyBackend.Services
                 }
                 else
                 {
-                    await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(_context, locationId, ct);
+                    await OperatorPlanGate.EnsurePlanAndPaidWriteForLocationAsync(_context, locationId, ct);
                     var draft = conversation.CreatedCampaignId is int id ? await _campaignDrafts.GetByIdAsync(id, ct) : null;
                     if (draft == null || draft.LocationId != locationId)
                         throw new ArgumentException("Create a Campaign Draft at this location first.");
@@ -9129,6 +9129,26 @@ namespace TummlyBackend.Services
                     null,
                     new AssistantTurnOutcome.CreditSpendDenied(
                         "location_not_in_account",
+                        CreditChannels.Ai,
+                        0,
+                        AssistantAiBillingRules.CompletedAnswerUnits
+                    )
+                );
+            }
+
+            var billingAccount = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == resolvedRestaurantId,
+                    cancellationToken
+                );
+            if (billingAccount != null
+                && OperatorPlanGate.EvaluatePlanDeny(billingAccount) is string planDeny)
+            {
+                return new BilledLiveAnswerGate(
+                    null,
+                    new AssistantTurnOutcome.CreditSpendDenied(
+                        planDeny,
                         CreditChannels.Ai,
                         0,
                         AssistantAiBillingRules.CompletedAnswerUnits

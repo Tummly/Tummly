@@ -213,6 +213,36 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task ScheduleCommit_FreePlan_DeniedPlanRequired()
+        {
+            var seeded = await SeedReviewReadyDraftAsync(
+                "commit-free-plan",
+                plan: BillingSubscriptionPlans.Free
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                $"/api/campaigns/{seeded.CampaignId}/commit",
+                seeded.Jwt,
+                new
+                {
+                    rowVersion = Convert.ToBase64String(seeded.RowVersion),
+                    scheduleMode = "send-now",
+                    scheduleTimeZone = "Europe/London",
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("plan_required", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "Choose a Pilot or paid plan to continue.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
         private HttpClient CreateClientWithReserve(ICampaignBillingReserve reserve)
         {
             return _factory.WithWebHostBuilder(builder =>
@@ -240,7 +270,8 @@ namespace TummlyBackend.Tests.Integration
         )> SeedReviewReadyDraftAsync(
             string emailLocalPart,
             int emailEligibleCount = 1,
-            int emailCredits = 100
+            int emailCredits = 100,
+            string plan = BillingSubscriptionPlans.Pilot
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -274,12 +305,15 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
-            context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(
-                    restaurant.Id,
-                    "TUMMLY-UK-GBP-2026-08-V3"
-                )
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
             );
+            billing.SubscriptionPlan = plan;
+            billing.BillingStatus = plan == BillingSubscriptionPlans.Free
+                ? BillingStatuses.Free
+                : BillingStatuses.Pilot;
+            context.BillingAccounts.Add(billing);
             await context.SaveChangesAsync();
 
             if (emailCredits > 0)
