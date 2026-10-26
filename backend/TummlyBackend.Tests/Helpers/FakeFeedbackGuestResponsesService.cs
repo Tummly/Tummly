@@ -13,6 +13,8 @@ namespace TummlyBackend.Tests.Helpers
 
         public HashSet<int> DuplicateFeedbackIds { get; } = [];
 
+        public HashSet<int> SmsStoppedFeedbackIds { get; } = [];
+
         public Task<SendFeedbackGuestResponseResultDto?> SendAsync(
             int feedbackId,
             int authorUserId,
@@ -35,6 +37,11 @@ namespace TummlyBackend.Tests.Helpers
             if (DuplicateFeedbackIds.Contains(feedbackId))
             {
                 throw new GuestReplyDuplicateException();
+            }
+
+            if (SmsStoppedFeedbackIds.Contains(feedbackId))
+            {
+                throw new GuestReplySmsStoppedException();
             }
 
             Sent.Add((feedbackId, body));

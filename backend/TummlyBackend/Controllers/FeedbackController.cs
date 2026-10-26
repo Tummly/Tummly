@@ -2733,6 +2733,7 @@ namespace TummlyBackend.Controllers
             return ex is RecoverySmsBillingUnavailableException
                 or RecoverySmsCreditRefusedException
                 or OperatorBillingLockedException
+                or GuestReplySmsStoppedException
                 or GuestReplySmsSendFailedException;
         }
 
@@ -2769,6 +2770,15 @@ namespace TummlyBackend.Controllers
                         success = false,
                         code = locked.Code,
                         message = locked.Code,
+                    }
+                ),
+                GuestReplySmsStoppedException stopped => StatusCode(
+                    StatusCodes.Status409Conflict,
+                    new
+                    {
+                        success = false,
+                        code = stopped.Code,
+                        message = stopped.Message,
                     }
                 ),
                 GuestReplySmsSendFailedException sendFailed => StatusCode(

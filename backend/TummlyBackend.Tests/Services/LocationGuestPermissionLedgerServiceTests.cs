@@ -140,7 +140,7 @@ namespace TummlyBackend.Tests.Services
             // SQL Server FK fails when ledger rows use LocationGuestId=0
             // before the guest insert (guest-form submit for a new guest).
             var (guest, restaurant) = await SeedUnsavedLocationGuestAsync();
-            var apply = new GuestFormPermissionApplyService(_ledger);
+            var apply = new GuestFormPermissionApplyService(_ledger, _context);
             var at = new DateTime(2026, 9, 19, 12, 0, 0, DateTimeKind.Utc);
 
             await apply.ApplyOnSubmitAsync(

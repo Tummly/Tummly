@@ -56,6 +56,24 @@ namespace TummlyBackend.Services
     }
 
     /// <summary>
+    /// The guest has sent STOP to this restaurant (MasterGuest.SmsStoppedAtUtc is set).
+    /// Nothing is reserved, saved or sent.
+    /// </summary>
+    public sealed class GuestReplySmsStoppedException : Exception
+    {
+        public const string ErrorCode = "sms_stopped";
+
+        public GuestReplySmsStoppedException()
+            : base(
+                "This message cannot be sent for the selected purpose or recipient. Review the reason."
+            )
+        {
+        }
+
+        public string Code => ErrorCode;
+    }
+
+    /// <summary>
     /// The per-Feedback guest reply lock was not granted in time.
     /// </summary>
     public sealed class GuestReplyLockUnavailableException : Exception

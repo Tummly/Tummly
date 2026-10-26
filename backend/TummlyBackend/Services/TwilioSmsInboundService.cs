@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
+using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -14,7 +16,9 @@ namespace TummlyBackend.Services
     }
 
     /// <summary>
-    /// Validates Twilio inbound SMS webhooks and withdraws SmsMarketing on STOP.
+    /// Validates Twilio inbound SMS webhooks. On a STOP keyword, the sender's phone
+    /// is stopped at every restaurant that texted it (shared-number rule A, R4.3).
+    /// The To number is not used: one shared number serves all restaurants.
     /// </summary>
     public sealed class TwilioSmsInboundService
     {
@@ -30,33 +34,21 @@ namespace TummlyBackend.Services
             };
 
         private readonly TwilioSettings _settings;
-        private readonly IReadOnlyDictionary<string, int> _inboundByNormalizedTo;
+        private readonly ApplicationDbContext _context;
         private readonly IGuestInitiatedMarketingWithdrawService _withdraw;
         private readonly ILogger<TwilioSmsInboundService> _logger;
 
         public TwilioSmsInboundService(
             IOptions<TwilioSettings> settings,
+            ApplicationDbContext context,
             IGuestInitiatedMarketingWithdrawService withdraw,
             ILogger<TwilioSmsInboundService> logger
         )
         {
             _settings = settings.Value;
+            _context = context;
             _withdraw = withdraw;
             _logger = logger;
-            _inboundByNormalizedTo = BuildNormalizedInboundMap(
-                _settings.InboundNumberRestaurants,
-                _settings.ResolvedDefaultRegion
-            );
-
-            if (
-                !string.IsNullOrWhiteSpace(_settings.AuthToken)
-                && _inboundByNormalizedTo.Count == 0
-            )
-            {
-                _logger.LogError(
-                    "Twilio AuthToken is set but InboundNumberRestaurants is empty. SMS STOP cannot map To→restaurant; marketing will stay open after STOP."
-                );
-            }
         }
 
         public async Task<TwilioSmsInboundStatus> HandleAsync(
@@ -78,178 +70,120 @@ namespace TummlyBackend.Services
                 return TwilioSmsInboundStatus.Accepted;
             }
 
-            form.TryGetValue("To", out var toRaw);
-            var to = (toRaw ?? string.Empty).Trim();
-            if (
-                !TryResolveRestaurantId(to, out var restaurantId)
-                || restaurantId <= 0
-            )
-            {
-                _logger.LogWarning(
-                    "Twilio SMS STOP for unmapped To number {MaskedPhone}; no withdraw.",
-                    LogContactMask.Phone(to)
-                );
-                return TwilioSmsInboundStatus.Accepted;
-            }
-
             form.TryGetValue("From", out var fromRaw);
             if (!TryResolveFromE164(fromRaw, out var fromE164))
             {
                 _logger.LogWarning(
-                    "Twilio SMS STOP with unparseable From; restaurant {RestaurantId}; no withdraw.",
-                    restaurantId
+                    "Twilio SMS STOP with unparseable From; no change."
                 );
                 return TwilioSmsInboundStatus.Accepted;
             }
 
-            await _withdraw.WithdrawForRestaurantContactAsync(
-                restaurantId,
-                fromE164,
-                isEmail: false,
-                LocationGuestPermissionKind.SmsMarketing,
-                LocationGuestPermissionLedgerSources.SmsStop,
-                cancellationToken
-            );
+            await StopTextedRestaurantsAsync(fromE164, cancellationToken);
 
             return TwilioSmsInboundStatus.Accepted;
         }
 
-        private bool TryResolveRestaurantId(string to, out int restaurantId)
+        /// <summary>
+        /// Finds the guest rows that match the phone. For each restaurant that sent
+        /// an SMS to one of them, withdraws SMS marketing and sets SmsStoppedAtUtc.
+        /// </summary>
+        private async Task StopTextedRestaurantsAsync(
+            string fromE164,
+            CancellationToken cancellationToken
+        )
         {
-            restaurantId = 0;
-            if (string.IsNullOrEmpty(to))
-            {
-                return false;
-            }
+            var inputDigits = new string(fromE164.Where(char.IsDigit).ToArray());
+            var last9 = inputDigits.Length >= 9 ? inputDigits[^9..] : inputDigits;
 
-            if (
-                _settings.InboundNumberRestaurants.TryGetValue(
-                    to,
-                    out restaurantId
-                )
-                && restaurantId > 0
-            )
-            {
-                return true;
-            }
-
-            foreach (
-                var candidate in EnumerateLookupKeys(
-                    to,
-                    _settings.ResolvedDefaultRegion
-                )
-            )
-            {
-                if (
-                    _inboundByNormalizedTo.TryGetValue(
-                        candidate,
-                        out restaurantId
+            var candidates = (
+                await _context.MasterGuests
+                    .Where(master =>
+                        master.NormalizedPhone != null
+                        && master.NormalizedPhone.EndsWith(last9)
                     )
-                    && restaurantId > 0
+                    .ToListAsync(cancellationToken)
+            )
+                .Where(master =>
+                    GuestInitiatedMarketingWithdrawService.MasterGuestMatchesE164(
+                        master,
+                        fromE164
+                    )
                 )
-                {
-                    return true;
-                }
-            }
+                .ToList();
 
-            restaurantId = 0;
-            return false;
-        }
+            var textedMasterIds = await SmsSentMasterGuestIdsAsync(
+                candidates.Select(master => master.Id).ToList(),
+                cancellationToken
+            );
+            var textedRestaurantIds = candidates
+                .Where(master => textedMasterIds.Contains(master.Id))
+                .Select(master => master.RestaurantId)
+                .ToHashSet();
 
-        private static IReadOnlyDictionary<string, int> BuildNormalizedInboundMap(
-            IReadOnlyDictionary<string, int> configured,
-            string defaultRegion
-        )
-        {
-            var map = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (var (key, restaurantId) in configured)
+            if (textedRestaurantIds.Count == 0)
             {
-                if (restaurantId <= 0)
-                {
-                    continue;
-                }
-
-                foreach (var lookupKey in EnumerateLookupKeys(key, defaultRegion))
-                {
-                    map[lookupKey] = restaurantId;
-                }
+                _logger.LogInformation(
+                    "Twilio SMS STOP matched no restaurant that texted this number. MaskedPhone {MaskedPhone}; no change.",
+                    LogContactMask.Phone(fromE164)
+                );
+                return;
             }
 
-            return map;
-        }
-
-        private static IEnumerable<string> EnumerateLookupKeys(
-            string raw,
-            string defaultRegion
-        )
-        {
-            var trimmed = (raw ?? string.Empty).Trim();
-            if (trimmed.Length == 0)
-            {
-                yield break;
-            }
-
-            yield return trimmed;
-
-            if (TryNormalizeInboundNumber(trimmed, defaultRegion, out var e164))
-            {
-                if (!string.Equals(e164, trimmed, StringComparison.Ordinal))
-                {
-                    yield return e164;
-                }
-            }
-
-            // Digits-only fallback so "+44…" map keys match "4477…" webhook To.
-            var digits = new string(trimmed.Where(char.IsDigit).ToArray());
-            if (
-                digits.Length >= 10
-                && !string.Equals(digits, trimmed, StringComparison.Ordinal)
-            )
-            {
-                yield return digits;
-            }
-        }
-
-        private static bool TryNormalizeInboundNumber(
-            string raw,
-            string defaultRegion,
-            out string e164
-        )
-        {
-            e164 = string.Empty;
-            if (
-                PhoneNumberHelper.TryNormalizeToE164(
-                    raw,
-                    defaultRegion,
-                    out var normalized
+            var stoppedAtUtc = DateTime.UtcNow;
+            foreach (
+                var master in candidates.Where(master =>
+                    textedRestaurantIds.Contains(master.RestaurantId)
                 )
-                && !string.IsNullOrEmpty(normalized)
             )
             {
-                e164 = normalized;
-                return true;
+                master.SmsStoppedAtUtc ??= stoppedAtUtc;
             }
 
-            var trimmed = raw.Trim();
-            if (
-                trimmed.StartsWith('+')
-                && trimmed.Length >= 10
-                && trimmed[1..].All(char.IsDigit)
-            )
+            foreach (var restaurantId in textedRestaurantIds)
             {
-                e164 = trimmed;
-                return true;
+                await _withdraw.WithdrawForRestaurantContactAsync(
+                    restaurantId,
+                    fromE164,
+                    isEmail: false,
+                    LocationGuestPermissionKind.SmsMarketing,
+                    LocationGuestPermissionLedgerSources.SmsStop,
+                    cancellationToken
+                );
             }
+        }
 
-            // Compact spaced / punctuation forms into +digits when already E.164-ish.
-            var digits = new string(trimmed.Where(char.IsDigit).ToArray());
-            if (digits.Length >= 10 && trimmed.Contains('+'))
-            {
-                e164 = $"+{digits}";
-                return true;
-            }
+        /// <summary>
+        /// MasterGuest ids that received an SMS: a guest reply (channel sms) or an
+        /// accepted campaign SMS send.
+        /// </summary>
+        private async Task<HashSet<int>> SmsSentMasterGuestIdsAsync(
+            List<int> masterGuestIds,
+            CancellationToken cancellationToken
+        )
+        {
+            var repliedIds = await _context.FeedbackGuestResponses
+                .Where(response =>
+                    response.Channel == FeedbackGuestResponseChannel.Sms
+                    && response.Feedback!.LocationGuest != null
+                    && masterGuestIds.Contains(
+                        response.Feedback.LocationGuest.MasterGuestId
+                    )
+                )
+                .Select(response => response.Feedback!.LocationGuest!.MasterGuestId)
+                .ToListAsync(cancellationToken);
 
-            return false;
+            var campaignIds = await _context.CampaignRecipientDeliveries
+                .Where(delivery =>
+                    delivery.Channel == "sms"
+                    && delivery.AcceptedAtUtc != null
+                    && delivery.LocationGuest != null
+                    && masterGuestIds.Contains(delivery.LocationGuest.MasterGuestId)
+                )
+                .Select(delivery => delivery.LocationGuest!.MasterGuestId)
+                .ToListAsync(cancellationToken);
+
+            return repliedIds.Concat(campaignIds).ToHashSet();
         }
 
         private bool TryResolveFromE164(string? fromRaw, out string fromE164)

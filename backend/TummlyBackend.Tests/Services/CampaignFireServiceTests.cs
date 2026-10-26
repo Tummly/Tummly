@@ -44,6 +44,32 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task CampaignFire_GuestStoppedAfterSchedule_Excluded()
+        {
+            var seeded = await SeedCommittedCampaignAsync(
+                status: CampaignFireService.ScheduledStatus,
+                scheduleMode: "schedule-later",
+                scheduledAtUtc: _now.AddMinutes(-5),
+                frozenEligibleCount: 2,
+                withCatalogOffer: false,
+                channel: "sms"
+            );
+
+            var stoppedLocationGuest = await _context.LocationGuests
+                .SingleAsync(lg => lg.Id == seeded.FrozenGuestIds[0]);
+            var stoppedMaster = await _context.MasterGuests
+                .SingleAsync(m => m.Id == stoppedLocationGuest.MasterGuestId);
+            stoppedMaster.SmsStoppedAtUtc = _now;
+            await _context.SaveChangesAsync();
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var call = Assert.Single(_outbound.Calls);
+            Assert.Equal(seeded.FrozenGuestIds[1], call.LocationGuestId);
+        }
+
         public void Dispose()
         {
             _context.Dispose();

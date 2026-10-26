@@ -32,15 +32,13 @@ namespace TummlyBackend.Tests.Integration
         private static string AuthToken =>
             TwilioSmsInboundEndpointsTestsAuth.Token;
 
-        private static string MappedTo =>
-            TwilioSmsInboundEndpointsTestsAuth.MappedTo;
+        private static string SharedTo =>
+            TwilioSmsInboundEndpointsTestsAuth.SharedTo;
 
         [Fact]
         public async Task Inbound_BadSignature_Returns403_AndWritesNothing()
         {
-            await using var factory = new TwilioSmsInboundWebApplicationFactory(
-                mappedRestaurantId: 1
-            );
+            await using var factory = new TwilioSmsInboundWebApplicationFactory();
             var client = factory.CreateClient();
             var seeded = await SeedGrantedSmsGuestAsync(
                 factory,
@@ -50,7 +48,7 @@ namespace TummlyBackend.Tests.Integration
 
             var form = BuildForm(
                 from: GuestFrom,
-                to: MappedTo,
+                to: SharedTo,
                 body: "STOP"
             );
             using var content = ToFormContent(form);
@@ -73,11 +71,9 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Inbound_Stop_MappedTo_WithdrawsSmsMarketing()
+        public async Task Inbound_Stop_TextedGuest_WithdrawsSmsMarketing_AndStopsSms()
         {
-            await using var factory = new TwilioSmsInboundWebApplicationFactory(
-                mappedRestaurantId: 1
-            );
+            await using var factory = new TwilioSmsInboundWebApplicationFactory();
             var client = factory.CreateClient();
             var seeded = await SeedGrantedSmsGuestAsync(
                 factory,
@@ -88,7 +84,7 @@ namespace TummlyBackend.Tests.Integration
 
             var form = BuildForm(
                 from: GuestFrom,
-                to: MappedTo,
+                to: SharedTo,
                 body: "STOP"
             );
             var response = await PostSignedAsync(client, form);
@@ -112,6 +108,9 @@ namespace TummlyBackend.Tests.Integration
 
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
+            var master = await context.MasterGuests
+                .SingleAsync(m => m.RestaurantId == seeded.RestaurantId);
+            Assert.NotNull(master.SmsStoppedAtUtc);
             var entry = await context.LocationGuestPermissionLedgerEntries
                 .SingleAsync(e =>
                     e.EventKind
@@ -139,9 +138,7 @@ namespace TummlyBackend.Tests.Integration
         [Fact]
         public async Task Inbound_NonStopBody_Returns200_WithoutWithdraw()
         {
-            await using var factory = new TwilioSmsInboundWebApplicationFactory(
-                mappedRestaurantId: 1
-            );
+            await using var factory = new TwilioSmsInboundWebApplicationFactory();
             var client = factory.CreateClient();
             var seeded = await SeedGrantedSmsGuestAsync(
                 factory,
@@ -151,7 +148,7 @@ namespace TummlyBackend.Tests.Integration
 
             var form = BuildForm(
                 from: GuestFrom,
-                to: MappedTo,
+                to: SharedTo,
                 body: "HELLO"
             );
             var response = await PostSignedAsync(client, form);
@@ -161,16 +158,15 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Inbound_UnmappedTo_Returns200_WithoutWithdraw()
+        public async Task Inbound_StopFromNeverTextedGuest_Returns200_WithoutWithdraw()
         {
-            await using var factory = new TwilioSmsInboundWebApplicationFactory(
-                mappedRestaurantId: 1
-            );
+            await using var factory = new TwilioSmsInboundWebApplicationFactory();
             var client = factory.CreateClient();
             var seeded = await SeedGrantedSmsGuestAsync(
                 factory,
                 phoneE164: GuestFrom,
-                restaurantName: "Unmapped Venue"
+                restaurantName: "Never Texted Venue",
+                texted: false
             );
 
             var form = BuildForm(
@@ -188,7 +184,6 @@ namespace TummlyBackend.Tests.Integration
         public async Task Inbound_SignedAgainstPublicBaseUrl_Accepted()
         {
             await using var factory = new TwilioSmsInboundWebApplicationFactory(
-                mappedRestaurantId: 1,
                 publicApiBaseUrl: PublicApiBaseUrl
             );
             var client = factory.CreateClient();
@@ -200,7 +195,7 @@ namespace TummlyBackend.Tests.Integration
 
             var form = BuildForm(
                 from: GuestFrom,
-                to: MappedTo,
+                to: SharedTo,
                 body: "STOP"
             );
             var response = await PostSignedAsync(
@@ -226,7 +221,6 @@ namespace TummlyBackend.Tests.Integration
         public async Task Inbound_SignedAgainstRequestHost_403_WhenPublicBaseUrlSet()
         {
             await using var factory = new TwilioSmsInboundWebApplicationFactory(
-                mappedRestaurantId: 1,
                 publicApiBaseUrl: PublicApiBaseUrl
             );
             var client = factory.CreateClient();
@@ -238,7 +232,7 @@ namespace TummlyBackend.Tests.Integration
 
             var form = BuildForm(
                 from: GuestFrom,
-                to: MappedTo,
+                to: SharedTo,
                 body: "STOP"
             );
             var response = await PostSignedAsync(client, form, WebhookUrl);
@@ -252,7 +246,7 @@ namespace TummlyBackend.Tests.Integration
         {
             var form = BuildForm(
                 from: GuestFrom,
-                to: MappedTo,
+                to: SharedTo,
                 body: "STOP"
             );
             var signature = ComputeTwilioSignature(AuthToken, WebhookUrl, form);
@@ -363,7 +357,8 @@ namespace TummlyBackend.Tests.Integration
         private static async Task<SeededGuest> SeedGrantedSmsGuestAsync(
             WebApplicationFactory<Program> factory,
             string phoneE164,
-            string restaurantName
+            string restaurantName,
+            bool texted = true
         )
         {
             using var scope = factory.Services.CreateScope();
@@ -430,6 +425,40 @@ namespace TummlyBackend.Tests.Integration
             );
             await context.SaveChangesAsync();
 
+            if (texted)
+            {
+                var feedback = new Feedback
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = 1,
+                    LocationGuestId = guest.Id,
+                    GuestName = "Guest",
+                    GuestContact = phoneE164,
+                    ContactType = ContactType.Phone,
+                    Comment = "Lovely",
+                    ClassificationStatus = ClassificationStatus.Succeeded,
+                    WorkflowStatus = FeedbackWorkflowStatus.InProgress,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.Feedbacks.Add(feedback);
+                await context.SaveChangesAsync();
+
+                context.FeedbackGuestResponses.Add(
+                    new FeedbackGuestResponse
+                    {
+                        FeedbackId = feedback.Id,
+                        Channel = FeedbackGuestResponseChannel.Sms,
+                        Intent = FeedbackRecoveryIntent.RespondToGuest,
+                        MaskedDestination = "+44 •••",
+                        Body = "Thank you.",
+                        AuthorDisplayName = "Owner",
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+
             return new SeededGuest(
                 restaurant.Id,
                 location.Id,
@@ -448,15 +477,10 @@ namespace TummlyBackend.Tests.Integration
         : WebApplicationFactory<Program>
     {
         private readonly string _databaseName = Guid.NewGuid().ToString();
-        private readonly int _mappedRestaurantId;
         private readonly string _publicApiBaseUrl;
 
-        public TwilioSmsInboundWebApplicationFactory(
-            int mappedRestaurantId,
-            string publicApiBaseUrl = ""
-        )
+        public TwilioSmsInboundWebApplicationFactory(string publicApiBaseUrl = "")
         {
-            _mappedRestaurantId = mappedRestaurantId;
             _publicApiBaseUrl = publicApiBaseUrl;
         }
 
@@ -478,9 +502,6 @@ namespace TummlyBackend.Tests.Integration
                         ["TwilioSettings:RecoveryFromNumber"] =
                             "+447700900888",
                         ["TwilioSettings:DefaultRegion"] = "GB",
-                        [
-                            $"TwilioSettings:InboundNumberRestaurants:{TwilioSmsInboundEndpointsTestsAuth.MappedTo}"
-                        ] = _mappedRestaurantId.ToString(),
                         [TummlySellerVatSettings.ModeActiveKey] = "true",
                         [TummlySellerVatSettings.RegistrationNumberKey] =
                             "GB123456789",
@@ -509,9 +530,6 @@ namespace TummlyBackend.Tests.Integration
                         "ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
                     settings.RecoveryFromNumber = "+447700900888";
                     settings.DefaultRegion = "GB";
-                    settings.InboundNumberRestaurants[
-                        TwilioSmsInboundEndpointsTestsAuth.MappedTo
-                    ] = _mappedRestaurantId;
                 });
 
                 var descriptors = services
@@ -542,6 +560,6 @@ namespace TummlyBackend.Tests.Integration
     internal static class TwilioSmsInboundEndpointsTestsAuth
     {
         public const string Token = "twilio_test_auth_token_task5";
-        public const string MappedTo = "+447700900999";
+        public const string SharedTo = "+447700900999";
     }
 }

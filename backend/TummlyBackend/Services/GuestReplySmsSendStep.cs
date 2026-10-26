@@ -79,6 +79,10 @@ namespace TummlyBackend.Services
             }
         }
 
+        /// <summary>
+        /// Every guest-reply SMS path calls this before any credit reserve or row save.
+        /// A guest who sent STOP to the restaurant is refused (R4.5).
+        /// </summary>
         public async Task<GuestReplySmsReservation> ReserveAsync(
             Feedback feedback,
             string idempotencyKey,
@@ -86,6 +90,8 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            await EnsureGuestNotSmsStoppedAsync(feedback, cancellationToken);
+
             var restaurantId = await _context.RestaurantLocations
                 .AsNoTracking()
                 .Where(row => row.Id == feedback.RestaurantLocationId)
@@ -155,6 +161,27 @@ namespace TummlyBackend.Services
                 idempotencyKey,
                 reservationRef
             );
+        }
+
+        private async Task EnsureGuestNotSmsStoppedAsync(
+            Feedback feedback,
+            CancellationToken cancellationToken
+        )
+        {
+            var stopped = await _context.LocationGuests
+                .AsNoTracking()
+                .AnyAsync(
+                    row =>
+                        row.Id == feedback.LocationGuestId
+                        && row.MasterGuest != null
+                        && row.MasterGuest.SmsStoppedAtUtc != null,
+                    cancellationToken
+                );
+
+            if (stopped)
+            {
+                throw new GuestReplySmsStoppedException();
+            }
         }
 
         public async Task SavePendingReplyAsync(
