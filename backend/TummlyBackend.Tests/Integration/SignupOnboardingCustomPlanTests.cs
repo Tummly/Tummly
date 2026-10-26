@@ -2,8 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.Models;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -17,6 +19,70 @@ namespace TummlyBackend.Tests.Integration
         {
             _factory = factory;
             _client = factory.CreateClient();
+
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            if (!db.CommercialCatalogVersions.Any(v => v.Status == CommercialCatalogStatuses.Published))
+            {
+                var json = PricebookCatalog.LoadFromDirectory(
+                    TestPricebookPaths.PackDirectory()
+                );
+                var snapshot = json.GetRequired(json.CurrentPricebookId);
+                db.CommercialCatalogVersions.Add(
+                    CommercialCatalogSeeder.FromSnapshot(snapshot, DateTime.UtcNow)
+                );
+                db.SaveChanges();
+            }
+        }
+
+        [Fact]
+        public async Task SaveOnboarding_StaleQuoteHash_Returns400QuoteChanged()
+        {
+            var sessionToken = await SeedVerifiedPendingAsync();
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/signup/onboarding?sessionToken={sessionToken}",
+                new
+                {
+                    password = "Password1!",
+                    confirmPassword = "Password1!",
+                    fullName = "Pilot Owner",
+                    groupName = "Pilot Kitchen",
+                    businessCategory = "takeaway",
+                    primaryPhone = "07911123456",
+                    chosenPlan = BillingSubscriptionPlans.Custom,
+                    chosenCadence = "monthly",
+                    locations = new[]
+                    {
+                        new
+                        {
+                            locationName = "Main",
+                            address = "1 High Street",
+                            city = "Leeds",
+                            postcode = "LS1 1AA",
+                        },
+                    },
+                    customPlanConfigJson = JsonSerializer.Serialize(
+                        new
+                        {
+                            version = 2,
+                            cadence = "monthly",
+                            basePlan = "group",
+                            locations = 31,
+                            packs = new Dictionary<string, int>(),
+                            quoteHash = new string('0', 32),
+                        }
+                    ),
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.False(body.RootElement.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "quote_changed",
+                body.RootElement.GetProperty("code").GetString()
+            );
         }
 
         [Fact]
