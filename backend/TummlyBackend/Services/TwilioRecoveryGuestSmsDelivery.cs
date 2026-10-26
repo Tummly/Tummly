@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Twilio;
 using Twilio.Exceptions;
@@ -13,16 +14,19 @@ namespace TummlyBackend.Services
         private readonly TwilioSettings _settings;
         private readonly ILogger<TwilioRecoveryGuestSmsDelivery> _logger;
         private readonly DemoSideEffectGuard _demoSideEffects;
+        private readonly IConfiguration _configuration;
 
         public TwilioRecoveryGuestSmsDelivery(
             IOptions<TwilioSettings> settings,
             ILogger<TwilioRecoveryGuestSmsDelivery> logger,
-            DemoSideEffectGuard demoSideEffects
+            DemoSideEffectGuard demoSideEffects,
+            IConfiguration configuration
         )
         {
             _settings = settings.Value;
             _logger = logger;
             _demoSideEffects = demoSideEffects;
+            _configuration = configuration;
         }
 
         public async Task<RecoveryGuestSmsDeliveryResult> SendAsync(
@@ -37,9 +41,12 @@ namespace TummlyBackend.Services
                     "Demo side-effect suppression: skipped Recovery SMS to {MaskedPhone}",
                     LogContactMask.Phone(phoneNumber)
                 );
+                // Nothing was sent, so there is no SID and no status callback.
                 return new RecoveryGuestSmsDeliveryResult.Accepted
                 {
                     AcceptedSegments = 1,
+                    ProviderMessageId = null,
+                    StatusCallbackSet = false,
                 };
             }
 
@@ -57,12 +64,18 @@ namespace TummlyBackend.Services
                 _settings.ResolvedDefaultRegion
             );
 
+            var statusCallback = TwilioWebhookUrl.For(
+                _configuration,
+                TwilioWebhookUrl.SmsStatusPath
+            );
+
             try
             {
                 var message = await MessageResource.CreateAsync(
                     to: new Twilio.Types.PhoneNumber(e164),
                     from: new Twilio.Types.PhoneNumber(_settings.RecoveryFromNumber),
-                    body: body
+                    body: body,
+                    statusCallback: statusCallback == null ? null : new Uri(statusCallback)
                 );
 
                 var segments = message.NumSegments ?? "1";
@@ -74,6 +87,8 @@ namespace TummlyBackend.Services
                 return new RecoveryGuestSmsDeliveryResult.Accepted
                 {
                     AcceptedSegments = accepted,
+                    ProviderMessageId = message.Sid,
+                    StatusCallbackSet = statusCallback != null,
                 };
             }
             catch (ApiException ex)

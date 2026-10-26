@@ -641,6 +641,7 @@ builder.Services.AddScoped<
     GuestInitiatedMarketingWithdrawService
 >();
 builder.Services.AddScoped<TwilioSmsInboundService>();
+builder.Services.AddScoped<TwilioSmsStatusService>();
 builder.Services.AddScoped<
     IGuestFormPermissionApplyService,
     GuestFormPermissionApplyService

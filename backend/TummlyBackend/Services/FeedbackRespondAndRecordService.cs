@@ -106,6 +106,15 @@ namespace TummlyBackend.Services
             {
                 guestResponse.DeliveryState = GuestReplyDeliveryState.Pending;
             }
+            else
+            {
+                // Recorded only. Tummly sent nothing, so the state cannot be confirmed.
+                GuestReplyDeliveryStateMachine.TryAdvance(
+                    guestResponse,
+                    GuestReplyDeliveryState.Unavailable,
+                    createdAt
+                );
+            }
 
             var internalAction = new FeedbackInternalAction
             {

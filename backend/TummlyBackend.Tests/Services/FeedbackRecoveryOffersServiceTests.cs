@@ -148,6 +148,10 @@ namespace TummlyBackend.Tests.Services
                 FeedbackGuestResponseChannel.Sms,
                 guestResponse.Channel
             );
+            Assert.Equal(
+                GuestReplyDeliveryState.Unavailable,
+                guestResponse.DeliveryState
+            );
         }
 
         [Fact]

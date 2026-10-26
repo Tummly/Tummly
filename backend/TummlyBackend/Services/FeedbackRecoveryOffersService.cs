@@ -207,6 +207,16 @@ namespace TummlyBackend.Services
                 {
                     guestResponse.DeliveryState = GuestReplyDeliveryState.Pending;
                 }
+                else
+                {
+                    // This path does not call the SMS provider. No provider id, so the
+                    // state cannot be confirmed.
+                    GuestReplyDeliveryStateMachine.TryAdvance(
+                        guestResponse,
+                        GuestReplyDeliveryState.Unavailable,
+                        issuedAt
+                    );
+                }
 
                 _context.FeedbackGuestResponses.Add(guestResponse);
 

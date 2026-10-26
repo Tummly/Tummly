@@ -330,6 +330,8 @@ namespace TummlyBackend.Services
 
             if (delivery is RecoveryGuestSmsDeliveryResult.Failed)
             {
+                // No reply row is saved on a failed send, so there is no state to
+                // move to Failed. The error is returned and the reply is not recorded.
                 await _smsBilling.ReleaseAsync(
                     new RecoverySmsBillingReleaseRequest
                     {
@@ -350,14 +352,13 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var accepted =
-                ((RecoveryGuestSmsDeliveryResult.Accepted)delivery).AcceptedSegments;
+            var accepted = (RecoveryGuestSmsDeliveryResult.Accepted)delivery;
             var settle = await _smsBilling.SettleAsync(
                 new RecoverySmsBillingSettleRequest
                 {
                     FeedbackId = feedback.Id,
                     ReservationRef = reservationRef,
-                    AcceptedUnits = accepted,
+                    AcceptedUnits = accepted.AcceptedSegments,
                 },
                 cancellationToken
             );
@@ -411,6 +412,20 @@ namespace TummlyBackend.Services
             );
             row.EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.NotApplicable;
             row.BillingReservationRef = reservationRef;
+            row.ProviderMessageId = accepted.ProviderMessageId;
+
+            // Accepted only when Twilio will call back with a status for this SID.
+            // Without a callback or a SID, the send cannot be confirmed: Unavailable.
+            var callbackCanConfirm =
+                accepted.StatusCallbackSet
+                && !string.IsNullOrWhiteSpace(accepted.ProviderMessageId);
+            GuestReplyDeliveryStateMachine.TryAdvance(
+                row,
+                callbackCanConfirm
+                    ? GuestReplyDeliveryState.Accepted
+                    : GuestReplyDeliveryState.Unavailable,
+                _clock.GetUtcNow().UtcDateTime
+            );
 
             _context.FeedbackGuestResponses.Add(row);
             await MarkIdempotencyCompletedAsync(

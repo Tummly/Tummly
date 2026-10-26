@@ -31,10 +31,11 @@ namespace TummlyBackend.Services
         {
             if (_demoSideEffects.ShouldSuppressDestination(request.ToAddress))
             {
+                // Nothing was sent, so no provider id is stored.
                 return new CampaignOutboundSendResult.Accepted
                 {
                     AcceptedUnits = 1,
-                    ProviderMessageId = "demo-suppressed",
+                    ProviderMessageId = null,
                 };
             }
 
@@ -80,6 +81,7 @@ namespace TummlyBackend.Services
                 return new CampaignOutboundSendResult.Accepted
                 {
                     AcceptedUnits = Math.Max(accepted.AcceptedSegments, 1),
+                    ProviderMessageId = accepted.ProviderMessageId,
                 };
             }
 

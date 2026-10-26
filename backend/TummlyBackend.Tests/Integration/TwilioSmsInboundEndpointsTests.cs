@@ -25,6 +25,9 @@ namespace TummlyBackend.Tests.Integration
         private const string WebhookPath = "/api/webhooks/twilio/sms-inbound";
         private const string WebhookUrl =
             "http://localhost/api/webhooks/twilio/sms-inbound";
+        private const string PublicApiBaseUrl = "https://api.tummly.test";
+        private const string PublicWebhookUrl =
+            "https://api.tummly.test/api/webhooks/twilio/sms-inbound";
 
         private static string AuthToken =>
             TwilioSmsInboundEndpointsTestsAuth.Token;
@@ -182,6 +185,69 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Inbound_SignedAgainstPublicBaseUrl_Accepted()
+        {
+            await using var factory = new TwilioSmsInboundWebApplicationFactory(
+                mappedRestaurantId: 1,
+                publicApiBaseUrl: PublicApiBaseUrl
+            );
+            var client = factory.CreateClient();
+            var seeded = await SeedGrantedSmsGuestAsync(
+                factory,
+                phoneE164: GuestFrom,
+                restaurantName: "Public Base Venue"
+            );
+
+            var form = BuildForm(
+                from: GuestFrom,
+                to: MappedTo,
+                body: "STOP"
+            );
+            var response = await PostSignedAsync(
+                client,
+                form,
+                PublicWebhookUrl
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var scope = factory.Services.CreateScope();
+            var permissions = scope.ServiceProvider
+                .GetRequiredService<ILocationGuestPermissionLedgerService>();
+            var states = await permissions.GetCurrentStatesAsync(
+                seeded.LocationGuestId
+            );
+            Assert.Equal(
+                LocationGuestPermissionState.Withdrawn,
+                states[LocationGuestPermissionKind.SmsMarketing]
+            );
+        }
+
+        [Fact]
+        public async Task Inbound_SignedAgainstRequestHost_403_WhenPublicBaseUrlSet()
+        {
+            await using var factory = new TwilioSmsInboundWebApplicationFactory(
+                mappedRestaurantId: 1,
+                publicApiBaseUrl: PublicApiBaseUrl
+            );
+            var client = factory.CreateClient();
+            var seeded = await SeedGrantedSmsGuestAsync(
+                factory,
+                phoneE164: GuestFrom,
+                restaurantName: "Request Host Venue"
+            );
+
+            var form = BuildForm(
+                from: GuestFrom,
+                to: MappedTo,
+                body: "STOP"
+            );
+            var response = await PostSignedAsync(client, form, WebhookUrl);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            await AssertNoSmsWithdrawAsync(factory, seeded.LocationGuestId);
+        }
+
+        [Fact]
         public void TwilioSignatureHelper_MatchesRequestValidator()
         {
             var form = BuildForm(
@@ -196,12 +262,13 @@ namespace TummlyBackend.Tests.Integration
 
         private static async Task<HttpResponseMessage> PostSignedAsync(
             HttpClient client,
-            Dictionary<string, string> form
+            Dictionary<string, string> form,
+            string signingUrl = WebhookUrl
         )
         {
             var signature = ComputeTwilioSignature(
                 AuthToken,
-                WebhookUrl,
+                signingUrl,
                 form
             );
             using var content = ToFormContent(form);
@@ -382,10 +449,15 @@ namespace TummlyBackend.Tests.Integration
     {
         private readonly string _databaseName = Guid.NewGuid().ToString();
         private readonly int _mappedRestaurantId;
+        private readonly string _publicApiBaseUrl;
 
-        public TwilioSmsInboundWebApplicationFactory(int mappedRestaurantId)
+        public TwilioSmsInboundWebApplicationFactory(
+            int mappedRestaurantId,
+            string publicApiBaseUrl = ""
+        )
         {
             _mappedRestaurantId = mappedRestaurantId;
+            _publicApiBaseUrl = publicApiBaseUrl;
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -398,6 +470,7 @@ namespace TummlyBackend.Tests.Integration
                     new Dictionary<string, string?>
                     {
                         ["Frontend:BaseUrl"] = "https://tummly.example",
+                        ["PublicApi:BaseUrl"] = _publicApiBaseUrl,
                         ["TwilioSettings:AuthToken"] =
                             TwilioSmsInboundEndpointsTestsAuth.Token,
                         ["TwilioSettings:AccountSid"] =
