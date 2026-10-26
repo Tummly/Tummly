@@ -177,6 +177,87 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SaveOnboarding_Group31Locations_SavedAsCustomWithBandedAmount()
+        {
+            await SeedVerifiedPendingAsync();
+            var dto = BuildValidOnboardingDto();
+            dto.ChosenPlan = BillingSubscriptionPlans.Group;
+            dto.ChosenCadence = "monthly";
+            dto.CustomPlanConfigJson = JsonSerializer.Serialize(
+                new
+                {
+                    version = 2,
+                    cadence = "monthly",
+                    basePlan = "group",
+                    locations = 31,
+                    packs = new Dictionary<string, int>(),
+                }
+            );
+
+            await _signup.SaveOnboardingAsync(_sessionToken, dto);
+            await _db.Entry(_pending).ReloadAsync();
+
+            Assert.Equal(BillingSubscriptionPlans.Custom, _pending.ChosenPlan);
+            var config = CustomPlanConfig.TryParse(_pending.CustomPlanConfigJson);
+            Assert.NotNull(config);
+            Assert.Equal(31, config!.Locations);
+            Assert.Equal(121100, config.PeriodNetPence);
+        }
+
+        [Fact]
+        public async Task SaveOnboarding_Custom500Annual_PeriodNetPence()
+        {
+            await SeedVerifiedPendingAsync();
+            var dto = BuildValidOnboardingDto();
+            dto.ChosenPlan = BillingSubscriptionPlans.Custom;
+            dto.ChosenCadence = "annual";
+            dto.CustomPlanConfigJson = JsonSerializer.Serialize(
+                new
+                {
+                    version = 2,
+                    cadence = "annual",
+                    basePlan = "group",
+                    locations = 500,
+                    packs = new Dictionary<string, int>(),
+                }
+            );
+
+            await _signup.SaveOnboardingAsync(_sessionToken, dto);
+            await _db.Entry(_pending).ReloadAsync();
+
+            Assert.Equal(BillingSubscriptionPlans.Custom, _pending.ChosenPlan);
+            var config = CustomPlanConfig.TryParse(_pending.CustomPlanConfigJson);
+            Assert.NotNull(config);
+            Assert.Equal(500, config!.Locations);
+            Assert.Equal(16691800, config.PeriodNetPence);
+        }
+
+        [Fact]
+        public async Task SaveOnboarding_Group30Locations_StaysGroup()
+        {
+            await SeedVerifiedPendingAsync();
+            var dto = BuildValidOnboardingDto();
+            dto.ChosenPlan = BillingSubscriptionPlans.Group;
+            dto.ChosenCadence = "monthly";
+            dto.CustomPlanConfigJson = JsonSerializer.Serialize(
+                new
+                {
+                    version = 2,
+                    cadence = "monthly",
+                    basePlan = "group",
+                    locations = 30,
+                    packs = new Dictionary<string, int>(),
+                }
+            );
+
+            await _signup.SaveOnboardingAsync(_sessionToken, dto);
+            await _db.Entry(_pending).ReloadAsync();
+
+            Assert.Equal(BillingSubscriptionPlans.Group, _pending.ChosenPlan);
+            Assert.Null(_pending.CustomPlanConfigJson);
+        }
+
+        [Fact]
         public async Task SaveOnboarding_Verified_ProvisionsPilotAndCompletes()
         {
             await SeedVerifiedPendingAsync();

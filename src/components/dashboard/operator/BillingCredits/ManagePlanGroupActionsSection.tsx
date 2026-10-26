@@ -1,8 +1,11 @@
+import { Link } from "react-router-dom"
+
 import { Button } from "@/components/ui/button"
 import { CancelSubscriptionDialog } from "@/components/dashboard/operator/BillingCredits/CancelSubscriptionDialog"
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import {
   ADDITIONAL_GROUP_LOCATION_COPY,
+  buildGroupCapUpsell,
   type AdditionalGroupLocationViewModel,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import {
@@ -39,6 +42,8 @@ export function ManagePlanAdditionalGroupLocationSection({
     ReturnType<typeof useBillingCreditsPageModuleApi>["getSnapshot"]
   >["extraLocationConfirm"]
 }) {
+  const capUpsell = buildGroupCapUpsell(viewModel)
+
   return (
     <>
       <section className={GUESTS_SECTION_CLASS}>
@@ -89,6 +94,15 @@ export function ManagePlanAdditionalGroupLocationSection({
               {ADDITIONAL_GROUP_LOCATION_COPY.removeLocation}
             </Button>
           </div>
+        ) : null}
+
+        {capUpsell != null ? (
+          <p className="m-0 pt-4 text-sm font-medium text-op-text-primary">
+            {capUpsell.prompt}{" "}
+            <Button asChild variant="op-link">
+              <Link to={capUpsell.href}>{capUpsell.linkLabel}</Link>
+            </Button>
+          </p>
         ) : null}
       </section>
 

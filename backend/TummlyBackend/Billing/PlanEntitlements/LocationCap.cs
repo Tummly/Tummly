@@ -4,8 +4,15 @@ namespace TummlyBackend.Billing.PlanEntitlements
 {
     public static class LocationCap
     {
+        /// <summary>
+        /// Standard Group self-serve maximum. Group extras above 5 renew through one fixed
+        /// Revolut variation (<see cref="TummlyBackend.Services.RevolutPlanVariationKeys.ForExtraLocation"/>, £39 each),
+        /// which is exact only while every extra Location is band 1. Above 30 the Custom Plan
+        /// (banded <c>PeriodNetPence</c>) takes over.
+        /// </summary>
         public const int GroupSelfServeMax = 30;
 
+        /// <summary>Custom Plan maximum (doc 08 N10.25).</summary>
         public const int CustomMax = 500;
 
         public const string CapReachedCode = "location_cap_reached";

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import type { PlanSubscriptionSnapshot } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 import {
+  buildAdditionalGroupLocationViewModel,
+  buildGroupCapUpsell,
   buildManagePlanCardViewModels,
   buildManagePlanFaqItems,
   buildPlanChangeConfirmCopy,
@@ -342,5 +344,49 @@ describe("Manage Plan light-theme chrome tokens", () => {
     expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).toContain("text-op-text-primary")
     expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).not.toContain("bg-[#212121]")
     expect(MANAGE_PLAN_FAQ_TRIGGER_CLASS).not.toContain("text-white")
+  })
+})
+
+describe("buildGroupCapUpsell", () => {
+  it("shows the Build your own plan link to a Group account at the 30 Location cap", () => {
+    const viewModel = buildAdditionalGroupLocationViewModel(
+      paidPlan({
+        subscriptionPlan: "Group",
+        includedLocations: 30,
+        activeLocations: 30,
+      })
+    )
+
+    const upsell = buildGroupCapUpsell(viewModel)
+
+    expect(upsell).toEqual({
+      prompt: "Need more than 30 Locations?",
+      linkLabel: "Build your own plan.",
+      href: "/custom-plan",
+    })
+    expect(`${upsell?.prompt} ${upsell?.linkLabel}`).toBe(
+      "Need more than 30 Locations? Build your own plan."
+    )
+  })
+
+  it("hides the upsell while a Group account can still add a Location", () => {
+    const viewModel = buildAdditionalGroupLocationViewModel(
+      paidPlan({
+        subscriptionPlan: "Group",
+        includedLocations: 29,
+        activeLocations: 20,
+      })
+    )
+
+    expect(buildGroupCapUpsell(viewModel)).toBeNull()
+  })
+
+  it("hides the upsell for plans that have no Group location section", () => {
+    const viewModel = buildAdditionalGroupLocationViewModel(
+      paidPlan({ subscriptionPlan: "Growth", includedLocations: 3 })
+    )
+
+    expect(viewModel).toBeNull()
+    expect(buildGroupCapUpsell(viewModel)).toBeNull()
   })
 })

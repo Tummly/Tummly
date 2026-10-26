@@ -1,3 +1,4 @@
+import { MARKETING_CUSTOM_PLAN_PATH } from "@/constants/marketingNav"
 import type { PlanSubscriptionSnapshot } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 
 export const MANAGE_PLAN_IDS = ["Pilot", "Starter", "Growth", "Group"] as const
@@ -1102,6 +1103,27 @@ export function buildAdditionalGroupLocationViewModel(
       plan.includedLocations,
       plan.activeLocations
     ),
+  }
+}
+
+export type GroupCapUpsell = {
+  prompt: string
+  linkLabel: string
+  href: string
+}
+
+/** Group at the self-serve cap: point to the Custom Plan for more Locations. */
+export function buildGroupCapUpsell(
+  viewModel: AdditionalGroupLocationViewModel | null
+): GroupCapUpsell | null {
+  if (viewModel == null || viewModel.canAdd) {
+    return null
+  }
+
+  return {
+    prompt: `Need more than ${viewModel.cap} Locations?`,
+    linkLabel: "Build your own plan.",
+    href: MARKETING_CUSTOM_PLAN_PATH,
   }
 }
 
