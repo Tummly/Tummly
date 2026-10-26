@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { isAxiosError } from "axios"
 import { useNavigate } from "react-router-dom"
 
+import { getBillingCreditsPage } from "@/api/billingCreditsApi"
 import {
   getSignupProvisioningStatus,
   signupSessionLogin,
@@ -13,6 +14,7 @@ import {
   clearSignupSessionToken,
   readSignupSessionToken,
 } from "@/lib/signupSession"
+import { buildPilotSetupConfirmation } from "@/lib/signupPilotConfirmation"
 import { persistSignupLoginSession } from "@/pages/utils/authHelpers"
 
 const POLL_INTERVAL_MS = 2000
@@ -21,6 +23,18 @@ const SESSION_LOGIN_BACKOFF_START_MS = 1500
 const SESSION_LOGIN_BACKOFF_MAX_MS = 8000
 
 const LOADING_COPY = "Finishing your setup…"
+const LOCATIONS_PATH = "/signup/locations"
+
+/** Pilot start and end dates for the setup confirmation. Null for any other plan. */
+async function loadPilotConfirmation(): Promise<string | null> {
+  try {
+    const page = await getBillingCreditsPage()
+    return buildPilotSetupConfirmation(page.planSubscription)
+  } catch {
+    // The dates are extra. Never block setup on them.
+    return null
+  }
+}
 
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error)) {
@@ -42,8 +56,11 @@ function sleep(ms: number) {
 
 function SignupCompletePage() {
   const navigate = useNavigate()
-  const sessionToken = readSignupSessionToken()
+  // Read once. The token is cleared after sign-in and the page must stay mounted
+  // to show the Pilot confirmation.
+  const [sessionToken] = useState(() => readSignupSessionToken())
 
+  const [pilotConfirmation, setPilotConfirmation] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -128,7 +145,15 @@ function SignupCompletePage() {
           }
           persistSignupLoginSession(session)
           clearSignupSessionToken()
-          navigate("/signup/locations", { replace: true })
+          const confirmation = await loadPilotConfirmation()
+          if (!isCurrent()) {
+            return "ok"
+          }
+          if (confirmation) {
+            setPilotConfirmation(confirmation)
+            return "ok"
+          }
+          navigate(LOCATIONS_PATH, { replace: true })
           return "ok"
         } catch (caught) {
           if (!isCurrent()) {
@@ -225,6 +250,32 @@ function SignupCompletePage() {
 
   if (!sessionToken) {
     return null
+  }
+
+  if (pilotConfirmation) {
+    return (
+      <GuestLoopShell
+        contentAlign="center"
+        contentMaxWidthClassName="max-w-none"
+        showBackButton={false}
+      >
+        <div className="mx-auto flex w-full max-w-[473px] flex-col gap-6">
+          <p
+            className="m-0 text-center font-sans text-lg font-normal leading-6 text-[#141414]"
+            role="status"
+          >
+            {pilotConfirmation}
+          </p>
+          <Button
+            type="button"
+            onClick={() => navigate(LOCATIONS_PATH, { replace: true })}
+            className="h-[45px] w-full rounded-[4px] bg-[#14a74a] text-sm font-medium text-white shadow-none hover:bg-[#14a74a]/90"
+          >
+            Continue
+          </Button>
+        </div>
+      </GuestLoopShell>
+    )
   }
 
   return (

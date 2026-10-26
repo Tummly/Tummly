@@ -102,6 +102,10 @@ export type PlanSubscriptionSnapshot = {
   subscriptionPlan: string
   billingStatus: string
   renewalDateLabel: string | null
+  /** Pilot clock start (UTC ISO). Only set for a Pilot with a recorded start. */
+  pilotStartedAtUtc?: string | null
+  /** Pilot clock end (UTC ISO). Only set for a Pilot. */
+  pilotEndsAtUtc?: string | null
   emailCreditsRemaining: number
   smsCreditsRemaining: number
   aiCreditsRemaining: number
