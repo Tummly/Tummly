@@ -157,6 +157,56 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task SavePendingReplyAsync(
+            GuestReplySmsReservation reservation,
+            FeedbackGuestResponse row,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception)
+            {
+                // Nothing was sent yet. Drop the unsaved row and give the credits back.
+                var entry = _context.Entry(row);
+                if (entry.State != EntityState.Detached)
+                {
+                    entry.State = EntityState.Detached;
+                }
+
+                try
+                {
+                    await ReleaseFailedAsync(reservation, CancellationToken.None);
+                }
+                catch (Exception releaseEx)
+                {
+                    _logger.LogError(
+                        "Recovery SMS hold release threw {ExceptionType} after the pending reply save failed. Hold left for the sweeper. ReservationRef {ReservationRef}",
+                        releaseEx.GetType().Name,
+                        reservation.ReservationRef
+                    );
+                }
+
+                throw;
+            }
+        }
+
+        public async Task SaveFailedReplyAsync(
+            FeedbackGuestResponse row,
+            DateTime atUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            GuestReplyDeliveryStateMachine.TryAdvance(
+                row,
+                GuestReplyDeliveryState.Failed,
+                atUtc
+            );
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         public async Task<GuestReplySmsOutcome> SendAndSettleAsync(
             GuestReplySmsReservation reservation,
             Feedback feedback,

@@ -266,20 +266,9 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            var outcome = await _smsSend.SendAndSettleAsync(
-                reservation,
-                feedback,
-                content.Body,
-                cancellationToken
-            );
-
-            if (outcome.Kind == GuestReplySmsOutcomeKind.Failed)
-            {
-                // The provider refused the text. No reply row is saved, so there
-                // is no state to move to Failed.
-                throw new GuestReplySmsSendFailedException();
-            }
-
+            // Save the reply (Pending, no SID) before the provider call, still under
+            // the reply lock. If a later save fails after the provider accepted the
+            // text, this row stays and the duplicate rule blocks an identical retry.
             var now = _clock.GetUtcNow().UtcDateTime;
             var row = FeedbackGuestResponseComposer.Build(
                 feedback,
@@ -294,22 +283,38 @@ namespace TummlyBackend.Services
                 now
             );
             row.EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.NotApplicable;
+            row.DeliveryState = GuestReplyDeliveryState.Pending;
+            _context.FeedbackGuestResponses.Add(row);
+            await _smsSend.SavePendingReplyAsync(reservation, row, cancellationToken);
+
+            var outcome = await _smsSend.SendAndSettleAsync(
+                reservation,
+                feedback,
+                content.Body,
+                cancellationToken
+            );
+
+            if (outcome.Kind == GuestReplySmsOutcomeKind.Failed)
+            {
+                // The provider refused the text and the hold is released. The row
+                // moves to Failed, so the duplicate rule lets a retry through.
+                await _smsSend.SaveFailedReplyAsync(row, now, cancellationToken);
+                throw new GuestReplySmsSendFailedException();
+            }
 
             if (outcome.Kind == GuestReplySmsOutcomeKind.Unknown)
             {
-                // The provider may have sent the text. Record the reply as
+                // The provider may have sent the text. Move the saved row to
                 // Unavailable, keep the hold for the sweeper, and block a repeat
                 // with the duplicate rule. The save ignores cancellation so the
                 // record is kept.
                 _smsSend.ApplyUnknownOutcome(row, reservation, now);
-                _context.FeedbackGuestResponses.Add(row);
                 await _smsSend.SaveRecordedUnknownReplyAsync(reservation, CancellationToken.None);
 
                 throw new GuestReplySmsSendFailedException();
             }
 
             _smsSend.ApplyAccepted(row, reservation, outcome.Accepted!, now);
-            _context.FeedbackGuestResponses.Add(row);
             await _smsSend.SaveAcceptedReplyAsync(
                 reservation,
                 outcome.Settled,

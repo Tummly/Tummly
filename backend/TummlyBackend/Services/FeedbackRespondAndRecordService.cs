@@ -209,19 +209,9 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            var outcome = await _smsSend.SendAndSettleAsync(
-                reservation,
-                feedback,
-                content.Body,
-                cancellationToken
-            );
-
-            if (outcome.Kind == GuestReplySmsOutcomeKind.Failed)
-            {
-                // Nothing is saved on a refused send.
-                throw new GuestReplySmsSendFailedException();
-            }
-
+            // Save the reply (Pending, no SID) before the provider call, still under
+            // the reply lock. If a later save fails after the provider accepted the
+            // text, this row stays and the duplicate rule blocks an identical retry.
             var guestResponse = FeedbackGuestResponseComposer.Build(
                 feedback,
                 channel,
@@ -235,7 +225,17 @@ namespace TummlyBackend.Services
                 now
             );
             guestResponse.EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.NotApplicable;
+            guestResponse.DeliveryState = GuestReplyDeliveryState.Pending;
+            _context.FeedbackGuestResponses.Add(guestResponse);
+            await _smsSend.SavePendingReplyAsync(
+                reservation,
+                guestResponse,
+                cancellationToken
+            );
 
+            // The internal action is saved together with the final reply state
+            // (Accepted or Unavailable), never before the provider answers. A failed
+            // send therefore leaves a Failed reply and no internal action.
             var internalAction = BuildInternalAction(
                 feedback.Id,
                 category,
@@ -245,13 +245,25 @@ namespace TummlyBackend.Services
                 now
             );
 
+            var outcome = await _smsSend.SendAndSettleAsync(
+                reservation,
+                feedback,
+                content.Body,
+                cancellationToken
+            );
+
+            if (outcome.Kind == GuestReplySmsOutcomeKind.Failed)
+            {
+                await _smsSend.SaveFailedReplyAsync(guestResponse, now, cancellationToken);
+                throw new GuestReplySmsSendFailedException();
+            }
+
             if (outcome.Kind == GuestReplySmsOutcomeKind.Unknown)
             {
-                // The provider may have sent the text. Record the reply as
-                // Unavailable and the internal action with it. The duplicate rule
-                // then blocks a repeat. The save ignores cancellation.
+                // The provider may have sent the text. Move the saved reply to
+                // Unavailable and save the internal action with it. The duplicate
+                // rule then blocks a repeat. The save ignores cancellation.
                 _smsSend.ApplyUnknownOutcome(guestResponse, reservation, now);
-                _context.FeedbackGuestResponses.Add(guestResponse);
                 _context.FeedbackInternalActions.Add(internalAction);
                 await _smsSend.SaveRecordedUnknownReplyAsync(reservation, CancellationToken.None);
 
@@ -259,7 +271,6 @@ namespace TummlyBackend.Services
             }
 
             _smsSend.ApplyAccepted(guestResponse, reservation, outcome.Accepted!, now);
-            _context.FeedbackGuestResponses.Add(guestResponse);
             _context.FeedbackInternalActions.Add(internalAction);
             await _smsSend.SaveAcceptedReplyAsync(
                 reservation,
