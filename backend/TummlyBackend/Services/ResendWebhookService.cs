@@ -5,7 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
@@ -16,6 +18,9 @@ namespace TummlyBackend.Services
     public sealed class ResendWebhookService : IResendWebhookService
     {
         public const string EmailOpenedType = "email.opened";
+        public const string EmailDeliveredType = "email.delivered";
+        public const string EmailBouncedType = "email.bounced";
+        public const string EmailFailedType = "email.failed";
 
         private static readonly TimeSpan MaxSkew = TimeSpan.FromMinutes(5);
 
@@ -76,12 +81,6 @@ namespace TummlyBackend.Services
                 ? typeEl.GetString()?.Trim()
                 : null;
 
-            if (!string.Equals(type, EmailOpenedType, StringComparison.Ordinal))
-            {
-                // Acknowledge unknown events so Resend does not retry forever.
-                return ResendWebhookHandleStatus.Accepted;
-            }
-
             if (!root.TryGetProperty("data", out var data))
             {
                 return ResendWebhookHandleStatus.Accepted;
@@ -91,22 +90,25 @@ namespace TummlyBackend.Services
                 ? emailIdEl.GetString()?.Trim()
                 : null;
 
-            DateTime? openedAt = null;
-            if (
-                root.TryGetProperty("created_at", out var createdEl)
-                && createdEl.ValueKind == JsonValueKind.String
-                && DateTime.TryParse(
-                    createdEl.GetString(),
-                    null,
-                    System.Globalization.DateTimeStyles.RoundtripKind,
-                    out var parsed
-                )
-            )
+            var replyState = ReplyStateForEvent(type);
+            if (replyState != null)
             {
-                openedAt = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+                await ApplyReplyDeliveryAsync(
+                    emailId,
+                    replyState.Value,
+                    ReadEventTime(root) ?? _utcNow(),
+                    cancellationToken
+                );
+                return ResendWebhookHandleStatus.Accepted;
             }
 
-            openedAt ??= _utcNow();
+            if (!string.Equals(type, EmailOpenedType, StringComparison.Ordinal))
+            {
+                // Acknowledge unknown events so Resend does not retry forever.
+                return ResendWebhookHandleStatus.Accepted;
+            }
+
+            var openedAt = ReadEventTime(root) ?? _utcNow();
 
             var delivery = await FindDeliveryAsync(
                 emailId,
@@ -131,6 +133,70 @@ namespace TummlyBackend.Services
             delivery.UpdatedAtUtc = _utcNow();
             await _context.SaveChangesAsync(cancellationToken);
             return ResendWebhookHandleStatus.Accepted;
+        }
+
+        private static GuestReplyDeliveryState? ReplyStateForEvent(string? type) =>
+            type switch
+            {
+                EmailDeliveredType => GuestReplyDeliveryState.Delivered,
+                EmailBouncedType => GuestReplyDeliveryState.Failed,
+                EmailFailedType => GuestReplyDeliveryState.Failed,
+                _ => null,
+            };
+
+        /// <summary>
+        /// Moves guest replies with this provider email id to <paramref name="next"/>.
+        /// <see cref="GuestReplyDeliveryStateMachine"/> keeps the first final state.
+        /// </summary>
+        private async Task ApplyReplyDeliveryAsync(
+            string? emailId,
+            GuestReplyDeliveryState next,
+            DateTime atUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            if (string.IsNullOrWhiteSpace(emailId))
+            {
+                return;
+            }
+
+            var replies = await _context.FeedbackGuestResponses
+                .Where(row => row.ProviderMessageId == emailId)
+                .ToListAsync(cancellationToken);
+            if (replies.Count == 0)
+            {
+                _logger.LogInformation(
+                    "Resend delivery event with no matching guest reply (email_id={EmailId}).",
+                    emailId
+                );
+                return;
+            }
+
+            foreach (var reply in replies)
+            {
+                GuestReplyDeliveryStateMachine.TryAdvance(reply, next, atUtc);
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private static DateTime? ReadEventTime(JsonElement root)
+        {
+            if (
+                root.TryGetProperty("created_at", out var createdEl)
+                && createdEl.ValueKind == JsonValueKind.String
+                && DateTime.TryParse(
+                    createdEl.GetString(),
+                    null,
+                    System.Globalization.DateTimeStyles.RoundtripKind,
+                    out var parsed
+                )
+            )
+            {
+                return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            }
+
+            return null;
         }
 
         private async Task<Models.CampaignRecipientDelivery?> FindDeliveryAsync(

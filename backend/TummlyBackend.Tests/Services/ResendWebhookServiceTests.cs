@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -138,6 +139,201 @@ namespace TummlyBackend.Tests.Services
                 "v1,not-a-real-signature"
             );
             Assert.Equal(ResendWebhookHandleStatus.BadSignature, status);
+        }
+
+        [Fact]
+        public async Task Resend_Delivered_SetsDelivered()
+        {
+            await SeedReplyAsync(GuestReplyDeliveryState.Accepted, "reply-1");
+
+            var status = await PostAsync(
+                EventBody("email.delivered", "reply-1"),
+                "msg_delivered"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            var reply = await _context.FeedbackGuestResponses.SingleAsync();
+            Assert.Equal(GuestReplyDeliveryState.Delivered, reply.DeliveryState);
+            Assert.Equal(EventTime, reply.DeliveryStateAtUtc);
+        }
+
+        [Fact]
+        public async Task Resend_Bounced_SetsFailed()
+        {
+            await SeedReplyAsync(GuestReplyDeliveryState.Accepted, "reply-1");
+
+            var status = await PostAsync(
+                EventBody("email.bounced", "reply-1"),
+                "msg_bounced"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            Assert.Equal(
+                GuestReplyDeliveryState.Failed,
+                (await _context.FeedbackGuestResponses.SingleAsync()).DeliveryState
+            );
+        }
+
+        [Fact]
+        public async Task Resend_Failed_SetsFailed()
+        {
+            await SeedReplyAsync(GuestReplyDeliveryState.Accepted, "reply-1");
+
+            var status = await PostAsync(
+                EventBody("email.failed", "reply-1"),
+                "msg_failed"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            Assert.Equal(
+                GuestReplyDeliveryState.Failed,
+                (await _context.FeedbackGuestResponses.SingleAsync()).DeliveryState
+            );
+        }
+
+        [Fact]
+        public async Task Resend_UnknownEmailId_NoChange()
+        {
+            await SeedReplyAsync(GuestReplyDeliveryState.Accepted, "reply-1");
+
+            var status = await PostAsync(
+                EventBody("email.delivered", "unknown-email"),
+                "msg_unknown"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            var reply = await _context.FeedbackGuestResponses.SingleAsync();
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply.DeliveryState);
+            Assert.Equal(_now.AddMinutes(-10), reply.DeliveryStateAtUtc);
+        }
+
+        [Fact]
+        public async Task Resend_OtherType_NoChange()
+        {
+            await SeedReplyAsync(GuestReplyDeliveryState.Accepted, "reply-1");
+
+            var status = await PostAsync(
+                EventBody("email.sent", "reply-1"),
+                "msg_sent"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            var reply = await _context.FeedbackGuestResponses.SingleAsync();
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply.DeliveryState);
+            Assert.Equal(_now.AddMinutes(-10), reply.DeliveryStateAtUtc);
+        }
+
+        [Fact]
+        public async Task Resend_DeliveredBeforeWorkerAccepted_EndsDelivered()
+        {
+            await SeedReplyAsync(GuestReplyDeliveryState.Pending, "reply-race");
+
+            var status = await PostAsync(
+                EventBody("email.delivered", "reply-race"),
+                "msg_race"
+            );
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            Assert.Equal(
+                GuestReplyDeliveryState.Delivered,
+                (await _context.FeedbackGuestResponses.SingleAsync()).DeliveryState
+            );
+
+            // The email worker records Accepted after the provider already
+            // reported delivery. The forward-only rule keeps Delivered.
+            var reply = await _context.FeedbackGuestResponses.SingleAsync();
+            GuestReplyDeliveryStateMachine.TryAdvance(
+                reply,
+                GuestReplyDeliveryState.Accepted,
+                _now
+            );
+            await _context.SaveChangesAsync();
+
+            Assert.Equal(
+                GuestReplyDeliveryState.Delivered,
+                (await _context.FeedbackGuestResponses.SingleAsync()).DeliveryState
+            );
+        }
+
+        [Fact]
+        public async Task Resend_BouncedAfterDelivered_StaysDelivered()
+        {
+            await SeedReplyAsync(GuestReplyDeliveryState.Accepted, "reply-1");
+            await PostAsync(EventBody("email.delivered", "reply-1"), "msg_d");
+
+            var status = await PostAsync(
+                EventBody("email.bounced", "reply-1"),
+                "msg_b"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            Assert.Equal(
+                GuestReplyDeliveryState.Delivered,
+                (await _context.FeedbackGuestResponses.SingleAsync()).DeliveryState
+            );
+        }
+
+        [Fact]
+        public async Task Resend_Delivered_WithoutCreatedAt_UsesNow()
+        {
+            await SeedReplyAsync(GuestReplyDeliveryState.Accepted, "reply-1");
+            var body = """{"type":"email.delivered","data":{"email_id":"reply-1"}}""";
+
+            await PostAsync(body, "msg_no_time");
+
+            var reply = await _context.FeedbackGuestResponses.SingleAsync();
+            Assert.Equal(GuestReplyDeliveryState.Delivered, reply.DeliveryState);
+            Assert.Equal(_now, reply.DeliveryStateAtUtc);
+        }
+
+        private static readonly DateTime EventTime = new(
+            2026,
+            10,
+            6,
+            11,
+            58,
+            0,
+            DateTimeKind.Utc
+        );
+
+        private static string EventBody(string type, string emailId) =>
+            "{\"type\":\"" + type + "\",\"created_at\":\"2026-10-06T11:58:00.000Z\","
+            + "\"data\":{\"email_id\":\"" + emailId + "\"}}";
+
+        private async Task<ResendWebhookHandleStatus> PostAsync(
+            string body,
+            string svixId
+        )
+        {
+            var timestamp = new DateTimeOffset(_now).ToUnixTimeSeconds().ToString();
+            return await _service.HandleAsync(
+                body,
+                svixId,
+                timestamp,
+                Sign(svixId, timestamp, body)
+            );
+        }
+
+        private async Task<FeedbackGuestResponse> SeedReplyAsync(
+            GuestReplyDeliveryState state,
+            string? providerMessageId
+        )
+        {
+            var reply = new FeedbackGuestResponse
+            {
+                FeedbackId = 1,
+                Channel = FeedbackGuestResponseChannel.Email,
+                Intent = FeedbackRecoveryIntent.RespondToGuest,
+                MaskedDestination = "g***@example.com",
+                Body = "Thank you for your visit.",
+                AuthorDisplayName = "Owner",
+                CreatedAt = _now.AddMinutes(-10),
+                ProviderMessageId = providerMessageId,
+                DeliveryState = state,
+                DeliveryStateAtUtc = _now.AddMinutes(-10),
+            };
+            _context.FeedbackGuestResponses.Add(reply);
+            await _context.SaveChangesAsync();
+            return reply;
         }
 
         private async Task<CampaignRecipientDelivery> SeedDeliveryAsync(
