@@ -1,3 +1,5 @@
+import { isAxiosError } from "axios"
+
 import axiosInstance from "./axiosInstance"
 
 export type AdminCommercialPlan = {
@@ -274,6 +276,9 @@ export type PublicCatalogPackMetaDto = {
   packKey: string
   rateKey: string
   packSize: number
+  /** Per-pack net pence from the catalogue; null when the rate is not set. */
+  monthlyNetPence: number | null
+  annualNetPence: number | null
 }
 
 export type PublicCustomUnitRates = {
@@ -356,6 +361,10 @@ export async function fetchPublicCustomUnitRates(): Promise<PublicCustomUnitRate
           packKey: String(p.packKey ?? ""),
           rateKey: String(p.rateKey ?? ""),
           packSize: Number(p.packSize ?? 0),
+          monthlyNetPence:
+            p.monthlyNetPence == null ? null : Number(p.monthlyNetPence),
+          annualNetPence:
+            p.annualNetPence == null ? null : Number(p.annualNetPence),
         }))
       : [],
   }
@@ -398,6 +407,9 @@ export type CustomPlanQuoteResult = {
   basePlanChanged: boolean
   requestedBasePlan: string | null
   storedAsPlan: string
+  /** 32 lower-hex characters. Sent back at signup to detect a changed quote. */
+  quoteHash: string
+  vatRateBps: number
 }
 
 function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
@@ -442,6 +454,8 @@ function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
     requestedBasePlan:
       raw.requestedBasePlan == null ? null : String(raw.requestedBasePlan),
     storedAsPlan: String(raw.storedAsPlan ?? "Custom"),
+    quoteHash: String(raw.quoteHash ?? ""),
+    vatRateBps: Number(raw.vatRateBps ?? 0),
   }
 }
 
@@ -449,11 +463,23 @@ function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
 export async function quotePublicCustomPlan(
   body: CustomPlanQuoteRequest,
 ): Promise<CustomPlanQuoteResult> {
-  const { data } = await axiosInstance.post<
-    Envelope<Record<string, unknown>> & { code?: string }
-  >("/public/commercial-catalog/custom-plan/quote", body, {
-    skipAuthRedirect: true,
-  })
+  type QuoteEnvelope = Envelope<Record<string, unknown>> & { code?: string }
+  let data: QuoteEnvelope
+  try {
+    const response = await axiosInstance.post<QuoteEnvelope>(
+      "/public/commercial-catalog/custom-plan/quote",
+      body,
+      { skipAuthRedirect: true },
+    )
+    data = response.data
+  } catch (error) {
+    // A 400 { success: false, code } rejects in axios; keep its body for the code.
+    const responseBody = isAxiosError(error) ? error.response?.data : undefined
+    if (responseBody == null || typeof responseBody !== "object") {
+      throw error
+    }
+    data = responseBody as QuoteEnvelope
+  }
   if (!data.success || !data.item) {
     const err = new Error(data.message ?? "Could not quote plan.") as Error & {
       code?: string

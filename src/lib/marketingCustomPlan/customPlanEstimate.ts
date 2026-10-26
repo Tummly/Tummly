@@ -216,15 +216,6 @@ export function lineNetPence(
     : monthlyLineNetPence(rate, quantity)
 }
 
-/** £1,010 / £12.50 — thousands grouped; pence shown only when not whole. */
-export function formatPenceGbp(pence: number): string {
-  const whole = pence % 100 === 0
-  return `£${(pence / 100).toLocaleString("en-GB", {
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2,
-  })}`
-}
-
 export function normalizePackCounts(
   packs: Partial<CustomPlanPackCounts> | Record<string, number> | null | undefined,
 ): CustomPlanPackCounts {

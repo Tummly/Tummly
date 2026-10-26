@@ -5,10 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { PRICING_CADENCE_COPY } from "@/content/marketing/pricingPage"
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
-import {
-  formatPenceGbp,
-  type CustomPlanV2Estimate,
-} from "@/lib/marketingCustomPlan/customPlanEstimate"
+import type { CustomPlanV2Estimate } from "@/lib/marketingCustomPlan/customPlanEstimate"
+import { formatPenceGbp } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
 

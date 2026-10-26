@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import type { AdminCommercialCustomUnitRate } from "@/api/adminCommercialCatalogApi"
 import {
-  formatPenceGbp,
   decodeCustomPlanIntentV2,
   encodeCustomPlanIntentV2,
   estimateCustomPlanV2,
@@ -277,13 +276,5 @@ describe("encode/decode CustomPlanIntentV2", () => {
       packs: { team_users_5: 1 },
     })
     expect(decodeCustomPlanIntentV2(json)?.packs.team_users_5).toBe(1)
-  })
-})
-
-describe("formatPenceGbp", () => {
-  it("groups thousands and keeps pence only when needed", () => {
-    expect(formatPenceGbp(101_000)).toBe("£1,010")
-    expect(formatPenceGbp(3900)).toBe("£39")
-    expect(formatPenceGbp(1250)).toBe("£12.50")
   })
 })

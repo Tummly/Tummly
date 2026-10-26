@@ -3,7 +3,7 @@ import {
   SIGNUP_PILOT_PRICE,
   type SignupPlanCardId,
 } from "@/content/marketing/signupComparePlans"
-import { formatPenceGbp } from "@/lib/marketingCustomPlan/customPlanEstimate"
+import { formatPenceGbp } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 
 export type SignupPlanPriceView = {

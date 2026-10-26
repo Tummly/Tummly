@@ -22,7 +22,6 @@ import {
   basePlanRank,
   estimateCustomPlanV2,
   minBasePlanForLocations,
-  formatPenceGbp,
   packMonthlyNetPence,
   type CustomPlanBasePlanKey,
   type CustomPlanPackCounts,
@@ -31,6 +30,7 @@ import {
   type CustomPlanV2Estimate,
   type PublicCatalogPlanSummary,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
+import { formatPenceGbp } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import { toPublicCatalogPlanSummaries } from "@/lib/marketingCustomPlan/publicCatalogPlans"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
