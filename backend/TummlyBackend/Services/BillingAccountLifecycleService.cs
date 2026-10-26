@@ -26,6 +26,26 @@ namespace TummlyBackend.Services
 
         public static readonly int[] PilotExtensionDayOptions = [14, 30];
 
+        /// <summary>
+        /// A paid period was applied to this account at some time. Every paid apply
+        /// stamps RenewalDateUtc. Only a new Pilot start clears it, and that start
+        /// is refused for accounts that were paid. A post-cancel soft lock (plan
+        /// Pilot, status Soft lock) keeps it, so it is not an unpaid Pilot.
+        /// </summary>
+        public static bool HasPaidHistory(BillingAccount account) =>
+            account.RenewalDateUtc != null;
+
+        /// <summary>Admin-facing text for a Pilot extension refusal code.</summary>
+        public static string PilotExtensionRefusalMessage(string? code) =>
+            code switch
+            {
+                PilotExtensionInvalidDaysCode => "Choose 14 or 30 days.",
+                PilotExtensionLimitCode =>
+                    $"This Pilot has used its extensions. The limit is {PilotExtensionMaxCount} extensions and {PilotExtensionMaxDaysTotal} days in total.",
+                _ =>
+                    "Only a Pilot that is active or locked, with no paid plan history, can be extended.",
+            };
+
         public const int DunningSoftLockHours = 10 * 24;
 
         public const int DunningDormantHours = 24 * 24;
@@ -331,6 +351,7 @@ namespace TummlyBackend.Services
 
             var unpaidPilotOpen =
                 IsPilotPlan(account)
+                && !HasPaidHistory(account)
                 && (
                     account.BillingStatus == BillingStatuses.Pilot
                     || account.BillingStatus == BillingStatuses.SoftLock

@@ -182,6 +182,56 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Extend_PostCancelAccount_409_NotAllowed()
+        {
+            var seeded = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.SoftLock,
+                extensionCount: 0,
+                extensionDaysTotal: 0,
+                renewalDateUtc: DateTime.UtcNow.AddDays(-2)
+            );
+
+            using var response = await PostExtendAsync(
+                seeded.OwnerUserId,
+                14,
+                $"ep-{Guid.NewGuid():N}",
+                seeded.AdminJwt
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("pilot_extension_not_allowed", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task ListPilotAccounts_PostCancelAccount_CannotExtend_WithHumanReason()
+        {
+            var postCancel = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.SoftLock,
+                extensionCount: 0,
+                extensionDaysTotal: 0,
+                renewalDateUtc: DateTime.UtcNow.AddDays(-2)
+            );
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/pilot-accounts");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", postCancel.AdminJwt);
+            using var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var rows = body.GetProperty("data").EnumerateArray()
+                .ToDictionary(row => row.GetProperty("restaurantId").GetInt32());
+            var row = rows[postCancel.RestaurantId];
+            Assert.False(row.GetProperty("canExtend").GetBoolean());
+            Assert.Equal(
+                "Only a Pilot that is active or locked, with no paid plan history, can be extended.",
+                row.GetProperty("cannotExtendReason").GetString()
+            );
+        }
+
+        [Fact]
         public async Task Extend_UnknownOperator_404()
         {
             var seeded = await SeedPilotAsync(
@@ -307,10 +357,8 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(JsonValueKind.Null, rows[pilot.RestaurantId].GetProperty("cannotExtendReason").ValueKind);
 
             Assert.False(rows[exhausted.RestaurantId].GetProperty("canExtend").GetBoolean());
-            Assert.Equal(
-                "pilot_extension_limit",
-                rows[exhausted.RestaurantId].GetProperty("cannotExtendReason").GetString()
-            );
+            var reason = rows[exhausted.RestaurantId].GetProperty("cannotExtendReason").GetString();
+            Assert.StartsWith("This Pilot has used its extensions.", reason);
         }
 
         private Task<HttpResponseMessage> PostExtendAsync(
@@ -375,7 +423,8 @@ namespace TummlyBackend.Tests.Integration
             string plan,
             string status,
             int extensionCount,
-            int extensionDaysTotal
+            int extensionDaysTotal,
+            DateTime? renewalDateUtc = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -429,6 +478,7 @@ namespace TummlyBackend.Tests.Integration
                         : null,
                     PilotExtensionCount = extensionCount,
                     PilotExtensionDaysTotal = extensionDaysTotal,
+                    RenewalDateUtc = renewalDateUtc,
                 }
             );
             await context.SaveChangesAsync();

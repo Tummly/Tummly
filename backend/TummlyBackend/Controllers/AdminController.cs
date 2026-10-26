@@ -252,7 +252,9 @@ namespace TummlyBackend.Controllers
                     {
                         success = false,
                         code = result.Code,
-                        message = PilotExtensionRefusalMessage(result.Code),
+                        message = BillingAccountLifecycleService.PilotExtensionRefusalMessage(
+                            result.Code
+                        ),
                     };
 
                     return result.Code
@@ -292,17 +294,6 @@ namespace TummlyBackend.Controllers
                 data = accounts,
             });
         }
-
-        private static string PilotExtensionRefusalMessage(string? code) =>
-            code switch
-            {
-                BillingAccountLifecycleService.PilotExtensionInvalidDaysCode =>
-                    "Choose 14 or 30 days.",
-                BillingAccountLifecycleService.PilotExtensionLimitCode =>
-                    $"This Pilot has used its extensions. The limit is {BillingAccountLifecycleService.PilotExtensionMaxCount} extensions and {BillingAccountLifecycleService.PilotExtensionMaxDaysTotal} days in total.",
-                _ =>
-                    "Only a Pilot that is active or locked can be extended.",
-            };
 
         [HttpGet("operators/{userId}/activation-download")]
         public async Task<IActionResult> DownloadActivationAsset(int userId)

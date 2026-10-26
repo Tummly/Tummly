@@ -570,7 +570,8 @@
                 billing.PilotStartedAtUtc,
                 billing.PilotPeriodEnd,
                 billing.PilotExtensionCount,
-                billing.PilotExtensionDaysTotal
+                billing.PilotExtensionDaysTotal,
+                billing.RenewalDateUtc != null
             );
 
         private static AdminPilotAccountDto ToPilotAccountDto(PilotAccountRow row)
@@ -583,7 +584,7 @@
                 );
 
             string? reason = null;
-            if (!isOpenPilot)
+            if (!isOpenPilot || row.HasPaidHistory)
             {
                 reason = BillingAccountLifecycleService.PilotExtensionNotAllowedCode;
             }
@@ -609,7 +610,9 @@
                 ExtensionCount = row.ExtensionCount,
                 ExtensionDaysTotal = row.ExtensionDaysTotal,
                 CanExtend = reason == null,
-                CannotExtendReason = reason,
+                CannotExtendReason = reason == null
+                    ? null
+                    : BillingAccountLifecycleService.PilotExtensionRefusalMessage(reason),
             };
         }
 
@@ -638,7 +641,8 @@
             DateTime? PilotStartedAtUtc,
             DateTime? PilotPeriodEnd,
             int ExtensionCount,
-            int ExtensionDaysTotal
+            int ExtensionDaysTotal,
+            bool HasPaidHistory
         );
 
         public async Task<(byte[] Content, string FileName, string ContentType)?>

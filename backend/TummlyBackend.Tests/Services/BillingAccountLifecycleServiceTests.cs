@@ -737,6 +737,34 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ExtendPilot_PostCancelSoftLock_RefusedNotAllowed()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedPaidAsync();
+            var renewalEnd = now.AddDays(-3);
+            var account = await ReloadAsync(seeded.RestaurantId);
+            account.RenewalDateUtc = renewalEnd;
+            _lifecycle.ApplyPostCancelSoftLock(account, renewalEnd);
+            await _context.SaveChangesAsync();
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.SoftLock, account.BillingStatus);
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-post-cancel",
+                now
+            );
+
+            Assert.Equal("refused", result.Outcome);
+            Assert.Equal("pilot_extension_not_allowed", result.Code);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.SoftLock, after.BillingStatus);
+            Assert.Equal(renewalEnd, after.PilotPeriodEnd);
+            Assert.Equal(0, after.PilotExtensionCount);
+        }
+
+        [Fact]
         public async Task ExtendPilot_SameKeyTwice_ExtendsOnce()
         {
             var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
