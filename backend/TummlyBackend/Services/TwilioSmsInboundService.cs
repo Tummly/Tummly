@@ -155,8 +155,8 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// MasterGuest ids that received an SMS: a guest reply (channel sms) or any campaign
-        /// SMS delivery row (channel sms), with or without an accepted time. An unknown
-        /// outcome may have reached the phone, so it counts (over-withdrawal is the safe side).
+        /// SMS delivery row (channel sms) where a send was attempted: any outcome except
+        /// skipped-ineligible. An unknown or error outcome may have reached the phone, so it counts.
         /// </summary>
         private async Task<HashSet<int>> SmsSentMasterGuestIdsAsync(
             List<int> masterGuestIds,
@@ -177,6 +177,7 @@ namespace TummlyBackend.Services
             var campaignIds = await _context.CampaignRecipientDeliveries
                 .Where(delivery =>
                     delivery.Channel == "sms"
+                    && delivery.Outcome != CampaignFireService.SkippedIneligibleOutcome
                     && delivery.LocationGuest != null
                     && masterGuestIds.Contains(delivery.LocationGuest.MasterGuestId)
                 )

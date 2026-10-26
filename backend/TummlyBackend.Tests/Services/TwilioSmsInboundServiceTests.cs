@@ -110,6 +110,17 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Stop_CampaignSmsSkippedIneligible_DoesNotCount()
+        {
+            // A skipped-ineligible row means the recipient was never attempted.
+            var guest = await SeedGuestAsync("Skipped Venue", GuestFrom, SmsTouch.CampaignSendSkippedIneligible);
+
+            await HandleSignedStopAsync(GuestFrom);
+
+            await AssertNotStoppedAsync(guest);
+        }
+
+        [Fact]
         public async Task Stop_UnknownPhone_NoChange()
         {
             var guest = await SeedGuestAsync("Venue", GuestFrom, SmsTouch.FeedbackReply);
@@ -301,11 +312,34 @@ namespace TummlyBackend.Tests.Services
             }
             else if (touch == SmsTouch.CampaignSend)
             {
-                await AddCampaignSmsAsync(location.Id, guest.Id, accepted: true);
+                await AddCampaignSmsAsync(
+                    location.Id,
+                    guest.Id,
+                    CampaignFireService.AcceptedOutcome,
+                    acceptedAtUtc: _now,
+                    providerMessageId: "SMtest-campaign"
+                );
             }
             else if (touch == SmsTouch.CampaignSendUnknownOutcome)
             {
-                await AddCampaignSmsAsync(location.Id, guest.Id, accepted: false);
+                // Outcome other than skipped, no accepted time: the send may have reached the phone.
+                await AddCampaignSmsAsync(
+                    location.Id,
+                    guest.Id,
+                    CampaignFireService.RejectedOutcome,
+                    acceptedAtUtc: null,
+                    providerMessageId: null
+                );
+            }
+            else if (touch == SmsTouch.CampaignSendSkippedIneligible)
+            {
+                await AddCampaignSmsAsync(
+                    location.Id,
+                    guest.Id,
+                    CampaignFireService.SkippedIneligibleOutcome,
+                    acceptedAtUtc: null,
+                    providerMessageId: null
+                );
             }
 
             return new SeededGuest(master.Id, guest.Id);
@@ -349,7 +383,13 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
         }
 
-        private async Task AddCampaignSmsAsync(int locationId, int locationGuestId, bool accepted)
+        private async Task AddCampaignSmsAsync(
+            int locationId,
+            int locationGuestId,
+            string outcome,
+            DateTime? acceptedAtUtc,
+            string? providerMessageId
+        )
         {
             var campaign = new Campaign
             {
@@ -369,9 +409,9 @@ namespace TummlyBackend.Tests.Services
                     CampaignId = campaign.Id,
                     LocationGuestId = locationGuestId,
                     Channel = "sms",
-                    Outcome = accepted ? "accepted" : "unknown",
-                    AcceptedAtUtc = accepted ? _now : null,
-                    ProviderMessageId = accepted ? "SMtest-campaign" : null,
+                    Outcome = outcome,
+                    AcceptedAtUtc = acceptedAtUtc,
+                    ProviderMessageId = providerMessageId,
                 }
             );
             await _context.SaveChangesAsync();
@@ -385,6 +425,7 @@ namespace TummlyBackend.Tests.Services
             FeedbackReply,
             CampaignSend,
             CampaignSendUnknownOutcome,
+            CampaignSendSkippedIneligible,
         }
 
         private sealed record SeededGuest(int MasterGuestId, int LocationGuestId);
