@@ -23,6 +23,24 @@ function formatPilotDate(value: string | null): string {
   return format(date, "d MMM yyyy")
 }
 
+/** Matches by restaurant, so a second Pilot restaurant on one owner is not touched. */
+export function replacePilotAccountRow(
+  rows: AdminPilotAccount[],
+  updated: AdminPilotAccount
+): AdminPilotAccount[] {
+  return rows.map((row) =>
+    row.restaurantId === updated.restaurantId ? updated : row
+  )
+}
+
+/** Uses the server's new end date. The selected length is not repeated. */
+export function pilotExtendedToastMessage(account: AdminPilotAccount): string {
+  const endLabel = formatPilotDate(account.pilotPeriodEnd)
+  return endLabel === "—"
+    ? "Pilot extended."
+    : `Pilot extended. New end: ${endLabel}.`
+}
+
 export function buildPilotRowPresentation(
   account: AdminPilotAccount,
   // The server decides canExtend. The clock is kept for the row signature.

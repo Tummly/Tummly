@@ -40,6 +40,8 @@ import {
   PILOT_EXTENSION_DAY_OPTIONS,
   PILOT_EXTENSION_MAX_COUNT,
   PILOT_EXTENSION_MAX_DAYS_TOTAL,
+  pilotExtendedToastMessage,
+  replacePilotAccountRow,
 } from "@/lib/admin/adminPilotExtensionPresentation"
 import {
   GUESTS_PAGE_STACK_CLASS,
@@ -65,6 +67,8 @@ type ExtendDialogState = {
   account: AdminPilotAccount
   days: (typeof PILOT_EXTENSION_DAY_OPTIONS)[number]
   idempotencyKey: string
+  /** Once true, the length is locked so a retry matches the first request. */
+  attempted: boolean
 }
 
 function apiErrorMessage(error: unknown, fallback: string) {
@@ -79,6 +83,7 @@ function apiErrorMessage(error: unknown, fallback: string) {
 export function AdminPilotsPanel() {
   const [accounts, setAccounts] = useState<AdminPilotAccount[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [dialog, setDialog] = useState<ExtendDialogState | null>(null)
   const [extending, setExtending] = useState(false)
 
@@ -89,7 +94,10 @@ export function AdminPilotsPanel() {
         if (!cancelled) setAccounts(rows)
       })
       .catch(() => {
-        if (!cancelled) toast.error("Could not load Pilot accounts")
+        if (!cancelled) {
+          setLoadError(true)
+          toast.error("Could not load Pilot accounts")
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -105,23 +113,24 @@ export function AdminPilotsPanel() {
       days: 14,
       // One key per dialog open. A retry reuses it, so the server extends once.
       idempotencyKey: crypto.randomUUID(),
+      attempted: false,
     })
   }
 
   const handleExtend = async () => {
     if (!dialog || extending) return
     setExtending(true)
+    setDialog((current) =>
+      current ? { ...current, attempted: true } : current
+    )
     try {
       const updated = await extendPilot(dialog.account.ownerUserId, {
         days: dialog.days,
         idempotencyKey: dialog.idempotencyKey,
+        restaurantId: dialog.account.restaurantId,
       })
-      setAccounts((rows) =>
-        rows.map((row) =>
-          row.ownerUserId === updated.ownerUserId ? updated : row
-        )
-      )
-      toast.success(`Pilot extended by ${dialog.days} days`)
+      setAccounts((rows) => replacePilotAccountRow(rows, updated))
+      toast.success(pilotExtendedToastMessage(updated))
       setDialog(null)
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not extend the Pilot"))
@@ -149,7 +158,9 @@ export function AdminPilotsPanel() {
           <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
             {loading
               ? "Loading Pilot accounts…"
-              : `${accounts.length} account${accounts.length === 1 ? "" : "s"}`}
+              : loadError
+                ? "Could not load Pilot accounts"
+                : `${accounts.length} account${accounts.length === 1 ? "" : "s"}`}
           </p>
         </div>
 
@@ -182,7 +193,17 @@ export function AdminPilotsPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {!loading && accounts.length === 0 ? (
+                {!loading && loadError ? (
+                  <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
+                    <TableCell
+                      colSpan={7}
+                      className={GUESTS_TABLE_BODY_CELL_CLASS}
+                    >
+                      Could not load Pilot accounts. Reload the page to try again.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+                {!loading && !loadError && accounts.length === 0 ? (
                   <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                     <TableCell
                       colSpan={7}
@@ -270,6 +291,7 @@ export function AdminPilotsPanel() {
               <Label htmlFor="pilot-extend-days">Extension length</Label>
               <Select
                 value={String(dialog.days)}
+                disabled={dialog.attempted}
                 onValueChange={(value) => {
                   const days = PILOT_EXTENSION_DAY_OPTIONS.find(
                     (option) => String(option) === value

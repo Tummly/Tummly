@@ -261,7 +261,10 @@ namespace TummlyBackend.Controllers
                             : Conflict(refusal);
                 }
 
-                var account = await _adminService.GetPilotAccountAsync(userId);
+                var account = await _adminService.GetPilotAccountAsync(
+                    userId,
+                    dto.RestaurantId
+                );
                 return Ok(new
                 {
                     success = true,

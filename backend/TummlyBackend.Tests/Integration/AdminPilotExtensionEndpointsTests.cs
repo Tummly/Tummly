@@ -202,6 +202,74 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Extend_WithRestaurantId_ExtendsThatRestaurant()
+        {
+            var owner = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                extensionCount: 0,
+                extensionDaysTotal: 0
+            );
+            var secondRestaurantId = await AddPilotRestaurantAsync(owner.OwnerUserId);
+
+            using var response = await PostExtendAsync(
+                owner.OwnerUserId,
+                14,
+                $"ep-{Guid.NewGuid():N}",
+                owner.AdminJwt,
+                restaurantId: secondRestaurantId
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var data = body.GetProperty("data");
+            Assert.Equal(secondRestaurantId, data.GetProperty("restaurantId").GetInt32());
+            Assert.Equal(1, data.GetProperty("extensionCount").GetInt32());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var first = await context.BillingAccounts.AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == owner.RestaurantId);
+            var second = await context.BillingAccounts.AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == secondRestaurantId);
+            Assert.Equal(0, first.PilotExtensionCount);
+            Assert.Equal(1, second.PilotExtensionCount);
+        }
+
+        [Fact]
+        public async Task Extend_WithForeignRestaurantId_404()
+        {
+            var owner = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                extensionCount: 0,
+                extensionDaysTotal: 0
+            );
+            var foreign = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                extensionCount: 0,
+                extensionDaysTotal: 0
+            );
+
+            using var response = await PostExtendAsync(
+                owner.OwnerUserId,
+                14,
+                $"ep-{Guid.NewGuid():N}",
+                owner.AdminJwt,
+                restaurantId: foreign.RestaurantId
+            );
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var billing = await context.BillingAccounts.AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == foreign.RestaurantId);
+            Assert.Equal(0, billing.PilotExtensionCount);
+        }
+
+        [Fact]
         public async Task ListPilotAccounts_ReturnsPilotOnly_WithCanExtend()
         {
             var pilot = await SeedPilotAsync(
@@ -249,7 +317,8 @@ namespace TummlyBackend.Tests.Integration
             int userId,
             int days,
             string key,
-            string jwt
+            string jwt,
+            int? restaurantId = null
         )
         {
             var request = new HttpRequestMessage(
@@ -257,10 +326,49 @@ namespace TummlyBackend.Tests.Integration
                 $"/api/admin/operators/{userId}/extend-activation"
             )
             {
-                Content = JsonContent.Create(new { days, idempotencyKey = key }),
+                Content = JsonContent.Create(
+                    new { days, idempotencyKey = key, restaurantId }
+                ),
             };
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
             return _client.SendAsync(request);
+        }
+
+        private async Task<int> AddPilotRestaurantAsync(int ownerUserId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var restaurant = new Restaurant
+            {
+                Name = $"Pilot Venue {Guid.NewGuid():N}",
+                AccountType = "Single",
+                OwnerUserId = ownerUserId,
+                BillingContactUserId = ownerUserId,
+                PrivacyContactUserId = ownerUserId,
+                SupportContactUserId = ownerUserId,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                new BillingAccount
+                {
+                    RestaurantId = restaurant.Id,
+                    SubscriptionPlan = BillingSubscriptionPlans.Pilot,
+                    BillingStatus = BillingStatuses.Pilot,
+                    ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
+                    StarterKitState = StarterKitStates.Unused,
+                    PilotStartedAtUtc = DateTime.UtcNow.AddDays(-5),
+                    PilotPeriodEnd = DateTime.UtcNow.AddDays(5),
+                    PilotExtensionCount = 0,
+                    PilotExtensionDaysTotal = 0,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            return restaurant.Id;
         }
 
         private async Task<SeededPilot> SeedPilotAsync(

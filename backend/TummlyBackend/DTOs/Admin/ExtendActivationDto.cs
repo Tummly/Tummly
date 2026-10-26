@@ -14,5 +14,11 @@ namespace TummlyBackend.DTOs.Admin
         /// </summary>
         [MaxLength(64)]
         public string? IdempotencyKey { get; set; }
+
+        /// <summary>
+        /// Restaurant to extend. Must belong to the operator in the route.
+        /// When omitted, the operator's lowest-Id Pilot restaurant is extended.
+        /// </summary>
+        public int? RestaurantId { get; set; }
     }
 }

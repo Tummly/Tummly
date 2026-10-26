@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { buildPilotRowPresentation } from "@/lib/admin/adminPilotExtensionPresentation"
+import {
+  buildPilotRowPresentation,
+  pilotExtendedToastMessage,
+  replacePilotAccountRow,
+} from "@/lib/admin/adminPilotExtensionPresentation"
 import type { AdminPilotAccount } from "@/types/admin"
 
 const NOW = new Date("2026-10-26T12:00:00Z")
@@ -59,5 +63,37 @@ describe("buildPilotRowPresentation", () => {
 
     expect(row.startLabel).toBe("—")
     expect(row.endLabel).toBe("—")
+  })
+})
+
+describe("replacePilotAccountRow", () => {
+  it("replaces only the row with the same restaurantId", () => {
+    const first = account({ restaurantId: 7, ownerUserId: 42 })
+    const second = account({ restaurantId: 9, ownerUserId: 42 })
+    const updated = account({
+      restaurantId: 9,
+      ownerUserId: 42,
+      extensionCount: 1,
+      extensionDaysTotal: 14,
+    })
+
+    const rows = replacePilotAccountRow([first, second], updated)
+
+    expect(rows[0]).toBe(first)
+    expect(rows[1]).toEqual(updated)
+  })
+})
+
+describe("pilotExtendedToastMessage", () => {
+  it("states the new end from the server response", () => {
+    expect(pilotExtendedToastMessage(account())).toBe(
+      "Pilot extended. New end: 31 Oct 2026."
+    )
+  })
+
+  it("omits the end when the server sends no end date", () => {
+    expect(
+      pilotExtendedToastMessage(account({ pilotPeriodEnd: null }))
+    ).toBe("Pilot extended.")
   })
 })

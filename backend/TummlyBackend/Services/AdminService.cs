@@ -471,9 +471,16 @@
             string actorIdentity
         )
         {
-            var restaurantId = await _context.Restaurants
+            var restaurantQuery = _context.Restaurants
                 .AsNoTracking()
-                .Where(row => row.OwnerUserId == userId && row.BillingAccount != null)
+                .Where(row => row.OwnerUserId == userId && row.BillingAccount != null);
+
+            if (dto.RestaurantId is int targetRestaurantId)
+            {
+                restaurantQuery = restaurantQuery.Where(row => row.Id == targetRestaurantId);
+            }
+
+            var restaurantId = await restaurantQuery
                 .OrderBy(row => row.Id)
                 .Select(row => (int?)row.Id)
                 .FirstOrDefaultAsync();
@@ -521,10 +528,14 @@
             return result;
         }
 
-        public async Task<AdminPilotAccountDto?> GetPilotAccountAsync(int userId)
+        public async Task<AdminPilotAccountDto?> GetPilotAccountAsync(
+            int userId,
+            int? restaurantId
+        )
         {
             var row = await PilotAccountRows()
                 .Where(account => account.OwnerUserId == userId)
+                .Where(account => restaurantId == null || account.RestaurantId == restaurantId)
                 .OrderBy(account => account.RestaurantId)
                 .FirstOrDefaultAsync();
 

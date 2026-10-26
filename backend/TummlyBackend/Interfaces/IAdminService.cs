@@ -28,7 +28,7 @@ public interface IAdminService
         string actorIdentity
     );
 
-    Task<AdminPilotAccountDto?> GetPilotAccountAsync(int userId);
+    Task<AdminPilotAccountDto?> GetPilotAccountAsync(int userId, int? restaurantId);
 
     Task<IReadOnlyList<AdminPilotAccountDto>> ListPilotAccountsAsync();
 

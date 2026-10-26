@@ -54,6 +54,7 @@ export interface AdminTrialRequestsResponse {
 export interface ExtendActivationPayload {
   days: 14 | 30;
   idempotencyKey: string;
+  restaurantId: number;
 }
 
 export interface AdminPilotAccount {
