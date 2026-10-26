@@ -364,6 +364,7 @@ namespace TummlyBackend.Services
             account.PilotPeriodEnd = newEnd;
             account.BillingStatus = BillingStatuses.Pilot;
             account.SoftLockEnteredAt = null;
+            account.DormantEnteredAt = null;
             account.GuestRetentionPurgedAtUtc = null;
             account.PilotSoftLockNotified = false;
             account.PilotDormantNotified = false;

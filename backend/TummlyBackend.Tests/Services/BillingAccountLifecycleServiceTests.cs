@@ -600,6 +600,7 @@ namespace TummlyBackend.Tests.Services
             locked.BillingStatus = BillingStatuses.SoftLock;
             locked.SoftLockEnteredAt = periodEnd;
             locked.PilotSoftLockNotified = true;
+            locked.PilotDormantNotified = true;
             await _context.SaveChangesAsync();
 
             var result = await _lifecycle.ExtendPilotAsync(
@@ -763,6 +764,33 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(periodEnd.AddDays(14), after.PilotPeriodEnd);
             Assert.Equal(1, after.PilotExtensionCount);
             Assert.Equal(14, after.PilotExtensionDaysTotal);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_ReplayAfterLimit_ReturnsReplayed_NewKeyLimit()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(periodEnd);
+
+            var a = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-a", now);
+            var b = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-b", now);
+            var replayB = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-b", now);
+            var c = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-c", now);
+
+            Assert.Equal("extended", a.Outcome);
+            Assert.Equal("extended", b.Outcome);
+            Assert.Equal("replayed", replayB.Outcome);
+            Assert.Equal(2, replayB.CountAfter);
+            Assert.Equal(28, replayB.DaysTotalAfter);
+            Assert.Equal("refused", c.Outcome);
+            Assert.Equal("pilot_extension_limit", c.Code);
+
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(periodEnd.AddDays(28), after.PilotPeriodEnd);
+            Assert.Equal(2, after.PilotExtensionCount);
+            Assert.Equal(28, after.PilotExtensionDaysTotal);
+            Assert.Equal("key-b", after.LastPilotExtensionKey);
         }
 
         [Fact]

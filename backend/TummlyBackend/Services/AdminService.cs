@@ -473,7 +473,8 @@
         {
             var restaurantId = await _context.Restaurants
                 .AsNoTracking()
-                .Where(row => row.OwnerUserId == userId)
+                .Where(row => row.OwnerUserId == userId && row.BillingAccount != null)
+                .OrderBy(row => row.Id)
                 .Select(row => (int?)row.Id)
                 .FirstOrDefaultAsync();
 
@@ -524,6 +525,7 @@
         {
             var row = await PilotAccountRows()
                 .Where(account => account.OwnerUserId == userId)
+                .OrderBy(account => account.RestaurantId)
                 .FirstOrDefaultAsync();
 
             return row == null ? null : ToPilotAccountDto(row);
