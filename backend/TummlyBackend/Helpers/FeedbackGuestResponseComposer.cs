@@ -122,7 +122,7 @@ namespace TummlyBackend.Helpers
             DateTime createdAt
         )
         {
-            var maskedDestination = FeedbackGuestResponseMapping.MaskDestination(
+            var maskedDestination = GuestContactMask.Mask(
                 feedback.ContactType,
                 feedback.GuestContact
             );

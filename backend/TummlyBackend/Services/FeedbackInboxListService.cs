@@ -250,13 +250,10 @@ namespace TummlyBackend.Services
             var rows = await MaterializeExportRowsAsync(
                 orderedIds,
                 query.LocationName,
-                query.IncludeGuestContact,
                 cancellationToken
             );
 
-            var headers = query.IncludeGuestContact
-                ? ExportBaseHeaders.Concat(ExportContactHeaders).ToArray()
-                : ExportBaseHeaders;
+            var headers = ExportBaseHeaders.Concat(ExportContactHeaders).ToArray();
 
             var utcNow = DateTime.UtcNow;
             var stamp = utcNow.ToString("yyyyMMdd-HHmmss");
@@ -1155,7 +1152,6 @@ namespace TummlyBackend.Services
         private async Task<List<IReadOnlyList<string>>> MaterializeExportRowsAsync(
             IReadOnlyList<int> orderedIds,
             string locationName,
-            bool includeGuestContact,
             CancellationToken cancellationToken
         )
         {
@@ -1214,20 +1210,23 @@ namespace TummlyBackend.Services
                         needsAttention,
                     };
 
-                    if (includeGuestContact)
-                    {
-                        cells.Add(feedback.GuestName ?? string.Empty);
-                        cells.Add(
-                            feedback.ContactType == ContactType.Email
-                                ? feedback.GuestContact ?? string.Empty
-                                : string.Empty
-                        );
-                        cells.Add(
-                            feedback.ContactType == ContactType.Phone
-                                ? feedback.GuestContact ?? string.Empty
-                                : string.Empty
-                        );
-                    }
+                    cells.Add(feedback.GuestName ?? string.Empty);
+                    cells.Add(
+                        feedback.ContactType == ContactType.Email
+                            ? GuestContactMask.MaskOrEmpty(
+                                ContactType.Email,
+                                feedback.GuestContact
+                            )
+                            : string.Empty
+                    );
+                    cells.Add(
+                        feedback.ContactType == ContactType.Phone
+                            ? GuestContactMask.MaskOrEmpty(
+                                ContactType.Phone,
+                                feedback.GuestContact
+                            )
+                            : string.Empty
+                    );
 
                     return (IReadOnlyList<string>)cells;
                 })

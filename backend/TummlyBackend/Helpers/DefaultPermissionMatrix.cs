@@ -82,7 +82,7 @@ namespace TummlyBackend.Helpers
             },
             [PermissionRoles.Staff] = new Dictionary<string, PermissionLevel>
             {
-                [OperatorAreaIds.AccountWorkspace] = PermissionLevel.View,
+                [OperatorAreaIds.AccountWorkspace] = PermissionLevel.NoAccess,
                 [OperatorAreaIds.Locations] = PermissionLevel.Scoped,
                 [OperatorAreaIds.TeamPermissions] = PermissionLevel.NoAccess,
                 [OperatorAreaIds.Capture] = PermissionLevel.NoAccess,

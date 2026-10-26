@@ -195,7 +195,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal("guest", hit.GetProperty("entityType").GetString());
             Assert.Equal("Mohamed", hit.GetProperty("title").GetString());
-            Assert.Equal("a@example.com", hit.GetProperty("subtitle").GetString());
+            Assert.Equal("•@example.com", hit.GetProperty("subtitle").GetString());
             Assert.Equal(
                 seeded.LocationId,
                 hit.GetProperty("locationId").GetInt32()
@@ -207,6 +207,60 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.False(hit.TryGetProperty("email", out _));
             Assert.False(hit.TryGetProperty("mobile", out _));
+        }
+
+        [Fact]
+        public async Task Search_GuestSubtitle_IsMasked()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "gs-subtitle-masked-token-12345",
+                guestName: "Mohamed",
+                email: "alex@example.com"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "mo", types: "guests")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var hits = (await ReadJsonAsync(response))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            Assert.Equal(
+                "a••••@example.com",
+                hits[0].GetProperty("subtitle").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task Search_PartialEmail_DoesNotMatchGuest()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "gs-partial-email-token-123456",
+                guestName: "Mohamed",
+                email: "alex@example.com"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "x@exa", types: "guests")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var hits = (await ReadJsonAsync(response))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(0, hits.GetArrayLength());
         }
 
         [Fact]
@@ -243,7 +297,7 @@ namespace TummlyBackend.Tests.Integration
                 hits[0].GetProperty("id").GetString()
             );
             Assert.Equal(
-                "a-mo@example.com",
+                "a••••@example.com",
                 hits[0].GetProperty("subtitle").GetString()
             );
             Assert.NotEqual(

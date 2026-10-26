@@ -6,6 +6,7 @@ import {
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
+import { canWriteOperatorArea } from "@/lib/operatorHome/operatorAreaChromeAccess"
 import type { ActivationPeriodBadgePresentation } from "@/lib/operatorHome/activationPeriod"
 import { operatorDashboardBillingCreditsManagePlanPath } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
@@ -50,8 +51,10 @@ export function HomePage({
 }: HomePageProps) {
   const home = useHomePageModule()
   const navigate = useNavigate()
-  const { locations, reloadWorkspace } =
+  const { locations, reloadWorkspace, accountWorkspaceAccess } =
     useOutletContext<DashboardOutletContext>()
+  // Upload logo edits the account workspace: hide for View and None; omit keeps it.
+  const canUploadLogo = canWriteOperatorArea(accountWorkspaceAccess)
   const heroMode = resolveOperatorHomeHeroMode(subscriptionPlan)
   const choosePlanHref =
     selectedLocationId != null
@@ -275,15 +278,19 @@ export function HomePage({
         }}
         previewBusy={home.snapshot.previewBusy}
         onPreviewGuestForm={home.previewGuestForm}
-        onUploadLogo={() => {
-          navigate(
-            operatorDashboardNavPath(
-              mode,
-              "account-workspace",
-              selectedLocationId
-            )
-          )
-        }}
+        onUploadLogo={
+          canUploadLogo
+            ? () => {
+                navigate(
+                  operatorDashboardNavPath(
+                    mode,
+                    "account-workspace",
+                    selectedLocationId
+                  )
+                )
+              }
+            : undefined
+        }
         onViewPlacementGuide={() => {
           home.acknowledgeQrPlacementGuide()
           navigate(HELP_CENTRE_URL)

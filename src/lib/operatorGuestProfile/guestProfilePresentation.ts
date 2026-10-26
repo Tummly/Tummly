@@ -263,6 +263,7 @@ export const GUEST_EDIT_PAGE = {
     sectionTitle: "Guest information",
     helper:
       "Basic guest details captured from QR forms, campaigns or manual updates.",
+    replaceContactLabel: "Replace",
   },
   consent: {
     sectionTitle: "Consent and contact permissions",

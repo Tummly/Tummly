@@ -277,8 +277,8 @@ namespace TummlyBackend.Services
                 lastInteractionLabel = LastInteractionLabel,
                 profileSummary = new
                 {
-                    email = masterGuest.Email,
-                    mobile = masterGuest.Mobile,
+                    email = GuestContactMask.MaskEmail(masterGuest.Email),
+                    mobile = GuestContactMask.MaskPhone(masterGuest.Mobile),
                     firstCapturedAt = locationGuest.CreatedAt,
                     locationName,
                     feedbackSubmissionCount = feedbackCount,

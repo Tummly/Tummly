@@ -35,6 +35,7 @@ namespace TummlyBackend.Interfaces
         Task<AssistantListOutcome> ListAsync(
             int ownerUserId,
             bool archived,
+            IReadOnlyCollection<int> allowedLocationIds,
             CancellationToken cancellationToken = default
         );
 

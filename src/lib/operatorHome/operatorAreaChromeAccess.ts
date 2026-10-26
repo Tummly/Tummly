@@ -5,6 +5,17 @@ import type { OperatorAreaChromeAccess } from "@/lib/operatorHome/parseOperatorP
 export type OperatorAreaChromeAccessLevel = OperatorAreaChromeAccess
 
 /**
+ * Manage gate for Area write controls (Add / Import location, upload logo).
+ * `view` and explicit `none` hide them. Omit (undefined) keeps them
+ * (CODING_STANDARDS chrome omit default).
+ */
+export function canWriteOperatorArea(
+  access: OperatorAreaChromeAccessLevel | undefined
+): boolean {
+  return access !== "view" && access !== "none"
+}
+
+/**
  * Per–SideNav-row Area chrome from the locations payload.
  * Omit / undefined must not hide (CODING_STANDARDS chrome omit default).
  * Only explicit `"none"` denies the row.

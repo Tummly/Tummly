@@ -1593,7 +1593,7 @@ export function AccountWorkspacePage() {
                 <Button
                   type="button"
                   variant="op-secondary"
-                  disabled={snap.isSaving}
+                  disabled={snap.isSaving || !snap.isAccountOwner}
                   onClick={() => {
                     pageModule.requestExportGuestData()
                   }}
@@ -1601,6 +1601,11 @@ export function AccountWorkspacePage() {
                   {ACCOUNT_WORKSPACE_PAGE_COPY.exportGuestData}
                 </Button>
               </div>
+              {!snap.isAccountOwner ? (
+                <p className={ACCOUNT_CONTROLS_BODY_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.exportGuestDataOwnerOnlyHelper}
+                </p>
+              ) : null}
             </section>
 
             <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>

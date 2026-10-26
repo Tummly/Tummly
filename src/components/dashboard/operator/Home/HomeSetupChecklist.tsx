@@ -137,10 +137,15 @@ export function HomeSetupChecklist({
               {steps.map((step) => {
                 const showMarker = shouldShowSetupStatusMarker(step.status)
                 const isComplete = step.status === "complete"
-                const hasActions = step.actions.length > 0
+                // No upload handler (Account workspace needs Manage): hide the CTA.
+                const visibleActions = step.actions.filter(
+                  (action) =>
+                    action.id !== "upload-logo" || onUploadLogo != null
+                )
+                const hasActions = visibleActions.length > 0
                 const spreadActions = shouldSpreadSetupStepActions(
                   step.status,
-                  step.actions.length
+                  visibleActions.length
                 )
                 const illustration = getSetupStepIllustration(step.id)
 
@@ -190,7 +195,7 @@ export function HomeSetupChecklist({
                           <SetupStepCompletedLabel />
                         ) : hasActions ? (
                           <div className={SETUP_CHECKLIST_STEP_ACTIONS_CLASS}>
-                            {step.actions.map((action) => {
+                            {visibleActions.map((action) => {
                               const isPreview =
                                 action.id === "preview-guest-form"
                               const available = isPreview

@@ -588,8 +588,8 @@ namespace TummlyBackend.Services
             {
                 LocationGuestId = locationGuest.Id,
                 Name = locationGuest.Name,
-                Email = masterGuest.Email,
-                Mobile = masterGuest.Mobile,
+                Email = GuestContactMask.MaskEmail(masterGuest.Email),
+                Mobile = GuestContactMask.MaskPhone(masterGuest.Mobile),
                 LocationName = locationName,
                 CapturedAt = locationGuest.CreatedAt,
                 FeedbackSubmissionCount = stats?.FeedbackSubmissionCount ?? 0,

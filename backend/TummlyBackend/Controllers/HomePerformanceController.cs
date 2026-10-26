@@ -15,15 +15,15 @@ namespace TummlyBackend.Controllers
         private const int MaxInclusiveCalendarDays = 180;
 
         private readonly ApplicationDbContext _context;
-        private readonly IOwnedLocationService _ownedLocation;
+        private readonly IRestaurantPermissionHelper _permissions;
 
         public HomePerformanceController(
             ApplicationDbContext context,
-            IOwnedLocationService ownedLocation
+            IRestaurantPermissionHelper permissions
         )
         {
             _context = context;
-            _ownedLocation = ownedLocation;
+            _permissions = permissions;
         }
 
         [HttpGet]
@@ -34,7 +34,7 @@ namespace TummlyBackend.Controllers
         )
         {
             var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
+                OperatorAuth.TryRequireUserId(User, out _);
 
             if (unauthorized != null)
             {
@@ -72,11 +72,14 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
+            var decision = await _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.Reports,
+                PermissionLevel.View,
+                locationId
+            );
 
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
+            var denied = decision.ToHttpResult();
 
             if (denied != null)
             {

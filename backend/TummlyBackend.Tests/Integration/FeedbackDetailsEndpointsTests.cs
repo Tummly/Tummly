@@ -52,7 +52,7 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("guestName").GetString()
             );
             Assert.Equal(
-                "alex@example.com",
+                "a••••@example.com",
                 body.GetProperty("guestContact").GetString()
             );
             Assert.Equal(

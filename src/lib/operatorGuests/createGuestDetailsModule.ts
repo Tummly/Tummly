@@ -48,7 +48,6 @@ export type GuestDetailsLoaded = {
   needsRecovery: boolean
   recoveryFeedbackId: number | null
   identitySubtitle: string
-  email: string | null
   emailDisplay: string
   mobileDisplay: string
   emailMarketingLabel: string
@@ -283,7 +282,6 @@ export function mapGuestProfileToGuestDetails(
       guestSinceDisplay,
       lastActivityRelative
     ),
-    email,
     emailDisplay: displayOrNotProvided(email),
     mobileDisplay: displayOrNotProvided(response.profileSummary.mobile),
     emailMarketingLabel: marketingLabelForStatus(

@@ -55,7 +55,7 @@ namespace TummlyBackend.Helpers
         {
             var masked = string.IsNullOrWhiteSpace(feedback.GuestContact)
                 ? "••••"
-                : FeedbackGuestResponseMapping.MaskDestination(
+                : GuestContactMask.Mask(
                     feedback.ContactType,
                     feedback.GuestContact
                 );

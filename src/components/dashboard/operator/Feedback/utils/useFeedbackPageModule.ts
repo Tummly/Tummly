@@ -28,7 +28,6 @@ export type OperatorFeedbackPageModuleApi = {
   closeExportDialog: OperatorFeedbackPageModule["closeExportDialog"]
   setExportScope: OperatorFeedbackPageModule["setExportScope"]
   setExportFormat: OperatorFeedbackPageModule["setExportFormat"]
-  setExportIncludeGuestContact: OperatorFeedbackPageModule["setExportIncludeGuestContact"]
   downloadExport: OperatorFeedbackPageModule["downloadExport"]
   exportSingleFeedback: OperatorFeedbackPageModule["exportSingleFeedback"]
   openFeedbackDetails: OperatorFeedbackPageModule["openFeedbackDetails"]
@@ -214,7 +213,6 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     closeExportDialog: pageModule.closeExportDialog,
     setExportScope: pageModule.setExportScope,
     setExportFormat: pageModule.setExportFormat,
-    setExportIncludeGuestContact: pageModule.setExportIncludeGuestContact,
     downloadExport: pageModule.downloadExport,
     exportSingleFeedback: pageModule.exportSingleFeedback,
     openFeedbackDetails: pageModule.openFeedbackDetails,

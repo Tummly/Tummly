@@ -863,7 +863,6 @@ export const exportSingleFeedback = async (params: {
   feedbackId: number
   locationId: number
   format?: FeedbackExportQueryParams["format"]
-  includeGuestContact?: boolean
 }): Promise<{ blob: Blob; filename: string }> => {
   const format = params.format ?? "xlsx"
   const response = await axiosInstance.get<Blob>(
@@ -872,7 +871,6 @@ export const exportSingleFeedback = async (params: {
       params: {
         locationId: params.locationId,
         format,
-        includeGuestContact: params.includeGuestContact ?? false,
       },
       responseType: "blob",
     }

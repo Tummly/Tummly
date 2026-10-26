@@ -8,7 +8,12 @@ import {
   isSettingsChildId,
   resolveSettingsChromeActive,
   resolveSettingsDisclosureOpen,
+  shouldRenderSettingsGroup,
 } from "./sidebarNav"
+import {
+  resolveHiddenOperatorSidebarNavIds,
+  type OperatorSidebarAreaAccess,
+} from "./operatorAreaChromeAccess"
 
 describe("OPERATOR_SIDEBAR_PRIMARY_NAV", () => {
   it("lists Figma Operator Dashboard primary nav order and labels", () => {
@@ -443,5 +448,54 @@ describe("resolveSettingsChromeActive", () => {
   it("shows Settings row active chrome when a Settings child is current", () => {
     expect(resolveSettingsChromeActive(true)).toBe(true)
     expect(resolveSettingsChromeActive(false)).toBe(false)
+  })
+})
+
+describe("shouldRenderSettingsGroup (R7.1 Staff have no empty Settings entry)", () => {
+  const staffSettingsAccess: OperatorSidebarAreaAccess = {
+    "account-workspace": "none",
+    locations: "none",
+    "team-permissions": "none",
+    "billing-credits": "none",
+    "privacy-consent": "none",
+  }
+  const ownerSettingsAccess: OperatorSidebarAreaAccess = {
+    "account-workspace": "manage",
+    locations: "manage",
+    "team-permissions": "manage",
+    "billing-credits": "manage",
+    "privacy-consent": "manage",
+  }
+
+  it("hides the Settings group for a Staff-shaped access map", () => {
+    const nav = getOperatorSidebarNav("home", undefined, {
+      hiddenNavIds: resolveHiddenOperatorSidebarNavIds(staffSettingsAccess),
+    })
+
+    expect(nav.settings.children).toHaveLength(0)
+    expect(shouldRenderSettingsGroup(nav.settings)).toBe(false)
+  })
+
+  it("shows the Settings group for an Owner-shaped access map", () => {
+    const nav = getOperatorSidebarNav("home", undefined, {
+      hiddenNavIds: resolveHiddenOperatorSidebarNavIds(ownerSettingsAccess),
+    })
+
+    expect(nav.settings.children).toHaveLength(5)
+    expect(shouldRenderSettingsGroup(nav.settings)).toBe(true)
+  })
+
+  it("shows the Settings group when no access map is supplied (omit keeps rows)", () => {
+    const nav = getOperatorSidebarNav("home")
+
+    expect(shouldRenderSettingsGroup(nav.settings)).toBe(true)
+  })
+
+  it("shows the Settings group when only one child stays visible", () => {
+    const nav = getOperatorSidebarNav("home", undefined, {
+      hiddenNavIds: ["account-workspace", "locations", "team-permissions", "billing-credits"],
+    })
+
+    expect(shouldRenderSettingsGroup(nav.settings)).toBe(true)
   })
 })

@@ -16,15 +16,15 @@ namespace TummlyBackend.Controllers
         private const int RecentLimit = 5;
 
         private readonly ApplicationDbContext _context;
-        private readonly IOwnedLocationService _ownedLocation;
+        private readonly IRestaurantPermissionHelper _permissions;
 
         public HomeLatestActivityController(
             ApplicationDbContext context,
-            IOwnedLocationService ownedLocation
+            IRestaurantPermissionHelper permissions
         )
         {
             _context = context;
-            _ownedLocation = ownedLocation;
+            _permissions = permissions;
         }
 
         [HttpGet]
@@ -33,43 +33,77 @@ namespace TummlyBackend.Controllers
         )
         {
             var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
+                OperatorAuth.TryRequireUserId(User, out _);
 
             if (unauthorized != null)
             {
                 return unauthorized;
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
+            var feedbackDecision =
+                await _permissions.AuthorizeLocationAsync(
+                    User,
+                    OperatorAreaIds.Feedback,
+                    PermissionLevel.View,
+                    locationId
+                );
+            var guestsDecision =
+                await _permissions.AuthorizeLocationAsync(
+                    User,
+                    OperatorAreaIds.Guests,
+                    PermissionLevel.View,
+                    locationId
+                );
 
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
+            var canViewFeedback =
+                feedbackDecision.Status == RestaurantPermissionStatus.Allowed;
+            var canViewGuests =
+                guestsDecision.Status == RestaurantPermissionStatus.Allowed;
 
-            if (denied != null)
+            if (!canViewFeedback && !canViewGuests)
             {
-                return denied;
+                // Area denials and Location denials share one decision shape.
+                // The Locations area is the Location gate: every default role
+                // can view it, so only a missing or unassigned Location fails.
+                var locationDecision =
+                    await _permissions.AuthorizeLocationAsync(
+                        User,
+                        OperatorAreaIds.Locations,
+                        PermissionLevel.View,
+                        locationId
+                    );
+
+                var locationDenied = locationDecision.ToHttpResult();
+
+                if (locationDenied != null)
+                {
+                    return locationDenied;
+                }
             }
 
-            var feedbackCandidates = await _context.Feedbacks
-                .AsNoTracking()
-                .Where(f => f.RestaurantLocationId == locationId)
-                .Select(f => new ActivityCandidate(
-                    f.CreatedAt,
-                    ActivityKind.Feedback,
-                    f.Id
-                ))
-                .ToListAsync();
+            var feedbackCandidates = canViewFeedback
+                ? await _context.Feedbacks
+                    .AsNoTracking()
+                    .Where(f => f.RestaurantLocationId == locationId)
+                    .Select(f => new ActivityCandidate(
+                        f.CreatedAt,
+                        ActivityKind.Feedback,
+                        f.Id
+                    ))
+                    .ToListAsync()
+                : new List<ActivityCandidate>();
 
-            var guestCandidates = await _context.LocationGuests
-                .AsNoTracking()
-                .Where(lg => lg.RestaurantLocationId == locationId)
-                .Select(lg => new ActivityCandidate(
-                    lg.CreatedAt,
-                    ActivityKind.GuestJoined,
-                    lg.Id
-                ))
-                .ToListAsync();
+            var guestCandidates = canViewGuests
+                ? await _context.LocationGuests
+                    .AsNoTracking()
+                    .Where(lg => lg.RestaurantLocationId == locationId)
+                    .Select(lg => new ActivityCandidate(
+                        lg.CreatedAt,
+                        ActivityKind.GuestJoined,
+                        lg.Id
+                    ))
+                    .ToListAsync()
+                : new List<ActivityCandidate>();
 
             var topCandidates = feedbackCandidates
                 .Concat(guestCandidates)
@@ -115,7 +149,10 @@ namespace TummlyBackend.Controllers
                             kind = "feedback",
                             id = feedback.Id,
                             guestName = feedback.GuestName,
-                            guestContact = feedback.GuestContact,
+                            guestContact = GuestContactMask.MaskOrEmpty(
+                                feedback.ContactType,
+                                feedback.GuestContact
+                            ),
                             contactType = feedback.ContactType.ToString(),
                             comment = feedback.Comment,
                             createdAt = feedback.CreatedAt,

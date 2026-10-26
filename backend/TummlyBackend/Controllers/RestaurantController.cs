@@ -212,6 +212,13 @@ namespace TummlyBackend.Controllers
             var permissionRole =
                 actorMembership?.PermissionRole ?? PermissionRoles.Owner;
 
+            // Staff keep Locations Scoped in the matrix (location switcher reads
+            // this endpoint). Only Settings > Locations chrome is hidden.
+            if (permissionRole == PermissionRoles.Staff)
+            {
+                locationsAccess = "none";
+            }
+
             var owner = await _context.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);

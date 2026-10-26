@@ -101,6 +101,16 @@ export function isSettingsChildId(
 }
 
 /**
+ * Settings is shown only when at least one child row is visible.
+ * Staff (all Settings rows No access) get no Settings entry at all.
+ */
+export function shouldRenderSettingsGroup(
+  group: OperatorSidebarSettingsGroup,
+): boolean {
+  return group.children.length > 0;
+}
+
+/**
  * Display open state for Settings disclosure.
  * An active Settings child always forces the group open.
  */

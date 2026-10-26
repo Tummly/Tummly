@@ -51,6 +51,8 @@ type DashboardNavbarGlobalSearch = {
 
 type DashboardNavbarProps = {
   locationSwitcher: OperatorShellPresentation["locationSwitcher"]
+  /** Locations Manage gate for the switcher Add location control. */
+  canAddLocation: boolean
   profileDisplayName: string
   profileInitials: string
   profileSelfRoleSubtitle: string | null
@@ -82,6 +84,7 @@ type DashboardNavbarProps = {
 
 export function DashboardNavbar({
   locationSwitcher,
+  canAddLocation,
   profileDisplayName,
   profileInitials,
   profileSelfRoleSubtitle,
@@ -197,6 +200,7 @@ export function DashboardNavbar({
             <LocationSwitcher
               locationSwitcher={locationSwitcher}
               onSelectLocation={onSelectLocation}
+              canAddLocation={canAddLocation}
             />
 
             {globalSearch != null ? (

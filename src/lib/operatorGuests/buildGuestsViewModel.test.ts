@@ -138,7 +138,7 @@ describe("buildOperatorGuestsViewModel", () => {
     expect(viewModel.tableRows[0]?.name).toBe("Amelia Hughes")
   })
 
-  it("filters table rows by guest name, email, or mobile", () => {
+  it("filters table rows by guest name only (contact search is server-side exact match)", () => {
     const byName = buildOperatorGuestsViewModel({
       guests: OPERATOR_GUEST_FIXTURES,
       activeSmartGroupId: "all-guests",
@@ -151,6 +151,12 @@ describe("buildOperatorGuestsViewModel", () => {
       searchQuery: "isla.fraser@example.com",
       nowMs: NOW_MS,
     })
+    const byEmailDomain = buildOperatorGuestsViewModel({
+      guests: OPERATOR_GUEST_FIXTURES,
+      activeSmartGroupId: "all-guests",
+      searchQuery: "example.com",
+      nowMs: NOW_MS,
+    })
     const byMobile = buildOperatorGuestsViewModel({
       guests: OPERATOR_GUEST_FIXTURES,
       activeSmartGroupId: "all-guests",
@@ -160,10 +166,9 @@ describe("buildOperatorGuestsViewModel", () => {
 
     expect(byName.totalFilteredCount).toBe(1)
     expect(byName.tableRows[0]?.name).toBe("Amelia Hughes")
-    expect(byEmail.totalFilteredCount).toBe(1)
-    expect(byEmail.tableRows[0]?.name).toBe("Isla Fraser")
-    expect(byMobile.totalFilteredCount).toBe(1)
-    expect(byMobile.tableRows[0]?.name).toBe("Kate Sullivan")
+    expect(byEmail.totalFilteredCount).toBe(0)
+    expect(byEmailDomain.totalFilteredCount).toBe(0)
+    expect(byMobile.totalFilteredCount).toBe(0)
   })
 
   it("combines search with the active smart group", () => {

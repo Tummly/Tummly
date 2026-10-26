@@ -12,6 +12,7 @@ import type {
 import {
   resolveSettingsChromeActive,
   resolveSettingsDisclosureOpen,
+  shouldRenderSettingsGroup,
 } from "@/lib/operatorHome/sidebarNav"
 import { tryLeaveDirtyNavigate } from "@/lib/operatorNavigation/leaveDirtyGuard"
 
@@ -209,7 +210,8 @@ export function DashboardSidebar({
     settingsExpanded,
     sidebarNav.settings.forceExpanded
   )
-  const showSettingsChildren = !collapsed && settingsOpen
+  const showSettingsGroup = shouldRenderSettingsGroup(sidebarNav.settings)
+  const showSettingsChildren = showSettingsGroup && !collapsed && settingsOpen
   const settingsChromeActive = resolveSettingsChromeActive(
     sidebarNav.settings.forceExpanded
   )
@@ -316,138 +318,142 @@ export function DashboardSidebar({
               )
             })}
 
-            <div
-              className="mx-4 my-2 h-px shrink-0 bg-op-border-default"
-              aria-hidden
-            />
+            {showSettingsGroup ? (
+              <>
+              <div
+                className="mx-4 my-2 h-px shrink-0 bg-op-border-default"
+                aria-hidden
+              />
 
-            <div className="flex flex-col">
-              {collapsed ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  aria-label="Settings"
-                  title="Settings"
-                  className={cn(
-                    navItemClass({
-                      active: settingsChromeActive,
-                      collapsed: true,
-                      interactive: true,
-                    }),
-                    "h-auto min-h-0 justify-center gap-0 rounded-none border-0 px-1.5 py-1",
-                    settingsChromeActive
-                      ? "aria-expanded:bg-op-sidebar-item-active-background aria-expanded:text-op-sidebar-item-active hover:bg-op-sidebar-item-active-background hover:text-op-sidebar-item-active"
-                      : "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default"
-                  )}
-                  onClick={onExpandSidebarAndOpenSettings}
-                >
-                  <span className="flex size-[42px] shrink-0 items-center justify-center rounded-[4px] p-3">
-                    <SideNavIcon
+              <div className="flex flex-col">
+                {collapsed ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label="Settings"
+                    title="Settings"
+                    className={cn(
+                      navItemClass({
+                        active: settingsChromeActive,
+                        collapsed: true,
+                        interactive: true,
+                      }),
+                      "h-auto min-h-0 justify-center gap-0 rounded-none border-0 px-1.5 py-1",
+                      settingsChromeActive
+                        ? "aria-expanded:bg-op-sidebar-item-active-background aria-expanded:text-op-sidebar-item-active hover:bg-op-sidebar-item-active-background hover:text-op-sidebar-item-active"
+                        : "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default"
+                    )}
+                    onClick={onExpandSidebarAndOpenSettings}
+                  >
+                    <span className="flex size-[42px] shrink-0 items-center justify-center rounded-[4px] p-3">
+                      <SideNavIcon
+                        icons={SETTINGS_ICON}
+                        active={settingsChromeActive}
+                      />
+                    </span>
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label="Settings"
+                    aria-expanded={settingsOpen}
+                    className={cn(
+                      navItemClass({
+                        active: settingsChromeActive,
+                        collapsed: false,
+                        interactive: true,
+                      }),
+                      "h-auto min-h-0 justify-between gap-0 rounded-none border-0 px-1.5 py-1 pr-[18px]",
+                      settingsChromeActive
+                        ? "aria-expanded:bg-op-sidebar-item-active-background aria-expanded:text-op-sidebar-item-active hover:bg-op-sidebar-item-active-background hover:text-op-sidebar-item-active"
+                        : "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default aria-expanded:bg-transparent aria-expanded:text-op-sidebar-item-default"
+                    )}
+                    onClick={onToggleSettingsExpanded}
+                  >
+                    <NavRowContent
+                      label={sidebarNav.settings.label}
+                      collapsed={false}
                       icons={SETTINGS_ICON}
                       active={settingsChromeActive}
+                      trailing={
+                        <SideNavIcon
+                          icons={CHEVRON_ICON}
+                          active={settingsChromeActive}
+                          className={cn(
+                            "transition-transform duration-200 ease-out motion-reduce:transition-none",
+                            !settingsOpen && "rotate-180"
+                          )}
+                        />
+                      }
                     />
-                  </span>
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  aria-label="Settings"
-                  aria-expanded={settingsOpen}
-                  className={cn(
-                    navItemClass({
-                      active: settingsChromeActive,
-                      collapsed: false,
-                      interactive: true,
-                    }),
-                    "h-auto min-h-0 justify-between gap-0 rounded-none border-0 px-1.5 py-1 pr-[18px]",
-                    settingsChromeActive
-                      ? "aria-expanded:bg-op-sidebar-item-active-background aria-expanded:text-op-sidebar-item-active hover:bg-op-sidebar-item-active-background hover:text-op-sidebar-item-active"
-                      : "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default aria-expanded:bg-transparent aria-expanded:text-op-sidebar-item-default"
-                  )}
-                  onClick={onToggleSettingsExpanded}
-                >
-                  <NavRowContent
-                    label={sidebarNav.settings.label}
-                    collapsed={false}
-                    icons={SETTINGS_ICON}
-                    active={settingsChromeActive}
-                    trailing={
-                      <SideNavIcon
-                        icons={CHEVRON_ICON}
-                        active={settingsChromeActive}
-                        className={cn(
-                          "transition-transform duration-200 ease-out motion-reduce:transition-none",
-                          !settingsOpen && "rotate-180"
-                        )}
-                      />
-                    }
-                  />
-                </Button>
-              )}
+                  </Button>
+                )}
 
-              {showSettingsChildren ? (
-                <ul className="flex flex-col pb-3">
-                  {sidebarNav.settings.children.map((child) => {
-                    const childClassName = cn(
-                      "h-auto min-h-0 w-full justify-start rounded-none border-0 px-1.5 py-0",
-                      "text-sm font-medium leading-5",
-                      child.active
-                        ? "text-op-sidebar-item-active"
-                        : child.navigable
-                          ? "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default"
-                          : "text-op-sidebar-item-disabled hover:bg-transparent hover:text-op-sidebar-item-disabled disabled:opacity-100"
-                    )
-                    const label = (
-                      <span className="flex w-full items-center rounded-[4px] px-3 py-1.5 pl-10 text-inherit">
-                        {child.label}
-                      </span>
-                    )
+                {showSettingsChildren ? (
+                  <ul className="flex flex-col pb-3">
+                    {sidebarNav.settings.children.map((child) => {
+                      const childClassName = cn(
+                        "h-auto min-h-0 w-full justify-start rounded-none border-0 px-1.5 py-0",
+                        "text-sm font-medium leading-5",
+                        child.active
+                          ? "text-op-sidebar-item-active"
+                          : child.navigable
+                            ? "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default"
+                            : "text-op-sidebar-item-disabled hover:bg-transparent hover:text-op-sidebar-item-disabled disabled:opacity-100"
+                      )
+                      const label = (
+                        <span className="flex w-full items-center rounded-[4px] px-3 py-1.5 pl-10 text-inherit">
+                          {child.label}
+                        </span>
+                      )
 
-                    if (!child.navigable) {
+                      if (!child.navigable) {
+                        return (
+                          <li key={child.id}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              disabled
+                              aria-disabled="true"
+                              aria-label={child.label}
+                              className={childClassName}
+                            >
+                              {label}
+                            </Button>
+                          </li>
+                        )
+                      }
+
                       return (
                         <li key={child.id}>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            disabled
-                            aria-disabled="true"
+                          <NavLink
+                            to={child.to ?? ""}
+                            aria-current={child.active ? "page" : undefined}
                             aria-label={child.label}
-                            className={childClassName}
+                            className={cn(
+                              childClassName,
+                              "flex items-center"
+                            )}
+                            onClick={(event) => {
+                              const href = child.to ?? ""
+                              if (!tryLeaveDirtyNavigate(href)) {
+                                event.preventDefault()
+                                return
+                              }
+                              onNavigate?.()
+                            }}
                           >
                             {label}
-                          </Button>
+                          </NavLink>
                         </li>
                       )
-                    }
-
-                    return (
-                      <li key={child.id}>
-                        <NavLink
-                          to={child.to ?? ""}
-                          aria-current={child.active ? "page" : undefined}
-                          aria-label={child.label}
-                          className={cn(
-                            childClassName,
-                            "flex items-center"
-                          )}
-                          onClick={(event) => {
-                            const href = child.to ?? ""
-                            if (!tryLeaveDirtyNavigate(href)) {
-                              event.preventDefault()
-                              return
-                            }
-                            onNavigate?.()
-                          }}
-                        >
-                          {label}
-                        </NavLink>
-                      </li>
-                    )
-                  })}
-                </ul>
+                    })}
+                  </ul>
               ) : null}
             </div>
+              </>
+            ) : null}
           </nav>
         </div>
 

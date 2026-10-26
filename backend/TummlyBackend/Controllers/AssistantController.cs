@@ -89,9 +89,21 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
+            var set = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.AiAssistant,
+                PermissionLevel.View
+            );
+            var setDenied = set.ToHttpResult();
+            if (setDenied != null)
+            {
+                return setDenied;
+            }
+
             var outcome = await _conversations.ListAsync(
                 userId,
                 archived,
+                set.LocationIds,
                 cancellationToken
             );
             return outcome switch

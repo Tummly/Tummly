@@ -10,7 +10,6 @@ export type FeedbackExportQueryParams = {
   to: string
   scope: FeedbackExportScope
   format: FeedbackExportFormat
-  includeGuestContact: boolean
   feedbackId?: number
   tab?: FeedbackInboxListQueryParams["tab"]
   q?: string
@@ -30,16 +29,14 @@ export function buildFeedbackExportQueryParams(input: {
   inboxParams: FeedbackInboxListQueryParams
   scope: FeedbackExportScope
   format: FeedbackExportFormat
-  includeGuestContact: boolean
 }): FeedbackExportQueryParams {
-  const { inboxParams, scope, format, includeGuestContact } = input
+  const { inboxParams, scope, format } = input
   const base: FeedbackExportQueryParams = {
     locationId: inboxParams.locationId,
     from: inboxParams.from,
     to: inboxParams.to,
     scope,
     format,
-    includeGuestContact,
   }
 
   if (scope === "all-in-period") {

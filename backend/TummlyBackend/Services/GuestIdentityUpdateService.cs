@@ -47,6 +47,9 @@ namespace TummlyBackend.Services
                 return GuestIdentityUpdateOutcome.NotFound();
             }
 
+            var master = locationGuest.MasterGuest;
+            var restaurantId = master.RestaurantId;
+
             var joinedName = JoinName(request.FirstName, request.LastName);
             if (joinedName.Length == 0)
             {
@@ -62,7 +65,12 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var emailOutcome = NormalizeOptionalEmail(request.Email);
+            var emailOutcome = request.ReplaceEmail
+                ? NormalizeOptionalEmail(request.Email)
+                : ContactNormalizeOutcome.Kept(
+                    master.Email,
+                    master.NormalizedEmail
+                );
             if (emailOutcome.Error != null)
             {
                 return GuestIdentityUpdateOutcome.ValidationError(
@@ -70,7 +78,12 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var phoneOutcome = NormalizeOptionalPhone(request.Phone);
+            var phoneOutcome = request.ReplacePhone
+                ? NormalizeOptionalPhone(request.Phone)
+                : ContactNormalizeOutcome.Kept(
+                    master.Mobile,
+                    master.NormalizedPhone
+                );
             if (phoneOutcome.Error != null)
             {
                 return GuestIdentityUpdateOutcome.ValidationError(
@@ -88,10 +101,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var master = locationGuest.MasterGuest;
-            var restaurantId = master.RestaurantId;
-
-            if (emailOutcome.Normalized != null)
+            if (request.ReplaceEmail && emailOutcome.Normalized != null)
             {
                 var emailTaken = await _context.MasterGuests
                     .AsNoTracking()
@@ -111,7 +121,7 @@ namespace TummlyBackend.Services
                 }
             }
 
-            if (phoneOutcome.Normalized != null)
+            if (request.ReplacePhone && phoneOutcome.Normalized != null)
             {
                 var phoneTaken = await _context.MasterGuests
                     .AsNoTracking()
@@ -310,6 +320,15 @@ namespace TummlyBackend.Services
             public static ContactNormalizeOutcome Set(
                 string display,
                 string normalized
+            ) => new()
+            {
+                Display = display,
+                Normalized = normalized,
+            };
+
+            public static ContactNormalizeOutcome Kept(
+                string? display,
+                string? normalized
             ) => new()
             {
                 Display = display,

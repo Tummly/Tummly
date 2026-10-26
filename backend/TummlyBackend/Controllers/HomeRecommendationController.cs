@@ -36,9 +36,11 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
+            // Home card, not Settings: Locations View is the membership proxy
+            // (same as Home activity). Per-source area checks below still apply.
             var restaurant = await _permissions.AuthorizeLocationSetAsync(
                 User,
-                OperatorAreaIds.AccountWorkspace,
+                OperatorAreaIds.Locations,
                 PermissionLevel.View
             );
             var deniedRestaurant = restaurant.ToHttpResult();

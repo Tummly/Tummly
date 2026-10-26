@@ -334,6 +334,23 @@ namespace TummlyBackend.Services
                     return new AssistantTurnOutcome.LocationDenied(locationResult);
                 }
             }
+            else
+            {
+                // An "all" conversation is readable only with all-Location access
+                // (PRD R6.2). Same not-found result as the list hides it.
+                var access = await _permissions.AuthorizeUserAsync(
+                    ownerUserId,
+                    OperatorAreaIds.AiAssistant,
+                    PermissionLevel.View
+                );
+                var allowed = access.Status == RestaurantPermissionStatus.Allowed
+                    ? access.LocationIds
+                    : [];
+                if (!await HasAllLocationsAccessAsync(allowed, cancellationToken))
+                {
+                    return new AssistantTurnOutcome.NotFound();
+                }
+            }
 
             return new AssistantTurnOutcome.Ok(
                 AssistantAnalysisScope.ToConversationDto(conversation)
@@ -385,14 +402,30 @@ namespace TummlyBackend.Services
         public async Task<AssistantListOutcome> ListAsync(
             int ownerUserId,
             bool archived,
+            IReadOnlyCollection<int> allowedLocationIds,
             CancellationToken cancellationToken = default
         )
         {
+            var allowed = allowedLocationIds.ToList();
+            var includeAllScope = await HasAllLocationsAccessAsync(
+                allowed,
+                cancellationToken
+            );
             var rows = await _context.AssistantConversations
                 .AsNoTracking()
                 .Where(conversation =>
                     conversation.OwnerUserId == ownerUserId
                     && conversation.IsArchived == archived
+                    && (
+                        (
+                            includeAllScope
+                            && conversation.ScopeKind == AssistantAnalysisScope.ScopeKindAll
+                        )
+                        || (
+                            conversation.OwnedLocationId != null
+                            && allowed.Contains(conversation.OwnedLocationId.Value)
+                        )
+                    )
                 )
                 .OrderByDescending(conversation => conversation.LastActivityAt)
                 .ThenByDescending(conversation => conversation.Id)
@@ -9294,6 +9327,38 @@ namespace TummlyBackend.Services
                 summary.CompletionTokens,
                 summary.ReasoningTokens
             );
+        }
+
+        /// <summary>
+        /// True when the allowed Location set equals every live Location of the
+        /// restaurant (PRD R6.2). A partial set never reads "all" conversations.
+        /// </summary>
+        private async Task<bool> HasAllLocationsAccessAsync(
+            IReadOnlyCollection<int> allowedLocationIds,
+            CancellationToken cancellationToken
+        )
+        {
+            var allowed = allowedLocationIds.ToHashSet();
+            if (allowed.Count == 0)
+            {
+                return false;
+            }
+
+            var restaurantIds = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(location => allowed.Contains(location.Id))
+                .Select(location => location.RestaurantId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var liveLocationIds = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(location => restaurantIds.Contains(location.RestaurantId))
+                .Select(location => location.Id)
+                .ToListAsync(cancellationToken);
+
+            return liveLocationIds.Count > 0
+                && liveLocationIds.ToHashSet().SetEquals(allowed);
         }
 
         private async Task<AssistantConversation?> LoadOwnedConversationAsync(

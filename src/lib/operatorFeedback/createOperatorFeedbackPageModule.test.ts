@@ -955,7 +955,6 @@ describe("createOperatorFeedbackPageModule", () => {
     expect(dialog).toMatchObject({
       scope: "current",
       format: "xlsx",
-      includeGuestContact: false,
       currentResultsCount: 3,
       allInPeriodCount: 12,
       selectedCount: 3,
@@ -1032,7 +1031,6 @@ describe("createOperatorFeedbackPageModule", () => {
     })
     pageModule.openExportDialog()
     pageModule.setExportFormat("csv")
-    pageModule.setExportIncludeGuestContact(true)
     await pageModule.downloadExport()
 
     expect(exportFeedback).toHaveBeenCalledWith(
@@ -1040,11 +1038,14 @@ describe("createOperatorFeedbackPageModule", () => {
         locationId: 7,
         scope: "current",
         format: "csv",
-        includeGuestContact: true,
         tab: "all",
         workflowStatus: ["resolved"],
       })
     )
+    const exportCall = exportFeedback.mock.calls.at(0) as
+      | [Record<string, unknown>]
+      | undefined
+    expect(exportCall?.[0]).not.toHaveProperty("includeGuestContact")
     expect(triggerBrowserDownload).toHaveBeenCalledWith(
       expect.any(Blob),
       "tummly-feedback-7-20260717-120000Z.csv"
@@ -1135,7 +1136,6 @@ describe("createOperatorFeedbackPageModule", () => {
       expect.objectContaining({
         scope: "all-in-period",
         format: "xlsx",
-        includeGuestContact: false,
       })
     )
     const callArgs = exportFeedback.mock.calls.at(0) as

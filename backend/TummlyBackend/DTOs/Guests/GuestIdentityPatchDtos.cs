@@ -6,7 +6,13 @@ namespace TummlyBackend.DTOs.Guests
 
         public string? LastName { get; init; }
 
+        // When false, the stored email is kept and Email is ignored.
+        public bool ReplaceEmail { get; init; }
+
         public string? Email { get; init; }
+
+        // When false, the stored phone is kept and Phone is ignored.
+        public bool ReplacePhone { get; init; }
 
         public string? Phone { get; init; }
     }

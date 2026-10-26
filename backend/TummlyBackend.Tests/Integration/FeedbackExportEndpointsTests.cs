@@ -141,7 +141,8 @@ namespace TummlyBackend.Tests.Integration
             Assert.Contains("New", lines[1]);
             Assert.Contains("Yes", lines[1]);
             Assert.Contains("Alex Soup", lines[1]);
-            Assert.Contains("alex@example.com", lines[1]);
+            Assert.DoesNotContain("alex@example.com", csv);
+            Assert.Contains("a••••@example.com", lines[1]);
             Assert.DoesNotContain("Great meal", csv);
         }
 

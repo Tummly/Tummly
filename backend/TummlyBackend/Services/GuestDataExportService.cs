@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.AccountWorkspace;
@@ -14,18 +15,27 @@ namespace TummlyBackend.Services
         public const string ExportSoftMaxMessage =
             "Export exceeds 10,000 guest rows for this workspace.";
 
-        private readonly ApplicationDbContext _context;
+        public const string GuestDataExportOwnerOnlyMessage =
+            "Only the account owner can export guest data.";
 
-        public GuestDataExportService(ApplicationDbContext context)
+        private readonly ApplicationDbContext _context;
+        private readonly IAdminAuditService _audit;
+
+        public GuestDataExportService(
+            ApplicationDbContext context,
+            IAdminAuditService audit
+        )
         {
             _context = context;
+            _audit = audit;
         }
 
         public async Task<(
             GuestDataExportResult? Result,
             string? Error,
             int StatusCode
-        )>             ExportAsync(int restaurantId, string? format)
+        )>
+            ExportAsync(int restaurantId, int actorUserId, string? format)
         {
             string normalizedFormat;
             try
@@ -51,6 +61,15 @@ namespace TummlyBackend.Services
                     null,
                     "Restaurant not found.",
                     StatusCodes.Status404NotFound
+                );
+            }
+
+            if (restaurant.OwnerUserId != actorUserId)
+            {
+                return (
+                    null,
+                    GuestDataExportOwnerOnlyMessage,
+                    StatusCodes.Status403Forbidden
                 );
             }
 
@@ -107,25 +126,18 @@ namespace TummlyBackend.Services
             var fileName =
                 $"tummly-guest-data-{restaurant.Id}-{stamp}Z.{extension}";
 
-            if (normalizedFormat == "csv")
-            {
-                return (
-                    new GuestDataExportResult
-                    {
-                        FileName = fileName,
-                        ContentType = "text/csv",
-                        Content = Rfc4180Csv.WriteUtf8(
-                            GuestExportColumns.Headers,
-                            rows
-                        ),
-                    },
-                    null,
-                    StatusCodes.Status200OK
-                );
-            }
-
-            return (
-                new GuestDataExportResult
+            var result = normalizedFormat == "csv"
+                ? new GuestDataExportResult
+                {
+                    FileName = fileName,
+                    ContentType = "text/csv",
+                    Content = Rfc4180Csv.WriteUtf8(
+                        GuestExportColumns.Headers,
+                        rows
+                    ),
+                    RowCount = rows.Count,
+                }
+                : new GuestDataExportResult
                 {
                     FileName = fileName,
                     ContentType = OpenXmlSpreadsheet.ContentType,
@@ -133,10 +145,28 @@ namespace TummlyBackend.Services
                         GuestExportColumns.Headers,
                         rows
                     ),
-                },
-                null,
-                StatusCodes.Status200OK
+                    RowCount = rows.Count,
+                };
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    Action: AdminAuditActions.GuestDataExport,
+                    ActorIdentity: $"user:{actorUserId}",
+                    TargetType: AdminAuditTargetTypes.Restaurant,
+                    TargetId: restaurant.Id.ToString(),
+                    RestaurantId: restaurant.Id,
+                    DetailJson: JsonSerializer.Serialize(
+                        new
+                        {
+                            format = normalizedFormat,
+                            rows = rows.Count,
+                        }
+                    )
+                )
             );
+            await _context.SaveChangesAsync();
+
+            return (result, null, StatusCodes.Status200OK);
         }
 
         private static string NormalizeFormat(string? format)
