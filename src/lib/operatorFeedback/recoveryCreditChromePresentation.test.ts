@@ -54,6 +54,63 @@ describe("recoveryCreditChromePresentation", () => {
     ).toBe(false)
   })
 
+  it("estimateRecoverySmsSegments adds the restaurant prefix", () => {
+    // 150 characters is one segment. "The Golden Fork: " makes the sent text 167.
+    const body = "x".repeat(150)
+    expect(resolveRecoverySmsEstimateCredits(body)).toBe(1)
+    expect(resolveRecoverySmsEstimateCredits(body, "The Golden Fork")).toBe(2)
+    expect(resolveRecoverySmsEstimateCredits(body, "   ")).toBe(1)
+    expect(resolveRecoverySmsEstimateCredits(body, null)).toBe(1)
+    expect(
+      recoveryChannelAvailabilityLine({
+        channel: "sms",
+        messageBody: body,
+        restaurantName: "The Golden Fork",
+      })
+    ).toBe("Estimated usage: 2 SMS credits")
+  })
+
+  it("restaurant prefix moves a 150-character SMS from 1 to 2 credits in the shortfall check", () => {
+    const body = "x".repeat(150)
+    const withoutName = resolveRecoverySmsShortfall({
+      channel: "sms",
+      messageBody: body,
+      smsRemaining: 1,
+      context: ownerContext({ smsRemaining: 1 }),
+    })
+    expect(withoutName.blocked).toBe(false)
+
+    const withName = resolveRecoverySmsShortfall({
+      channel: "sms",
+      messageBody: body,
+      restaurantName: "The Golden Fork",
+      smsRemaining: 1,
+      context: ownerContext({ smsRemaining: 1 }),
+    })
+    expect(withName.blocked).toBe(true)
+  })
+
+  it("the chrome context carries the restaurant name into the send check", () => {
+    const body = "x".repeat(150)
+    expect(
+      isRecoverySendBlocked({
+        channel: "sms",
+        messageBody: body,
+        context: ownerContext({ smsRemaining: 1 }),
+      })
+    ).toBe(false)
+    expect(
+      isRecoverySendBlocked({
+        channel: "sms",
+        messageBody: body,
+        context: ownerContext({
+          smsRemaining: 1,
+          restaurantName: "The Golden Fork",
+        }),
+      })
+    ).toBe(true)
+  })
+
   it("SMS floor before body; estimate after body; shortfall blocks send", () => {
     expect(
       recoveryChannelAvailabilityLine({ channel: "sms", messageBody: "" })

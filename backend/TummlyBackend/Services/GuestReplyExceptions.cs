@@ -9,7 +9,7 @@ namespace TummlyBackend.Services
         public const string ErrorCode = "duplicate_reply";
 
         public GuestReplyDuplicateException()
-            : base("This reply was already sent to the guest.")
+            : base("This reply has already been submitted. Check its delivery status.")
         {
         }
 
@@ -33,6 +33,42 @@ namespace TummlyBackend.Services
         }
 
         public string ClaimCode { get; }
+
+        public string Code => ErrorCode;
+    }
+
+    /// <summary>
+    /// The SMS provider did not accept the reply. Nothing was sent, so the
+    /// reply is not confirmed as sent.
+    /// </summary>
+    public sealed class GuestReplySmsSendFailedException : Exception
+    {
+        public const string ErrorCode = "sms_send_failed";
+
+        public GuestReplySmsSendFailedException()
+            : base(
+                "The reply was not confirmed as sent. Check its status before trying again."
+            )
+        {
+        }
+
+        public string Code => ErrorCode;
+    }
+
+    /// <summary>
+    /// The guest has sent STOP to this restaurant (MasterGuest.SmsStoppedAtUtc is set).
+    /// Nothing is reserved, saved or sent.
+    /// </summary>
+    public sealed class GuestReplySmsStoppedException : Exception
+    {
+        public const string ErrorCode = "sms_stopped";
+
+        public GuestReplySmsStoppedException()
+            : base(
+                "This message cannot be sent for the selected purpose or recipient. Review the reason."
+            )
+        {
+        }
 
         public string Code => ErrorCode;
     }

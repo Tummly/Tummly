@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TummlyBackend.Helpers;
 using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
@@ -12,13 +13,18 @@ namespace TummlyBackend.Controllers
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>";
 
         private readonly TwilioSmsInboundService _inbound;
+        private readonly IConfiguration _configuration;
 
-        public TwilioSmsInboundController(TwilioSmsInboundService inbound)
+        public TwilioSmsInboundController(
+            TwilioSmsInboundService inbound,
+            IConfiguration configuration
+        )
         {
             _inbound = inbound;
+            _configuration = configuration;
         }
 
-        [HttpPost("/api/webhooks/twilio/sms-inbound")]
+        [HttpPost(TwilioWebhookUrl.SmsInboundPath)]
         public async Task<IActionResult> Inbound(
             CancellationToken cancellationToken
         )
@@ -30,12 +36,15 @@ namespace TummlyBackend.Controllers
                 StringComparer.Ordinal
             );
 
-            var requestUrl =
-                $"{Request.Scheme}://{Request.Host}{Request.PathBase}{Request.Path}{Request.QueryString}";
+            var validationUrl = TwilioWebhookUrl.ValidationUrl(
+                _configuration,
+                TwilioWebhookUrl.SmsInboundPath,
+                Request
+            );
             var signature = Request.Headers["X-Twilio-Signature"].ToString();
 
             var status = await _inbound.HandleAsync(
-                requestUrl,
+                validationUrl,
                 parameters,
                 signature,
                 cancellationToken

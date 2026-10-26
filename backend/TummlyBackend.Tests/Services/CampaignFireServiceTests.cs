@@ -1,11 +1,13 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -42,6 +44,143 @@ namespace TummlyBackend.Tests.Services
                 _gate,
                 utcNow: () => _now
             );
+        }
+
+        [Fact]
+        public async Task CampaignFire_GuestStoppedAfterSchedule_Excluded()
+        {
+            var seeded = await SeedCommittedCampaignAsync(
+                status: CampaignFireService.ScheduledStatus,
+                scheduleMode: "schedule-later",
+                scheduledAtUtc: _now.AddMinutes(-5),
+                frozenEligibleCount: 2,
+                withCatalogOffer: false,
+                channel: "sms"
+            );
+
+            var stoppedLocationGuest = await _context.LocationGuests
+                .SingleAsync(lg => lg.Id == seeded.FrozenGuestIds[0]);
+            var stoppedMaster = await _context.MasterGuests
+                .SingleAsync(m => m.Id == stoppedLocationGuest.MasterGuestId);
+            stoppedMaster.SmsStoppedAtUtc = _now;
+            await _context.SaveChangesAsync();
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var call = Assert.Single(_outbound.Calls);
+            Assert.Equal(seeded.FrozenGuestIds[1], call.LocationGuestId);
+        }
+
+        [Fact]
+        public async Task CampaignFire_GuestStopsMidRun_SkippedBeforeSend()
+        {
+            var seeded = await SeedCommittedCampaignAsync(
+                status: CampaignFireService.ScheduledStatus,
+                scheduleMode: "schedule-later",
+                scheduledAtUtc: _now.AddMinutes(-5),
+                frozenEligibleCount: 2,
+                withCatalogOffer: false,
+                channel: "sms"
+            );
+
+            var secondLocationGuestId = seeded.FrozenGuestIds[1];
+            var secondMasterGuestId = await _context.LocationGuests
+                .Where(lg => lg.Id == secondLocationGuestId)
+                .Select(lg => lg.MasterGuestId)
+                .SingleAsync();
+
+            // The second recipient texts STOP after the first SMS is accepted.
+            _outbound.OnAfterAccept = acceptedSoFar =>
+            {
+                if (acceptedSoFar != 1)
+                {
+                    return;
+                }
+
+                var secondMaster = _context.MasterGuests.Single(m => m.Id == secondMasterGuestId);
+                secondMaster.SmsStoppedAtUtc = _now;
+                _context.SaveChanges();
+            };
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var call = Assert.Single(_outbound.Calls);
+            Assert.Equal(seeded.FrozenGuestIds[0], call.LocationGuestId);
+
+            var skipped = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .SingleAsync(d =>
+                    d.CampaignId == seeded.CampaignId
+                    && d.LocationGuestId == secondLocationGuestId
+                );
+            Assert.Equal(CampaignFireService.SkippedIneligibleOutcome, skipped.Outcome);
+            Assert.Null(skipped.AcceptedAtUtc);
+        }
+
+        [Fact]
+        public async Task CampaignFire_SmsProviderThrows_RecordsRejectedRow_ContinuesLoop()
+        {
+            var seeded = await SeedCommittedCampaignAsync(
+                status: CampaignFireService.ScheduledStatus,
+                scheduleMode: "schedule-later",
+                scheduledAtUtc: _now.AddMinutes(-5),
+                frozenEligibleCount: 2,
+                withCatalogOffer: false,
+                channel: "sms"
+            );
+
+            // The first provider call times out with no response. The second is accepted.
+            var sms = new ScriptedCampaignSmsDelivery(
+                () => throw new TimeoutException("The provider did not answer in time.")
+            );
+            var outbound = new CampaignOutboundChannelSender(
+                new UnusedCampaignEmailOutbound(),
+                sms,
+                new DemoSideEffectGuard(
+                    Microsoft.Extensions.Options.Options.Create(
+                        new TummlyBackend.Configurations.DemoSessionOptions
+                        {
+                            Enabled = false,
+                            SuppressSideEffects = false,
+                        }
+                    )
+                )
+                ,
+                NullLogger<CampaignOutboundChannelSender>.Instance
+            );
+            var fire = new CampaignFireService(
+                _context,
+                _eligibility,
+                _reserve,
+                outbound,
+                _gate,
+                utcNow: () => _now
+            );
+
+            var result = await fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Equal(2, sms.Phones.Count);
+
+            var first = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .SingleAsync(d =>
+                    d.CampaignId == seeded.CampaignId
+                    && d.LocationGuestId == seeded.FrozenGuestIds[0]
+                );
+            Assert.Equal(CampaignFireService.RejectedOutcome, first.Outcome);
+            Assert.Null(first.AcceptedUnits);
+
+            var second = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .SingleAsync(d =>
+                    d.CampaignId == seeded.CampaignId
+                    && d.LocationGuestId == seeded.FrozenGuestIds[1]
+                );
+            Assert.Equal(CampaignFireService.AcceptedOutcome, second.Outcome);
+            Assert.Equal(1, second.AcceptedUnits);
         }
 
         public void Dispose()
@@ -511,9 +650,30 @@ namespace TummlyBackend.Tests.Services
             Assert.IsType<CampaignFireResult.Ok>(result);
             var issue = Assert.Single(await _context.OfferIssues.ToListAsync());
             var call = Assert.Single(_outbound.Calls);
-            Assert.StartsWith("Hello from SMS", call.Body);
+            Assert.StartsWith("Fire Test Restaurant: Hello from SMS", call.Body);
             Assert.Contains($"Claim code: {issue.ClaimCode}", call.Body);
             Assert.Contains("Fire offer", call.Body);
+            Assert.EndsWith("\nReply STOP to stop texts.", call.Body);
+        }
+
+        [Fact]
+        public async Task CampaignFire_SmsBodyHasPrefixAndFooter()
+        {
+            var seeded = await SeedSendingCampaignAsync(
+                frozenEligibleCount: 1,
+                withCatalogOffer: false,
+                channel: "sms",
+                messageBody: "Hello from SMS"
+            );
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var call = Assert.Single(_outbound.Calls);
+            Assert.Equal(
+                "Fire Test Restaurant: Hello from SMS\nReply STOP to stop texts.",
+                call.Body
+            );
         }
 
         private async Task<(

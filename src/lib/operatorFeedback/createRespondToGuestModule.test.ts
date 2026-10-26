@@ -921,6 +921,49 @@ describe("createRespondToGuestModule", () => {
     expect(adapters.sendGuestResponse).not.toHaveBeenCalled()
   })
 
+  it("restaurant name from the credit chrome adds the SMS prefix to the shortfall check", async () => {
+    const creditChrome = (restaurantName?: string) => ({
+      smsRemaining: 1,
+      aiRemaining: 5,
+      isPilot: false,
+      paidActionsLocked: false,
+      restorationCause: null,
+      accessLevel: "manage" as const,
+      permissionRole: "Owner",
+      mode: "single" as const,
+      locationId: 42,
+      restaurantName,
+    })
+    const runWith = async (restaurantName?: string) => {
+      const adapters = createAdapters({
+        getFeedbackDetails: async () => ({
+          ...sampleDetails,
+          contactType: "Phone",
+          guestContact: "+447700900123",
+        }),
+        getCreditChrome: async () => creditChrome(restaurantName),
+      })
+      const module = createRespondToGuestModule(adapters)
+      await module.open(2418)
+      module.setPurpose("acknowledge_feedback")
+      module.setTone("direct_and_practical")
+      module.continueSetup()
+      module.writeManually()
+      // 150 characters is one credit alone, two with the 17-character prefix.
+      module.setMessage("x".repeat(150))
+      module.continueWrite()
+      return module.getSnapshot()
+    }
+
+    const withoutName = await runWith()
+    expect(withoutName.smsShortfall.blocked).toBe(false)
+    expect(withoutName.restaurantName).toBeNull()
+
+    const withName = await runWith("The Golden Fork")
+    expect(withName.smsShortfall.blocked).toBe(true)
+    expect(withName.restaurantName).toBe("The Golden Fork")
+  })
+
   it("AI chip at 0 keeps Write manually and blocks Prepare", async () => {
     const adapters = createAdapters({
       getCreditChrome: async () => ({

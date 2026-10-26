@@ -30,6 +30,8 @@ export type LoadRecoveryCreditChromeInput = {
   /** Omit defaults to manage so Account-owner burn CTAs stay visible during rollout. */
   accessLevel?: BillingCreditsAccessLevel
   permissionRole?: string
+  /** Restaurant display name already held by the workspace session. Not fetched here. */
+  restaurantName?: string | null
 }
 
 export async function loadRecoveryCreditChrome(
@@ -60,5 +62,6 @@ export async function loadRecoveryCreditChrome(
       ?? "",
     mode: input.mode,
     locationId: input.locationId,
+    restaurantName: input.restaurantName ?? null,
   }
 }

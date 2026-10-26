@@ -1601,45 +1601,9 @@ namespace TummlyBackend.Controllers
                     }
                 );
             }
-            catch (RecoverySmsBillingUnavailableException)
+            catch (Exception ex) when (IsRecoverySmsFailure(ex))
             {
-                return StatusCode(
-                    StatusCodes.Status503ServiceUnavailable,
-                    new
-                    {
-                        success = false,
-                        code = "billing_reserve_unavailable",
-                        message =
-                            "Billing Reserve is not available. Recovery SMS send stays blocked.",
-                    }
-                );
-            }
-            catch (RecoverySmsCreditRefusedException ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
-                    new
-                    {
-                        success = false,
-                        code = ex.Code,
-                        message = ex.Message,
-                        channel = CreditChannels.Sms,
-                        remaining = ex.Remaining,
-                        requested = ex.Requested,
-                    }
-                );
-            }
-            catch (OperatorBillingLockedException ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
-                    new
-                    {
-                        success = false,
-                        code = ex.Code,
-                        message = ex.Code,
-                    }
-                );
+                return RecoverySmsFailureResult(ex);
             }
             catch (InvalidOperationException ex)
             {
@@ -2183,6 +2147,30 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+            catch (GuestReplyDuplicateException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ex.Code,
+                    message = ex.Message,
+                });
+            }
+            catch (GuestReplyLockUnavailableException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message,
+                    }
+                );
+            }
+            catch (Exception ex) when (IsRecoverySmsFailure(ex))
+            {
+                return RecoverySmsFailureResult(ex);
+            }
             catch (InvalidOperationException ex)
             {
                 return Unauthorized(new
@@ -2451,6 +2439,10 @@ namespace TummlyBackend.Controllers
                         message = ex.Message,
                     }
                 );
+            }
+            catch (Exception ex) when (IsRecoverySmsFailure(ex))
+            {
+                return RecoverySmsFailureResult(ex);
             }
             catch (InvalidOperationException ex)
             {
@@ -2730,6 +2722,76 @@ namespace TummlyBackend.Controllers
                 minimum,
                 locationId
             );
+        }
+
+        /// <summary>
+        /// Recovery SMS failures that map to a fixed HTTP status. Used by the
+        /// guest-reply endpoints (guest responses, Recovery Offers, Respond-and-Record).
+        /// </summary>
+        private static bool IsRecoverySmsFailure(Exception ex)
+        {
+            return ex is RecoverySmsBillingUnavailableException
+                or RecoverySmsCreditRefusedException
+                or OperatorBillingLockedException
+                or GuestReplySmsStoppedException
+                or GuestReplySmsSendFailedException;
+        }
+
+        private IActionResult RecoverySmsFailureResult(Exception ex)
+        {
+            return ex switch
+            {
+                RecoverySmsBillingUnavailableException => StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        code = "billing_reserve_unavailable",
+                        message =
+                            "Billing Reserve is not available. Recovery SMS send stays blocked.",
+                    }
+                ),
+                RecoverySmsCreditRefusedException refused => StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = refused.Code,
+                        message = refused.Message,
+                        channel = CreditChannels.Sms,
+                        remaining = refused.Remaining,
+                        requested = refused.Requested,
+                    }
+                ),
+                OperatorBillingLockedException locked => StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = locked.Code,
+                        message = locked.Code,
+                    }
+                ),
+                GuestReplySmsStoppedException stopped => StatusCode(
+                    StatusCodes.Status409Conflict,
+                    new
+                    {
+                        success = false,
+                        code = stopped.Code,
+                        message = stopped.Message,
+                    }
+                ),
+                GuestReplySmsSendFailedException sendFailed => StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        code = sendFailed.Code,
+                        message = sendFailed.Message,
+                    }
+                ),
+                _ => throw new ArgumentOutOfRangeException(nameof(ex), ex, null),
+            };
         }
     }
 }

@@ -239,6 +239,8 @@ export type RespondAndRecordSnapshot = {
   successReceipt: GuestResponseSentActivityEvent | null
   openedFromDraftAction: boolean
   smsShortfall: RecoverySmsShortfallChrome
+  /** Restaurant display name for the SMS prefix; null when unknown. */
+  restaurantName?: string | null
   aiActionChip: RecoveryAiActionChipChrome
   paidWrite: RecoveryPaidWriteChrome
   /** Confirm/Send hard-stop for SMS shortfall or Soft lock / Dormant. */
@@ -468,6 +470,7 @@ function projectCreditChrome(state: SessionState): {
   const smsShortfall = resolveRecoverySmsShortfall({
     channel: state.draft.channel,
     messageBody: state.draft.message,
+    restaurantName: context?.restaurantName ?? null,
     smsRemaining: context?.smsRemaining ?? null,
     context,
   })
@@ -545,6 +548,7 @@ function toSnapshot(state: SessionState): RespondAndRecordSnapshot {
     successReceipt: state.successReceipt,
     openedFromDraftAction: state.openedFromDraftAction,
     smsShortfall: credit.smsShortfall,
+    restaurantName: state.creditChrome?.restaurantName ?? null,
     aiActionChip: credit.aiActionChip,
     paidWrite: credit.paidWrite,
     sendBlocked: credit.sendBlocked,

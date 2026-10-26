@@ -8,9 +8,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
+using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -124,6 +126,63 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(
                 "guest_response_sent",
                 activity[1].GetProperty("kind").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task FeedbackDetail_GuestResponseEvent_HasDeliveryState()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-delivery-state-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress
+            );
+
+            var deliveryStateAt = new DateTime(2026, 10, 26, 9, 30, 0, DateTimeKind.Utc);
+            int guestResponseId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var row = new FeedbackGuestResponse
+                {
+                    FeedbackId = seeded.FeedbackId,
+                    Channel = FeedbackGuestResponseChannel.Email,
+                    Intent = FeedbackRecoveryIntent.RespondToGuest,
+                    MaskedDestination = "a••••@example.com",
+                    Subject = "Sorry about your visit",
+                    Body = "Thank you for telling us.",
+                    AuthorDisplayName = "Guest Response Owner",
+                    CreatedAt = DateTime.UtcNow,
+                    DeliveryState = GuestReplyDeliveryState.Delivered,
+                    DeliveryStateAtUtc = deliveryStateAt,
+                };
+                context.FeedbackGuestResponses.Add(row);
+                await context.SaveChangesAsync();
+                guestResponseId = row.Id;
+            }
+
+            using var get = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            get.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var getBody = await ReadJsonAsync(await _client.SendAsync(get));
+            var activity = getBody
+                .GetProperty("activityHistory")
+                .EnumerateArray()
+                .Single(e =>
+                    e.GetProperty("kind").GetString() == "guest_response_sent"
+                );
+
+            Assert.Equal(guestResponseId, activity.GetProperty("guestResponseId").GetInt32());
+            Assert.Equal("delivered", activity.GetProperty("deliveryState").GetString());
+            Assert.Equal(
+                deliveryStateAt,
+                activity.GetProperty("deliveryStateAt").GetDateTime()
             );
         }
 
@@ -614,6 +673,817 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ReplySms_Accepted_StoresSidAndAccepted()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-sid-tok",
+                ContactType.Phone,
+                "+447911123462",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-sid-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body = "Thanks for your message.",
+                intent = "respond_to_guest",
+            });
+
+            var postResponse = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var guestResponse = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.StartsWith("SM-test-", guestResponse.ProviderMessageId);
+            Assert.Equal(
+                GuestReplyDeliveryState.Accepted,
+                guestResponse.DeliveryState
+            );
+            Assert.NotNull(guestResponse.DeliveryStateAtUtc);
+        }
+
+        [Fact]
+        public async Task ReplySms_PrefixCrossesSegment_ReservesTwo()
+        {
+            // 150 characters is one segment. The restaurant prefix makes the sent text
+            // 172 characters, so the reserve must be two segments.
+            var body = new string('a', 150);
+            var delivery = new RecordingRecoveryGuestSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Accepted
+                {
+                    AcceptedSegments = 1,
+                    ProviderMessageId = "SMprefix-1",
+                    StatusCallbackSet = true,
+                }
+            );
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-prefix-tok",
+                ContactType.Phone,
+                "+447911123496",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-prefix-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var sent = Assert.Single(delivery.Calls);
+            Assert.Equal("Guest Response Venue: " + body, sent.Body);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var guestResponse = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+
+            // Reserved 2 segments, accepted 1: one consumed, one released.
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries
+                    .Where(row =>
+                        row.RestaurantId == restaurantId
+                        && row.EntryType == CreditLedgerEntryTypes.Consumption
+                        && row.Channel == CreditChannels.Sms
+                        && row.ReservationRef == guestResponse.BillingReservationRef
+                    )
+                    .SumAsync(row => row.Quantity)
+            );
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries
+                    .Where(row =>
+                        row.RestaurantId == restaurantId
+                        && row.EntryType == CreditLedgerEntryTypes.Release
+                        && row.Channel == CreditChannels.Sms
+                        && row.ReservationRef == guestResponse.BillingReservationRef
+                    )
+                    .SumAsync(row => row.Quantity)
+            );
+        }
+
+        [Fact]
+        public async Task ReplySms_DuplicateRuleStillComparesOperatorBody()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-dup-prefix-tok",
+                ContactType.Phone,
+                "+447911123497",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-dup-prefix-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var first = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            var second = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            var secondBody = await ReadJsonAsync(second);
+            Assert.Equal("duplicate_reply", secondBody.GetProperty("code").GetString());
+            Assert.Single(delivery.Calls);
+        }
+
+        [Fact]
+        public async Task ReplySms_NoCallbackConfigured_Unavailable()
+        {
+            await using var customized = CreateFactoryWithScriptedSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Accepted
+                {
+                    AcceptedSegments = 1,
+                    ProviderMessageId = "SMnocallback0000000000000000000001",
+                    StatusCallbackSet = false,
+                }
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-nocallback-tok",
+                ContactType.Phone,
+                "+447911123463",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-nocallback-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body = "Thanks for your message.",
+                intent = "respond_to_guest",
+            });
+
+            var postResponse = await client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var guestResponse = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(
+                "SMnocallback0000000000000000000001",
+                guestResponse.ProviderMessageId
+            );
+            Assert.Equal(
+                GuestReplyDeliveryState.Unavailable,
+                guestResponse.DeliveryState
+            );
+        }
+
+        [Fact]
+        public async Task ReplySms_ProviderFailed_StoresFailedReply()
+        {
+            // The reply row is saved before the provider call. A failed send
+            // moves that row to Failed.
+            await using var customized = CreateFactoryWithScriptedSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Failed
+                {
+                    Message = "Unable to send Recovery SMS.",
+                }
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-failed-tok",
+                ContactType.Phone,
+                "+447911123464",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-failed-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body = "Thanks for your message.",
+                intent = "respond_to_guest",
+            });
+
+            var postResponse = await client.SendAsync(post);
+            Assert.NotEqual(HttpStatusCode.OK, postResponse.StatusCode);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var failedReply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Failed, failedReply.DeliveryState);
+        }
+
+        [Fact]
+        public async Task ReplySms_ProviderFailed_Returns502SmsSendFailed()
+        {
+            await using var customized = CreateFactoryWithSmsDelivery(
+                new RecordingRecoveryGuestSmsDelivery(
+                    new RecoveryGuestSmsDeliveryResult.Failed
+                    {
+                        Message = "Provider down.",
+                    }
+                )
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-502-tok",
+                ContactType.Phone,
+                "+447911123490",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-502-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("sms_send_failed", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "The reply was not confirmed as sent. Check its status before trying again.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task ReplySms_AfterProviderFailure_IdenticalRetryAllowed()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Failed
+                {
+                    Message = "Provider down.",
+                }
+            );
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-identical-retry-tok",
+                ContactType.Phone,
+                "+447911123491",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-identical-retry-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            const string body = "Thanks for your message.";
+            var failed = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
+
+            var retry = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+            Assert.Equal(2, delivery.Calls.Count);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var replies = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .Where(r => r.FeedbackId == seeded.FeedbackId)
+                .ToListAsync();
+            Assert.Equal(2, replies.Count);
+            Assert.Contains(replies, r => r.DeliveryState == GuestReplyDeliveryState.Failed);
+            Assert.Contains(replies, r => r.DeliveryState == GuestReplyDeliveryState.Accepted);
+
+            var snapshot = scope.ServiceProvider
+                .GetRequiredService<ICreditBalanceSnapshot>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var account = await snapshot.GetAccountAsync(restaurantId);
+            var sms = Assert.Single(
+                account!.Channels,
+                row => row.Channel == CreditChannels.Sms
+            );
+            Assert.Equal(0, sms.Held);
+            Assert.Equal(9, sms.Remaining);
+        }
+
+        [Fact]
+        public async Task ReplySms_SettleFailsAfterAccept_ReturnsSuccess_ReplySaved()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                settleFails: true
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-settle-fail-tok",
+                ContactType.Phone,
+                "+447911123492",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-settle-fail-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply.DeliveryState);
+            Assert.StartsWith("SMrecorded-", reply.ProviderMessageId);
+
+            // Settle failed, so the hold stays open for the sweeper.
+            Assert.Equal(
+                1,
+                await context.RecoverySmsSendIdempotencies.CountAsync(row =>
+                    row.FeedbackId == seeded.FeedbackId
+                    && row.CompletedGuestResponseId == null
+                )
+            );
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var account = await scope.ServiceProvider
+                .GetRequiredService<ICreditBalanceSnapshot>()
+                .GetAccountAsync(restaurantId);
+            var sms = Assert.Single(
+                account!.Channels,
+                row => row.Channel == CreditChannels.Sms
+            );
+            Assert.Equal(1, sms.Held);
+            Assert.Equal(9, sms.Remaining);
+        }
+
+        [Fact]
+        public async Task ReplySms_ProviderThrows_ReplyUnavailable_Returns502_IdenticalRetryBlocked()
+        {
+            var delivery = new ThrowingRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-provider-throws-tok",
+                ContactType.Phone,
+                "+447911123493",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-provider-throws-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            const string body = "Thanks for your message.";
+            var first = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.BadGateway, first.StatusCode);
+            var firstBody = await ReadJsonAsync(first);
+            Assert.Equal("sms_send_failed", firstBody.GetProperty("code").GetString());
+            Assert.Equal(
+                "The reply was not confirmed as sent. Check its status before trying again.",
+                firstBody.GetProperty("message").GetString()
+            );
+
+            var retry = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.Conflict, retry.StatusCode);
+            var retryBody = await ReadJsonAsync(retry);
+            Assert.Equal("duplicate_reply", retryBody.GetProperty("code").GetString());
+            Assert.Equal(1, delivery.CallCount);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Unavailable, reply.DeliveryState);
+            Assert.Null(reply.ProviderMessageId);
+            Assert.Equal(
+                1,
+                await context.RecoverySmsSendIdempotencies.CountAsync(row =>
+                    row.FeedbackId == seeded.FeedbackId
+                    && row.CompletedGuestResponseId == null
+                )
+            );
+        }
+
+        [Fact]
+        public async Task ReplySms_CompleteFailsAfterAccept_ReturnsSuccess()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            var faults = new SmsStepFaults { FailComplete = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-complete-fail-tok",
+                ContactType.Phone,
+                "+447911123500",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-complete-fail-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply.DeliveryState);
+            Assert.StartsWith("SMrecorded-", reply.ProviderMessageId);
+        }
+
+        [Fact]
+        public async Task ReplySms_FinalSaveFailsAfterAccept_Returns502NotUnauthorized()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            var faults = new SmsStepFaults { FailSave = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-final-save-fail-tok",
+                ContactType.Phone,
+                "+447911123501",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-final-save-fail-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("sms_send_failed", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "The reply was not confirmed as sent. Check its status before trying again.",
+                body.GetProperty("message").GetString()
+            );
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            // The reply row was saved before the provider call and stays Pending.
+            var pendingReply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Pending, pendingReply.DeliveryState);
+            Assert.Null(pendingReply.ProviderMessageId);
+        }
+
+        [Fact]
+        public async Task ReplySms_FinalSaveFailsAfterAccept_IdenticalRetryBlocked()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            var faults = new SmsStepFaults { FailSave = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-final-save-retry-tok",
+                ContactType.Phone,
+                "+447911123511",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-final-save-retry-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            const string body = "Thanks for your message.";
+            var first = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.BadGateway, first.StatusCode);
+
+            // The save works again. The identical retry must not send a second text.
+            faults.FailSave = false;
+            var retry = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.Conflict, retry.StatusCode);
+            var retryBody = await ReadJsonAsync(retry);
+            Assert.Equal("duplicate_reply", retryBody.GetProperty("code").GetString());
+            Assert.Single(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(GuestReplyDeliveryState.Pending, reply.DeliveryState);
+            Assert.Null(reply.ProviderMessageId);
+        }
+
+        [Fact]
+        public async Task ReplySms_ProviderFailed_RowFailed_RetryAllowed()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Failed
+                {
+                    Message = "Provider down.",
+                }
+            );
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-failed-row-tok",
+                ContactType.Phone,
+                "+447911123512",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-failed-row-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            const string body = "Thanks for your message.";
+            var failed = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
+
+            using (var scope = customized.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var reply = await context.FeedbackGuestResponses
+                    .AsNoTracking()
+                    .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+                Assert.Equal(GuestReplyDeliveryState.Failed, reply.DeliveryState);
+                Assert.Null(reply.ProviderMessageId);
+                Assert.Equal(
+                    0,
+                    await context.RecoverySmsSendIdempotencies.CountAsync(row =>
+                        row.FeedbackId == seeded.FeedbackId
+                        && row.CompletedGuestResponseId == null
+                    )
+                );
+            }
+
+            var retry = await PostSmsReplyAsync(client, seeded, body);
+            Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+            Assert.Equal(2, delivery.Calls.Count);
+
+            using var scope2 = customized.Services.CreateScope();
+            var context2 = scope2.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var states = await context2.FeedbackGuestResponses
+                .AsNoTracking()
+                .Where(r => r.FeedbackId == seeded.FeedbackId)
+                .Select(r => r.DeliveryState)
+                .ToListAsync();
+            Assert.Equal(2, states.Count);
+            Assert.Contains(GuestReplyDeliveryState.Failed, states);
+            Assert.Contains(GuestReplyDeliveryState.Accepted, states);
+        }
+
+        [Fact]
+        public async Task ReplySms_ProviderFailed_FailedSaveThrows_Returns502()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery(
+                new RecoveryGuestSmsDeliveryResult.Failed
+                {
+                    Message = "Provider down.",
+                }
+            );
+            var faults = new SmsStepFaults { FailFailedSave = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-failed-save-throws-tok",
+                ContactType.Phone,
+                "+447911123515",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-failed-save-throws-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("sms_send_failed", body.GetProperty("code").GetString());
+            Assert.Single(delivery.Calls);
+        }
+
+        [Fact]
+        public async Task ReplySms_PendingSaveFails_ReleasesHold_Returns502()
+        {
+            var delivery = new RecordingRecoveryGuestSmsDelivery();
+            var faults = new SmsStepFaults { FailPendingSave = true };
+            await using var customized = CreateFactoryWithSmsDelivery(
+                delivery,
+                faults: faults
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-pending-save-fails-tok",
+                ContactType.Phone,
+                "+447911123516",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-pending-save-fails-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            var response = await PostSmsReplyAsync(
+                client,
+                seeded,
+                "Thanks for your message."
+            );
+            Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("sms_send_failed", body.GetProperty("code").GetString());
+            Assert.Empty(delivery.Calls);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.FeedbackGuestResponses.CountAsync(r =>
+                    r.FeedbackId == seeded.FeedbackId
+                )
+            );
+            Assert.Equal(
+                0,
+                await context.RecoverySmsSendIdempotencies.CountAsync(row =>
+                    row.FeedbackId == seeded.FeedbackId
+                )
+            );
+
+            var snapshot = scope.ServiceProvider
+                .GetRequiredService<ICreditBalanceSnapshot>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var account = await snapshot.GetAccountAsync(restaurantId);
+            var sms = Assert.Single(
+                account!.Channels,
+                row => row.Channel == CreditChannels.Sms
+            );
+            Assert.Equal(0, sms.Held);
+            Assert.Equal(10, sms.Remaining);
+        }
+
+        [Fact]
+        public async Task ReplySms_RequestCancelledAfterAccept_ReplyAcceptedWithSid_Charged()
+        {
+            // The controller passes no request token today. This test calls the
+            // service with a token that is cancelled after the provider accepts, so
+            // a later change that passes RequestAborted cannot lose an accepted send.
+            var delivery = new AbortingAfterAcceptRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            using var cts = new CancellationTokenSource();
+            delivery.OnAccepted = cts.Cancel;
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-cancelled-tok",
+                ContactType.Phone,
+                "+447911123517",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-cancelled-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            using (var sendScope = customized.Services.CreateScope())
+            {
+                var sendContext = sendScope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurantOwnerId = await sendContext.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row => row.Id == seeded.LocationId)
+                    .Select(row => row.Restaurant!.OwnerUserId)
+                    .SingleAsync();
+
+                var service = sendScope.ServiceProvider
+                    .GetRequiredService<IFeedbackGuestResponsesService>();
+                var result = await service.SendAsync(
+                    seeded.FeedbackId,
+                    restaurantOwnerId,
+                    FeedbackGuestResponseChannel.Sms,
+                    FeedbackRecoveryIntent.RespondToGuest,
+                    null,
+                    "Thanks for your message.",
+                    null,
+                    null,
+                    null,
+                    null,
+                    cts.Token
+                );
+                Assert.NotNull(result);
+            }
+
+            Assert.Equal(1, delivery.CallCount);
+            Assert.True(delivery.TokenCancelledAfterAccept);
+            using var pollScope = customized.Services.CreateScope();
+            var pollContext = pollScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await pollContext.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleOrDefaultAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.NotNull(reply);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply!.DeliveryState);
+            Assert.StartsWith("SMaborted-", reply.ProviderMessageId);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var snapshot = scope.ServiceProvider
+                .GetRequiredService<ICreditBalanceSnapshot>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var account = await snapshot.GetAccountAsync(restaurantId);
+            var sms = Assert.Single(
+                account!.Channels,
+                row => row.Channel == CreditChannels.Sms
+            );
+            Assert.Equal(0, sms.Held);
+            Assert.Equal(9, sms.Remaining);
+        }
+
+        [Fact]
         public async Task SendGuestResponse_Sms_SameIdempotencyKeyBeforeTtlDoesNotDoubleBurn()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
@@ -857,7 +1727,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.False(secondBody.GetProperty("success").GetBoolean());
             Assert.Equal("duplicate_reply", secondBody.GetProperty("code").GetString());
             Assert.Equal(
-                "This reply was already sent to the guest.",
+                "This reply has already been submitted. Check its delivery status.",
                 secondBody.GetProperty("message").GetString()
             );
 
@@ -1283,6 +2153,84 @@ namespace TummlyBackend.Tests.Integration
             return body;
         }
 
+        private async Task<HttpResponseMessage> PostSmsReplyAsync(
+            HttpClient client,
+            (string Jwt, int LocationId, int FeedbackId) seeded,
+            string body
+        )
+        {
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body,
+                intent = "respond_to_guest",
+            });
+
+            return await client.SendAsync(post);
+        }
+
+        private WebApplicationFactory<Program> CreateFactoryWithSmsDelivery(
+            IRecoveryGuestSmsDelivery delivery,
+            bool settleFails = false,
+            SmsStepFaults? faults = null
+        )
+        {
+            return _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    foreach (
+                        var descriptor in services
+                            .Where(d => d.ServiceType == typeof(IRecoveryGuestSmsDelivery))
+                            .ToList()
+                    )
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    services.AddSingleton<IRecoveryGuestSmsDelivery>(delivery);
+                    if (faults != null)
+                    {
+                        RecoverySmsTestServices.UseFaultySmsStep(services, faults);
+                    }
+                    if (settleFails)
+                    {
+                        ReplaceWithSettleFailingBilling(services);
+                    }
+                });
+            });
+        }
+
+        private static void ReplaceWithSettleFailingBilling(
+            IServiceCollection services
+        )
+        {
+            foreach (
+                var descriptor in services
+                    .Where(d => d.ServiceType == typeof(IRecoverySmsBillingReserve))
+                    .ToList()
+            )
+            {
+                services.Remove(descriptor);
+            }
+
+            services.AddScoped<IRecoverySmsBillingReserve>(sp =>
+                new SettleFailingRecoverySmsBilling(
+                    new LiveRecoverySmsBillingReserve(
+                        sp.GetRequiredService<ApplicationDbContext>(),
+                        sp.GetRequiredService<ICreditLedger>(),
+                        sp.GetRequiredService<ICreditBalanceSnapshot>()
+                    )
+                )
+            );
+        }
+
         private HttpClient CreateClientWithUnavailableRecoveryBilling()
         {
             return _factory.WithWebHostBuilder(builder =>
@@ -1303,6 +2251,48 @@ namespace TummlyBackend.Tests.Integration
                     >();
                 });
             }).CreateClient();
+        }
+
+        private WebApplicationFactory<Program> CreateFactoryWithScriptedSmsDelivery(
+            RecoveryGuestSmsDeliveryResult result
+        )
+        {
+            return _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    var descriptors = services
+                        .Where(d =>
+                            d.ServiceType == typeof(IRecoveryGuestSmsDelivery)
+                        )
+                        .ToList();
+                    foreach (var descriptor in descriptors)
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    services.AddSingleton<IRecoveryGuestSmsDelivery>(
+                        new ScriptedRecoveryGuestSmsDelivery(result)
+                    );
+                });
+            });
+        }
+
+        private sealed class ScriptedRecoveryGuestSmsDelivery
+            : IRecoveryGuestSmsDelivery
+        {
+            private readonly RecoveryGuestSmsDeliveryResult _result;
+
+            public ScriptedRecoveryGuestSmsDelivery(RecoveryGuestSmsDeliveryResult result)
+            {
+                _result = result;
+            }
+
+            public Task<RecoveryGuestSmsDeliveryResult> SendAsync(
+                string phoneNumber,
+                string body,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(_result);
         }
 
         private WebApplicationFactory<Program> CreateFactoryWithFixedAcceptedSmsSegments(

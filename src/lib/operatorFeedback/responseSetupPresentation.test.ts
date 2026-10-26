@@ -102,6 +102,28 @@ describe("responseSetupPresentation", () => {
     ).toBe("Estimated usage: 2 SMS credits")
   })
 
+  it("adds the restaurant prefix to the SMS estimate on the channel card", () => {
+    // 150 characters is one credit. "The Golden Fork: " makes the sent text 167 characters.
+    const messageBody = "x".repeat(150)
+    expect(
+      buildResponseSetupChannelCards({
+        availableChannels: ["sms"],
+        selectedChannel: "sms",
+        maskedDestination: "••••4821",
+        messageBody,
+      })[0]?.availabilityLine
+    ).toBe("Estimated usage: 1 SMS credits")
+    expect(
+      buildResponseSetupChannelCards({
+        availableChannels: ["sms"],
+        selectedChannel: "sms",
+        maskedDestination: "••••4821",
+        messageBody,
+        restaurantName: "The Golden Fork",
+      })[0]?.availabilityLine
+    ).toBe("Estimated usage: 2 SMS credits")
+  })
+
   it("maps Feedback summary Classification, Contact, and Issue tags", () => {
     expect(
       mapResponseSetupSummaryChrome(

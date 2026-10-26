@@ -70,6 +70,15 @@ namespace TummlyBackend.DTOs.Feedback
 
         public string? MaskedDestination { get; init; }
 
+        /// <summary>Guest_response_sent only: the reply row this event shows.</summary>
+        public int? GuestResponseId { get; init; }
+
+        /// <summary>Guest_response_sent only: wire delivery state of the reply.</summary>
+        public string? DeliveryState { get; init; }
+
+        /// <summary>Guest_response_sent only: UTC when <see cref="DeliveryState"/> last changed.</summary>
+        public DateTime? DeliveryStateAt { get; init; }
+
         public string? RecoveryIntent { get; init; }
 
         public string? Category { get; init; }

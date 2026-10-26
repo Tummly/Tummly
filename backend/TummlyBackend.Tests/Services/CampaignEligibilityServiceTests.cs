@@ -317,6 +317,69 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task CampaignEligibility_StoppedGuest_ExcludedFromSms()
+        {
+            var seeded = await SeedLocationAsync();
+            var both = await AddGuestAsync(
+                seeded,
+                "Stopped Both",
+                email: "stopped-both@example.com",
+                mobile: "07700900444",
+                offersOptOut: false
+            );
+            await AddGuestAsync(
+                seeded,
+                "Stopped Mobile Only",
+                email: null,
+                mobile: "07700900555",
+                offersOptOut: false
+            );
+
+            var before = await _eligibility.EvaluateAsync(
+                seeded.LocationId,
+                "all-eligible-guests"
+            );
+            Assert.Equal(2, before.SmsEligible);
+
+            var stopped = await _context.MasterGuests
+                .Where(m => m.Mobile == "07700900444" || m.Mobile == "07700900555")
+                .ToListAsync();
+            Assert.Equal(2, stopped.Count);
+            foreach (var master in stopped)
+            {
+                master.SmsStoppedAtUtc = DateTime.UtcNow;
+            }
+            await _context.SaveChangesAsync();
+
+            var result = await _eligibility.EvaluateAsync(
+                seeded.LocationId,
+                "all-eligible-guests"
+            );
+            Assert.Equal(2, result.Matched);
+            Assert.Equal(1, result.CurrentlyEligible);
+            Assert.Equal(1, result.EmailEligible);
+            Assert.Equal(0, result.SmsEligible);
+            Assert.Contains(
+                result.ExcludedReasons,
+                r => r.Reason == "withdrawn" && r.Count == 1
+            );
+
+            var smsIds = await _eligibility.ListChannelEligibleLocationGuestIdsAsync(
+                seeded.LocationId,
+                "all-eligible-guests",
+                "sms"
+            );
+            Assert.Empty(smsIds);
+
+            var emailIds = await _eligibility.ListChannelEligibleLocationGuestIdsAsync(
+                seeded.LocationId,
+                "all-eligible-guests",
+                "email"
+            );
+            Assert.Equal(both.LocationGuestId, Assert.Single(emailIds));
+        }
+
         public void Dispose()
         {
             _context.Dispose();

@@ -610,6 +610,7 @@ function DashboardContent({ mode }: DashboardProps) {
         ) : null}
         <Outlet
           context={{
+            restaurantName: workspace.snapshot.restaurantName,
             activationPeriodBadge: presentation.activationPeriodBadge,
             billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
             billingStatus: workspace.snapshot.billingStatus,
@@ -662,6 +663,7 @@ export function Dashboard({ mode }: DashboardProps) {
 }
 
 export type DashboardOutletContext = {
+  restaurantName: string
   activationPeriodBadge: ReturnType<
     typeof buildOperatorShellPresentation
   >["activationPeriodBadge"]

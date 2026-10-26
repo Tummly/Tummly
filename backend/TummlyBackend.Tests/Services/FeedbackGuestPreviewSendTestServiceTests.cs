@@ -6,6 +6,7 @@ using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
+using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -329,7 +330,7 @@ namespace TummlyBackend.Tests.Services
 
             public bool ThrowOnSend { get; set; }
 
-            public override Task SendGuestResponseEmailAsync(
+            public override Task<GuestResponseEmailSendResult> SendGuestResponseEmailAsync(
                 string toEmail,
                 string subject,
                 string brandTitle,
@@ -358,7 +359,7 @@ namespace TummlyBackend.Tests.Services
                     throw new InvalidOperationException("Resend failed");
                 }
 
-                return Task.CompletedTask;
+                return Task.FromResult(new GuestResponseEmailSendResult(null, Suppressed: false));
             }
         }
     }

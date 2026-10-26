@@ -163,7 +163,47 @@ public class BulkRecoveryBatchServiceTests : IDisposable
             .SingleAsync(m => m.BatchId == draft.Id && m.FeedbackId == b);
         Assert.Equal(BulkRecoveryBatchMemberStatus.Failed, member.Status);
         Assert.Equal(
-            "This reply was already sent to the guest.",
+            "This reply has already been submitted. Check its delivery status.",
+            member.FailureReason
+        );
+    }
+
+    [Fact]
+    public async Task BulkRecovery_StoppedRow_ReportedPerRow_OthersSend()
+    {
+        var (restaurantId, locationId, userId) = await SeedShellAsync();
+        var a = await SeedSmsFeedbackAsync(locationId, "Ada Lovelace", "+447700900201");
+        var b = await SeedSmsFeedbackAsync(locationId, "Bob Builder", "+447700900202");
+        var c = await SeedSmsFeedbackAsync(locationId, "Cy Young", "+447700900203");
+        _guestResponses.SmsStoppedFeedbackIds.Add(b);
+
+        var draft = await _sut.CreateDraftAsync(
+            restaurantId,
+            locationId,
+            userId,
+            [a, b, c],
+            FeedbackGuestResponseChannel.Sms,
+            FeedbackRecoveryIntent.RespondToGuest,
+            null,
+            $"Hi {BulkRecoveryPersonalise.GuestFirstNameToken}, thanks.",
+            null,
+            null,
+            null
+        );
+        Assert.NotNull(draft);
+
+        var send = await _sut.SendAsync(draft!.Id, userId);
+        Assert.NotNull(send);
+        Assert.Equal(2, send!.Sent);
+        Assert.Equal(1, send.Failed);
+        Assert.Equal("partial", send.Status);
+
+        var member = await _context.BulkRecoveryBatchMembers
+            .AsNoTracking()
+            .SingleAsync(m => m.BatchId == draft.Id && m.FeedbackId == b);
+        Assert.Equal(BulkRecoveryBatchMemberStatus.Failed, member.Status);
+        Assert.Equal(
+            "This message cannot be sent for the selected purpose or recipient. Review the reason.",
             member.FailureReason
         );
     }
@@ -196,6 +236,52 @@ public class BulkRecoveryBatchServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         return (restaurant.Id, location.Id, user.Id);
+    }
+
+    private async Task<int> SeedSmsFeedbackAsync(int locationId, string guestName, string mobile)
+    {
+        var restaurantId = await _context.RestaurantLocations
+            .Where(l => l.Id == locationId)
+            .Select(l => l.RestaurantId)
+            .FirstAsync();
+        var master = new MasterGuest
+        {
+            RestaurantId = restaurantId,
+            Mobile = mobile,
+            NormalizedPhone = new string(mobile.Where(char.IsDigit).ToArray()),
+            CreatedAt = _now,
+        };
+        _context.MasterGuests.Add(master);
+        await _context.SaveChangesAsync();
+
+        var locationGuest = new LocationGuest
+        {
+            MasterGuestId = master.Id,
+            RestaurantLocationId = locationId,
+            Name = guestName,
+            MarketingPreference = LocationGuestMarketingPreference.Allowed,
+            CreatedAt = _now,
+        };
+        _context.LocationGuests.Add(locationGuest);
+        await _context.SaveChangesAsync();
+
+        var feedback = new Feedback
+        {
+            RestaurantLocationId = locationId,
+            QrCodeId = 1,
+            LocationGuestId = locationGuest.Id,
+            GuestName = guestName,
+            GuestContact = mobile,
+            ContactType = ContactType.Phone,
+            Comment = "Needs attention",
+            ClassificationStatus = ClassificationStatus.Succeeded,
+            Sentiment = FeedbackSentiment.Negative,
+            WorkflowStatus = FeedbackWorkflowStatus.New,
+            CreatedAt = _now.AddDays(-1),
+        };
+        _context.Feedbacks.Add(feedback);
+        await _context.SaveChangesAsync();
+        return feedback.Id;
     }
 
     private async Task<int> SeedFeedbackAsync(

@@ -321,7 +321,7 @@ namespace TummlyBackend.Tests.Integration
 
             public bool ThrowOnSend { get; set; }
 
-            public override Task SendGuestResponseEmailAsync(
+            public override Task<GuestResponseEmailSendResult> SendGuestResponseEmailAsync(
                 string toEmail,
                 string subject,
                 string brandTitle,
@@ -342,7 +342,7 @@ namespace TummlyBackend.Tests.Integration
                     throw new InvalidOperationException("Resend failed");
                 }
 
-                return Task.CompletedTask;
+                return Task.FromResult(new GuestResponseEmailSendResult(null, Suppressed: false));
             }
         }
     }

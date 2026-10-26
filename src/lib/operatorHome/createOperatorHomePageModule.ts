@@ -146,6 +146,8 @@ export type OperatorHomePageSnapshot = {
   needsAttentionError: string | null
   viewModel: OperatorHomeViewModel | null
   previewBusy: boolean
+  /** True when the checklist acks GET or POST returned 403 (no error shown). */
+  setupChecklistHidden: boolean
   actionError: string | null
   feedbackDetails: FeedbackDetailsSnapshot
   /** Home Recommended next step — not on OperatorHomeViewModel (ticket 04). */
@@ -851,6 +853,7 @@ export function createOperatorHomePageModule(
     needsAttentionError: state.needsAttentionError,
     viewModel: state.viewModel,
     previewBusy: false,
+    setupChecklistHidden: false,
     actionError: null,
     feedbackDetails: feedbackDetails.getSnapshot(),
     recommendation: idleRecommendation(),
@@ -905,6 +908,7 @@ export function createOperatorHomePageModule(
       needsAttentionError: state.needsAttentionError,
       viewModel: state.viewModel,
       previewBusy: ackSnapshot.acknowledgeBusy,
+      setupChecklistHidden: ackSnapshot.loadStatus === "forbidden",
       actionError: ackSnapshot.acknowledgeError ?? state.actionError,
       feedbackDetails: feedbackDetails.getSnapshot(),
       recommendation,

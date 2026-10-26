@@ -733,6 +733,136 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ApplyTopup_AlreadyMintedByOtherApply_ClosesIntentWithoutPostMintWork()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+            AddOpenTopupIntent(context, account.RestaurantId, "ord_topup_other");
+            context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = account.RestaurantId,
+                    Channel = CreditChannels.Ai,
+                    EntryType = CreditLedgerEntryTypes.TopupAllocation,
+                    Quantity = 500,
+                    SourcePaymentRef = "ord_topup_other",
+                    CreatedAtUtc = _now,
+                    ExpiresAtUtc = _now.AddMonths(12),
+                }
+            );
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(
+                context,
+                mint,
+                clock,
+                creditLedger: new FailingMintLedger()
+            );
+
+            await applier.ApplyAsync(TopupRequest("ord_topup_other"));
+
+            Assert.False(
+                await context.RevolutOrderIntents
+                    .Where(row => row.OrderId == "ord_topup_other")
+                    .Select(row => row.IsOpen)
+                    .SingleAsync()
+            );
+            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+            Assert.Equal(
+                0,
+                await context.RestaurantBillingActivities.CountAsync(row =>
+                    row.Kind == BillingActivityKinds.TopupPurchased
+                )
+            );
+        }
+
+        [Fact]
+        public async Task ApplyTopup_OtherDbUpdateOnMint_Rethrows()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+            AddOpenTopupIntent(context, account.RestaurantId, "ord_topup_fail");
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(
+                context,
+                mint,
+                clock,
+                creditLedger: new FailingMintLedger()
+            );
+
+            await Assert.ThrowsAsync<DbUpdateException>(() =>
+                applier.ApplyAsync(TopupRequest("ord_topup_fail"))
+            );
+
+            Assert.True(
+                await context.RevolutOrderIntents
+                    .Where(row => row.OrderId == "ord_topup_fail")
+                    .Select(row => row.IsOpen)
+                    .SingleAsync()
+            );
+        }
+
+        private static RevolutOrderCompletedApplyRequest TopupRequest(string orderId)
+        {
+            return new RevolutOrderCompletedApplyRequest(
+                OrderId: orderId,
+                OrderState: "completed",
+                BillingReason: null,
+                SubscriptionId: null,
+                RawWebhookBody: "{}",
+                RawOrderBody: "{}"
+            );
+        }
+
+        private static void AddOpenTopupIntent(
+            ApplicationDbContext context,
+            int restaurantId,
+            string orderId
+        )
+        {
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = orderId,
+                    RestaurantId = restaurantId,
+                    Purpose = RevolutOrderIntentPurposes.Topup,
+                    TargetPlan = string.Empty,
+                    TargetCadence = string.Empty,
+                    RevolutSubscriptionId = string.Empty,
+                    CheckoutUrl = "https://checkout.revolut.test/topup",
+                    IdempotencyKey = $"k_{orderId}",
+                    IsOpen = true,
+                    NetAmountMinor = 1500,
+                    VatAmountMinor = 300,
+                    GrossAmountMinor = 1800,
+                    Channel = "ai",
+                    Quantity = 500,
+                    PackLookupKey = "tummly_ai_500_gbp_v3",
+                    CreatedAtUtc = DateTime.UtcNow,
+                }
+            );
+        }
+
+        /// <summary>
+        /// Mint fails with a DbUpdateException that is not a unique violation.
+        /// </summary>
+        private sealed class FailingMintLedger : NoOpCreditLedger
+        {
+            public override Task<CreditLedgerMintTopupResult> MintTopupAllocationAsync(
+                CreditLedgerMintTopupRequest request,
+                CancellationToken cancellationToken = default
+            )
+            {
+                throw new DbUpdateException("Mint failed.", (Exception?)null);
+            }
+        }
+
+        [Fact]
         public async Task Apply_Topup_AbandonedOpenIntent_DoesNotAllocateWithoutApply()
         {
             await using var context = CreateContext();
@@ -2084,7 +2214,8 @@ namespace TummlyBackend.Tests.Services
             IRevolutMerchantClient? merchant = null,
             ITummlyVatInvoiceEmailDelivery? invoiceEmail = null,
             TummlySellerVatSettings? sellerVat = null,
-            IEmailService? emailService = null
+            IEmailService? emailService = null,
+            ICreditLedger? creditLedger = null
         )
         {
             var vat =
@@ -2118,12 +2249,13 @@ namespace TummlyBackend.Tests.Services
                     clock,
                     Options.Create(vat)
                 ),
-                new CreditLedgerService(
-                    context,
-                    clock,
-                    _pricebook,
-                    new AdminAuditService(context, clock)
-                ),
+                creditLedger
+                    ?? new CreditLedgerService(
+                        context,
+                        clock,
+                        _pricebook,
+                        new AdminAuditService(context, clock)
+                    ),
                 merchant ?? new RecordingLandMerchant(),
                 clock,
                 Options.Create(vat),

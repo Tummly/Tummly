@@ -15,18 +15,21 @@ namespace TummlyBackend.Services
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
         private readonly IOfferIssueService _offerIssues;
         private readonly IGuestReplyLock _replyLock;
+        private readonly IGuestReplySmsSendStep _smsSend;
 
         public FeedbackRecoveryOffersService(
             ApplicationDbContext context,
             IGuestResponseEmailDeliveryWork emailDelivery,
             IOfferIssueService offerIssues,
-            IGuestReplyLock replyLock
+            IGuestReplyLock replyLock,
+            IGuestReplySmsSendStep smsSend
         )
         {
             _context = context;
             _emailDelivery = emailDelivery;
             _offerIssues = offerIssues;
             _replyLock = replyLock;
+            _smsSend = smsSend;
         }
 
         public async Task<SendAndIssueFeedbackRecoveryOfferResultDto?> SendAndIssueAsync(
@@ -154,11 +157,24 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            var isSms = channel == FeedbackGuestResponseChannel.Sms;
+            if (isSms)
+            {
+                _smsSend.EnsureBillingLive();
+                await _smsSend.EnsureOperatorBillingAllowsSendAsync(
+                    feedback.RestaurantLocationId,
+                    cancellationToken
+                );
+            }
+
             OfferIssue? issue = null;
             FeedbackGuestResponse? guestResponse = null;
+            GuestReplySmsReservation? reservation = null;
 
             // Stage Offer issue + guest-response, then one SaveChanges so both
-            // facts commit together (ADR 0026 / ticket 05 atomic Send).
+            // facts commit together (ADR 0026 / ticket 05 atomic Send). SMS
+            // reserves credits for the final text (claim code included) before
+            // that save, and the send happens only after it.
             for (var attempt = 1; ; attempt++)
             {
                 DetachIfTracked(issue);
@@ -179,9 +195,23 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                var bodyForChannel = channel == FeedbackGuestResponseChannel.Sms
+                var bodyForChannel = isSms
                     ? AppendClaimCodeText(content.Body, issue.ClaimCode)
                     : content.Body;
+
+                if (isSms)
+                {
+                    // The reserve saves the shared context. Keep the staged Offer
+                    // out of that save so a refused reserve leaves no issue behind.
+                    DetachIfTracked(issue);
+                    reservation = await _smsSend.ReserveAsync(
+                        feedback,
+                        string.Empty,
+                        bodyForChannel,
+                        cancellationToken
+                    );
+                    _context.OfferIssues.Add(issue);
+                }
 
                 guestResponse = FeedbackGuestResponseComposer.Build(
                     feedback,
@@ -200,9 +230,10 @@ namespace TummlyBackend.Services
                 );
 
                 guestResponse.EmailDeliveryStatus =
-                    channel == FeedbackGuestResponseChannel.Email
-                        ? GuestResponseEmailDeliveryStatus.Pending
-                        : GuestResponseEmailDeliveryStatus.NotApplicable;
+                    isSms
+                        ? GuestResponseEmailDeliveryStatus.NotApplicable
+                        : GuestResponseEmailDeliveryStatus.Pending;
+                guestResponse.DeliveryState = GuestReplyDeliveryState.Pending;
 
                 _context.FeedbackGuestResponses.Add(guestResponse);
 
@@ -213,11 +244,30 @@ namespace TummlyBackend.Services
                 }
                 catch (DbUpdateException)
                 {
+                    DetachIfTracked(issue);
+                    DetachIfTracked(guestResponse);
+                    if (reservation != null)
+                    {
+                        await _smsSend.ReleaseFailedAsync(reservation, cancellationToken);
+                        reservation = null;
+                    }
+
                     if (attempt >= OfferIssueService.MaxCodeAttempts)
                     {
                         throw new OfferIssueCodeAllocationException();
                     }
                 }
+            }
+
+            if (isSms)
+            {
+                await SendSmsAndSettleAsync(
+                    feedback,
+                    issue!,
+                    guestResponse!,
+                    reservation!,
+                    cancellationToken
+                );
             }
 
             if (
@@ -325,6 +375,54 @@ namespace TummlyBackend.Services
                 .ToList();
         }
 
+        /// <summary>
+        /// Sends the saved Offer SMS. A refused send cancels the Offer so a retry is
+        /// allowed. An unknown outcome keeps the Offer, because the guest may hold the
+        /// claim code. Both record the reply and throw. An accepted send is saved.
+        /// </summary>
+        private async Task SendSmsAndSettleAsync(
+            Feedback feedback,
+            OfferIssue issue,
+            FeedbackGuestResponse guestResponse,
+            GuestReplySmsReservation reservation,
+            CancellationToken cancellationToken
+        )
+        {
+            var outcome = await _smsSend.SendAndSettleAsync(
+                reservation,
+                feedback,
+                cancellationToken
+            );
+            var now = DateTime.UtcNow;
+
+            switch (outcome.Kind)
+            {
+                case GuestReplySmsOutcomeKind.Failed:
+                    // Cancel the Claim and move the reply to Failed in one save that
+                    // ignores the request token. If the save fails it is logged and
+                    // the failed result is still returned.
+                    issue.CancelledAtUtc = now;
+                    await _smsSend.SaveFailedReplyAsync(guestResponse, now);
+
+                    throw new GuestReplySmsSendFailedException();
+
+                case GuestReplySmsOutcomeKind.Unknown:
+                    // Keep the Claim open. The save ignores cancellation so the
+                    // record is kept.
+                    _smsSend.ApplyUnknownOutcome(guestResponse, reservation, now);
+                    await _smsSend.SaveRecordedUnknownReplyAsync(reservation);
+
+                    throw new GuestReplySmsSendFailedException();
+            }
+
+            _smsSend.ApplyAccepted(guestResponse, reservation, outcome.Accepted!, now);
+            await _smsSend.SaveAcceptedReplyAsync(
+                reservation,
+                outcome.Settled,
+                guestResponse
+            );
+        }
+
         private void DetachIfTracked(object? entity)
         {
             if (entity == null)
@@ -367,6 +465,8 @@ namespace TummlyBackend.Services
                 Body = row.Body,
                 AuthorDisplayName = row.AuthorDisplayName,
                 CreatedAt = row.CreatedAt,
+                DeliveryState = GuestReplyDeliveryStateMachine.ToDto(row.DeliveryState),
+                DeliveryStateAt = row.DeliveryStateAtUtc,
             };
         }
 

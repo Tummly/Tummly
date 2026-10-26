@@ -603,7 +603,8 @@ builder.Services.AddScoped<ICampaignOutboundSender>(sp =>
     new CampaignOutboundChannelSender(
         sp.GetRequiredService<CampaignOutboundEmailSender>(),
         sp.GetRequiredService<IRecoveryGuestSmsDelivery>(),
-        sp.GetRequiredService<DemoSideEffectGuard>()
+        sp.GetRequiredService<DemoSideEffectGuard>(),
+        sp.GetRequiredService<ILogger<CampaignOutboundChannelSender>>()
     )
 );
 builder.Services.AddScoped<
@@ -641,6 +642,7 @@ builder.Services.AddScoped<
     GuestInitiatedMarketingWithdrawService
 >();
 builder.Services.AddScoped<TwilioSmsInboundService>();
+builder.Services.AddScoped<TwilioSmsStatusService>();
 builder.Services.AddScoped<
     IGuestFormPermissionApplyService,
     GuestFormPermissionApplyService
@@ -734,6 +736,7 @@ builder.Services.AddScoped<
     IRecoverySmsBillingReserve,
     LiveRecoverySmsBillingReserve
 >();
+builder.Services.AddScoped<IGuestReplySmsSendStep, GuestReplySmsSendStep>();
 if (builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddScoped<

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Helpers;
@@ -32,7 +33,8 @@ namespace TummlyBackend.Tests.Services
             var sender = new CampaignOutboundChannelSender(
                 email: new RejectingEmailOutbound(),
                 smsDelivery: sms,
-                demoSideEffects: NoSuppressGuard()
+                demoSideEffects: NoSuppressGuard(),
+                logger: NullLogger<CampaignOutboundChannelSender>.Instance
             );
 
             var result = await sender.SendAsync(
@@ -55,6 +57,81 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendAsync_Sms_Accepted_CarriesTwilioSidAsProviderMessageId()
+        {
+            var sms = new RecordingSmsDelivery
+            {
+                Next = new RecoveryGuestSmsDeliveryResult.Accepted
+                {
+                    AcceptedSegments = 1,
+                    ProviderMessageId = "SMcampaign00000000000000000000001",
+                    StatusCallbackSet = true,
+                },
+            };
+            var sender = new CampaignOutboundChannelSender(
+                email: new RejectingEmailOutbound(),
+                smsDelivery: sms,
+                demoSideEffects: NoSuppressGuard(),
+                logger: NullLogger<CampaignOutboundChannelSender>.Instance
+            );
+
+            var result = await sender.SendAsync(
+                new CampaignOutboundSendRequest
+                {
+                    CampaignId = 1,
+                    LocationGuestId = 2,
+                    Channel = "sms",
+                    ToAddress = "+447700900123",
+                    Subject = null,
+                    Body = "Thanks for visiting.",
+                }
+            );
+
+            var accepted = Assert.IsType<CampaignOutboundSendResult.Accepted>(result);
+            Assert.Equal(
+                "SMcampaign00000000000000000000001",
+                accepted.ProviderMessageId
+            );
+        }
+
+        [Fact]
+        public async Task SendAsync_Sms_DemoSuppressed_HasNoProviderId()
+        {
+            var sms = new RecordingSmsDelivery();
+            var sender = new CampaignOutboundChannelSender(
+                email: new RejectingEmailOutbound(),
+                smsDelivery: sms,
+                demoSideEffects: new DemoSideEffectGuard(
+                    Options.Create(
+                        new DemoSessionOptions
+                        {
+                            Enabled = true,
+                            SuppressSideEffects = true,
+                        }
+                    )
+                )
+                ,
+                logger: NullLogger<CampaignOutboundChannelSender>.Instance
+            );
+
+            var result = await sender.SendAsync(
+                new CampaignOutboundSendRequest
+                {
+                    CampaignId = 1,
+                    LocationGuestId = 2,
+                    Channel = "sms",
+                    ToAddress = "07700900400",
+                    Subject = null,
+                    Body = "Thanks for visiting.",
+                }
+            );
+
+            var accepted = Assert.IsType<CampaignOutboundSendResult.Accepted>(result);
+            Assert.Null(accepted.ProviderMessageId);
+            Assert.Empty(sms.Calls);
+        }
+
+        [Fact]
         public async Task SendAsync_Sms_FailedDelivery_ReturnsRejected()
         {
             var sms = new RecordingSmsDelivery
@@ -67,7 +144,8 @@ namespace TummlyBackend.Tests.Services
             var sender = new CampaignOutboundChannelSender(
                 email: new RejectingEmailOutbound(),
                 smsDelivery: sms,
-                demoSideEffects: NoSuppressGuard()
+                demoSideEffects: NoSuppressGuard(),
+                logger: NullLogger<CampaignOutboundChannelSender>.Instance
             );
 
             var result = await sender.SendAsync(
@@ -97,7 +175,8 @@ namespace TummlyBackend.Tests.Services
             var sender = new CampaignOutboundChannelSender(
                 email: email,
                 smsDelivery: sms,
-                demoSideEffects: NoSuppressGuard()
+                demoSideEffects: NoSuppressGuard(),
+                logger: NullLogger<CampaignOutboundChannelSender>.Instance
             );
 
             var result = await sender.SendAsync(

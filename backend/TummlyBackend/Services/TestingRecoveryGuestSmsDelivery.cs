@@ -18,6 +18,8 @@ namespace TummlyBackend.Services
                 new RecoveryGuestSmsDeliveryResult.Accepted
                 {
                     AcceptedSegments = CampaignSmsSegmentCalculator.CountSegments(body),
+                    ProviderMessageId = "SM-test-" + Guid.NewGuid().ToString("N"),
+                    StatusCallbackSet = true,
                 }
             );
         }
