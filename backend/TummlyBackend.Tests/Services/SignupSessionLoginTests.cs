@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -29,7 +31,7 @@ namespace TummlyBackend.Tests.Services
                 _db,
                 new EmailServiceStubBase(),
                 new NoOpProvisioningService(),
-                new CustomPlanQuoteService(_db),
+                new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())),
                 new StubJwtService()
             );
         }

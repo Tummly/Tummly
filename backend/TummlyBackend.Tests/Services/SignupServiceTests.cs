@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Signup;
@@ -26,7 +28,7 @@ namespace TummlyBackend.Tests.Services
                 _db,
                 _emailService,
                 new NoOpProvisioningService(),
-                new CustomPlanQuoteService(_db),
+                new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())),
                 new StubJwtService()
             );
         }

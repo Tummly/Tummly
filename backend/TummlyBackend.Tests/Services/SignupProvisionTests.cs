@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -101,7 +103,7 @@ namespace TummlyBackend.Tests.Services
                 _db,
                 new TrackingEmailService(),
                 _provisioning,
-                new CustomPlanQuoteService(_db),
+                new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())),
                 new StubJwtService()
             );
         }
@@ -618,7 +620,7 @@ namespace TummlyBackend.Tests.Services
             };
 
         private async Task<CustomPlanQuoteResult> QuoteGroupAsync(int locations) =>
-            await new CustomPlanQuoteService(_db).QuoteAsync(
+            await new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())).QuoteAsync(
                 new CustomPlanQuoteRequest
                 {
                     Cadence = "monthly",

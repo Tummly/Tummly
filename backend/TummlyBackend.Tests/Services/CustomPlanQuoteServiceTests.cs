@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
@@ -32,7 +34,7 @@ namespace TummlyBackend.Tests.Services
             );
             _db.SaveChanges();
 
-            _sut = new CustomPlanQuoteService(_db);
+            _sut = new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings()));
         }
 
         [Fact]
@@ -473,6 +475,35 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("catalog_incomplete", ex.Code);
         }
 
+        [Theory]
+        [InlineData(false, 0)]
+        [InlineData(true, 2000)]
+        public async Task Quote_VatRateBps_FollowsSellerVatSetting(
+            bool sellerVatActive,
+            int expectedBps
+        )
+        {
+            // The catalogue row holds 2000 in both cases; the seller setting decides.
+            Assert.Equal(2000, _db.CommercialCatalogVersions.Single().VatRateBps);
+            var sut = new CustomPlanQuoteService(
+                _db,
+                Options.Create(
+                    new TummlySellerVatSettings { IsActive = sellerVatActive }
+                )
+            );
+
+            var result = await sut.QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = "monthly",
+                    BasePlan = "group",
+                    Locations = 31,
+                }
+            );
+
+            Assert.Equal(expectedBps, result.VatRateBps);
+        }
+
         [Fact]
         public async Task Quote_HashStable_AndChangesWithPrice()
         {
@@ -487,10 +518,6 @@ namespace TummlyBackend.Tests.Services
             var second = await _sut.QuoteAsync(request);
             Assert.Matches("^[0-9a-f]{32}$", first.QuoteHash);
             Assert.Equal(first.QuoteHash, second.QuoteHash);
-            Assert.Equal(
-                _db.CommercialCatalogVersions.Single().VatRateBps,
-                first.VatRateBps
-            );
 
             var band2 = _db.CommercialCustomUnitRateRows.Single(r =>
                 r.RateKey == CommercialCustomUnitRateKeys.ExtraLocationBand2

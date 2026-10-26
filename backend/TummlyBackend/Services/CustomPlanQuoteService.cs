@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.CustomPlan;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Interfaces;
@@ -12,10 +14,15 @@ namespace TummlyBackend.Services
         private static readonly string[] PaidPlanKeys = ["starter", "growth", "group"];
 
         private readonly ApplicationDbContext _context;
+        private readonly TummlySellerVatSettings _sellerVat;
 
-        public CustomPlanQuoteService(ApplicationDbContext context)
+        public CustomPlanQuoteService(
+            ApplicationDbContext context,
+            IOptions<TummlySellerVatSettings> sellerVat
+        )
         {
             _context = context;
+            _sellerVat = sellerVat.Value;
         }
 
         public async Task<CustomPlanQuoteResult> QuoteAsync(
@@ -268,7 +275,8 @@ namespace TummlyBackend.Services
                 BasePlanChanged = basePlanChanged,
                 RequestedBasePlan = requested,
                 StoredAsPlan = storedAsPlan,
-                VatRateBps = version.VatRateBps,
+                // Checkout charges the seller VAT setting, not the catalogue row.
+                VatRateBps = _sellerVat.EffectiveVatRateBps,
             };
             quote.QuoteHash = CustomPlanQuoteHash.Compute(quote);
             return quote;
