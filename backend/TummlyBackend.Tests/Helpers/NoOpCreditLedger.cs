@@ -1,4 +1,4 @@
-using TummlyBackend.Interfaces;
+﻿using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Tests.Helpers
 {
@@ -56,7 +56,7 @@ namespace TummlyBackend.Tests.Helpers
             return Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
         }
 
-        public Task<CreditLedgerMintTopupResult> MintTopupAllocationAsync(
+        public virtual Task<CreditLedgerMintTopupResult> MintTopupAllocationAsync(
             CreditLedgerMintTopupRequest request,
             CancellationToken cancellationToken = default
         )
