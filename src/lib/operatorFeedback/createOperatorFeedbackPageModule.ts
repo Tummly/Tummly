@@ -201,6 +201,7 @@ export type OperatorFeedbackPageModule = {
     mode: OperatorDashboardMode
     locationId: number
     accessLevel?: BillingCreditsAccessLevel
+    restaurantName?: string | null
   }) => void
   retryLoad: () => Promise<void>
   reloadForFeedbackPageDateRange: () => Promise<void>
@@ -592,12 +593,14 @@ export function createOperatorFeedbackPageModule(
       mode: OperatorDashboardMode
       locationId: number
       accessLevel: BillingCreditsAccessLevel
+      restaurantName: string | null
     }
   } = {
     current: {
       mode: "multi",
       locationId: 0,
       accessLevel: "manage",
+      restaurantName: null,
     },
   }
 
@@ -1359,6 +1362,7 @@ export function createOperatorFeedbackPageModule(
         mode: input.mode,
         locationId: input.locationId,
         accessLevel: input.accessLevel ?? "manage",
+        restaurantName: input.restaurantName ?? null,
       }
     },
     async retryLoad() {

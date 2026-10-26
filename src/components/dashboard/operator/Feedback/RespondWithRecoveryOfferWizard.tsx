@@ -436,6 +436,7 @@ export function RespondWithRecoveryOfferWizard({
                 channel={snapshot.channel}
                 maskedDestination={snapshot.maskedDestination}
                 messageBody={snapshot.message}
+                restaurantName={snapshot.restaurantName}
                 onChannelChange={onChannelChange}
                 lockedPurposeLabel={snapshot.purposeLabel}
                 purpose={null}

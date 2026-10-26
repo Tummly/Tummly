@@ -12,8 +12,13 @@ import { parseRecoveryDraftActionRouterState } from "@/lib/operatorFeedback/reco
 import { toast } from "sonner"
 
 export function FeedbackRoute() {
-  const { selectedLocationId, locations, mode, billingCreditsAccess } =
-    useOutletContext<DashboardOutletContext>()
+  const {
+    selectedLocationId,
+    locations,
+    mode,
+    billingCreditsAccess,
+    restaurantName,
+  } = useOutletContext<DashboardOutletContext>()
   const feedbackPageModule = useFeedbackPageModuleApi()
   const syncFeedbackRef = useRef(feedbackPageModule.syncWorkspace)
   const location = useLocation()
@@ -34,6 +39,7 @@ export function FeedbackRoute() {
       mode,
       locationId: selectedLocationId,
       accessLevel: billingCreditsAccess,
+      restaurantName,
     })
 
     void syncFeedbackRef.current({
@@ -48,6 +54,7 @@ export function FeedbackRoute() {
     locations,
     mode,
     billingCreditsAccess,
+    restaurantName,
     feedbackPageModule,
   ])
 

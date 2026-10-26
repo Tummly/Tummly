@@ -41,6 +41,8 @@ export type RecoveryCreditChromeContext = {
   permissionRole: string
   mode: OperatorDashboardMode
   locationId: number
+  /** Restaurant display name for the SMS prefix. Null when the session has none. */
+  restaurantName?: string | null
 }
 
 export type RecoveryChannelCreditCta = {
@@ -315,6 +317,7 @@ export function isRecoverySendBlocked(input: {
   return resolveRecoverySmsShortfall({
     channel: input.channel,
     messageBody: input.messageBody,
+    restaurantName: input.context?.restaurantName ?? null,
     smsRemaining: input.context?.smsRemaining ?? null,
     context: input.context,
   }).blocked

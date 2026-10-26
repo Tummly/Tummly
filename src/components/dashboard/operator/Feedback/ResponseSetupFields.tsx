@@ -43,6 +43,8 @@ type ResponseSetupFieldsProps = {
   disabled?: boolean
   /** Current guest-response body — SMS estimate after body (lock 09). */
   messageBody?: string
+  /** Restaurant display name — the SMS estimate counts the `{name}: ` prefix. */
+  restaurantName?: string | null
 }
 
 /** Shared Response setup form chrome for guest-messaging recovery intents. */
@@ -61,12 +63,14 @@ export function ResponseSetupFields({
   onIncludeNotesChange,
   disabled = false,
   messageBody = "",
+  restaurantName = null,
 }: ResponseSetupFieldsProps) {
   const channelCards = buildResponseSetupChannelCards({
     availableChannels,
     selectedChannel: channel,
     maskedDestination,
     messageBody,
+    restaurantName,
   })
   const includeNotesId = `${idPrefix}-include-notes`
 

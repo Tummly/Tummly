@@ -399,6 +399,7 @@ export function RespondAndRecordInternalActionWizard({
                 channel={snapshot.channel}
                 maskedDestination={snapshot.maskedDestination}
                 messageBody={snapshot.message}
+                restaurantName={snapshot.restaurantName}
                 onChannelChange={onChannelChange}
                 purpose={snapshot.purpose}
                 onPurposeChange={onPurposeChange}
