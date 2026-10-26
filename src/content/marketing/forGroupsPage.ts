@@ -349,7 +349,7 @@ export const FOR_GROUPS_FAQS = {
       id: "locations-included",
       question: "How many Locations are included in Group?",
       answer:
-        "Group includes up to 5 Locations. Additional Locations can be added at the current per-Location rate, with self-service Group setup supported up to 30 Locations.",
+        "Group includes up to 5 Locations. Additional Locations can be added at the current per-Location rate, with self-service setup for up to 500 Locations online.",
     },
     {
       id: "add-locations",
@@ -397,7 +397,7 @@ export const FOR_GROUPS_FAQS = {
       id: "over-30-locations",
       question: "Can I set up more than 30 Locations online?",
       answer:
-        "The current self-service Group limit is 30 Locations. For more than 30, use the assisted rollout route so Tummly can assess the required operating model and current product fit.",
+        "Yes. Configure up to 500 Locations online, review the new price and complete verification and activation for each restaurant.",
     },
   ] satisfies ForGroupsFaqItem[],
 } as const

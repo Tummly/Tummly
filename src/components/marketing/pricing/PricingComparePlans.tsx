@@ -1,10 +1,7 @@
 import { useRef, type UIEvent } from "react"
 
 import { MarketingButton } from "@/components/marketing/MarketingButton"
-import {
-  PublicPlanPriceFallback,
-  PublicPlanPricesStatusMessage,
-} from "@/components/marketing/PublicPlanPricesStatus"
+import { PublicPlanPriceFallback } from "@/components/marketing/PublicPlanPricesStatus"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import {
   PRICING_COMPARE_HEADING,
@@ -116,7 +113,8 @@ type PricingComparePlansProps = {
  * the marketing nav; horizontal scroll stays in sync.
  */
 export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
-  const { status, prices, retry } = usePublicPlanPrices()
+  // The hero shows the loading or failed copy once; this table only needs the prices.
+  const { status, prices } = usePublicPlanPrices()
   const headerScrollRef = useRef<HTMLDivElement>(null)
   const bodyScrollRef = useRef<HTMLDivElement>(null)
   const syncLockRef = useRef(false)
@@ -154,8 +152,6 @@ export function PricingComparePlans({ cadence }: PricingComparePlansProps) {
         <h2 className={cn("m-0", PRICING_SECTION_HEADING)}>
           {PRICING_COMPARE_HEADING}
         </h2>
-
-        <PublicPlanPricesStatusMessage status={status} onRetry={retry} />
 
         <div className="rounded-[6px]">
           {/* Plan header strip — sticky under marketing nav (`5437:13879`). */}

@@ -2,6 +2,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
+import { FOR_GROUPS_FAQS, FOR_GROUPS_PRICING } from "@/content/marketing/forGroupsPage"
+
 const SRC_ROOT = resolve(__dirname, "../..")
 
 function listSourceFiles(dir: string): string[] {
@@ -87,6 +89,16 @@ describe("no browser price maths in src", () => {
       expect(
         marketingSources.filter((file) => /\bVAT\b/.test(file.text)).map((file) => file.path),
       ).toEqual([])
+    })
+
+    it("has no 30-Location self-service cap in For Groups FAQ answers or calculator copy", () => {
+      // A question may still name 30 Locations ("Can I set up more than 30 ...?"); answers may not.
+      const copy = [
+        ...FOR_GROUPS_FAQS.items.map((item) => item.answer),
+        ...Object.values(FOR_GROUPS_PRICING.calculator),
+        FOR_GROUPS_PRICING.body,
+      ].filter((value): value is string => typeof value === "string")
+      expect(copy.filter((value) => /30 Locations?\b/.test(value))).toEqual([])
     })
 
     it("has no self-serve limit or 30-Location copy", () => {

@@ -107,6 +107,8 @@ export function ForGroupsPricing() {
     packs: {},
   })
   const shown = lastQuote(state)
+  // A quote for the other cadence must not show with this cadence's suffix.
+  const shownMatchesCadence = shown != null && shown.cadence === cadence
   const view = quoteView({ check, state, changed: false })
   const groupPrice = prices.Group
   const totalSuffix = cadence === "annual" ? "/ per year" : "/ per month"
@@ -345,7 +347,7 @@ export function ForGroupsPricing() {
                   <p className="m-0 font-sans text-[22px] font-normal leading-none text-black">
                     {calculator.estimatedTotalLabel}
                   </p>
-                  {shown != null ? (
+                  {shown != null && shownMatchesCadence ? (
                     <p className="m-0 text-[#141414]">
                       <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>
                         {formatPenceGbp(shown.periodNetPence)}
@@ -354,7 +356,7 @@ export function ForGroupsPricing() {
                         {totalSuffix}
                       </span>
                     </p>
-                  ) : (
+                  ) : state.status === "failed" ? null : (
                     <Skeleton className="h-9 w-28" aria-hidden />
                   )}
                 </div>
