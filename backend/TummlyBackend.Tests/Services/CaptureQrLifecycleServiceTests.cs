@@ -925,6 +925,136 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(CaptureLocationStatus.Paused, location.CaptureLocationStatus);
         }
 
+        [Fact]
+        public async Task Resume_FreePlan_DeniedPlanRequired()
+        {
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Free, BillingStatuses.Free);
+            var service = FreeCapService(cap: 5);
+            var qr = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Paused);
+
+            var result = await service.ResumeAsync(CodeCommand(qr.Id));
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorPlanGate.PlanRequiredCode, result.Code);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(qr.Id)).Status);
+        }
+
+        [Fact]
+        public async Task ActivateLocationCapture_FreePlan_DeniedPlanRequired()
+        {
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Free, BillingStatuses.Free);
+            var service = FreeCapService(cap: 5);
+            await SetLocationStatusAsync(CaptureLocationStatus.Paused);
+
+            var result = await service.ActivateLocationCaptureAsync(LocationCommand());
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorPlanGate.PlanRequiredCode, result.Code);
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .FirstAsync(l => l.Id == _locationId);
+            Assert.Equal(CaptureLocationStatus.Paused, location.CaptureLocationStatus);
+        }
+
+        [Fact]
+        public async Task Pause_FreePlan_StillAllowed()
+        {
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Free, BillingStatuses.Free);
+            var qr = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Active);
+
+            var result = await _service.PauseAsync(CodeCommand(qr.Id));
+
+            Assert.Equal(QrLifecycleResultKind.Ok, result.Kind);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(qr.Id)).Status);
+        }
+
+        private async Task SetBillingPlanAsync(string plan, string billingStatus)
+        {
+            var account = await _context.BillingAccounts.FirstAsync(
+                row => row.RestaurantId == _restaurantId
+            );
+            account.SubscriptionPlan = plan;
+            account.BillingStatus = billingStatus;
+            await _context.SaveChangesAsync();
+        }
+
+        private CaptureQrLifecycleService FreeCapService(int cap)
+        {
+            return new CaptureQrLifecycleService(
+                _context,
+                _smartGuestLink,
+                new FreeCapPricebookCatalog(
+                    PricebookCatalog.LoadFromDirectory(PackDirectory()),
+                    cap
+                ),
+                _printMaterials
+            );
+        }
+
+        /// <summary>Test pricebook that overrides the Free plan's active QR cap.</summary>
+        private sealed class FreeCapPricebookCatalog : IPricebookCatalog
+        {
+            private readonly IPricebookCatalog _inner;
+            private readonly int _freeCap;
+
+            public FreeCapPricebookCatalog(IPricebookCatalog inner, int freeCap)
+            {
+                _inner = inner;
+                _freeCap = freeCap;
+            }
+
+            public string CurrentPricebookId => _inner.CurrentPricebookId;
+
+            public PricebookSnapshot GetRequired(string pricebookId)
+            {
+                var book = _inner.GetRequired(pricebookId);
+                var plans = book.Plans.ToDictionary(
+                    pair => pair.Key,
+                    pair => string.Equals(pair.Key, "free", StringComparison.OrdinalIgnoreCase)
+                        ? WithCap(pair.Value, _freeCap)
+                        : pair.Value
+                );
+                return new PricebookSnapshot
+                {
+                    Id = book.Id,
+                    Plans = plans,
+                    TopUpPacks = book.TopUpPacks,
+                    VatRateBps = book.VatRateBps,
+                    ExtraGroupLocationMonthlyNetPence = book.ExtraGroupLocationMonthlyNetPence,
+                    ExtraGroupLocationAnnualNetPence = book.ExtraGroupLocationAnnualNetPence,
+                    ExtraLocationCreditsMonthly = book.ExtraLocationCreditsMonthly,
+                    InternalCostAssumptions = book.InternalCostAssumptions,
+                    PaymentProvider = book.PaymentProvider,
+                };
+            }
+
+            public TummlyBackend.DTOs.BillingCredits.BillingCurrentCatalogDto BuildCurrentCatalog(bool sms5000Available) =>
+                _inner.BuildCurrentCatalog(sms5000Available);
+
+            public string FormatPlanPriceNet(PricebookPlan plan, string? billingCycle) =>
+                _inner.FormatPlanPriceNet(plan, billingCycle);
+
+            public string FormatIncludedCreditsLabel(PricebookPlan plan, string channel) =>
+                _inner.FormatIncludedCreditsLabel(plan, channel);
+
+            private static PricebookPlan WithCap(PricebookPlan plan, int cap) =>
+                new()
+                {
+                    Key = plan.Key,
+                    DisplayName = plan.DisplayName,
+                    MonthlyNetPence = plan.MonthlyNetPence,
+                    AnnualNetPence = plan.AnnualNetPence,
+                    IncludedLocations = plan.IncludedLocations,
+                    IncludedTeamMembers = plan.IncludedTeamMembers,
+                    ActiveOffersAccount = plan.ActiveOffersAccount,
+                    CreditsOneTime = plan.CreditsOneTime,
+                    CreditsMonthly = plan.CreditsMonthly,
+                    ActiveQrPlacementsPerLocation = cap,
+                    PublishedGuestFormsPerLocation = plan.PublishedGuestFormsPerLocation,
+                    DraftGuestFormsPerLocation = plan.DraftGuestFormsPerLocation,
+                };
+        }
+
         private async Task SetBillingStatusAsync(string billingStatus)
         {
             var account = await _context.BillingAccounts.FirstAsync(

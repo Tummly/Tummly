@@ -560,6 +560,12 @@ namespace TummlyBackend.Services
             var location = await _context.RestaurantLocations
                 .FirstAsync(l => l.Id == command.LocationId);
 
+            var planDeny = await DenyIfFreePlanAsync(location.RestaurantId);
+            if (planDeny != null)
+            {
+                return planDeny;
+            }
+
             if (location.CaptureLocationStatus != CaptureLocationStatus.Paused)
             {
                 return QrLifecycleResult.InvalidTransition(
@@ -653,6 +659,15 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (nextStatus == QrCodeStatus.Active)
+            {
+                var planDeny = await DenyIfFreePlanAsync(location.RestaurantId);
+                if (planDeny != null)
+                {
+                    return planDeny;
+                }
+            }
+
             IDbContextTransaction? transaction = null;
             if (nextStatus == QrCodeStatus.Active)
             {
@@ -687,6 +702,20 @@ namespace TummlyBackend.Services
                     status = qrCode.Status.ToString(),
                 });
             }
+        }
+
+        private async Task<QrLifecycleResult?> DenyIfFreePlanAsync(int restaurantId)
+        {
+            var account = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
+            if (account == null)
+            {
+                return null;
+            }
+
+            var deny = OperatorPlanGate.EvaluatePlanDeny(account);
+            return deny == null ? null : QrLifecycleResult.OperatorBillingLocked(deny);
         }
 
         private async Task<QrLifecycleResult?> DenyIfPaidWriteLockedAsync(
