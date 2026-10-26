@@ -5,6 +5,7 @@ import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import {
   checkLocationInput,
   formatPenceGbp,
+  quoteHashChanged,
   quoteReducer,
   quoteView,
   type QuoteState,
@@ -219,7 +220,7 @@ describe("quoteView", () => {
 
   it("exposes the doc 08 copy in one object", () => {
     expect(CUSTOM_PLAN_QUOTE_COPY.contactUsHref).toBe(
-      "/help-center/contact?topic=multi-location",
+      "/help-center/contact?topic=multi-location-setup",
     )
     expect(CUSTOM_PLAN_QUOTE_COPY.contactUs).toBe("Contact us")
     expect(CUSTOM_PLAN_QUOTE_COPY.retry).toBe("Try again")
@@ -231,5 +232,20 @@ describe("formatPenceGbp", () => {
     expect(formatPenceGbp(101_000)).toBe("£1,010")
     expect(formatPenceGbp(3900)).toBe("£39")
     expect(formatPenceGbp(1250)).toBe("£12.50")
+  })
+})
+
+describe("quoteHashChanged", () => {
+  it("is true when a non-empty saved hash differs from the ready hash", () => {
+    expect(quoteHashChanged("a".repeat(32), "b".repeat(32))).toBe(true)
+  })
+
+  it("is false when the hashes match", () => {
+    expect(quoteHashChanged("a".repeat(32), "a".repeat(32))).toBe(false)
+  })
+
+  it("is false when no hash was saved", () => {
+    expect(quoteHashChanged(undefined, "b".repeat(32))).toBe(false)
+    expect(quoteHashChanged("", "b".repeat(32))).toBe(false)
   })
 })

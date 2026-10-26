@@ -168,3 +168,14 @@ export function formatPenceGbp(pence: number): string {
     maximumFractionDigits: whole ? 0 : 2,
   })}`
 }
+
+/**
+ * True when the saved config carried a quote hash and the first ready quote
+ * has another one: the price moved since the user last saw it.
+ */
+export function quoteHashChanged(
+  savedHash: string | undefined,
+  readyHash: string,
+): boolean {
+  return savedHash != null && savedHash !== "" && savedHash !== readyHash
+}

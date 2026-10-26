@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { fetchPublicCustomUnitRates } from "@/api/adminCommercialCatalogApi"
 import { GuestLoopShellFooter } from "@/components/guest-loop/GuestLoopShell"
@@ -18,6 +18,7 @@ import {
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import {
   lastQuote,
+  quoteHashChanged,
   quoteView,
 } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import { useServerCustomPlanQuote } from "@/lib/marketingCustomPlan/useServerCustomPlanQuote"
@@ -108,10 +109,20 @@ export function SignupReviewPlanStep({
     if (quoteChanged) retry()
   }, [quoteChanged, retry])
 
+  // The first ready quote can differ from the hash saved earlier. Show the changed state then.
+  const firstReadyChecked = useRef(false)
+  const [restoredHashChanged, setRestoredHashChanged] = useState(false)
+
   // Every ready quote becomes the saved config, with its hash, so Continue sends the hash on screen.
   useEffect(() => {
     if (state.status !== "ready") return
     const next = state.quote
+    if (!firstReadyChecked.current) {
+      firstReadyChecked.current = true
+      if (quoteHashChanged(config?.quoteHash, next.quoteHash)) {
+        setRestoredHashChanged(true)
+      }
+    }
     const nextBasePlan = chosenPlanToBasePlan(next.basePlan)
     if (nextBasePlan == null) return
     saveSignupCustomPlanConfig({
@@ -128,7 +139,11 @@ export function SignupReviewPlanStep({
   const waitingForCatalogue = selectable && config == null && plainLocations == null
   const view = waitingForCatalogue
     ? null
-    : quoteView({ check, state, changed: quoteChanged })
+    : quoteView({
+        check,
+        state,
+        changed: quoteChanged || restoredHashChanged,
+      })
   const continueEnabled = selectable && view?.continueEnabled === true
 
   function handleCadenceChange(next: BillingCadence) {
