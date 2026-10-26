@@ -257,9 +257,13 @@ namespace TummlyBackend.Helpers
             FeedbackGuestResponseItemDto guestResponse
         )
         {
+            // A Failed reply was not sent. It stays in the Service reply history
+            // under its own kind, so no "sent" event exists for it.
             return new FeedbackActivityEventDto
             {
-                Kind = "guest_response_sent",
+                Kind = guestResponse.DeliveryState == "failed"
+                    ? "guest_response_not_sent"
+                    : "guest_response_sent",
                 At = guestResponse.CreatedAt,
                 ActorDisplayName = guestResponse.AuthorDisplayName,
                 Channel = guestResponse.Channel,

@@ -79,7 +79,11 @@ export function serviceReplyHistoryRows(
   events: FeedbackDetailsActivityEventDto[]
 ): ServiceReplyHistoryRow[] {
   return events
-    .filter((event) => event.kind === "guest_response_sent")
+    .filter(
+      (event) =>
+        event.kind === "guest_response_sent" ||
+        event.kind === "guest_response_not_sent"
+    )
     .sort((a, b) => {
       const byTime = sentAtMs(b) - sentAtMs(a)
       if (byTime !== 0) {

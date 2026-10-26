@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
+using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -1401,6 +1402,85 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(0, sms.Held);
             Assert.Equal(10, sms.Remaining);
+        }
+
+        [Fact]
+        public async Task ReplySms_RequestCancelledAfterAccept_ReplyAcceptedWithSid_Charged()
+        {
+            // The controller passes no request token today. This test calls the
+            // service with a token that is cancelled after the provider accepts, so
+            // a later change that passes RequestAborted cannot lose an accepted send.
+            var delivery = new AbortingAfterAcceptRecoveryGuestSmsDelivery();
+            await using var customized = CreateFactoryWithSmsDelivery(delivery);
+            using var cts = new CancellationTokenSource();
+            delivery.OnAccepted = cts.Cancel;
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-reply-sms-cancelled-tok",
+                ContactType.Phone,
+                "+447911123517",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-cancelled-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            using (var sendScope = customized.Services.CreateScope())
+            {
+                var sendContext = sendScope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurantOwnerId = await sendContext.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row => row.Id == seeded.LocationId)
+                    .Select(row => row.Restaurant!.OwnerUserId)
+                    .SingleAsync();
+
+                var service = sendScope.ServiceProvider
+                    .GetRequiredService<IFeedbackGuestResponsesService>();
+                var result = await service.SendAsync(
+                    seeded.FeedbackId,
+                    restaurantOwnerId,
+                    FeedbackGuestResponseChannel.Sms,
+                    FeedbackRecoveryIntent.RespondToGuest,
+                    null,
+                    "Thanks for your message.",
+                    null,
+                    null,
+                    null,
+                    null,
+                    cts.Token
+                );
+                Assert.NotNull(result);
+            }
+
+            Assert.Equal(1, delivery.CallCount);
+            Assert.True(delivery.TokenCancelledAfterAccept);
+            using var pollScope = customized.Services.CreateScope();
+            var pollContext = pollScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var reply = await pollContext.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleOrDefaultAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.NotNull(reply);
+            Assert.Equal(GuestReplyDeliveryState.Accepted, reply!.DeliveryState);
+            Assert.StartsWith("SMaborted-", reply.ProviderMessageId);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var snapshot = scope.ServiceProvider
+                .GetRequiredService<ICreditBalanceSnapshot>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var account = await snapshot.GetAccountAsync(restaurantId);
+            var sms = Assert.Single(
+                account!.Channels,
+                row => row.Channel == CreditChannels.Sms
+            );
+            Assert.Equal(0, sms.Held);
+            Assert.Equal(9, sms.Remaining);
         }
 
         [Fact]

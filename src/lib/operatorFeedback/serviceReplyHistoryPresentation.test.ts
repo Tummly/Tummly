@@ -73,6 +73,21 @@ describe("serviceReplyHistoryPresentation", () => {
     expect(tone("delivered")).toBe("default")
   })
 
+  it("lists a failed reply (not_sent kind) with the failed status text", () => {
+    const rows = serviceReplyHistoryRows([
+      replyEvent({
+        kind: "guest_response_not_sent",
+        deliveryState: "failed",
+      }),
+    ])
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].statusText).toBe(
+      "The reply was not confirmed as sent. Check its status before trying again."
+    )
+    expect(rows[0].statusTone).toBe("destructive")
+  })
+
   it("empty history returns no rows and the empty copy", () => {
     expect(serviceReplyHistoryRows([])).toEqual([])
     expect(SERVICE_REPLY_HISTORY_COPY.empty).toBe(

@@ -99,8 +99,7 @@ namespace TummlyBackend.Interfaces
         Task SaveAcceptedReplyAsync(
             GuestReplySmsReservation reservation,
             bool settled,
-            FeedbackGuestResponse row,
-            CancellationToken cancellationToken
+            FeedbackGuestResponse row
         );
 
         /// <summary>
@@ -108,8 +107,7 @@ namespace TummlyBackend.Interfaces
         /// <see cref="Services.GuestReplySmsSendFailedException"/> when the save fails.
         /// </summary>
         Task SaveRecordedUnknownReplyAsync(
-            GuestReplySmsReservation reservation,
-            CancellationToken cancellationToken
+            GuestReplySmsReservation reservation
         );
 
         /// <summary>Releases the whole hold and clears its open row. Saves.</summary>

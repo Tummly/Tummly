@@ -319,7 +319,8 @@ namespace TummlyBackend.Services
 
             if (delivery is RecoveryGuestSmsDeliveryResult.Failed)
             {
-                await ReleaseFailedAsync(reservation, cancellationToken);
+                // The provider has answered. Later writes ignore the request token.
+                await ReleaseFailedAsync(reservation, CancellationToken.None);
 
                 return new GuestReplySmsOutcome(
                     GuestReplySmsOutcomeKind.Failed,
@@ -329,11 +330,10 @@ namespace TummlyBackend.Services
             }
 
             var accepted = (RecoveryGuestSmsDeliveryResult.Accepted)delivery;
-            var settled = await TrySettleAcceptedAsync(
-                reservation,
-                accepted,
-                cancellationToken
-            );
+            // The provider has answered. Settle and every later write ignore the
+            // request token, so a client disconnect cannot leave an accepted send
+            // unsettled or the reply without its SID.
+            var settled = await TrySettleAcceptedAsync(reservation, accepted);
 
             return new GuestReplySmsOutcome(
                 GuestReplySmsOutcomeKind.Accepted,
@@ -348,10 +348,10 @@ namespace TummlyBackend.Services
         /// </summary>
         private async Task<bool> TrySettleAcceptedAsync(
             GuestReplySmsReservation reservation,
-            RecoveryGuestSmsDeliveryResult.Accepted accepted,
-            CancellationToken cancellationToken
+            RecoveryGuestSmsDeliveryResult.Accepted accepted
         )
         {
+            var cancellationToken = CancellationToken.None;
             try
             {
                 var settle = await _smsBilling.SettleAsync(
@@ -418,10 +418,11 @@ namespace TummlyBackend.Services
         public async Task SaveAcceptedReplyAsync(
             GuestReplySmsReservation reservation,
             bool settled,
-            FeedbackGuestResponse row,
-            CancellationToken cancellationToken
+            FeedbackGuestResponse row
         )
         {
+            // The provider has answered: these writes ignore the request token.
+            var cancellationToken = CancellationToken.None;
             if (settled)
             {
                 try
@@ -440,25 +441,23 @@ namespace TummlyBackend.Services
                 }
             }
 
-            await SaveReplyOrFailAsync(reservation, cancellationToken);
+            await SaveReplyOrFailAsync(reservation);
         }
 
         public Task SaveRecordedUnknownReplyAsync(
-            GuestReplySmsReservation reservation,
-            CancellationToken cancellationToken
+            GuestReplySmsReservation reservation
         )
         {
-            return SaveReplyOrFailAsync(reservation, cancellationToken);
+            return SaveReplyOrFailAsync(reservation);
         }
 
         private async Task SaveReplyOrFailAsync(
-            GuestReplySmsReservation reservation,
-            CancellationToken cancellationToken
+            GuestReplySmsReservation reservation
         )
         {
             try
             {
-                await SaveReplyChangesAsync(cancellationToken);
+                await SaveReplyChangesAsync(CancellationToken.None);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

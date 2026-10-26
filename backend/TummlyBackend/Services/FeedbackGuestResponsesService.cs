@@ -308,7 +308,7 @@ namespace TummlyBackend.Services
                 // with the duplicate rule. The save ignores cancellation so the
                 // record is kept.
                 _smsSend.ApplyUnknownOutcome(row, reservation, now);
-                await _smsSend.SaveRecordedUnknownReplyAsync(reservation, CancellationToken.None);
+                await _smsSend.SaveRecordedUnknownReplyAsync(reservation);
 
                 throw new GuestReplySmsSendFailedException();
             }
@@ -317,8 +317,7 @@ namespace TummlyBackend.Services
             await _smsSend.SaveAcceptedReplyAsync(
                 reservation,
                 outcome.Settled,
-                row,
-                cancellationToken
+                row
             );
 
             return BuildResult(feedback, row);

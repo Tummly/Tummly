@@ -398,13 +398,11 @@ namespace TummlyBackend.Services
             switch (outcome.Kind)
             {
                 case GuestReplySmsOutcomeKind.Failed:
+                    // Cancel the Claim and move the reply to Failed in one save that
+                    // ignores the request token. If the save fails it is logged and
+                    // the failed result is still returned.
                     issue.CancelledAtUtc = now;
-                    GuestReplyDeliveryStateMachine.TryAdvance(
-                        guestResponse,
-                        GuestReplyDeliveryState.Failed,
-                        now
-                    );
-                    await _context.SaveChangesAsync(cancellationToken);
+                    await _smsSend.SaveFailedReplyAsync(guestResponse, now);
 
                     throw new GuestReplySmsSendFailedException();
 
@@ -412,7 +410,7 @@ namespace TummlyBackend.Services
                     // Keep the Claim open. The save ignores cancellation so the
                     // record is kept.
                     _smsSend.ApplyUnknownOutcome(guestResponse, reservation, now);
-                    await _smsSend.SaveRecordedUnknownReplyAsync(reservation, CancellationToken.None);
+                    await _smsSend.SaveRecordedUnknownReplyAsync(reservation);
 
                     throw new GuestReplySmsSendFailedException();
             }
@@ -421,8 +419,7 @@ namespace TummlyBackend.Services
             await _smsSend.SaveAcceptedReplyAsync(
                 reservation,
                 outcome.Settled,
-                guestResponse,
-                cancellationToken
+                guestResponse
             );
         }
 

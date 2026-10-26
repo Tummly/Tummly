@@ -264,7 +264,7 @@ namespace TummlyBackend.Services
                 // rule then blocks a repeat. The save ignores cancellation.
                 _smsSend.ApplyUnknownOutcome(guestResponse, reservation, now);
                 _context.FeedbackInternalActions.Add(internalAction);
-                await _smsSend.SaveRecordedUnknownReplyAsync(reservation, CancellationToken.None);
+                await _smsSend.SaveRecordedUnknownReplyAsync(reservation);
 
                 throw new GuestReplySmsSendFailedException();
             }
@@ -274,8 +274,7 @@ namespace TummlyBackend.Services
             await _smsSend.SaveAcceptedReplyAsync(
                 reservation,
                 outcome.Settled,
-                guestResponse,
-                cancellationToken
+                guestResponse
             );
 
             return BuildResult(feedback, guestResponse, internalAction);

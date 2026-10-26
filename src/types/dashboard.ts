@@ -595,6 +595,7 @@ export type FeedbackDetailsActivityEventDto = {
     | "workflow_status_changed"
     | "feedback_closed_out"
     | "guest_response_sent"
+    | "guest_response_not_sent"
     | "internal_action_recorded"
     | "recovery_completed"
     | "recovery_offer_issued";
@@ -617,7 +618,7 @@ export type FeedbackDetailsActivityEventDto = {
     | null;
   channel?: "email" | "sms" | null;
   maskedDestination?: string | null;
-  /** guest_response_sent only: the reply row this event shows. */
+  /** guest_response_sent and guest_response_not_sent: the reply row this event shows. */
   guestResponseId?: number | null;
   /** guest_response_sent only: wire delivery state of the reply. */
   deliveryState?: "pending" | "accepted" | "delivered" | "failed" | "unavailable" | null;

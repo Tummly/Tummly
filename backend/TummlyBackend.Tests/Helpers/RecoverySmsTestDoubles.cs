@@ -32,6 +32,41 @@ namespace TummlyBackend.Tests.Helpers
     }
 
     /// <summary>
+    /// Provider that accepts the text, then runs <see cref="OnAccepted"/> (a test aborts
+    /// the request there) before it returns. Later writes of the request then run with
+    /// a cancelled request token.
+    /// </summary>
+    public sealed class AbortingAfterAcceptRecoveryGuestSmsDelivery : IRecoveryGuestSmsDelivery
+    {
+        private int _callCount;
+
+        public int CallCount => _callCount;
+
+        public Action? OnAccepted { get; set; }
+
+        /// <summary>True when the request token was cancelled by <see cref="OnAccepted"/>.</summary>
+        public bool TokenCancelledAfterAccept { get; private set; }
+
+        public Task<RecoveryGuestSmsDeliveryResult> SendAsync(
+            string phoneNumber,
+            string body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            Interlocked.Increment(ref _callCount);
+            var result = new RecoveryGuestSmsDeliveryResult.Accepted
+            {
+                AcceptedSegments = CampaignSmsSegmentCalculator.CountSegments(body),
+                ProviderMessageId = "SMaborted-" + Guid.NewGuid().ToString("N"),
+                StatusCallbackSet = true,
+            };
+            OnAccepted?.Invoke();
+            TokenCancelledAfterAccept = cancellationToken.IsCancellationRequested;
+            return Task.FromResult<RecoveryGuestSmsDeliveryResult>(result);
+        }
+    }
+
+    /// <summary>
     /// Live Recovery SMS billing, except that settle is always refused. Reserve and
     /// release go to the real implementation.
     /// </summary>

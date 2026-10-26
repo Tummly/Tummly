@@ -196,6 +196,18 @@ function activityLabel(
         fromWorkflowStatus: event.fromWorkflowStatus,
         toWorkflowStatus: event.toWorkflowStatus,
       })
+    case "guest_response_not_sent": {
+      const channelLabel =
+        event.channel === "sms"
+          ? "SMS"
+          : event.channel === "email"
+            ? "Email"
+            : "Guest response"
+      if (event.maskedDestination != null && event.maskedDestination !== "") {
+        return `Guest response not sent (${channelLabel} · ${event.maskedDestination})`
+      }
+      return `Guest response not sent (${channelLabel})`
+    }
     case "guest_response_sent": {
       const channelLabel =
         event.channel === "sms"

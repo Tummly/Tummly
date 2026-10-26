@@ -14,12 +14,23 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// <c>{PublicApi:BaseUrl}{path}</c> without a trailing slash on the base,
-        /// or null when <c>PublicApi:BaseUrl</c> is empty.
+        /// or null when <c>PublicApi:BaseUrl</c> is empty or is not an absolute
+        /// http or https URL. A bad value means no status callback, so a send
+        /// does not fail on an invalid callback URI.
         /// </summary>
         public static string? For(IConfiguration config, string path)
         {
             var baseUrl = config["PublicApi:BaseUrl"]?.Trim().TrimEnd('/');
-            return string.IsNullOrWhiteSpace(baseUrl) ? null : $"{baseUrl}{path}";
+            if (
+                string.IsNullOrWhiteSpace(baseUrl)
+                || !Uri.TryCreate(baseUrl, UriKind.Absolute, out var parsed)
+                || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps)
+            )
+            {
+                return null;
+            }
+
+            return $"{baseUrl}{path}";
         }
 
         /// <summary>
