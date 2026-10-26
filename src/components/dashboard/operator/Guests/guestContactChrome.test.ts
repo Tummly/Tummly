@@ -23,4 +23,13 @@ describe("guest contact chrome (WS2b masked contact)", () => {
     expect(drawer).not.toMatch(/mailto:|tel:/)
     expect(drawer).not.toMatch(/details\.email\b/)
   })
+
+  it("tells the operator that contact search needs the full value", () => {
+    const table = readGuestsSource("GuestsSmartGroupsSection.tsx")
+
+    expect(table).toMatch(
+      /placeholder="Search by name, or full email or mobile number"/
+    )
+    expect(table).not.toMatch(/placeholder="Search guests by name, email or mobile number"/)
+  })
 })

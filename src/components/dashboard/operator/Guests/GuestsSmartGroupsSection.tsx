@@ -259,7 +259,7 @@ export function GuestsSmartGroupsSection({
               value={searchQuery}
               onChange={(event) => onSearchQueryChange(event.target.value)}
               aria-label="Search guests"
-              placeholder="Search guests by name, email or mobile number"
+              placeholder="Search by name, or full email or mobile number"
               className={GUESTS_SEARCH_FIELD_CLASS}
             />
           </div>
