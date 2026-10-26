@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 
 import { HELP_CENTRE_ARTICLES } from "@/content/helpCentre/articles"
 import { FAQS_PAGE_SECTIONS } from "@/content/marketing/faqsPage"
+import { PILOT_FAQS } from "@/content/marketing/pilotPage"
 import { PRICING_FAQS } from "@/content/marketing/pricingPage"
 import { buildManagePlanFaqItems } from "@/lib/operatorBillingCredits/managePlanPresentation"
 
@@ -57,6 +58,12 @@ describe("Pilot copy follows doc 08", () => {
     expect(faqsPageAnswer("when-pilot-starts")).toBe(PILOT_START_ANSWER)
   })
 
+  it("Pilot page when-begins answer is the N10.19 string", () => {
+    expect(PILOT_FAQS.items.find((item) => item.id === "when-begins")?.answer).toBe(
+      PILOT_START_ANSWER
+    )
+  })
+
   it("pricing pilot-end answer is the N10.05 string", () => {
     expect(pricingFaqAnswer("pilot-end")).toBe(PILOT_END_ANSWER)
   })
@@ -87,9 +94,10 @@ describe("Pilot copy follows doc 08", () => {
   it("no source file ships the retired Pilot start wording", () => {
     const offenders = listSourceFiles(SRC_DIR).flatMap((file) => {
       const text = readFileSync(file, "utf8")
-      return FORBIDDEN_PILOT_COPY.filter((phrase) => text.includes(phrase)).map(
-        (phrase) => `${relative(SRC_DIR, file)}: ${phrase}`
-      )
+      const haystack = text.toLowerCase()
+      return FORBIDDEN_PILOT_COPY.filter((phrase) =>
+        haystack.includes(phrase.toLowerCase())
+      ).map((phrase) => `${relative(SRC_DIR, file)}: ${phrase}`)
     })
     expect(offenders).toEqual([])
   })
