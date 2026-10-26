@@ -482,6 +482,10 @@ namespace TummlyBackend.Migrations
                     b.Property<bool>("HasScheduledChange")
                         .HasColumnType("bit");
 
+                    b.Property<string>("LastPilotExtensionKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<bool>("LowCreditAlertAdmin")
                         .HasColumnType("bit");
 
@@ -523,11 +527,20 @@ namespace TummlyBackend.Migrations
                     b.Property<bool>("PilotDormantNotified")
                         .HasColumnType("bit");
 
+                    b.Property<int>("PilotExtensionCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PilotExtensionDaysTotal")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("PilotPeriodEnd")
                         .HasColumnType("datetime2");
 
                     b.Property<bool>("PilotSoftLockNotified")
                         .HasColumnType("bit");
+
+                    b.Property<DateTime?>("PilotStartedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("RenewalDateUtc")
                         .HasColumnType("datetime2");

@@ -150,6 +150,27 @@ namespace TummlyBackend.Models
         public DateTime? PilotPeriodEnd { get; set; }
 
         /// <summary>
+        /// UTC instant the Pilot clock started (one server event). Kept after conversion to a paid plan.
+        /// </summary>
+        public DateTime? PilotStartedAtUtc { get; set; }
+
+        /// <summary>
+        /// Number of Admin Pilot extensions applied to this account.
+        /// </summary>
+        public int PilotExtensionCount { get; set; }
+
+        /// <summary>
+        /// Total days added by Admin Pilot extensions.
+        /// </summary>
+        public int PilotExtensionDaysTotal { get; set; }
+
+        /// <summary>
+        /// Idempotency key of the last applied Admin Pilot extension. Null when none.
+        /// </summary>
+        [MaxLength(64)]
+        public string? LastPilotExtensionKey { get; set; }
+
+        /// <summary>
         /// Open paid dunning episode start. Null when no episode is open.
         /// </summary>
         public DateTime? DunningEpisodeStartedAt { get; set; }
