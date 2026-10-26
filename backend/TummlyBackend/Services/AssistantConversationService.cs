@@ -334,23 +334,6 @@ namespace TummlyBackend.Services
                     return new AssistantTurnOutcome.LocationDenied(locationResult);
                 }
             }
-            else
-            {
-                // An "all" conversation is readable only with all-Location access
-                // (PRD R6.2). Same not-found result as the list hides it.
-                var access = await _permissions.AuthorizeUserAsync(
-                    ownerUserId,
-                    OperatorAreaIds.AiAssistant,
-                    PermissionLevel.View
-                );
-                var allowed = access.Status == RestaurantPermissionStatus.Allowed
-                    ? access.LocationIds
-                    : [];
-                if (!await HasAllLocationsAccessAsync(allowed, cancellationToken))
-                {
-                    return new AssistantTurnOutcome.NotFound();
-                }
-            }
 
             return new AssistantTurnOutcome.Ok(
                 AssistantAnalysisScope.ToConversationDto(conversation)
@@ -7851,6 +7834,14 @@ namespace TummlyBackend.Services
         {
             if (AssistantAnalysisScope.IsAll(scope))
             {
+                if (!await CanReadAllScopeAsync(ownerUserId, cancellationToken))
+                {
+                    return new ScopeAuthorizeResult(
+                        string.Empty,
+                        new AssistantTurnOutcome.ScopeNotAllowed()
+                    );
+                }
+
                 var owned = await LoadOwnedLocationsAsync(
                     null,
                     ownerUserId,
@@ -9381,13 +9372,18 @@ namespace TummlyBackend.Services
                 && liveLocationIds.ToHashSet().SetEquals(allowed);
         }
 
+        /// <summary>
+        /// Loads one owned conversation for every action. An "all" conversation
+        /// is returned only with all-Location access (PRD R6.2, R9.1); otherwise
+        /// the result is null, which every caller maps to not-found.
+        /// </summary>
         private async Task<AssistantConversation?> LoadOwnedConversationAsync(
             int ownerUserId,
             int conversationId,
             CancellationToken cancellationToken
         )
         {
-            return await _context.AssistantConversations
+            var conversation = await _context.AssistantConversations
                 .Include(conversation => conversation.Messages)
                 .FirstOrDefaultAsync(
                     conversation =>
@@ -9395,6 +9391,31 @@ namespace TummlyBackend.Services
                         && conversation.OwnerUserId == ownerUserId,
                     cancellationToken
                 );
+
+            if (conversation is null || !AssistantAnalysisScope.IsAll(conversation))
+            {
+                return conversation;
+            }
+
+            return await CanReadAllScopeAsync(ownerUserId, cancellationToken)
+                ? conversation
+                : null;
+        }
+
+        private async Task<bool> CanReadAllScopeAsync(
+            int ownerUserId,
+            CancellationToken cancellationToken
+        )
+        {
+            var access = await _permissions.AuthorizeUserAsync(
+                ownerUserId,
+                OperatorAreaIds.AiAssistant,
+                PermissionLevel.View
+            );
+            var allowed = access.Status == RestaurantPermissionStatus.Allowed
+                ? access.LocationIds
+                : [];
+            return await HasAllLocationsAccessAsync(allowed, cancellationToken);
         }
 
         private async Task<AssistantTurnOutcome?> TryFinishExplainWhyFollowUpAsync(

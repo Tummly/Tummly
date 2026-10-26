@@ -15,15 +15,15 @@ namespace TummlyBackend.Controllers
     public class ChecklistAcksController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        private readonly IOwnedLocationService _ownedLocation;
+        private readonly IRestaurantPermissionHelper _permissions;
 
         public ChecklistAcksController(
             ApplicationDbContext context,
-            IOwnedLocationService ownedLocation
+            IRestaurantPermissionHelper permissions
         )
         {
             _context = context;
-            _ownedLocation = ownedLocation;
+            _permissions = permissions;
         }
 
         [HttpGet]
@@ -31,26 +31,20 @@ namespace TummlyBackend.Controllers
             [FromQuery] int locationId
         )
         {
-            var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
-
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
+            var access = await _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.View,
+                locationId
+            );
+            var denied = access.ToHttpResult();
 
             if (denied != null)
             {
                 return denied;
             }
 
-            var location = ownedLocation.Location!;
+            var location = access.Location!;
             var hasBrandLogo = await RestaurantHasBrandLogoAsync(
                 location.RestaurantId
             );
@@ -64,25 +58,20 @@ namespace TummlyBackend.Controllers
             [FromBody] UpdateChecklistAcksDto dto
         )
         {
-            var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
-
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
+            var access = await _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.Manage,
+                locationId
+            );
+            var denied = access.ToHttpResult();
 
             if (denied != null)
             {
                 return denied;
             }
 
+            // Tracked entity: the permission lookup is AsNoTracking.
             var location = await _context.RestaurantLocations
                 .FirstAsync(l => l.Id == locationId);
 

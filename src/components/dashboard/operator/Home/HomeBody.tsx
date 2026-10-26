@@ -65,6 +65,7 @@ type HomeBodyProps = {
   performanceLoading?: boolean
   onRetryFeedback?: () => void
   previewBusy?: boolean
+  setupChecklistHidden?: boolean
   guestFormPreviewLocationName?: string
   guestFormPreviewAddress?: string
   onPreviewGuestForm?: () => void
@@ -160,6 +161,7 @@ export function HomeBody({
   performanceLoading = false,
   onRetryFeedback,
   previewBusy = false,
+  setupChecklistHidden = false,
   guestFormPreviewLocationName = "",
   guestFormPreviewAddress = "",
   onPreviewGuestForm,
@@ -276,16 +278,18 @@ export function HomeBody({
         />
       </section>
 
-      <HomeSetupChecklist
-        steps={viewModel.setupSteps}
-        onPreviewGuestForm={onPreviewGuestForm}
-        onUploadLogo={onUploadLogo}
-        onViewPlacementGuide={onViewPlacementGuide}
-        onOrderQrMaterials={onOrderQrMaterials}
-        onCreateOffer={onCreateOffer}
-        onCreateCampaign={onCreateCampaign}
-        previewBusy={previewBusy}
-      />
+      {setupChecklistHidden ? null : (
+        <HomeSetupChecklist
+          steps={viewModel.setupSteps}
+          onPreviewGuestForm={onPreviewGuestForm}
+          onUploadLogo={onUploadLogo}
+          onViewPlacementGuide={onViewPlacementGuide}
+          onOrderQrMaterials={onOrderQrMaterials}
+          onCreateOffer={onCreateOffer}
+          onCreateCampaign={onCreateCampaign}
+          previewBusy={previewBusy}
+        />
+      )}
 
       <HomeNeedsAttentionSection
         key={viewModel.selectedLocationId}

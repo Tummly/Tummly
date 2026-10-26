@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
@@ -112,6 +113,201 @@ namespace TummlyBackend.Tests.Integration
             Assert.DoesNotContain(AllScopeTitle, body);
         }
 
+        [Fact]
+        public async Task Send_AllScope_NotFound()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var conversationId = await SeedAllScopeConversationAsync(seeded.MemberUserId, AllScopeTitle);
+
+            var response = await SendAsync(HttpMethod.Post, "/api/assistant/turns", seeded.MemberJwt, new
+            {
+                conversationId,
+                message = "Summarise recent feedback",
+                analysisScope = InScopeAnalysisScope(seeded.InScopeLocationId),
+            });
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Retry_AllScope_NotFound()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var conversationId = await SeedAllScopeConversationAsync(seeded.MemberUserId, AllScopeTitle);
+
+            var response = await SendAsync(
+                HttpMethod.Post,
+                $"/api/assistant/conversations/{conversationId}/retry",
+                seeded.MemberJwt,
+                body: null
+            );
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ApplyScope_AllScope_NotFound()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var conversationId = await SeedAllScopeConversationAsync(seeded.MemberUserId, AllScopeTitle);
+
+            var response = await SendAsync(
+                HttpMethod.Patch,
+                $"/api/assistant/conversations/{conversationId}/scope",
+                seeded.MemberJwt,
+                new { analysisScope = InScopeAnalysisScope(seeded.InScopeLocationId) }
+            );
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Archive_AllScope_NotFound()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var conversationId = await SeedAllScopeConversationAsync(seeded.MemberUserId, AllScopeTitle);
+
+            var response = await SendAsync(
+                HttpMethod.Patch,
+                $"/api/assistant/conversations/{conversationId}/archive",
+                seeded.MemberJwt,
+                body: null
+            );
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ClearDraft_AllScope_NotFound()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var conversationId = await SeedAllScopeConversationAsync(seeded.MemberUserId, AllScopeTitle);
+
+            var response = await SendAsync(
+                HttpMethod.Post,
+                $"/api/assistant/conversations/{conversationId}/draft-interview/clear",
+                seeded.MemberJwt,
+                body: null
+            );
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Delete_AllScope_NotFound()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var conversationId = await SeedAllScopeConversationAsync(seeded.MemberUserId, AllScopeTitle);
+
+            var response = await SendAsync(
+                HttpMethod.Delete,
+                $"/api/assistant/conversations/{conversationId}",
+                seeded.MemberJwt,
+                body: null
+            );
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SwitchToAll_PartialUser_403ScopeNotAllowed()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var conversationId = await SeedConversationAsync(seeded.MemberUserId, seeded.InScopeLocationId, InScopeTitle);
+
+            var response = await SendAsync(
+                HttpMethod.Patch,
+                $"/api/assistant/conversations/{conversationId}/scope",
+                seeded.MemberJwt,
+                new { analysisScope = AllAnalysisScope() }
+            );
+
+            await AssertScopeNotAllowedAsync(response);
+        }
+
+        [Fact]
+        public async Task NewConversationAll_PartialUser_403ScopeNotAllowed()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+
+            var response = await SendAsync(HttpMethod.Post, "/api/assistant/turns", seeded.MemberJwt, new
+            {
+                message = "Summarise all locations",
+                analysisScope = AllAnalysisScope(),
+            });
+
+            await AssertScopeNotAllowedAsync(response);
+        }
+
+        [Fact]
+        public async Task OwnerAllScope_ActionsStillWork()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var conversationId = await SeedAllScopeConversationAsync(seeded.OwnerUserId, AllScopeTitle);
+
+            var get = await SendAsync(
+                HttpMethod.Get,
+                $"/api/assistant/conversations/{conversationId}",
+                seeded.OwnerJwt,
+                body: null
+            );
+            var archive = await SendAsync(
+                HttpMethod.Patch,
+                $"/api/assistant/conversations/{conversationId}/archive",
+                seeded.OwnerJwt,
+                body: null
+            );
+
+            Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, archive.StatusCode);
+        }
+
+        private static object InScopeAnalysisScope(int locationId)
+        {
+            return new
+            {
+                scopeKind = "single",
+                ownedLocationId = locationId,
+                reportingPeriod = new { kind = "preset", presetId = "last7" },
+            };
+        }
+
+        private static object AllAnalysisScope()
+        {
+            return new
+            {
+                scopeKind = AssistantAnalysisScope.ScopeKindAll,
+                reportingPeriod = new { kind = "preset", presetId = "last7" },
+            };
+        }
+
+        private async Task AssertScopeNotAllowedAsync(HttpResponseMessage response)
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal("scope_not_allowed", body.RootElement.GetProperty("code").GetString());
+            Assert.Equal(
+                "This item is outside your authorised Location scope.",
+                body.RootElement.GetProperty("message").GetString()
+            );
+        }
+
+        private async Task<HttpResponseMessage> SendAsync(
+            HttpMethod method,
+            string path,
+            string jwt,
+            object? body
+        )
+        {
+            using var request = new HttpRequestMessage(method, path);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            if (body is not null)
+            {
+                request.Content = JsonContent.Create(body);
+            }
+            return await _client.SendAsync(request);
+        }
+
         private async Task<List<string?>> ListTitlesAsync(string jwt)
         {
             using var request = new HttpRequestMessage(
@@ -153,14 +349,14 @@ namespace TummlyBackend.Tests.Integration
             return conversation.Id;
         }
 
-        private async Task SeedConversationAsync(int ownerUserId, int locationId, string title)
+        private async Task<int> SeedConversationAsync(int ownerUserId, int locationId, string title)
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var location = context.RestaurantLocations.Single(row => row.Id == locationId);
             var now = DateTime.UtcNow;
 
-            context.AssistantConversations.Add(new AssistantConversation
+            var conversation = new AssistantConversation
             {
                 OwnerUserId = ownerUserId,
                 Title = title,
@@ -171,8 +367,10 @@ namespace TummlyBackend.Tests.Integration
                 ReportingPeriodPresetId = "last7",
                 CreatedAt = now,
                 LastActivityAt = now,
-            });
+            };
+            context.AssistantConversations.Add(conversation);
             await context.SaveChangesAsync();
+            return conversation.Id;
         }
     }
 }

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Tests.Integration.Support;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -190,6 +191,98 @@ namespace TummlyBackend.Tests.Integration
             );
 
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ChecklistGet_UnassignedLocation_403()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.LocationManager
+            );
+
+            var response = await SendChecklistAsync(
+                HttpMethod.Get,
+                seeded.OutOfScopeLocationId,
+                seeded.MemberJwt
+            );
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ChecklistPost_ViewOnly_403()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.BillingAdmin,
+                namedInScopeOnly: false
+            );
+
+            var response = await SendChecklistAsync(
+                HttpMethod.Post,
+                seeded.InScopeLocationId,
+                seeded.MemberJwt,
+                new { guestFormPreviewed = true }
+            );
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ChecklistGet_Staff_403()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.Staff
+            );
+
+            var response = await SendChecklistAsync(
+                HttpMethod.Get,
+                seeded.OutOfScopeLocationId,
+                seeded.MemberJwt
+            );
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ChecklistPost_AssignedManager_200()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.Admin
+            );
+
+            var response = await SendChecklistAsync(
+                HttpMethod.Post,
+                seeded.InScopeLocationId,
+                seeded.MemberJwt,
+                new { guestFormPreviewed = true }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        private async Task<HttpResponseMessage> SendChecklistAsync(
+            HttpMethod method,
+            int locationId,
+            string jwt,
+            object? body = null
+        )
+        {
+            using var request = new HttpRequestMessage(
+                method,
+                $"/api/operator-home/checklist-acks?locationId={locationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            if (body is not null)
+            {
+                request.Content = JsonContent.Create(body);
+            }
+
+            return await _client.SendAsync(request);
         }
 
         private async Task<(string Jwt, int LocationId)> SeedOwnerLocationAsync(
