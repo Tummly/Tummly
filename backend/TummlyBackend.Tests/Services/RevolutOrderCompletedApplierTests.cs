@@ -1386,7 +1386,11 @@ namespace TummlyBackend.Tests.Services
             var pilotEnd = account.PilotPeriodEnd!.Value;
             var owner = await OwnerOfRestaurantAsync(context, pending.RestaurantId);
             owner.ActivationExpiresAt = pilotEnd;
-            await context.SaveChangesAsync();
+            var member = await SeedActiveMemberAsync(
+                context,
+                pending.RestaurantId,
+                pilotEnd
+            );
             var clock = new FixedTimeProvider(_now);
             var mint = new IncludedPeriodMintService(context, _pricebook, clock);
             var applier = CreateApplier(context, mint, clock);
@@ -1412,6 +1416,10 @@ namespace TummlyBackend.Tests.Services
                 .AsNoTracking()
                 .SingleAsync(row => row.Id == owner.Id);
             Assert.Null(ownerAfter.ActivationExpiresAt);
+            var memberAfter = await context.Users
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == member.Id);
+            Assert.Null(memberAfter.ActivationExpiresAt);
         }
 
         [Fact]
@@ -1533,6 +1541,124 @@ namespace TummlyBackend.Tests.Services
                 }
             );
             Assert.Single(email.PlanStartedCalls);
+        }
+
+        [Fact]
+        public async Task Apply_Renewal_DoesNotTouchMemberPilotClock()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(
+                context,
+                "ord_renew_clock",
+                "sub_renew_clock"
+            );
+            var setup = new RevolutOrderCompletedApplyRequest(
+                OrderId: "ord_renew_clock",
+                OrderState: "completed",
+                BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                SubscriptionId: pending.RevolutSubscriptionId,
+                RawWebhookBody: "{}",
+                RawOrderBody: "{}"
+            );
+            var setupClock = new FixedTimeProvider(_now);
+            await CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, setupClock),
+                setupClock
+            ).ApplyAsync(setup);
+
+            // A member of this restaurant holds a Pilot clock that another
+            // restaurant also uses. A renewal must not change it.
+            var otherClock = _now.AddDays(10);
+            var member = await SeedActiveMemberAsync(
+                context,
+                pending.RestaurantId,
+                otherClock
+            );
+
+            var renewalClock = new FixedTimeProvider(_now.AddMonths(1));
+            await CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, renewalClock),
+                renewalClock
+            ).ApplyAsync(
+                setup with
+                {
+                    OrderId = "ord_renew_clock_2",
+                    BillingReason = RevolutOrderCompletedApplier.CycleBilling,
+                }
+            );
+
+            var after = await context.Users
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == member.Id);
+            Assert.Equal(otherClock, after.ActivationExpiresAt);
+        }
+
+        [Fact]
+        public async Task Apply_Setup_OwnerEmailMissing_AppliesWithoutEmail()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_no_owner", "sub_no_owner");
+            var owner = await OwnerOfRestaurantAsync(context, pending.RestaurantId);
+            owner.Email = " ";
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var email = new RecordingPlanStartedEmailService();
+            var applier = CreateApplier(context, mint, clock, emailService: email);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_no_owner",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == pending.RestaurantId);
+            Assert.Equal(BillingStatuses.Active, account.BillingStatus);
+            Assert.Empty(email.PlanStartedCalls);
+        }
+
+        [Fact]
+        public async Task Apply_Setup_EmailSendFails_StillApplies()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_mail_fail", "sub_mail_fail");
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(
+                context,
+                mint,
+                clock,
+                emailService: new ThrowingPlanStartedEmailService()
+            );
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_mail_fail",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == pending.RestaurantId);
+            Assert.Equal(BillingStatuses.Active, account.BillingStatus);
+            var pendingAfter = await context.RevolutPendingPaySessions
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == pending.Id);
+            Assert.False(pendingAfter.IsOpen);
         }
 
         [Fact]
@@ -1723,6 +1849,37 @@ namespace TummlyBackend.Tests.Services
                 .ToListAsync();
             Assert.Equal(cap, codes.Count(qr => qr.Status == QrCodeStatus.Active));
             Assert.Equal(2, codes.Count(qr => qr.Status == QrCodeStatus.Paused));
+        }
+
+        private async Task<User> SeedActiveMemberAsync(
+            ApplicationDbContext context,
+            int restaurantId,
+            DateTime? activationExpiresAt
+        )
+        {
+            var member = new User
+            {
+                Email = $"member-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "x",
+                FullName = "Apply Member",
+                Role = "Member",
+                CreatedAt = _now,
+                ActivatedAt = activationExpiresAt?.AddDays(-30),
+                ActivationExpiresAt = activationExpiresAt,
+            };
+            context.Users.Add(member);
+            await context.SaveChangesAsync();
+            context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = member.Id,
+                    RestaurantId = restaurantId,
+                    PermissionRole = PermissionRoles.Owner,
+                    Status = MembershipStatus.Active,
+                }
+            );
+            await context.SaveChangesAsync();
+            return member;
         }
 
         private async Task<User> OwnerOfRestaurantAsync(
@@ -1942,6 +2099,16 @@ namespace TummlyBackend.Tests.Services
                         }
                 )
             );
+        }
+
+        private sealed class ThrowingPlanStartedEmailService : EmailServiceStubBase
+        {
+            public override Task SendPlanStartedEmailAsync(
+                string toEmail,
+                string firstName,
+                string planName,
+                string restaurantName
+            ) => Task.FromException(new InvalidOperationException("smtp_down"));
         }
 
         private sealed class CountingApplier : IRevolutOrderCompletedApplier

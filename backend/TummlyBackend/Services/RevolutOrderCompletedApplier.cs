@@ -237,20 +237,23 @@ namespace TummlyBackend.Services
             );
 
             var wasOpen = pending.IsOpen;
+            var isFirstActivation = isSetup && wasOpen;
             ApplyPaymentFields(
                 billingAccount,
                 pending,
                 isSetup,
                 cycle.RenewalDateUtc
             );
-            await PilotClockSync.ClearForRestaurantAsync(
-                _context,
-                billingAccount.RestaurantId,
-                cancellationToken
-            );
 
-            if (isSetup && wasOpen)
+            if (isFirstActivation)
             {
+                // Clocks are per user, and members copy the owner clock. Only the
+                // first paid activation clears them. Renewals never touch them.
+                await PilotClockSync.ClearForRestaurantAsync(
+                    _context,
+                    billingAccount.RestaurantId,
+                    cancellationToken
+                );
                 pending.IsOpen = false;
             }
 
@@ -380,7 +383,7 @@ namespace TummlyBackend.Services
             }
             await _context.SaveChangesAsync(cancellationToken);
 
-            if (isSetup && wasOpen)
+            if (isFirstActivation)
             {
                 await TrySendPlanStartedEmailAsync(
                     billingAccount.RestaurantId,
@@ -477,7 +480,9 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// Sends plan-started to the owner. Runs once per first activation, after
-        /// the apply is saved. A send failure is logged by exception type only.
+        /// the apply is saved. The owner lookup and the send both sit inside the
+        /// try, so a failure never aborts the apply. Only the exception type is
+        /// logged.
         /// </summary>
         private async Task TrySendPlanStartedEmailAsync(
             int restaurantId,
@@ -485,23 +490,23 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var owner = await _context.Restaurants
-                .AsNoTracking()
-                .Where(row => row.Id == restaurantId)
-                .Select(row => new
-                {
-                    row.Name,
-                    OwnerFullName = row.OwnerUser.FullName,
-                    OwnerEmail = row.OwnerUser.Email,
-                })
-                .FirstOrDefaultAsync(cancellationToken);
-            if (owner == null || string.IsNullOrWhiteSpace(owner.OwnerEmail))
-            {
-                return;
-            }
-
             try
             {
+                var owner = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.Id == restaurantId)
+                    .Select(row => new
+                    {
+                        row.Name,
+                        OwnerFullName = row.OwnerUser.FullName,
+                        OwnerEmail = row.OwnerUser.Email,
+                    })
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (owner == null || string.IsNullOrWhiteSpace(owner.OwnerEmail))
+                {
+                    return;
+                }
+
                 await _emailService.SendPlanStartedEmailAsync(
                     owner.OwnerEmail,
                     SignInMetadataResolver.ExtractFirstName(owner.OwnerFullName ?? string.Empty),
@@ -649,11 +654,14 @@ namespace TummlyBackend.Services
             billingAccount.DunningFiredSteps = null;
             billingAccount.DunningOutstandingOrderId = null;
             intent.IsOpen = false;
-            await PilotClockSync.ClearForRestaurantAsync(
-                _context,
-                restaurantId,
-                cancellationToken
-            );
+            if (isFirstPaid)
+            {
+                await PilotClockSync.ClearForRestaurantAsync(
+                    _context,
+                    restaurantId,
+                    cancellationToken
+                );
+            }
 
             await _context.SaveChangesAsync(cancellationToken);
 
