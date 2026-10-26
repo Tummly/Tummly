@@ -370,6 +370,27 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Quote_UnknownPackBeforeBadQuantity_ReturnsInvalidPack()
+        {
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _sut.QuoteAsync(
+                    new CustomPlanQuoteRequest
+                    {
+                        Cadence = "monthly",
+                        BasePlan = "starter",
+                        Locations = 1,
+                        Packs = new Dictionary<string, decimal>
+                        {
+                            ["offers_5"] = -1,
+                            ["nope"] = 1,
+                        },
+                    }
+                )
+            );
+            Assert.Equal("invalid_pack", ex.Code);
+        }
+
+        [Fact]
         public async Task Quote_Sms5000_GroupOk_GrowthRejected()
         {
             var group = await _sut.QuoteAsync(

@@ -323,7 +323,8 @@ namespace TummlyBackend.Services
                 return next;
             }
 
-            foreach (var (key, raw) in packs)
+            // Unknown keys first (across all entries), then quantities.
+            foreach (var key in packs.Keys)
             {
                 if (!CustomPlanPacks.IsKnownPackKey(key))
                 {
@@ -332,7 +333,10 @@ namespace TummlyBackend.Services
                         $"Unknown pack key: {key}."
                     );
                 }
+            }
 
+            foreach (var (key, raw) in packs)
+            {
                 if (
                     raw < 0
                     || raw > CustomPlanPacks.MaxPackCount
@@ -376,7 +380,6 @@ namespace TummlyBackend.Services
             IReadOnlyList<PublicCatalogPlanSummaryDto> plans
         )
         {
-            var n = Math.Max(1, locations);
             var paid = plans
                 .Where(p =>
                     PaidPlanKeys.Contains(p.PlanKey, StringComparer.Ordinal)
@@ -386,7 +389,7 @@ namespace TummlyBackend.Services
 
             foreach (var plan in paid)
             {
-                if (plan.IncludedLocations >= n)
+                if (plan.IncludedLocations >= locations)
                 {
                     return plan.PlanKey;
                 }
