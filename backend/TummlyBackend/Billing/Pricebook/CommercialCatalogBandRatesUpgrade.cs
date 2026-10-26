@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Data;
 using TummlyBackend.Models;
@@ -14,6 +15,32 @@ namespace TummlyBackend.Billing.Pricebook
         public const string PublicId = "TUMMLY-UK-GBP-BANDS-20261026";
 
         public const string Notes = "Location bands (provisional, doc 08 R3)";
+
+        /// <summary>
+        /// Runs <see cref="EnsureAsync"/> in its own scope and context, so a failed save cannot
+        /// leave tracked entries on the shared startup context. Logs and returns false on failure.
+        /// </summary>
+        public static async Task<bool> TryEnsureInOwnScopeAsync(
+            IServiceProvider services,
+            ILogger logger,
+            CancellationToken ct = default
+        )
+        {
+            try
+            {
+                using var scope = services.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                return await EnsureAsync(db, DateTime.UtcNow, logger, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(
+                    ex,
+                    "Commercial catalogue band-rate upgrade failed; continuing without it."
+                );
+                return false;
+            }
+        }
 
         /// <summary>
         /// Returns true when it published a new version. No-op when the latest Published version

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
@@ -295,6 +296,59 @@ namespace TummlyBackend.Tests.Services
                 reloaded.CustomUnitRates,
                 r => BandKeys.Contains(r.RateKey)
             );
+        }
+        [Fact]
+        public async Task TryEnsureInOwnScopeAsync_WhenUpgradeFails_ReturnsFalseAndLaterScopeStillPublishes()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var provider = new ServiceCollection()
+                .AddDbContext<ApplicationDbContext>(o => o.UseInMemoryDatabase(dbName))
+                .BuildServiceProvider();
+            using (var seedScope = provider.CreateScope())
+            {
+                var seedDb = seedScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                seedDb.CommercialCatalogVersions.Add(PublishedWithoutBands());
+                await seedDb.SaveChangesAsync();
+            }
+
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+
+            var failed = await CommercialCatalogBandRatesUpgrade.TryEnsureInOwnScopeAsync(
+                provider,
+                NullLogger.Instance,
+                cancelled.Token
+            );
+
+            Assert.False(failed);
+            using (var checkScope = provider.CreateScope())
+            {
+                var checkDb = checkScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                Assert.Equal(1, await checkDb.CommercialCatalogVersions.CountAsync());
+            }
+
+            var published = await CommercialCatalogBandRatesUpgrade.TryEnsureInOwnScopeAsync(
+                provider,
+                NullLogger.Instance
+            );
+
+            Assert.True(published);
+            using var finalScope = provider.CreateScope();
+            var finalDb = finalScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(2, await finalDb.CommercialCatalogVersions.CountAsync());
+        }
+
+        [Fact]
+        public async Task TryEnsureInOwnScopeAsync_WhenContextNotRegistered_ReturnsFalse()
+        {
+            var provider = new ServiceCollection().BuildServiceProvider();
+
+            var published = await CommercialCatalogBandRatesUpgrade.TryEnsureInOwnScopeAsync(
+                provider,
+                NullLogger.Instance
+            );
+
+            Assert.False(published);
         }
     }
 }
