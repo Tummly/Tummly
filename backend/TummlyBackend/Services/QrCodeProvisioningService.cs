@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.PrintReadyQrMaterials;
@@ -30,6 +31,13 @@ namespace TummlyBackend.Services
                 return Array.Empty<QrCode>();
             }
 
+            // Free (no plan) mints Paused; Pilot / paid activation or Pilot start
+            // activates plan-paused codes within cap (WS3b).
+            var account = await LoadBillingAccountAsync(location);
+            var status = account == null || OperatorPlanGate.HasPlan(account)
+                ? QrCodeStatus.Active
+                : QrCodeStatus.Paused;
+
             var existingTypes = await LoadExistingPlacementTypesAsync(location);
             var qrCodes = new List<QrCode>();
 
@@ -50,7 +58,7 @@ namespace TummlyBackend.Services
                     RestaurantLocation = location,
                     QrType = qrType,
                     Token = token,
-                    Status = QrCodeStatus.Active,
+                    Status = status,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -60,6 +68,39 @@ namespace TummlyBackend.Services
             }
 
             return qrCodes;
+        }
+
+        private async Task<BillingAccount?> LoadBillingAccountAsync(
+            RestaurantLocation location
+        )
+        {
+            var restaurantId = location.RestaurantId != 0
+                ? location.RestaurantId
+                : location.Restaurant?.Id ?? 0;
+            if (restaurantId == 0)
+            {
+                return null;
+            }
+
+            // Signup adds the account to the change tracker before it is saved.
+            foreach (var entry in _context.ChangeTracker.Entries<BillingAccount>())
+            {
+                if (
+                    entry.State is EntityState.Deleted or EntityState.Detached
+                )
+                {
+                    continue;
+                }
+
+                if (entry.Entity.RestaurantId == restaurantId)
+                {
+                    return entry.Entity;
+                }
+            }
+
+            return await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
         }
 
         private async Task<HashSet<QrType>> LoadExistingPlacementTypesAsync(

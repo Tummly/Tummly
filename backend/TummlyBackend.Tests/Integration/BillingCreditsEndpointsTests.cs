@@ -245,6 +245,26 @@ namespace TummlyBackend.Tests.Integration
         {
             var seeded = await SeedPendingActivationWorkspaceAsync();
 
+            // Activation never starts a Pilot. The Pilot start event does.
+            // The seed is a Free account, as a new signup is before its start.
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var seededContext = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var seededBilling = await seededContext.BillingAccounts
+                    .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+                seededBilling.SubscriptionPlan = BillingSubscriptionPlans.Free;
+                seededBilling.BillingStatus = BillingStatuses.Free;
+                seededBilling.PilotPeriodEnd = null;
+                seededBilling.PilotStartedAtUtc = null;
+                await seededContext.SaveChangesAsync();
+
+                var pilotStart = scope.ServiceProvider
+                    .GetRequiredService<IPilotStartService>();
+                var started = await pilotStart.StartPilotAsync(seeded.RestaurantId);
+                Assert.True(started.Started);
+            }
+
             using (var activateRequest = new HttpRequestMessage(
                 HttpMethod.Post,
                 "/api/auth/activate"

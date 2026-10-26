@@ -457,65 +457,6 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ExtendActivation_AppendsOperatorExtendActivationAudit()
-        {
-            var user = new User
-            {
-                FullName = "Expired Operator",
-                Email = "extend-audit@example.com",
-                PasswordHash = "hash",
-                PhoneNumber = "+447123456789",
-                IsEmailVerified = true,
-                IsApprovedByAdmin = true,
-                ActivatedAt = DateTime.UtcNow.AddDays(-40),
-                ActivationExpiresAt = DateTime.UtcNow.AddDays(-10),
-            };
-
-            _context.Users.Add(user);
-            _context.TrialRequests.Add(
-                new TrialRequest
-                {
-                    BusinessName = "Extend Audit Cafe",
-                    BusinessCategory = "Cafe / coffee shop",
-                    Locations = "1",
-                    FullName = "Expired Operator",
-                    Email = "extend-audit@example.com",
-                    Mobile = "07123456789",
-                    Role = "Owner",
-                    Goal = "Grow repeat guests",
-                    TermsAccepted = true,
-                    IsApproved = true,
-                    IsAccountCreated = true,
-                    AccountType = "Single",
-                    Status = TrialRequestStatus.AccountCreated,
-                }
-            );
-            await _context.SaveChangesAsync();
-
-            var updated = await _service.ExtendActivationAsync(
-                user.Id,
-                new ExtendActivationDto(),
-                actorAdminUserId: 7,
-                actorIdentity: "admin@tummly.com"
-            );
-
-            Assert.NotNull(updated);
-
-            var row = Assert.Single(_context.AdminAuditEvents);
-            Assert.Equal(AdminAuditActions.OperatorExtendActivation, row.Action);
-            Assert.Equal("admin@tummly.com", row.ActorIdentity);
-            Assert.Equal(7, row.ActorAdminUserId);
-            Assert.Equal(AdminAuditTargetTypes.OperatorUser, row.TargetType);
-            Assert.Equal(user.Id.ToString(), row.TargetId);
-            Assert.True(row.Succeeded);
-            Assert.Contains(
-                user.ActivationExpiresAt!.Value.ToUniversalTime()
-                    .ToString("O"),
-                row.DetailJson ?? string.Empty
-            );
-        }
-
-        [Fact]
         public async Task PurgeTrialRequest_AppendsAudit_ThatSurvivesTrialDelete()
         {
             var trialRequest = new TrialRequest
@@ -555,59 +496,6 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(AdminAuditTargetTypes.TrialRequest, row.TargetType);
             Assert.Equal(trialId.ToString(), row.TargetId);
             Assert.True(row.Succeeded);
-        }
-
-        [Fact]
-        public async Task ExtendActivationAsync_RestoresExpiredAccount()
-        {
-            var user = new User
-            {
-                FullName = "Expired Operator",
-                Email = "expired@example.com",
-                PasswordHash = "hash",
-                PhoneNumber = "+447123456789",
-                IsEmailVerified = true,
-                IsApprovedByAdmin = true,
-                ActivatedAt = DateTime.UtcNow.AddDays(-40),
-                ActivationExpiresAt = DateTime.UtcNow.AddDays(-10),
-            };
-
-            _context.Users.Add(user);
-            _context.TrialRequests.Add(
-                new TrialRequest
-                {
-                    BusinessName = "Expired Cafe",
-                    BusinessCategory = "Cafe / coffee shop",
-                    Locations = "1",
-                    FullName = "Expired Operator",
-                    Email = "expired@example.com",
-                    Mobile = "07123456789",
-                    Role = "Owner",
-                    Goal = "Grow repeat guests",
-                    TermsAccepted = true,
-                    IsApproved = true,
-                    IsAccountCreated = true,
-                    AccountType = "Single",
-                    Status = TrialRequestStatus.AccountCreated,
-                }
-            );
-            await _context.SaveChangesAsync();
-
-            var updated = await _service.ExtendActivationAsync(
-                user.Id,
-                new ExtendActivationDto(),
-                actorAdminUserId: null,
-                actorIdentity: "test-admin"
-            );
-
-            Assert.NotNull(updated);
-            Assert.Equal("activated", updated.ActivationStatus);
-            Assert.Equal("active", updated.ActivationStatusDetail);
-            Assert.NotNull(updated.ActivationExpiresAt);
-
-            var persisted = await _context.Users.FindAsync(user.Id);
-            Assert.NotNull(persisted?.ActivationExpiresAt);
-            Assert.True(persisted.ActivationExpiresAt > DateTime.UtcNow);
         }
 
         [Fact]

@@ -1373,6 +1373,681 @@ namespace TummlyBackend.Tests.Services
             Assert.DoesNotContain(BillingActivityKinds.SubscriptionRenewed, kinds);
         }
 
+        [Fact]
+        public async Task Apply_SetupFromPilot_KeepsPilotStartAndEnd()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_keep", "sub_keep");
+            var account = await context.BillingAccounts.SingleAsync(row =>
+                row.RestaurantId == pending.RestaurantId
+            );
+            var pilotStart = _now.AddDays(-3);
+            account.PilotStartedAtUtc = pilotStart;
+            var pilotEnd = account.PilotPeriodEnd!.Value;
+            var owner = await OwnerOfRestaurantAsync(context, pending.RestaurantId);
+            owner.ActivationExpiresAt = pilotEnd;
+            var member = await SeedActiveMemberAsync(
+                context,
+                pending.RestaurantId,
+                pilotEnd
+            );
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_keep",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var after = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == pending.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Starter, after.SubscriptionPlan);
+            Assert.Equal(pilotStart, after.PilotStartedAtUtc);
+            Assert.Equal(pilotEnd, after.PilotPeriodEnd);
+            var ownerAfter = await context.Users
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == owner.Id);
+            Assert.Null(ownerAfter.ActivationExpiresAt);
+            var memberAfter = await context.Users
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == member.Id);
+            Assert.Null(memberAfter.ActivationExpiresAt);
+        }
+
+        [Fact]
+        public async Task Apply_CustomFirstPaid_KeepsPilotHistory()
+        {
+            await using var context = CreateContext();
+            var (account, owner) = await SeedPilotAccountAsync(context);
+            var pilotStart = _now.AddDays(-3);
+            var pilotEnd = account.PilotPeriodEnd!.Value;
+            account.PilotStartedAtUtc = pilotStart;
+            account.SubscriptionPlan = BillingSubscriptionPlans.Custom;
+            account.CustomPlanConfigJson = new CustomPlanConfig
+            {
+                CatalogPublicId = "cat",
+                Cadence = "monthly",
+                PeriodNetPence = 10_000,
+                MonthlyNetPence = 10_000,
+                Quantities = new CustomPlanQuantities
+                {
+                    Locations = 2,
+                    TeamUsers = 2,
+                    QrPlacements = 5,
+                    Offers = 1,
+                    EmailCredits = 500,
+                    SmsCredits = 20,
+                    AiCredits = 20,
+                },
+            }.ToJson();
+            owner.ActivationExpiresAt = pilotEnd;
+            var location = new RestaurantLocation
+            {
+                RestaurantId = account.RestaurantId,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = _now,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+            context.QrCodes.Add(
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.DigitalGuestLink,
+                    Token = Guid.NewGuid().ToString("N")[..32],
+                    Status = QrCodeStatus.Paused,
+                    LinkName = "Operator paused",
+                    NormalizedLinkName = "operator paused",
+                    Channel = DigitalGuestLinkChannel.Email,
+                    CreatedAt = _now,
+                }
+            );
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_custom_first",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.CustomPlanCycle,
+                    TargetPlan = BillingSubscriptionPlans.Custom,
+                    TargetCadence = "monthly",
+                    CheckoutUrl = "https://checkout.test/custom-first",
+                    IdempotencyKey = "custom-first-test",
+                    IsOpen = true,
+                    NetAmountMinor = 10_000,
+                    VatAmountMinor = 2_000,
+                    GrossAmountMinor = 12_000,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var email = new RecordingPlanStartedEmailService();
+            var applier = CreateApplier(context, mint, clock, emailService: email);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_custom_first",
+                    OrderState: "completed",
+                    BillingReason: null,
+                    SubscriptionId: null,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var after = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == account.RestaurantId);
+            Assert.Equal(pilotStart, after.PilotStartedAtUtc);
+            Assert.Equal(pilotEnd, after.PilotPeriodEnd);
+            var ownerAfter = await context.Users
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == owner.Id);
+            Assert.Null(ownerAfter.ActivationExpiresAt);
+            var code = await context.QrCodes
+                .AsNoTracking()
+                .SingleAsync(qr => qr.RestaurantLocationId == location.Id);
+            Assert.Equal(QrCodeStatus.Paused, code.Status);
+            var sent = Assert.Single(email.PlanStartedCalls);
+            Assert.Equal(BillingSubscriptionPlans.Custom, sent.PlanName);
+        }
+
+        [Fact]
+        public async Task Apply_Setup_SendsPlanStartedOnce()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_once", "sub_once");
+            var owner = await OwnerOfRestaurantAsync(context, pending.RestaurantId);
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var email = new RecordingPlanStartedEmailService();
+            var applier = CreateApplier(context, mint, clock, emailService: email);
+            var setup = new RevolutOrderCompletedApplyRequest(
+                OrderId: "ord_once",
+                OrderState: "completed",
+                BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                SubscriptionId: pending.RevolutSubscriptionId,
+                RawWebhookBody: "{}",
+                RawOrderBody: "{}"
+            );
+
+            await applier.ApplyAsync(setup);
+
+            var sent = Assert.Single(email.PlanStartedCalls);
+            Assert.Equal(owner.Email, sent.ToEmail);
+            Assert.Equal(BillingSubscriptionPlans.Starter, sent.PlanName);
+            Assert.Equal("Apply Pilot Venue", sent.RestaurantName);
+
+            // Renewal on the same subscription. The pending session is closed, so
+            // no plan-started. A redelivery of the setup order never reaches the
+            // applier: the webhook claim replays it (see RevolutWebhookServiceTests).
+            var renewalClock = new FixedTimeProvider(_now.AddMonths(1));
+            var renewalApplier = CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, renewalClock),
+                renewalClock,
+                emailService: email
+            );
+            await renewalApplier.ApplyAsync(
+                setup with
+                {
+                    OrderId = "ord_once_renewal",
+                    BillingReason = RevolutOrderCompletedApplier.CycleBilling,
+                }
+            );
+            Assert.Single(email.PlanStartedCalls);
+        }
+
+        [Fact]
+        public async Task Apply_Renewal_DoesNotTouchMemberPilotClock()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(
+                context,
+                "ord_renew_clock",
+                "sub_renew_clock"
+            );
+            var setup = new RevolutOrderCompletedApplyRequest(
+                OrderId: "ord_renew_clock",
+                OrderState: "completed",
+                BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                SubscriptionId: pending.RevolutSubscriptionId,
+                RawWebhookBody: "{}",
+                RawOrderBody: "{}"
+            );
+            var setupClock = new FixedTimeProvider(_now);
+            await CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, setupClock),
+                setupClock
+            ).ApplyAsync(setup);
+
+            // A member of this restaurant holds a Pilot clock that another
+            // restaurant also uses. A renewal must not change it.
+            var otherClock = _now.AddDays(10);
+            var member = await SeedActiveMemberAsync(
+                context,
+                pending.RestaurantId,
+                otherClock
+            );
+
+            var renewalClock = new FixedTimeProvider(_now.AddMonths(1));
+            await CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, renewalClock),
+                renewalClock
+            ).ApplyAsync(
+                setup with
+                {
+                    OrderId = "ord_renew_clock_2",
+                    BillingReason = RevolutOrderCompletedApplier.CycleBilling,
+                }
+            );
+
+            var after = await context.Users
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == member.Id);
+            Assert.Equal(otherClock, after.ActivationExpiresAt);
+        }
+
+        [Fact]
+        public async Task Apply_Setup_OwnerEmailMissing_AppliesWithoutEmail()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_no_owner", "sub_no_owner");
+            var owner = await OwnerOfRestaurantAsync(context, pending.RestaurantId);
+            owner.Email = " ";
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var email = new RecordingPlanStartedEmailService();
+            var applier = CreateApplier(context, mint, clock, emailService: email);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_no_owner",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == pending.RestaurantId);
+            Assert.Equal(BillingStatuses.Active, account.BillingStatus);
+            Assert.Empty(email.PlanStartedCalls);
+        }
+
+        [Fact]
+        public async Task Apply_Setup_EmailSendFails_StillApplies()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_mail_fail", "sub_mail_fail");
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(
+                context,
+                mint,
+                clock,
+                emailService: new ThrowingPlanStartedEmailService()
+            );
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_mail_fail",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == pending.RestaurantId);
+            Assert.Equal(BillingStatuses.Active, account.BillingStatus);
+            var pendingAfter = await context.RevolutPendingPaySessions
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == pending.Id);
+            Assert.False(pendingAfter.IsOpen);
+        }
+
+        [Fact]
+        public async Task Apply_Topup_SendsNoPlanStarted()
+        {
+            await using var context = CreateContext();
+            var (account, _) = await SeedPilotAccountAsync(context);
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_topup_plan",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.Topup,
+                    TargetPlan = string.Empty,
+                    TargetCadence = string.Empty,
+                    RevolutSubscriptionId = string.Empty,
+                    CheckoutUrl = "https://checkout.revolut.test/topup-plan",
+                    IdempotencyKey = "k_topup_plan",
+                    IsOpen = true,
+                    NetAmountMinor = 1500,
+                    VatAmountMinor = 300,
+                    GrossAmountMinor = 1800,
+                    Channel = "ai",
+                    Quantity = 500,
+                    PackLookupKey = "tummly_ai_500_gbp_v3",
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var email = new RecordingPlanStartedEmailService();
+            var applier = CreateApplier(context, mint, clock, emailService: email);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_topup_plan",
+                    OrderState: "completed",
+                    BillingReason: null,
+                    SubscriptionId: null,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            Assert.Empty(email.PlanStartedCalls);
+        }
+
+        [Fact]
+        public async Task Apply_ShopOrder_SendsNoPlanStarted()
+        {
+            await using var context = CreateContext();
+            var (account, owner) = await SeedPilotAccountAsync(context);
+            var location = new RestaurantLocation
+            {
+                RestaurantId = account.RestaurantId,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = _now,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+            var shopOrder = new ShopOrder
+            {
+                Id = Guid.NewGuid(),
+                OrderNumber = "SHOP-PLAN-1",
+                RestaurantId = account.RestaurantId,
+                LocationId = location.Id,
+                LocationNameSnapshot = "Main",
+                PlacedByUserId = owner.Id,
+                PlacedByNameSnapshot = "Apply Owner",
+                MaterialsNetPence = 1000,
+                VatPence = 200,
+                DeliveryNetPence = 0,
+                GrossPence = 1200,
+                ShipToContactName = "Apply Owner",
+                ShipToAddressLine1 = "1 High Street",
+                ShipToPostcode = "AB1 2CD",
+                CreatedAtUtc = _now,
+                UpdatedAtUtc = _now,
+            };
+            context.ShopOrders.Add(shopOrder);
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_shop_plan",
+                    RestaurantId = account.RestaurantId,
+                    ShopOrderId = shopOrder.Id,
+                    Purpose = RevolutOrderIntentPurposes.ShopMaterialsOrder,
+                    TargetPlan = string.Empty,
+                    TargetCadence = string.Empty,
+                    RevolutSubscriptionId = string.Empty,
+                    CheckoutUrl = "https://checkout.revolut.test/shop-plan",
+                    IdempotencyKey = "k_shop_plan",
+                    IsOpen = true,
+                    NetAmountMinor = 1000,
+                    VatAmountMinor = 200,
+                    GrossAmountMinor = 1200,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var email = new RecordingPlanStartedEmailService();
+            var applier = CreateApplier(context, mint, clock, emailService: email);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_shop_plan",
+                    OrderState: "completed",
+                    BillingReason: null,
+                    SubscriptionId: null,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            Assert.Empty(email.PlanStartedCalls);
+        }
+
+        [Fact]
+        public async Task Apply_Setup_ActivatesPausedQrWithinCap()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(
+                context,
+                "ord_qr",
+                "sub_qr",
+                BillingSubscriptionPlans.Growth
+            );
+            var account = await context.BillingAccounts.SingleAsync(row =>
+                row.RestaurantId == pending.RestaurantId
+            );
+            account.SubscriptionPlan = BillingSubscriptionPlans.Free;
+            account.BillingStatus = BillingStatuses.Free;
+            account.PilotPeriodEnd = null;
+            var location = new RestaurantLocation
+            {
+                RestaurantId = pending.RestaurantId,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = _now,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+            var cap = _pricebook
+                .GetRequired(account.ContractedPricebookId!)
+                .Plans[BillingSubscriptionPlans.Growth.ToLowerInvariant()]
+                .ActiveQrPlacementsPerLocation;
+            for (var i = 1; i <= cap + 2; i++)
+            {
+                context.QrCodes.Add(
+                    new QrCode
+                    {
+                        RestaurantLocationId = location.Id,
+                        QrType = QrType.DigitalGuestLink,
+                        Token = Guid.NewGuid().ToString("N")[..32],
+                        Status = QrCodeStatus.Paused,
+                        LinkName = $"Paused link {i}",
+                        NormalizedLinkName = $"paused link {i}",
+                        Channel = DigitalGuestLinkChannel.Email,
+                        CreatedAt = _now.AddMinutes(i),
+                    }
+                );
+            }
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_qr",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var codes = await context.QrCodes
+                .AsNoTracking()
+                .Where(qr => qr.RestaurantLocationId == location.Id)
+                .ToListAsync();
+            Assert.Equal(cap, codes.Count(qr => qr.Status == QrCodeStatus.Active));
+            Assert.Equal(2, codes.Count(qr => qr.Status == QrCodeStatus.Paused));
+        }
+
+        [Fact]
+        public async Task Apply_Setup_ClosedPaySession_ClearsClocksAndSendsPlanStartedOnce()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_closed", "sub_closed");
+            pending.IsOpen = false;
+            var pilotEnd = _now.AddDays(20);
+            var owner = await OwnerOfRestaurantAsync(context, pending.RestaurantId);
+            owner.ActivationExpiresAt = pilotEnd;
+            var member = await SeedActiveMemberAsync(
+                context,
+                pending.RestaurantId,
+                pilotEnd
+            );
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var email = new RecordingPlanStartedEmailService();
+            var applier = CreateApplier(context, mint, clock, emailService: email);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_closed",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var ownerAfter = await context.Users
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == owner.Id);
+            Assert.Null(ownerAfter.ActivationExpiresAt);
+            var memberAfter = await context.Users
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == member.Id);
+            Assert.Null(memberAfter.ActivationExpiresAt);
+            var sent = Assert.Single(email.PlanStartedCalls);
+            Assert.Equal(BillingSubscriptionPlans.Starter, sent.PlanName);
+        }
+
+        [Fact]
+        public async Task Apply_Setup_OnPaidAccount_SendsNoPlanStarted()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_paid_setup", "sub_paid_setup");
+            var account = await context.BillingAccounts.SingleAsync(row =>
+                row.RestaurantId == pending.RestaurantId
+            );
+            account.SubscriptionPlan = BillingSubscriptionPlans.Starter;
+            account.BillingStatus = BillingStatuses.Active;
+            pending.IsOpen = false;
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var email = new RecordingPlanStartedEmailService();
+            var applier = CreateApplier(context, mint, clock, emailService: email);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_paid_setup",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            Assert.Empty(email.PlanStartedCalls);
+        }
+
+        [Fact]
+        public async Task Apply_Setup_FromPilot_KeepsOperatorPausedCodePaused()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(
+                context,
+                "ord_pilot_paused",
+                "sub_pilot_paused",
+                BillingSubscriptionPlans.Growth
+            );
+            var location = new RestaurantLocation
+            {
+                RestaurantId = pending.RestaurantId,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = _now,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+            context.QrCodes.Add(
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.DigitalGuestLink,
+                    Token = Guid.NewGuid().ToString("N")[..32],
+                    Status = QrCodeStatus.Paused,
+                    LinkName = "Operator paused",
+                    NormalizedLinkName = "operator paused",
+                    Channel = DigitalGuestLinkChannel.Email,
+                    CreatedAt = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_pilot_paused",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var code = await context.QrCodes
+                .AsNoTracking()
+                .SingleAsync(qr => qr.RestaurantLocationId == location.Id);
+            Assert.Equal(QrCodeStatus.Paused, code.Status);
+        }
+
+        private async Task<User> SeedActiveMemberAsync(
+            ApplicationDbContext context,
+            int restaurantId,
+            DateTime? activationExpiresAt
+        )
+        {
+            var member = new User
+            {
+                Email = $"member-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "x",
+                FullName = "Apply Member",
+                Role = "Member",
+                CreatedAt = _now,
+                ActivatedAt = activationExpiresAt?.AddDays(-30),
+                ActivationExpiresAt = activationExpiresAt,
+            };
+            context.Users.Add(member);
+            await context.SaveChangesAsync();
+            context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = member.Id,
+                    RestaurantId = restaurantId,
+                    PermissionRole = PermissionRoles.Owner,
+                    Status = MembershipStatus.Active,
+                }
+            );
+            await context.SaveChangesAsync();
+            return member;
+        }
+
+        private async Task<User> OwnerOfRestaurantAsync(
+            ApplicationDbContext context,
+            int restaurantId
+        )
+        {
+            var ownerUserId = await context.Restaurants
+                .Where(row => row.Id == restaurantId)
+                .Select(row => row.OwnerUserId)
+                .SingleAsync();
+            return await context.Users.SingleAsync(row => row.Id == ownerUserId);
+        }
+
         private async Task<BillingAccount> SeedActiveStarterAsync(
             ApplicationDbContext context
         )
@@ -1408,7 +2083,8 @@ namespace TummlyBackend.Tests.Services
             TimeProvider clock,
             IRevolutMerchantClient? merchant = null,
             ITummlyVatInvoiceEmailDelivery? invoiceEmail = null,
-            TummlySellerVatSettings? sellerVat = null
+            TummlySellerVatSettings? sellerVat = null,
+            IEmailService? emailService = null
         )
         {
             var vat =
@@ -1451,14 +2127,41 @@ namespace TummlyBackend.Tests.Services
                 merchant ?? new RecordingLandMerchant(),
                 clock,
                 Options.Create(vat),
+                emailService ?? new EmailServiceStubBase(),
+                CreateCaptureQrLifecycle(context),
                 invoiceEmail
+            );
+        }
+
+        private CaptureQrLifecycleService CreateCaptureQrLifecycle(
+            ApplicationDbContext context
+        )
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["Frontend:BaseUrl"] = "https://app.test",
+                    }
+                )
+                .Build();
+            return new CaptureQrLifecycleService(
+                context,
+                new SmartGuestLinkService(
+                    context,
+                    configuration,
+                    new NoOpBillingAccountLifecycle()
+                ),
+                _pricebook,
+                null!
             );
         }
 
         private async Task<RevolutPendingPaySession> SeedPilotPendingAsync(
             ApplicationDbContext context,
             string setupOrderId,
-            string subscriptionId
+            string subscriptionId,
+            string targetPlan = BillingSubscriptionPlans.Starter
         )
         {
             var (account, _) = await SeedPilotAccountAsync(context);
@@ -1466,7 +2169,7 @@ namespace TummlyBackend.Tests.Services
             {
                 Id = Guid.NewGuid(),
                 RestaurantId = account.RestaurantId,
-                TargetPlan = BillingSubscriptionPlans.Starter,
+                TargetPlan = targetPlan,
                 TargetCadence = "monthly",
                 RevolutSubscriptionId = subscriptionId,
                 SetupOrderId = setupOrderId,
@@ -1550,6 +2253,16 @@ namespace TummlyBackend.Tests.Services
                         }
                 )
             );
+        }
+
+        private sealed class ThrowingPlanStartedEmailService : EmailServiceStubBase
+        {
+            public override Task SendPlanStartedEmailAsync(
+                string toEmail,
+                string firstName,
+                string planName,
+                string restaurantName
+            ) => Task.FromException(new InvalidOperationException("smtp_down"));
         }
 
         private sealed class CountingApplier : IRevolutOrderCompletedApplier

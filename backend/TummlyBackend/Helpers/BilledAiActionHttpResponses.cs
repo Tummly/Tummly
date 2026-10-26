@@ -49,7 +49,7 @@ namespace TummlyBackend.Helpers
                     {
                         success = false,
                         code = locked.Code,
-                        message = locked.Code,
+                        message = OperatorPlanGate.MessageFor(locked.Code),
                     }
                 )
                 {

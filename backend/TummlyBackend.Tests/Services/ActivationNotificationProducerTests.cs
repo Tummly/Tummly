@@ -168,6 +168,45 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, batch.Produced);
         }
 
+        [Fact]
+        public async Task Process_SkipsUsersWithoutExpiry()
+        {
+            var now = new DateTime(2026, 7, 15, 12, 0, 0, DateTimeKind.Utc);
+            var user = new User
+            {
+                Email = $"paid-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "x",
+                FullName = "Paid Owner",
+                Role = "Owner",
+                CreatedAt = now,
+                ActivatedAt = now.AddDays(-30),
+                ActivationExpiresAt = null,
+            };
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            var batch = await _producer.ProcessAsync(now);
+
+            Assert.Equal(0, batch.Produced);
+            Assert.Empty(await _notifications.ListAsync(user.Id));
+        }
+
+        [Fact]
+        public async Task ActivationNotifications_SkipConvertedOwner()
+        {
+            var now = new DateTime(2026, 7, 15, 12, 0, 0, DateTimeKind.Utc);
+            var user = await SeedActivatedUserAsync(now.AddDays(-2));
+            // Paid activation clears the owner Pilot clock. The Pilot end
+            // stays on the BillingAccount as history only.
+            user.ActivationExpiresAt = null;
+            await _context.SaveChangesAsync();
+
+            var batch = await _producer.ProcessAsync(now);
+
+            Assert.Equal(0, batch.Produced);
+            Assert.Empty(await _notifications.ListAsync(user.Id));
+        }
+
         private async Task<User> SeedActivatedUserAsync(DateTime expiresAt)
         {
             var user = new User

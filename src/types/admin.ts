@@ -52,7 +52,23 @@ export interface AdminTrialRequestsResponse {
 }
 
 export interface ExtendActivationPayload {
-  expiresAt?: string;
+  days: 14 | 30;
+  idempotencyKey: string;
+  restaurantId: number;
+}
+
+export interface AdminPilotAccount {
+  restaurantId: number;
+  ownerUserId: number;
+  restaurantName: string;
+  ownerEmail: string;
+  billingStatus: string;
+  pilotStartedAtUtc: string | null;
+  pilotPeriodEnd: string | null;
+  extensionCount: number;
+  extensionDaysTotal: number;
+  canExtend: boolean;
+  cannotExtendReason: string | null;
 }
 
 export interface AdminTrialReviewTransitionResponse {

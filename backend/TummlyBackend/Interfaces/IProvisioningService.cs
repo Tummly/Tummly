@@ -22,6 +22,13 @@ namespace TummlyBackend.Interfaces
         /// </summary>
         Task RetryPaidSignupCheckoutAsync(Guid pendingSignupId);
 
+        /// <summary>
+        /// Starts the Pilot for a Complete PendingSignup that chose Pilot, when
+        /// no Pilot start has run yet. Idempotent. A refused start (already
+        /// used) is not an error.
+        /// </summary>
+        Task EnsurePilotForPendingAsync(Guid pendingSignupId);
+
         Task GenerateActivationCodeAsync(string inviteToken);
     }
 }

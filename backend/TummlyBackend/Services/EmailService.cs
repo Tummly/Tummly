@@ -1081,6 +1081,32 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task SendPlanStartedEmailAsync(
+            string toEmail,
+            string firstName,
+            string planName,
+            string restaurantName
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = PlanStartedEmailTemplate.Generate(
+                _environment,
+                firstName,
+                planName,
+                restaurantName,
+                EmailFrontendUrls.AppHome(frontendBaseUrl),
+                EmailFrontendUrls.Privacy(frontendBaseUrl),
+                EmailFrontendUrls.CompanyDetails(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                PlanStartedEmailTemplate.Subject(planName),
+                htmlBody
+            );
+        }
+
         public async Task SendPilotEndingSoonEmailAsync(
             string toEmail,
             string firstName,

@@ -1,3 +1,4 @@
+using TummlyBackend.Tests.Helpers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -859,7 +860,7 @@ var reply = LastMessage(conversation);
             await context.SaveChangesAsync();
 
             context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(
+                PilotBillingAccountSeed.Create(
                     restaurant.Id,
                     "TUMMLY-UK-GBP-2026-08-V3"
                 )

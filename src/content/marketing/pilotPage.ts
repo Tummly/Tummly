@@ -235,7 +235,7 @@ export const PILOT_FAQS = {
       id: "when-begins",
       question: "When do my 30 days begin?",
       answer:
-        "Your 30-day Pilot begins when you complete your Tummly account registration. You can start setting up your restaurant immediately.",
+        "When you successfully complete setup for the Pilot account you selected. Your setup confirmation shows the start and end dates. No QR scan or physical delivery is needed.",
     },
     {
       id: "what-during",

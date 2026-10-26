@@ -154,6 +154,13 @@ namespace TummlyBackend.Tests.Helpers
             string pilotEndDateLabel
         ) => Task.CompletedTask;
 
+        public virtual Task SendPlanStartedEmailAsync(
+            string toEmail,
+            string firstName,
+            string planName,
+            string restaurantName
+        ) => Task.CompletedTask;
+
         public virtual Task SendPilotEndingSoonEmailAsync(
             string toEmail,
             string firstName,

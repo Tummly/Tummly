@@ -880,6 +880,54 @@ namespace TummlyBackend.Tests.Integration
             return JsonDocument.Parse(text).RootElement.Clone();
         }
 
+        [Fact]
+        public async Task SetThankYouOffer_FreePlan_Returns403PlanRequired()
+        {
+            var seeded = await SeedLocationPauseActivateAsync(
+                email: "capture-thank-you-free@example.com",
+                tokenSuffix: "thankfree"
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurantId = await context.RestaurantLocations
+                    .Where(row => row.Id == seeded.LocationId)
+                    .Select(row => row.RestaurantId)
+                    .SingleAsync();
+                var account = await context.BillingAccounts.SingleAsync(
+                    row => row.RestaurantId == restaurantId
+                );
+                account.SubscriptionPlan = BillingSubscriptionPlans.Free;
+                account.BillingStatus = BillingStatuses.Free;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                $"/api/capture/locations/{seeded.LocationId}/thank-you-offer"
+            )
+            {
+                Content = new StringContent(
+                    JsonSerializer.Serialize(new { offerId = 1 }),
+                    System.Text.Encoding.UTF8,
+                    "application/json"
+                ),
+            };
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("plan_required", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "Choose a Pilot or paid plan to continue.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
         private async Task<(string Jwt, int LocationAId, int LocationBId)>
             SeedTwoLocationFactsAsync(string email, string tokenSuffix)
         {

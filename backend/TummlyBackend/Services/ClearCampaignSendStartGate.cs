@@ -76,6 +76,12 @@ namespace TummlyBackend.Services
                 return new CampaignSendStartGateResult.Clear();
             }
 
+            var planDeny = OperatorPlanGate.EvaluatePlanDeny(account);
+            if (planDeny != null)
+            {
+                return new CampaignSendStartGateResult.Blocked { Message = planDeny };
+            }
+
             var deny = OperatorBillingLockEvaluator.EvaluateSendOrReserveDeny(
                 OperatorBillingLockEvaluator.FromBillingAccount(account),
                 _utcNow()

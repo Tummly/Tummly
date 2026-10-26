@@ -22,6 +22,7 @@ namespace TummlyBackend.Tests.Services
             new();
         private int _userId;
         private int _locationId;
+        private int _restaurantId;
 
         public CaptureQrLifecycleServiceTests()
         {
@@ -760,6 +761,90 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(QrLifecycleResultKind.Conflict, denied.Kind);
         }
 
+        [Fact]
+        public async Task ActivatePlanPausedCodes_ActivatesWithinCap()
+        {
+            for (var i = 1; i <= 7; i++)
+            {
+                await SeedDigitalAsync($"Plan link {i}", QrCodeStatus.Paused);
+            }
+
+            var activated = await _service.ActivatePlanPausedCodesAsync(
+                _restaurantId
+            );
+
+            // Pilot cap is 5 Active codes per Location.
+            Assert.Equal(5, activated);
+            Assert.Equal(
+                5,
+                await _context.QrCodes.CountAsync(qr =>
+                    qr.RestaurantLocationId == _locationId
+                    && qr.Status == QrCodeStatus.Active
+                )
+            );
+        }
+
+        [Fact]
+        public async Task ActivatePlanPausedCodes_SkipsPausedLocation_StopsAtCap()
+        {
+            // Location A: Active capture, 2 Active codes, 4 plan-paused codes.
+            // Only 3 may activate (2 + 3 = cap 5).
+            await SeedDigitalAsync("Live link", QrCodeStatus.Active);
+            await SeedDigitalAsync("Live link two", QrCodeStatus.Active);
+            for (var i = 1; i <= 4; i++)
+            {
+                await SeedDigitalAsync($"Cap link {i}", QrCodeStatus.Paused);
+            }
+
+            // Location B: operator paused capture. Its codes stay Paused.
+            var pausedLocation = new RestaurantLocation
+            {
+                RestaurantId = _restaurantId,
+                LocationName = "Operator Paused",
+                Address = "2 High Street",
+                CreatedAt = DateTime.UtcNow,
+                CaptureLocationStatus = CaptureLocationStatus.Paused,
+            };
+            _context.RestaurantLocations.Add(pausedLocation);
+            await _context.SaveChangesAsync();
+
+            var pausedCode = new QrCode
+            {
+                RestaurantLocationId = pausedLocation.Id,
+                QrType = QrType.DigitalGuestLink,
+                Token = Guid.NewGuid().ToString("N")[..32],
+                Status = QrCodeStatus.Paused,
+                LinkName = "Operator paused",
+                NormalizedLinkName = DigitalGuestLinkNaming.NormalizeLinkName(
+                    DigitalGuestLinkNaming.FormatLinkName("Operator paused")
+                ),
+                Channel = DigitalGuestLinkChannel.Email,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.QrCodes.Add(pausedCode);
+            await _context.SaveChangesAsync();
+            pausedLocation.CaptureLocationPauseRestoreQrCodeIdsJson =
+                CaptureLocationPauseRestore.Serialize([pausedCode.Id]);
+            await _context.SaveChangesAsync();
+
+            var activated = await _service.ActivatePlanPausedCodesAsync(
+                _restaurantId
+            );
+
+            Assert.Equal(3, activated);
+            Assert.Equal(
+                5,
+                await _context.QrCodes.CountAsync(qr =>
+                    qr.RestaurantLocationId == _locationId
+                    && qr.Status == QrCodeStatus.Active
+                )
+            );
+            var stillPaused = await _context.QrCodes.FirstAsync(qr =>
+                qr.Id == pausedCode.Id
+            );
+            Assert.Equal(QrCodeStatus.Paused, stillPaused.Status);
+        }
+
         public void Dispose()
         {
             _context.Dispose();
@@ -808,6 +893,193 @@ namespace TummlyBackend.Tests.Services
             _context.RestaurantLocations.Add(location);
             _context.SaveChanges();
             _locationId = location.Id;
+            _restaurantId = restaurant.Id;
+        }
+
+        [Fact]
+        public async Task Restore_SoftLock_DeniedBillingLocked()
+        {
+            var qr = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Archived);
+            await SetBillingStatusAsync(BillingStatuses.SoftLock);
+
+            var result = await _service.RestoreAsync(CodeCommand(qr.Id));
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorBillingLockEvaluator.SoftLock, result.Code);
+            Assert.Equal(QrCodeStatus.Archived, (await ReloadAsync(qr.Id)).Status);
+        }
+
+        [Fact]
+        public async Task ActivateLocationCapture_SoftLock_DeniedBillingLocked()
+        {
+            await SetLocationStatusAsync(CaptureLocationStatus.Paused);
+            await SetBillingStatusAsync(BillingStatuses.SoftLock);
+
+            var result = await _service.ActivateLocationCaptureAsync(LocationCommand());
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorBillingLockEvaluator.SoftLock, result.Code);
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .FirstAsync(l => l.Id == _locationId);
+            Assert.Equal(CaptureLocationStatus.Paused, location.CaptureLocationStatus);
+        }
+
+        [Fact]
+        public async Task Resume_FreePlan_DeniedPlanRequired()
+        {
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Free, BillingStatuses.Free);
+            var service = FreeCapService(cap: 5);
+            var qr = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Paused);
+
+            var result = await service.ResumeAsync(CodeCommand(qr.Id));
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorPlanGate.PlanRequiredCode, result.Code);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(qr.Id)).Status);
+        }
+
+        [Fact]
+        public async Task Resume_UnpaidCustomSignup_DeniedPlanRequired()
+        {
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Custom, BillingStatuses.Free);
+            var service = FreeCapService(cap: 5);
+            var qr = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Paused);
+
+            var result = await service.ResumeAsync(CodeCommand(qr.Id));
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorPlanGate.PlanRequiredCode, result.Code);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(qr.Id)).Status);
+        }
+
+        [Fact]
+        public async Task ActivateLocationCapture_FreePlan_DeniedPlanRequired()
+        {
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Free, BillingStatuses.Free);
+            var service = FreeCapService(cap: 5);
+            await SetLocationStatusAsync(CaptureLocationStatus.Paused);
+
+            var result = await service.ActivateLocationCaptureAsync(LocationCommand());
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorPlanGate.PlanRequiredCode, result.Code);
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .FirstAsync(l => l.Id == _locationId);
+            Assert.Equal(CaptureLocationStatus.Paused, location.CaptureLocationStatus);
+        }
+
+        [Fact]
+        public async Task Pause_FreePlan_StillAllowed()
+        {
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Free, BillingStatuses.Free);
+            var qr = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Active);
+
+            var result = await _service.PauseAsync(CodeCommand(qr.Id));
+
+            Assert.Equal(QrLifecycleResultKind.Ok, result.Kind);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(qr.Id)).Status);
+        }
+
+        private async Task SetBillingPlanAsync(string plan, string billingStatus)
+        {
+            var account = await _context.BillingAccounts.FirstAsync(
+                row => row.RestaurantId == _restaurantId
+            );
+            account.SubscriptionPlan = plan;
+            account.BillingStatus = billingStatus;
+            await _context.SaveChangesAsync();
+        }
+
+        private CaptureQrLifecycleService FreeCapService(int cap)
+        {
+            return new CaptureQrLifecycleService(
+                _context,
+                _smartGuestLink,
+                new FreeCapPricebookCatalog(
+                    PricebookCatalog.LoadFromDirectory(PackDirectory()),
+                    cap
+                ),
+                _printMaterials
+            );
+        }
+
+        /// <summary>Test pricebook that overrides the Free plan's active QR cap.</summary>
+        private sealed class FreeCapPricebookCatalog : IPricebookCatalog
+        {
+            private readonly IPricebookCatalog _inner;
+            private readonly int _freeCap;
+
+            public FreeCapPricebookCatalog(IPricebookCatalog inner, int freeCap)
+            {
+                _inner = inner;
+                _freeCap = freeCap;
+            }
+
+            public string CurrentPricebookId => _inner.CurrentPricebookId;
+
+            public PricebookSnapshot GetRequired(string pricebookId)
+            {
+                var book = _inner.GetRequired(pricebookId);
+                var plans = book.Plans.ToDictionary(
+                    pair => pair.Key,
+                    pair => string.Equals(pair.Key, "free", StringComparison.OrdinalIgnoreCase)
+                        ? WithCap(pair.Value, _freeCap)
+                        : pair.Value
+                );
+                return new PricebookSnapshot
+                {
+                    Id = book.Id,
+                    Plans = plans,
+                    TopUpPacks = book.TopUpPacks,
+                    VatRateBps = book.VatRateBps,
+                    ExtraGroupLocationMonthlyNetPence = book.ExtraGroupLocationMonthlyNetPence,
+                    ExtraGroupLocationAnnualNetPence = book.ExtraGroupLocationAnnualNetPence,
+                    ExtraLocationCreditsMonthly = book.ExtraLocationCreditsMonthly,
+                    InternalCostAssumptions = book.InternalCostAssumptions,
+                    PaymentProvider = book.PaymentProvider,
+                };
+            }
+
+            public TummlyBackend.DTOs.BillingCredits.BillingCurrentCatalogDto BuildCurrentCatalog(bool sms5000Available) =>
+                _inner.BuildCurrentCatalog(sms5000Available);
+
+            public string FormatPlanPriceNet(PricebookPlan plan, string? billingCycle) =>
+                _inner.FormatPlanPriceNet(plan, billingCycle);
+
+            public string FormatIncludedCreditsLabel(PricebookPlan plan, string channel) =>
+                _inner.FormatIncludedCreditsLabel(plan, channel);
+
+            private static PricebookPlan WithCap(PricebookPlan plan, int cap) =>
+                new()
+                {
+                    Key = plan.Key,
+                    DisplayName = plan.DisplayName,
+                    MonthlyNetPence = plan.MonthlyNetPence,
+                    AnnualNetPence = plan.AnnualNetPence,
+                    IncludedLocations = plan.IncludedLocations,
+                    IncludedTeamMembers = plan.IncludedTeamMembers,
+                    ActiveOffersAccount = plan.ActiveOffersAccount,
+                    CreditsOneTime = plan.CreditsOneTime,
+                    CreditsMonthly = plan.CreditsMonthly,
+                    ActiveQrPlacementsPerLocation = cap,
+                    PublishedGuestFormsPerLocation = plan.PublishedGuestFormsPerLocation,
+                    DraftGuestFormsPerLocation = plan.DraftGuestFormsPerLocation,
+                };
+        }
+
+        private async Task SetBillingStatusAsync(string billingStatus)
+        {
+            var account = await _context.BillingAccounts.FirstAsync(
+                row => row.RestaurantId == _restaurantId
+            );
+            account.BillingStatus = billingStatus;
+            if (billingStatus == BillingStatuses.SoftLock)
+            {
+                account.SoftLockEnteredAt = DateTime.UtcNow.AddDays(-1);
+            }
+            await _context.SaveChangesAsync();
         }
 
         private async Task<QrCode> SeedQrAsync(

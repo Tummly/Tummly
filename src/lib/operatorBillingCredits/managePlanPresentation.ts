@@ -380,8 +380,8 @@ export function buildManagePlanFaqItems(options?: {
       id: "pilot-start",
       question: "When does my 30-day Pilot start?",
       answerParagraphs: [
-        "Your 30-day Pilot starts when you redeem the Activation Code from your starter kit, or when an authorised admin activates the Pilot.",
-        "It does not start merely when an account is created.",
+        "When you successfully complete setup for the Pilot account you selected. Your setup confirmation shows the start and end dates. No QR scan or physical delivery is needed.",
+        "No payment card. No automatic paid renewal. Pilot allowances are once, not monthly.",
       ],
     },
   ]

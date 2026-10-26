@@ -1,4 +1,5 @@
 ﻿using TummlyBackend.DTOs.Admin;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
 public interface IAdminService
@@ -17,12 +18,19 @@ public interface IAdminService
     Task<OperatorSetupReminderBatchResult>
         ProcessOperatorSetupInvitationRemindersAsync();
 
-    Task<AdminTrialRequestDto?> ExtendActivationAsync(
+    /// <summary>
+    /// Admin Pilot extension for the operator's restaurant. Null when the operator owns no restaurant.
+    /// </summary>
+    Task<PilotExtensionResult?> ExtendPilotAsync(
         int userId,
         ExtendActivationDto dto,
         int? actorAdminUserId,
         string actorIdentity
     );
+
+    Task<AdminPilotAccountDto?> GetPilotAccountAsync(int userId, int? restaurantId);
+
+    Task<IReadOnlyList<AdminPilotAccountDto>> ListPilotAccountsAsync();
 
     Task<(byte[] Content, string FileName, string ContentType)?>
         GetActivationDownloadAsync(int userId);

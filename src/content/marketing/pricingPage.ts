@@ -591,13 +591,13 @@ export const PRICING_FAQS = {
       id: "pilot-start",
       question: "When does my 30-day Pilot start?",
       answer:
-        "Setup starts immediately. The live 30-day Pilot starts at the first real production guest scan, or 48 hours after the included Starter Kit is confirmed delivered - whichever happens first. Test scans do not start it.",
+        "When you successfully complete setup for the Pilot account you selected. Your setup confirmation shows the start and end dates. No QR scan or physical delivery is needed.",
     },
     {
       id: "pilot-end",
       question: "What happens when my Pilot ends?",
       answer:
-        "At day 30 the Pilot moves to a soft lock. You can still log in, and your history and QR setup are preserved while you decide whether to move to a paid plan.",
+        "There is no automatic charge or paid renewal. Live features pause when the Pilot ends. Choose a paid plan to continue, with account history retained under the applicable retention rules.",
     },
     {
       id: "rollover",

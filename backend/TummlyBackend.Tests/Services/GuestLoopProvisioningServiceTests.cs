@@ -19,6 +19,7 @@ namespace TummlyBackend.Tests.Services
         private readonly ApplicationDbContext _context;
         private readonly GuestLoopProvisioningService _service;
         private readonly RecordingPrintReadyQrMaterialsWork _printWork = new();
+        private readonly RecordingPilotStartedEmailService _email = new();
 
         public GuestLoopProvisioningServiceTests()
         {
@@ -83,10 +84,8 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 qrCodeProvisioning,
                 _printWork,
-                CreateComplimentaryStarterShopOrders(_context),
                 configuration,
                 PricebookCatalog.LoadFromDirectory(packDir),
-                new NoOpCreditLedger(),
                 new NoOpBillingAccountLifecycle(),
                 new NoOpFirstPaidConversionPaySession(),
                 new CustomPlanCycleBillingService(
@@ -97,7 +96,14 @@ namespace TummlyBackend.Tests.Services
                         new TummlyBackend.Configurations.TummlySellerVatSettings()
                     )
                 ),
-                new EmailServiceStubBase(),
+                PilotStartTestFactory.Create(
+                    _context,
+                    PricebookCatalog.LoadFromDirectory(packDir),
+                    new NoOpCreditLedger(),
+                    CreateComplimentaryStarterShopOrders(_context),
+                    _printWork,
+                    _email
+                ),
                 NullLogger<GuestLoopProvisioningService>.Instance
             );
         }
@@ -300,6 +306,40 @@ namespace TummlyBackend.Tests.Services
                 [complimentaryOrder.Id],
                 _printWork.ShopOrderIds
             );
+        }
+
+        [Fact]
+        public async Task ProvisionAsync_StartsPilot_SetsClockAndSendsEmailOnce()
+        {
+            await SeedTrialRequestAsync("pilot-start-token");
+
+            await _service.ProvisionAsync(new CompleteSetupDto
+            {
+                Token = "pilot-start-token",
+                Password = "password123",
+                ConfirmPassword = "password123",
+                FullName = "Alex Owner",
+                GroupName = "The Golden Fork",
+                BusinessCategory = "takeaway",
+                PrimaryPhone = "07911123456",
+                Locations =
+                [
+                    new CompleteSetupDto.LocationItem
+                    {
+                        LocationName = "Main",
+                        Address = "1 High Street",
+                        City = "Leeds",
+                        Postcode = "LS1 1AA"
+                    }
+                ]
+            });
+
+            var user = await _context.Users.SingleAsync();
+            var billing = await _context.BillingAccounts.SingleAsync();
+            Assert.NotNull(billing.PilotStartedAtUtc);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, billing.SubscriptionPlan);
+            Assert.Equal(billing.PilotPeriodEnd, user.ActivationExpiresAt);
+            Assert.Equal(1, _email.PilotStartedCalls);
         }
 
         [Fact]

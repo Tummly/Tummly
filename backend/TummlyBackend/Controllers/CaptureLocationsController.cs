@@ -253,10 +253,18 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            var result = await _thankYouOffer.SetAsync(
-                locationId,
-                body.OfferId
-            );
+            CaptureThankYouOfferSetResult result;
+            try
+            {
+                result = await _thankYouOffer.SetAsync(
+                    locationId,
+                    body.OfferId
+                );
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
+            }
 
             return result switch
             {

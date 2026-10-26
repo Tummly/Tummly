@@ -8698,7 +8698,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task Get_ReturnsOk_WhenActivationExpired_AndAfterExtend()
+        public async Task Get_ReturnsOk_WhenActivationExpired()
         {
             var user = await SeedUserAsync("expired-op@example.com");
             var locationId = await SeedLocationAsync(user.Id, "Camden");
@@ -8715,14 +8715,6 @@ namespace TummlyBackend.Tests.Services
 
             Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.GetAsync(user.Id, conversationId)
-            );
-
-            var admin = CreateAdminService();
-            await admin.ExtendActivationAsync(
-                user.Id,
-                new ExtendActivationDto(),
-                actorAdminUserId: null,
-                actorIdentity: "test-admin"
             );
 
             var after = Assert.IsType<AssistantTurnOutcome.Ok>(
@@ -10190,36 +10182,6 @@ namespace TummlyBackend.Tests.Services
             return user;
         }
 
-        private AdminService CreateAdminService()
-        {
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(
-                    new Dictionary<string, string?>
-                    {
-                        ["Frontend:BaseUrl"] = "https://app.tummly.com",
-                        ["JwtSettings:Secret"] =
-                            "test-secret-key-that-is-long-enough-for-hmac-sha256",
-                    }
-                )
-                .Build();
-
-            return new AdminService(
-                _context,
-                new TrialReviewTransition(
-                    _context,
-                    new TrackingEmailService(),
-                    configuration,
-                    NullLogger<TrialReviewTransition>.Instance,
-                    new AdminAuditService(_context, TimeProvider.System)
-                ),
-                configuration,
-                NullLogger<AdminService>.Instance,
-                _service,
-                new NoOpBillingAccountLifecycle(),
-                new AdminAuditService(_context, TimeProvider.System)
-            );
-        }
-
         private sealed class ThrowingCampaignEligibilityService : ICampaignEligibilityService
         {
             public Task<CampaignEligibilityDto> EvaluateAsync(
@@ -11125,7 +11087,7 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
 
             _context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(
+                PilotBillingAccountSeed.Create(
                     restaurant.Id,
                     "TUMMLY-UK-GBP-2026-08-V3"
                 )

@@ -31,6 +31,7 @@
         public const string TrialResendInvite = "trial.resend_invite";
         public const string TrialPurge = "trial.purge";
         public const string OperatorExtendActivation = "operator.extend_activation";
+        public const string OperatorExtendPilot = "operator.extend_pilot";
         public const string CreditAdjust = "credit.adjust";
         public const string CreditReverse = "credit.reverse";
         public const string PaymentRefund = "payment.refund";

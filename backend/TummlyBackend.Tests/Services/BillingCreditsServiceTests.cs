@@ -7,6 +7,7 @@ using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -420,6 +421,150 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("no_pending_payment", error);
         }
 
+        [Fact]
+        public async Task ChangePlan_FreeToPilot_UsesStartPilot()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings { IsActive = false }
+            );
+
+            var result = await harness.Service.SubmitPlanChangeAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                new PlanChangeRequestDto
+                {
+                    TargetPlan = BillingSubscriptionPlans.Pilot,
+                    TargetCadence = "monthly",
+                }
+            );
+
+            Assert.Equal("applied", result!.Outcome);
+            var account = await harness.Context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == harness.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.NotNull(account.PilotStartedAtUtc);
+            Assert.NotNull(account.PilotPeriodEnd);
+        }
+
+        [Fact]
+        public async Task ChangePlan_FreeToPilot_AbandonFails_StillSendsPilotStartedEmail()
+        {
+            var email = new RecordingPilotStartedEmailService();
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings { IsActive = false },
+                firstPaid: new AbandonThrowsFirstPaidConversionPaySession(),
+                emailService: email
+            );
+
+            await Record.ExceptionAsync(() =>
+                harness.Service.SubmitPlanChangeAsync(
+                    harness.OwnerUserId,
+                    harness.RestaurantId,
+                    new PlanChangeRequestDto
+                    {
+                        TargetPlan = BillingSubscriptionPlans.Pilot,
+                        TargetCadence = "monthly",
+                    }
+                )
+            );
+
+            Assert.Equal(1, email.PilotStartedCalls);
+        }
+
+        [Fact]
+        public async Task Overview_Pilot_LabelShowsStartAndEnd()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings { IsActive = false }
+            );
+            var startedAt = new DateTime(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc);
+            var endsAt = startedAt.AddDays(30);
+            var account = await harness.Context.BillingAccounts.SingleAsync(row =>
+                row.RestaurantId == harness.RestaurantId
+            );
+            account.SubscriptionPlan = BillingSubscriptionPlans.Pilot;
+            account.BillingStatus = BillingStatuses.Pilot;
+            account.PilotStartedAtUtc = startedAt;
+            account.PilotPeriodEnd = endsAt;
+            await harness.Context.SaveChangesAsync();
+
+            var page = await harness.Service.GetPageAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                actorCanManage: true
+            );
+
+            Assert.NotNull(page);
+            Assert.Equal(
+                $"Pilot started {UkDateLabels.Format(startedAt)} · ends {UkDateLabels.Format(endsAt)}",
+                page!.PlanSubscription.RenewalDateLabel
+            );
+            Assert.Equal(startedAt, page.PlanSubscription.PilotStartedAtUtc);
+            Assert.Equal(endsAt, page.PlanSubscription.PilotEndsAtUtc);
+        }
+
+        [Fact]
+        public async Task Overview_PaidAccountWithKeptPilotDates_LabelHasNoPilotText()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings { IsActive = false },
+                paidStarter: true
+            );
+            var renewsAt = new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc);
+            var account = await harness.Context.BillingAccounts.SingleAsync(row =>
+                row.RestaurantId == harness.RestaurantId
+            );
+            account.RenewalDateUtc = renewsAt;
+            account.PilotStartedAtUtc = new DateTime(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc);
+            account.PilotPeriodEnd = account.PilotStartedAtUtc.Value.AddDays(30);
+            await harness.Context.SaveChangesAsync();
+
+            var page = await harness.Service.GetPageAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                actorCanManage: true
+            );
+
+            Assert.NotNull(page);
+            Assert.Equal(
+                $"Renews {UkDateLabels.Format(renewsAt)}",
+                page!.PlanSubscription.RenewalDateLabel
+            );
+            Assert.Null(page.PlanSubscription.PilotStartedAtUtc);
+            Assert.Null(page.PlanSubscription.PilotEndsAtUtc);
+        }
+
+        [Fact]
+        public async Task ChangePlan_FreeToPilot_AlreadyUsed_Throws409Code()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings { IsActive = false }
+            );
+            var account = await harness.Context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == harness.RestaurantId);
+            account.PilotStartedAtUtc = DateTime.UtcNow.AddDays(-60);
+            await harness.Context.SaveChangesAsync();
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                harness.Service.SubmitPlanChangeAsync(
+                    harness.OwnerUserId,
+                    harness.RestaurantId,
+                    new PlanChangeRequestDto
+                    {
+                        TargetPlan = BillingSubscriptionPlans.Pilot,
+                        TargetCadence = "monthly",
+                    }
+                )
+            );
+
+            Assert.Equal("pilot_already_used", error.Message);
+            var reloaded = await harness.Context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == harness.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Free, reloaded.SubscriptionPlan);
+        }
+
         private static int ownerIdOf(ApplicationDbContext context, int restaurantId)
         {
             return context.Restaurants.Single(row => row.Id == restaurantId).OwnerUserId;
@@ -488,9 +633,7 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
                 new RecordingCycleEndPlanChange(),
-                new NoOpCreditLedger(),
                 Options.Create(sellerVat),
-                new EmailServiceStubBase(),
                 new CustomPlanCycleBillingService(
                     context,
                     new NoOpRevolutMerchantForCustomPlan(),
@@ -504,13 +647,23 @@ namespace TummlyBackend.Tests.Services
                             ["Frontend:BaseUrl"] = "https://app.test",
                         }
                     )
-                    .Build()
+                    .Build(),
+                PilotStartTestFactory.Create(
+                    context,
+                    TestPricebookPaths.LoadV3(),
+                    new NoOpCreditLedger(),
+                    NoOpComplimentaryStarterShopOrderService.Instance,
+                    NoOpPrintReadyQrMaterialsWork.Instance,
+                    new EmailServiceStubBase()
+                )
             );
         }
 
         private static async Task<Harness> SeedAsync(
             TummlySellerVatSettings sellerVat,
-            bool paidStarter = false
+            bool paidStarter = false,
+            IFirstPaidConversionPaySession? firstPaid = null,
+            IEmailService? emailService = null
         )
         {
             var context = BillingActivityTestDb.Create();
@@ -560,15 +713,13 @@ namespace TummlyBackend.Tests.Services
                 new StubBillingAccountLifecycle(),
                 new PlanChangeService(context, pricebook, TimeProvider.System),
                 new AlwaysReadyRevolutMerchantCreateGate(),
-                new ThrowingFirstPaidConversionPaySession(),
+                firstPaid ?? new ThrowingFirstPaidConversionPaySession(),
                 new ThrowingSameCadenceUpgradePaySession(),
                 new ThrowingPaymentMethodUpdatePaySession(),
                 new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
                 cycleEndPlanChange,
-                new NoOpCreditLedger(),
                 Options.Create(sellerVat),
-                new EmailServiceStubBase(),
                 new CustomPlanCycleBillingService(
                     context,
                     new NoOpRevolutMerchantForCustomPlan(),
@@ -582,7 +733,15 @@ namespace TummlyBackend.Tests.Services
                             ["Frontend:BaseUrl"] = "https://app.test",
                         }
                     )
-                    .Build()
+                    .Build(),
+                PilotStartTestFactory.Create(
+                    context,
+                    pricebook,
+                    new NoOpCreditLedger(),
+                    NoOpComplimentaryStarterShopOrderService.Instance,
+                    NoOpPrintReadyQrMaterialsWork.Instance,
+                    emailService ?? new EmailServiceStubBase()
+                )
             );
             return new Harness(
                 context,
@@ -708,6 +867,27 @@ namespace TummlyBackend.Tests.Services
             ) => Task.CompletedTask;
         }
 
+        private sealed class AbandonThrowsFirstPaidConversionPaySession
+            : IFirstPaidConversionPaySession
+        {
+            public Task<PlanChangeResultDto> StartAsync(
+                BillingAccount billingAccount,
+                User owner,
+                string restaurantAccountType,
+                int locationId,
+                string targetPlan,
+                string targetCadenceApi,
+                string idempotencyKey,
+                CancellationToken cancellationToken = default,
+                string? successRedirectUrl = null
+            ) => throw new NotImplementedException();
+
+            public Task AbandonOpenSessionsAsync(
+                int restaurantId,
+                CancellationToken cancellationToken = default
+            ) => throw new InvalidOperationException("abandon_failed");
+        }
+
         private sealed class ThrowingSameCadenceUpgradePaySession
             : ISameCadenceUpgradePaySession
         {
@@ -789,12 +969,13 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             ) => Task.CompletedTask;
 
-            public Task<BillingLifecycleCommandResult> ExtendPilotActivationAsync(
+            public Task<PilotExtensionResult> ExtendPilotAsync(
                 int restaurantId,
-                DateTime newPeriodEnd,
+                int days,
+                string? idempotencyKey,
                 DateTime now,
                 CancellationToken cancellationToken = default
-            ) => Task.FromResult(BillingLifecycleCommandResult.NoOp());
+            ) => Task.FromResult(new PilotExtensionResult("refused", "pilot_extension_not_allowed", null, null, 0, 0));
 
             public Task SetChargebackRestrictionAsync(
                 int restaurantId,

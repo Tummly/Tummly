@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using System.Text.Json;
@@ -75,6 +76,43 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task BilledAi_FreePlan_ReturnsPlanRequired()
+        {
+            var harness = await SeedAsync(
+                aiCredits: 1,
+                plan: BillingSubscriptionPlans.Free
+            );
+            var coordinator = new BilledAiActionCoordinator(
+                harness.Context,
+                harness.Snapshot,
+                harness.Ledger,
+                _clock
+            );
+
+            var result = await coordinator.ExecuteAsync(
+                new BilledAiActionRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    LocationId = harness.LocationId,
+                    IdempotencyKey = Guid.NewGuid().ToString("D"),
+                    PackKey = BilledAiPackKeys.CampaignAiDraftCompleted,
+                },
+                _ => throw new InvalidOperationException("Generator must not run on a Free plan.")
+            );
+
+            var locked = Assert.IsType<BilledAiActionResult.OperatorBillingLocked>(result);
+            Assert.Equal("plan_required", locked.Code);
+
+            var http = Assert.IsType<ObjectResult>(result.ToActionResult());
+            Assert.Equal(403, http.StatusCode);
+            using var doc = JsonDocument.Parse(JsonSerializer.Serialize(http.Value));
+            Assert.Equal(
+                "Choose a Pilot or paid plan to continue.",
+                doc.RootElement.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
         public async Task ExecuteAsync_SameIdempotencyKeyBurnsOnce()
         {
             var harness = await SeedAsync(aiCredits: 2);
@@ -121,7 +159,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, consumptions[0].Quantity);
         }
 
-        private async Task<Harness> SeedAsync(int aiCredits)
+        private async Task<Harness> SeedAsync(
+            int aiCredits,
+            string plan = BillingSubscriptionPlans.Pilot
+        )
         {
             var context = CreateContext();
             var owner = new User
@@ -148,12 +189,15 @@ namespace TummlyBackend.Tests.Services
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
-            context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(
-                    restaurant.Id,
-                    PricebookId
-                )
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                PricebookId
             );
+            billing.SubscriptionPlan = plan;
+            billing.BillingStatus = plan == BillingSubscriptionPlans.Free
+                ? BillingStatuses.Free
+                : BillingStatuses.Pilot;
+            context.BillingAccounts.Add(billing);
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,

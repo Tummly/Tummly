@@ -506,10 +506,11 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            return OperatorBillingLockEvaluator.EvaluateSendOrReserveDeny(
-                OperatorBillingLockEvaluator.FromBillingAccount(account),
-                _utcNow()
-            );
+            return OperatorPlanGate.EvaluatePlanDeny(account)
+                ?? OperatorBillingLockEvaluator.EvaluateSendOrReserveDeny(
+                    OperatorBillingLockEvaluator.FromBillingAccount(account),
+                    _utcNow()
+                );
         }
 
         private static CampaignScheduleCommitDto ToDto(

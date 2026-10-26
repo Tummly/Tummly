@@ -741,7 +741,7 @@ namespace TummlyBackend.Controllers
                             {
                                 success = false,
                                 code = locked.Code,
-                                message = locked.Code,
+                                message = OperatorPlanGate.MessageFor(locked.Code),
                             }
                         ),
                     CampaignScheduleCommitResult.InsufficientCredits insufficient =>

@@ -435,6 +435,12 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var restoreDeny = await DenyIfPaidWriteLockedAsync(command.LocationId);
+            if (restoreDeny != null)
+            {
+                return restoreDeny;
+            }
+
             if (qrCode.QrType == QrType.DigitalGuestLink)
             {
                 if (qrCode.NormalizedLinkName != null)
@@ -554,11 +560,23 @@ namespace TummlyBackend.Services
             var location = await _context.RestaurantLocations
                 .FirstAsync(l => l.Id == command.LocationId);
 
+            var planDeny = await DenyIfFreePlanAsync(location.RestaurantId);
+            if (planDeny != null)
+            {
+                return planDeny;
+            }
+
             if (location.CaptureLocationStatus != CaptureLocationStatus.Paused)
             {
                 return QrLifecycleResult.InvalidTransition(
                     "Location capture is not paused."
                 );
+            }
+
+            var activateDeny = await DenyIfPaidWriteLockedAsync(command.LocationId);
+            if (activateDeny != null)
+            {
+                return activateDeny;
             }
 
             var restoreIds = CaptureLocationPauseRestore.Parse(
@@ -641,6 +659,15 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (nextStatus == QrCodeStatus.Active)
+            {
+                var planDeny = await DenyIfFreePlanAsync(location.RestaurantId);
+                if (planDeny != null)
+                {
+                    return planDeny;
+                }
+            }
+
             IDbContextTransaction? transaction = null;
             if (nextStatus == QrCodeStatus.Active)
             {
@@ -675,6 +702,123 @@ namespace TummlyBackend.Services
                     status = qrCode.Status.ToString(),
                 });
             }
+        }
+
+        private async Task<QrLifecycleResult?> DenyIfFreePlanAsync(int restaurantId)
+        {
+            var account = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
+            if (account == null)
+            {
+                return null;
+            }
+
+            var deny = OperatorPlanGate.EvaluatePlanDeny(account);
+            return deny == null ? null : QrLifecycleResult.OperatorBillingLocked(deny);
+        }
+
+        private async Task<QrLifecycleResult?> DenyIfPaidWriteLockedAsync(
+            int locationId
+        )
+        {
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .FirstOrDefaultAsync();
+            var deny = await OperatorBillingLockGate.EvaluatePaidWriteDenyAsync(
+                _context,
+                restaurantId
+            );
+            return deny == null ? null : QrLifecycleResult.OperatorBillingLocked(deny);
+        }
+
+        public async Task<int> ActivatePlanPausedCodesAsync(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var billingAccount = await _context.BillingAccounts.FirstOrDefaultAsync(
+                row => row.RestaurantId == restaurantId,
+                cancellationToken
+            );
+            if (
+                !TryResolveActiveQrCap(
+                    billingAccount,
+                    out var perLocationCap,
+                    out _
+                )
+            )
+            {
+                return 0;
+            }
+
+            var locations = await _context.RestaurantLocations
+                .Where(row =>
+                    row.RestaurantId == restaurantId
+                    && row.CaptureLocationStatus == CaptureLocationStatus.Active
+                )
+                .ToListAsync(cancellationToken);
+            if (locations.Count == 0)
+            {
+                return 0;
+            }
+
+            var locationIds = locations.Select(row => row.Id).ToList();
+            var activeByLocation = await _context.QrCodes
+                .Where(qr =>
+                    locationIds.Contains(qr.RestaurantLocationId)
+                    && qr.Status == QrCodeStatus.Active
+                )
+                .GroupBy(qr => qr.RestaurantLocationId)
+                .Select(g => new { LocationId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(
+                    row => row.LocationId,
+                    row => row.Count,
+                    cancellationToken
+                );
+
+            var pausedCodes = await _context.QrCodes
+                .Where(qr =>
+                    locationIds.Contains(qr.RestaurantLocationId)
+                    && qr.Status == QrCodeStatus.Paused
+                )
+                .OrderBy(qr => qr.CreatedAt)
+                .ThenBy(qr => qr.Id)
+                .ToListAsync(cancellationToken);
+
+            var activated = 0;
+            foreach (var qr in pausedCodes)
+            {
+                var location = locations.First(row =>
+                    row.Id == qr.RestaurantLocationId
+                );
+                var operatorPaused = CaptureLocationPauseRestore
+                    .Parse(location.CaptureLocationPauseRestoreQrCodeIdsJson)
+                    .Contains(qr.Id);
+                if (operatorPaused)
+                {
+                    continue;
+                }
+
+                var active = activeByLocation.GetValueOrDefault(qr.RestaurantLocationId);
+                if (active >= perLocationCap)
+                {
+                    continue;
+                }
+
+                qr.Status = QrCodeStatus.Active;
+                activeByLocation[qr.RestaurantLocationId] = active + 1;
+                activated++;
+            }
+
+            if (activated > 0)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            return activated;
         }
 
         private Task<QrCode?> FindQrCodeAsync(int qrCodeId, int locationId) =>

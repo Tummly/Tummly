@@ -464,94 +464,186 @@
             }
         }
 
-        public async Task<AdminTrialRequestDto?> ExtendActivationAsync(
+        public async Task<PilotExtensionResult?> ExtendPilotAsync(
             int userId,
             ExtendActivationDto dto,
             int? actorAdminUserId,
             string actorIdentity
         )
         {
-            var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == userId);
-
-            if (user == null)
-            {
-                return null;
-            }
-
-            if (!ActivationState.IsActivationExpired(ActivationSubject.FromUser(user)))
-            {
-                throw new ArgumentException(
-                    "Only expired accounts can be extended."
-                );
-            }
-
-            user.ActivationExpiresAt =
-                dto.ExpiresAt?.ToUniversalTime()
-                ?? ActivationCodeHelper.ComputeDefaultExtensionExpiresAt();
-
-            var expiresAtIso = user.ActivationExpiresAt.Value
-                .ToUniversalTime()
-                .ToString("O");
-
-            _audit.Append(
-                new AdminAuditAppendRequest(
-                    Action: AdminAuditActions.OperatorExtendActivation,
-                    ActorIdentity: actorIdentity,
-                    TargetType: AdminAuditTargetTypes.OperatorUser,
-                    TargetId: user.Id.ToString(),
-                    ActorAdminUserId: actorAdminUserId,
-                    DetailJson: $"{{\"expiresAt\":\"{expiresAtIso}\"}}"
-                )
-            );
-
-            await _context.SaveChangesAsync();
-
-            var restaurantId = await _context.Restaurants
+            var restaurantQuery = _context.Restaurants
                 .AsNoTracking()
-                .Where(row => row.OwnerUserId == user.Id)
+                .Where(row => row.OwnerUserId == userId && row.BillingAccount != null);
+
+            if (dto.RestaurantId is int targetRestaurantId)
+            {
+                restaurantQuery = restaurantQuery.Where(row => row.Id == targetRestaurantId);
+            }
+
+            var restaurantId = await restaurantQuery
+                .OrderBy(row => row.Id)
                 .Select(row => (int?)row.Id)
                 .FirstOrDefaultAsync();
 
-            if (restaurantId != null)
-            {
-                var now = DateTime.UtcNow;
-                await _lifecycle.TickAsync(restaurantId.Value, now);
-                await _lifecycle.ExtendPilotActivationAsync(
-                    restaurantId.Value,
-                    user.ActivationExpiresAt.Value,
-                    now
-                );
-            }
-
-            var trialRequest = await _context.TrialRequests
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x =>
-                    x.Email == user.Email && x.IsAccountCreated
-                );
-
-            if (trialRequest == null)
+            if (restaurantId == null)
             {
                 return null;
             }
 
-            var operatorLocations = await (
-                from location in _context.RestaurantLocations.AsNoTracking()
-                join restaurant in _context.Restaurants.AsNoTracking()
-                    on location.RestaurantId equals restaurant.Id
-                where restaurant.OwnerUserId == user.Id
-                orderby location.CreatedAt
-                select new AdminOperatorLocationDto
-                {
-                    LocationName = location.LocationName,
-                    Address = location.Address,
-                    Postcode = location.Postcode,
-                    LocationPhone = location.LocationPhone,
-                    LocalContact = location.LocalContact,
-                }
-            ).ToListAsync();
+            // Lifecycle joins this transaction, so the audit row commits with the
+            // extension. Only the lifecycle call locks the billing row.
+            await using var transaction =
+                _context.Database.IsRelational()
+                    ? await _context.Database.BeginTransactionAsync()
+                    : null;
 
-            return MapTrialRequest(trialRequest, operatorLocations, user);
+            var result = await _lifecycle.ExtendPilotAsync(
+                restaurantId.Value,
+                dto.Days,
+                dto.IdempotencyKey,
+                DateTime.UtcNow
+            );
+
+            if (result.Outcome == "extended")
+            {
+                _audit.Append(
+                    new AdminAuditAppendRequest(
+                        Action: AdminAuditActions.OperatorExtendPilot,
+                        ActorIdentity: actorIdentity,
+                        TargetType: AdminAuditTargetTypes.OperatorUser,
+                        TargetId: userId.ToString(),
+                        ActorAdminUserId: actorAdminUserId,
+                        RestaurantId: restaurantId.Value,
+                        DetailJson: PilotExtensionAuditDetail(dto.Days, result)
+                    )
+                );
+                await _context.SaveChangesAsync();
+            }
+
+            if (transaction != null)
+            {
+                await transaction.CommitAsync();
+            }
+
+            return result;
         }
+
+        public async Task<AdminPilotAccountDto?> GetPilotAccountAsync(
+            int userId,
+            int? restaurantId
+        )
+        {
+            var row = await PilotAccountRows()
+                .Where(account => account.OwnerUserId == userId)
+                .Where(account => restaurantId == null || account.RestaurantId == restaurantId)
+                .OrderBy(account => account.RestaurantId)
+                .FirstOrDefaultAsync();
+
+            return row == null ? null : ToPilotAccountDto(row);
+        }
+
+        public async Task<IReadOnlyList<AdminPilotAccountDto>> ListPilotAccountsAsync()
+        {
+            var rows = await PilotAccountRows()
+                .Where(account =>
+                    account.SubscriptionPlan == BillingSubscriptionPlans.Pilot
+                )
+                .OrderByDescending(account => account.PilotStartedAtUtc)
+                .ToListAsync();
+
+            return rows.Select(ToPilotAccountDto).ToList();
+        }
+
+        private IQueryable<PilotAccountRow> PilotAccountRows() =>
+            from restaurant in _context.Restaurants.AsNoTracking()
+            join billing in _context.BillingAccounts.AsNoTracking()
+                on restaurant.Id equals billing.RestaurantId
+            join owner in _context.Users.AsNoTracking()
+                on restaurant.OwnerUserId equals owner.Id
+            select new PilotAccountRow(
+                restaurant.Id,
+                owner.Id,
+                restaurant.Name,
+                owner.Email,
+                billing.SubscriptionPlan,
+                billing.BillingStatus,
+                billing.PilotStartedAtUtc,
+                billing.PilotPeriodEnd,
+                billing.PilotExtensionCount,
+                billing.PilotExtensionDaysTotal,
+                billing.RenewalDateUtc != null
+            );
+
+        private static AdminPilotAccountDto ToPilotAccountDto(PilotAccountRow row)
+        {
+            var isOpenPilot =
+                row.SubscriptionPlan == BillingSubscriptionPlans.Pilot
+                && (
+                    row.BillingStatus == BillingStatuses.Pilot
+                    || row.BillingStatus == BillingStatuses.SoftLock
+                );
+
+            string? reason = null;
+            if (!isOpenPilot || row.HasPaidHistory)
+            {
+                reason = BillingAccountLifecycleService.PilotExtensionNotAllowedCode;
+            }
+            else if (
+                row.ExtensionCount >= BillingAccountLifecycleService.PilotExtensionMaxCount
+                || row.ExtensionDaysTotal
+                    + BillingAccountLifecycleService.PilotExtensionDayOptions.Min()
+                    > BillingAccountLifecycleService.PilotExtensionMaxDaysTotal
+            )
+            {
+                reason = BillingAccountLifecycleService.PilotExtensionLimitCode;
+            }
+
+            return new AdminPilotAccountDto
+            {
+                RestaurantId = row.RestaurantId,
+                OwnerUserId = row.OwnerUserId,
+                RestaurantName = row.RestaurantName,
+                OwnerEmail = row.OwnerEmail,
+                BillingStatus = row.BillingStatus,
+                PilotStartedAtUtc = row.PilotStartedAtUtc,
+                PilotPeriodEnd = row.PilotPeriodEnd,
+                ExtensionCount = row.ExtensionCount,
+                ExtensionDaysTotal = row.ExtensionDaysTotal,
+                CanExtend = reason == null,
+                CannotExtendReason = reason == null
+                    ? null
+                    : BillingAccountLifecycleService.PilotExtensionRefusalMessage(reason),
+            };
+        }
+
+        private static string PilotExtensionAuditDetail(
+            int days,
+            PilotExtensionResult result
+        ) =>
+            System.Text.Json.JsonSerializer.Serialize(
+                new
+                {
+                    days,
+                    countAfter = result.CountAfter,
+                    totalAfter = result.DaysTotalAfter,
+                    oldEnd = result.OldEndUtc?.ToUniversalTime().ToString("O"),
+                    newEnd = result.NewEndUtc?.ToUniversalTime().ToString("O"),
+                }
+            );
+
+        private sealed record PilotAccountRow(
+            int RestaurantId,
+            int OwnerUserId,
+            string RestaurantName,
+            string OwnerEmail,
+            string SubscriptionPlan,
+            string BillingStatus,
+            DateTime? PilotStartedAtUtc,
+            DateTime? PilotPeriodEnd,
+            int ExtensionCount,
+            int ExtensionDaysTotal,
+            bool HasPaidHistory
+        );
 
         public async Task<(byte[] Content, string FileName, string ContentType)?>
             GetActivationDownloadAsync(int userId)

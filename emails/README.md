@@ -32,6 +32,7 @@ npm run email:export   # render → backend/TummlyBackend/Assets/emails/template
 | `help-centre-escalation.tsx` | Escalation (internal) |
 | `help-centre-operator-reply.tsx` | Operator reply (internal) |
 | `pilot-*.tsx` / `payment-*.tsx` / `usage-*.tsx` | Pilot and billing notices |
+| `plan-started.tsx` | Paid plan started (Starter / Growth / Group / Custom) |
 | `shop-order-confirmed.tsx` | Shop order confirmed (Paid, incl. complimentary) |
 | `shop-order-dispatched.tsx` | Shop order dispatched (Processing → InTransit) |
 

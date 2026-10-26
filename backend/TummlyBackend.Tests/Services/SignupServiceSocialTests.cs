@@ -68,14 +68,8 @@ namespace TummlyBackend.Tests.Services
                 _db,
                 qrCodeProvisioning,
                 new NoOpPrintReadyQrMaterialsWork(),
-                new ComplimentaryStarterShopOrderService(
-                    _db,
-                    SeedDbMaterialsCatalog(_db),
-                    new ShopOrderNumberAllocator(_db)
-                ),
                 _configuration,
                 _pricebook,
-                new NoOpCreditLedger(),
                 new NoOpBillingAccountLifecycle(),
                 new NoOpFirstPaidConversionPaySession(),
                 new CustomPlanCycleBillingService(
@@ -86,7 +80,18 @@ namespace TummlyBackend.Tests.Services
                         new TummlyBackend.Configurations.TummlySellerVatSettings()
                     )
                 ),
-                new EmailServiceStubBase(),
+                PilotStartTestFactory.Create(
+                    _db,
+                    _pricebook,
+                    new NoOpCreditLedger(),
+                    new ComplimentaryStarterShopOrderService(
+                        _db,
+                        SeedDbMaterialsCatalog(_db),
+                        new ShopOrderNumberAllocator(_db)
+                    ),
+                    new NoOpPrintReadyQrMaterialsWork(),
+                    new EmailServiceStubBase()
+                ),
                 NullLogger<GuestLoopProvisioningService>.Instance
             );
 

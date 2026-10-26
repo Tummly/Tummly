@@ -31,6 +31,8 @@ namespace TummlyBackend.Tests.Services
         private Guid _sessionToken;
         private PendingSignup _pending = null!;
 
+        private readonly RecordingPilotStartedEmailService _pilotEmail = new();
+
         public SignupProvisionTests()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -71,14 +73,8 @@ namespace TummlyBackend.Tests.Services
                 _db,
                 qrCodeProvisioning,
                 new NoOpPrintReadyQrMaterialsWork(),
-                new ComplimentaryStarterShopOrderService(
-                    _db,
-                    SeedDbMaterialsCatalog(_db),
-                    new ShopOrderNumberAllocator(_db)
-                ),
                 _configuration,
                 _pricebook,
-                _mintLedger,
                 new NoOpBillingAccountLifecycle(),
                 _firstPaid,
                 new CustomPlanCycleBillingService(
@@ -89,7 +85,18 @@ namespace TummlyBackend.Tests.Services
                         new TummlyBackend.Configurations.TummlySellerVatSettings()
                     )
                 ),
-                new EmailServiceStubBase(),
+                PilotStartTestFactory.Create(
+                    _db,
+                    _pricebook,
+                    _mintLedger,
+                    new ComplimentaryStarterShopOrderService(
+                        _db,
+                        SeedDbMaterialsCatalog(_db),
+                        new ShopOrderNumberAllocator(_db)
+                    ),
+                    new NoOpPrintReadyQrMaterialsWork(),
+                    _pilotEmail
+                ),
                 NullLogger<GuestLoopProvisioningService>.Instance
             );
 
@@ -514,6 +521,49 @@ namespace TummlyBackend.Tests.Services
                 1,
                 await _db.ShopOrders.CountAsync(o => o.IsComplimentary)
             );
+            Assert.Equal(1, _pilotEmail.PilotStartedCalls);
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            Assert.Equal(1, _pilotEmail.PilotStartedCalls);
+        }
+
+        [Fact]
+        public async Task RetryProvision_CompletePilotWithoutStart_StartsPilot()
+        {
+            await SeedOnboardingCompletePendingWithPlanAsync(
+                BillingSubscriptionPlans.Pilot
+            );
+            await _signup.RetryProvisionAsync(_sessionToken);
+            Assert.Equal(1, _pilotEmail.PilotStartedCalls);
+
+            // Simulate a Complete signup whose Pilot start never ran.
+            var billing = await _db.BillingAccounts.SingleAsync();
+            billing.PilotStartedAtUtc = null;
+            billing.PilotPeriodEnd = null;
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Free;
+            billing.BillingStatus = BillingStatuses.Free;
+            var owner = await _db.Users.SingleAsync(u => u.Email == _email);
+            owner.ActivationExpiresAt = null;
+            await _db.SaveChangesAsync();
+            var mintsBefore = _mintLedger.MintPilotCallCount;
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            billing = await _db.BillingAccounts.AsNoTracking().SingleAsync();
+            Assert.NotNull(billing.PilotStartedAtUtc);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, billing.SubscriptionPlan);
+            Assert.Equal(mintsBefore + 1, _mintLedger.MintPilotCallCount);
+            // The simulated reset made this a real second start: one more email.
+            Assert.Equal(2, _pilotEmail.PilotStartedCalls);
+            var startedAt = billing.PilotStartedAtUtc;
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            billing = await _db.BillingAccounts.AsNoTracking().SingleAsync();
+            Assert.Equal(startedAt, billing.PilotStartedAtUtc);
+            Assert.Equal(mintsBefore + 1, _mintLedger.MintPilotCallCount);
+            Assert.Equal(2, _pilotEmail.PilotStartedCalls);
         }
 
         [Fact]
@@ -584,6 +634,44 @@ namespace TummlyBackend.Tests.Services
                 "https://tummly.example/signup/complete",
                 _firstPaid.LastSuccessRedirectUrl
             );
+        }
+
+        [Fact]
+        public async Task ProvisionFromPending_PaidPlan_NoActivationExpiry()
+        {
+            await SeedOnboardingCompletePendingWithPlanAsync(
+                BillingSubscriptionPlans.Starter
+            );
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            var user = await _db.Users.SingleAsync(u => u.Email == _email);
+            Assert.NotNull(user.ActivatedAt);
+            Assert.Null(user.ActivationExpiresAt);
+
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Null(billing.PilotStartedAtUtc);
+            Assert.Null(billing.PilotPeriodEnd);
+            Assert.Equal(0, _mintLedger.MintPilotCallCount);
+        }
+
+        [Fact]
+        public async Task ProvisionFromPending_FreePlan_NoActivationExpiry()
+        {
+            await SeedOnboardingCompletePendingWithPlanAsync(
+                BillingSubscriptionPlans.Free
+            );
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            var user = await _db.Users.SingleAsync(u => u.Email == _email);
+            Assert.NotNull(user.ActivatedAt);
+            Assert.Null(user.ActivationExpiresAt);
+
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Null(billing.PilotStartedAtUtc);
+            Assert.Null(billing.PilotPeriodEnd);
+            Assert.Equal(0, _mintLedger.MintPilotCallCount);
         }
 
         private async Task SeedOnboardingCompletePendingWithPlanAsync(

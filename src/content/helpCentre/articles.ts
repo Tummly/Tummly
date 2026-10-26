@@ -136,11 +136,13 @@ Include screenshots where possible so we can investigate quickly.`,
       "Learn how activation codes work and what to do if yours has expired.",
     body: `## Activation period
 
-After Operator Setup, Tummly sends starter QR materials and an **Activation Code**. Enter this code after Sign-in to unlock your operator dashboard.
+After Operator Setup, Tummly sends starter QR materials and an **Activation Code**. Entering the code does not start the Pilot.
 
-### Activation expired?
+**When does the Pilot start?** When you successfully complete setup for the Pilot account you selected. Your setup confirmation shows the start and end dates. No QR scan or physical delivery is needed.
 
-If your activation period has ended, contact Tummly support. An admin can extend activation from your trial record.
+### Pilot extensions
+
+If your Pilot has ended or is close to ending, contact Tummly support. An admin can extend an active or ended Pilot by 14 or 30 days.
 
 ### Where to enter the code
 

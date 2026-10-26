@@ -24,11 +24,6 @@ namespace TummlyBackend.Services
 
             if (ActivationState.IsActivationExpired(subject))
             {
-                if (!subject.ActivationExpiresAt.HasValue)
-                {
-                    return Block(ActivationReason.Expired, ActivationExpiredMessage);
-                }
-
                 return Allow(ActivationReason.Expired, string.Empty);
             }
 
@@ -40,11 +35,5 @@ namespace TummlyBackend.Services
             string message
         ) =>
             new(ActivationOutcome.Allow, reason, message);
-
-        private static ActivationDecision Block(
-            ActivationReason reason,
-            string message
-        ) =>
-            new(ActivationOutcome.Block, reason, message);
     }
 }

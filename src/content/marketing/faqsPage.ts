@@ -132,13 +132,13 @@ export const FAQS_PAGE_SECTIONS: FaqsPageSection[] = [
         id: "when-pilot-starts",
         question: "When does my 30-day Pilot start?",
         answer:
-          "Your setup access starts before the live Pilot clock begins.\n\nThe 30-day live Pilot starts at the earlier of:\n\nthe first valid production guest scan; or\n48 hours after your included starter kit is confirmed delivered.\n\nPreview scans, test scans, bots and development traffic do not start the Pilot.",
+          "When you successfully complete setup for the Pilot account you selected. Your setup confirmation shows the start and end dates. No QR scan or physical delivery is needed.",
       },
       {
         id: "when-pilot-ends",
         question: "What happens when the 30-day Pilot ends?",
         answer:
-          "The Pilot ends without an automatic charge.\n\nYour account moves out of live Pilot use, while the appropriate account history and conversion path are preserved so you can choose a paid plan.",
+          "There is no automatic charge or paid renewal. Live features pause when the Pilot ends. Choose a paid plan to continue, with account history retained under the applicable retention rules.",
       },
       {
         id: "how-much-cost",

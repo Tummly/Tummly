@@ -230,7 +230,7 @@ namespace TummlyBackend.Controllers
                 }
 
                 var result =
-                    await _adminService.ExtendActivationAsync(
+                    await _adminService.ExtendPilotAsync(
                         userId,
                         dto,
                         staffId,
@@ -246,10 +246,31 @@ namespace TummlyBackend.Controllers
                     });
                 }
 
+                if (result.Outcome == "refused")
+                {
+                    var refusal = new
+                    {
+                        success = false,
+                        code = result.Code,
+                        message = BillingAccountLifecycleService.PilotExtensionRefusalMessage(
+                            result.Code
+                        ),
+                    };
+
+                    return result.Code
+                        == BillingAccountLifecycleService.PilotExtensionInvalidDaysCode
+                            ? BadRequest(refusal)
+                            : Conflict(refusal);
+                }
+
+                var account = await _adminService.GetPilotAccountAsync(
+                    userId,
+                    dto.RestaurantId
+                );
                 return Ok(new
                 {
                     success = true,
-                    data = result,
+                    data = account,
                 });
             }
             catch (ArgumentException ex)
@@ -260,6 +281,18 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+        }
+
+        [HttpGet("pilot-accounts")]
+        public async Task<IActionResult> ListPilotAccounts()
+        {
+            var accounts = await _adminService.ListPilotAccountsAsync();
+
+            return Ok(new
+            {
+                success = true,
+                data = accounts,
+            });
         }
 
         [HttpGet("operators/{userId}/activation-download")]

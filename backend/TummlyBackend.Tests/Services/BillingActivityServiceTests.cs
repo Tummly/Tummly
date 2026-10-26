@@ -134,9 +134,7 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
                 new NoOpCycleEndPlanChange(),
-                new NoOpCreditLedger(),
                 Options.Create(sellerVat),
-                new EmailServiceStubBase(),
                 new CustomPlanCycleBillingService(
                     context,
                     new NoOpRevolutMerchantForCustomPlan(),
@@ -150,7 +148,15 @@ namespace TummlyBackend.Tests.Services
                             ["Frontend:BaseUrl"] = "https://app.test",
                         }
                     )
-                    .Build()
+                    .Build(),
+                PilotStartTestFactory.Create(
+                    context,
+                    new StubPricebookCatalog(),
+                    new NoOpCreditLedger(),
+                    NoOpComplimentaryStarterShopOrderService.Instance,
+                    NoOpPrintReadyQrMaterialsWork.Instance,
+                    new EmailServiceStubBase()
+                )
             );
             return new Harness(context, service, restaurant.Id);
         }
@@ -355,12 +361,13 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             ) => Task.CompletedTask;
 
-            public Task<BillingLifecycleCommandResult> ExtendPilotActivationAsync(
+            public Task<PilotExtensionResult> ExtendPilotAsync(
                 int restaurantId,
-                DateTime newPeriodEnd,
+                int days,
+                string? idempotencyKey,
                 DateTime now,
                 CancellationToken cancellationToken = default
-            ) => Task.FromResult(BillingLifecycleCommandResult.NoOp());
+            ) => Task.FromResult(new PilotExtensionResult("refused", "pilot_extension_not_allowed", null, null, 0, 0));
 
             public Task SetChargebackRestrictionAsync(
                 int restaurantId,

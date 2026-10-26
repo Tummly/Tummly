@@ -1,4 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
@@ -35,6 +37,9 @@ namespace TummlyBackend.Services
             private readonly IShopOrderEmailNotifier _shopOrderEmail;
             private readonly IComplimentaryStarterShopOrderService _complimentaryStarterShopOrders;
             private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
+            private readonly IEmailService _emailService;
+            private readonly ICaptureQrLifecycleService _captureQrLifecycle;
+            private readonly ILogger<RevolutOrderCompletedApplier> _logger;
 
             public RevolutOrderCompletedApplier(
                 ApplicationDbContext context,
@@ -46,11 +51,14 @@ namespace TummlyBackend.Services
                 IRevolutMerchantClient merchant,
                 TimeProvider clock,
                 IOptions<TummlySellerVatSettings> sellerVat,
+                IEmailService emailService,
+                ICaptureQrLifecycleService captureQrLifecycle,
                 ITummlyVatInvoiceEmailDelivery? invoiceEmail = null,
                 IShopOrderEmailNotifier? shopOrderEmail = null,
                 IComplimentaryStarterShopOrderService? complimentaryStarterShopOrders =
                     null,
-                IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null
+                IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null,
+                ILogger<RevolutOrderCompletedApplier>? logger = null
             )
             {
                 _context = context;
@@ -63,6 +71,8 @@ namespace TummlyBackend.Services
                 _merchant = merchant;
                 _clock = clock;
                 _sellerVat = sellerVat.Value;
+                _emailService = emailService;
+                _captureQrLifecycle = captureQrLifecycle;
                 _shopOrderEmail = shopOrderEmail ?? NoOpShopOrderEmailNotifier.Instance;
                 _complimentaryStarterShopOrders =
                     complimentaryStarterShopOrders
@@ -70,6 +80,7 @@ namespace TummlyBackend.Services
                 _printReadyQrMaterialsWork =
                     printReadyQrMaterialsWork
                     ?? NoOpPrintReadyQrMaterialsWork.Instance;
+                _logger = logger ?? NullLogger<RevolutOrderCompletedApplier>.Instance;
             }
 
         public static bool IsMintableBillingReason(string? billingReason)
@@ -225,6 +236,22 @@ namespace TummlyBackend.Services
                 nowUtc
             );
 
+            // Captured before ApplyPaymentFields changes the plan. Free (plan or
+            // status) and Pilot accounts get plan-started. Only Free accounts get
+            // their plan-paused codes activated. A Pilot account may hold codes
+            // that the operator paused.
+            var priorPlan = billingAccount.SubscriptionPlan;
+            var wasFree = IsFreeAccount(billingAccount);
+            var startsPaidPlan =
+                isSetup
+                && (
+                    wasFree
+                    || string.Equals(
+                        priorPlan,
+                        BillingSubscriptionPlans.Pilot,
+                        StringComparison.Ordinal
+                    )
+                );
             ApplyPaymentFields(
                 billingAccount,
                 pending,
@@ -232,8 +259,16 @@ namespace TummlyBackend.Services
                 cycle.RenewalDateUtc
             );
 
-            if (isSetup && pending.IsOpen)
+            if (isSetup)
             {
+                // Clocks are per user, and members copy the owner clock. Every
+                // setup apply clears them, also when the pay session was closed.
+                // Renewals never touch them.
+                await PilotClockSync.ClearForRestaurantAsync(
+                    _context,
+                    billingAccount.RestaurantId,
+                    cancellationToken
+                );
                 pending.IsOpen = false;
             }
 
@@ -266,6 +301,14 @@ namespace TummlyBackend.Services
                             cancellationToken
                         );
                     }
+                }
+
+                if (wasFree)
+                {
+                    await _captureQrLifecycle.ActivatePlanPausedCodesAsync(
+                        billingAccount.RestaurantId,
+                        cancellationToken
+                    );
                 }
             }
 
@@ -357,6 +400,15 @@ namespace TummlyBackend.Services
                 );
             }
             await _context.SaveChangesAsync(cancellationToken);
+
+            if (startsPaidPlan)
+            {
+                await TrySendPlanStartedEmailAsync(
+                    billingAccount.RestaurantId,
+                    billingAccount.SubscriptionPlan,
+                    cancellationToken
+                );
+            }
         }
 
         private async Task ApplyPlanUpgradeProrationAsync(
@@ -444,6 +496,52 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        /// <summary>
+        /// Sends plan-started to the owner. Runs once per first activation, after
+        /// the apply is saved. The owner lookup and the send both sit inside the
+        /// try, so a failure never aborts the apply. Only the exception type is
+        /// logged.
+        /// </summary>
+        private async Task TrySendPlanStartedEmailAsync(
+            int restaurantId,
+            string planName,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                var owner = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.Id == restaurantId)
+                    .Select(row => new
+                    {
+                        row.Name,
+                        OwnerFullName = row.OwnerUser.FullName,
+                        OwnerEmail = row.OwnerUser.Email,
+                    })
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (owner == null || string.IsNullOrWhiteSpace(owner.OwnerEmail))
+                {
+                    return;
+                }
+
+                await _emailService.SendPlanStartedEmailAsync(
+                    owner.OwnerEmail,
+                    SignInMetadataResolver.ExtractFirstName(owner.OwnerFullName ?? string.Empty),
+                    planName,
+                    owner.Name
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    "Plan started email failed for restaurant {RestaurantId}: {ExceptionType}",
+                    restaurantId,
+                    ex.GetType().Name
+                );
+            }
+        }
+
         private async Task<string?> ResolveOwnerDisplayNameAsync(
             int restaurantId,
             CancellationToken cancellationToken
@@ -486,6 +584,18 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
+        private static bool IsFreeAccount(BillingAccount billingAccount) =>
+            string.Equals(
+                billingAccount.SubscriptionPlan,
+                BillingSubscriptionPlans.Free,
+                StringComparison.Ordinal
+            )
+            || string.Equals(
+                billingAccount.BillingStatus,
+                BillingStatuses.Free,
+                StringComparison.Ordinal
+            );
+
         private static void ApplyPaymentFields(
             BillingAccount billingAccount,
             RevolutPendingPaySession pending,
@@ -506,7 +616,6 @@ namespace TummlyBackend.Services
             // ticket 24 RecoverDunningAsync.
             billingAccount.BillingStatus = BillingStatuses.Active;
             billingAccount.RenewalDateUtc = renewalDateUtc;
-            billingAccount.PilotPeriodEnd = null;
             billingAccount.SoftLockEnteredAt = null;
             billingAccount.DormantEnteredAt = null;
             billingAccount.GuestRetentionPurgedAtUtc = null;
@@ -551,6 +660,7 @@ namespace TummlyBackend.Services
             // Acquire sets SubscriptionPlan=Custom before first pay; RenewalDateUtc
             // stays null until this apply. Renewals already have a renewal date.
             var isFirstPaid = billingAccount.RenewalDateUtc == null;
+            var wasFree = IsFreeAccount(billingAccount);
 
             billingAccount.SubscriptionPlan = BillingSubscriptionPlans.Custom;
             billingAccount.BillingStatus = BillingStatuses.Active;
@@ -566,7 +676,6 @@ namespace TummlyBackend.Services
                 ? 365
                 : 30;
             billingAccount.RenewalDateUtc = nowUtc.AddDays(periodDays);
-            billingAccount.PilotPeriodEnd = null;
             billingAccount.SoftLockEnteredAt = null;
             billingAccount.DormantEnteredAt = null;
             billingAccount.GuestRetentionPurgedAtUtc = null;
@@ -576,8 +685,24 @@ namespace TummlyBackend.Services
             billingAccount.DunningFiredSteps = null;
             billingAccount.DunningOutstandingOrderId = null;
             intent.IsOpen = false;
+            if (isFirstPaid)
+            {
+                await PilotClockSync.ClearForRestaurantAsync(
+                    _context,
+                    restaurantId,
+                    cancellationToken
+                );
+            }
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            if (isFirstPaid && wasFree)
+            {
+                await _captureQrLifecycle.ActivatePlanPausedCodesAsync(
+                    restaurantId,
+                    cancellationToken
+                );
+            }
 
             await _mint.MintOnOrderCompletedAsync(
                 new IncludedPeriodOrderCompletedRequest
@@ -647,6 +772,15 @@ namespace TummlyBackend.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            if (isFirstPaid)
+            {
+                await TrySendPlanStartedEmailAsync(
+                    restaurantId,
+                    billingAccount.SubscriptionPlan,
+                    cancellationToken
+                );
+            }
         }
 
         private async Task ApplyExtraLocationAsync(

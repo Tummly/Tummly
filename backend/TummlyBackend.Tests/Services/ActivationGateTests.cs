@@ -91,7 +91,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public void Decide_ActivatedWithoutExpires_BlocksAsExpired()
+        public void Decide_ActivatedWithoutExpires_Allows()
         {
             var subject = new ActivationSubject(
                 DateTime.UtcNow.AddDays(-5),
@@ -102,13 +102,11 @@ namespace TummlyBackend.Tests.Services
             var signIn = _gate.Decide(subject, ActivationIntent.SignIn);
             var api = _gate.Decide(subject, ActivationIntent.ApiAccess);
 
-            Assert.Equal(ActivationOutcome.Block, signIn.Outcome);
-            Assert.Equal(ActivationReason.Expired, signIn.Reason);
-            Assert.Equal(ActivationGate.ActivationExpiredMessage, signIn.Message);
+            Assert.Equal(ActivationOutcome.Allow, signIn.Outcome);
+            Assert.Equal(ActivationReason.None, signIn.Reason);
 
-            Assert.Equal(ActivationOutcome.Block, api.Outcome);
-            Assert.Equal(ActivationReason.Expired, api.Reason);
-            Assert.Equal(ActivationGate.ActivationExpiredMessage, api.Message);
+            Assert.Equal(ActivationOutcome.Allow, api.Outcome);
+            Assert.Equal(ActivationReason.None, api.Reason);
         }
     }
 }

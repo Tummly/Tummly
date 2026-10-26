@@ -90,7 +90,7 @@ namespace TummlyBackend.Helpers
             {
                 success = false,
                 code,
-                message = code,
+                message = OperatorPlanGate.MessageFor(code),
             })
             {
                 StatusCode = StatusCodes.Status403Forbidden,

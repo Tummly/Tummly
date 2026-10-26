@@ -1,3 +1,4 @@
+using TummlyBackend.Tests.Helpers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -252,7 +253,7 @@ namespace TummlyBackend.Tests.Integration
             await context.SaveChangesAsync();
 
             context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(
+                PilotBillingAccountSeed.Create(
                     restaurant.Id,
                     CurrentPricebookId
                 )
