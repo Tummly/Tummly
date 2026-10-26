@@ -65,7 +65,18 @@ namespace TummlyBackend.Tests.SqlServer
                 CreatedAt = now,
                 EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.NotApplicable,
             };
-            context.FeedbackGuestResponses.AddRange(accepted, pending, sms);
+            var neverSent = new FeedbackGuestResponse
+            {
+                FeedbackId = feedbackId,
+                Channel = FeedbackGuestResponseChannel.Email,
+                Intent = FeedbackRecoveryIntent.RespondToGuest,
+                MaskedDestination = "a***@example.com",
+                Body = "Never sent reply",
+                AuthorDisplayName = "Owner",
+                CreatedAt = now,
+                EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.NotApplicable,
+            };
+            context.FeedbackGuestResponses.AddRange(accepted, pending, sms, neverSent);
             await context.SaveChangesAsync();
 
             await context.Database.ExecuteSqlRawAsync(
@@ -75,7 +86,12 @@ namespace TummlyBackend.Tests.SqlServer
             context.ChangeTracker.Clear();
             var rows = await context
                 .FeedbackGuestResponses.AsNoTracking()
-                .Where(r => r.Id == accepted.Id || r.Id == pending.Id || r.Id == sms.Id)
+                .Where(r =>
+                    r.Id == accepted.Id
+                    || r.Id == pending.Id
+                    || r.Id == sms.Id
+                    || r.Id == neverSent.Id
+                )
                 .ToDictionaryAsync(r => r.Id);
 
             Assert.Equal(GuestReplyDeliveryState.Accepted, rows[accepted.Id].DeliveryState);
@@ -84,6 +100,8 @@ namespace TummlyBackend.Tests.SqlServer
             Assert.Equal(now, rows[pending.Id].DeliveryStateAtUtc);
             Assert.Equal(GuestReplyDeliveryState.Unavailable, rows[sms.Id].DeliveryState);
             Assert.Equal(now, rows[sms.Id].DeliveryStateAtUtc);
+            Assert.Equal(GuestReplyDeliveryState.Unavailable, rows[neverSent.Id].DeliveryState);
+            Assert.Equal(now, rows[neverSent.Id].DeliveryStateAtUtc);
 
             await tx.RollbackAsync();
         }
@@ -99,6 +117,42 @@ namespace TummlyBackend.Tests.SqlServer
             await context.Database.ExecuteSqlRawAsync(
                 WSEDeliveryStopLedger.DuplicateTopupPreCheckSql
             );
+        }
+
+        [SkippableFact]
+        public async Task Migration_DuplicateTopupPreCheck_ThrowsOnDuplicateGroup()
+        {
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+
+            var restaurantId = await SeedBillingRestaurantAsync();
+            var paymentRef = $"order-{Guid.NewGuid():N}";
+
+            await using var context = _fixture.CreateContext();
+            await using var tx = await context.Database.BeginTransactionAsync();
+
+            // Drop the unique index in this transaction only, so the duplicate can exist
+            // as it would before the migration. The rollback restores the index.
+            await context.Database.ExecuteSqlRawAsync(
+                "DROP INDEX [IX_CreditLedgerEntries_RestaurantId_SourcePaymentRef_EntryType] ON [CreditLedgerEntries]"
+            );
+            context.CreditLedgerEntries.AddRange(
+                TopupRow(restaurantId, paymentRef, CreditLedgerEntryTypes.TopupAllocation),
+                TopupRow(restaurantId, paymentRef, CreditLedgerEntryTypes.TopupAllocation)
+            );
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAnyAsync<Exception>(() =>
+                context.Database.ExecuteSqlRawAsync(
+                    WSEDeliveryStopLedger.DuplicateTopupPreCheckSql
+                )
+            );
+
+            Assert.Contains(
+                "WSE: duplicate TopupAllocation rows exist; resolve before migrating.",
+                ex.ToString()
+            );
+
+            await tx.RollbackAsync();
         }
 
         [SkippableFact]

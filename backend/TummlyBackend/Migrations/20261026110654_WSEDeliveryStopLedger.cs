@@ -25,14 +25,16 @@ IF EXISTS (
 
         /// <summary>
         /// Backfills reply delivery state for rows that existed before this migration
-        /// (WS-E R1.7). SMS rows become Unavailable; email rows follow the old send queue.
+        /// (WS-E R1.7). SMS rows and email rows the worker never sent become Unavailable.
+        /// Email rows still queued (Pending) stay Pending; Accepted stays Accepted.
         /// </summary>
         public const string BackfillSql = @"
 UPDATE FeedbackGuestResponses
 SET DeliveryState = CASE
         WHEN Channel = 1 THEN 4
         WHEN EmailDeliveryStatus = 2 THEN 1
-        ELSE 0
+        WHEN EmailDeliveryStatus = 1 THEN 0
+        ELSE 4
     END,
     DeliveryStateAtUtc = COALESCE(EmailDeliveredAt, CreatedAt);";
 

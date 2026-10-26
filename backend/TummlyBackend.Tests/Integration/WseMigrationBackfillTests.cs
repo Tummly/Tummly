@@ -18,6 +18,11 @@ namespace TummlyBackend.Tests.Integration
                 $"WHEN EmailDeliveryStatus = {(int)GuestResponseEmailDeliveryStatus.Accepted} THEN {(int)GuestReplyDeliveryState.Accepted}",
                 sql
             );
+            Assert.Contains(
+                $"WHEN EmailDeliveryStatus = {(int)GuestResponseEmailDeliveryStatus.Pending} THEN {(int)GuestReplyDeliveryState.Pending}",
+                sql
+            );
+            Assert.Contains($"ELSE {(int)GuestReplyDeliveryState.Unavailable}", sql);
         }
 
         [Fact]
