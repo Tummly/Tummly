@@ -70,6 +70,53 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(seeded.FrozenGuestIds[1], call.LocationGuestId);
         }
 
+        [Fact]
+        public async Task CampaignFire_GuestStopsMidRun_SkippedBeforeSend()
+        {
+            var seeded = await SeedCommittedCampaignAsync(
+                status: CampaignFireService.ScheduledStatus,
+                scheduleMode: "schedule-later",
+                scheduledAtUtc: _now.AddMinutes(-5),
+                frozenEligibleCount: 2,
+                withCatalogOffer: false,
+                channel: "sms"
+            );
+
+            var secondLocationGuestId = seeded.FrozenGuestIds[1];
+            var secondMasterGuestId = await _context.LocationGuests
+                .Where(lg => lg.Id == secondLocationGuestId)
+                .Select(lg => lg.MasterGuestId)
+                .SingleAsync();
+
+            // The second recipient texts STOP after the first SMS is accepted.
+            _outbound.OnAfterAccept = acceptedSoFar =>
+            {
+                if (acceptedSoFar != 1)
+                {
+                    return;
+                }
+
+                var secondMaster = _context.MasterGuests.Single(m => m.Id == secondMasterGuestId);
+                secondMaster.SmsStoppedAtUtc = _now;
+                _context.SaveChanges();
+            };
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var call = Assert.Single(_outbound.Calls);
+            Assert.Equal(seeded.FrozenGuestIds[0], call.LocationGuestId);
+
+            var skipped = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .SingleAsync(d =>
+                    d.CampaignId == seeded.CampaignId
+                    && d.LocationGuestId == secondLocationGuestId
+                );
+            Assert.Equal(CampaignFireService.SkippedIneligibleOutcome, skipped.Outcome);
+            Assert.Null(skipped.AcceptedAtUtc);
+        }
+
         public void Dispose()
         {
             _context.Dispose();

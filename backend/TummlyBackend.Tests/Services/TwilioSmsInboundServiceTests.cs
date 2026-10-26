@@ -99,6 +99,17 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Stop_CampaignSmsUnknownOutcome_Counts()
+        {
+            // An unknown-outcome send may have reached the phone. No accepted time is set.
+            var guest = await SeedGuestAsync("Unknown Venue", GuestFrom, SmsTouch.CampaignSendUnknownOutcome);
+
+            await HandleSignedStopAsync(GuestFrom);
+
+            await AssertStoppedAsync(guest);
+        }
+
+        [Fact]
         public async Task Stop_UnknownPhone_NoChange()
         {
             var guest = await SeedGuestAsync("Venue", GuestFrom, SmsTouch.FeedbackReply);
@@ -290,7 +301,11 @@ namespace TummlyBackend.Tests.Services
             }
             else if (touch == SmsTouch.CampaignSend)
             {
-                await AddCampaignSmsAsync(location.Id, guest.Id);
+                await AddCampaignSmsAsync(location.Id, guest.Id, accepted: true);
+            }
+            else if (touch == SmsTouch.CampaignSendUnknownOutcome)
+            {
+                await AddCampaignSmsAsync(location.Id, guest.Id, accepted: false);
             }
 
             return new SeededGuest(master.Id, guest.Id);
@@ -334,7 +349,7 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
         }
 
-        private async Task AddCampaignSmsAsync(int locationId, int locationGuestId)
+        private async Task AddCampaignSmsAsync(int locationId, int locationGuestId, bool accepted)
         {
             var campaign = new Campaign
             {
@@ -354,9 +369,9 @@ namespace TummlyBackend.Tests.Services
                     CampaignId = campaign.Id,
                     LocationGuestId = locationGuestId,
                     Channel = "sms",
-                    Outcome = "accepted",
-                    AcceptedAtUtc = _now,
-                    ProviderMessageId = "SMtest-campaign",
+                    Outcome = accepted ? "accepted" : "unknown",
+                    AcceptedAtUtc = accepted ? _now : null,
+                    ProviderMessageId = accepted ? "SMtest-campaign" : null,
                 }
             );
             await _context.SaveChangesAsync();
@@ -369,6 +384,7 @@ namespace TummlyBackend.Tests.Services
             None,
             FeedbackReply,
             CampaignSend,
+            CampaignSendUnknownOutcome,
         }
 
         private sealed record SeededGuest(int MasterGuestId, int LocationGuestId);
