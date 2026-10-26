@@ -1576,6 +1576,17 @@ static async Task InitializeDatabaseAsync(
             context,
             services.GetRequiredService<IHostEnvironment>()
         );
+        if (
+            await CommercialCatalogBandRatesUpgrade.EnsureAsync(
+                context,
+                DateTime.UtcNow,
+                logger
+            )
+        )
+        {
+            // Init runs unawaited, so a request may have cached the prior Published version.
+            services.GetRequiredService<DbPricebookCatalog>().InvalidateCache();
+        }
 
         if (!await context.Admins.AnyAsync())
         {
