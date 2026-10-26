@@ -403,9 +403,10 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            string? providerMessageId;
             try
             {
-                await SendGuestResponseEmailForRowAsync(
+                providerMessageId = await SendGuestResponseEmailForRowAsync(
                     deps,
                     row,
                     cancellationToken
@@ -434,10 +435,14 @@ namespace TummlyBackend.Services
                     return;
                 }
 
-                // Terminal skip — do not retry. Fact stays; mail is not sent.
+                // Terminal skip — do not retry. Mail is not sent, so the reply is Failed.
                 skipped.EmailDeliveryStatus =
-                    GuestResponseEmailDeliveryStatus.Accepted;
-                skipped.EmailDeliveredAt = DateTime.UtcNow;
+                    GuestResponseEmailDeliveryStatus.Abandoned;
+                GuestReplyDeliveryStateMachine.TryAdvance(
+                    skipped,
+                    GuestReplyDeliveryState.Failed,
+                    DateTime.UtcNow
+                );
                 skipped.EmailDeliveryClaimedAt = null;
                 skipped.EmailDeliveryRetryAfter = null;
                 await deps.Context.SaveChangesAsync(cancellationToken);
@@ -468,15 +473,35 @@ namespace TummlyBackend.Services
                 }
 
                 failed.EmailDeliveryClaimedAt = null;
-                // Always schedule a future retry so a single DrainAsync cannot
-                // spin forever on a hard Resend failure (RetryBackoffSeconds may
-                // be 0 in tests).
-                var backoffSeconds = Math.Max(
-                    1,
-                    settings.RetryBackoffSeconds
-                );
-                failed.EmailDeliveryRetryAfter =
-                    DateTime.UtcNow.AddSeconds(backoffSeconds);
+
+                if (
+                    failed.EmailDeliveryAttemptCount
+                    >= Math.Max(1, settings.MaxAttempts)
+                )
+                {
+                    // Attempt limit reached — stop the worker and mark the reply Failed.
+                    failed.EmailDeliveryStatus =
+                        GuestResponseEmailDeliveryStatus.Abandoned;
+                    failed.EmailDeliveryRetryAfter = null;
+                    GuestReplyDeliveryStateMachine.TryAdvance(
+                        failed,
+                        GuestReplyDeliveryState.Failed,
+                        DateTime.UtcNow
+                    );
+                }
+                else
+                {
+                    // Always schedule a future retry so a single DrainAsync cannot
+                    // spin forever on a hard Resend failure (RetryBackoffSeconds may
+                    // be 0 in tests).
+                    var backoffSeconds = Math.Max(
+                        1,
+                        settings.RetryBackoffSeconds
+                    );
+                    failed.EmailDeliveryRetryAfter =
+                        DateTime.UtcNow.AddSeconds(backoffSeconds);
+                }
+
                 await deps.Context.SaveChangesAsync(cancellationToken);
                 return;
             }
@@ -497,15 +522,22 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            var acceptedAt = DateTime.UtcNow;
             accepted.EmailDeliveryStatus =
                 GuestResponseEmailDeliveryStatus.Accepted;
-            accepted.EmailDeliveredAt = DateTime.UtcNow;
+            accepted.EmailDeliveredAt = acceptedAt;
             accepted.EmailDeliveryClaimedAt = null;
             accepted.EmailDeliveryRetryAfter = null;
+            accepted.ProviderMessageId = providerMessageId;
+            GuestReplyDeliveryStateMachine.TryAdvance(
+                accepted,
+                GuestReplyDeliveryState.Accepted,
+                acceptedAt
+            );
             await deps.Context.SaveChangesAsync(cancellationToken);
         }
 
-        private static async Task SendGuestResponseEmailForRowAsync(
+        private static async Task<string?> SendGuestResponseEmailForRowAsync(
             DeliveryScope deps,
             FeedbackGuestResponse row,
             CancellationToken cancellationToken
@@ -591,7 +623,7 @@ namespace TummlyBackend.Services
                 UnsubscribeLink.ResolveSigningSecret(deps.Configuration)
             );
 
-            await deps.EmailService.SendGuestResponseEmailAsync(
+            return await deps.EmailService.SendGuestResponseEmailAsync(
                 feedback.GuestContact.Trim(),
                 row.Subject!,
                 brandTitle,

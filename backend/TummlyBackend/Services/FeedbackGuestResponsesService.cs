@@ -208,6 +208,7 @@ namespace TummlyBackend.Services
             );
 
             row.EmailDeliveryStatus = GuestResponseEmailDeliveryStatus.Pending;
+            row.DeliveryState = GuestReplyDeliveryState.Pending;
 
             _context.FeedbackGuestResponses.Add(row);
             await _context.SaveChangesAsync(cancellationToken);

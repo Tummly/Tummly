@@ -14,5 +14,11 @@ namespace TummlyBackend.Models
 
         /// <summary>Resend accepted the mail.</summary>
         Accepted = 2,
+
+        /// <summary>
+        /// Worker stopped without a send: not eligible at send time, or the
+        /// attempt limit was reached. Terminal queue state; never claimed again.
+        /// </summary>
+        Abandoned = 3,
     }
 }

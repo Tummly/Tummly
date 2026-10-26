@@ -19,5 +19,10 @@ namespace TummlyBackend.Configurations
         /// How often the worker sweeps Pending rows (plus Channel wake-ups).
         /// </summary>
         public int SweepIntervalSeconds { get; set; } = 30;
+
+        /// <summary>
+        /// Failed send attempts before the worker stops and the reply is Failed.
+        /// </summary>
+        public int MaxAttempts { get; set; } = 5;
     }
 }

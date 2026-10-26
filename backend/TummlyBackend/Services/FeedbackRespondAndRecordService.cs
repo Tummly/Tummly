@@ -102,6 +102,10 @@ namespace TummlyBackend.Services
                 channel == FeedbackGuestResponseChannel.Email
                     ? GuestResponseEmailDeliveryStatus.Pending
                     : GuestResponseEmailDeliveryStatus.NotApplicable;
+            if (channel == FeedbackGuestResponseChannel.Email)
+            {
+                guestResponse.DeliveryState = GuestReplyDeliveryState.Pending;
+            }
 
             var internalAction = new FeedbackInternalAction
             {

@@ -99,7 +99,7 @@ namespace TummlyBackend.Tests.Helpers
             string reference
         ) => Task.CompletedTask;
 
-        public virtual Task SendGuestResponseEmailAsync(
+        public virtual Task<string?> SendGuestResponseEmailAsync(
             string toEmail,
             string subject,
             string brandTitle,
@@ -110,7 +110,7 @@ namespace TummlyBackend.Tests.Helpers
             GuestResponseEmailOfferBlock? offer = null,
             string? unsubscribeHref = null,
             string? ticketSubject = null
-        ) => Task.CompletedTask;
+        ) => Task.FromResult<string?>(null);
 
         public virtual Task<string?> SendCampaignGuestEmailAsync(
             string toEmail,

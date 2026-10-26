@@ -934,7 +934,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        public async Task SendGuestResponseEmailAsync(
+        public async Task<string?> SendGuestResponseEmailAsync(
             string toEmail,
             string subject,
             string brandTitle,
@@ -961,7 +961,7 @@ namespace TummlyBackend.Services
                 emailAssetsBaseUrl: GetEmailChromeBaseUrl()
             );
 
-            _ = await SendEmailAsync(toEmail, subject, htmlBody);
+            return await SendEmailAsync(toEmail, subject, htmlBody);
         }
 
         public async Task<string?> SendCampaignGuestEmailAsync(

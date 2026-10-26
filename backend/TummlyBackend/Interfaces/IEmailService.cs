@@ -140,7 +140,11 @@ namespace TummlyBackend.Interfaces
          =========================================
         */
 
-        Task SendGuestResponseEmailAsync(
+        /// <summary>
+        /// Guest response email — returns the Resend email id when Resend accepts
+        /// (null for SMTP or when the provider gives no id).
+        /// </summary>
+        Task<string?> SendGuestResponseEmailAsync(
             string toEmail,
             string subject,
             string brandTitle,
