@@ -461,6 +461,298 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task RecoveryOffer_IdenticalRepeatWithin10Min_Returns409DuplicateReply()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-duplicate-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-duplicate-owner@example.com",
+                withCatalogAttach: true
+            );
+
+            var first = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            var second = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+            var body = await ReadJsonAsync(second);
+            Assert.Equal("duplicate_reply", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "This reply was already sent to the guest.",
+                body.GetProperty("message").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                1,
+                await context.OfferIssues.CountAsync(o =>
+                    o.FeedbackId == seeded.FeedbackId
+                    && o.Source == OfferIssueSources.Recovery
+                )
+            );
+        }
+
+        [Fact]
+        public async Task RecoveryOffer_SecondWhileFirstOpen_Returns409RecoveryOfferOpen()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-open-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-open-owner@example.com",
+                withCatalogAttach: true
+            );
+
+            var first = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            var firstBody = await ReadJsonAsync(first);
+            var claimCode = firstBody
+                .GetProperty("recoveryOffer")
+                .GetProperty("redemptionCode")
+                .GetString();
+            Assert.False(string.IsNullOrWhiteSpace(claimCode));
+
+            var second = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "We are sorry again. Please come back soon."
+            );
+            Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+            var body = await ReadJsonAsync(second);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("recovery_offer_open", body.GetProperty("code").GetString());
+            Assert.Contains(claimCode!, body.GetProperty("message").GetString());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                1,
+                await context.OfferIssues.CountAsync(o =>
+                    o.FeedbackId == seeded.FeedbackId
+                    && o.Source == OfferIssueSources.Recovery
+                )
+            );
+        }
+
+        [Fact]
+        public async Task RecoveryOffer_AfterFirstRedeemed_Allowed()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-redeemed-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-redeemed-owner@example.com",
+                withCatalogAttach: true
+            );
+
+            var first = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            await UpdateRecoveryIssueAsync(
+                seeded.FeedbackId,
+                issue => issue.RedeemedAtUtc = DateTime.UtcNow
+            );
+
+            var second = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "A second offer after the first was used."
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                2,
+                await context.OfferIssues.CountAsync(o =>
+                    o.FeedbackId == seeded.FeedbackId
+                    && o.Source == OfferIssueSources.Recovery
+                )
+            );
+        }
+
+        [Fact]
+        public async Task RecoveryOffer_AfterFirstExpired_Allowed()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-expired-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-expired-owner@example.com",
+                withCatalogAttach: true
+            );
+
+            var first = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            await UpdateRecoveryIssueAsync(
+                seeded.FeedbackId,
+                issue => issue.ExpiryAtUtc = DateTime.UtcNow.AddDays(-1)
+            );
+
+            var second = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "A second offer after the first expired."
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        }
+
+        [Fact]
+        public async Task RecoveryOffer_AfterFirstVoided_Allowed()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-voided-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-voided-owner@example.com",
+                withCatalogAttach: true
+            );
+
+            var first = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            await UpdateRecoveryIssueAsync(
+                seeded.FeedbackId,
+                issue => issue.CancelledAtUtc = DateTime.UtcNow
+            );
+
+            var second = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "A second offer after the first was voided."
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                2,
+                await context.OfferIssues.CountAsync(o =>
+                    o.FeedbackId == seeded.FeedbackId
+                    && o.Source == OfferIssueSources.Recovery
+                )
+            );
+        }
+
+        [Fact]
+        public async Task RecoveryOffer_LockTimeout_Returns503()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-lock-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-lock-owner@example.com",
+                withCatalogAttach: true
+            );
+
+            _factory.ReplyLock.RejectAll = true;
+            try
+            {
+                var response = await SendRecoveryOfferAsync(
+                    _client,
+                    seeded,
+                    "Please enjoy 20% off your next visit."
+                );
+                Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+
+                var body = await ReadJsonAsync(response);
+                Assert.False(body.GetProperty("success").GetBoolean());
+                Assert.Equal("Please try again.", body.GetProperty("message").GetString());
+            }
+            finally
+            {
+                _factory.ReplyLock.RejectAll = false;
+            }
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.OfferIssues.CountAsync(o =>
+                    o.FeedbackId == seeded.FeedbackId
+                )
+            );
+        }
+
+        private static async Task<HttpResponseMessage> SendRecoveryOfferAsync(
+            HttpClient client,
+            (string Jwt, int LocationId, int FeedbackId, int? CatalogOfferId) seeded,
+            string body
+        )
+        {
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-offers"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "A recovery offer from us",
+                body,
+                intent = "respond_with_recovery_offer",
+                purpose = "include_a_recovery_offer",
+                tone = "warm_and_apologetic",
+            });
+
+            return await client.SendAsync(post);
+        }
+
+        private async Task UpdateRecoveryIssueAsync(
+            int feedbackId,
+            Action<OfferIssue> change
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var issue = await context.OfferIssues.SingleAsync(o =>
+                o.FeedbackId == feedbackId && o.Source == OfferIssueSources.Recovery
+            );
+            change(issue);
+            await context.SaveChangesAsync();
+        }
+
         private async Task<(
             string Jwt,
             int LocationId,

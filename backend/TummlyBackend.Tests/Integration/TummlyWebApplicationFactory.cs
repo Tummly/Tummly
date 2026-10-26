@@ -20,6 +20,9 @@ namespace TummlyBackend.Tests.Integration
 
         public FakeFirstPaidRevolutMerchantClient Merchant { get; } = new();
 
+        /// <summary>Guest reply lock gate. Set <see cref="GatedGuestReplyLock.RejectAll"/> to simulate a lock timeout.</summary>
+        public GatedGuestReplyLock ReplyLock { get; } = new();
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");
@@ -124,6 +127,9 @@ namespace TummlyBackend.Tests.Integration
 
                 services.RemoveAll<IRevolutMerchantClient>();
                 services.AddSingleton<IRevolutMerchantClient>(Merchant);
+
+                services.RemoveAll<IGuestReplyLock>();
+                services.AddSingleton<IGuestReplyLock>(ReplyLock);
             });
         }
     }

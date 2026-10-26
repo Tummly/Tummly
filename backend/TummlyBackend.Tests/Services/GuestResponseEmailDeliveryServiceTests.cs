@@ -93,7 +93,8 @@ namespace TummlyBackend.Tests.Services
                     new CreditBalanceSnapshotService(_context, TimeProvider.System)
                 ),
                 new NoOpRecoveryGuestSmsDelivery(),
-                TimeProvider.System
+                TimeProvider.System,
+                new GatedGuestReplyLock()
             );
             _respondAndRecord = new FeedbackRespondAndRecordService(
                 _context,
@@ -102,7 +103,8 @@ namespace TummlyBackend.Tests.Services
             _recoveryOffers = new FeedbackRecoveryOffersService(
                 _context,
                 _deliveryWork,
-                new OfferIssueService(_context)
+                new OfferIssueService(_context),
+                new GatedGuestReplyLock()
             );
         }
 

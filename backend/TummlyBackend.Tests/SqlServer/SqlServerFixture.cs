@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Testcontainers.MsSql;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Tests.Integration;
 
 namespace TummlyBackend.Tests.SqlServer
@@ -114,6 +117,10 @@ namespace TummlyBackend.Tests.SqlServer
                         {
                             options.UseSqlServer(ConnectionString);
                         });
+
+                        // Concurrency tests use the real SQL Server guest reply lock.
+                        services.RemoveAll<IGuestReplyLock>();
+                        services.AddScoped<IGuestReplyLock, GuestReplyLock>();
                     });
                 }
             );

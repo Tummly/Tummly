@@ -1,3 +1,4 @@
+import { AxiosError } from "axios"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -70,6 +71,33 @@ describe("recoveryComposerPresentation", () => {
     expect(mapRecoveryComposerSendFailure(new Error("boom"))).toEqual({
       kind: "failed",
       message: RECOVERY_COMPOSER_COPY.sendFailed,
+    })
+  })
+})
+
+describe("mapRecoveryComposerSendFailure refusals", () => {
+  it("409 refusal keeps the server message for the user", () => {
+    const error = new AxiosError(
+      "Request failed with status code 409",
+      AxiosError.ERR_BAD_REQUEST,
+      undefined,
+      undefined,
+      {
+        status: 409,
+        statusText: "Conflict",
+        headers: {},
+        config: {} as never,
+        data: {
+          success: false,
+          code: "duplicate_reply",
+          message: "This reply was already sent to the guest.",
+        },
+      }
+    )
+
+    expect(mapRecoveryComposerSendFailure(error)).toEqual({
+      kind: "refused",
+      message: "This reply was already sent to the guest.",
     })
   })
 })

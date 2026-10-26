@@ -18,13 +18,15 @@ namespace TummlyBackend.Services
         private readonly IRecoverySmsBillingReserve _smsBilling;
         private readonly IRecoveryGuestSmsDelivery _smsDelivery;
         private readonly TimeProvider _clock;
+        private readonly IGuestReplyLock _replyLock;
 
         public FeedbackGuestResponsesService(
             ApplicationDbContext context,
             IGuestResponseEmailDeliveryWork emailDelivery,
             IRecoverySmsBillingReserve smsBilling,
             IRecoveryGuestSmsDelivery smsDelivery,
-            TimeProvider clock
+            TimeProvider clock,
+            IGuestReplyLock replyLock
         )
         {
             _context = context;
@@ -32,6 +34,7 @@ namespace TummlyBackend.Services
             _smsBilling = smsBilling;
             _smsDelivery = smsDelivery;
             _clock = clock;
+            _replyLock = replyLock;
         }
 
         public async Task<SendFeedbackGuestResponseResultDto?> SendAsync(
@@ -107,6 +110,13 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            // Held until the send finishes. Duplicate checks and the save run
+            // under it, so two identical replies cannot both pass.
+            await using var replyLease = await AcquireReplyLockAsync(
+                feedback.Id,
+                cancellationToken
+            );
+
             if (channel == FeedbackGuestResponseChannel.Email)
             {
                 return await SendEmailAsync(
@@ -132,6 +142,20 @@ namespace TummlyBackend.Services
                 idempotencyKey,
                 cancellationToken
             );
+        }
+
+        private async Task<IAsyncDisposable> AcquireReplyLockAsync(
+            int feedbackId,
+            CancellationToken cancellationToken
+        )
+        {
+            var lease = await _replyLock.TryAcquireAsync(
+                _context,
+                feedbackId,
+                cancellationToken
+            );
+
+            return lease ?? throw new GuestReplyLockUnavailableException();
         }
 
         public async Task<IReadOnlyList<FeedbackGuestResponseItemDto>> ListForFeedbackAsync(
@@ -161,6 +185,15 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            await GuestReplyRules.EnsureNotDuplicateAsync(
+                _context,
+                feedback.Id,
+                FeedbackGuestResponseChannel.Email,
+                content.Body,
+                _clock.GetUtcNow().UtcDateTime,
+                cancellationToken
+            );
+
             var row = FeedbackGuestResponseComposer.Build(
                 feedback,
                 FeedbackGuestResponseChannel.Email,
@@ -221,6 +254,15 @@ namespace TummlyBackend.Services
                     return replay;
                 }
             }
+
+            await GuestReplyRules.EnsureNotDuplicateAsync(
+                _context,
+                feedback.Id,
+                FeedbackGuestResponseChannel.Sms,
+                content.Body,
+                _clock.GetUtcNow().UtcDateTime,
+                cancellationToken
+            );
 
             var estimate = CampaignSmsSegmentCalculator.CountSegments(content.Body);
             await ReleaseExpiredOpenHoldForKeyAsync(

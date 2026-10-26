@@ -14,16 +14,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
         private readonly IOfferIssueService _offerIssues;
+        private readonly IGuestReplyLock _replyLock;
 
         public FeedbackRecoveryOffersService(
             ApplicationDbContext context,
             IGuestResponseEmailDeliveryWork emailDelivery,
-            IOfferIssueService offerIssues
+            IOfferIssueService offerIssues,
+            IGuestReplyLock replyLock
         )
         {
             _context = context;
             _emailDelivery = emailDelivery;
             _offerIssues = offerIssues;
+            _replyLock = replyLock;
         }
 
         public async Task<SendAndIssueFeedbackRecoveryOfferResultDto?> SendAndIssueAsync(
@@ -126,7 +129,30 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Held until the send finishes (the reply is saved and the email
+            // notified under the lock). Repeat checks run under it.
+            await using var replyLease = await _replyLock.TryAcquireAsync(
+                _context,
+                feedbackId,
+                cancellationToken
+            ) ?? throw new GuestReplyLockUnavailableException();
+
             var issuedAt = DateTime.UtcNow;
+
+            await GuestReplyRules.EnsureNotDuplicateAsync(
+                _context,
+                feedbackId,
+                channel,
+                content.Body,
+                issuedAt,
+                cancellationToken
+            );
+            await GuestReplyRules.EnsureNoOpenRecoveryOfferAsync(
+                _context,
+                feedbackId,
+                issuedAt,
+                cancellationToken
+            );
 
             OfferIssue? issue = null;
             FeedbackGuestResponse? guestResponse = null;
