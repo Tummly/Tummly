@@ -3,6 +3,7 @@ using System.Data.Common;
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 
@@ -18,6 +19,13 @@ namespace TummlyBackend.Helpers
     public sealed class GuestReplyLock : IGuestReplyLock
     {
         private const int LockTimeoutMs = 10_000;
+
+        private readonly ILogger<GuestReplyLock> _logger;
+
+        public GuestReplyLock(ILogger<GuestReplyLock> logger)
+        {
+            _logger = logger;
+        }
 
         public async Task<IAsyncDisposable?> TryAcquireAsync(
             ApplicationDbContext context,
@@ -73,7 +81,7 @@ namespace TummlyBackend.Helpers
                 return null;
             }
 
-            return new SessionLease(context, resource, openedHere);
+            return new SessionLease(_logger, context, resource, openedHere);
         }
 
         private static async Task<int> ExecuteAppLockAsync(
@@ -145,17 +153,20 @@ namespace TummlyBackend.Helpers
 
         private sealed class SessionLease : IAsyncDisposable
         {
+            private readonly ILogger<GuestReplyLock> _logger;
             private readonly ApplicationDbContext _context;
             private readonly string _resource;
             private readonly bool _closeConnection;
             private bool _released;
 
             public SessionLease(
+                ILogger<GuestReplyLock> logger,
                 ApplicationDbContext context,
                 string resource,
                 bool closeConnection
             )
             {
+                _logger = logger;
                 _context = context;
                 _resource = resource;
                 _closeConnection = closeConnection;
@@ -171,13 +182,27 @@ namespace TummlyBackend.Helpers
                 _released = true;
                 try
                 {
-                    await ExecuteAppLockAsync(
-                        _context,
-                        "sp_releaseapplock",
-                        _resource,
-                        acquire: false,
-                        CancellationToken.None
-                    );
+                    // A failed release must not replace the request's outcome.
+                    // The session lock also ends when the connection closes.
+                    // Log the resource name only, never contact data.
+                    try
+                    {
+                        await ExecuteAppLockAsync(
+                            _context,
+                            "sp_releaseapplock",
+                            _resource,
+                            acquire: false,
+                            CancellationToken.None
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(
+                            ex,
+                            "Guest reply lock release failed for {Resource}.",
+                            _resource
+                        );
+                    }
                 }
                 finally
                 {

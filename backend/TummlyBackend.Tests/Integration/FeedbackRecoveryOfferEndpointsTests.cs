@@ -629,6 +629,49 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task RecoveryOffer_AfterFirstVoided_Allowed()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-voided-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-voided-owner@example.com",
+                withCatalogAttach: true
+            );
+
+            var first = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "Please enjoy 20% off your next visit."
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            await UpdateRecoveryIssueAsync(
+                seeded.FeedbackId,
+                issue => issue.CancelledAtUtc = DateTime.UtcNow
+            );
+
+            var second = await SendRecoveryOfferAsync(
+                _client,
+                seeded,
+                "A second offer after the first was voided."
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                2,
+                await context.OfferIssues.CountAsync(o =>
+                    o.FeedbackId == seeded.FeedbackId
+                    && o.Source == OfferIssueSources.Recovery
+                )
+            );
+        }
+
+        [Fact]
         public async Task RecoveryOffer_LockTimeout_Returns503()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
