@@ -1,5 +1,6 @@
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import { MARKETING_FAQS_PATH } from "@/constants/marketingNav"
+import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 
 /** Figma Custom Plan hero `6657:37873`. */
 export const CUSTOM_PLAN_HERO = {
@@ -28,17 +29,14 @@ export const CUSTOM_PLAN_STEPS = {
     includedTitle: "Included allowances",
     includedBody:
       "Add only what you need beyond the allowances in your starting package.",
-    /** Figma lock pill `6661:39157` — shown while Locations = 0. */
-    lockHint: "Add at least 1 location to customize your estimate",
+    /** Figma lock pill `6661:39157` — shown while Locations = 0 (doc 08). */
+    lockHint: CUSTOM_PLAN_QUOTE_COPY.locationEmpty,
     teamUsersTitle: "Additional team users",
-    teamUsersHintFallback: "5 users per pack · £15/month",
     offersTitle: "Additional active Offers",
-    offersHintFallback: "5 Offers per pack · £12/month",
     qrTitle: "Additional QR placements",
     qrBody:
       "Need more QR placements than your plan includes? Add extra capacity now and assign it to your restaurants after signup.",
     qrPackTitle: "Extra QR placements",
-    qrPackHintFallback: "10 placements per pack · £6/month",
     qrExtraCostLabel: "Additional monthly cost",
     qrFootnote:
       "Your plan's included QR placements are already covered. You can allocate purchased extra capacity to your Locations after signup.",

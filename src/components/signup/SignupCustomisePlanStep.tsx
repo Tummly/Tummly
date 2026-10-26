@@ -3,6 +3,7 @@ import { CustomPlanCalculator } from "@/components/marketing/custom-plan/CustomP
 import { Button } from "@/components/ui/button"
 import {
   chosenPlanToBasePlan,
+  storedPlanFromQuote,
   type CustomPlanBasePlanKey,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
@@ -40,13 +41,14 @@ export function SignupCustomisePlanStep({
         initialPacks={packs}
         initialCadence={cadence}
         continueLabel="Review subscription"
-        onContinue={({ estimate, config }) => {
+        onContinue={({ quote, config }) => {
           saveSignupCustomPlanConfig({
-            basePlan: estimate.basePlan,
+            basePlan: config.basePlan,
             cadence: config.cadence,
             locations: config.locations,
             packs: config.packs,
-            asCustom: estimate.storedAsPlan === "Custom",
+            asCustom: storedPlanFromQuote(quote.storedAsPlan) === "Custom",
+            quoteHash: quote.quoteHash,
           })
           onContinueToReview()
         }}

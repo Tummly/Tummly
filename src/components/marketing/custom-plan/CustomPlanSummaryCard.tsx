@@ -1,11 +1,14 @@
 import { Link } from "react-router-dom"
 
+import type { CustomPlanQuoteResult } from "@/api/adminCommercialCatalogApi"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { PRICING_CADENCE_COPY } from "@/content/marketing/pricingPage"
+import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
-import type { CustomPlanV2Estimate } from "@/lib/marketingCustomPlan/customPlanEstimate"
+import { quotePlanName } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import { formatPenceGbp } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
@@ -14,27 +17,75 @@ function formatCount(n: number): string {
   return n.toLocaleString("en-GB")
 }
 
+/** Quote status: the message, then the over-limit help and Contact us link, then Try again. */
+export function CustomPlanQuoteStatus({
+  message,
+  showRetry = false,
+  onRetry,
+  showContact = false,
+}: {
+  message: string
+  showRetry?: boolean
+  onRetry?: () => void
+  showContact?: boolean
+}) {
+  return (
+    <div className="flex flex-col items-start gap-3">
+      <p
+        role="status"
+        className="m-0 font-sans text-sm font-normal leading-5 text-[#141414]"
+      >
+        {message}
+      </p>
+      {showContact ? (
+        <>
+          <p className="m-0 font-sans text-sm font-normal leading-5 text-[#141414]">
+            {CUSTOM_PLAN_QUOTE_COPY.locationOverLimitHelp}
+          </p>
+          <MarketingButton asChild variant="dark" className="w-fit">
+            <Link to={CUSTOM_PLAN_QUOTE_COPY.contactUsHref}>
+              {CUSTOM_PLAN_QUOTE_COPY.contactUs}
+            </Link>
+          </MarketingButton>
+        </>
+      ) : null}
+      {showRetry && onRetry != null ? (
+        <MarketingButton type="button" variant="secondary" onClick={onRetry}>
+          {CUSTOM_PLAN_QUOTE_COPY.retry}
+        </MarketingButton>
+      ) : null}
+    </div>
+  )
+}
+
 export type CustomPlanSummaryCardProps = {
-  estimate: CustomPlanV2Estimate
+  quote: CustomPlanQuoteResult
   cadence: BillingCadence
   onCadenceChange?: (cadence: BillingCadence) => void
   planDescription?: string
   continueLabel?: string
   onContinue?: () => void
   continueHref?: string
-  /** Blocks checkout while catalog allowances are missing. */
+  /** Blocks checkout until the server quote is ready for the current inputs. */
   continueDisabled?: boolean
   contactLabel?: string
   contactHref?: string
   showCadenceToggle?: boolean
   showActions?: boolean
   checkoutNote?: string
+  /** Quote status under the total: loading, failed or changed (doc 08). */
+  statusMessage?: string | null
+  showRetry?: boolean
+  onRetry?: () => void
+  showContact?: boolean
+  /** Doc 08 VAT line, passed only when the quote carries VAT. */
+  taxText?: string | null
   badgeLabel?: string
   className?: string
 }
 
 export function CustomPlanSummaryCard({
-  estimate,
+  quote,
   cadence,
   onCadenceChange,
   planDescription,
@@ -46,15 +97,19 @@ export function CustomPlanSummaryCard({
   contactHref = HELP_CENTRE_CONTACT_URL,
   showCadenceToggle = true,
   showActions = true,
-  checkoutNote = "No payment is taken until your subscription details are confirmed at checkout.",
+  checkoutNote = CUSTOM_PLAN_QUOTE_COPY.noPaymentTaken,
+  statusMessage = null,
+  showRetry = false,
+  onRetry,
+  showContact = false,
+  taxText = null,
   badgeLabel = "Selected",
   className,
 }: CustomPlanSummaryCardProps) {
   const totalSuffix =
     cadence === "annual" ? "/ per year" : "/ per month"
-  const planName =
-    estimate.basePlan.charAt(0).toUpperCase() + estimate.basePlan.slice(1)
-  const q = estimate.quantities
+  const planName = quotePlanName(quote)
+  const q = quote.quantities
 
   return (
     <aside
@@ -174,10 +229,10 @@ export function CustomPlanSummaryCard({
             </div>
           </div>
 
-          {estimate.lines.length > 0 ? (
+          {quote.lines.length > 0 ? (
             <div className="bg-[#efefef] p-7">
               <ul className="m-0 flex list-none flex-col gap-[18px] p-0 font-sans text-base text-black">
-                {estimate.lines.map((line) => (
+                {quote.lines.map((line) => (
                   <li
                     key={line.key}
                     className="flex items-center justify-between gap-3"
@@ -197,13 +252,26 @@ export function CustomPlanSummaryCard({
               <p className="m-0 font-sans text-lg text-black">Estimated total</p>
               <p className="m-0 text-[#141414]">
                 <span className="font-sans text-[36px] font-normal leading-none">
-                  {formatPenceGbp(estimate.periodNetPence)}
+                  {formatPenceGbp(quote.periodNetPence)}
                 </span>
                 <span className="font-sans text-sm font-normal">
                   {totalSuffix}
                 </span>
               </p>
             </div>
+            {statusMessage != null && statusMessage !== "" ? (
+              <CustomPlanQuoteStatus
+                message={statusMessage}
+                showRetry={showRetry}
+                onRetry={onRetry}
+                showContact={showContact}
+              />
+            ) : null}
+            {taxText != null && taxText !== "" ? (
+              <p className="m-0 font-sans text-sm font-normal leading-5 text-[#141414]">
+                {taxText}
+              </p>
+            ) : null}
             {showActions ? (
               <div className="flex w-full flex-col gap-[22px] sm:flex-row sm:items-stretch">
                 {continueHref != null && !continueDisabled ? (
@@ -243,6 +311,45 @@ export function CustomPlanSummaryCard({
           </p>
         ) : null}
       </div>
+    </aside>
+  )
+}
+
+/**
+ * Shown in place of the summary card until a quote exists: the loading line
+ * with a Skeleton, or the failed line with Try again.
+ */
+export function CustomPlanQuotePlaceholder({
+  loading,
+  message,
+  showRetry = false,
+  onRetry,
+  showContact = false,
+  className,
+}: {
+  loading: boolean
+  message: string | null
+  showRetry?: boolean
+  onRetry?: () => void
+  showContact?: boolean
+  className?: string
+}) {
+  return (
+    <aside
+      className={cn(
+        "flex w-full max-w-[581px] flex-col gap-[26px] pt-6",
+        className,
+      )}
+    >
+      {loading ? <Skeleton className="h-[320px] w-full rounded-xl" /> : null}
+      {message != null && message !== "" ? (
+        <CustomPlanQuoteStatus
+          message={message}
+          showRetry={showRetry}
+          onRetry={onRetry}
+          showContact={showContact}
+        />
+      ) : null}
     </aside>
   )
 }

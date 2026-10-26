@@ -62,6 +62,11 @@ export function buildSignupPath(
   return query === "" ? SIGNUP_PATH : `${SIGNUP_PATH}?${query}`
 }
 
+/** A whole Location count of 1 or more. Anything else is not restored. */
+function isValidLocationCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1
+}
+
 function normalizeIntent(parsed: SignupPlanIntent): SignupPlanIntent | null {
   if (parsed.plan === "Pilot") {
     return { plan: "Pilot" }
@@ -71,14 +76,18 @@ function normalizeIntent(parsed: SignupPlanIntent): SignupPlanIntent | null {
   }
   const cadence: BillingCadence =
     parsed.cadence === "annual" ? "annual" : "monthly"
+  // An invalid count drops the whole config: the review shows the restore-failure copy.
   const config =
-    parsed.config != null && parsed.config.version === 2
+    parsed.config != null &&
+    parsed.config.version === 2 &&
+    isValidLocationCount(parsed.config.locations)
       ? {
           version: 2 as const,
           cadence: parsed.config.cadence === "annual" ? "annual" as const : "monthly" as const,
           basePlan: parsed.config.basePlan,
-          locations: Math.max(1, Math.floor(parsed.config.locations)),
+          locations: parsed.config.locations,
           packs: parsed.config.packs ?? {},
+          ...(parsed.config.quoteHash ? { quoteHash: parsed.config.quoteHash } : {}),
         }
       : undefined
   return {
@@ -235,6 +244,8 @@ export function saveSignupCustomPlanConfig(args: {
   packs: Partial<CustomPlanPackCounts>
   /** When true, store plan as Custom (has packs / extras). */
   asCustom: boolean
+  /** Hash of the server quote the customer confirmed. */
+  quoteHash?: string
 }): SignupPlanIntent {
   const config: SignupCustomPlanConfig = {
     version: 2,
@@ -242,6 +253,7 @@ export function saveSignupCustomPlanConfig(args: {
     basePlan: args.basePlan,
     locations: args.locations,
     packs: args.packs,
+    ...(args.quoteHash ? { quoteHash: args.quoteHash } : {}),
   }
   const next: SignupPlanIntent = {
     plan: args.asCustom ? "Custom" : titleCasePlanFromBase(args.basePlan),

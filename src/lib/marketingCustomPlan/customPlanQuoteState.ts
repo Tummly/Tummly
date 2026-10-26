@@ -41,7 +41,8 @@ export type QuoteAction =
     }
   | { type: "failure"; requestId: number; code: string | null }
 
-function lastQuote(state: QuoteState): CustomPlanQuoteResult | null {
+/** The quote to show: the ready quote, or the last one while a new one loads or fails. */
+export function lastQuote(state: QuoteState): CustomPlanQuoteResult | null {
   switch (state.status) {
     case "ready":
       return state.quote

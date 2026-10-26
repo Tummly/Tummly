@@ -6,6 +6,7 @@ import {
   CUSTOM_PLAN_SECTION_INSET,
   CUSTOM_PLAN_SECTION_Y,
 } from "@/content/marketing/customPlanPage"
+import { storedPlanFromQuote } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import { buildSignupPath } from "@/lib/signupPlanIntent"
 import { cn } from "@/lib/utils"
 
@@ -38,9 +39,9 @@ export default function CustomPlanPage() {
         <CustomPlanCalculator
           initialLocations={1}
           continueLabel="Continue to signup"
-          continueHrefFor={({ estimate, config }) =>
+          continueHrefFor={({ quote, config }) =>
             buildSignupPath({
-              plan: estimate.storedAsPlan,
+              plan: storedPlanFromQuote(quote.storedAsPlan),
               cadence: config.cadence,
               config,
             })

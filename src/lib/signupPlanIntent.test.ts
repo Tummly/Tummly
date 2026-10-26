@@ -138,6 +138,56 @@ describe("signupPlanIntent session", () => {
   })
 })
 
+describe("quoteHash and invalid counts", () => {
+  beforeEach(() => {
+    clearSignupPlanIntent()
+  })
+
+  it("drops the config when the Location count is 0", () => {
+    saveSignupPlanIntent({
+      plan: "Custom",
+      cadence: "monthly",
+      config: {
+        version: 2,
+        cadence: "monthly",
+        basePlan: "starter",
+        locations: 0,
+        packs: {},
+      },
+    })
+    expect(readSignupPlanIntent()).toEqual({ plan: "Custom", cadence: "monthly" })
+  })
+
+  it("keeps quoteHash through encode and decode", () => {
+    const customIntent = encodeCustomPlanIntentV2({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "growth",
+      locations: 3,
+      packs: {},
+      quoteHash: "abc",
+    })
+    const parsed = parseSignupPlanIntent(
+      new URLSearchParams(
+        `plan=Custom&cadence=monthly&customIntent=${encodeURIComponent(customIntent)}`,
+      ),
+    )
+    expect(parsed?.config?.quoteHash).toBe("abc")
+  })
+
+  it("keeps quoteHash through sessionStorage", () => {
+    saveSignupCustomPlanConfig({
+      basePlan: "growth",
+      cadence: "monthly",
+      locations: 3,
+      packs: {},
+      asCustom: true,
+      quoteHash: "abc",
+    })
+    expect(readSignupPlanIntent()?.config?.quoteHash).toBe("abc")
+  })
+})
+
 describe("activeCustomConfig", () => {
   const config = {
     version: 2 as const,

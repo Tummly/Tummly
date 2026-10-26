@@ -158,10 +158,22 @@ export async function saveSignupOnboarding(
   sessionToken: string,
   data: SignupOnboardingPayload
 ): Promise<SignupSession> {
-  const response = await axiosInstance.post("/Signup/onboarding", data, {
-    params: { sessionToken },
-    ...skipAuth,
-  })
+  let response
+  try {
+    response = await axiosInstance.post("/Signup/onboarding", data, {
+      params: { sessionToken },
+      ...skipAuth,
+    })
+  } catch (error) {
+    // Keep the server code (for example quote_changed) on the thrown error.
+    const code = isAxiosError<{ code?: unknown }>(error)
+      ? error.response?.data?.code
+      : undefined
+    if (typeof code === "string") {
+      Object.assign(error as Error, { code })
+    }
+    throw error
+  }
   return asSignupSession(requireDataObject(response.data))
 }
 
