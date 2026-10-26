@@ -348,7 +348,7 @@ describe("Manage Plan light-theme chrome tokens", () => {
 })
 
 describe("buildGroupCapUpsell", () => {
-  it("shows the Build your own plan link to a Group account at the 30 Location cap", () => {
+  it("shows the Contact us link to a Group account at the 30 Location cap", () => {
     const viewModel = buildAdditionalGroupLocationViewModel(
       paidPlan({
         subscriptionPlan: "Group",
@@ -361,11 +361,11 @@ describe("buildGroupCapUpsell", () => {
 
     expect(upsell).toEqual({
       prompt: "Need more than 30 Locations?",
-      linkLabel: "Build your own plan.",
-      href: "/custom-plan",
+      linkLabel: "Contact us.",
+      href: "/help-center/contact?topic=multi-location-setup",
     })
     expect(`${upsell?.prompt} ${upsell?.linkLabel}`).toBe(
-      "Need more than 30 Locations? Build your own plan."
+      "Need more than 30 Locations? Contact us."
     )
   })
 

@@ -1,4 +1,4 @@
-import { MARKETING_CUSTOM_PLAN_PATH } from "@/constants/marketingNav"
+import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import type { PlanSubscriptionSnapshot } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 
 export const MANAGE_PLAN_IDS = ["Pilot", "Starter", "Growth", "Group"] as const
@@ -1112,7 +1112,7 @@ export type GroupCapUpsell = {
   href: string
 }
 
-/** Group at the self-serve cap: point to the Custom Plan for more Locations. */
+/** Group at the self-serve cap: point to Contact us for more Locations. */
 export function buildGroupCapUpsell(
   viewModel: AdditionalGroupLocationViewModel | null
 ): GroupCapUpsell | null {
@@ -1122,8 +1122,8 @@ export function buildGroupCapUpsell(
 
   return {
     prompt: `Need more than ${viewModel.cap} Locations?`,
-    linkLabel: "Build your own plan.",
-    href: MARKETING_CUSTOM_PLAN_PATH,
+    linkLabel: "Contact us.",
+    href: `${HELP_CENTRE_CONTACT_URL}?topic=multi-location-setup`,
   }
 }
 
