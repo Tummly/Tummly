@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.FileProviders;
 using TummlyBackend.Helpers.EmailTemplates;
@@ -183,6 +184,35 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("28 Oct 2026", html);
             Assert.Contains("Go to Tummly", html);
             Assert.DoesNotContain("{{first_name}}", html);
+        }
+
+        [Fact]
+        public void PlanStarted_Generate_FillsPlanNameAndRestaurant()
+        {
+            Assert.Equal(
+                "Your Tummly Group plan has started",
+                PlanStartedEmailTemplate.Subject("Group")
+            );
+
+            var html = PlanStartedEmailTemplate.Generate(
+                Env(),
+                firstName: "Alex",
+                planName: "Growth",
+                restaurantName: "Mehmet's Grill",
+                dashboardUrl: "https://app.tummly.test",
+                privacyUrl: "https://app.tummly.test/privacy",
+                companyDetailsUrl: "https://app.tummly.test/terms",
+                logoUrl: "https://app.tummly.test/email/tummly-logo-dark.png"
+            );
+
+            // Pretty-printed export wraps long lines; HTML renders that as one space.
+            var text = Regex.Replace(html, @"\s+", " ");
+            Assert.Contains("Your Tummly Growth plan has started", text);
+            Assert.Contains("Your Tummly Growth plan for Mehmet&#39;s Grill is now active.", text);
+            Assert.Contains("Go to Tummly", html);
+            Assert.DoesNotContain("{{", html);
+            Assert.DoesNotContain("Pilot ends", html);
+            Assert.DoesNotContain("30-day", html);
         }
 
         [Fact]

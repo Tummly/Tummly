@@ -199,6 +199,13 @@ namespace TummlyBackend.Interfaces
             string pilotEndDateLabel
         );
 
+        Task SendPlanStartedEmailAsync(
+            string toEmail,
+            string firstName,
+            string planName,
+            string restaurantName
+        );
+
         Task SendPilotEndingSoonEmailAsync(
             string toEmail,
             string firstName,
