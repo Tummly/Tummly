@@ -236,8 +236,22 @@ namespace TummlyBackend.Services
                 nowUtc
             );
 
-            var wasOpen = pending.IsOpen;
-            var isFirstActivation = isSetup && wasOpen;
+            // Captured before ApplyPaymentFields changes the plan. Free (plan or
+            // status) and Pilot accounts get plan-started. Only Free accounts get
+            // their plan-paused codes activated. A Pilot account may hold codes
+            // that the operator paused.
+            var priorPlan = billingAccount.SubscriptionPlan;
+            var wasFree = IsFreeAccount(billingAccount);
+            var startsPaidPlan =
+                isSetup
+                && (
+                    wasFree
+                    || string.Equals(
+                        priorPlan,
+                        BillingSubscriptionPlans.Pilot,
+                        StringComparison.Ordinal
+                    )
+                );
             ApplyPaymentFields(
                 billingAccount,
                 pending,
@@ -245,10 +259,11 @@ namespace TummlyBackend.Services
                 cycle.RenewalDateUtc
             );
 
-            if (isFirstActivation)
+            if (isSetup)
             {
-                // Clocks are per user, and members copy the owner clock. Only the
-                // first paid activation clears them. Renewals never touch them.
+                // Clocks are per user, and members copy the owner clock. Every
+                // setup apply clears them, also when the pay session was closed.
+                // Renewals never touch them.
                 await PilotClockSync.ClearForRestaurantAsync(
                     _context,
                     billingAccount.RestaurantId,
@@ -288,10 +303,13 @@ namespace TummlyBackend.Services
                     }
                 }
 
-                await _captureQrLifecycle.ActivatePlanPausedCodesAsync(
-                    billingAccount.RestaurantId,
-                    cancellationToken
-                );
+                if (wasFree)
+                {
+                    await _captureQrLifecycle.ActivatePlanPausedCodesAsync(
+                        billingAccount.RestaurantId,
+                        cancellationToken
+                    );
+                }
             }
 
             var mintResult = await _mint.MintOnOrderCompletedAsync(
@@ -383,7 +401,7 @@ namespace TummlyBackend.Services
             }
             await _context.SaveChangesAsync(cancellationToken);
 
-            if (isFirstActivation)
+            if (startsPaidPlan)
             {
                 await TrySendPlanStartedEmailAsync(
                     billingAccount.RestaurantId,
@@ -566,6 +584,18 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
+        private static bool IsFreeAccount(BillingAccount billingAccount) =>
+            string.Equals(
+                billingAccount.SubscriptionPlan,
+                BillingSubscriptionPlans.Free,
+                StringComparison.Ordinal
+            )
+            || string.Equals(
+                billingAccount.BillingStatus,
+                BillingStatuses.Free,
+                StringComparison.Ordinal
+            );
+
         private static void ApplyPaymentFields(
             BillingAccount billingAccount,
             RevolutPendingPaySession pending,
@@ -630,6 +660,7 @@ namespace TummlyBackend.Services
             // Acquire sets SubscriptionPlan=Custom before first pay; RenewalDateUtc
             // stays null until this apply. Renewals already have a renewal date.
             var isFirstPaid = billingAccount.RenewalDateUtc == null;
+            var wasFree = IsFreeAccount(billingAccount);
 
             billingAccount.SubscriptionPlan = BillingSubscriptionPlans.Custom;
             billingAccount.BillingStatus = BillingStatuses.Active;
@@ -665,7 +696,7 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync(cancellationToken);
 
-            if (isFirstPaid)
+            if (isFirstPaid && wasFree)
             {
                 await _captureQrLifecycle.ActivatePlanPausedCodesAsync(
                     restaurantId,
