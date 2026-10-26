@@ -385,14 +385,23 @@ namespace TummlyBackend.Services
         public async Task<AssistantListOutcome> ListAsync(
             int ownerUserId,
             bool archived,
+            IReadOnlyCollection<int> allowedLocationIds,
             CancellationToken cancellationToken = default
         )
         {
+            var allowed = allowedLocationIds.ToList();
             var rows = await _context.AssistantConversations
                 .AsNoTracking()
                 .Where(conversation =>
                     conversation.OwnerUserId == ownerUserId
                     && conversation.IsArchived == archived
+                    && (
+                        conversation.ScopeKind == AssistantAnalysisScope.ScopeKindAll
+                        || (
+                            conversation.OwnedLocationId != null
+                            && allowed.Contains(conversation.OwnedLocationId.Value)
+                        )
+                    )
                 )
                 .OrderByDescending(conversation => conversation.LastActivityAt)
                 .ThenByDescending(conversation => conversation.Id)

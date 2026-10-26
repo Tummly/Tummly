@@ -1169,7 +1169,11 @@ namespace TummlyBackend.Tests.Services
             );
 
             var recent = Assert.IsType<AssistantListOutcome.Ok>(
-                await _service.ListAsync(ownerUserId: 7, archived: false)
+                await _service.ListAsync(
+                    ownerUserId: 7,
+                    archived: false,
+                    allowedLocationIds: new[] { camden, shoreditch }
+                )
             );
             Assert.Equal(2, recent.Conversations.Count);
             Assert.All(
@@ -1183,7 +1187,11 @@ namespace TummlyBackend.Tests.Services
             );
 
             var otherRecent = Assert.IsType<AssistantListOutcome.Ok>(
-                await _service.ListAsync(ownerUserId: 99, archived: false)
+                await _service.ListAsync(
+                    ownerUserId: 99,
+                    archived: false,
+                    allowedLocationIds: new[] { otherLocation }
+                )
             );
             Assert.Single(otherRecent.Conversations);
         }
@@ -1207,10 +1215,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(lastActivity, archived.Conversation.LastActivityAt);
 
             var recent = Assert.IsType<AssistantListOutcome.Ok>(
-                await _service.ListAsync(7, archived: false)
+                await _service.ListAsync(7, archived: false, new[] { locationId })
             );
             var archive = Assert.IsType<AssistantListOutcome.Ok>(
-                await _service.ListAsync(7, archived: true)
+                await _service.ListAsync(7, archived: true, new[] { locationId })
             );
             Assert.Empty(recent.Conversations);
             Assert.Single(archive.Conversations);
