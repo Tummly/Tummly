@@ -81,34 +81,24 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ActivateAccountAsync_RollsBackActivation_WhenPilotAlreadyMinted()
+        public async Task ActivateAccountAsync_DoesNotMintPilotOrSetExpiry()
         {
             const string plainCode = "ABCD2345";
             var user = await SeedPendingOwnerAsync(plainCode);
-            var restaurantId = await SeedRestaurantWithBillingAsync(user.Id);
+            await SeedRestaurantWithBillingAsync(user.Id);
 
-            _context.CreditLedgerEntries.Add(
-                new CreditLedgerEntry
-                {
-                    Id = Guid.NewGuid(),
-                    RestaurantId = restaurantId,
-                    Channel = CreditChannels.Email,
-                    EntryType = CreditLedgerEntryTypes.PilotAllocation,
-                    Quantity = 500,
-                    PricebookVersion = "TUMMLY-UK-GBP-2026-08-V3",
-                    CreatedAtUtc = DateTime.UtcNow,
-                }
-            );
-            await _context.SaveChangesAsync();
-
-            await Assert.ThrowsAsync<Exception>(() =>
-                _service.ActivateAccountAsync(user.Id, "ABCD-2345")
-            );
+            await _service.ActivateAccountAsync(user.Id, "ABCD-2345");
 
             var reloaded = await _context.Users.AsNoTracking()
                 .SingleAsync(row => row.Id == user.Id);
-            Assert.Null(reloaded.ActivatedAt);
+            Assert.NotNull(reloaded.ActivatedAt);
             Assert.Null(reloaded.ActivationExpiresAt);
+            Assert.Equal(
+                0,
+                await _context.CreditLedgerEntries.CountAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.PilotAllocation
+                )
+            );
         }
 
         private async Task<User> SeedPendingOwnerAsync(string plainCode)

@@ -372,6 +372,44 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task ProvisionFromPending_PaidPlan_NoActivationExpiry()
+        {
+            await SeedOnboardingCompletePendingWithPlanAsync(
+                BillingSubscriptionPlans.Starter
+            );
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            var user = await _db.Users.SingleAsync(u => u.Email == _email);
+            Assert.NotNull(user.ActivatedAt);
+            Assert.Null(user.ActivationExpiresAt);
+
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Null(billing.PilotStartedAtUtc);
+            Assert.Null(billing.PilotPeriodEnd);
+            Assert.Equal(0, _mintLedger.MintPilotCallCount);
+        }
+
+        [Fact]
+        public async Task ProvisionFromPending_FreePlan_NoActivationExpiry()
+        {
+            await SeedOnboardingCompletePendingWithPlanAsync(
+                BillingSubscriptionPlans.Free
+            );
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            var user = await _db.Users.SingleAsync(u => u.Email == _email);
+            Assert.NotNull(user.ActivatedAt);
+            Assert.Null(user.ActivationExpiresAt);
+
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Null(billing.PilotStartedAtUtc);
+            Assert.Null(billing.PilotPeriodEnd);
+            Assert.Equal(0, _mintLedger.MintPilotCallCount);
+        }
+
         private async Task SeedOnboardingCompletePendingWithPlanAsync(
             string chosenPlan
         )

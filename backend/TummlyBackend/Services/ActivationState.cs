@@ -13,19 +13,18 @@ namespace TummlyBackend.Services
             !string.IsNullOrEmpty(subject.ActivationCodeHash)
             && subject.ActivatedAt == null;
 
+        // Null ActivationExpiresAt means no Pilot clock (paid or Free account).
         public static bool IsWithinActivationPeriod(ActivationSubject subject) =>
-            subject.ActivatedAt != null
-            && subject.ActivationExpiresAt.HasValue
-            && subject.ActivationExpiresAt.Value > DateTime.UtcNow;
-
-        // ActivatedAt without ActivationExpiresAt is corrupt data — treat as
-        // expired so a partial write cannot grant permanent access.
-        public static bool IsActivationExpired(ActivationSubject subject) =>
             subject.ActivatedAt != null
             && (
                 !subject.ActivationExpiresAt.HasValue
-                || subject.ActivationExpiresAt.Value <= DateTime.UtcNow
+                || subject.ActivationExpiresAt.Value > DateTime.UtcNow
             );
+
+        public static bool IsActivationExpired(ActivationSubject subject) =>
+            subject.ActivatedAt != null
+            && subject.ActivationExpiresAt.HasValue
+            && subject.ActivationExpiresAt.Value <= DateTime.UtcNow;
 
         public static string? GetStatusDetail(ActivationSubject? subject)
         {

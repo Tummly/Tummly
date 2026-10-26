@@ -469,11 +469,11 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.False(result.ActivationRequired);
-            Assert.NotNull(result.ActivationExpiresAt);
+            Assert.Null(result.ActivationExpiresAt);
 
             var updated = await _context.Users.FindAsync(user.Id);
             Assert.NotNull(updated?.ActivatedAt);
-            Assert.NotNull(updated.ActivationExpiresAt);
+            Assert.Null(updated.ActivationExpiresAt);
         }
 
         [Fact]

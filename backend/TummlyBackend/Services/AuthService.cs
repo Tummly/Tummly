@@ -1223,20 +1223,32 @@ namespace TummlyBackend.Services
 
             var activatedAt = DateTime.UtcNow;
             user.ActivatedAt = activatedAt;
-            user.ActivationExpiresAt =
-                ActivationCodeHelper.ComputeActivationExpiresAt(
-                    activatedAt
-                );
 
-            var restaurantIds = await _context.Restaurants
-                .Where(row => row.OwnerUserId == userId)
+            // Only Pilot accounts start a Pilot clock here (kept until WS3b
+            // Task 4 moves this to StartPilotAsync). Paid and Free accounts
+            // get no clock and no mint.
+            var pilotRestaurantIds = await _context.Restaurants
+                .Where(row =>
+                    row.OwnerUserId == userId
+                    && row.BillingAccount != null
+                    && row.BillingAccount.SubscriptionPlan
+                        == BillingSubscriptionPlans.Pilot
+                )
                 .Select(row => row.Id)
                 .ToListAsync();
+
+            if (pilotRestaurantIds.Count > 0)
+            {
+                user.ActivationExpiresAt =
+                    ActivationCodeHelper.ComputeActivationExpiresAt(
+                        activatedAt
+                    );
+            }
 
             await using var transaction =
                 await _context.Database.BeginTransactionAsync();
 
-            foreach (var restaurantId in restaurantIds)
+            foreach (var restaurantId in pilotRestaurantIds)
             {
                 var mintResult = await _creditLedger.MintPilotAtActivationAsync(
                     restaurantId

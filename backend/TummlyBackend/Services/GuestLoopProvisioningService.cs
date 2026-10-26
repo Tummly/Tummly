@@ -128,7 +128,8 @@ namespace TummlyBackend.Services
                     trialRequest.IsAccountCreated = true;
                     trialRequest.Status = TrialRequestStatus.AccountCreated;
                 },
-                mintPilotCredits: true
+                mintPilotCredits: true,
+                startsPilotClock: true
             );
         }
 
@@ -329,7 +330,8 @@ namespace TummlyBackend.Services
                     pending.Status = PendingSignupStatuses.Complete;
                     pending.UpdatedAtUtc = DateTime.UtcNow;
                 },
-                mintPilotCredits: false
+                mintPilotCredits: false,
+                startsPilotClock: isPilotPlan
             );
 
             if (isPilotPlan)
@@ -701,7 +703,8 @@ namespace TummlyBackend.Services
         private async Task CreateOperatorAccountAsync(
             ProvisionAccountInput input,
             Action afterUserSaved,
-            bool mintPilotCredits
+            bool mintPilotCredits,
+            bool startsPilotClock
         )
         {
             await using var transaction =
@@ -733,8 +736,10 @@ namespace TummlyBackend.Services
                     FailedLoginAttempts = 0,
                     TermsAccepted = input.TermsAccepted,
                     ActivatedAt = now,
-                    ActivationExpiresAt =
-                        ActivationCodeHelper.ComputeActivationExpiresAt(now),
+                    // Paid and Free accounts have no Pilot clock.
+                    ActivationExpiresAt = startsPilotClock
+                        ? ActivationCodeHelper.ComputeActivationExpiresAt(now)
+                        : null,
                 };
 
                 _context.Users.Add(user);

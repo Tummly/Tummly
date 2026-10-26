@@ -211,7 +211,7 @@ namespace TummlyBackend.Tests.Integration
                     .GetProperty("activationRequired")
                     .GetBoolean()
             );
-            Assert.NotEqual(
+            Assert.Equal(
                 JsonValueKind.Null,
                 body.GetProperty("data")
                     .GetProperty("activationExpiresAt")

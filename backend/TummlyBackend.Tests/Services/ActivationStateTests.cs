@@ -65,7 +65,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public void IsActivationExpired_WhenActivatedWithoutExpires_TreatsAsExpired()
+        public void IsActivationExpired_WhenActivatedWithoutExpires_IsFalse()
         {
             var subject = new ActivationSubject(
                 DateTime.UtcNow.AddDays(-5),
@@ -73,8 +73,8 @@ namespace TummlyBackend.Tests.Services
                 "hash"
             );
 
-            Assert.True(ActivationState.IsActivationExpired(subject));
-            Assert.False(ActivationState.IsWithinActivationPeriod(subject));
+            Assert.False(ActivationState.IsActivationExpired(subject));
+            Assert.True(ActivationState.IsWithinActivationPeriod(subject));
             Assert.False(ActivationState.RequiresActivation(subject));
         }
 
@@ -88,7 +88,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public void GetStatusDetail_ActivatedWithoutExpires_ReturnsExpired()
+        public void GetStatusDetail_ActivatedWithoutExpires_ReturnsActive()
         {
             var subject = new ActivationSubject(
                 DateTime.UtcNow.AddDays(-5),
@@ -96,7 +96,7 @@ namespace TummlyBackend.Tests.Services
                 "hash"
             );
 
-            Assert.Equal("expired", ActivationState.GetStatusDetail(subject));
+            Assert.Equal("active", ActivationState.GetStatusDetail(subject));
         }
 
         [Fact]
