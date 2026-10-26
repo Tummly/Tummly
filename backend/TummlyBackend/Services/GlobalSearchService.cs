@@ -550,11 +550,9 @@ namespace TummlyBackend.Services
             IReadOnlyDictionary<int, string> locationNamesById
         )
         {
-            var subtitle = !string.IsNullOrWhiteSpace(row.Email)
-                ? row.Email
-                : !string.IsNullOrWhiteSpace(row.Mobile)
-                    ? row.Mobile
-                    : null;
+            var subtitle =
+                GuestContactMask.MaskEmail(row.Email)
+                ?? GuestContactMask.MaskPhone(row.Mobile);
 
             var status = LocationGuestProjections.DeriveMarketingStatus(
                 row.MarketingPreference,

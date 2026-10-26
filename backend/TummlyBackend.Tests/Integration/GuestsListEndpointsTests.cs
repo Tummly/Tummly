@@ -428,25 +428,24 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetGuests_SearchMatchesNameEmailOrMobile()
+        public async Task GetGuests_SearchMatchesNameOrExactContact()
         {
             var seeded = await SeedGuestsScenarioAsync(
                 "guests-search-token-1234567890"
             );
-
-            using var emailRequest = new HttpRequestMessage(
-                HttpMethod.Get,
-                $"{GuestsUrl(seeded.LocationId)}&q=07700900456"
+            await AddContactGuestAsync(
+                seeded,
+                name: "Valid Mobile",
+                email: null,
+                mobile: "07911 123456",
+                normalizedPhone: "07911123456"
             );
-            emailRequest.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
 
-            var emailResponse = await _client.SendAsync(emailRequest);
-            var emailBody = await ReadJsonAsync(emailResponse);
-            Assert.Equal(1, emailBody.GetProperty("totalFilteredCount").GetInt32());
+            var mobileBody = await SearchRowsAsync(seeded, "07911123456");
+            Assert.Equal(1, mobileBody.GetProperty("totalFilteredCount").GetInt32());
             Assert.Equal(
-                "Bob Mobile",
-                emailBody.GetProperty("rows")[0].GetProperty("name").GetString()
+                "Valid Mobile",
+                mobileBody.GetProperty("rows")[0].GetProperty("name").GetString()
             );
 
             using var nameRequest = new HttpRequestMessage(
@@ -463,6 +462,112 @@ namespace TummlyBackend.Tests.Integration
                 "Opt Out Sam",
                 nameBody.GetProperty("rows")[0].GetProperty("name").GetString()
             );
+        }
+
+        [Fact]
+        public async Task Search_ExactContactForms_MatchAndPartialsDoNot()
+        {
+            var seeded = await SeedGuestsScenarioAsync(
+                "guests-exact-contact-token-123456"
+            );
+            await AddContactGuestAsync(
+                seeded,
+                name: "Valid Mobile",
+                email: null,
+                mobile: "07911 123456",
+                normalizedPhone: "07911123456"
+            );
+            await AddContactGuestAsync(
+                seeded,
+                name: "Alex Email",
+                email: "alex@example.com",
+                mobile: null,
+                normalizedPhone: null
+            );
+
+            var exactMatches = new[]
+            {
+                ("07911 123456", "Valid Mobile"),
+                ("+44 7911 123456", "Valid Mobile"),
+                ("ALEX@Example.COM", "Alex Email"),
+            };
+            foreach (var (query, expectedName) in exactMatches)
+            {
+                var body = await SearchRowsAsync(seeded, query);
+                Assert.Equal(1, body.GetProperty("totalFilteredCount").GetInt32());
+                Assert.Equal(
+                    expectedName,
+                    body.GetProperty("rows")[0].GetProperty("name").GetString()
+                );
+            }
+
+            foreach (var query in new[] { "0791112", "123456", "example.com" })
+            {
+                var body = await SearchRowsAsync(seeded, query);
+                Assert.Equal(0, body.GetProperty("totalFilteredCount").GetInt32());
+            }
+
+            var nameBody = await SearchRowsAsync(seeded, "opt");
+            Assert.Equal(1, nameBody.GetProperty("totalFilteredCount").GetInt32());
+            Assert.Equal(
+                "Opt Out Sam",
+                nameBody.GetProperty("rows")[0].GetProperty("name").GetString()
+            );
+        }
+
+        private async Task<JsonElement> SearchRowsAsync(
+            GuestsScenarioSeed seeded,
+            string query
+        )
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&q={Uri.EscapeDataString(query)}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+            return await ReadJsonAsync(response);
+        }
+
+        private async Task AddContactGuestAsync(
+            GuestsScenarioSeed seeded,
+            string name,
+            string? email,
+            string? mobile,
+            string? normalizedPhone
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var master = new MasterGuest
+            {
+                RestaurantId = seeded.RestaurantId,
+                Email = email,
+                NormalizedEmail = email,
+                Mobile = mobile,
+                NormalizedPhone = normalizedPhone,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            context.LocationGuests.Add(
+                new LocationGuest
+                {
+                    MasterGuestId = master.Id,
+                    RestaurantLocationId = seeded.LocationId,
+                    Name = name,
+                    MarketingPreference =
+                        LocationGuestMarketingPreference.NotRecorded,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
         }
 
         [Fact]

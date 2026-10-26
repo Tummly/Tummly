@@ -180,24 +180,22 @@ namespace TummlyBackend.Helpers
                 return query;
             }
 
-            var term = normalizedQuery.ToLowerInvariant();
+            // Contact matches are exact (never substring) so a masked
+            // contact cannot be discovered by trial. Name stays substring.
+            var term = GuestContactSearchTerm.Parse(normalizedQuery);
+            var nameTerm = term.NameTerm;
+            var exactEmail = term.ExactEmail;
+            var phoneForms = term.PhoneDigitForms.ToArray();
             return query.Where(lg =>
-                lg.Name.ToLower().Contains(term)
+                lg.Name.ToLower().Contains(nameTerm)
                 || (
-                    lg.MasterGuest!.Email != null
-                    && lg.MasterGuest.Email.ToLower().Contains(term)
+                    exactEmail != null
+                    && lg.MasterGuest!.NormalizedEmail == exactEmail
                 )
                 || (
-                    lg.MasterGuest.NormalizedEmail != null
-                    && lg.MasterGuest.NormalizedEmail.ToLower().Contains(term)
-                )
-                || (
-                    lg.MasterGuest.Mobile != null
-                    && lg.MasterGuest.Mobile.ToLower().Contains(term)
-                )
-                || (
-                    lg.MasterGuest.NormalizedPhone != null
-                    && lg.MasterGuest.NormalizedPhone.ToLower().Contains(term)
+                    phoneForms.Length > 0
+                    && lg.MasterGuest!.NormalizedPhone != null
+                    && Enumerable.Contains(phoneForms, lg.MasterGuest.NormalizedPhone)
                 )
             );
         }
