@@ -36,6 +36,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Hart",
                     email = "amelia@example.com",
                     phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -64,6 +66,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Name",
                     email = "blocked@example.com",
                     phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -92,6 +96,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Guest",
                     email = "ghost@example.com",
                     phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -125,6 +131,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Hart",
                     email = seeded.Email,
                     phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -169,6 +177,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Guest",
                     email = "After@Example.com",
                     phone = "07400111222",
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -210,6 +220,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Hart",
                     email = "",
                     phone = "",
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -245,6 +257,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Hart",
                     email = "not-an-email",
                     phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -273,6 +287,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Hart",
                     email = "amelia@example.com",
                     phone = "12345",
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -301,6 +317,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "",
                     email = "amelia@example.com",
                     phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -329,6 +347,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Guest",
                     email = seeded.ColliderEmail,
                     phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -381,6 +401,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Guest",
                     email = (string?)null,
                     phone = seeded.ColliderPhone,
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -421,6 +443,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Guest",
                     email = "keep-or-clear@example.com",
                     phone = "",
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -476,6 +500,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Hart",
                     email = "after-emit@example.com",
                     phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -527,6 +553,8 @@ namespace TummlyBackend.Tests.Integration
                     lastName = "Hart",
                     email = "noop@example.com",
                     phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
                 }
             );
 
@@ -546,6 +574,185 @@ namespace TummlyBackend.Tests.Integration
                 );
 
             Assert.Equal(0, count);
+        }
+
+        [Fact]
+        public async Task PatchIdentity_NameOnly_KeepsEmailAndPhone()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "identity-name-only-tokenx",
+                email: "keep@example.com",
+                mobile: "07400111222"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Patch,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(
+                new
+                {
+                    firstName = "Renamed",
+                    lastName = "Guest",
+                    replaceEmail = false,
+                    email = (string?)null,
+                    replacePhone = false,
+                    phone = (string?)null,
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                new[] { "name" },
+                body.GetProperty("changedFields")
+                    .EnumerateArray()
+                    .Select(f => f.GetString())
+                    .ToArray()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var master = await context.MasterGuests
+                .AsNoTracking()
+                .SingleAsync(m => m.Id == seeded.MasterGuestId);
+
+            Assert.Equal("keep@example.com", master.Email);
+            Assert.Equal("keep@example.com", master.NormalizedEmail);
+            Assert.Equal("07400111222", master.Mobile);
+            Assert.Equal("07400111222", master.NormalizedPhone);
+        }
+
+        [Fact]
+        public async Task PatchIdentity_ReplaceEmail_UpdatesEmail()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "identity-replace-email-tokx",
+                email: "keep@example.com",
+                mobile: "07400111222"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Patch,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(
+                new
+                {
+                    firstName = "Notes",
+                    lastName = "Guest",
+                    replaceEmail = true,
+                    email = "New@Example.com",
+                    replacePhone = false,
+                    phone = (string?)null,
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var master = await context.MasterGuests
+                .AsNoTracking()
+                .SingleAsync(m => m.Id == seeded.MasterGuestId);
+
+            Assert.Equal("New@Example.com", master.Email);
+            Assert.Equal("new@example.com", master.NormalizedEmail);
+            Assert.Equal("07400111222", master.Mobile);
+        }
+
+        [Fact]
+        public async Task PatchIdentity_ReplaceEmailWithBlank_ClearsWhenPhoneExists()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "identity-clear-email-tokenx",
+                email: "keep@example.com",
+                mobile: "07400111222"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Patch,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(
+                new
+                {
+                    firstName = "Notes",
+                    lastName = "Guest",
+                    replaceEmail = true,
+                    email = "",
+                    replacePhone = false,
+                    phone = (string?)null,
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var master = await context.MasterGuests
+                .AsNoTracking()
+                .SingleAsync(m => m.Id == seeded.MasterGuestId);
+
+            Assert.Null(master.Email);
+            Assert.Null(master.NormalizedEmail);
+            Assert.Equal("07400111222", master.Mobile);
+        }
+
+        [Fact]
+        public async Task PatchIdentity_ReplaceBothBlank_400()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "identity-replace-both-tokenx",
+                email: "keep@example.com",
+                mobile: "07400111222"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Patch,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(
+                new
+                {
+                    firstName = "Notes",
+                    lastName = "Guest",
+                    replaceEmail = true,
+                    email = "",
+                    replacePhone = true,
+                    phone = "",
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Contains(
+                "contact",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
         }
 
         private static string GuestUrl(int guestId, int locationId)

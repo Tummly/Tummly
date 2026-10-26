@@ -888,8 +888,12 @@ describe("createOperatorGuestProfilePageModule", () => {
     expect(snapshot.draft).toEqual({
       firstName: "Amelia",
       lastName: "Hart",
-      email: "amelia@example.com",
+      email: "",
       phone: "",
+      emailReplacing: false,
+      phoneReplacing: false,
+      emailMasked: "amelia@example.com",
+      phoneMasked: "",
     })
   })
 
@@ -992,6 +996,8 @@ describe("createOperatorGuestProfilePageModule", () => {
     const pageModule = createOperatorGuestProfilePageModule(adapters)
 
     await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    pageModule.startReplaceContact("email")
+    pageModule.startReplaceContact("phone")
     pageModule.setDraftField("email", "")
     pageModule.setDraftField("phone", "")
 
@@ -1007,6 +1013,7 @@ describe("createOperatorGuestProfilePageModule", () => {
     const pageModule = createOperatorGuestProfilePageModule(adapters)
 
     await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    pageModule.startReplaceContact("phone")
     pageModule.setDraftField("phone", "12345")
 
     const result = await pageModule.saveChanges()
@@ -1027,6 +1034,7 @@ describe("createOperatorGuestProfilePageModule", () => {
 
     await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
     expect(getGuestProfile).toHaveBeenCalledTimes(1)
+    pageModule.startReplaceContact("email")
     pageModule.setDraftField("email", "new@example.com")
 
     const result = await pageModule.saveChanges()
@@ -1038,12 +1046,90 @@ describe("createOperatorGuestProfilePageModule", () => {
       body: {
         firstName: "Amelia",
         lastName: "Hart",
+        replaceEmail: true,
         email: "new@example.com",
+        replacePhone: false,
         phone: null,
       },
     })
     // Identity save → full profile invalidate.
     expect(getGuestProfile).toHaveBeenCalledTimes(2)
+  })
+
+  it("never copies the masked profile email into the editable draft", async () => {
+    const { adapters } = createAdapters({
+      getGuestProfile: vi.fn(async () =>
+        createGuestProfileResponse({
+          profileSummary: {
+            ...createGuestProfileResponse().profileSummary,
+            email: "a••••@example.com",
+            mobile: "••••0456",
+          },
+        })
+      ),
+    })
+    const pageModule = createOperatorGuestProfilePageModule(adapters)
+
+    await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+
+    const { draft } = pageModule.getSnapshot()
+    expect(draft.email).toBe("")
+    expect(draft.phone).toBe("")
+    expect(draft.emailMasked).toBe("a••••@example.com")
+    expect(draft.phoneMasked).toBe("••••0456")
+    expect(draft.emailReplacing).toBe(false)
+    expect(draft.phoneReplacing).toBe(false)
+  })
+
+  it("name-only save keeps masked contacts and sends no raw contact values", async () => {
+    const { adapters, patchGuestIdentity } = createAdapters({
+      getGuestProfile: vi.fn(async () =>
+        createGuestProfileResponse({
+          profileSummary: {
+            ...createGuestProfileResponse().profileSummary,
+            email: "a••••@example.com",
+            mobile: "••••0456",
+          },
+        })
+      ),
+      patchGuestIdentity: vi.fn(async () => ({
+        success: true,
+        changedFields: ["name"],
+      })),
+    })
+    const pageModule = createOperatorGuestProfilePageModule(adapters)
+
+    await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    pageModule.setDraftField("firstName", "Renamed")
+
+    const result = await pageModule.saveChanges()
+
+    expect(result).toEqual({ status: "saved" })
+    expect(patchGuestIdentity).toHaveBeenCalledWith({
+      guestId: 42,
+      locationId: 1,
+      body: {
+        firstName: "Renamed",
+        lastName: "Hart",
+        replaceEmail: false,
+        email: null,
+        replacePhone: false,
+        phone: null,
+      },
+    })
+  })
+
+  it("startReplaceContact opens an empty editable contact field", async () => {
+    const { adapters } = createAdapters()
+    const pageModule = createOperatorGuestProfilePageModule(adapters)
+
+    await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    pageModule.startReplaceContact("email")
+
+    const { draft } = pageModule.getSnapshot()
+    expect(draft.emailReplacing).toBe(true)
+    expect(draft.email).toBe("")
+    expect(draft.phoneReplacing).toBe(false)
   })
 
   it("surfaces API errors from identity PATCH", async () => {
@@ -1055,6 +1141,7 @@ describe("createOperatorGuestProfilePageModule", () => {
     const pageModule = createOperatorGuestProfilePageModule(adapters)
 
     await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    pageModule.startReplaceContact("email")
     pageModule.setDraftField("email", "new@example.com")
 
     const result = await pageModule.saveChanges()
@@ -1114,6 +1201,7 @@ describe("createOperatorGuestProfilePageModule", () => {
 
     await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
     pageModule.setNoteDraft("Should not POST with identity save")
+    pageModule.startReplaceContact("email")
     pageModule.setDraftField("email", "new@example.com")
 
     const result = await pageModule.saveChanges()

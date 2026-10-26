@@ -87,11 +87,64 @@ function scrollToHashTarget(hash: string) {
   el?.scrollIntoView({ behavior: "smooth", block: "start" })
 }
 
+/** Masked contact until "Replace"; then an empty editable field. */
+function ReplaceableContactField({
+  label,
+  type,
+  replacing,
+  value,
+  maskedValue,
+  error,
+  replaceLabel,
+  onChange,
+  onStartReplace,
+}: {
+  label: string
+  type: "email" | "tel"
+  replacing: boolean
+  value: string
+  maskedValue: string
+  error?: string
+  replaceLabel: string
+  onChange: (value: string) => void
+  onStartReplace: () => void
+}) {
+  if (!replacing) {
+    return (
+      <div className="flex flex-col gap-1">
+        <FloatingLabelInput label={label} value={maskedValue} readOnly />
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="link"
+            size="link-sm"
+            aria-label={`${replaceLabel} ${label.toLowerCase()}`}
+            onClick={onStartReplace}
+          >
+            {replaceLabel}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <FloatingLabelInput
+      label={label}
+      type={type}
+      value={value}
+      error={error}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  )
+}
+
 function GuestInformationSection({
   draft,
   fieldErrors,
   viewModel,
   onChange,
+  onStartReplace,
 }: {
   draft: GuestIdentityDraft
   fieldErrors: GuestIdentityFieldErrors
@@ -100,6 +153,7 @@ function GuestInformationSection({
     field: K,
     value: GuestIdentityDraft[K]
   ) => void
+  onStartReplace: (field: "email" | "phone") => void
 }) {
   const copy = GUEST_EDIT_PAGE.guestInformation
   const placeholders = GUEST_EDIT_PAGE.provenancePlaceholders
@@ -123,19 +177,27 @@ function GuestInformationSection({
           error={fieldErrors.lastName}
           onChange={(event) => onChange("lastName", event.target.value)}
         />
-        <FloatingLabelInput
+        <ReplaceableContactField
           label="Email address"
           type="email"
+          replacing={draft.emailReplacing}
           value={draft.email}
+          maskedValue={draft.emailMasked}
           error={fieldErrors.email}
-          onChange={(event) => onChange("email", event.target.value)}
+          replaceLabel={copy.replaceContactLabel}
+          onChange={(value) => onChange("email", value)}
+          onStartReplace={() => onStartReplace("email")}
         />
-        <FloatingLabelInput
+        <ReplaceableContactField
           label="Phone number"
           type="tel"
+          replacing={draft.phoneReplacing}
           value={draft.phone}
+          maskedValue={draft.phoneMasked}
           error={fieldErrors.phone}
-          onChange={(event) => onChange("phone", event.target.value)}
+          replaceLabel={copy.replaceContactLabel}
+          onChange={(value) => onChange("phone", value)}
+          onStartReplace={() => onStartReplace("phone")}
         />
         <FloatingLabelInput
           label="Contact method"
@@ -636,6 +698,7 @@ export function GuestEditPage({
     snapshot,
     retryLoad,
     setDraftField,
+    startReplaceContact,
     saveChanges,
     stageTag,
     unstageTag,
@@ -860,6 +923,7 @@ export function GuestEditPage({
         fieldErrors={snapshot.fieldErrors}
         viewModel={viewModel}
         onChange={setDraftField}
+        onStartReplace={startReplaceContact}
       />
       <ConsentSection viewModel={viewModel} />
       <TagsSection

@@ -1059,7 +1059,11 @@ export interface CreateGuestNoteResponse {
 export interface PatchGuestIdentityRequest {
   firstName: string;
   lastName: string;
+  /** False keeps the stored email; `email` is then ignored. */
+  replaceEmail: boolean;
   email: string | null;
+  /** False keeps the stored phone; `phone` is then ignored. */
+  replacePhone: boolean;
   phone: string | null;
 }
 

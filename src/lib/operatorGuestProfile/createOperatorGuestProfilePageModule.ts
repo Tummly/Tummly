@@ -225,6 +225,8 @@ export type OperatorGuestProfilePageModule = {
     field: K,
     value: GuestIdentityDraft[K]
   ) => void
+  /** Opens an empty, editable contact field in place of the masked value. */
+  startReplaceContact: (field: "email" | "phone") => void
   saveChanges: () => Promise<OperatorGuestProfileSaveResult>
   stageTag: (tagId: string) => void
   unstageTag: (tagId: string) => void
@@ -316,6 +318,10 @@ const emptyDraft = (): GuestIdentityDraft => ({
   lastName: "",
   email: "",
   phone: "",
+  emailReplacing: false,
+  phoneReplacing: false,
+  emailMasked: "",
+  phoneMasked: "",
 })
 
 const emptyNotes = (): Pick<
@@ -356,11 +362,17 @@ function emptyTagsState(): Pick<
 
 function draftFromProfile(response: GuestProfileResponse): GuestIdentityDraft {
   const { firstName, lastName } = splitGuestName(response.name)
+  // The profile carries masked contacts only. The editable fields start
+  // empty and are used only after the operator chooses "Replace".
   return {
     firstName,
     lastName,
-    email: response.profileSummary.email ?? "",
-    phone: response.profileSummary.mobile ?? "",
+    email: "",
+    phone: "",
+    emailReplacing: false,
+    phoneReplacing: false,
+    emailMasked: response.profileSummary.email ?? "",
+    phoneMasked: response.profileSummary.mobile ?? "",
   }
 }
 
@@ -1027,6 +1039,20 @@ export function createOperatorGuestProfilePageModule(
       delete nextErrors.form
       setState({
         draft: { ...state.draft, [field]: value },
+        fieldErrors: nextErrors,
+        saveError: null,
+        saveStatus: "idle",
+      })
+    },
+    startReplaceContact(field) {
+      const nextErrors = { ...state.fieldErrors }
+      delete nextErrors[field]
+      delete nextErrors.form
+      setState({
+        draft:
+          field === "email"
+            ? { ...state.draft, email: "", emailReplacing: true }
+            : { ...state.draft, phone: "", phoneReplacing: true },
         fieldErrors: nextErrors,
         saveError: null,
         saveStatus: "idle",

@@ -8,8 +8,15 @@ export const GUEST_IDENTITY_MAX_CONTACT_LENGTH = 100
 export type GuestIdentityDraft = {
   firstName: string
   lastName: string
+  /** Typed value; used only while `emailReplacing` is true. */
   email: string
+  /** Typed value; used only while `phoneReplacing` is true. */
   phone: string
+  emailReplacing: boolean
+  phoneReplacing: boolean
+  /** Masked value from the profile (never the raw contact). */
+  emailMasked: string
+  phoneMasked: string
 }
 
 export type GuestIdentityFieldErrors = Partial<
@@ -19,7 +26,9 @@ export type GuestIdentityFieldErrors = Partial<
 export type GuestIdentityPatchPayload = {
   firstName: string
   lastName: string
+  replaceEmail: boolean
   email: string | null
+  replacePhone: boolean
   phone: string | null
 }
 
@@ -77,7 +86,9 @@ export function validateGuestIdentityDraft(
     errors.firstName = `Name must be at most ${GUEST_IDENTITY_MAX_NAME_LENGTH} characters.`
   }
 
-  if (email.length > 0) {
+  // A contact that is not replaced is kept on the server, so only its
+  // masked value matters here. Its typed draft value is ignored.
+  if (draft.emailReplacing && email.length > 0) {
     if (email.length > GUEST_IDENTITY_MAX_CONTACT_LENGTH) {
       errors.email = `Email must be at most ${GUEST_IDENTITY_MAX_CONTACT_LENGTH} characters.`
     } else if (!isValidEmail(email)) {
@@ -85,7 +96,7 @@ export function validateGuestIdentityDraft(
     }
   }
 
-  if (phone.length > 0) {
+  if (draft.phoneReplacing && phone.length > 0) {
     if (phone.length > GUEST_IDENTITY_MAX_CONTACT_LENGTH) {
       errors.phone = `Phone must be at most ${GUEST_IDENTITY_MAX_CONTACT_LENGTH} characters.`
     } else if (tryNormalizePhoneToE164(phone) == null) {
@@ -93,7 +104,14 @@ export function validateGuestIdentityDraft(
     }
   }
 
-  if (email.length === 0 && phone.length === 0) {
+  const hasEmail = draft.emailReplacing
+    ? email.length > 0
+    : draft.emailMasked.trim().length > 0
+  const hasPhone = draft.phoneReplacing
+    ? phone.length > 0
+    : draft.phoneMasked.trim().length > 0
+
+  if (!hasEmail && !hasPhone) {
     errors.form =
       "At least one contact channel (email or phone) is required."
   }
@@ -107,8 +125,10 @@ export function validateGuestIdentityDraft(
     payload: {
       firstName,
       lastName,
-      email: email.length === 0 ? null : email,
-      phone: phone.length === 0 ? null : phone,
+      replaceEmail: draft.emailReplacing,
+      email: draft.emailReplacing && email.length > 0 ? email : null,
+      replacePhone: draft.phoneReplacing,
+      phone: draft.phoneReplacing && phone.length > 0 ? phone : null,
     },
   }
 }

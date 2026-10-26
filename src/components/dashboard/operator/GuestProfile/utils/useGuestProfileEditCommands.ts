@@ -15,6 +15,7 @@ export function useGuestProfileEditCommands() {
     snapshot,
     retryLoad: pageModule.retryLoad,
     setDraftField: pageModule.setDraftField,
+    startReplaceContact: pageModule.startReplaceContact,
     saveChanges: pageModule.saveChanges,
     stageTag: pageModule.stageTag,
     unstageTag: pageModule.unstageTag,
