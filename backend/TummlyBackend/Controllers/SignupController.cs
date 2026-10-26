@@ -113,6 +113,17 @@ namespace TummlyBackend.Controllers
                     }
                 );
             }
+            catch (CustomPlanQuoteException ex)
+            {
+                return BadRequest(
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Message,
+                    }
+                );
+            }
             catch (Exception ex)
             {
                 return BadRequest(

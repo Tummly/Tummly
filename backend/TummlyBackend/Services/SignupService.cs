@@ -802,6 +802,23 @@ namespace TummlyBackend.Services
                             ),
                         }
                     );
+                    // A hash from the quote the guest saw must still match.
+                    // A missing hash (saved before deploy) re-quotes and saves.
+                    if (
+                        !string.IsNullOrWhiteSpace(parsed.QuoteHash)
+                        && !string.Equals(
+                            parsed.QuoteHash,
+                            quote.QuoteHash,
+                            StringComparison.Ordinal
+                        )
+                    )
+                    {
+                        throw new CustomPlanQuoteException(
+                            "quote_changed",
+                            "Your quote has changed. Review the updated total before continuing."
+                        );
+                    }
+
                     pending.ChosenPlan = quote.StoredAsPlan;
                     pending.ChosenCadence = quote.Cadence;
                     pending.CustomPlanConfigJson = string.Equals(
