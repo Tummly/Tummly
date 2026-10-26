@@ -403,10 +403,10 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            string? providerMessageId;
+            GuestResponseEmailSendResult sent;
             try
             {
-                providerMessageId = await SendGuestResponseEmailForRowAsync(
+                sent = await SendGuestResponseEmailForRowAsync(
                     deps,
                     row,
                     cancellationToken
@@ -522,22 +522,39 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            var acceptedAt = DateTime.UtcNow;
-            accepted.EmailDeliveryStatus =
-                GuestResponseEmailDeliveryStatus.Accepted;
-            accepted.EmailDeliveredAt = acceptedAt;
+            var completedAt = DateTime.UtcNow;
             accepted.EmailDeliveryClaimedAt = null;
             accepted.EmailDeliveryRetryAfter = null;
-            accepted.ProviderMessageId = providerMessageId;
-            GuestReplyDeliveryStateMachine.TryAdvance(
-                accepted,
-                GuestReplyDeliveryState.Accepted,
-                acceptedAt
-            );
+
+            if (sent.Suppressed)
+            {
+                // Demo side-effect suppression: nothing was sent. No provider id,
+                // and the reply cannot be confirmed, so it is Unavailable.
+                accepted.EmailDeliveryStatus =
+                    GuestResponseEmailDeliveryStatus.Abandoned;
+                GuestReplyDeliveryStateMachine.TryAdvance(
+                    accepted,
+                    GuestReplyDeliveryState.Unavailable,
+                    completedAt
+                );
+            }
+            else
+            {
+                accepted.EmailDeliveryStatus =
+                    GuestResponseEmailDeliveryStatus.Accepted;
+                accepted.EmailDeliveredAt = completedAt;
+                accepted.ProviderMessageId = sent.ProviderMessageId;
+                GuestReplyDeliveryStateMachine.TryAdvance(
+                    accepted,
+                    GuestReplyDeliveryState.Accepted,
+                    completedAt
+                );
+            }
+
             await deps.Context.SaveChangesAsync(cancellationToken);
         }
 
-        private static async Task<string?> SendGuestResponseEmailForRowAsync(
+        private static async Task<GuestResponseEmailSendResult> SendGuestResponseEmailForRowAsync(
             DeliveryScope deps,
             FeedbackGuestResponse row,
             CancellationToken cancellationToken

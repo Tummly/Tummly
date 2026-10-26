@@ -3,6 +3,16 @@ using TummlyBackend.Helpers.EmailTemplates;
 
 namespace TummlyBackend.Interfaces
 {
+    /// <summary>
+    /// Outcome of a guest response email send. <see cref="Suppressed"/> is true
+    /// when demo side-effect suppression skipped the send: nothing was sent and
+    /// <see cref="ProviderMessageId"/> is null.
+    /// </summary>
+    public sealed record GuestResponseEmailSendResult(
+        string? ProviderMessageId,
+        bool Suppressed
+    );
+
     public interface IEmailService
     {
         /*
@@ -142,9 +152,10 @@ namespace TummlyBackend.Interfaces
 
         /// <summary>
         /// Guest response email — returns the Resend email id when Resend accepts
-        /// (null for SMTP or when the provider gives no id).
+        /// (null for SMTP or when the provider gives no id), or Suppressed when
+        /// demo side-effect suppression skipped the send.
         /// </summary>
-        Task<string?> SendGuestResponseEmailAsync(
+        Task<GuestResponseEmailSendResult> SendGuestResponseEmailAsync(
             string toEmail,
             string subject,
             string brandTitle,

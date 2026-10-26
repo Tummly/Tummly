@@ -16,8 +16,9 @@ namespace TummlyBackend.Models
         Accepted = 2,
 
         /// <summary>
-        /// Worker stopped without a send: not eligible at send time, or the
-        /// attempt limit was reached. Terminal queue state; never claimed again.
+        /// Worker stopped without a send: not eligible at send time, demo
+        /// suppression, or the attempt limit was reached. Terminal queue state;
+        /// never claimed again.
         /// </summary>
         Abandoned = 3,
     }

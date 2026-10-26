@@ -687,6 +687,46 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(5, _emailService.CallCount);
         }
 
+        [Fact]
+        public async Task Worker_DemoSuppressed_SetsUnavailableWithoutProviderId()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "demo-suppressed@example.com"
+            );
+            _emailService.SuppressSend = true;
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Thanks",
+                body: "Suppressed by demo mode.",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            await _deliveryWork.DrainAsync();
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(1, _emailService.CallCount);
+
+            var row = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync();
+            Assert.Equal(GuestReplyDeliveryState.Unavailable, row.DeliveryState);
+            Assert.NotNull(row.DeliveryStateAtUtc);
+            Assert.Null(row.ProviderMessageId);
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Abandoned,
+                row.EmailDeliveryStatus
+            );
+            Assert.Null(row.EmailDeliveredAt);
+            Assert.Null(row.EmailDeliveryClaimedAt);
+        }
+
         private async Task WithdrawFollowUpAsync(int feedbackId)
         {
             var feedback = await _context.Feedbacks
@@ -907,7 +947,9 @@ namespace TummlyBackend.Tests.Services
 
             public string? ProviderMessageIdToReturn { get; set; } = "re_123";
 
-            public override Task<string?> SendGuestResponseEmailAsync(
+            public bool SuppressSend { get; set; }
+
+            public override Task<GuestResponseEmailSendResult> SendGuestResponseEmailAsync(
                 string toEmail,
                 string subject,
                 string brandTitle,
@@ -935,7 +977,11 @@ namespace TummlyBackend.Tests.Services
                     throw new InvalidOperationException(ThrowMessage);
                 }
 
-                return Task.FromResult(ProviderMessageIdToReturn);
+                return Task.FromResult(
+                    SuppressSend
+                        ? new GuestResponseEmailSendResult(null, Suppressed: true)
+                        : new GuestResponseEmailSendResult(ProviderMessageIdToReturn, Suppressed: false)
+                );
             }
         }
 
