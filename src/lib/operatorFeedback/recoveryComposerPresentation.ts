@@ -1,3 +1,5 @@
+import { isAxiosError } from "axios"
+
 import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 
 /**
@@ -28,6 +30,7 @@ export type RecoveryComposerStatusBanner = {
 export type RecoveryComposerSendFailureKind =
   | "no_permission"
   | "provider_unavailable"
+  | "refused"
   | "failed"
 
 export type RecoveryComposerSendFailure = {
@@ -54,6 +57,15 @@ function errorMessage(error: unknown): string {
 export function mapRecoveryComposerSendFailure(
   error: unknown
 ): RecoveryComposerSendFailure {
+  // 409 refusals (duplicate reply, open recovery Offer) carry a message the
+  // operator needs to read. Keep it instead of the generic copy.
+  if (isAxiosError(error) && error.response?.status === 409) {
+    const refusal = errorMessage(error)
+    if (refusal !== "") {
+      return { kind: "refused", message: refusal }
+    }
+  }
+
   const message = errorMessage(error).toLowerCase()
 
   if (message.includes("feedback follow-up permission")) {
