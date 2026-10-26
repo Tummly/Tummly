@@ -7,6 +7,7 @@ using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -444,6 +445,69 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
             Assert.NotNull(account.PilotStartedAtUtc);
             Assert.NotNull(account.PilotPeriodEnd);
+        }
+
+        [Fact]
+        public async Task Overview_Pilot_LabelShowsStartAndEnd()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings { IsActive = false }
+            );
+            var startedAt = new DateTime(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc);
+            var endsAt = startedAt.AddDays(30);
+            var account = await harness.Context.BillingAccounts.SingleAsync(row =>
+                row.RestaurantId == harness.RestaurantId
+            );
+            account.SubscriptionPlan = BillingSubscriptionPlans.Pilot;
+            account.BillingStatus = BillingStatuses.Pilot;
+            account.PilotStartedAtUtc = startedAt;
+            account.PilotPeriodEnd = endsAt;
+            await harness.Context.SaveChangesAsync();
+
+            var page = await harness.Service.GetPageAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                actorCanManage: true
+            );
+
+            Assert.NotNull(page);
+            Assert.Equal(
+                $"Pilot started {UkDateLabels.Format(startedAt)} · ends {UkDateLabels.Format(endsAt)}",
+                page!.PlanSubscription.RenewalDateLabel
+            );
+            Assert.Equal(startedAt, page.PlanSubscription.PilotStartedAtUtc);
+            Assert.Equal(endsAt, page.PlanSubscription.PilotEndsAtUtc);
+        }
+
+        [Fact]
+        public async Task Overview_PaidAccountWithKeptPilotDates_LabelHasNoPilotText()
+        {
+            await using var harness = await SeedAsync(
+                new TummlySellerVatSettings { IsActive = false },
+                paidStarter: true
+            );
+            var renewsAt = new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc);
+            var account = await harness.Context.BillingAccounts.SingleAsync(row =>
+                row.RestaurantId == harness.RestaurantId
+            );
+            account.RenewalDateUtc = renewsAt;
+            account.PilotStartedAtUtc = new DateTime(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc);
+            account.PilotPeriodEnd = account.PilotStartedAtUtc.Value.AddDays(30);
+            await harness.Context.SaveChangesAsync();
+
+            var page = await harness.Service.GetPageAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                actorCanManage: true
+            );
+
+            Assert.NotNull(page);
+            Assert.Equal(
+                $"Renews {UkDateLabels.Format(renewsAt)}",
+                page!.PlanSubscription.RenewalDateLabel
+            );
+            Assert.Null(page.PlanSubscription.PilotStartedAtUtc);
+            Assert.Null(page.PlanSubscription.PilotEndsAtUtc);
         }
 
         [Fact]

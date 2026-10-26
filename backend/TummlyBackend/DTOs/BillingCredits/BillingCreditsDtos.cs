@@ -130,6 +130,12 @@
 
         public string? RenewalDateLabel { get; set; }
 
+        /// <summary>Pilot clock start (UTC). Null unless the account is on Pilot with a recorded start.</summary>
+        public DateTime? PilotStartedAtUtc { get; set; }
+
+        /// <summary>Pilot clock end (UTC). Null unless the account is on Pilot.</summary>
+        public DateTime? PilotEndsAtUtc { get; set; }
+
         public int EmailCreditsRemaining { get; set; }
 
         public int SmsCreditsRemaining { get; set; }

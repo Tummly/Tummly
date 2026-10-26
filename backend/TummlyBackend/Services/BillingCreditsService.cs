@@ -139,10 +139,12 @@ namespace TummlyBackend.Services
                 : null;
 
             var eligibleMembers = await LoadEligibleMembersAsync(restaurantId);
-            var pilotEndsAt =
-                billingAccount.PilotPeriodEnd ?? owner?.ActivationExpiresAt;
-            var renewalDateLabel = isPilot && pilotEndsAt != null
-                ? $"Pilot ends {UkDateLabels.Format(pilotEndsAt.Value)}"
+            var pilotStartedAt = isPilot ? billingAccount.PilotStartedAtUtc : null;
+            var pilotEndsAt = isPilot
+                ? billingAccount.PilotPeriodEnd ?? owner?.ActivationExpiresAt
+                : null;
+            var renewalDateLabel = pilotEndsAt != null
+                ? FormatPilotPeriodLabel(pilotStartedAt, pilotEndsAt.Value)
                 : isPilot
                     ? null
                     : FormatRenewsLabel(billingAccount.RenewalDateUtc);
@@ -166,6 +168,8 @@ namespace TummlyBackend.Services
                 SubscriptionPlan = billingAccount.SubscriptionPlan,
                 BillingStatus = billingAccount.BillingStatus,
                 RenewalDateLabel = renewalDateLabel,
+                PilotStartedAtUtc = pilotStartedAt,
+                PilotEndsAtUtc = pilotEndsAt,
                 EmailCreditsRemaining = ChannelRemaining(
                     creditSnapshot,
                     CreditChannels.Email
@@ -1629,6 +1633,17 @@ namespace TummlyBackend.Services
             return renewalDateUtc == null
                 ? "Renews 15 September 2026"
                 : $"Renews {UkDateLabels.Format(renewalDateUtc.Value)}";
+        }
+
+        private static string FormatPilotPeriodLabel(
+            DateTime? startedAtUtc,
+            DateTime endsAtUtc
+        )
+        {
+            var endsLabel = UkDateLabels.Format(endsAtUtc);
+            return startedAtUtc == null
+                ? $"Pilot ends {endsLabel}"
+                : $"Pilot started {UkDateLabels.Format(startedAtUtc.Value)} · ends {endsLabel}";
         }
 
         public async Task<(
