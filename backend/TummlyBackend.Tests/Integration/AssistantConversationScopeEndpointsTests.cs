@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 using TummlyBackend.Tests.Integration.Support;
@@ -262,6 +263,172 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, archive.StatusCode);
         }
 
+        [Fact]
+        public async Task SendTurn_ReplayOnAllScope_PartialUser_NotFound()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var allId = await SeedAllScopeConversationAsync(seeded.MemberUserId, AllScopeTitle);
+            var key = Guid.NewGuid().ToString();
+            await SeedCachedOutcomeAsync(seeded.RestaurantId, key, allId);
+
+            var response = await SendAsync(HttpMethod.Post, "/api/assistant/turns", seeded.MemberJwt, new
+            {
+                conversationId = allId,
+                message = "Summarise recent feedback",
+                analysisScope = InScopeAnalysisScope(seeded.InScopeLocationId),
+            }, idempotencyKey: key);
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.DoesNotContain(AllScopeTitle, await response.Content.ReadAsStringAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_ReplayOfAnotherConversation_PartialUser_NotFound()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var allId = await SeedAllScopeConversationAsync(seeded.OwnerUserId, AllScopeTitle);
+            var ownId = await SeedConversationAsync(seeded.MemberUserId, seeded.InScopeLocationId, InScopeTitle);
+            var key = Guid.NewGuid().ToString();
+            await SeedCachedOutcomeAsync(seeded.RestaurantId, key, allId);
+
+            var response = await SendAsync(HttpMethod.Post, "/api/assistant/turns", seeded.MemberJwt, new
+            {
+                conversationId = ownId,
+                message = "Summarise recent feedback",
+                analysisScope = InScopeAnalysisScope(seeded.InScopeLocationId),
+            }, idempotencyKey: key);
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.DoesNotContain(AllScopeTitle, await response.Content.ReadAsStringAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_ReplaySameConversation_OwnerGetsCachedOutcome()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var ownerConvId = await SeedConversationAsync(seeded.OwnerUserId, seeded.InScopeLocationId, InScopeTitle);
+            var key = Guid.NewGuid().ToString();
+            await SeedCachedOutcomeAsync(seeded.RestaurantId, key, ownerConvId);
+
+            var response = await SendAsync(HttpMethod.Post, "/api/assistant/turns", seeded.OwnerJwt, new
+            {
+                conversationId = ownerConvId,
+                message = "Summarise recent feedback",
+                analysisScope = InScopeAnalysisScope(seeded.InScopeLocationId),
+            }, idempotencyKey: key);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(ownerConvId, body.RootElement.GetProperty("conversation").GetProperty("id").GetInt32());
+        }
+
+        [Fact]
+        public async Task RetryTurn_ReplayOfAnotherConversation_PartialUser_NotFound()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(_factory, PermissionRoles.LocationManager);
+            var allId = await SeedAllScopeConversationAsync(seeded.OwnerUserId, AllScopeTitle);
+            var failedId = await SeedFailedTurnAsync(seeded.MemberUserId, seeded.InScopeLocationId, InScopeTitle);
+            var key = Guid.NewGuid().ToString();
+            await SeedCachedOutcomeAsync(seeded.RestaurantId, key, allId);
+
+            var response = await SendAsync(
+                HttpMethod.Post,
+                $"/api/assistant/conversations/{failedId}/retry",
+                seeded.MemberJwt,
+                body: null,
+                idempotencyKey: key
+            );
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.DoesNotContain(AllScopeTitle, await response.Content.ReadAsStringAsync());
+        }
+
+        private async Task SeedCachedOutcomeAsync(int restaurantId, string key, int conversationId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+
+            if (!context.BillingAccounts.Any(row => row.RestaurantId == restaurantId))
+            {
+                context.BillingAccounts.Add(new BillingAccount
+                {
+                    RestaurantId = restaurantId,
+                    BillingStatus = BillingStatuses.Pilot,
+                    ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
+                });
+            }
+
+            var dto = new AssistantConversationDto
+            {
+                Id = conversationId,
+                Title = AllScopeTitle,
+                AnalysisScope = new AssistantAnalysisScopeDto
+                {
+                    ScopeKind = AssistantAnalysisScope.ScopeKindAll,
+                },
+            };
+            context.AssistantAiActionOutcomes.Add(new AssistantAiActionOutcome
+            {
+                Id = Guid.NewGuid(),
+                RestaurantId = restaurantId,
+                IdempotencyKey = key,
+                ResponseJson = JsonSerializer.Serialize(dto, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                }),
+                CreatedAtUtc = now,
+                ExpiresAtUtc = now.AddHours(1),
+            });
+            await context.SaveChangesAsync();
+        }
+
+        private async Task<int> SeedFailedTurnAsync(int ownerUserId, int locationId, string title)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var location = context.RestaurantLocations.Single(row => row.Id == locationId);
+            var now = DateTime.UtcNow;
+            var analysisScope = new AssistantAnalysisScopeDto
+            {
+                ScopeKind = "single",
+                OwnedLocationId = locationId,
+                OwnedLocationName = location.LocationName,
+                ReportingPeriod = new AssistantReportingPeriodDto { Kind = "preset", PresetId = "last7" },
+            };
+
+            var conversation = new AssistantConversation
+            {
+                OwnerUserId = ownerUserId,
+                Title = title,
+                OwnedLocationId = locationId,
+                OwnedLocationName = location.LocationName,
+                ScopeKind = "single",
+                ReportingPeriodKind = "preset",
+                ReportingPeriodPresetId = "last7",
+                CreatedAt = now,
+                LastActivityAt = now,
+            };
+            var userMessage = new AssistantMessage
+            {
+                Role = AssistantMessageRole.User,
+                Body = "Summarise recent feedback",
+                CreatedAt = now,
+            };
+            AssistantAnalysisScope.CopyToUserMessage(userMessage, analysisScope, location.LocationName);
+            conversation.Messages.Add(userMessage);
+            conversation.Messages.Add(new AssistantMessage
+            {
+                Role = AssistantMessageRole.Assistant,
+                Class = AssistantMessageClass.Failure,
+                Body = "The answer failed.",
+                CreatedAt = now.AddSeconds(1),
+            });
+            context.AssistantConversations.Add(conversation);
+            await context.SaveChangesAsync();
+            return conversation.Id;
+        }
+
         private static object InScopeAnalysisScope(int locationId)
         {
             return new
@@ -296,11 +463,16 @@ namespace TummlyBackend.Tests.Integration
             HttpMethod method,
             string path,
             string jwt,
-            object? body
+            object? body,
+            string? idempotencyKey = null
         )
         {
             using var request = new HttpRequestMessage(method, path);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            if (idempotencyKey is not null)
+            {
+                request.Headers.Add("Idempotency-Key", idempotencyKey);
+            }
             if (body is not null)
             {
                 request.Content = JsonContent.Create(body);

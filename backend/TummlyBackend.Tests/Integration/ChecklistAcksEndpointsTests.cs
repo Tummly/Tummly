@@ -228,6 +228,24 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ChecklistPost_UnassignedLocationManager_403()
+        {
+            var seeded = await OperatorScopeSeed.SeedAsync(
+                _factory,
+                PermissionRoles.LocationManager
+            );
+
+            var response = await SendChecklistAsync(
+                HttpMethod.Post,
+                seeded.OutOfScopeLocationId,
+                seeded.MemberJwt,
+                new { guestFormPreviewed = true }
+            );
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
         public async Task ChecklistPost_Marketing_403()
         {
             var seeded = await OperatorScopeSeed.SeedAsync(
