@@ -908,6 +908,14 @@ namespace TummlyBackend.Data
                 .HasIndex(e => new { e.RestaurantId, e.SourcePaymentRef })
                 .HasFilter("[SourcePaymentRef] IS NOT NULL");
 
+            // One TopupAllocation per paid order (WS-E R8.1).
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasIndex(e => new { e.RestaurantId, e.SourcePaymentRef, e.EntryType })
+                .IsUnique()
+                .HasFilter(
+                    "[SourcePaymentRef] IS NOT NULL AND [EntryType] = N'topup_allocation'"
+                );
+
             /*
              =========================================
              BILLING ACCOUNT -> ASSISTANT AI OUTCOMES
@@ -1920,6 +1928,10 @@ namespace TummlyBackend.Data
                     r.EmailDeliveryStatus,
                     r.EmailDeliveryRetryAfter,
                 });
+
+            modelBuilder.Entity<FeedbackGuestResponse>()
+                .HasIndex(r => r.ProviderMessageId)
+                .HasFilter("[ProviderMessageId] IS NOT NULL");
 
             modelBuilder.Entity<RecoverySmsSendIdempotency>()
                 .HasOne(row => row.Restaurant)

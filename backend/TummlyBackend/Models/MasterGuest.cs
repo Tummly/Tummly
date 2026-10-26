@@ -29,6 +29,12 @@ namespace TummlyBackend.Models
         public DateTime CreatedAt { get; set; }
             = DateTime.UtcNow;
 
+        /// <summary>
+        /// UTC when the guest sent STOP to this restaurant's SMS number. Null when
+        /// the guest has not stopped texts from this restaurant.
+        /// </summary>
+        public DateTime? SmsStoppedAtUtc { get; set; }
+
         public ICollection<LocationGuest> LocationGuests { get; set; }
             = new List<LocationGuest>();
     }

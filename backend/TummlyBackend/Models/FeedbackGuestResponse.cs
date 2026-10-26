@@ -82,5 +82,19 @@ namespace TummlyBackend.Models
         /// </summary>
         [MaxLength(128)]
         public string? BillingReservationRef { get; set; }
+
+        /// <summary>
+        /// Provider message id (Resend email id or Twilio SID). Null until the
+        /// provider accepts the reply, or when no id is returned.
+        /// </summary>
+        [MaxLength(128)]
+        public string? ProviderMessageId { get; set; }
+
+        /// <summary>Operator-visible delivery state for this reply.</summary>
+        public GuestReplyDeliveryState DeliveryState { get; set; }
+            = GuestReplyDeliveryState.Pending;
+
+        /// <summary>UTC when <see cref="DeliveryState"/> last changed.</summary>
+        public DateTime? DeliveryStateAtUtc { get; set; }
     }
 }
