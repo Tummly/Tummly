@@ -733,6 +733,52 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ApplyTopup_AlreadyMintedByOtherApply_ClosesIntentWithoutPostMintWork()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+            AddOpenTopupIntent(context, account.RestaurantId, "ord_topup_other");
+            context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = account.RestaurantId,
+                    Channel = CreditChannels.Ai,
+                    EntryType = CreditLedgerEntryTypes.TopupAllocation,
+                    Quantity = 500,
+                    SourcePaymentRef = "ord_topup_other",
+                    CreatedAtUtc = _now,
+                    ExpiresAtUtc = _now.AddMonths(12),
+                }
+            );
+            await context.SaveChangesAsync();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(
+                context,
+                mint,
+                clock,
+                creditLedger: new FailingMintLedger()
+            );
+
+            await applier.ApplyAsync(TopupRequest("ord_topup_other"));
+
+            Assert.False(
+                await context.RevolutOrderIntents
+                    .Where(row => row.OrderId == "ord_topup_other")
+                    .Select(row => row.IsOpen)
+                    .SingleAsync()
+            );
+            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+            Assert.Equal(
+                0,
+                await context.RestaurantBillingActivities.CountAsync(row =>
+                    row.Kind == BillingActivityKinds.TopupPurchased
+                )
+            );
+        }
+
+        [Fact]
         public async Task ApplyTopup_OtherDbUpdateOnMint_Rethrows()
         {
             await using var context = CreateContext();

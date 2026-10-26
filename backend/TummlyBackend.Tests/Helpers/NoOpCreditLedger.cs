@@ -1,4 +1,4 @@
-﻿using TummlyBackend.Interfaces;
+using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Tests.Helpers
 {

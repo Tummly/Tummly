@@ -32,7 +32,9 @@ namespace TummlyBackend.Tests.SqlServer
                 await using var factory = _fixture.CreateFactory();
 
                 // Hold the Billing Account lock so both applies pass their
-                // "already minted" check and then queue behind the mint lock.
+                // "already minted" check and queue behind the mint lock. Release
+                // it, and one apply mints for real while the other loses the
+                // insert race.
                 await using var blocker = _fixture.CreateContext();
                 await using var blockerTx = await blocker.Database.BeginTransactionAsync();
                 await blocker.Database.ExecuteSqlInterpolatedAsync(
@@ -42,46 +44,54 @@ namespace TummlyBackend.Tests.SqlServer
                 var applyA = ApplyTopupAsync(factory, seeded.OrderId);
                 var applyB = ApplyTopupAsync(factory, seeded.OrderId);
                 await WaitForBlockedRequestsAsync(blocker, expected: 2);
-
-                // The winner commits its allocation row, then releases the lock.
-                blocker.CreditLedgerEntries.Add(
-                    new CreditLedgerEntry
-                    {
-                        Id = Guid.NewGuid(),
-                        RestaurantId = seeded.RestaurantId,
-                        Channel = CreditChannels.Ai,
-                        EntryType = CreditLedgerEntryTypes.TopupAllocation,
-                        Quantity = 500,
-                        PricebookVersion = TestPricebook,
-                        SourcePaymentRef = seeded.OrderId,
-                        ExpiresAtUtc = DateTime.UtcNow.AddMonths(12),
-                        CreatedAtUtc = DateTime.UtcNow,
-                    }
-                );
-                await blocker.SaveChangesAsync();
                 await blockerTx.CommitAsync();
 
                 await Task.WhenAll(applyA, applyB);
 
                 await using var verify = _fixture.CreateContext();
+                var restaurantId = seeded.RestaurantId;
+                var orderId = seeded.OrderId;
                 Assert.Equal(
                     1,
                     await verify.CreditLedgerEntries.CountAsync(row =>
-                        row.RestaurantId == seeded.RestaurantId
-                        && row.SourcePaymentRef == seeded.OrderId
+                        row.RestaurantId == restaurantId
+                        && row.SourcePaymentRef == orderId
                         && row.EntryType == CreditLedgerEntryTypes.TopupAllocation
                     )
                 );
-                // The losing apply must not leave threshold state behind.
                 Assert.Equal(
-                    0,
-                    await verify.CreditWarningStates.CountAsync(row =>
-                        row.RestaurantId == seeded.RestaurantId
+                    1,
+                    await verify.RestaurantBillingActivities.CountAsync(row =>
+                        row.RestaurantId == restaurantId
+                        && row.Kind == BillingActivityKinds.TopupPurchased
                     )
+                );
+                Assert.Equal(
+                    1,
+                    await verify.RestaurantBillingActivities.CountAsync(row =>
+                        row.RestaurantId == restaurantId
+                        && row.Kind == BillingActivityKinds.InvoicePaid
+                    )
+                );
+                Assert.Equal(
+                    1,
+                    await verify.TummlyVatInvoices.CountAsync(row =>
+                        row.RevolutOrderId == orderId
+                    )
+                );
+                // Only the minting apply writes the threshold watermark. The
+                // losing apply drops its pending watermark change, so one row
+                // exists for the AI channel.
+                Assert.Equal(
+                    new[] { CreditChannels.Ai },
+                    await verify.CreditWarningStates
+                        .Where(row => row.RestaurantId == restaurantId)
+                        .Select(row => row.Channel)
+                        .ToArrayAsync()
                 );
                 Assert.False(
                     await verify.RevolutOrderIntents
-                        .Where(row => row.OrderId == seeded.OrderId)
+                        .Where(row => row.OrderId == orderId)
                         .Select(row => row.IsOpen)
                         .SingleAsync()
                 );
@@ -141,7 +151,15 @@ namespace TummlyBackend.Tests.SqlServer
             }
         }
 
-        private async Task<(int RestaurantId, int UserId, string OrderId, int SequenceYear, bool SeededSequence)> SeedTopupIntentAsync()
+        private sealed record SeededTopup(
+            int RestaurantId,
+            int UserId,
+            string OrderId,
+            int SequenceYear,
+            bool SeededSequence
+        );
+
+        private async Task<SeededTopup> SeedTopupIntentAsync()
         {
             await using var context = _fixture.CreateContext();
             var now = DateTime.UtcNow;
@@ -220,17 +238,32 @@ namespace TummlyBackend.Tests.SqlServer
             }
             await context.SaveChangesAsync();
 
-            return (restaurant.Id, user.Id, orderId, sequenceYear, seededSequence);
+            return new SeededTopup(
+                restaurant.Id,
+                user.Id,
+                orderId,
+                sequenceYear,
+                seededSequence
+            );
         }
 
-        private async Task CleanupAsync((int RestaurantId, int UserId, string OrderId, int SequenceYear, bool SeededSequence) seeded)
+        private async Task CleanupAsync(SeededTopup seeded)
         {
             await using var context = _fixture.CreateContext();
+            await context.RestaurantBillingActivities
+                .Where(row => row.RestaurantId == seeded.RestaurantId)
+                .ExecuteDeleteAsync();
             await context.CreditLedgerEntries
                 .Where(row => row.RestaurantId == seeded.RestaurantId)
                 .ExecuteDeleteAsync();
             await context.CreditWarningStates
                 .Where(row => row.RestaurantId == seeded.RestaurantId)
+                .ExecuteDeleteAsync();
+            await context.TummlyVatInvoices
+                .Where(row => row.RevolutOrderId == seeded.OrderId)
+                .ExecuteDeleteAsync();
+            await context.RevolutOrderIntents
+                .Where(row => row.OrderId == seeded.OrderId)
                 .ExecuteDeleteAsync();
             if (seeded.SeededSequence)
             {
@@ -241,12 +274,6 @@ namespace TummlyBackend.Tests.SqlServer
                     )
                     .ExecuteDeleteAsync();
             }
-            await context.TummlyVatInvoices
-                .Where(row => row.RevolutOrderId == seeded.OrderId)
-                .ExecuteDeleteAsync();
-            await context.RevolutOrderIntents
-                .Where(row => row.OrderId == seeded.OrderId)
-                .ExecuteDeleteAsync();
             await context.Restaurants
                 .Where(row => row.Id == seeded.RestaurantId)
                 .ExecuteDeleteAsync();

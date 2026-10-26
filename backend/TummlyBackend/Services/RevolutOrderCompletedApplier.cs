@@ -969,7 +969,17 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("invalid_topup_intent");
             }
 
-            if (!await IsTopupMintedAsync(restaurantId, intent.OrderId, cancellationToken))
+            // Only the apply that inserts the allocation does the invoice and
+            // activity work. An apply that finds the mint already present, or
+            // loses the insert race, only closes the intent. This keeps the
+            // post-mint work once per order under concurrency.
+            var mintedElsewhere = await IsTopupMintedAsync(
+                restaurantId,
+                intent.OrderId,
+                cancellationToken
+            );
+            var lostMintRace = false;
+            if (!mintedElsewhere)
             {
                 try
                 {
@@ -993,14 +1003,26 @@ namespace TummlyBackend.Services
                 catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
                 {
                     // A concurrent apply of this order minted first. Drop the
-                    // failed mint and continue as already minted, unless the
-                    // row is not there.
+                    // failed mint. Rethrow if the row is not there.
                     await DiscardFailedTopupMintAsync(intent.OrderId, cancellationToken);
                     if (!await IsTopupMintedAsync(restaurantId, intent.OrderId, cancellationToken))
                     {
                         throw;
                     }
+
+                    lostMintRace = true;
                 }
+            }
+
+            if (mintedElsewhere || lostMintRace)
+            {
+                if (intent.IsOpen)
+                {
+                    intent.IsOpen = false;
+                }
+
+                await _context.SaveChangesAsync(cancellationToken);
+                return;
             }
 
             var nowUtc = _clock.GetUtcNow().UtcDateTime;
