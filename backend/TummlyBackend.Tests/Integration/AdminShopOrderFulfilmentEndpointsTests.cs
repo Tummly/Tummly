@@ -26,7 +26,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task ListShopOrders_DefaultsToProcessingFilter()
+        public async Task ListShopOrders_DefaultsToAllStatuses_AndExposesRestaurantNameAndCreatedAt()
         {
             var seeded = await SeedWorkspaceAsync();
             await InsertOrderAsync(
@@ -48,17 +48,28 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
-            Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(2, body.GetProperty("totalCount").GetInt32());
             Assert.Equal(1, body.GetProperty("page").GetInt32());
             Assert.Equal(25, body.GetProperty("pageSize").GetInt32());
+            var items = body.GetProperty("items").EnumerateArray().ToList();
             Assert.Equal(
-                ShopFulfilmentStatuses.Processing,
-                body.GetProperty("items")[0].GetProperty("fulfilmentStatus").GetString()
+                new[]
+                {
+                    ShopFulfilmentStatuses.InTransit,
+                    ShopFulfilmentStatuses.Processing,
+                },
+                items
+                    .Select(item => item.GetProperty("fulfilmentStatus").GetString()!)
+                    .OrderBy(status => status)
             );
-            Assert.True(body.GetProperty("items")[0].TryGetProperty("opsNotes", out _));
-            Assert.True(
-                body.GetProperty("items")[0].TryGetProperty("revolutOrderId", out _)
+            var first = items[0];
+            Assert.True(first.TryGetProperty("opsNotes", out _));
+            Assert.True(first.TryGetProperty("revolutOrderId", out _));
+            Assert.False(
+                string.IsNullOrWhiteSpace(first.GetProperty("restaurantName").GetString())
             );
+            var createdAt = first.GetProperty("createdAtUtc").GetString();
+            Assert.EndsWith("Z", createdAt);
         }
 
         [Fact]
