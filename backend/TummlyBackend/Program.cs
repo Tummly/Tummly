@@ -1200,6 +1200,7 @@ builder.Services.AddSingleton<
 >();
 builder.Services.AddHostedService<GuestResponseEmailDeliveryBackgroundService>();
 builder.Services.AddHostedService<CreditReservationSweeperBackgroundService>();
+builder.Services.AddHostedService<ShopQrSlotReservationSweeperBackgroundService>();
 
 builder.Services.AddHttpClient(
     SignInMetadataResolverHttpClient.Name,

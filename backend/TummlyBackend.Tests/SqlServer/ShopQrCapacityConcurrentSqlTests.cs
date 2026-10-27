@@ -2,10 +2,12 @@ using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 using TummlyBackend.Shop.MaterialsCatalog;
 using TummlyBackend.Tests.Helpers;
 
@@ -134,6 +136,73 @@ namespace TummlyBackend.Tests.SqlServer
             await blockerTx.CommitAsync();
 
             return await Task.WhenAll(firstTask, secondTask);
+        }
+
+        [SkippableFact]
+        public async Task Sweep_Completed_OnSqlServer_ConvertsUnderBillingLock()
+        {
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+            await using var factory = _fixture.CreateFactory();
+            var workspace = await SeedAsync(factory, freeSlots: 1);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            using var client = factory.CreateClient();
+            using (var pay = await client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(workspace, orderId)))
+            {
+                Assert.Equal(HttpStatusCode.OK, pay.StatusCode);
+            }
+
+            await using var read = _fixture.CreateContext();
+            var intent = await read.RevolutOrderIntents
+                .SingleAsync(row => row.ShopOrderId == orderId);
+            var reservation = await read.ShopQrSlotReservations
+                .SingleAsync(row => row.ShopOrderId == orderId);
+            var merchant = (FakeFirstPaidRevolutMerchantClient)factory.Services
+                .GetRequiredService<IRevolutMerchantClient>();
+            merchant.Orders[intent.OrderId] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: intent.OrderId,
+                State: "completed",
+                AmountMinor: 1200,
+                CheckoutUrl: FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                PaymentMethodSummary: "Paid"
+            );
+            var sweeper = new ShopQrSlotReservationSweeperBackgroundService(
+                factory.Services.GetRequiredService<IServiceScopeFactory>(),
+                new AdjustableTimeProvider(
+                    new DateTimeOffset(
+                        reservation.CreatedAtUtc.AddMinutes(31),
+                        TimeSpan.Zero
+                    )
+                ),
+                NullLogger<ShopQrSlotReservationSweeperBackgroundService>.Instance
+            );
+
+            // The sweep has no ambient transaction. It must open one and queue
+            // behind the account lock like any other writer.
+            await using var blocker = _fixture.CreateContext();
+            await using var blockerTx = await blocker.Database.BeginTransactionAsync();
+            await blocker.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT 1 FROM [BillingAccounts] WITH (UPDLOCK, ROWLOCK) WHERE [RestaurantId] = {workspace.RestaurantId}"
+            );
+            var sweep = Task.Run(() => sweeper.SweepAsync(CancellationToken.None));
+            await WaitForBlockedRequestsAsync(blocker, expected: 1);
+            Assert.False(sweep.IsCompleted);
+            await blockerTx.CommitAsync();
+            await sweep;
+
+            await using var verify = _fixture.CreateContext();
+            var order = await verify.ShopOrders.SingleAsync(row => row.Id == orderId);
+            Assert.Equal(ShopPaymentStatuses.Paid, order.PaymentStatus);
+            var converted = await verify.ShopQrSlotReservations
+                .SingleAsync(row => row.ShopOrderId == orderId);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, converted.Status);
+            var code = await verify.QrCodes.SingleAsync(row =>
+                row.RestaurantLocationId == workspace.LocationId
+                && row.QrType == QrType.GuestCard
+            );
+            Assert.Equal(QrCodeStatus.Active, code.Status);
+            Assert.Equal(code.Id, converted.ConvertedQrCodeId);
         }
 
         private Func<Task<HttpStatusCode>> PayAsync(

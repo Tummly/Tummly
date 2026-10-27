@@ -168,6 +168,35 @@ public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
         public Dictionary<string, RevolutOrderRetrieveResult> Orders { get; } =
             new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Scripted <see cref="CancelOrderAsync"/> answers by Revolut order id.
+        /// An order with no entry cancels successfully.
+        /// </summary>
+        public Dictionary<string, RevolutOrderRetrieveResult> CancelResults { get; } =
+            new(StringComparer.Ordinal);
+
+        public int CancelOrderCallCount { get; private set; }
+
+        public Task<RevolutOrderRetrieveResult> CancelOrderAsync(
+            string orderId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            CancelOrderCallCount++;
+            if (CancelResults.TryGetValue(orderId, out var scripted))
+            {
+                return Task.FromResult(scripted);
+            }
+
+            return Task.FromResult(
+                new RevolutOrderRetrieveResult(
+                    Succeeded: true,
+                    Id: orderId,
+                    State: "cancelled"
+                )
+            );
+        }
+
         public int RefundOrderCallCount { get; private set; }
 
         public string? LastRefundOrderId { get; private set; }
