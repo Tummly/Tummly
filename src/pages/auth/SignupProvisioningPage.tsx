@@ -11,9 +11,8 @@ import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
 import { Button } from "@/components/ui/button"
 import {
   clearSignupSessionToken,
-  isSignupSessionExpiredError,
   readSignupSessionToken,
-  SIGNUP_SESSION_EXPIRED_STATE,
+  redirectIfSignupSessionExpired,
 } from "@/lib/signupSession"
 import { persistSignupLoginSession } from "@/pages/utils/authHelpers"
 
@@ -199,12 +198,7 @@ function SignupProvisioningPage() {
         goToComplete()
       } catch (error) {
         if (!isCurrent()) return
-        if (isSignupSessionExpiredError(error)) {
-          clearSignupSessionToken()
-          navigate("/signup", {
-            replace: true,
-            state: SIGNUP_SESSION_EXPIRED_STATE,
-          })
+        if (redirectIfSignupSessionExpired(error, navigate)) {
           return
         }
         setProvisioningError(
@@ -234,12 +228,7 @@ function SignupProvisioningPage() {
       try {
         await kickPilotProvision(sessionToken)
       } catch (error) {
-        if (isSignupSessionExpiredError(error)) {
-          clearSignupSessionToken()
-          navigate("/signup", {
-            replace: true,
-            state: SIGNUP_SESSION_EXPIRED_STATE,
-          })
+        if (redirectIfSignupSessionExpired(error, navigate)) {
           return
         }
         setProvisioningError(
@@ -272,12 +261,7 @@ function SignupProvisioningPage() {
         // Free cap is 1 Location: the Locations step forwards to the WebApp.
         navigate("/signup/locations", { replace: true })
       } catch (error) {
-        if (isSignupSessionExpiredError(error)) {
-          clearSignupSessionToken()
-          navigate("/signup", {
-            replace: true,
-            state: SIGNUP_SESSION_EXPIRED_STATE,
-          })
+        if (redirectIfSignupSessionExpired(error, navigate)) {
           return
         }
         setProvisioningError(

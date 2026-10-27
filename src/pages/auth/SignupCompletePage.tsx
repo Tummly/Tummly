@@ -12,9 +12,8 @@ import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
 import { Button } from "@/components/ui/button"
 import {
   clearSignupSessionToken,
-  isSignupSessionExpiredError,
   readSignupSessionToken,
-  SIGNUP_SESSION_EXPIRED_STATE,
+  redirectIfSignupSessionExpired,
 } from "@/lib/signupSession"
 import { buildPilotSetupConfirmation } from "@/lib/signupPilotConfirmation"
 import { persistSignupLoginSession } from "@/pages/utils/authHelpers"
@@ -221,12 +220,7 @@ function SignupCompletePage() {
         if (!isCurrent()) {
           return
         }
-        if (isSignupSessionExpiredError(caught)) {
-          clearSignupSessionToken()
-          navigate("/signup", {
-            replace: true,
-            state: SIGNUP_SESSION_EXPIRED_STATE,
-          })
+        if (redirectIfSignupSessionExpired(caught, navigate)) {
           return
         }
         setError(

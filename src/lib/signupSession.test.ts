@@ -1,10 +1,12 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import type { NavigateFunction } from "react-router-dom"
 import {
   buildSignupVerifyPath,
   clearSignupSessionToken,
   isSignupSessionExpiredError,
   isSignupSessionExpiredState,
   readSignupSessionToken,
+  redirectIfSignupSessionExpired,
   SIGNUP_SESSION_EXPIRED_STATE,
   saveSignupSessionToken,
 } from "./signupSession"
@@ -57,5 +59,48 @@ describe("signupSessionExpiredState", () => {
       false
     )
     expect(isSignupSessionExpiredState(null)).toBe(false)
+  })
+})
+
+describe("redirectIfSignupSessionExpired", () => {
+  beforeEach(() => {
+    clearSignupSessionToken()
+  })
+
+  function fakeNavigate() {
+    const spy = vi.fn()
+    return { spy, navigate: spy as unknown as NavigateFunction }
+  }
+
+  it("redirectIfSignupSessionExpired_expiredError_clearsTokenAndNavigates", () => {
+    saveSignupSessionToken("token-expired")
+    const { spy, navigate } = fakeNavigate()
+
+    const handled = redirectIfSignupSessionExpired(
+      Object.assign(new Error("expired"), { code: "signup_session_expired" }),
+      navigate
+    )
+
+    expect(handled).toBe(true)
+    expect(readSignupSessionToken()).toBeNull()
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith("/signup", {
+      replace: true,
+      state: SIGNUP_SESSION_EXPIRED_STATE,
+    })
+  })
+
+  it("redirectIfSignupSessionExpired_otherError_noop", () => {
+    saveSignupSessionToken("token-live")
+    const { spy, navigate } = fakeNavigate()
+
+    const handled = redirectIfSignupSessionExpired(
+      Object.assign(new Error("invalid"), { code: "otp_invalid" }),
+      navigate
+    )
+
+    expect(handled).toBe(false)
+    expect(readSignupSessionToken()).toBe("token-live")
+    expect(spy).not.toHaveBeenCalled()
   })
 })

@@ -1,4 +1,5 @@
 import { isAxiosError } from "axios"
+import type { NavigateFunction } from "react-router-dom"
 
 const SIGNUP_SESSION_KEY = "tummly.signupSession"
 
@@ -41,6 +42,20 @@ export function isSignupSessionExpiredError(error: unknown): boolean {
     isAxiosError<{ code?: unknown }>(error) &&
     error.response?.data?.code === SIGNUP_SESSION_EXPIRED_CODE
   )
+}
+
+/**
+ * On an expired signup token: clear it and send the user to `/signup` with the
+ * expired message. Returns false and does nothing for any other error.
+ */
+export function redirectIfSignupSessionExpired(
+  error: unknown,
+  navigate: NavigateFunction
+): boolean {
+  if (!isSignupSessionExpiredError(error)) return false
+  clearSignupSessionToken()
+  navigate("/signup", { replace: true, state: SIGNUP_SESSION_EXPIRED_STATE })
+  return true
 }
 
 export function isSignupSessionExpiredState(state: unknown): boolean {
