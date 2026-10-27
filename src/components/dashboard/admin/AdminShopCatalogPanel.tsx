@@ -59,6 +59,12 @@ import {
   GUESTS_TABLE_HEAD_CELL_CLASS,
   GUESTS_TABLE_HEAD_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
+import {
+  normalisePoundsInput,
+  penceToPoundsInput,
+  poundsInputToPence,
+} from "@/lib/admin/adminShopCatalogPricing"
+import { withSkuAvailableInShop } from "@/lib/admin/adminShopCatalogAvailability"
 import { OPERATOR_RIGHT_DRAWER_CONTENT_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { resolveShopCatalogImageSrc } from "@/lib/operatorShop/resolveShopCatalogImageSrc"
 import { cn } from "@/lib/utils"
@@ -82,7 +88,8 @@ const CATEGORY_BY_PLACEMENT_KEY: Record<string, string> = {
 
 type EditorPackRow = {
   qty: string
-  netPence: string
+  /** Pack price in pounds as typed (for example "9.99"). */
+  netPounds: string
 }
 
 type EditorState = {
@@ -95,7 +102,8 @@ type EditorState = {
   placementRecipeId: number
   placementRecipeLabel: string
   packs: EditorPackRow[]
-  deliveryNetPence: string
+  /** Delivery in pounds as typed (for example "2.99"). */
+  deliveryPounds: string
   supplierName: string
   internalCostNetPence: string
   aboutBody: string
@@ -118,8 +126,8 @@ function emptyEditor(recipe: AdminPlacementRecipe): EditorState {
     dimensions: "",
     placementRecipeId: recipe.id,
     placementRecipeLabel: recipe.label,
-    packs: [{ qty: "1", netPence: "999" }],
-    deliveryNetPence: "299",
+    packs: [{ qty: "1", netPounds: "9.99" }],
+    deliveryPounds: "2.99",
     supplierName: "",
     internalCostNetPence: "",
     aboutBody: "",
@@ -138,9 +146,14 @@ function editorFromSku(sku: AdminShopCatalogSku): EditorState {
     sku.packs.length > 0
       ? sku.packs.map((pack) => ({
           qty: String(pack.qty),
-          netPence: String(pack.netPence),
+          netPounds: penceToPoundsInput(pack.netPence),
         }))
-      : [{ qty: String(sku.minOrderQty), netPence: String(sku.unitNetPence) }]
+      : [
+          {
+            qty: String(sku.minOrderQty),
+            netPounds: penceToPoundsInput(sku.unitNetPence),
+          },
+        ]
   return {
     skuId: sku.skuId,
     title: sku.title,
@@ -151,7 +164,7 @@ function editorFromSku(sku: AdminShopCatalogSku): EditorState {
     placementRecipeId: sku.placementRecipeId,
     placementRecipeLabel: sku.placementRecipeLabel,
     packs,
-    deliveryNetPence: String(sku.deliveryNetPence),
+    deliveryPounds: penceToPoundsInput(sku.deliveryNetPence),
     supplierName: sku.supplierName ?? "",
     internalCostNetPence:
       sku.internalCostNetPence == null ? "" : String(sku.internalCostNetPence),
@@ -175,9 +188,9 @@ function parseEditorPacks(
   const packs: AdminShopCatalogPack[] = []
   for (const row of rows) {
     const qty = Number(row.qty)
-    const netPence = Number(row.netPence)
+    const netPence = poundsInputToPence(row.netPounds)
     if (!Number.isFinite(qty) || qty < 1) return null
-    if (!Number.isFinite(netPence) || netPence < 0) return null
+    if (netPence == null) return null
     packs.push({ qty, netPence })
   }
   if (packs.length === 0) return null
@@ -232,12 +245,12 @@ export function AdminShopCatalogPanel() {
     if (!editor) return
     const packs = parseEditorPacks(editor.packs)
     if (!packs) {
-      toast.error("Enter valid unique pack quantities and prices in pence.")
+      toast.error("Enter valid unique pack quantities and prices in pounds.")
       return
     }
-    const deliveryNetPence = Number(editor.deliveryNetPence)
-    if (!Number.isFinite(deliveryNetPence) || deliveryNetPence < 0) {
-      toast.error("Enter a valid delivery price in pence.")
+    const deliveryNetPence = poundsInputToPence(editor.deliveryPounds)
+    if (deliveryNetPence == null) {
+      toast.error("Enter a valid delivery price in pounds.")
       return
     }
     const internalCostRaw = editor.internalCostNetPence.trim()
@@ -277,7 +290,12 @@ export function AdminShopCatalogPanel() {
             placementRecipeId: editor.placementRecipeId,
           })
         : await updateAdminShopCatalogSku(editor.skuId, body)
-      toast.success(editor.isNew ? "Draft product created." : "Product saved.")
+      toast.success(
+        editor.isNew
+          ? "Draft created. Upload images below before publishing."
+          : "Product saved."
+      )
+      // Keep the panel open: a new draft becomes editable here, with image upload enabled.
       setEditor(editorFromSku(saved))
       await reload()
     } catch (error) {
@@ -315,25 +333,33 @@ export function AdminShopCatalogPanel() {
     }
   }
 
+  /** Sets availability on the list row and the open editor only, so unsaved edits stay. */
+  const applyAvailability = (skuId: string, availableInShop: boolean) => {
+    setSkus((prev) => withSkuAvailableInShop(prev, skuId, availableInShop))
+    setEditor((prev) =>
+      prev && prev.skuId === skuId ? { ...prev, availableInShop } : prev
+    )
+  }
+
   const setAvailableInShop = async (
     skuId: string,
     availableInShop: boolean
   ) => {
+    const previous = skus.find((row) => row.skuId === skuId)?.availableInShop
+    applyAvailability(skuId, availableInShop)
     try {
       const updated = await setAdminShopCatalogAvailableInShop(
         skuId,
         availableInShop
       )
+      applyAvailability(skuId, updated.availableInShop)
       toast.success(
-        availableInShop
+        updated.availableInShop
           ? "Product is available in Shop."
           : "Product set to Coming soon."
       )
-      await reload()
-      if (editor && editor.skuId === skuId) {
-        setEditor(editorFromSku(updated))
-      }
     } catch (error) {
+      applyAvailability(skuId, previous ?? !availableInShop)
       toast.error(
         apiErrorMessage(error, "Could not update Shop availability.")
       )
@@ -397,7 +423,7 @@ export function AdminShopCatalogPanel() {
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className={GUESTS_PAGE_TITLE_CLASS}>Shop materials</h1>
           <p className={GUESTS_PAGE_SUBTITLE_CLASS}>
@@ -410,7 +436,7 @@ export function AdminShopCatalogPanel() {
           onClick={() => {
             if (availableRecipes.length === 0) {
               toast.error(
-                "All placement recipes already have a product. Delete one before adding another."
+                "Each placement type can have one product. Edit the existing product, or delete it before adding a new one."
               )
               return
             }
@@ -487,7 +513,7 @@ export function AdminShopCatalogPanel() {
                         )}
                         <div>
                           <div className="font-medium">{sku.title}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-op-text-muted">
                             {sku.skuId}
                           </div>
                         </div>
@@ -512,12 +538,12 @@ export function AdminShopCatalogPanel() {
                               void setAvailableInShop(sku.skuId, checked)
                             }
                           />
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-op-text-muted">
                             {sku.availableInShop ? "ON" : "Coming soon"}
                           </span>
                         </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span className="text-xs text-op-text-muted">—</span>
                       )}
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
@@ -704,14 +730,14 @@ export function AdminShopCatalogPanel() {
                         })
                       }
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-op-text-primary">
                       Use finished size, e.g. 105mm x 148mm (A6) or 150mm x
                       150mm.
                     </p>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label>Pack tiers (qty + pack price in pence)</Label>
+                  <Label>Pack tiers (qty + pack price in £)</Label>
                   {editor.packs.map((row, index) => (
                     <div key={index} className="flex gap-2">
                       <FloatingLabelInput
@@ -726,15 +752,25 @@ export function AdminShopCatalogPanel() {
                         }}
                       />
                       <FloatingLabelInput
-                        label="Pack price (pence)"
-                        inputMode="numeric"
+                        label="Pack price (£)"
+                        inputMode="decimal"
                         className="min-w-0 flex-1"
-                        value={row.netPence}
+                        value={row.netPounds}
                         onChange={(event) => {
                           const next = [...editor.packs]
                           next[index] = {
                             ...row,
-                            netPence: event.target.value,
+                            netPounds: event.target.value,
+                          }
+                          setEditor({ ...editor, packs: next })
+                        }}
+                        onBlur={() => {
+                          const current = editor.packs[index]
+                          if (!current) return
+                          const next = [...editor.packs]
+                          next[index] = {
+                            ...current,
+                            netPounds: normalisePoundsInput(current.netPounds),
                           }
                           setEditor({ ...editor, packs: next })
                         }}
@@ -763,26 +799,34 @@ export function AdminShopCatalogPanel() {
                     onClick={() =>
                       setEditor({
                         ...editor,
-                        packs: [...editor.packs, { qty: "", netPence: "" }],
+                        packs: [...editor.packs, { qty: "", netPounds: "" }],
                       })
                     }
                   >
                     Add pack tier
                   </Button>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-op-text-primary">
                     Catalog “From £” uses the lowest pack price. Min order qty
                     syncs to the smallest pack qty.
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <FloatingLabelInput
-                    label="Delivery (pence)"
-                    inputMode="numeric"
-                    value={editor.deliveryNetPence}
+                    label="Delivery (£)"
+                    inputMode="decimal"
+                    value={editor.deliveryPounds}
                     onChange={(event) =>
                       setEditor({
                         ...editor,
-                        deliveryNetPence: event.target.value,
+                        deliveryPounds: event.target.value,
+                      })
+                    }
+                    onBlur={() =>
+                      setEditor({
+                        ...editor,
+                        deliveryPounds: normalisePoundsInput(
+                          editor.deliveryPounds
+                        ),
                       })
                     }
                   />
@@ -982,7 +1026,7 @@ export function AdminShopCatalogPanel() {
                       <Label htmlFor="available-in-shop">
                         Available in Shop
                       </Label>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-op-text-muted">
                         OFF keeps the product listed as Coming soon.
                       </span>
                     </div>

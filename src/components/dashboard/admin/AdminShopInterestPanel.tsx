@@ -100,6 +100,9 @@ type PromoteState = {
   tagIds: number[]
 }
 
+const LOAD_ERROR_TEXT =
+  "Could not load shop interest. Use Refresh to try again."
+
 function formatUtc(iso: string) {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
@@ -139,6 +142,7 @@ export function AdminShopInterestPanel() {
   const [recipes, setRecipes] = useState<AdminPlacementRecipe[]>([])
   const [tags, setTags] = useState<AdminShopCatalogTag[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [promote, setPromote] = useState<PromoteState | null>(null)
   const [saving, setSaving] = useState(false)
@@ -161,7 +165,13 @@ export function AdminShopInterestPanel() {
       setProducts(nextProducts)
       setRecipes(nextRecipes)
       setTags(nextTags)
+      setLoadError(false)
     } catch {
+      // Clear stale rows so the tables show the error, not an empty list.
+      setItems([])
+      setCounts([])
+      setProducts([])
+      setLoadError(true)
       toast.error("Could not load shop interest.")
     } finally {
       setLoading(false)
@@ -310,12 +320,22 @@ export function AdminShopInterestPanel() {
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
-      <div>
-        <h1 className={GUESTS_PAGE_TITLE_CLASS}>Shop interest</h1>
-        <p className={GUESTS_PAGE_SUBTITLE_CLASS}>
-          Manage Register Interest products, then promote them to buyable Shop
-          materials. Registration history stays after promote.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className={GUESTS_PAGE_TITLE_CLASS}>Shop interest</h1>
+          <p className={GUESTS_PAGE_SUBTITLE_CLASS}>
+            Manage Register Interest products, then promote them to buyable Shop
+            materials. Registration history stays after promote.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="op-secondary"
+          disabled={loading}
+          onClick={() => void reload()}
+        >
+          Refresh
+        </Button>
       </div>
 
       <section className={GUESTS_SECTION_CLASS}>
@@ -353,7 +373,7 @@ export function AdminShopInterestPanel() {
               ) : products.length === 0 ? (
                 <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                   <TableCell colSpan={4} className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                    No interest products yet.
+                    {loadError ? LOAD_ERROR_TEXT : "No interest products yet."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -377,7 +397,7 @@ export function AdminShopInterestPanel() {
                         )}
                         <div>
                           <div className="font-medium">{product.title}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-op-text-muted">
                             {product.productKey}
                           </div>
                         </div>
@@ -466,7 +486,9 @@ export function AdminShopInterestPanel() {
               ) : counts.length === 0 ? (
                 <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                   <TableCell colSpan={2} className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                    No interest registrations yet.
+                    {loadError
+                      ? LOAD_ERROR_TEXT
+                      : "No interest registrations yet."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -477,7 +499,7 @@ export function AdminShopInterestPanel() {
                   >
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       <div className="font-medium">{row.title}</div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-op-text-muted">
                         {row.productKey}
                       </div>
                     </TableCell>
@@ -542,7 +564,9 @@ export function AdminShopInterestPanel() {
                     colSpan={6}
                     className={GUESTS_TABLE_BODY_CELL_CLASS}
                   >
-                    No interest records yet.
+                    {loadError
+                      ? LOAD_ERROR_TEXT
+                      : "No interest records yet."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -550,7 +574,7 @@ export function AdminShopInterestPanel() {
                   <TableRow key={row.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       <div className="font-medium">{row.productTitle}</div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-op-text-muted">
                         {row.productKey}
                       </div>
                     </TableCell>

@@ -1,12 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import axios from "axios"
-import {
-  DownloadIcon,
-  FactoryIcon,
-  RefreshCcwIcon,
-  TriangleAlertIcon,
-  XIcon,
-} from "lucide-react"
+import { DownloadIcon, TriangleAlertIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { postAdminPaymentRefund } from "@/api/adminApi"
@@ -54,6 +48,7 @@ import {
   createAdminShopOrderPrintAssetsPageModule,
   httpAdminShopOrderPrintAssetsAdapters,
 } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
+import { adminShopOrderPaymentLabel } from "@/lib/admin/adminShopOrdersTablePresentation"
 import {
   OPERATOR_RIGHT_DRAWER_BODY_CLASS,
   OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
@@ -387,6 +382,7 @@ export function AdminShopOrderDetailDrawer({
     const updatedPrintAssets = printAssetsModule.getSnapshot().rows.map(
       ({
         qrType,
+        productTitle,
         quantity,
         status,
         fileName,
@@ -395,6 +391,7 @@ export function AdminShopOrderDetailDrawer({
         printRoute,
       }) => ({
         qrType,
+        productTitle,
         quantity,
         status,
         fileName,
@@ -440,23 +437,6 @@ export function AdminShopOrderDetailDrawer({
     toast.success("Print asset is ready.")
   }
 
-  const printAssetLabel = (
-    qrType: AdminShopOrderListItem["printAssets"][number]["qrType"]
-  ) => {
-    switch (qrType) {
-      case "CounterCard":
-        return "Counter Display"
-      case "TableTent":
-        return "Table Tent QR"
-      case "WindowSticker":
-        return "Window Sticker QR"
-      case "OfferCard":
-        return "QR Guest Cards"
-      default:
-        return qrType
-    }
-  }
-
   const downloadLabel = (
     fileName: string | null,
     printRoute?: string | null
@@ -476,13 +456,13 @@ export function AdminShopOrderDetailDrawer({
       <Drawer open={open} onOpenChange={onOpenChange} direction="right">
         <DrawerContent className={OPERATOR_RIGHT_DRAWER_CONTENT_CLASS}>
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 items-start justify-between gap-[22px] px-[22px] pt-8 pb-[22px]">
+            <div className="flex shrink-0 items-start justify-between gap-[22px] px-6 pt-8 pb-6">
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <div className="flex flex-col gap-1.5">
                   <DrawerTitle className="text-2xl font-bold text-foreground">
                     {order.orderNumber}
                   </DrawerTitle>
-                  <DrawerDescription className="text-sm font-medium text-foreground">
+                  <DrawerDescription className="text-sm font-medium text-op-text-primary">
                     {order.locationNameSnapshot} · Restaurant #
                     {order.restaurantId}
                   </DrawerDescription>
@@ -492,12 +472,12 @@ export function AdminShopOrderDetailDrawer({
                     {adminShopFulfilmentLabel(order.fulfilmentStatus)}
                   </Badge>
                   <Badge variant="soft">
-                    {order.isComplimentary ? "Free" : order.paymentStatus}
+                    {adminShopOrderPaymentLabel(order)}
                   </Badge>
                   {productionStarted ? (
                     <Badge variant="soft">Production started</Badge>
                   ) : null}
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-op-text-primary">
                     {formatAdminShopGbpFromPence(order.grossPence)}
                   </span>
                 </div>
@@ -518,11 +498,11 @@ export function AdminShopOrderDetailDrawer({
           <div
             className={cn(
               OPERATOR_RIGHT_DRAWER_BODY_CLASS,
-              "flex flex-col gap-6 px-[22px] pb-[22px]"
+              "flex flex-col px-6 pb-6"
             )}
           >
             {reviewNotice ? (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="mt-6">
                 <TriangleAlertIcon aria-hidden />
                 <AlertTitle>{reviewNotice.title}</AlertTitle>
                 {reviewNotice.lines.length > 0 ? (
@@ -535,9 +515,9 @@ export function AdminShopOrderDetailDrawer({
               </Alert>
             ) : null}
 
-            <section className="grid gap-3 text-sm sm:grid-cols-2">
+            <section className="grid gap-3 py-6 text-sm text-op-text-primary sm:grid-cols-2">
               <div>
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
                   Paid at
                 </p>
                 <p>
@@ -547,13 +527,13 @@ export function AdminShopOrderDetailDrawer({
                 </p>
               </div>
               <div>
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
                   Location ID
                 </p>
                 <p>{order.locationId}</p>
               </div>
               <div>
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
                   Production started
                 </p>
                 <p>
@@ -563,7 +543,7 @@ export function AdminShopOrderDetailDrawer({
                 </p>
               </div>
               <div className="sm:col-span-2">
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
                   Revolut payment id
                 </p>
                 <p className="break-all font-mono text-xs">
@@ -574,10 +554,12 @@ export function AdminShopOrderDetailDrawer({
 
             <Separator />
 
-            <section className="flex flex-col gap-3">
+            <section className="flex flex-col gap-3 py-6">
               <div>
-                <h3 className="text-sm font-semibold">Print assets</h3>
-                <p className="text-xs text-muted-foreground">
+                <h3 className="text-sm font-semibold text-op-text-primary">
+                  Print assets
+                </h3>
+                <p className="text-xs text-op-text-muted">
                   Preview production details, approve, then download PDF or CSV
                   per product route. Quantity is the print-run instruction.
                 </p>
@@ -589,14 +571,14 @@ export function AdminShopOrderDetailDrawer({
                   return (
                     <li
                       key={asset.qrType}
-                      className="flex flex-col gap-3 rounded-xl border px-3 py-3"
+                      className="flex flex-col gap-3 rounded-xl border p-3"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <p className="font-medium">
-                            {printAssetLabel(asset.qrType)}
+                          <p className="font-medium text-op-text-primary">
+                            {asset.productTitle}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-op-text-muted">
                             Print quantity: {asset.quantity}
                           </p>
                           {asset.lastError && (
@@ -653,22 +635,15 @@ export function AdminShopOrderDetailDrawer({
                                 void handlePrintRetry(asset.qrType)
                               }
                             >
-                              <RefreshCcwIcon />
                               Retry
                             </Button>
                           )}
                         </div>
                       </div>
                       {preview && (
-                        <dl className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                        <dl className="grid gap-1 text-xs text-op-text-muted sm:grid-cols-2">
                           <div>
-                            <dt className="font-medium text-foreground">
-                              Product
-                            </dt>
-                            <dd>{preview.productTitle}</dd>
-                          </div>
-                          <div>
-                            <dt className="font-medium text-foreground">
+                            <dt className="font-medium text-op-text-primary">
                               Location
                             </dt>
                             <dd>
@@ -676,17 +651,17 @@ export function AdminShopOrderDetailDrawer({
                             </dd>
                           </div>
                           <div>
-                            <dt className="font-medium text-foreground">
+                            <dt className="font-medium text-op-text-primary">
                               Placement
                             </dt>
                             <dd>{preview.placement}</dd>
                           </div>
                           <div>
-                            <dt className="font-medium text-foreground">Qty</dt>
+                            <dt className="font-medium text-op-text-primary">Qty</dt>
                             <dd>{preview.quantity}</dd>
                           </div>
                           <div className="sm:col-span-2">
-                            <dt className="font-medium text-foreground">
+                            <dt className="font-medium text-op-text-primary">
                               QR destination
                             </dt>
                             <dd className="break-all">
@@ -695,7 +670,7 @@ export function AdminShopOrderDetailDrawer({
                           </div>
                           {preview.offerHeadline && (
                             <div className="sm:col-span-2">
-                              <dt className="font-medium text-foreground">
+                              <dt className="font-medium text-op-text-primary">
                                 Offer
                               </dt>
                               <dd>{preview.offerHeadline}</dd>
@@ -707,7 +682,7 @@ export function AdminShopOrderDetailDrawer({
                   )
                 })}
                 {printAssets.rows.length === 0 && (
-                  <li className="text-sm text-muted-foreground">
+                  <li className="text-sm text-op-text-primary">
                     No physical QR print assets for this order.
                   </li>
                 )}
@@ -716,30 +691,35 @@ export function AdminShopOrderDetailDrawer({
 
             <Separator />
 
-            <section className="flex flex-col gap-3">
-              <h3 className="text-sm font-semibold">Line items</h3>
+            <section className="flex flex-col gap-3 py-6">
+              <h3 className="text-sm font-semibold text-op-text-primary">
+                Line items
+              </h3>
               <ul className="flex flex-col gap-2">
                 {order.lines.map((line) => (
                   <li
                     key={`${line.catalogSkuId}-${line.titleSnapshot}`}
-                    className="flex items-start justify-between gap-3 rounded-xl border px-3 py-2 text-sm"
+                    className="flex items-start justify-between gap-3 rounded-xl border p-3 text-sm text-op-text-primary"
                   >
                     <div>
                       <p className="font-medium">{line.titleSnapshot}</p>
-                      <p className="text-muted-foreground">
-                        {line.catalogSkuId}
-                      </p>
+                      <p className="text-op-text-muted">{line.catalogSkuId}</p>
                     </div>
                     <div className="text-right">
-                      <p>×{line.quantity}</p>
-                      <p className="text-muted-foreground">
-                        {formatAdminShopGbpFromPence(line.lineNetPence)} net
+                      <p>
+                        {formatAdminShopGbpFromPence(line.unitNetPence)} each
+                        {" × "}
+                        {line.quantity}
+                      </p>
+                      <p className="font-medium">
+                        Line total{" "}
+                        {formatAdminShopGbpFromPence(line.lineNetPence)}
                       </p>
                     </div>
                   </li>
                 ))}
                 {order.lines.length === 0 && (
-                  <li className="text-sm text-muted-foreground">
+                  <li className="text-sm text-op-text-primary">
                     No line items.
                   </li>
                 )}
@@ -748,15 +728,17 @@ export function AdminShopOrderDetailDrawer({
 
             <Separator />
 
-            <section className="flex flex-col gap-3">
-              <h3 className="text-sm font-semibold">Payment refund</h3>
+            <section className="flex flex-col gap-3 py-6">
+              <h3 className="text-sm font-semibold text-op-text-primary">
+                Payment refund
+              </h3>
               {order.paymentStatus === "refunded" ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-op-text-primary">
                   This payment is already marked refunded.
                 </p>
               ) : canRefund ? (
                 <>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-op-text-primary">
                     Starts a Revolut refund for this Shop payment. Payment
                     status flips to Refunded after the refund webhook, and a
                     credit note is minted then. Leave amount empty for a full
@@ -788,7 +770,7 @@ export function AdminShopOrderDetailDrawer({
                   </Button>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-op-text-primary">
                   Refund needs a paid order with a Revolut payment id.
                 </p>
               )}
@@ -796,7 +778,7 @@ export function AdminShopOrderDetailDrawer({
 
             <Separator />
 
-            <section className="flex flex-col gap-3">
+            <section className="flex flex-col gap-3 py-6">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="admin-shop-tracking-url">Tracking URL</Label>
                 <Input
@@ -808,7 +790,7 @@ export function AdminShopOrderDetailDrawer({
                   className="rounded-[2px]"
                 />
                 {!trackingEditable && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-op-text-muted">
                     Tracking is read-only for this status.
                   </p>
                 )}
@@ -877,7 +859,6 @@ export function AdminShopOrderDetailDrawer({
                     disabled={anyBusy}
                     onClick={() => setMarkStartedConfirmOpen(true)}
                   >
-                    <FactoryIcon />
                     Mark production started
                   </Button>
                 )}
@@ -895,7 +876,7 @@ export function AdminShopOrderDetailDrawer({
                 )}
 
                 {isProcessing && (
-                  <p className="w-full text-xs text-muted-foreground">
+                  <p className="w-full text-xs text-op-text-muted">
                     Notes and tracking are saved when you mark the order as
                     Dispatched.
                     {productionStarted

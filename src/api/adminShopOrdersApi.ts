@@ -22,6 +22,8 @@ export type AdminShopPrintAssetQrType =
 
 export type AdminShopPrintAsset = {
   qrType: AdminShopPrintAssetQrType
+  /** Ordered SKU title (for example "QR Counter Display"). */
+  productTitle: string
   quantity: number
   status: "Preparing" | "Ready" | "Failed"
   fileName: string | null
@@ -53,6 +55,7 @@ export type AdminShopOrderListItem = {
   id: string
   orderNumber: string
   restaurantId: number
+  restaurantName: string
   locationId: number
   locationNameSnapshot: string
   fulfilmentStatus: AdminShopFulfilmentStatus | string
@@ -62,6 +65,8 @@ export type AdminShopOrderListItem = {
   trackingUrl: string | null
   opsNotes: string | null
   paidAtUtc: string | null
+  /** ISO UTC when the order was placed. */
+  createdAtUtc: string
   /** ISO UTC when warehouse marked production started; null until stamped. */
   productionStartedAtUtc: string | null
   grossPence: number
