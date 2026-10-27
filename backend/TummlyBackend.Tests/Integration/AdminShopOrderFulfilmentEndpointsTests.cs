@@ -296,6 +296,63 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GuestCard_ShopOrderAsset_StaysPreparingWhenAttachedOfferExpired()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.QrCodes.Add(
+                    new QrCode
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        QrType = QrType.GuestCard,
+                        Token = $"admin-shop-guest-{Guid.NewGuid():N}",
+                        Status = QrCodeStatus.Active,
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                // Attached while live, expired since: checkout would refuse it.
+                var offer = new CatalogOffer
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Title = "Expired Dessert Friday",
+                    Description = "Guest card offer",
+                    Status = CatalogOfferStatus.Active,
+                    Validity = CatalogOfferValidity.ChooseExpiryDate,
+                    CustomExpiryDate = DateOnly.FromDateTime(
+                        DateTime.UtcNow.AddDays(-3)
+                    ),
+                    OfferType = CatalogOfferType.FreeItem,
+                    FreeItemText = "Dessert",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                context.CatalogOffers.Add(offer);
+                await context.SaveChangesAsync();
+                var location = await context.RestaurantLocations
+                    .SingleAsync(row => row.Id == seeded.LocationId);
+                location.OfferCardCatalogOfferId = offer.Id;
+                await context.SaveChangesAsync();
+            }
+
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-guest-cards",
+                titleSnapshot: "QR Guest Cards",
+                quantity: 12
+            );
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var guestCards = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("GuestCard", guestCards.QrType);
+            Assert.Equal("Preparing", guestCards.Status);
+        }
+
+        [Fact]
         public async Task GuestCardCsv_IncludesOfferHeadline_AfterApprove()
         {
             var seeded = await SeedWorkspaceAsync();
