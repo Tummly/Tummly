@@ -3029,15 +3029,25 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CodeHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Generation")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsUsed")
                         .HasColumnType("bit");
@@ -3046,12 +3056,22 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("SubjectId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<int?>("UserId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("Email", "Purpose", "IsUsed");
 
                     b.ToTable("OtpVerifications");
                 });
@@ -3093,6 +3113,9 @@ namespace TummlyBackend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("AbuseWindowStartUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("AccountType")
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
@@ -3109,6 +3132,12 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
+                    b.Property<int>("CodeGeneration")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CodesSentInWindow")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -3122,6 +3151,9 @@ namespace TummlyBackend.Migrations
 
                     b.Property<DateTime?>("EmailVerifiedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("FailedVerifiesInWindow")
+                        .HasColumnType("int");
 
                     b.Property<string>("FullName")
                         .HasMaxLength(150)
@@ -3153,6 +3185,9 @@ namespace TummlyBackend.Migrations
 
                     b.Property<Guid>("SessionToken")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("SessionTokenIssuedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Status")
                         .IsRequired()
