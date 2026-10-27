@@ -366,6 +366,101 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task GuestCards_OfferBelongsToAnotherLocation_Place_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    OfferLocationId: seeded.OutOfScopeLocationId
+                )
+            );
+
+            await AssertGuestCardPlaceOfferRequiredAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+        }
+
+        [Fact]
+        public async Task GuestCards_ArchivedCardOffer_Place_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    Status: CatalogOfferStatus.Archived
+                )
+            );
+
+            await AssertGuestCardPlaceOfferRequiredAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+        }
+
+        [Fact]
+        public async Task GuestCards_ExpiredCardOffer_Place_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    Validity: CatalogOfferValidity.ChooseExpiryDate,
+                    CustomExpiryDate: new DateOnly(2020, 1, 1)
+                )
+            );
+
+            await AssertGuestCardPlaceOfferRequiredAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+        }
+
+        private async Task AssertGuestCardPlaceOfferRequiredAsync(
+            string jwt,
+            int locationId
+        )
+        {
+            var place = await PlaceOrderAsync(
+                jwt,
+                new
+                {
+                    locationId,
+                    lines = new[]
+                    {
+                        new { skuId = "qr-guest-cards", quantity = 250 },
+                    },
+                    deliveryMethod = "standard",
+                    expectedGrossPence = 0,
+                    shipTo = ValidShipTo(),
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, place.StatusCode);
+            var body = await ReadJsonAsync(place);
+            Assert.Equal(
+                OfferCardOfferRequiredException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
         private static object ValidShipTo()
         {
             return new
