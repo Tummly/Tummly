@@ -196,7 +196,7 @@ namespace TummlyBackend.Services
             {
                 return ShopOrderPlaceResult.Fail(
                     OfferCardOfferRequiredException.ErrorCode,
-                    "Set up your card offer before ordering Offer Cards."
+                    OfferCardOfferRequiredException.ErrorMessage
                 );
             }
 
