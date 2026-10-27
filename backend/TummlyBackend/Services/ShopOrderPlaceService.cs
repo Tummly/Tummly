@@ -20,13 +20,15 @@ namespace TummlyBackend.Services
         private readonly IShopCartService _carts;
         private readonly IShopOrderNumberAllocator _orderNumbers;
         private readonly TummlySellerVatSettings _sellerVat;
+        private readonly IShopQrSlotReservationService? _qrSlots;
 
         public ShopOrderPlaceService(
             ApplicationDbContext context,
             IMaterialsCatalog catalog,
             IShopCartService carts,
             IShopOrderNumberAllocator orderNumbers,
-            IOptions<TummlySellerVatSettings> sellerVat
+            IOptions<TummlySellerVatSettings> sellerVat,
+            IShopQrSlotReservationService? qrSlots = null
         )
         {
             _context = context;
@@ -34,6 +36,7 @@ namespace TummlyBackend.Services
             _carts = carts;
             _orderNumbers = orderNumbers;
             _sellerVat = sellerVat.Value;
+            _qrSlots = qrSlots;
         }
 
         public async Task<ShopDeliveryDefaultsDto?> GetDeliveryDefaultsAsync(
@@ -195,6 +198,36 @@ namespace TummlyBackend.Services
                     OfferCardOfferRequiredException.ErrorCode,
                     "Set up your card offer before ordering Offer Cards."
                 );
+            }
+
+            // Check only: no lock held past the call and no reservation written.
+            if (_qrSlots != null)
+            {
+                var slotTypes = ShopQrSlotTypes.FromSkuIds(
+                    pricedLines.Select(line => line.SkuId),
+                    _catalog
+                );
+                if (slotTypes.Count > 0)
+                {
+                    var capacity = await _qrSlots.CheckForPlaceAsync(
+                        restaurantId,
+                        location.Id,
+                        slotTypes,
+                        cancellationToken
+                    );
+                    if (!capacity.EntitlementsAvailable)
+                    {
+                        return ShopOrderPlaceResult.Fail(
+                            ShopQrLimit.EntitlementsUnavailableCode,
+                            ShopQrLimit.EntitlementsUnavailableMessage
+                        );
+                    }
+
+                    if (!capacity.Ok)
+                    {
+                        return ShopOrderPlaceResult.FailQrLimit(capacity.Limit);
+                    }
+                }
             }
 
             var materialsNetPence = pricedLines.Sum(line => line.LineNetPence);

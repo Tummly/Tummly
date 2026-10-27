@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -261,6 +262,59 @@ namespace TummlyBackend.Tests.Integration
                 OfferCardOfferRequiredException.ErrorCode,
                 body.GetProperty("code").GetString()
             );
+        }
+
+        [Fact]
+        public async Task Place_AtLimit_NeedsNewGuestCardQr_Returns409QrLimitReachedWithLimit()
+        {
+            ShopCapacityWorkspace workspace;
+            int cap;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                workspace = await ShopCapacityTestSeed.SeedWorkspaceAsync(
+                    context,
+                    scope.ServiceProvider.GetRequiredService<IJwtService>()
+                );
+                await ShopCapacityTestSeed.MakeOrderableAsync(
+                    context,
+                    workspace,
+                    "qr-guest-cards"
+                );
+                cap = await ShopCapacityTestSeed.LeaveFreeSlotsAsync(
+                    context,
+                    workspace,
+                    freeSlots: 0
+                );
+            }
+
+            var place = await PlaceOrderAsync(
+                workspace.Jwt,
+                new
+                {
+                    locationId = workspace.LocationId,
+                    lines = new[]
+                    {
+                        new { skuId = "qr-guest-cards", quantity = 250 },
+                    },
+                    deliveryMethod = "standard",
+                    expectedGrossPence = 0,
+                    shipTo = ValidShipTo(),
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, place.StatusCode);
+            var body = await ReadJsonAsync(place);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("qr_limit_reached", body.GetProperty("code").GetString());
+            Assert.Equal(cap, body.GetProperty("limit").GetInt32());
+            Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("message").GetString()));
+
+            using var verify = _factory.Services.CreateScope();
+            var db = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.False(await db.ShopOrders.AnyAsync(row => row.LocationId == workspace.LocationId));
+            Assert.False(await db.ShopQrSlotReservations.AnyAsync(row => row.RestaurantLocationId == workspace.LocationId));
         }
 
         [Fact]
