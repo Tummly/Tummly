@@ -417,6 +417,51 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(25, types[QrType.TableTent]);
         }
 
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void ResolveOrderedQrTypes_DuplicateSkuId_PrefersLiveRowOverDeleted(
+            bool deletedRowFirst
+        )
+        {
+            var deleted = CatalogSku(
+                "table-tents",
+                "WindowSticker",
+                isDeleted: true
+            );
+            var live = CatalogSku("table-tents", "TableTent");
+            var catalog = new FixedSkuCatalog(
+                deletedRowFirst ? [deleted, live] : [live, deleted]
+            );
+
+            var types = PrintReadyQrMaterialsService.ResolveOrderedQrTypes(
+                [new ShopOrderLine { CatalogSkuId = "table-tents", Quantity = 25 }],
+                catalog
+            );
+
+            var type = Assert.Single(types);
+            Assert.Equal(QrType.TableTent, type.Key);
+            Assert.Equal(25, type.Value);
+        }
+
+        [Fact]
+        public void ResolveOrderedQrTypes_DuplicateSkuId_AllDeleted_ResolvesOneTypeWithoutThrowing()
+        {
+            var catalog = new FixedSkuCatalog(
+                [
+                    CatalogSku("table-tents", "TableTent", isDeleted: true),
+                    CatalogSku("table-tents", "WindowSticker", isDeleted: true),
+                ]
+            );
+
+            var types = PrintReadyQrMaterialsService.ResolveOrderedQrTypes(
+                [new ShopOrderLine { CatalogSkuId = "table-tents", Quantity = 4 }],
+                catalog
+            );
+
+            Assert.Single(types);
+        }
+
         [Fact]
         public async Task InvalidateAfterQrRotation_InvalidatesAndQueuesEveryAssetScope()
         {
@@ -968,6 +1013,48 @@ namespace TummlyBackend.Tests.Services
                 _objects.Remove(storageKey);
                 return Task.CompletedTask;
             }
+        }
+
+        private static MaterialsCatalogSku CatalogSku(
+            string skuId,
+            string qrType,
+            bool isDeleted = false
+        ) =>
+            new()
+            {
+                SkuId = skuId,
+                Title = skuId,
+                Category = "tabletop",
+                Description = "Test SKU",
+                Material = "Acrylic",
+                Dimensions = "A6",
+                QrType = qrType,
+                Currency = "GBP",
+                ImageUrl = string.Empty,
+                IsDeleted = isDeleted,
+            };
+
+        private sealed class FixedSkuCatalog : IMaterialsCatalog
+        {
+            private readonly IReadOnlyList<MaterialsCatalogSku> _skus;
+
+            public FixedSkuCatalog(IReadOnlyList<MaterialsCatalogSku> skus)
+            {
+                _skus = skus;
+            }
+
+            public string CurrentCatalogId => "fixed";
+
+            public MaterialsCatalogSnapshot GetRequired(string catalogId) =>
+                new() { Id = catalogId, Skus = _skus };
+
+            public IReadOnlyList<
+                TummlyBackend.DTOs.Shop.ShopCatalogListItemDto
+            > BuildList() => [];
+
+            public TummlyBackend.DTOs.Shop.ShopCatalogDetailDto? TryBuildDetail(
+                string skuId
+            ) => null;
         }
 
         private sealed class EmptyMaterialsCatalog : IMaterialsCatalog

@@ -169,6 +169,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 PopularBadge = ResolvePopularBadge(sku),
                 AvailableInShop = sku.AvailableInShop,
                 MintOnShopFulfilment = sku.MintOnShopFulfilment,
+                IsDeleted = sku.Status == ShopMaterialSkuStatuses.Deleted,
             };
         }
     }
