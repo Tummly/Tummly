@@ -2,12 +2,11 @@ import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { isAxiosError } from "axios"
 import { useForm } from "react-hook-form"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 
 import { startSignup } from "@/api/signupApi"
 import { SignupForm } from "@/components/signup/SignupForm"
 import { SignupModalShell } from "@/components/signup/SignupModalShell"
-import { OTP_MESSAGES } from "@/components/home/hero-trial-otp"
 import { defaultFormValidationOptions } from "@/lib/form"
 import {
   clearOAuthErrorMessage,
@@ -17,7 +16,8 @@ import {
 } from "@/lib/oauthErrorCopy"
 import {
   buildSignupVerifyPath,
-  saveSignupSessionToken,
+  SIGNUP_SESSION_EXPIRED_MESSAGE,
+  isSignupSessionExpiredState,
 } from "@/lib/signupSession"
 import { captureSignupPlanIntentFromSearch } from "@/lib/signupPlanIntent"
 import {
@@ -41,6 +41,7 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 
 function SignupPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const form = useForm<SignupStartValues>({
@@ -52,6 +53,15 @@ function SignupPage() {
   useEffect(() => {
     captureSignupPlanIntentFromSearch(searchParams)
   }, [searchParams])
+
+  useEffect(() => {
+    // A user mid-signup at deploy is sent here with the expired state.
+    if (isSignupSessionExpiredState(location.state)) {
+      form.setError("root", { message: SIGNUP_SESSION_EXPIRED_MESSAGE })
+    }
+    // Intentional: show once for the navigation that carried the state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot banner
+  }, [])
 
   useEffect(() => {
     const emailFromQuery = searchParams.get("email")?.trim()
@@ -105,24 +115,15 @@ function SignupPage() {
 
     try {
       const payload = toSignupStartPayload(values)
-      const session = await startSignup(payload)
-      saveSignupSessionToken(session.sessionToken)
-      navigate(buildSignupVerifyPath(session.email))
+      const result = await startSignup(payload)
+      navigate(buildSignupVerifyPath(result.email))
     } catch (error) {
-      const message = getApiErrorMessage(
-        error,
-        "We couldn't start signup. Please try again."
-      )
-      const normalized = message.trim().toLowerCase()
-
-      if (normalized.includes("email already in use")) {
-        form.setError("email", {
-          message: OTP_MESSAGES.email_in_use,
-        })
-        return
-      }
-
-      form.setError("root", { message })
+      form.setError("root", {
+        message: getApiErrorMessage(
+          error,
+          "We couldn't start signup. Please try again."
+        ),
+      })
     }
   }
 

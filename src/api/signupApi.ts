@@ -9,6 +9,39 @@ import type {
 
 const skipAuth = { skipAuthRedirect: true } as const
 
+/** Signup endpoints take the proof-of-email token only in this header. */
+const SIGNUP_SESSION_HEADER = "X-Signup-Session"
+
+function signupSessionConfig(sessionToken: string) {
+  return {
+    headers: { [SIGNUP_SESSION_HEADER]: sessionToken },
+    ...skipAuth,
+  } as const
+}
+
+/**
+ * Keep the server's `code` (and `retryAfterUtc` when locked) on the thrown
+ * error so callers can map it. Axios errors without a body code pass through.
+ */
+async function withSignupErrorFields<T>(request: Promise<T>): Promise<T> {
+  try {
+    return await request
+  } catch (error) {
+    if (isAxiosError<{ code?: unknown; retryAfterUtc?: unknown }>(error)) {
+      const data = error.response?.data
+      const fields: { code?: string; retryAfterUtc?: string } = {}
+      if (typeof data?.code === "string") {
+        fields.code = data.code
+      }
+      if (typeof data?.retryAfterUtc === "string") {
+        fields.retryAfterUtc = data.retryAfterUtc
+      }
+      Object.assign(error, fields)
+    }
+    throw error
+  }
+}
+
 export type SignupSessionLoginResult = {
   token: string
   refreshToken: string | null
@@ -38,13 +71,20 @@ export class SignupSessionLoginError extends Error {
   }
 }
 
+export type SignupStartResult = {
+  email: string
+  status: "code_sent"
+}
+
+/** Returned by verify-otp and onboarding. Only verify-otp carries a usable token. */
 export type SignupSession = {
   sessionToken: string
   email: string
   status: string
 }
 
-export type SignupResume = SignupSession & {
+/** `GET /Signup/session` never returns the token. A Complete row returns status only. */
+export type SignupResume = Omit<SignupSession, "sessionToken"> & {
   lastStepHint: string
   fullName: string | null
   accountType: string | null
@@ -99,9 +139,9 @@ function asSignupSession(data: Record<string, unknown>): SignupSession {
 }
 
 function asSignupResume(data: Record<string, unknown>): SignupResume {
-  const session = asSignupSession(data)
   return {
-    ...session,
+    email: String(data.email ?? ""),
+    status: String(data.status ?? ""),
     lastStepHint: String(data.lastStepHint ?? ""),
     fullName: typeof data.fullName === "string" ? data.fullName : null,
     accountType: typeof data.accountType === "string" ? data.accountType : null,
@@ -127,29 +167,32 @@ function requireDataObject(payload: unknown): Record<string, unknown> {
   return data
 }
 
+/** Start sends a code only. It never returns a token; verify-otp does. */
 export async function startSignup(
   data: SignupStartPayload
-): Promise<SignupSession> {
-  const response = await axiosInstance.post("/Signup/start", data, skipAuth)
-  return asSignupSession(requireDataObject(response.data))
+): Promise<SignupStartResult> {
+  const response = await withSignupErrorFields(
+    axiosInstance.post("/Signup/start", data, skipAuth)
+  )
+  const payload = requireDataObject(response.data)
+  return {
+    email: String(payload.email ?? ""),
+    status: "code_sent",
+  }
 }
 
 export async function verifySignupOtp(
   data: SignupVerifyOtpPayload
 ): Promise<SignupSession> {
-  const response = await axiosInstance.post(
-    "/Signup/verify-otp",
-    data,
-    skipAuth
+  const response = await withSignupErrorFields(
+    axiosInstance.post("/Signup/verify-otp", data, skipAuth)
   )
   return asSignupSession(requireDataObject(response.data))
 }
 
 export async function resendSignupOtp(email: string): Promise<unknown> {
-  const response = await axiosInstance.post(
-    "/Signup/resend-otp",
-    { email },
-    skipAuth
+  const response = await withSignupErrorFields(
+    axiosInstance.post("/Signup/resend-otp", { email }, skipAuth)
   )
   return response.data
 }
@@ -158,55 +201,46 @@ export async function saveSignupOnboarding(
   sessionToken: string,
   data: SignupOnboardingPayload
 ): Promise<SignupSession> {
-  let response
-  try {
-    response = await axiosInstance.post("/Signup/onboarding", data, {
-      params: { sessionToken },
-      ...skipAuth,
-    })
-  } catch (error) {
-    // Keep the server code (for example quote_changed) on the thrown error.
-    const code = isAxiosError<{ code?: unknown }>(error)
-      ? error.response?.data?.code
-      : undefined
-    if (typeof code === "string") {
-      Object.assign(error as Error, { code })
-    }
-    throw error
-  }
+  const response = await withSignupErrorFields(
+    axiosInstance.post(
+      "/Signup/onboarding",
+      data,
+      signupSessionConfig(sessionToken)
+    )
+  )
   return asSignupSession(requireDataObject(response.data))
 }
 
 export async function getSignupSession(
   sessionToken: string
 ): Promise<SignupResume> {
-  const response = await axiosInstance.get("/Signup/session", {
-    params: { sessionToken },
-    ...skipAuth,
-  })
+  const response = await withSignupErrorFields(
+    axiosInstance.get("/Signup/session", signupSessionConfig(sessionToken))
+  )
   return asSignupResume(requireDataObject(response.data))
 }
 
 export async function retrySignupProvision(
   sessionToken: string
 ): Promise<void> {
-  await axiosInstance.post(
-    "/Signup/retry-provision",
-    null,
-    {
-      params: { sessionToken },
-      ...skipAuth,
-    }
+  await withSignupErrorFields(
+    axiosInstance.post(
+      "/Signup/retry-provision",
+      null,
+      signupSessionConfig(sessionToken)
+    )
   )
 }
 
 export async function getSignupProvisioningStatus(
   sessionToken: string
 ): Promise<SignupProvisioningStatus> {
-  const response = await axiosInstance.get("/Signup/provisioning-status", {
-    params: { sessionToken },
-    ...skipAuth,
-  })
+  const response = await withSignupErrorFields(
+    axiosInstance.get(
+      "/Signup/provisioning-status",
+      signupSessionConfig(sessionToken)
+    )
+  )
   const payload = requireDataObject(response.data)
   return {
     status: String(payload.status ?? ""),
