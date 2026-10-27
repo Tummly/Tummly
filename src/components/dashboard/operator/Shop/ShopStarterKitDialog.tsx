@@ -10,11 +10,14 @@ import {
 import { Button } from "@/components/ui/button"
 
 /** Named paid materials-pack SKU quantities (not lifetime Starter kit). */
-export const SHOP_MATERIALS_PACK_LINES = [
+export const SHOP_MATERIALS_PACK_LINES: ReadonlyArray<{
+  skuId: string
+  quantity: number
+}> = [
   { skuId: "table-tents", quantity: 10 },
   { skuId: "window-stickers", quantity: 5 },
   { skuId: "qr-counter-display", quantity: 5 },
-] as const
+]
 
 type ShopMaterialsPackDialogProps = {
   open: boolean

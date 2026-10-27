@@ -63,8 +63,9 @@ import { shouldGateFreeProductWrite } from "@/lib/operatorHome/freeProductWriteG
 import { createShopOfferCardSetupModule } from "@/lib/operatorShop/createShopOfferCardSetupModule"
 import {
   SHOP_OFFER_CARD_SETUP_COPY,
-  SHOP_OFFER_CARD_SKU_ID,
+  SHOP_GUEST_CARD_SKU_ID,
 } from "@/lib/operatorShop/shopOfferCardSetupPresentation"
+import { readShopApiErrorCode } from "@/lib/operatorShop/readShopApiErrorCode"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import { shouldShowShopRecommendations } from "@/lib/operatorShop/shouldShowShopRecommendations"
 import type { ShopLocationOption } from "@/components/dashboard/operator/Shop/ShopLocationPicker"
@@ -165,11 +166,16 @@ export function ShopPage({
     ShopInterestProduct[]
   >([])
 
+  const guestCardAvailable =
+    findShopProductById(catalogProducts, SHOP_GUEST_CARD_SKU_ID)
+      ?.availableInShop === true
+
   const offerCardSetupModule = useMemo(
     () =>
       createShopOfferCardSetupModule({
         locationId: () => selectedLocationId,
         isEnabled: () => offerCardSetupEnabled,
+        isGuestCardAvailable: () => guestCardAvailable,
         getAttached: () => fetchShopOfferCardOffer(selectedLocationId),
         createCatalogOffer: async (body) => {
           const created = await createCatalogOffer(body)
@@ -180,13 +186,22 @@ export function ShopPage({
         onError: (message) => toast.error(message),
         onSuccess: (message) => toast.success(message),
       }),
-    [offerCardSetupEnabled, selectedLocationId]
+    [guestCardAvailable, offerCardSetupEnabled, selectedLocationId]
   )
   const offerCardSetup = useSyncExternalStore(
     offerCardSetupModule.subscribe,
     offerCardSetupModule.getSnapshot,
     offerCardSetupModule.getSnapshot
   )
+
+  /** Server refused a Guest Card line until a card offer is attached. */
+  const openOfferCardSetupIfRequired = (error: unknown): boolean => {
+    if (readShopApiErrorCode(error) !== "offer_card_offer_required") {
+      return false
+    }
+    offerCardSetupModule.open()
+    return true
+  }
 
   const requireOfferCardAttach = (): boolean => {
     if (!offerCardSetupEnabled) {
@@ -482,7 +497,7 @@ export function ShopPage({
     }
 
     if (
-      product.id === SHOP_OFFER_CARD_SKU_ID
+      product.id === SHOP_GUEST_CARD_SKU_ID
       && !requireOfferCardAttach()
     ) {
       return
@@ -497,8 +512,10 @@ export function ShopPage({
       // One line per SKU: selected pack qty replaces any prior pack on the line.
       await putAbsoluteQuantity(product.id, packQty)
       toast.success(`Added ${product.title} to cart`)
-    } catch {
-      toast.error("Could not update cart.")
+    } catch (error) {
+      if (!openOfferCardSetupIfRequired(error)) {
+        toast.error("Could not update cart.")
+      }
     }
   }
 
@@ -509,8 +526,10 @@ export function ShopPage({
 
     try {
       await putAbsoluteQuantity(productId, quantity)
-    } catch {
-      toast.error("Could not update cart.")
+    } catch (error) {
+      if (!openOfferCardSetupIfRequired(error)) {
+        toast.error("Could not update cart.")
+      }
     }
   }
 
@@ -546,7 +565,7 @@ export function ShopPage({
     }
 
     const includesOfferCard = SHOP_MATERIALS_PACK_LINES.some(
-      (line) => line.skuId === SHOP_OFFER_CARD_SKU_ID
+      (line) => line.skuId === SHOP_GUEST_CARD_SKU_ID
     )
     if (includesOfferCard && !requireOfferCardAttach()) {
       return
@@ -561,8 +580,10 @@ export function ShopPage({
       }
       toast.success(`Materials pack added to cart for ${locationName}`)
       setIsCartOpen(true)
-    } catch {
-      toast.error("Could not add materials pack.")
+    } catch (error) {
+      if (!openOfferCardSetupIfRequired(error)) {
+        toast.error("Could not add materials pack.")
+      }
     }
   }
 
@@ -578,7 +599,7 @@ export function ShopPage({
     }
 
     if (
-      lines.some((line) => line.skuId === SHOP_OFFER_CARD_SKU_ID)
+      lines.some((line) => line.skuId === SHOP_GUEST_CARD_SKU_ID)
       && !requireOfferCardAttach()
     ) {
       return
@@ -591,8 +612,10 @@ export function ShopPage({
 
       toast.success(`Recommended materials kit added to cart for ${locationName}`)
       setIsCartOpen(true)
-    } catch {
-      toast.error("Could not add recommended kit.")
+    } catch (error) {
+      if (!openOfferCardSetupIfRequired(error)) {
+        toast.error("Could not add recommended kit.")
+      }
     }
   }
 
@@ -604,7 +627,7 @@ export function ShopPage({
       return
     }
 
-    if (skuId === SHOP_OFFER_CARD_SKU_ID && !requireOfferCardAttach()) {
+    if (skuId === SHOP_GUEST_CARD_SKU_ID && !requireOfferCardAttach()) {
       return
     }
 
@@ -612,8 +635,10 @@ export function ShopPage({
       await putAbsoluteQuantity(skuId, quantity)
       toast.success("Item added to cart")
       setIsCartOpen(true)
-    } catch {
-      toast.error("Could not add item to cart.")
+    } catch (error) {
+      if (!openOfferCardSetupIfRequired(error)) {
+        toast.error("Could not add item to cart.")
+      }
     }
   }
 
@@ -638,7 +663,7 @@ export function ShopPage({
     }
 
     if (
-      cartItems.some((item) => item.product.id === SHOP_OFFER_CARD_SKU_ID)
+      cartItems.some((item) => item.product.id === SHOP_GUEST_CARD_SKU_ID)
       && !requireOfferCardAttach()
     ) {
       return
@@ -667,7 +692,7 @@ export function ShopPage({
     }
 
     if (
-      product.id === SHOP_OFFER_CARD_SKU_ID
+      product.id === SHOP_GUEST_CARD_SKU_ID
       && !requireOfferCardAttach()
     ) {
       return
@@ -710,6 +735,9 @@ export function ShopPage({
           mode={mode}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
+          onOfferCardRequired={() => {
+            offerCardSetupModule.open()
+          }}
           onBackToProduct={() => {
             const wasFromCart = checkoutFromCart
             const expressSkuId = expressCheckout?.lines[0]?.skuId
@@ -751,7 +779,7 @@ export function ShopPage({
           onReorder={({ prefill }) => {
             if (
               prefill.lines.some(
-                (line) => line.skuId === SHOP_OFFER_CARD_SKU_ID
+                (line) => line.skuId === SHOP_GUEST_CARD_SKU_ID
               )
               && !requireOfferCardAttach()
             ) {

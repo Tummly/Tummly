@@ -32,6 +32,7 @@ import {
   type CheckoutLine,
   type ShopShipToPayload,
 } from "@/api/shopOrdersApi"
+import { readShopApiErrorCode } from "@/lib/operatorShop/readShopApiErrorCode"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import { ShopPaidWriteHelperNote } from "@/components/dashboard/operator/Shop/ShopPaidWriteHelperNote"
 import {
@@ -67,6 +68,8 @@ type ShopCheckoutScreenProps = {
   onBackToShop: () => void
   onBackToProduct?: () => void
   onOrderPlaced?: (orderNumber: string) => void
+  /** Place or pay refused a Guest Card line until a card offer is attached. */
+  onOfferCardRequired?: () => void
   paidWriteChrome: ShopPaidWriteChrome
   /** Effective seller VAT rate (bps). Defaults to 0 (launch OFF / net-only). */
   vatRateBps?: number
@@ -102,6 +105,7 @@ export function ShopCheckoutScreen({
   onBackToShop,
   onBackToProduct,
   onOrderPlaced,
+  onOfferCardRequired,
   paidWriteChrome,
   vatRateBps = 0,
 }: ShopCheckoutScreenProps) {
@@ -350,7 +354,11 @@ export function ShopCheckoutScreen({
       }
 
       toast.error("Could not start Revolut payment.")
-    } catch {
+    } catch (error) {
+      if (readShopApiErrorCode(error) === "offer_card_offer_required") {
+        onOfferCardRequired?.()
+        return
+      }
       toast.error("Could not place order.")
     } finally {
       setIsPaymentProcessing(false)
