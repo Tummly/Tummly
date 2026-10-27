@@ -52,16 +52,31 @@ namespace TummlyBackend.Interfaces
         Task<int> CountUsedAsync(int locationId, CancellationToken ct);
 
         /// <summary>
+        /// Slots that activating one Paused code of <paramref name="qrType"/> at
+        /// the location takes: 0 when it takes over a held reservation of that
+        /// type with no Active code of that type, otherwise 1.
+        /// </summary>
+        Task<int> ActivationCostAsync(
+            int locationId,
+            QrType qrType,
+            CancellationToken ct
+        );
+
+        /// <summary>
         /// Checks whether <paramref name="increment"/> more slots fit under the
         /// per-location cap or the account-extra pool. Calls
         /// <see cref="LockBillingAccountAsync"/> itself. An increment of zero
-        /// or less always fits and reads nothing.
+        /// or less always fits and reads nothing. Pass
+        /// <paramref name="activatingType"/> when the increment activates one
+        /// existing Paused code of that type, so a held slot of that type is not
+        /// counted twice.
         /// </summary>
         Task<ActiveQrCapacityDecision> EvaluateAsync(
             int restaurantId,
             int locationId,
             int increment,
-            CancellationToken ct
+            QrType? activatingType = null,
+            CancellationToken ct = default
         );
     }
 }

@@ -845,6 +845,77 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(QrCodeStatus.Paused, stillPaused.Status);
         }
 
+        [Fact]
+        public async Task ActivatePlanPausedCodes_HeldReservationAtCap_DoesNotReactivateBeyondHeadroom()
+        {
+            // Pilot cap is 5 Active codes per Location. Four Active codes plus
+            // one held reservation fill the cap, so no Paused code may reactivate.
+            for (var i = 1; i <= 4; i++)
+            {
+                await SeedDigitalAsync($"Held cap link {i}", QrCodeStatus.Active);
+            }
+            await SeedHeldReservationAsync(_locationId, QrType.GuestCard);
+            var paused = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Paused);
+
+            var activated = await _service.ActivatePlanPausedCodesAsync(
+                _restaurantId
+            );
+
+            Assert.Equal(0, activated);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(paused.Id)).Status);
+        }
+
+        [Fact]
+        public async Task Resume_HeldReservationOfSameType_AtCap_Succeeds()
+        {
+            for (var i = 1; i <= 4; i++)
+            {
+                await SeedDigitalAsync($"Same type link {i}", QrCodeStatus.Active);
+            }
+            await SeedHeldReservationAsync(_locationId, QrType.GuestCard);
+            var paused = await SeedQrAsync(QrType.GuestCard, QrCodeStatus.Paused);
+
+            var result = await _service.ResumeAsync(CodeCommand(paused.Id));
+
+            // Activating GuestCard consumes its held slot; no new slot is needed.
+            Assert.Equal(QrLifecycleResultKind.Ok, result.Kind);
+            Assert.Equal(QrCodeStatus.Active, (await ReloadAsync(paused.Id)).Status);
+        }
+
+        [Fact]
+        public async Task Resume_OtherType_AtCapWithHeldReservation_Refused()
+        {
+            for (var i = 1; i <= 4; i++)
+            {
+                await SeedDigitalAsync($"Other type link {i}", QrCodeStatus.Active);
+            }
+            await SeedHeldReservationAsync(_locationId, QrType.GuestCard);
+            var paused = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Paused);
+
+            var result = await _service.ResumeAsync(CodeCommand(paused.Id));
+
+            Assert.Equal(QrLifecycleResultKind.Conflict, result.Kind);
+            Assert.Equal("active_qr_cap_reached", result.Code);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(paused.Id)).Status);
+        }
+
+        private async Task SeedHeldReservationAsync(int locationId, QrType qrType)
+        {
+            var now = DateTime.UtcNow;
+            _context.ShopQrSlotReservations.Add(new ShopQrSlotReservation
+            {
+                Id = Guid.NewGuid(),
+                ShopOrderId = Guid.NewGuid(),
+                RestaurantLocationId = locationId,
+                QrType = qrType,
+                Status = ShopQrSlotReservationStatuses.Open,
+                ReconcileAfterUtc = now.AddMinutes(30),
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now,
+            });
+            await _context.SaveChangesAsync();
+        }
+
         public void Dispose()
         {
             _context.Dispose();

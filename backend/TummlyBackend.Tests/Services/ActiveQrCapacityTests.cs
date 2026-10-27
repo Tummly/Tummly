@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -45,8 +46,8 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task CountUsed_TwoHeldReservationsSameType_CountOnce()
         {
-            await SeedReservationAsync(QrType.GuestCard, ShopQrSlotReservationStatuses.Open);
-            await SeedReservationAsync(QrType.GuestCard, ShopQrSlotReservationStatuses.Open);
+            await SeedReservationAsync(_locationId, QrType.GuestCard, ShopQrSlotReservationStatuses.Open);
+            await SeedReservationAsync(_locationId, QrType.GuestCard, ShopQrSlotReservationStatuses.Open);
 
             var used = await _capacity.CountUsedAsync(_locationId, CancellationToken.None);
 
@@ -57,7 +58,7 @@ namespace TummlyBackend.Tests.Services
         public async Task CountUsed_HeldReservationWhereActiveCodeExists_NotCounted()
         {
             await SeedQrAsync(QrType.TableTent, QrCodeStatus.Active);
-            await SeedReservationAsync(QrType.TableTent, ShopQrSlotReservationStatuses.Open);
+            await SeedReservationAsync(_locationId, QrType.TableTent, ShopQrSlotReservationStatuses.Open);
 
             var used = await _capacity.CountUsedAsync(_locationId, CancellationToken.None);
 
@@ -67,7 +68,7 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task CountUsed_ReviewStatusCountsAsHeld()
         {
-            await SeedReservationAsync(QrType.TableTalker, ShopQrSlotReservationStatuses.Review);
+            await SeedReservationAsync(_locationId, QrType.TableTalker, ShopQrSlotReservationStatuses.Review);
 
             var used = await _capacity.CountUsedAsync(_locationId, CancellationToken.None);
 
@@ -77,8 +78,8 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task CountUsed_ReleasedAndConverted_NotCounted()
         {
-            await SeedReservationAsync(QrType.GuestCard, ShopQrSlotReservationStatuses.Released);
-            await SeedReservationAsync(QrType.TableTent, ShopQrSlotReservationStatuses.Converted);
+            await SeedReservationAsync(_locationId, QrType.GuestCard, ShopQrSlotReservationStatuses.Released);
+            await SeedReservationAsync(_locationId, QrType.TableTent, ShopQrSlotReservationStatuses.Converted);
 
             var used = await _capacity.CountUsedAsync(_locationId, CancellationToken.None);
 
@@ -88,21 +89,54 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task EvaluateAsync_HeldReservationTakesSlot_NoLongerFitsAtCap()
         {
-            var probe = await _capacity.EvaluateAsync(_restaurantId, _locationId, 1, CancellationToken.None);
+            var probe = await _capacity.EvaluateAsync(_restaurantId, _locationId, 1, ct: CancellationToken.None);
             Assert.True(probe.EntitlementsAvailable);
             var cap = probe.PerLocationCap;
             Assert.True(cap >= 1);
 
-            var beforeReservation = await _capacity.EvaluateAsync(_restaurantId, _locationId, cap, CancellationToken.None);
+            var beforeReservation = await _capacity.EvaluateAsync(_restaurantId, _locationId, cap, ct: CancellationToken.None);
             Assert.True(beforeReservation.Fits);
             Assert.Equal(0, beforeReservation.Used);
 
-            await SeedReservationAsync(QrType.GuestCard, ShopQrSlotReservationStatuses.Open);
+            await SeedReservationAsync(_locationId, QrType.GuestCard, ShopQrSlotReservationStatuses.Open);
 
-            var afterReservation = await _capacity.EvaluateAsync(_restaurantId, _locationId, cap, CancellationToken.None);
+            var afterReservation = await _capacity.EvaluateAsync(_restaurantId, _locationId, cap, ct: CancellationToken.None);
             Assert.False(afterReservation.Fits);
             Assert.Equal(1, afterReservation.Used);
             Assert.Equal(cap, afterReservation.PerLocationCap);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_AccountPool_CountsHeldReservationAtOtherLocation()
+        {
+            await UseCustomPlanAsync(qrPlacements: 1, accountExtra: 1);
+            var otherLocationId = await AddLocationAsync("Second site");
+            await SeedQrAsync(QrType.DigitalGuestLink, QrCodeStatus.Active);
+
+            // Location A is at its cap of 1. The pool of 1 absorbs its overflow.
+            var before = await _capacity.EvaluateAsync(_restaurantId, _locationId, 1, ct: CancellationToken.None);
+            Assert.True(before.Fits);
+
+            // Two held slots at location B add 1 more overflow, so the pool is exceeded.
+            await SeedReservationAsync(otherLocationId, QrType.GuestCard, ShopQrSlotReservationStatuses.Open);
+            await SeedReservationAsync(otherLocationId, QrType.TableTent, ShopQrSlotReservationStatuses.Open);
+
+            var after = await _capacity.EvaluateAsync(_restaurantId, _locationId, 1, ct: CancellationToken.None);
+            Assert.False(after.Fits);
+            Assert.Equal(1, after.Used);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_NoEntitlements_ReportsUnavailable()
+        {
+            var billing = await _context.BillingAccounts.SingleAsync(row => row.RestaurantId == _restaurantId);
+            billing.ContractedPricebookId = string.Empty;
+            await _context.SaveChangesAsync();
+
+            var decision = await _capacity.EvaluateAsync(_restaurantId, _locationId, 1, ct: CancellationToken.None);
+
+            Assert.False(decision.EntitlementsAvailable);
+            Assert.False(decision.Fits);
         }
 
         public void Dispose()
@@ -146,6 +180,43 @@ namespace TummlyBackend.Tests.Services
             _locationId = location.Id;
         }
 
+        private async Task UseCustomPlanAsync(int qrPlacements, int accountExtra)
+        {
+            var billing = await _context.BillingAccounts.SingleAsync(row => row.RestaurantId == _restaurantId);
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Custom;
+            billing.CustomPlanConfigJson = new CustomPlanConfig
+            {
+                Version = 2,
+                BasePlan = "starter",
+                Cadence = "monthly",
+                Locations = 2,
+                Quantities = new CustomPlanQuantities
+                {
+                    Locations = 2,
+                    QrPlacements = qrPlacements,
+                    QrPlacementsAccountExtra = accountExtra,
+                },
+                MonthlyNetPence = 3900,
+                PeriodNetPence = 3900,
+            }.ToJson();
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task<int> AddLocationAsync(string name)
+        {
+            var location = new RestaurantLocation
+            {
+                RestaurantId = _restaurantId,
+                LocationName = name,
+                Address = "2 High Street",
+                CreatedAt = DateTime.UtcNow,
+                CaptureLocationStatus = CaptureLocationStatus.Active,
+            };
+            _context.RestaurantLocations.Add(location);
+            await _context.SaveChangesAsync();
+            return location.Id;
+        }
+
         private async Task SeedQrAsync(QrType qrType, QrCodeStatus status)
         {
             _context.QrCodes.Add(new QrCode
@@ -159,14 +230,14 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
         }
 
-        private async Task SeedReservationAsync(QrType qrType, string status)
+        private async Task SeedReservationAsync(int locationId, QrType qrType, string status)
         {
             var now = DateTime.UtcNow;
             _context.ShopQrSlotReservations.Add(new ShopQrSlotReservation
             {
                 Id = Guid.NewGuid(),
                 ShopOrderId = Guid.NewGuid(),
-                RestaurantLocationId = _locationId,
+                RestaurantLocationId = locationId,
                 QrType = qrType,
                 Status = status,
                 ReconcileAfterUtc = now.AddMinutes(30),
