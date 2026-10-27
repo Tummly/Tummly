@@ -8,6 +8,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -82,6 +83,44 @@ namespace TummlyBackend.Tests.Integration
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ListShopOrders_CounterDisplayAsset_CarriesProductTitleNotOfferCardMapping()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                titleSnapshot: "Offer Card",
+                quantity: 10
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                await scope.ServiceProvider
+                    .GetRequiredService<IPrintReadyQrMaterialsService>()
+                    .EnsureShopOrderMaterialsAsync(orderId);
+            }
+
+            using var list = AuthorizedGet(
+                $"/api/admin/shop-orders?restaurantId={seeded.RestaurantId}",
+                seeded.AdminJwt
+            );
+            var listResponse = await _client.SendAsync(list);
+            Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+            var listBody = await ReadJsonAsync(listResponse);
+            var asset = Assert.Single(
+                listBody.GetProperty("items")[0]
+                    .GetProperty("printAssets")
+                    .EnumerateArray()
+            );
+
+            Assert.Equal("OfferCard", asset.GetProperty("qrType").GetString());
+            Assert.Equal(
+                "QR Counter Display",
+                asset.GetProperty("productTitle").GetString()
+            );
         }
 
         [Fact]

@@ -750,6 +750,7 @@ namespace TummlyBackend.Services
                 .Select(row => new AdminShopPrintAssetDto
                 {
                     QrType = row.QrType,
+                    ProductTitle = row.ProductTitle,
                     Quantity = row.Quantity,
                     Status = row.Status,
                     FileName = row.FileName,
