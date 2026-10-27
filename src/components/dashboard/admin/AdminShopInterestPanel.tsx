@@ -397,7 +397,7 @@ export function AdminShopInterestPanel() {
                         )}
                         <div>
                           <div className="font-medium">{product.title}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-op-text-muted">
                             {product.productKey}
                           </div>
                         </div>
@@ -499,7 +499,7 @@ export function AdminShopInterestPanel() {
                   >
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       <div className="font-medium">{row.title}</div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-op-text-muted">
                         {row.productKey}
                       </div>
                     </TableCell>
@@ -574,7 +574,7 @@ export function AdminShopInterestPanel() {
                   <TableRow key={row.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       <div className="font-medium">{row.productTitle}</div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-op-text-muted">
                         {row.productKey}
                       </div>
                     </TableCell>

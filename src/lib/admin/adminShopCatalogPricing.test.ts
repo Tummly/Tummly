@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  normalisePoundsInput,
   penceToPoundsInput,
   poundsInputToPence,
 } from "./adminShopCatalogPricing"
@@ -43,5 +44,22 @@ describe("poundsInputToPence", () => {
     for (const pence of [0, 1, 99, 100, 299, 999, 123456]) {
       expect(poundsInputToPence(penceToPoundsInput(pence))).toBe(pence)
     }
+  })
+})
+
+describe("normalisePoundsInput", () => {
+  it("pads a valid amount to two decimals on blur", () => {
+    expect(normalisePoundsInput("9.9")).toBe("9.90")
+    expect(normalisePoundsInput("9")).toBe("9.00")
+    expect(normalisePoundsInput(" £2.5 ")).toBe("2.50")
+    expect(normalisePoundsInput(".5")).toBe("0.50")
+    expect(normalisePoundsInput("9.99")).toBe("9.99")
+  })
+
+  it("leaves text that cannot be parsed unchanged", () => {
+    expect(normalisePoundsInput("")).toBe("")
+    expect(normalisePoundsInput("abc")).toBe("abc")
+    expect(normalisePoundsInput("1.234")).toBe("1.234")
+    expect(normalisePoundsInput("-1")).toBe("-1")
   })
 })

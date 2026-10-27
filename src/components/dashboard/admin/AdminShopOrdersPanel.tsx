@@ -61,6 +61,7 @@ import {
   formatAdminShopGbpFromPence,
 } from "@/lib/adminShopOrderFulfilment"
 import { defaultDownloadName } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
+import { withRowBusy } from "@/lib/admin/adminShopOrderRowBusy"
 import {
   adminShopOrderPaymentLabel,
   adminShopOrderRowActions,
@@ -157,7 +158,9 @@ export function AdminShopOrdersPanel() {
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
-  const [rowBusyOrderId, setRowBusyOrderId] = useState<string | null>(null)
+  const [rowBusyOrderIds, setRowBusyOrderIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  )
   const [pendingFulfilment, setPendingFulfilment] =
     useState<PendingFulfilment | null>(null)
 
@@ -244,11 +247,11 @@ export function AdminShopOrdersPanel() {
     orderId: string,
     task: () => Promise<void>
   ) => {
-    setRowBusyOrderId(orderId)
+    setRowBusyOrderIds((current) => withRowBusy(current, orderId, true))
     try {
       await task()
     } finally {
-      setRowBusyOrderId(null)
+      setRowBusyOrderIds((current) => withRowBusy(current, orderId, false))
     }
   }
 
@@ -309,6 +312,10 @@ export function AdminShopOrdersPanel() {
       }
     })
   }
+
+  const pendingBusy =
+    pendingFulfilment !== null &&
+    rowBusyOrderIds.has(pendingFulfilment.order.id)
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -525,7 +532,7 @@ export function AdminShopOrdersPanel() {
                       >
                         <AdminShopOrderRowActionsMenu
                           order={order}
-                          busy={rowBusyOrderId === order.id}
+                          busy={rowBusyOrderIds.has(order.id)}
                           onViewOrder={() => setSelectedOrderId(order.id)}
                           onDownloadMaterials={() =>
                             void downloadRowMaterials(order)
@@ -548,7 +555,8 @@ export function AdminShopOrdersPanel() {
                     colSpan={9}
                     className={cn(
                       GUESTS_TABLE_BODY_CELL_CLASS,
-                      "h-32 text-center text-muted-foreground"
+                      ORDER_TABLE_TEXT_CLASS,
+                      "h-32 text-center"
                     )}
                   >
                     No shop orders match this filter.
@@ -561,7 +569,7 @@ export function AdminShopOrdersPanel() {
 
         {!loading && totalCount > 0 && (
           <div className="flex flex-col gap-3 border-t border-op-border-default pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-op-text-muted">
               Showing {pageStart}–{pageEnd} of {totalCount}
             </p>
             <Pagination className="mx-0 w-auto justify-end">
@@ -627,7 +635,7 @@ export function AdminShopOrdersPanel() {
       <AlertDialog
         open={pendingFulfilment !== null}
         onOpenChange={(nextOpen) => {
-          if (rowBusyOrderId !== null) return
+          if (pendingBusy) return
           if (!nextOpen) setPendingFulfilment(null)
         }}
       >
@@ -645,17 +653,17 @@ export function AdminShopOrdersPanel() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={rowBusyOrderId !== null}>
+            <AlertDialogCancel disabled={pendingBusy}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={rowBusyOrderId !== null}
+              disabled={pendingBusy}
               onClick={(event) => {
                 event.preventDefault()
                 void confirmFulfilment()
               }}
             >
-              {rowBusyOrderId !== null ? "Saving…" : "Confirm"}
+              {pendingBusy ? "Saving…" : "Confirm"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

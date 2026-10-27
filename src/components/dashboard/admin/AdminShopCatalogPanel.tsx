@@ -60,6 +60,7 @@ import {
   GUESTS_TABLE_HEAD_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import {
+  normalisePoundsInput,
   penceToPoundsInput,
   poundsInputToPence,
 } from "@/lib/admin/adminShopCatalogPricing"
@@ -512,7 +513,7 @@ export function AdminShopCatalogPanel() {
                         )}
                         <div>
                           <div className="font-medium">{sku.title}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-op-text-muted">
                             {sku.skuId}
                           </div>
                         </div>
@@ -537,12 +538,12 @@ export function AdminShopCatalogPanel() {
                               void setAvailableInShop(sku.skuId, checked)
                             }
                           />
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-op-text-muted">
                             {sku.availableInShop ? "ON" : "Coming soon"}
                           </span>
                         </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span className="text-xs text-op-text-muted">—</span>
                       )}
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
@@ -729,7 +730,7 @@ export function AdminShopCatalogPanel() {
                         })
                       }
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-op-text-primary">
                       Use finished size, e.g. 105mm x 148mm (A6) or 150mm x
                       150mm.
                     </p>
@@ -760,6 +761,16 @@ export function AdminShopCatalogPanel() {
                           next[index] = {
                             ...row,
                             netPounds: event.target.value,
+                          }
+                          setEditor({ ...editor, packs: next })
+                        }}
+                        onBlur={() => {
+                          const current = editor.packs[index]
+                          if (!current) return
+                          const next = [...editor.packs]
+                          next[index] = {
+                            ...current,
+                            netPounds: normalisePoundsInput(current.netPounds),
                           }
                           setEditor({ ...editor, packs: next })
                         }}
@@ -794,7 +805,7 @@ export function AdminShopCatalogPanel() {
                   >
                     Add pack tier
                   </Button>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-op-text-primary">
                     Catalog “From £” uses the lowest pack price. Min order qty
                     syncs to the smallest pack qty.
                   </p>
@@ -808,6 +819,14 @@ export function AdminShopCatalogPanel() {
                       setEditor({
                         ...editor,
                         deliveryPounds: event.target.value,
+                      })
+                    }
+                    onBlur={() =>
+                      setEditor({
+                        ...editor,
+                        deliveryPounds: normalisePoundsInput(
+                          editor.deliveryPounds
+                        ),
                       })
                     }
                   />
@@ -1007,7 +1026,7 @@ export function AdminShopCatalogPanel() {
                       <Label htmlFor="available-in-shop">
                         Available in Shop
                       </Label>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-op-text-muted">
                         OFF keeps the product listed as Coming soon.
                       </span>
                     </div>

@@ -21,3 +21,12 @@ export function poundsInputToPence(input: string): number | null {
   const pence = Number((match[2] ?? "").padEnd(2, "0"))
   return pounds * 100 + pence
 }
+
+/**
+ * Blur normalisation for pound inputs: pads a valid amount to two decimals
+ * (for example "9.9" becomes "9.90"). Text that does not parse is returned as typed.
+ */
+export function normalisePoundsInput(input: string): string {
+  const pence = poundsInputToPence(input)
+  return pence == null ? input : penceToPoundsInput(pence)
+}
