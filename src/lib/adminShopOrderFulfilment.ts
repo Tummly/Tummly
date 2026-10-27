@@ -21,7 +21,7 @@ export const ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS: Array<{
   { id: "in_transit", label: "Dispatched" },
   { id: "delivered", label: "Delivered" },
   { id: "cancelled", label: "Cancelled" },
-  { id: "all", label: "All statuses" },
+  { id: "all", label: "All" },
 ]
 
 export const ALL_ADMIN_SHOP_FULFILMENT_STATUSES: AdminShopFulfilmentStatus[] = [
