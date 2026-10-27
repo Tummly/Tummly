@@ -58,10 +58,12 @@ namespace TummlyBackend.Tests.Services
             var pending = await _db.PendingSignups.SingleAsync();
             Assert.NotNull(pending.SessionLoginConsumedAtUtc);
 
-            var used = await Assert.ThrowsAsync<SignupConflictException>(() =>
+            // The claim revoked the token: a second session-login is refused as an expired session.
+            var used = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 _sut.SessionLoginAsync(sessionToken)
             );
-            Assert.Equal("session_login_used", used.Code);
+            Assert.Equal("signup_session_expired", used.Code);
+            Assert.Equal(401, used.StatusCode);
         }
 
         [Fact]
@@ -73,6 +75,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = sessionToken,
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = "pending@example.com",
                     Status = PendingSignupStatuses.AwaitingPayment,
                     TermsAccepted = true,
@@ -96,7 +99,7 @@ namespace TummlyBackend.Tests.Services
                 completedAt: DateTime.UtcNow.AddHours(-25)
             );
 
-            var ex = await Assert.ThrowsAsync<Exception>(() =>
+            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 _sut.SessionLoginAsync(sessionToken)
             );
             Assert.Contains("expired", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -203,6 +206,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = sessionToken,
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = email,
                     Status = PendingSignupStatuses.Complete,
                     TermsAccepted = true,

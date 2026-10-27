@@ -140,6 +140,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = sessionToken,
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = "complete@example.com",
                     Status = PendingSignupStatuses.Complete,
                     OtpResendCount = 0,
@@ -204,7 +205,7 @@ namespace TummlyBackend.Tests.Services
             pending.OtpResendCount = 5;
             await _db.SaveChangesAsync();
 
-            var ex = await Assert.ThrowsAsync<Exception>(() =>
+            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 StartFor("start-limit@example.com")
             );
 
@@ -222,6 +223,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = Guid.NewGuid(),
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = "abandoned@example.com",
                     Status = PendingSignupStatuses.Abandoned,
                     OtpResendCount = 5,
@@ -369,6 +371,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = Guid.NewGuid(),
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = "no-live@example.com",
                     Status = PendingSignupStatuses.Complete,
                     TermsAccepted = true,
@@ -439,7 +442,7 @@ namespace TummlyBackend.Tests.Services
             }
 
             _time.Advance(ResendWait);
-            var cap = await Assert.ThrowsAsync<Exception>(() => _sut.ResendOtpAsync(email));
+            var cap = await Assert.ThrowsAsync<SignupFlowException>(() => _sut.ResendOtpAsync(email));
             Assert.Equal("OTP resend limit reached.", cap.Message);
 
             var abandoned = await Row(email);
@@ -470,7 +473,7 @@ namespace TummlyBackend.Tests.Services
             }
 
             _time.Advance(ResendWait);
-            await Assert.ThrowsAsync<Exception>(() => _sut.ResendOtpAsync(email));
+            await Assert.ThrowsAsync<SignupFlowException>(() => _sut.ResendOtpAsync(email));
 
             await StartFor(email);
             for (var i = 0; i < 3; i++)
@@ -503,6 +506,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = Guid.NewGuid(),
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = email,
                     Status = PendingSignupStatuses.EmailPending,
                     OtpResendCount = 0,
@@ -556,6 +560,32 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Single(_emailService.SentOtpEmails);
             Assert.Equal(1, (await Row(email)).CodesSentInWindow);
+        }
+
+        [Fact]
+        public async Task TokenRefusal_LogsReason_NeverTheToken()
+        {
+            var token = await SeedVerifiedPendingAsync("refused@example.com");
+            var row = await Row("refused@example.com");
+            row.SessionTokenIssuedAtUtc = null;
+            await _db.SaveChangesAsync();
+
+            var legacy = await Assert.ThrowsAsync<SignupFlowException>(() =>
+                _sut.GetBySessionAsync(token)
+            );
+            Assert.Equal("signup_session_expired", legacy.Code);
+            Assert.Equal(401, legacy.StatusCode);
+            Assert.Null(legacy.RetryAfterUtc);
+
+            row.SessionTokenIssuedAtUtc = T0.UtcDateTime.AddHours(-25);
+            await _db.SaveChangesAsync();
+            await Assert.ThrowsAsync<SignupFlowException>(() => _sut.GetBySessionAsync(token));
+
+            var logged = string.Join("\n", _logger.Entries);
+            Assert.Contains("signup.token_rejected reason=legacy", logged, StringComparison.Ordinal);
+            Assert.Contains("signup.token_rejected reason=expired", logged, StringComparison.Ordinal);
+            Assert.DoesNotContain(token.ToString(), logged, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(token.ToString("N"), logged, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -632,10 +662,12 @@ namespace TummlyBackend.Tests.Services
             pending.OtpResendCount = 5;
             await _db.SaveChangesAsync();
 
-            var ex = await Assert.ThrowsAsync<Exception>(() =>
+            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 _sut.ResendOtpAsync("limit@example.com")
             );
             Assert.Equal("OTP resend limit reached.", ex.Message);
+            Assert.Equal("signup_invalid_request", ex.Code);
+            Assert.Equal(400, ex.StatusCode);
 
             pending = await Row("limit@example.com");
             Assert.Equal(PendingSignupStatuses.Abandoned, pending.Status);
@@ -729,7 +761,7 @@ namespace TummlyBackend.Tests.Services
         {
             var sessionToken = await SeedVerifiedPendingAsync("noplan@example.com");
 
-            var missing = await Assert.ThrowsAsync<Exception>(() =>
+            var missing = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 _sut.SaveOnboardingAsync(
                     sessionToken,
                     new SaveSignupOnboardingDto
@@ -752,7 +784,7 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Equal(SignupService.ChoosePlanMessage, missing.Message);
 
-            var free = await Assert.ThrowsAsync<Exception>(() =>
+            var free = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 _sut.SaveOnboardingAsync(
                     sessionToken,
                     new SaveSignupOnboardingDto
@@ -782,7 +814,7 @@ namespace TummlyBackend.Tests.Services
         {
             var sessionToken = await SeedVerifiedPendingAsync("multi@example.com");
 
-            var ex = await Assert.ThrowsAsync<Exception>(() =>
+            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 _sut.SaveOnboardingAsync(
                     sessionToken,
                     new SaveSignupOnboardingDto
@@ -831,6 +863,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = sessionToken,
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = "early@example.com",
                     Status = PendingSignupStatuses.EmailPending,
                     OtpResendCount = 0,
@@ -841,7 +874,7 @@ namespace TummlyBackend.Tests.Services
             );
             await _db.SaveChangesAsync();
 
-            await Assert.ThrowsAsync<Exception>(() =>
+            await Assert.ThrowsAsync<SignupFlowException>(() =>
                 _sut.SaveOnboardingAsync(
                     sessionToken,
                     new SaveSignupOnboardingDto
@@ -894,7 +927,7 @@ namespace TummlyBackend.Tests.Services
 
             var resume = await _sut.GetBySessionAsync(sessionToken);
 
-            Assert.Equal(sessionToken, resume.SessionToken);
+            Assert.Null(typeof(SignupResumeResponse).GetProperty("SessionToken"));
             Assert.Equal("resume-get@example.com", resume.Email);
             Assert.Equal(PendingSignupStatuses.Provisioning, resume.Status);
             Assert.Equal("provisioning", resume.LastStepHint);
@@ -952,6 +985,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = sessionToken,
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = email,
                     Status = PendingSignupStatuses.Verified,
                     OtpResendCount = 0,

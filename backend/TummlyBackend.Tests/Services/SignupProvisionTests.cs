@@ -162,7 +162,7 @@ namespace TummlyBackend.Tests.Services
             var dto = BuildValidOnboardingDto();
             dto.ChosenPlan = null;
 
-            var ex = await Assert.ThrowsAsync<Exception>(() =>
+            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 _signup.SaveOnboardingAsync(_sessionToken, dto)
             );
             Assert.Equal(SignupService.ChoosePlanMessage, ex.Message);
@@ -731,6 +731,7 @@ namespace TummlyBackend.Tests.Services
             {
                 Id = Guid.NewGuid(),
                 SessionToken = _sessionToken,
+                SessionTokenIssuedAtUtc = DateTime.UtcNow,
                 Email = _email,
                 Status = PendingSignupStatuses.Verified,
                 OtpResendCount = 0,
@@ -769,6 +770,7 @@ namespace TummlyBackend.Tests.Services
             {
                 Id = Guid.NewGuid(),
                 SessionToken = _sessionToken,
+                SessionTokenIssuedAtUtc = DateTime.UtcNow,
                 Email = _email,
                 Status = PendingSignupStatuses.OnboardingComplete,
                 TermsAccepted = true,

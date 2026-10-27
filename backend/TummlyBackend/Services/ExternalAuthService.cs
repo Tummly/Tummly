@@ -321,6 +321,9 @@ namespace TummlyBackend.Services
             pending.EmailVerifiedAt = now;
             pending.PasswordHash = null;
             pending.UpdatedAtUtc = now;
+            // A social exchange is a fresh proof of the email: it issues a new, timed session token.
+            pending.SessionToken = Guid.NewGuid();
+            pending.SessionTokenIssuedAtUtc = now;
 
             if (
                 string.IsNullOrWhiteSpace(pending.FullName)

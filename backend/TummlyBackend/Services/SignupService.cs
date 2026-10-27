@@ -14,6 +14,11 @@ namespace TummlyBackend.Services
     {
         public const string ChoosePlanMessage = "Choose a plan to continue.";
 
+        public const string SessionExpiredCode = "signup_session_expired";
+
+        public const string SessionExpiredMessage =
+            "Your signup session has expired. Enter your email to continue.";
+
         private static readonly TimeSpan SessionLoginWindow = TimeSpan.FromHours(24);
 
         private readonly ApplicationDbContext _context;
@@ -71,7 +76,7 @@ namespace TummlyBackend.Services
 
             if (!dto.TermsAccepted)
             {
-                throw new Exception("Terms must be accepted.");
+                throw Invalid("Terms must be accepted.");
             }
 
             if (await _context.Users.AnyAsync(x => x.Email == email))
@@ -254,9 +259,7 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                throw new Exception(
-                    "Email must be verified before onboarding."
-                );
+                throw Invalid("Email must be verified before onboarding.");
             }
 
             var isSocial = !string.IsNullOrWhiteSpace(pending.AuthProvider);
@@ -306,7 +309,13 @@ namespace TummlyBackend.Services
             Guid sessionToken
         )
         {
+            // Complete rows answer with the status only: the profile and email are not needed after payment.
             var pending = await FindBySessionTokenAsync(sessionToken);
+
+            if (pending.Status == PendingSignupStatuses.Complete)
+            {
+                return new SignupResumeResponse { Status = pending.Status };
+            }
 
             SignupOnboardingPayload? profile = null;
             if (!string.IsNullOrWhiteSpace(pending.OnboardingJson))
@@ -318,7 +327,6 @@ namespace TummlyBackend.Services
 
             return new SignupResumeResponse
             {
-                SessionToken = pending.SessionToken,
                 Email = pending.Email,
                 Status = pending.Status,
                 LastStepHint = ResolveLastStepHint(pending),
@@ -365,14 +373,12 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                throw new Exception(
-                    "Account setup is not ready to provision."
-                );
+                throw Invalid("Account setup is not ready to provision.");
             }
 
             if (string.IsNullOrWhiteSpace(pending.ChosenPlan))
             {
-                throw new Exception(ChoosePlanMessage);
+                throw Invalid(ChoosePlanMessage);
             }
             pending.Status = PendingSignupStatuses.Provisioning;
             pending.UpdatedAtUtc = DateTime.UtcNow;
@@ -407,7 +413,7 @@ namespace TummlyBackend.Services
             var completedAt = pending.UpdatedAtUtc;
             if (DateTime.UtcNow - completedAt > SessionLoginWindow)
             {
-                throw new Exception("Signup session login has expired.");
+                throw Invalid("Signup session login has expired.");
             }
 
             var user = await _context.Users.FirstOrDefaultAsync(row =>
@@ -477,6 +483,7 @@ namespace TummlyBackend.Services
         private async Task ClaimSessionLoginAsync(PendingSignup pending)
         {
             var now = DateTime.UtcNow;
+            // The claim also revokes the session token: a second session-login gets the 401.
             if (_context.Database.IsRelational())
             {
                 var updated = await _context.PendingSignups
@@ -486,6 +493,7 @@ namespace TummlyBackend.Services
                     )
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(row => row.SessionLoginConsumedAtUtc, now)
+                        .SetProperty(row => row.SessionTokenIssuedAtUtc, (DateTime?)null)
                         .SetProperty(row => row.UpdatedAtUtc, now)
                     );
                 if (updated == 0)
@@ -497,11 +505,13 @@ namespace TummlyBackend.Services
                 }
 
                 pending.SessionLoginConsumedAtUtc = now;
+                pending.SessionTokenIssuedAtUtc = null;
                 pending.UpdatedAtUtc = now;
                 return;
             }
 
             pending.SessionLoginConsumedAtUtc = now;
+            pending.SessionTokenIssuedAtUtc = null;
             pending.UpdatedAtUtc = now;
         }
 
@@ -766,9 +776,13 @@ namespace TummlyBackend.Services
                 );
         }
 
-        private async Task<PendingSignup> FindBySessionTokenAsync(
-            Guid sessionToken
-        )
+        /// <summary>
+        /// The only place that resolves a signup session token. A refused token logs its
+        /// reason and gets the same 401 as an expired session. The token is never logged.
+        /// Complete rows stay readable (status, retry, idempotent onboarding, session-login):
+        /// the session-login claim is what revokes the token.
+        /// </summary>
+        private async Task<PendingSignup> FindBySessionTokenAsync(Guid sessionToken)
         {
             var pending = await _context.PendingSignups.FirstOrDefaultAsync(x =>
                 x.SessionToken == sessionToken
@@ -776,11 +790,48 @@ namespace TummlyBackend.Services
 
             if (pending == null)
             {
-                throw new Exception("No pending signup found.");
+                throw RejectSessionToken("missing");
+            }
+
+            if (pending.SessionTokenIssuedAtUtc is not { } issuedAtUtc)
+            {
+                throw RejectSessionToken("legacy");
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            if (now - issuedAtUtc > SignupAbuseLimits.TokenLifetime)
+            {
+                throw RejectSessionToken("expired");
+            }
+
+            if (pending.Status == PendingSignupStatuses.Abandoned)
+            {
+                throw RejectSessionToken("abandoned");
+            }
+
+            if (pending.SessionLoginConsumedAtUtc != null)
+            {
+                throw RejectSessionToken("claimed");
             }
 
             return pending;
         }
+
+        /// <summary>
+        /// Logs the refusal reason and returns the 401 that every refused token gets.
+        /// </summary>
+        private SignupFlowException RejectSessionToken(string reason)
+        {
+            _logger.LogInformation("signup.token_rejected reason={Reason}", reason);
+            return new SignupFlowException(
+                SessionExpiredCode,
+                SessionExpiredMessage,
+                401
+            );
+        }
+
+        private static SignupFlowException Invalid(string message) =>
+            new("signup_invalid_request", message);
 
         private static void ValidateOnboardingPayload(
             SaveSignupOnboardingDto dto,
@@ -791,7 +842,7 @@ namespace TummlyBackend.Services
             {
                 if (dto.Password != dto.ConfirmPassword)
                 {
-                    throw new Exception("Passwords do not match.");
+                    throw Invalid("Passwords do not match.");
                 }
 
                 if (
@@ -799,30 +850,28 @@ namespace TummlyBackend.Services
                     || dto.Password.Length < 8
                 )
                 {
-                    throw new Exception(
-                        "Password must be at least 8 characters."
-                    );
+                    throw Invalid("Password must be at least 8 characters.");
                 }
             }
 
             if (string.IsNullOrWhiteSpace(dto.FullName))
             {
-                throw new Exception("Full name is required.");
+                throw Invalid("Full name is required.");
             }
 
             if (string.IsNullOrWhiteSpace(dto.GroupName))
             {
-                throw new Exception("Group name is required.");
+                throw Invalid("Group name is required.");
             }
 
             if (string.IsNullOrWhiteSpace(dto.BusinessCategory))
             {
-                throw new Exception("Business category is required.");
+                throw Invalid("Business category is required.");
             }
 
             if (dto.Locations == null || dto.Locations.Count != 1)
             {
-                throw new Exception("Exactly one location is required.");
+                throw Invalid("Exactly one location is required.");
             }
         }
 
@@ -896,9 +945,7 @@ namespace TummlyBackend.Services
                     )
                 )
                 {
-                    throw new Exception(
-                        "Custom plan config must be version 2 (base plan + packs)."
-                    );
+                    throw Invalid("Custom plan config must be version 2 (base plan + packs).");
                 }
             }
 
@@ -910,7 +957,7 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                throw new Exception("Custom plan config is required.");
+                throw Invalid("Custom plan config is required.");
             }
 
             pending.ChosenPlan = chosen;
@@ -928,18 +975,18 @@ namespace TummlyBackend.Services
         {
             if (string.IsNullOrWhiteSpace(raw))
             {
-                throw new Exception(ChoosePlanMessage);
+                throw Invalid(ChoosePlanMessage);
             }
 
             return raw.Trim().ToLowerInvariant() switch
             {
-                "free" => throw new Exception(ChoosePlanMessage),
+                "free" => throw Invalid(ChoosePlanMessage),
                 "pilot" => BillingSubscriptionPlans.Pilot,
                 "starter" => BillingSubscriptionPlans.Starter,
                 "growth" => BillingSubscriptionPlans.Growth,
                 "group" => BillingSubscriptionPlans.Group,
                 "custom" => BillingSubscriptionPlans.Custom,
-                _ => throw new Exception("Invalid plan selection."),
+                _ => throw Invalid("Invalid plan selection."),
             };
         }
 
@@ -1060,7 +1107,7 @@ namespace TummlyBackend.Services
                         "signup.resend_limit_reached email={MaskedEmail}",
                         LogContactMask.Email(email)
                     );
-                    throw new Exception("OTP resend limit reached.");
+                    throw Invalid("OTP resend limit reached.");
                 }
             }
 
