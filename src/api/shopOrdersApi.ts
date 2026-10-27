@@ -27,7 +27,8 @@ export type ShopOrderWire = {
   locationName: string
   paymentStatus: string
   fulfilmentStatus: string | null
-  deliveryMethod: string
+  /** "express" is read-only: it appears on orders placed before Express was removed. */
+  deliveryMethod: "standard" | "express"
   materialsNetPence: number
   vatPence: number
   deliveryNetPence: number

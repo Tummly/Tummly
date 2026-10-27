@@ -140,7 +140,8 @@ function fulfilmentStatusesForFilter(
     return ALL_ADMIN_SHOP_FULFILMENT_STATUSES
   }
   if (filter === "processing") {
-    // API defaults to processing when omitted; send explicitly for clarity.
+    // The API treats an omitted status as every status, so the Processing
+    // tab must send its status explicitly.
     return ["processing"]
   }
   return [filter]
