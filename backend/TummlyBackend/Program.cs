@@ -1336,21 +1336,32 @@ var signupRateLimit =
         .Get<SignupRateLimitSettings>()
     ?? new SignupRateLimitSettings();
 
+// A limit below 1 would reject every signup request. Fail at start, like the Otp:HashKey check.
+signupRateLimit.Validate();
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
+    // Strict policy ("signup": start, verify-otp, resend-otp): per endpoint, and combined.
+    // Token policy ("signup-token": polled pages): its own per-endpoint limit, not combined.
     options.GlobalLimiter = PartitionedRateLimiter.CreateChained(
         PartitionedRateLimiter.Create<HttpContext, string>(context =>
-            IsSignupRequest(context)
-                ? RateLimitPartition.GetFixedWindowLimiter(
-                    $"{SignupClientIpOf(context)}|{context.Request.Path.Value?.ToLowerInvariant()}",
+            SignupPolicyOf(context) switch
+            {
+                SignupRateLimitSettings.PolicyName => RateLimitPartition.GetFixedWindowLimiter(
+                    $"{SignupClientIpOf(context)}|{SignupEndpointKey(context)}",
                     _ => SignupWindow(signupRateLimit.PerEndpointPerMinute)
-                )
-                : RateLimitPartition.GetNoLimiter<string>("none")
+                ),
+                SignupRateLimitSettings.TokenPolicyName => RateLimitPartition.GetFixedWindowLimiter(
+                    $"token|{SignupClientIpOf(context)}|{SignupEndpointKey(context)}",
+                    _ => SignupWindow(signupRateLimit.TokenEndpointPerMinute)
+                ),
+                _ => RateLimitPartition.GetNoLimiter<string>("none"),
+            }
         ),
         PartitionedRateLimiter.Create<HttpContext, string>(context =>
-            IsSignupRequest(context)
+            SignupPolicyOf(context) == SignupRateLimitSettings.PolicyName
                 ? RateLimitPartition.GetFixedWindowLimiter(
                     SignupClientIpOf(context),
                     _ => SignupWindow(signupRateLimit.CombinedPerMinute)
@@ -1359,11 +1370,15 @@ builder.Services.AddRateLimiter(options =>
         )
     );
 
-    // The endpoint attribute must resolve to a registered policy. The limits themselves are
-    // applied by GlobalLimiter above, which runs only for requests that carry this policy.
+    // The endpoint attributes must resolve to registered policies. The limits themselves are
+    // applied by GlobalLimiter above, which runs only for requests that carry these policies.
     options.AddPolicy<string>(
         SignupRateLimitSettings.PolicyName,
         _ => RateLimitPartition.GetNoLimiter("signup")
+    );
+    options.AddPolicy<string>(
+        SignupRateLimitSettings.TokenPolicyName,
+        _ => RateLimitPartition.GetNoLimiter("signup-token")
     );
 
     options.OnRejected = async (context, token) =>
@@ -1394,10 +1409,16 @@ builder.Services.AddRateLimiter(options =>
         );
     };
 
-    bool IsSignupRequest(HttpContext context) =>
+    static string? SignupPolicyOf(HttpContext context) =>
         context.GetEndpoint()?.Metadata
-            .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
-        == SignupRateLimitSettings.PolicyName;
+            .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+
+    // One bucket per endpoint: key on the route pattern, so "/api/signup/start/" and
+    // "/api/signup/start" share it. Fall back to a trimmed lower-case path.
+    static string SignupEndpointKey(HttpContext context) =>
+        ((context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText
+            ?? context.Request.Path.Value?.TrimEnd('/')
+            ?? string.Empty).ToLowerInvariant();
 
     string SignupClientIpOf(HttpContext context) =>
         SignupClientIp.Resolve(context, signupRateLimit.TrustedProxyHops);

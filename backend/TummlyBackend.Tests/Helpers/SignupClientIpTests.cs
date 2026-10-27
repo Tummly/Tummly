@@ -49,6 +49,30 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal("unknown", SignupClientIp.Resolve(ctx, 1));
         }
 
+        [Fact]
+        public void SignupClientIp_StripsPort_IPv4()
+        {
+            var ctx = ContextWith("198.51.100.1, 203.0.113.9:51234", "10.0.0.5");
+
+            Assert.Equal("203.0.113.9", SignupClientIp.Resolve(ctx, 1));
+        }
+
+        [Fact]
+        public void SignupClientIp_StripsPort_IPv6Bracketed()
+        {
+            var ctx = ContextWith("[2001:db8::1]:51234", "10.0.0.5");
+
+            Assert.Equal("2001:db8::1", SignupClientIp.Resolve(ctx, 1));
+        }
+
+        [Fact]
+        public void SignupClientIp_PlainIPv6_Unchanged()
+        {
+            var ctx = ContextWith("2001:db8::7", "10.0.0.5");
+
+            Assert.Equal("2001:db8::7", SignupClientIp.Resolve(ctx, 1));
+        }
+
         private static DefaultHttpContext ContextWith(string? forwardedFor, string? remoteIp)
         {
             var ctx = new DefaultHttpContext();

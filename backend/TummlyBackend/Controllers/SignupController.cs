@@ -109,7 +109,7 @@ namespace TummlyBackend.Controllers
             }
         }
 
-        [EnableRateLimiting(SignupRateLimitSettings.PolicyName)]
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpPost("onboarding")]
         public async Task<IActionResult> SaveOnboarding(
             [FromHeader(Name = SessionHeader)] Guid? signupSession,
@@ -143,7 +143,7 @@ namespace TummlyBackend.Controllers
             }
         }
 
-        [EnableRateLimiting(SignupRateLimitSettings.PolicyName)]
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpGet("session")]
         public async Task<IActionResult> GetSession(
             [FromHeader(Name = SessionHeader)] Guid? signupSession
@@ -173,7 +173,7 @@ namespace TummlyBackend.Controllers
             }
         }
 
-        [EnableRateLimiting(SignupRateLimitSettings.PolicyName)]
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpPost("retry-provision")]
         public async Task<IActionResult> RetryProvision(
             [FromHeader(Name = SessionHeader)] Guid? signupSession
@@ -202,7 +202,7 @@ namespace TummlyBackend.Controllers
             }
         }
 
-        [EnableRateLimiting(SignupRateLimitSettings.PolicyName)]
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpGet("provisioning-status")]
         public async Task<IActionResult> GetProvisioningStatus(
             [FromHeader(Name = SessionHeader)] Guid? signupSession
@@ -234,7 +234,7 @@ namespace TummlyBackend.Controllers
             }
         }
 
-        [EnableRateLimiting(SignupRateLimitSettings.PolicyName)]
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpPost("session-login")]
         public async Task<IActionResult> SessionLogin(
             [FromBody] SignupSessionLoginDto dto

@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.Http;
 
 namespace TummlyBackend.Helpers
@@ -27,12 +28,20 @@ namespace TummlyBackend.Helpers
                 var index = entries.Length - trustedProxyHops;
                 if (trustedProxyHops >= 1 && index >= 0)
                 {
-                    return entries[index];
+                    return StripPort(entries[index]);
                 }
             }
 
             var remote = ctx.Connection.RemoteIpAddress?.ToString();
             return string.IsNullOrEmpty(remote) ? Unknown : remote;
         }
+
+        /// <summary>
+        /// The platform ingress can append a source port (<c>1.2.3.4:5678</c>, <c>[::1]:5678</c>).
+        /// The port changes per connection, so it must not be part of the partition key.
+        /// A plain IPv6 address has no port and is returned unchanged.
+        /// </summary>
+        private static string StripPort(string raw) =>
+            IPEndPoint.TryParse(raw, out var endpoint) ? endpoint.Address.ToString() : raw;
     }
 }
