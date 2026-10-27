@@ -65,13 +65,19 @@ namespace TummlyBackend.Tests.Helpers
             return Task.FromResult(
                 new RevolutMerchantCreateResult(
                     Succeeded: true,
-                    Id: $"ord_pm_{CreateOrderCallCount}",
+                    Id: $"{OrderIdPrefix}{CreateOrderCallCount}",
                     CheckoutUrl: CheckoutUrl
                 )
             );
         }
 
         public int CreateOrderCallCount { get; private set; }
+
+        /// <summary>
+        /// Prefix of created order ids. Tests sharing one SQL database set a
+        /// unique prefix so intents do not collide across factories.
+        /// </summary>
+        public string OrderIdPrefix { get; set; } = "ord_pm_";
 
         public RevolutCreateOrderRequest? LastCreateOrderRequest { get; private set; }
 

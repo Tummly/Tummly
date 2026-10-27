@@ -24,6 +24,7 @@ namespace TummlyBackend.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IShopOrderCancelReorderService _cancelReorder;
         private readonly IMaterialsCatalog _catalog;
+        private readonly IShopQrSlotReservationService _qrSlots;
 
         public ShopOrdersController(
             IShopOrderPlaceService orders,
@@ -33,7 +34,8 @@ namespace TummlyBackend.Controllers
             IRestaurantPermissionHelper permissions,
             ApplicationDbContext context,
             IShopOrderCancelReorderService cancelReorder,
-            IMaterialsCatalog catalog
+            IMaterialsCatalog catalog,
+            IShopQrSlotReservationService qrSlots
         )
         {
             _orders = orders;
@@ -44,6 +46,7 @@ namespace TummlyBackend.Controllers
             _context = context;
             _cancelReorder = cancelReorder;
             _catalog = catalog;
+            _qrSlots = qrSlots;
         }
 
         [HttpGet("orders")]
@@ -171,6 +174,27 @@ namespace TummlyBackend.Controllers
                 }
 
                 if (result.ErrorCode == OfferCardOfferRequiredException.ErrorCode)
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    });
+                }
+
+                if (result.ErrorCode == ShopQrLimit.ErrorCode)
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                        limit = result.Limit,
+                    });
+                }
+
+                if (result.ErrorCode == ShopQrLimit.EntitlementsUnavailableCode)
                 {
                     return Conflict(new
                     {
@@ -511,6 +535,33 @@ namespace TummlyBackend.Controllers
                     success = false,
                     code = payBlock,
                     message = "Set up your card offer before ordering Offer Cards.",
+                });
+            }
+
+            // Reserve any new QR slot before a Revolut order exists. A reservation
+            // stays open if the session call below fails; the sweeper settles it.
+            var capacity = await _qrSlots.ReserveForPayAsync(
+                order,
+                cancellationToken
+            );
+            if (!capacity.EntitlementsAvailable)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ShopQrLimit.EntitlementsUnavailableCode,
+                    message = ShopQrLimit.EntitlementsUnavailableMessage,
+                });
+            }
+
+            if (!capacity.Ok)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ShopQrLimit.ErrorCode,
+                    message = ShopQrLimit.Message,
+                    limit = capacity.Limit,
                 });
             }
 
