@@ -8,6 +8,14 @@ namespace TummlyBackend.Services
     public sealed class ShopOrderPaymentConfirmService
         : IShopOrderPaymentConfirmService
     {
+        /// <summary>
+        /// Stable name for alerting: Revolut says completed, but the order is
+        /// not Paid after the paid path ran. The webhook or the sweeper settles
+        /// it later.
+        /// </summary>
+        public static readonly EventId CompletedNotAppliedEvent =
+            new(5202, "completed_not_applied");
+
         private readonly ApplicationDbContext _context;
         private readonly IRevolutMerchantClient _merchant;
         private readonly IRevolutOrderCompletedApplier _applier;
@@ -158,6 +166,15 @@ namespace TummlyBackend.Services
             if (paid)
             {
                 await TryQueuePrintMaterialsAsync(shopOrderId);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    CompletedNotAppliedEvent,
+                    "Revolut order {RevolutOrderId} is completed but shop order {ShopOrderId} is not Paid after the paid path ran",
+                    intent.OrderId,
+                    shopOrderId
+                );
             }
 
             return paid;
