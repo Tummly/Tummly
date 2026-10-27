@@ -11,6 +11,9 @@
  * Checkout review / section cards `#171717`; nested options `#202020` / selected `#7c7c7c` border.
  */
 
+/** Shop body copy — dark gray body token (`--op-color-gray-650`), not secondary/550. */
+export const SHOP_BODY_TEXT_CLASS = "text-[var(--op-color-gray-650)]"
+
 /** Main pane behind Shop catalog and product — Operator page canvas. */
 export const SHOP_PAGE_BACKGROUND_CLASS = "bg-op-background-primary"
 
