@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -57,6 +58,63 @@ namespace TummlyBackend.Tests.Services
                     seeded.LocationId
                 )
             );
+        }
+
+        /// <summary>
+        /// Create always stores Draft, and Draft is checked before the fixed
+        /// expiry in <see cref="CatalogOfferStatus.ResolveEffectiveStatus"/>. So
+        /// the create response reads "draft" whatever the venue date is. This
+        /// test pins that create at 23:30Z BST (London already 16 July) with a
+        /// fixed expiry of 15 July still returns Draft. The London-date change
+        /// on the create path cannot change this response (no observable RED).
+        /// </summary>
+        [Fact]
+        public async Task CreateDraftAsync_FixedExpiryUtcDate_At2330UtcBst_ReturnsDraft()
+        {
+            _now = new DateTime(2026, 7, 15, 23, 30, 0, DateTimeKind.Utc);
+            var locationId = await SeedLocationAsync();
+            var service = new OffersCatalogService(_context, () => _now);
+
+            var dto = await service.CreateDraftAsync(
+                new CreateCatalogOfferRequest
+                {
+                    LocationId = locationId,
+                    OfferType = "percentage_discount",
+                    Title = "Fixed expiry create",
+                    Description = "Create at London midnight",
+                    Validity = "choose_expiry_date",
+                    ExpiryDate = "2026-07-15",
+                    DiscountPercentage = 10m,
+                },
+                createdByUserId: 1
+            );
+
+            Assert.Equal(CatalogOfferStatus.Draft, dto.Status);
+            Assert.Equal("2026-07-15", dto.ExpiryDate);
+        }
+
+        private async Task<int> SeedLocationAsync()
+        {
+            var restaurant = new Restaurant
+            {
+                Name = "London Create Rest",
+                AccountType = "Single",
+                OwnerUserId = 1,
+                CreatedAt = _now,
+            };
+            _context.Restaurants.Add(restaurant);
+            await _context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "London Create Loc",
+                Address = "1 High St",
+                CreatedAt = _now,
+            };
+            _context.RestaurantLocations.Add(location);
+            await _context.SaveChangesAsync();
+            return location.Id;
         }
 
         private async Task<(int LocationId, int OfferId)> SeedActiveOfferAsync(

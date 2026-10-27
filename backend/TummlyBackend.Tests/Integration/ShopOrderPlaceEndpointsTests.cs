@@ -453,12 +453,7 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
 
-            Assert.Equal(HttpStatusCode.Conflict, place.StatusCode);
-            var body = await ReadJsonAsync(place);
-            Assert.Equal(
-                OfferCardOfferRequiredException.ErrorCode,
-                body.GetProperty("code").GetString()
-            );
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(place);
         }
 
         private static object ValidShipTo()

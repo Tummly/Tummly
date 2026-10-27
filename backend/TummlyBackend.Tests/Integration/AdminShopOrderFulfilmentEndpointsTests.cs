@@ -350,20 +350,11 @@ namespace TummlyBackend.Tests.Integration
         public async Task GuestCard_ShopOrderAsset_StaysPreparingWhenAttachedOfferExpired()
         {
             var seeded = await SeedWorkspaceAsync();
+            await AddActiveGuestCardQrAsync(seeded.LocationId);
             using (var scope = _factory.Services.CreateScope())
             {
                 var context = scope.ServiceProvider
                     .GetRequiredService<ApplicationDbContext>();
-                context.QrCodes.Add(
-                    new QrCode
-                    {
-                        RestaurantLocationId = seeded.LocationId,
-                        QrType = QrType.GuestCard,
-                        Token = $"admin-shop-guest-{Guid.NewGuid():N}",
-                        Status = QrCodeStatus.Active,
-                        CreatedAt = DateTime.UtcNow,
-                    }
-                );
                 // Attached while live, expired since: checkout would refuse it.
                 var offer = new CatalogOffer
                 {
@@ -478,22 +469,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task GuestCardCsv_IncludesOfferHeadline_AfterApprove()
         {
             var seeded = await SeedWorkspaceAsync();
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider
-                    .GetRequiredService<ApplicationDbContext>();
-                context.QrCodes.Add(
-                    new QrCode
-                    {
-                        RestaurantLocationId = seeded.LocationId,
-                        QrType = QrType.GuestCard,
-                        Token = $"admin-shop-guest-{Guid.NewGuid():N}",
-                        Status = QrCodeStatus.Active,
-                        CreatedAt = DateTime.UtcNow,
-                    }
-                );
-                await context.SaveChangesAsync();
-            }
+            await AddActiveGuestCardQrAsync(seeded.LocationId);
 
             var orderId = await InsertOrderAsync(
                 seeded,

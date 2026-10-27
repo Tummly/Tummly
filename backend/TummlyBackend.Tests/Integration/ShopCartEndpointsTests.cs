@@ -320,7 +320,7 @@ namespace TummlyBackend.Tests.Integration
                 250
             );
 
-            await AssertOfferRequiredAsync(response);
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(response);
         }
 
         [Fact]
@@ -346,7 +346,7 @@ namespace TummlyBackend.Tests.Integration
                 250
             );
 
-            await AssertOfferRequiredAsync(response);
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(response);
         }
 
         [Fact]
@@ -373,7 +373,7 @@ namespace TummlyBackend.Tests.Integration
                 250
             );
 
-            await AssertOfferRequiredAsync(response);
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(response);
         }
 
         [Fact]
@@ -399,17 +399,7 @@ namespace TummlyBackend.Tests.Integration
                 250
             );
 
-            await AssertOfferRequiredAsync(response);
-        }
-
-        private static async Task AssertOfferRequiredAsync(HttpResponseMessage response)
-        {
-            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-            var body = await ReadJsonAsync(response);
-            Assert.Equal(
-                OfferCardOfferRequiredException.ErrorCode,
-                body.GetProperty("code").GetString()
-            );
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(response);
         }
 
         private async Task<HttpResponseMessage> PutLineAsync(

@@ -705,12 +705,7 @@ namespace TummlyBackend.Tests.Integration
                 seeded.InScopeLocationId
             );
 
-            Assert.Equal(HttpStatusCode.Conflict, pay.StatusCode);
-            var body = await ReadJsonAsync(pay);
-            Assert.Equal(
-                OfferCardOfferRequiredException.ErrorCode,
-                body.GetProperty("code").GetString()
-            );
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(pay);
         }
 
         private async Task<HttpResponseMessage> PayOrderAsync(

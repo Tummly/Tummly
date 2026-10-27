@@ -173,7 +173,11 @@ namespace TummlyBackend.Services
 
             _context.CatalogOffers.Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
-            return ToDto(entity, utcOffsetMinutes: 0, issueCount: 0);
+            return ToDto(
+                entity,
+                CatalogOfferStatus.LondonToday(_utcNow()),
+                issueCount: 0
+            );
         }
 
         public async Task<CatalogOfferLifecycleResult> UpdateAsync(
@@ -1556,12 +1560,25 @@ namespace TummlyBackend.Services
             int utcOffsetMinutes,
             int issueCount,
             IReadOnlyList<string>? attachKinds = null
+        ) =>
+            ToDto(
+                entity,
+                CatalogOfferStatus.VenueLocalToday(_utcNow(), utcOffsetMinutes),
+                issueCount,
+                attachKinds
+            );
+
+        /// <summary>
+        /// Maps an offer to its DTO using the given venue-local <paramref name="today"/>.
+        /// Create paths pass <see cref="CatalogOfferStatus.LondonToday"/>.
+        /// </summary>
+        private CatalogOfferDto ToDto(
+            CatalogOffer entity,
+            DateOnly today,
+            int issueCount,
+            IReadOnlyList<string>? attachKinds = null
         )
         {
-            var today = CatalogOfferStatus.VenueLocalToday(
-                _utcNow(),
-                utcOffsetMinutes
-            );
             var status = CatalogOfferStatus.ResolveEffectiveStatus(
                 entity.Status,
                 entity.Validity,
