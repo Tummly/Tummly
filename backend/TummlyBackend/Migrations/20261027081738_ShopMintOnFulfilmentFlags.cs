@@ -16,7 +16,8 @@ namespace TummlyBackend.Migrations
                 """
                 UPDATE [ShopMaterialSkus]
                 SET [MintOnShopFulfilment] = CAST(1 AS bit)
-                WHERE [SkuId] IN (N'table-tents', N'table-talker', N'window-stickers', N'qr-guest-cards');
+                WHERE [SkuId] IN (N'table-tents', N'table-talker', N'window-stickers', N'qr-guest-cards')
+                  AND [Status] <> N'Deleted';
                 """
             );
         }
@@ -28,7 +29,8 @@ namespace TummlyBackend.Migrations
                 """
                 UPDATE [ShopMaterialSkus]
                 SET [MintOnShopFulfilment] = CAST(0 AS bit)
-                WHERE [SkuId] IN (N'table-tents', N'table-talker', N'window-stickers', N'qr-guest-cards');
+                WHERE [SkuId] IN (N'table-tents', N'table-talker', N'window-stickers', N'qr-guest-cards')
+                  AND [Status] <> N'Deleted';
                 """
             );
         }
