@@ -148,6 +148,7 @@ namespace TummlyBackend.Services
             }
 
             var unavailable = new List<string>();
+            var unavailableLines = new List<ShopReorderUnavailableLineDto>();
             var lines = new List<ShopReorderPrefillLineDto>();
 
             foreach (var line in order.Lines.OrderBy(row => row.CatalogSkuId))
@@ -156,6 +157,18 @@ namespace TummlyBackend.Services
                 if (detail == null)
                 {
                     unavailable.Add(line.CatalogSkuId);
+                    continue;
+                }
+
+                // "Coming soon" (AvailableInShop off) lines are dropped and reported
+                // to the operator; they never enter the prefill.
+                if (!detail.AvailableInShop)
+                {
+                    unavailableLines.Add(new ShopReorderUnavailableLineDto
+                    {
+                        SkuId = line.CatalogSkuId,
+                        Title = line.TitleSnapshot,
+                    });
                     continue;
                 }
 
@@ -187,10 +200,16 @@ namespace TummlyBackend.Services
                 return ShopOrderReorderResult.SkuUnavailable(unavailable);
             }
 
+            if (lines.Count == 0 && unavailableLines.Count > 0)
+            {
+                return ShopOrderReorderResult.NoAvailableLines(unavailableLines);
+            }
+
             return ShopOrderReorderResult.Ok(new ShopReorderPrefillDto
             {
                 LocationId = order.LocationId,
                 Lines = lines,
+                UnavailableLines = unavailableLines,
                 ShipTo = ShopOrderDtoMapper.MapShipTo(order),
                 DeliveryMethod = order.DeliveryMethod,
                 SourceOrderNumber = order.OrderNumber,

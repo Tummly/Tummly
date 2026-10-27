@@ -209,7 +209,7 @@ namespace TummlyBackend.Services
             foreach (var row in includedSkus)
             {
                 var catalog = _catalog.TryBuildDetail(row.SkuId);
-                if (catalog == null)
+                if (catalog == null || !catalog.AvailableInShop)
                 {
                     continue;
                 }

@@ -373,6 +373,17 @@ namespace TummlyBackend.Controllers
                     });
                 }
 
+                if (result.ErrorCode == "reorder_no_available_lines")
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                        unavailableLines = result.UnavailableLines,
+                    });
+                }
+
                 return BadRequest(new
                 {
                     success = false,

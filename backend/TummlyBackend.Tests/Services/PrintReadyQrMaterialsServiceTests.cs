@@ -696,6 +696,14 @@ namespace TummlyBackend.Tests.Services
                 row.Slug == "table-tent"
             );
             tentRecipe.IncludeInComplimentaryStarter = true;
+            foreach (
+                var tentSku in await _context.ShopMaterialSkus
+                    .Where(row => row.PlacementRecipeId == tentRecipe.Id)
+                    .ToListAsync()
+            )
+            {
+                tentSku.AvailableInShop = true;
+            }
             await _context.SaveChangesAsync();
 
             var owner = new User
