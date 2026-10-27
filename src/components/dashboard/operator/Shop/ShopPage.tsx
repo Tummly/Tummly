@@ -56,8 +56,10 @@ import {
   type ShopProduct,
 } from "@/lib/operatorShop/shopCatalogTypes"
 import {
+  confirmShopOrderPayment,
   pollShopOrderUntilPaid,
 } from "@/api/shopOrdersApi"
+import { resolveShopOrderOnPaymentReturn } from "@/lib/operatorShop/resolveShopOrderOnPaymentReturn"
 import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { shouldGateFreeProductWrite } from "@/lib/operatorHome/freeProductWriteGate"
 import { createShopOfferCardSetupModule } from "@/lib/operatorShop/createShopOfferCardSetupModule"
@@ -444,9 +446,17 @@ export function ShopPage({
 
     void (async () => {
       toast.message("Confirming your Revolut payment…")
-      const paidOrder = await pollShopOrderUntilPaid({
-        orderId: shopOrderId,
-        locationId: selectedLocationId,
+      const paidOrder = await resolveShopOrderOnPaymentReturn({
+        confirmPayment: () =>
+          confirmShopOrderPayment({
+            orderId: shopOrderId,
+            locationId: selectedLocationId,
+          }),
+        pollUntilPaid: () =>
+          pollShopOrderUntilPaid({
+            orderId: shopOrderId,
+            locationId: selectedLocationId,
+          }),
       })
       if (cancelled) {
         return

@@ -215,6 +215,22 @@ export async function payShopOrder(input: {
   return response.data
 }
 
+/**
+ * Asks the server to check Revolut for an order that is still awaiting payment
+ * (used on return from Revolut). Never releases a reservation or refunds.
+ */
+export async function confirmShopOrderPayment(input: {
+  orderId: string
+  locationId: number
+}): Promise<ShopOrderDetailWire> {
+  const response = await axiosInstance.post<ShopOrderDetailWire>(
+    `/shop/orders/${input.orderId}/confirm-payment`,
+    {},
+    { params: { locationId: input.locationId } }
+  )
+  return response.data
+}
+
 export async function pollShopOrderUntilPaid(input: {
   orderId: string
   locationId: number
