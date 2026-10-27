@@ -29,7 +29,7 @@ export const SHOP_OFFER_CARD_SETUP_COPY = {
   attachError: "Could not attach your card offer.",
   createThenAttachError:
     "Offer was created but could not be attached. Try again from Offers.",
-  guardToast: "Set up your card offer before ordering Offer Cards.",
+  guardToast: "Set up your card offer before ordering Guest Cards.",
   loadError: "Could not check your card offer.",
   previewError: "Could not load the card preview.",
 } as const

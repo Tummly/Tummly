@@ -267,6 +267,10 @@ namespace TummlyBackend.Tests.Integration
                 OfferCardOfferRequiredException.ErrorCode,
                 body.GetProperty("code").GetString()
             );
+            Assert.Equal(
+                "Set up your card offer before ordering Guest Cards.",
+                body.GetProperty("message").GetString()
+            );
         }
 
         [Fact]

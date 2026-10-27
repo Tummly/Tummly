@@ -552,7 +552,7 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     code = payBlock,
-                    message = "Set up your card offer before ordering Offer Cards.",
+                    message = OfferCardOfferRequiredException.ErrorMessage,
                 });
             }
 
