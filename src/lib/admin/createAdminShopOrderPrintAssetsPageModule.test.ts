@@ -8,6 +8,7 @@ function order(): AdminShopOrderListItem {
     id: "order-1",
     orderNumber: "ORD-1",
     restaurantId: 10,
+    restaurantName: "Bella Vista",
     locationId: 11,
     locationNameSnapshot: "Front Room",
     fulfilmentStatus: "processing",
@@ -16,12 +17,14 @@ function order(): AdminShopOrderListItem {
     trackingUrl: null,
     opsNotes: null,
     paidAtUtc: "2026-09-11T12:00:00Z",
+    createdAtUtc: "2026-09-11T11:50:00Z",
     productionStartedAtUtc: null,
     grossPence: 1000,
     lines: [],
     printAssets: [
       {
         qrType: "TableTent",
+        productTitle: "QR Table Tent",
         quantity: 25,
         status: "Ready",
         fileName: "table-tent.csv",
@@ -31,6 +34,7 @@ function order(): AdminShopOrderListItem {
       },
       {
         qrType: "OfferCard",
+        productTitle: "QR Guest Cards",
         quantity: 50,
         status: "Failed",
         fileName: null,

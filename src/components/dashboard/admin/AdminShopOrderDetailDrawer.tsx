@@ -387,6 +387,7 @@ export function AdminShopOrderDetailDrawer({
     const updatedPrintAssets = printAssetsModule.getSnapshot().rows.map(
       ({
         qrType,
+        productTitle,
         quantity,
         status,
         fileName,
@@ -395,6 +396,7 @@ export function AdminShopOrderDetailDrawer({
         printRoute,
       }) => ({
         qrType,
+        productTitle,
         quantity,
         status,
         fileName,

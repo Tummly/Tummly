@@ -1,15 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import axios from "axios"
 import { DownloadIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
+  approveAdminShopOrderPrintAsset,
+  downloadAdminShopOrderPrintAsset,
   downloadAdminShopOrdersCsv,
   fetchAdminShopOrders,
+  patchAdminShopOrderFulfilment,
   type AdminShopFulfilmentStatus,
   type AdminShopOrderListItem,
+  type AdminShopPrintAsset,
 } from "@/api/adminShopOrdersApi"
 import { AdminShopOrderDetailDrawer } from "@/components/dashboard/admin/AdminShopOrderDetailDrawer"
+import { AdminShopOrderRowActionsMenu } from "@/components/dashboard/admin/AdminShopOrderRowActionsMenu"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,8 +59,13 @@ import {
   ALL_ADMIN_SHOP_FULFILMENT_STATUSES,
   adminShopFulfilmentLabel,
   formatAdminShopGbpFromPence,
-  nextAdminShopFulfilmentAction,
 } from "@/lib/adminShopOrderFulfilment"
+import { defaultDownloadName } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
+import {
+  adminShopOrderPaymentLabel,
+  adminShopOrderRowActions,
+  formatAdminShopOrderDate,
+} from "@/lib/admin/adminShopOrdersTablePresentation"
 import {
   GUESTS_PAGE_STACK_CLASS,
   GUESTS_PAGE_SUBTITLE_CLASS,
@@ -61,8 +82,6 @@ import {
   GUESTS_TABLE_GUEST_NAME_CLASS,
   GUESTS_TABLE_HEAD_CELL_CLASS,
   GUESTS_TABLE_HEAD_ROW_CLASS,
-  GUESTS_TABLE_INTERACTION_TIME_CLASS,
-  GUESTS_TABLE_LOCATION_CLASS,
   GUESTS_TOOLBAR_ACTIONS_CLASS,
   GUESTS_TOOLBAR_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
@@ -74,6 +93,33 @@ import {
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 25
+
+/** Table body copy: functional 14px, Operator primary text. */
+const ORDER_TABLE_TEXT_CLASS = "text-sm font-normal leading-[19px] text-op-text-primary"
+
+type PendingFulfilment = {
+  order: AdminShopOrderListItem
+  status: "in_transit" | "delivered"
+  label: string
+}
+
+function triggerFileDownload(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = fileName
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+function fulfilmentErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const message = (error.response?.data as { message?: string } | undefined)
+      ?.message
+    if (message) return message
+  }
+  return "Could not update fulfilment."
+}
 
 function buildPageNumbers(current: number, total: number) {
   if (total <= 7) {
@@ -107,10 +153,13 @@ export function AdminShopOrdersPanel() {
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<
     AdminShopFulfilmentStatus | "all"
-  >("processing")
+  >("all")
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+  const [rowBusyOrderId, setRowBusyOrderId] = useState<string | null>(null)
+  const [pendingFulfilment, setPendingFulfilment] =
+    useState<PendingFulfilment | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -165,18 +214,100 @@ export function AdminShopOrdersPanel() {
         q: debouncedSearch || undefined,
         fulfilmentStatus: fulfilmentStatusesForFilter(statusFilter),
       })
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement("a")
-      anchor.href = url
-      anchor.download = fileName
-      anchor.click()
-      URL.revokeObjectURL(url)
+      triggerFileDownload(blob, fileName)
       toast.success("Shop orders CSV downloaded")
     } catch {
       toast.error("Could not export shop orders")
     } finally {
       setExporting(false)
     }
+  }
+
+  const applyOrderUpdate = (updated: AdminShopOrderListItem) => {
+    const stillMatchesFilter =
+      statusFilter === "all" || updated.fulfilmentStatus === statusFilter
+
+    if (!stillMatchesFilter) {
+      setOrders((current) => current.filter((item) => item.id !== updated.id))
+      setTotalCount((count) => Math.max(0, count - 1))
+      setSelectedOrderId(null)
+      void loadOrders()
+      return
+    }
+
+    setOrders((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item))
+    )
+  }
+
+  const runRowBusy = async (
+    orderId: string,
+    task: () => Promise<void>
+  ) => {
+    setRowBusyOrderId(orderId)
+    try {
+      await task()
+    } finally {
+      setRowBusyOrderId(null)
+    }
+  }
+
+  const downloadRowMaterials = (order: AdminShopOrderListItem) =>
+    runRowBusy(order.id, async () => {
+      const { downloadQrTypes } = adminShopOrderRowActions(order)
+      try {
+        for (const qrType of downloadQrTypes) {
+          const asset = order.printAssets.find((item) => item.qrType === qrType)
+          const blob = await downloadAdminShopOrderPrintAsset(order.id, qrType)
+          triggerFileDownload(
+            blob,
+            defaultDownloadName(order.id, qrType, asset?.fileName ?? null)
+          )
+        }
+      } catch {
+        toast.error("Could not download the print asset.")
+      }
+    })
+
+  const approveRowMaterials = (order: AdminShopOrderListItem) =>
+    runRowBusy(order.id, async () => {
+      const { approveQrTypes } = adminShopOrderRowActions(order)
+      try {
+        const approved = new Map<string, AdminShopPrintAsset>()
+        for (const qrType of approveQrTypes) {
+          const asset = await approveAdminShopOrderPrintAsset(order.id, qrType)
+          approved.set(qrType, asset)
+        }
+        applyOrderUpdate({
+          ...order,
+          printAssets: order.printAssets.map(
+            (asset) => approved.get(asset.qrType) ?? asset
+          ),
+        })
+        toast.success("Print assets approved.")
+      } catch {
+        toast.error("Could not approve the print asset.")
+        void loadOrders()
+      }
+    })
+
+  const confirmFulfilment = async () => {
+    const pending = pendingFulfilment
+    if (!pending) return
+    await runRowBusy(pending.order.id, async () => {
+      try {
+        const updated = await patchAdminShopOrderFulfilment(pending.order.id, {
+          fulfilmentStatus: pending.status,
+        })
+        setPendingFulfilment(null)
+        applyOrderUpdate(updated)
+        toast.success(
+          `Order marked as ${adminShopFulfilmentLabel(pending.status)}`
+        )
+      } catch (error) {
+        toast.error(fulfilmentErrorMessage(error))
+      }
+    })
   }
 
   return (
@@ -244,6 +375,16 @@ export function AdminShopOrdersPanel() {
               type="button"
               variant="op-secondary"
               className="rounded-[2px]"
+              disabled={loading}
+              onClick={() => void loadOrders()}
+            >
+              Refresh
+            </Button>
+
+            <Button
+              type="button"
+              variant="op-secondary"
+              className="rounded-[2px]"
               disabled={exporting}
               onClick={() => void handleExport()}
             >
@@ -261,28 +402,28 @@ export function AdminShopOrdersPanel() {
                   Order
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Location
+                  Restaurant
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Restaurant
+                  Location
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Materials
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Total
+                  Total (£)
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Payment
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Order date
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Fulfilment
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Paid
-                </TableHead>
-                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Next step
+                  Actions
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -306,9 +447,6 @@ export function AdminShopOrdersPanel() {
 
               {!loading &&
                 orders.map((order) => {
-                  const nextAction = nextAdminShopFulfilmentAction(
-                    order.fulfilmentStatus
-                  )
                   const materials = order.lines
                     .map((line) => `${line.titleSnapshot} ×${line.quantity}`)
                     .join(", ")
@@ -334,13 +472,18 @@ export function AdminShopOrdersPanel() {
                           "max-w-44 truncate"
                         )}
                       >
-                        <span className={GUESTS_TABLE_LOCATION_CLASS}>
-                          {order.locationNameSnapshot}
+                        <span className={ORDER_TABLE_TEXT_CLASS}>
+                          {order.restaurantName}
                         </span>
                       </TableCell>
-                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <span className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
-                          #{order.restaurantId}
+                      <TableCell
+                        className={cn(
+                          GUESTS_TABLE_BODY_CELL_CLASS,
+                          "max-w-44 truncate"
+                        )}
+                      >
+                        <span className={ORDER_TABLE_TEXT_CLASS}>
+                          {order.locationNameSnapshot}
                         </span>
                       </TableCell>
                       <TableCell
@@ -349,38 +492,51 @@ export function AdminShopOrdersPanel() {
                           "max-w-56 truncate"
                         )}
                       >
-                        <span className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
+                        <span className={ORDER_TABLE_TEXT_CLASS}>
                           {materials || "—"}
                         </span>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <span className="text-sm text-foreground">
+                        <span className={ORDER_TABLE_TEXT_CLASS}>
                           {formatAdminShopGbpFromPence(order.grossPence)}
                         </span>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <Badge variant="soft">
-                          {order.isComplimentary
-                            ? "Free"
-                            : order.paymentStatus}
+                          {adminShopOrderPaymentLabel(order)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className={ORDER_TABLE_TEXT_CLASS}>
+                          {formatAdminShopOrderDate(order.createdAtUtc)}
+                        </span>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <Badge variant="soft">
                           {adminShopFulfilmentLabel(order.fulfilmentStatus)}
                         </Badge>
                       </TableCell>
-                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <span className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
-                          {order.paidAtUtc
-                            ? new Date(order.paidAtUtc).toLocaleDateString()
-                            : "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <span className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
-                          {nextAction?.label ?? "—"}
-                        </span>
+                      <TableCell
+                        className={cn(
+                          GUESTS_TABLE_BODY_CELL_CLASS,
+                          "text-center"
+                        )}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <AdminShopOrderRowActionsMenu
+                          order={order}
+                          busy={rowBusyOrderId === order.id}
+                          onViewOrder={() => setSelectedOrderId(order.id)}
+                          onDownloadMaterials={() =>
+                            void downloadRowMaterials(order)
+                          }
+                          onApproveMaterials={() =>
+                            void approveRowMaterials(order)
+                          }
+                          onRequestFulfilment={(status, label) =>
+                            setPendingFulfilment({ order, status, label })
+                          }
+                        />
                       </TableCell>
                     </TableRow>
                   )
@@ -465,30 +621,45 @@ export function AdminShopOrdersPanel() {
             setSelectedOrderId(null)
           }
         }}
-        onOrderUpdated={(updated) => {
-          setOrders((current) => {
-            const stillMatchesFilter =
-              statusFilter === "all" ||
-              updated.fulfilmentStatus === statusFilter
-
-            if (!stillMatchesFilter) {
-              return current.filter((item) => item.id !== updated.id)
-            }
-
-            return current.map((item) =>
-              item.id === updated.id ? updated : item
-            )
-          })
-          if (
-            statusFilter !== "all" &&
-            updated.fulfilmentStatus !== statusFilter
-          ) {
-            setTotalCount((count) => Math.max(0, count - 1))
-            setSelectedOrderId(null)
-            void loadOrders()
-          }
-        }}
+        onOrderUpdated={applyOrderUpdate}
       />
+
+      <AlertDialog
+        open={pendingFulfilment !== null}
+        onOpenChange={(nextOpen) => {
+          if (rowBusyOrderId !== null) return
+          if (!nextOpen) setPendingFulfilment(null)
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingFulfilment
+                ? `${pendingFulfilment.label}?`
+                : "Update fulfilment?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingFulfilment
+                ? `This updates ${pendingFulfilment.order.orderNumber} to ${adminShopFulfilmentLabel(pendingFulfilment.status)}.`
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rowBusyOrderId !== null}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={rowBusyOrderId !== null}
+              onClick={(event) => {
+                event.preventDefault()
+                void confirmFulfilment()
+              }}
+            >
+              {rowBusyOrderId !== null ? "Saving…" : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
