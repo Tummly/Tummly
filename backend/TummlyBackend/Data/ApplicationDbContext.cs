@@ -111,6 +111,8 @@ namespace TummlyBackend.Data
 
         public DbSet<ShopOrderSequence> ShopOrderSequences { get; set; }
 
+        public DbSet<ShopQrSlotReservation> ShopQrSlotReservations { get; set; }
+
         public DbSet<ShopLocationDetails> ShopLocationDetails { get; set; }
 
         public DbSet<PlacementRecipe> PlacementRecipes { get; set; }
@@ -2756,6 +2758,31 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<ShopOrder>()
                 .Property(row => row.IsComplimentary)
                 .HasDefaultValue(false);
+
+            modelBuilder.Entity<ShopQrSlotReservation>()
+                .HasOne(row => row.ShopOrder)
+                .WithMany()
+                .HasForeignKey(row => row.ShopOrderId)
+                // NoAction: Restaurant cascades already reach this table through
+                // ShopOrders and RestaurantLocations; a Cascade here would be a
+                // third path (1785).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ShopQrSlotReservation>()
+                .HasOne(row => row.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantLocationId)
+                // NoAction: Restaurant→Location Cascade + ShopOrder→Restaurant
+                // would otherwise make a second path (1785).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            // One reservation per order and QR type (repeated /pay is idempotent).
+            modelBuilder.Entity<ShopQrSlotReservation>()
+                .HasIndex(row => new { row.ShopOrderId, row.QrType })
+                .IsUnique();
+
+            modelBuilder.Entity<ShopQrSlotReservation>()
+                .HasIndex(row => new { row.RestaurantLocationId, row.QrType, row.Status });
 
             modelBuilder.Entity<ShopOrderLine>()
                 .HasOne(row => row.ShopOrder)

@@ -4997,6 +4997,61 @@ namespace TummlyBackend.Migrations
                     b.ToTable("ShopOrderSequences");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.ShopQrSlotReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("ConvertedQrCodeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastReconcileAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastReconcileError")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("QrType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReactivateQrCodeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ReconcileAfterUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ReconcileAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ShopOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopOrderId", "QrType")
+                        .IsUnique();
+
+                    b.HasIndex("RestaurantLocationId", "QrType", "Status");
+
+                    b.ToTable("ShopQrSlotReservations");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.TeamInvitation", b =>
                 {
                     b.Property<int>("Id")
@@ -6877,6 +6932,25 @@ namespace TummlyBackend.Migrations
                         .IsRequired();
 
                     b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopQrSlotReservation", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
+                        .WithMany()
+                        .HasForeignKey("RestaurantLocationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.ShopOrder", "ShopOrder")
+                        .WithMany()
+                        .HasForeignKey("ShopOrderId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("RestaurantLocation");
+
+                    b.Navigation("ShopOrder");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.TeamInvitation", b =>
