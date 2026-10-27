@@ -15,6 +15,7 @@ function createModule(options?: {
     title: null,
     live: false,
   }
+  let locationId: number | null = 9
   const getAttached = vi.fn(async () => attached)
   const createCatalogOffer = vi.fn(async () => {
     if (options?.failCreate) {
@@ -35,7 +36,7 @@ function createModule(options?: {
   })
 
   const module = createShopOfferCardSetupModule({
-    locationId: () => 9,
+    locationId: () => locationId,
     isEnabled: () => options?.enabled !== false,
     isGuestCardAvailable: () => options?.guestCardAvailable !== false,
     getAttached,
@@ -43,7 +44,13 @@ function createModule(options?: {
     putOfferCardOffer,
   })
 
-  return { module, createCatalogOffer, putOfferCardOffer, getAttached }
+  /** Switches the selected location and the attach state that the next load reads. */
+  const moveToLocation = (nextLocationId: number, nextAttached: ShopOfferCardOfferFact) => {
+    locationId = nextLocationId
+    attached = nextAttached
+  }
+
+  return { module, createCatalogOffer, putOfferCardOffer, getAttached, moveToLocation }
 }
 
 describe("createShopOfferCardSetupModule", () => {
@@ -79,14 +86,15 @@ describe("createShopOfferCardSetupModule", () => {
   })
 
   it("location change closes an open dialog and reloads attach state", async () => {
-    const { module, getAttached } = createModule()
+    const { module, getAttached, moveToLocation } = createModule()
     await module.loadForLocation()
     expect(module.open()).toBe("opened")
     expect(module.getSnapshot().isOpen).toBe(true)
 
+    moveToLocation(10, { offerId: 7, title: "Other location offer", live: true })
     await module.loadForLocation()
 
-    expect(module.getSnapshot().isOpen).toBe(false)
+    expect(module.getSnapshot()).toMatchObject({ isOpen: false, hasAttach: true })
     expect(getAttached).toHaveBeenCalledTimes(2)
   })
 

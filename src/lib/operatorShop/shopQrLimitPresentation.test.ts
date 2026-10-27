@@ -1,22 +1,11 @@
-import { AxiosError, type AxiosResponse } from "axios"
 import { describe, expect, it } from "vitest"
 
+import { axiosErrorWithBody } from "@/lib/operatorShop/shopApiErrorTestHelpers"
 import {
   SHOP_QR_LIMIT_COPY,
   buildShopQrLimitBody,
   readShopQrLimitError,
 } from "@/lib/operatorShop/shopQrLimitPresentation"
-
-function axiosErrorWithBody(status: number, data: unknown): AxiosError {
-  const response = {
-    status,
-    data,
-    headers: {},
-    statusText: "",
-    config: {},
-  } as AxiosResponse
-  return new AxiosError("Request failed", "ERR_BAD_REQUEST", undefined, undefined, response)
-}
 
 describe("buildShopQrLimitBody", () => {
   it("uses the limit verbatim in the exact copy", () => {

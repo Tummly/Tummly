@@ -1,21 +1,10 @@
-import { AxiosError, type AxiosResponse } from "axios"
 import { describe, expect, it } from "vitest"
 
+import { axiosErrorWithBody } from "@/lib/operatorShop/shopApiErrorTestHelpers"
 import {
   buildShopReorderUnavailableMessage,
   readShopReorderUnavailableLines,
 } from "@/lib/operatorShop/shopReorderUnavailablePresentation"
-
-function axiosErrorWithBody(status: number, data: unknown): AxiosError {
-  const response = {
-    status,
-    data,
-    headers: {},
-    statusText: "",
-    config: {},
-  } as AxiosResponse
-  return new AxiosError("Request failed", "ERR_BAD_REQUEST", undefined, undefined, response)
-}
 
 describe("buildShopReorderUnavailableMessage", () => {
   it("lists the unavailable titles joined by comma and space", () => {

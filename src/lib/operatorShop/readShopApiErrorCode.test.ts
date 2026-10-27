@@ -1,18 +1,7 @@
-import { AxiosError, type AxiosResponse } from "axios"
 import { describe, expect, it } from "vitest"
 
+import { axiosErrorWithBody } from "@/lib/operatorShop/shopApiErrorTestHelpers"
 import { readShopApiErrorCode } from "@/lib/operatorShop/readShopApiErrorCode"
-
-function axiosErrorWithBody(status: number, data: unknown): AxiosError {
-  const response = {
-    status,
-    data,
-    headers: {},
-    statusText: "",
-    config: {},
-  } as AxiosResponse
-  return new AxiosError("Request failed", "ERR_BAD_REQUEST", undefined, undefined, response)
-}
 
 describe("readShopApiErrorCode", () => {
   it("returns the body code from a 409 Axios error", () => {

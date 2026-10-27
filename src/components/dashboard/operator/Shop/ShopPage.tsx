@@ -65,7 +65,7 @@ import {
   SHOP_OFFER_CARD_SETUP_COPY,
   SHOP_GUEST_CARD_SKU_ID,
 } from "@/lib/operatorShop/shopOfferCardSetupPresentation"
-import { readShopApiErrorCode } from "@/lib/operatorShop/readShopApiErrorCode"
+import { shouldOpenOfferCardSetupForError } from "@/lib/operatorShop/shouldOpenOfferCardSetupForError"
 import { buildShopReorderUnavailableMessage } from "@/lib/operatorShop/shopReorderUnavailablePresentation"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import { shouldShowShopRecommendations } from "@/lib/operatorShop/shouldShowShopRecommendations"
@@ -195,12 +195,19 @@ export function ShopPage({
     offerCardSetupModule.getSnapshot
   )
 
+  /** Opens the card-offer dialog. A noop (Guest Cards unavailable) gets the guard toast. */
+  const openOfferCardSetup = (): void => {
+    if (offerCardSetupModule.open() === "noop") {
+      toast.error(SHOP_OFFER_CARD_SETUP_COPY.guardToast)
+    }
+  }
+
   /** Server refused a Guest Card line until a card offer is attached. */
   const openOfferCardSetupIfRequired = (error: unknown): boolean => {
-    if (readShopApiErrorCode(error) !== "offer_card_offer_required") {
+    if (!shouldOpenOfferCardSetupForError(error)) {
       return false
     }
-    offerCardSetupModule.open()
+    openOfferCardSetup()
     return true
   }
 
@@ -736,9 +743,7 @@ export function ShopPage({
           mode={mode}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
-          onOfferCardRequired={() => {
-            offerCardSetupModule.open()
-          }}
+          onOfferCardRequired={openOfferCardSetup}
           onBackToProduct={() => {
             const wasFromCart = checkoutFromCart
             const expressSkuId = expressCheckout?.lines[0]?.skuId
