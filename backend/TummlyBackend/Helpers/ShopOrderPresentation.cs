@@ -4,7 +4,6 @@ namespace TummlyBackend.Helpers
 {
     internal static class ShopOrderPresentation
     {
-        private static readonly TimeZoneInfo LondonTimeZone = ResolveLondonTimeZone();
 
         internal static string FormatGbp(int pence)
         {
@@ -17,22 +16,9 @@ namespace TummlyBackend.Helpers
         /// </summary>
         internal static string FormatDisplayDate(DateTime utc)
         {
-            var asUtc = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
-            return TimeZoneInfo
-                .ConvertTimeFromUtc(asUtc, LondonTimeZone)
+            return LondonDateFormat
+                .ToLondonLocal(utc)
                 .ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
-        }
-
-        private static TimeZoneInfo ResolveLondonTimeZone()
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
-            }
-            catch (TimeZoneNotFoundException)
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById("GMT Standard Time");
-            }
         }
 
         internal static string BuildMaterialsSummary(IEnumerable<Models.ShopOrderLine> lines)
