@@ -46,5 +46,19 @@ namespace TummlyBackend.Interfaces
         /// Sets the order's <c>open</c> reservations to <c>released</c>.
         /// </summary>
         Task ReleaseForOrderAsync(Guid shopOrderId, CancellationToken ct);
+
+        /// <summary>
+        /// Converts the paid order's reservations to QR codes. Runs inside the
+        /// caller's transaction after the billing-account lock. Returns the QR
+        /// code ids. Held reservations are not checked against the limit. A
+        /// type with no held reservation is checked; when the limit is full the
+        /// order gets review reason
+        /// <see cref="ShopOrderReviewReasons.QrCapacityUnavailableAfterPayment"/>
+        /// and that type gets no code.
+        /// </summary>
+        Task<IReadOnlyList<int>> ConvertForPaidOrderAsync(
+            ShopOrder order,
+            CancellationToken ct
+        );
     }
 }

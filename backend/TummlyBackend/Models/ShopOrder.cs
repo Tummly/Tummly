@@ -18,6 +18,17 @@ namespace TummlyBackend.Models
         public const string Cancelled = "cancelled";
     }
 
+    public static class ShopOrderReviewReasons
+    {
+        /// <summary>
+        /// Payment completed after the QR slot was released and the plan limit
+        /// had no room for a new code. Admin resolves it by hand; the money is
+        /// never refunded automatically.
+        /// </summary>
+        public const string QrCapacityUnavailableAfterPayment =
+            "qr_capacity_unavailable_after_payment";
+    }
+
     public static class ShopDeliveryMethods
     {
         public const string Standard = "standard";
@@ -104,6 +115,13 @@ namespace TummlyBackend.Models
 
         [MaxLength(2000)]
         public string? OpsNotes { get; set; }
+
+        /// <summary>
+        /// Set when a paid order needs manual review, for example
+        /// <see cref="ShopOrderReviewReasons.QrCapacityUnavailableAfterPayment"/>.
+        /// </summary>
+        [MaxLength(64)]
+        public string? ReviewReason { get; set; }
 
         [Required]
         [MaxLength(200)]

@@ -21,13 +21,17 @@ namespace TummlyBackend.Services
         private readonly IQrPlacementResolver _resolver;
         private readonly IMaterialsCatalog _catalog;
         private readonly TimeProvider _clock;
+        private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly ILogger<ShopQrSlotReservationService> _logger;
 
         public ShopQrSlotReservationService(
             ApplicationDbContext context,
             IActiveQrCapacity capacity,
             IQrPlacementResolver resolver,
             IMaterialsCatalog catalog,
-            TimeProvider clock
+            TimeProvider clock,
+            ISmartGuestLinkService smartGuestLink,
+            ILogger<ShopQrSlotReservationService> logger
         )
         {
             _context = context;
@@ -35,6 +39,8 @@ namespace TummlyBackend.Services
             _resolver = resolver;
             _catalog = catalog;
             _clock = clock;
+            _smartGuestLink = smartGuestLink;
+            _logger = logger;
         }
 
         public async Task<QrCapacityCheck> CheckForPlaceAsync(
@@ -149,6 +155,183 @@ namespace TummlyBackend.Services
             {
                 await _context.SaveChangesAsync(ct);
             }
+        }
+
+        public async Task<IReadOnlyList<int>> ConvertForPaidOrderAsync(
+            ShopOrder order,
+            CancellationToken ct
+        )
+        {
+            var types = ShopQrSlotTypes.FromOrderLines(order.Lines, _catalog);
+            if (types.Count == 0)
+            {
+                return [];
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var own = await _context.ShopQrSlotReservations
+                .Where(row => row.ShopOrderId == order.Id)
+                .ToListAsync(ct);
+            var qrCodeIds = new List<int>();
+
+            foreach (var type in types)
+            {
+                var reservation = own.FirstOrDefault(row => row.QrType == type);
+                if (
+                    reservation is
+                    {
+                        Status: ShopQrSlotReservationStatuses.Converted,
+                        ConvertedQrCodeId: int converted,
+                    }
+                )
+                {
+                    qrCodeIds.Add(converted);
+                    continue;
+                }
+
+                var (qrCodeId, reused) = await ResolveCodeForConversionAsync(
+                    order,
+                    type,
+                    reservation,
+                    now,
+                    ct
+                );
+                if (qrCodeId is not int resolvedId)
+                {
+                    order.ReviewReason =
+                        ShopOrderReviewReasons.QrCapacityUnavailableAfterPayment;
+                    order.UpdatedAtUtc = now;
+                    _logger.LogWarning(
+                        "Shop order {ShopOrderId} was paid but the plan has no room for a new {QrType} QR code at location {LocationId}; order moved to review",
+                        order.Id,
+                        type,
+                        order.LocationId
+                    );
+                    continue;
+                }
+
+                if (reservation == null && reused)
+                {
+                    // An Active code already existed and no slot was held.
+                    qrCodeIds.Add(resolvedId);
+                    continue;
+                }
+
+                if (reservation == null)
+                {
+                    reservation = new ShopQrSlotReservation
+                    {
+                        Id = Guid.NewGuid(),
+                        ShopOrderId = order.Id,
+                        RestaurantLocationId = order.LocationId,
+                        QrType = type,
+                        ReconcileAfterUtc = now,
+                        CreatedAtUtc = now,
+                    };
+                    _context.ShopQrSlotReservations.Add(reservation);
+                    own.Add(reservation);
+                }
+
+                reservation.Status = ShopQrSlotReservationStatuses.Converted;
+                reservation.ConvertedQrCodeId = resolvedId;
+                reservation.UpdatedAtUtc = now;
+                qrCodeIds.Add(resolvedId);
+            }
+
+            await _context.SaveChangesAsync(ct);
+            return qrCodeIds;
+        }
+
+        /// <summary>
+        /// The Active code a paid order's type lands on: an existing Active
+        /// code, a Paused code reactivated (token kept), or a new code. Returns
+        /// null when a new slot is needed and the plan has no room.
+        /// </summary>
+        private async Task<(int? QrCodeId, bool Reused)> ResolveCodeForConversionAsync(
+            ShopOrder order,
+            QrType type,
+            ShopQrSlotReservation? reservation,
+            DateTime now,
+            CancellationToken ct
+        )
+        {
+            var resolution = await _resolver.ResolveAsync(order.LocationId, type, ct);
+            if (resolution is Reuse reuse)
+            {
+                return (reuse.QrCodeId, true);
+            }
+
+            // Any held reservation on this (location, type) already holds the
+            // slot, so no limit check applies (spec 4.4.3 step 3).
+            var held = await HeldTypesAsync(order.LocationId, ct);
+            if (!held.Contains(type))
+            {
+                var decision = await _capacity.EvaluateAsync(
+                    order.RestaurantId,
+                    order.LocationId,
+                    1,
+                    activatingType: null,
+                    ct
+                );
+                if (!decision.EntitlementsAvailable || !decision.Fits)
+                {
+                    return (null, false);
+                }
+            }
+
+            var reactivateId = await ValidReactivationIdAsync(
+                order.LocationId,
+                type,
+                reservation?.ReactivateQrCodeId,
+                ct
+            ) ?? ((NeedsSlot)resolution).ReactivateQrCodeId;
+            if (reactivateId is int pausedId)
+            {
+                var paused = await _context.QrCodes.SingleAsync(
+                    row => row.Id == pausedId,
+                    ct
+                );
+                paused.Status = QrCodeStatus.Active;
+                paused.UpdatedAt = now;
+                return (paused.Id, false);
+            }
+
+            var created = new QrCode
+            {
+                RestaurantLocationId = order.LocationId,
+                QrType = type,
+                Token = await _smartGuestLink.GenerateTokenAsync(),
+                Status = QrCodeStatus.Active,
+                CreatedAt = now,
+            };
+            _context.QrCodes.Add(created);
+            // Saved now so the id exists and the next token check sees this one.
+            await _context.SaveChangesAsync(ct);
+            return (created.Id, false);
+        }
+
+        private async Task<int?> ValidReactivationIdAsync(
+            int locationId,
+            QrType type,
+            int? qrCodeId,
+            CancellationToken ct
+        )
+        {
+            if (qrCodeId is not int id)
+            {
+                return null;
+            }
+
+            var stillPaused = await _context.QrCodes.AnyAsync(
+                row =>
+                    row.Id == id
+                    && row.RestaurantLocationId == locationId
+                    && row.QrType == type
+                    && row.Status == QrCodeStatus.Paused
+                    && row.ArchivedAt == null,
+                ct
+            );
+            return stillPaused ? id : null;
         }
 
         private async Task<QrCapacityCheck> EvaluateAsync(
