@@ -143,11 +143,12 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            // The newest intent, open or not: a declined or authorised event
+            // closes the intent while the Revolut order can still be paid.
             var intent = await context.RevolutOrderIntents
                 .Where(row =>
                     row.ShopOrderId == orderId
                     && row.Purpose == RevolutOrderIntentPurposes.ShopMaterialsOrder
-                    && row.IsOpen
                 )
                 .OrderByDescending(row => row.CreatedAtUtc)
                 .FirstOrDefaultAsync(ct);
@@ -375,7 +376,9 @@ namespace TummlyBackend.Services
             await ShopMaterialsOrderPaymentFailure.TryMarkFailedAsync(
                 context,
                 intent.OrderId,
-                ct
+                ct,
+                releaseQrReservations: true,
+                nowUtc: now
             );
             await ReleaseAsync(context, shopOrderId, now, ct);
         }

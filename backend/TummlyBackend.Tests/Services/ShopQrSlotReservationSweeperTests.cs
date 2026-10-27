@@ -202,6 +202,31 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Sweep_AfterPaymentDeclinedClosedIntent_StillAsksRevolutBeforeRelease()
+        {
+            var held = await PayGuestCardOrderAsync(freeSlots: 1);
+            // A declined payment closes the intent but the Revolut order can
+            // still be paid, so the sweeper must read it before releasing.
+            var declined = await SendAsync(WebhookRequest(
+                "ORDER_PAYMENT_DECLINED",
+                held.RevolutOrderId
+            ));
+            Assert.True(declined.IsSuccessStatusCode);
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(held, "completed");
+
+            await SweepAsync(ClockAfterDeadline(held));
+
+            await using var db = OpenDb();
+            var reservation = await ReservationAsync(db, held);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, reservation.Status);
+            Assert.Equal(
+                ShopPaymentStatuses.Paid,
+                (await db.Context.ShopOrders.SingleAsync(row => row.Id == held.OrderId))
+                    .PaymentStatus
+            );
+        }
+
+        [Fact]
         public async Task Sweep_NoIntent_Releases()
         {
             var workspace = await SeedAsync(freeSlots: 1);
@@ -351,6 +376,39 @@ namespace TummlyBackend.Tests.Services
                 revolutOrderId,
                 reservation.CreatedAtUtc
             );
+        }
+
+        private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request) =>
+            await _client.SendAsync(request);
+
+        private static HttpRequestMessage WebhookRequest(
+            string eventName,
+            string revolutOrderId
+        )
+        {
+            var body =
+                $$"""{"event":"{{eventName}}","order_id":"{{revolutOrderId}}"}""";
+            const string timestamp = "1710000000";
+            var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/webhooks/revolut"
+            )
+            {
+                Content = new StringContent(
+                    body,
+                    System.Text.Encoding.UTF8,
+                    "application/json"
+                ),
+            };
+            request.Headers.TryAddWithoutValidation(
+                "Revolut-Request-Timestamp",
+                timestamp
+            );
+            request.Headers.TryAddWithoutValidation(
+                "Revolut-Signature",
+                RevolutWebhookSignature.SignForTests("whsec_placeholder", timestamp, body)
+            );
+            return request;
         }
 
         private static AdjustableTimeProvider ClockAfterDeadline(HeldReservation held) =>

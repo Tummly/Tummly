@@ -285,10 +285,14 @@ namespace TummlyBackend.Services
             );
             if (!CreditTopUpPaySessionService.IsPayableOrder(order))
             {
+                // The session could not be read, which does not prove the payment
+                // ended, so the QR slot reservation stays.
                 await ShopMaterialsOrderPaymentFailure.TryMarkFailedAsync(
                     _context,
                     intent.OrderId,
-                    cancellationToken
+                    cancellationToken,
+                    releaseQrReservations: false,
+                    nowUtc: _clock.GetUtcNow().UtcDateTime
                 );
                 return null;
             }

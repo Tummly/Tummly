@@ -176,6 +176,163 @@ namespace TummlyBackend.Tests.Integration
                 Assert.Equal(ShopQrSlotReservationStatuses.Open, row.Status));
         }
 
+        [Theory]
+        [InlineData(ShopPaymentStatuses.PaymentFailed)]
+        [InlineData(ShopPaymentStatuses.Paid)]
+        public async Task Pay_OrderNotAwaitingPayment_Returns400NotPayable_AndWritesNoReservation(
+            string paymentStatus
+        )
+        {
+            var workspace = await SeedAsync(freeSlots: 1, GuestCards);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var order = await db.ShopOrders.SingleAsync(row => row.Id == orderId);
+                order.PaymentStatus = paymentStatus;
+                // A released row left by the failure must stay released.
+                db.ShopQrSlotReservations.Add(new ShopQrSlotReservation
+                {
+                    Id = Guid.NewGuid(),
+                    ShopOrderId = orderId,
+                    RestaurantLocationId = workspace.LocationId,
+                    QrType = QrType.GuestCard,
+                    Status = ShopQrSlotReservationStatuses.Released,
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                    ReconcileAfterUtc = DateTime.UtcNow.AddMinutes(-30),
+                });
+                await db.SaveChangesAsync();
+            }
+
+            var createsBefore = _factory.Merchant.CreateOrderCallCount;
+            var pay = await _client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(workspace, orderId)
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, pay.StatusCode);
+            var body = await pay.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("shop_order_not_payable", body.GetProperty("code").GetString());
+            Assert.Equal(createsBefore, _factory.Merchant.CreateOrderCallCount);
+            using var verify = _factory.Services.CreateScope();
+            var rows = await verify.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>()
+                .ShopQrSlotReservations
+                .Where(row => row.ShopOrderId == orderId)
+                .ToListAsync();
+            var row = Assert.Single(rows);
+            Assert.Equal(ShopQrSlotReservationStatuses.Released, row.Status);
+        }
+
+        [Fact]
+        public async Task Pay_PaidOrderWithNoReservation_WritesNoReservationRow()
+        {
+            var workspace = await SeedAsync(freeSlots: 1, GuestCards);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                (await db.ShopOrders.SingleAsync(row => row.Id == orderId))
+                    .PaymentStatus = ShopPaymentStatuses.Paid;
+                await db.SaveChangesAsync();
+            }
+
+            var pay = await _client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(workspace, orderId)
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, pay.StatusCode);
+            using var verify = _factory.Services.CreateScope();
+            Assert.False(await verify.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>()
+                .ShopQrSlotReservations
+                .AnyAsync(row => row.ShopOrderId == orderId));
+        }
+
+        [Fact]
+        public async Task Pay_ReopenedReservation_ResetsCreatedAt_SoReviewClockRestarts()
+        {
+            var workspace = await SeedAsync(freeSlots: 1, GuestCards);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            var stale = DateTime.UtcNow.AddHours(-25);
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                // The sweeper released this one (no intent) a day ago.
+                db.ShopQrSlotReservations.Add(new ShopQrSlotReservation
+                {
+                    Id = Guid.NewGuid(),
+                    ShopOrderId = orderId,
+                    RestaurantLocationId = workspace.LocationId,
+                    QrType = QrType.GuestCard,
+                    Status = ShopQrSlotReservationStatuses.Released,
+                    ReconcileAttempts = 3,
+                    CreatedAtUtc = stale,
+                    UpdatedAtUtc = stale,
+                    ReconcileAfterUtc = stale.AddMinutes(30),
+                });
+                await db.SaveChangesAsync();
+            }
+
+            var pay = await _client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(workspace, orderId)
+            );
+
+            Assert.Equal(HttpStatusCode.OK, pay.StatusCode);
+            using var verify = _factory.Services.CreateScope();
+            var row = await verify.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>()
+                .ShopQrSlotReservations
+                .SingleAsync(r => r.ShopOrderId == orderId);
+            Assert.Equal(ShopQrSlotReservationStatuses.Open, row.Status);
+            Assert.True(row.CreatedAtUtc > DateTime.UtcNow.AddMinutes(-5));
+            Assert.Equal(row.CreatedAtUtc.AddMinutes(30), row.ReconcileAfterUtc);
+            Assert.Equal(0, row.ReconcileAttempts);
+        }
+
+        [Fact]
+        public async Task Pay_ReuseSessionNotPayable_KeepsReservationOpenForTheNewRevolutOrder()
+        {
+            var workspace = await SeedAsync(freeSlots: 1, GuestCards);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            var key = Guid.NewGuid().ToString("D");
+            var first = await _client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(workspace, orderId, key)
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            string firstRevolutId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                firstRevolutId = await scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>()
+                    .RevolutOrderIntents
+                    .Where(row => row.ShopOrderId == orderId)
+                    .Select(row => row.OrderId)
+                    .SingleAsync();
+            }
+
+            // Revolut cannot be read, so the reuse path drops the old session.
+            _factory.Merchant.Orders[firstRevolutId] = new RevolutOrderRetrieveResult(
+                Succeeded: false,
+                ErrorCode: "revolut_http_error"
+            );
+            var createsBefore = _factory.Merchant.CreateOrderCallCount;
+
+            var second = await _client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(workspace, orderId, key)
+            );
+
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+            Assert.Equal(createsBefore + 1, _factory.Merchant.CreateOrderCallCount);
+            using var verify = _factory.Services.CreateScope();
+            var db = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(2, await db.RevolutOrderIntents
+                .CountAsync(row => row.ShopOrderId == orderId));
+            var reservation = await db.ShopQrSlotReservations
+                .SingleAsync(row => row.ShopOrderId == orderId);
+            Assert.Equal(ShopQrSlotReservationStatuses.Open, reservation.Status);
+        }
+
         private async Task<ShopCapacityWorkspace> SeedAsync(
             int freeSlots,
             params string[] orderableSkus

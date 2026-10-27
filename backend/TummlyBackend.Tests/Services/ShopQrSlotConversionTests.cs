@@ -273,6 +273,45 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Theory]
+        [InlineData("ORDER_PAYMENT_DECLINED")]
+        [InlineData("ORDER_PAYMENT_FAILED")]
+        [InlineData("ORDER_AUTHORISED")]
+        public async Task NonTerminalOrderEvents_LeaveReservationOpen(string eventName)
+        {
+            // The customer can retry or the payment can still capture, so only a
+            // confirmed ORDER_FAILED or ORDER_CANCELLED gives the slot back.
+            var workspace = await SeedAsync(freeSlots: 1);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            var revolutOrderId = await PayAsync(workspace, orderId);
+
+            await SendWebhookAsync(eventName, revolutOrderId);
+
+            await using var db = OpenDb();
+            Assert.Equal(
+                ShopQrSlotReservationStatuses.Open,
+                (await db.Context.ShopQrSlotReservations
+                    .SingleAsync(row => row.ShopOrderId == orderId)).Status
+            );
+        }
+
+        [Fact]
+        public async Task OrderCancelled_ReleasesOpenReservation()
+        {
+            var workspace = await SeedAsync(freeSlots: 1);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            var revolutOrderId = await PayAsync(workspace, orderId);
+
+            await SendWebhookAsync("ORDER_CANCELLED", revolutOrderId);
+
+            await using var db = OpenDb();
+            Assert.Equal(
+                ShopQrSlotReservationStatuses.Released,
+                (await db.Context.ShopQrSlotReservations
+                    .SingleAsync(row => row.ShopOrderId == orderId)).Status
+            );
+        }
+
         [Fact]
         public async Task OrderCompleted_AfterRelease_CapacityFull_OrderReviewNoRefund()
         {

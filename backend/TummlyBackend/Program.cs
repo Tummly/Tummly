@@ -410,6 +410,7 @@ builder.Services.AddScoped<ICaptureArchiveListService>(sp =>
 builder.Services.AddScoped<IActiveQrCapacity, ActiveQrCapacity>();
 builder.Services.AddScoped<IQrPlacementResolver, QrPlacementResolver>();
 builder.Services.AddScoped<IShopQrSlotReservationService, ShopQrSlotReservationService>();
+builder.Services.AddScoped<IPostCommitActions, PostCommitActions>();
 builder.Services.AddScoped<CaptureQrLifecycleService>();
 builder.Services.AddScoped<ICaptureQrLifecycleService>(sp =>
     sp.GetRequiredService<CaptureQrLifecycleService>()

@@ -1939,6 +1939,136 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Apply_ShopOrder_Deferring_SendsNoEmailUntilPostCommitRuns()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedAwaitingShopOrderAsync(context, "ord_shop_defer");
+            var invoiceEmail = new RecordingInvoiceEmailDelivery();
+            var shopEmail = new RecordingShopOrderEmail();
+            var postCommit = new PostCommitActions(
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<PostCommitActions>.Instance
+            );
+            var clock = new FixedTimeProvider(_now);
+            var applier = CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, clock),
+                clock,
+                invoiceEmail: invoiceEmail,
+                shopOrderEmail: shopEmail,
+                postCommit: postCommit
+            );
+
+            postCommit.BeginDeferral();
+            await applier.ApplyAsync(CompletedRequest("ord_shop_defer"));
+
+            // Paid and invoice are written; nothing has gone out yet.
+            Assert.Equal(
+                ShopPaymentStatuses.Paid,
+                (await context.ShopOrders.AsNoTracking().SingleAsync()).PaymentStatus
+            );
+            Assert.Single(await context.TummlyVatInvoices.ToListAsync());
+            Assert.Empty(invoiceEmail.Calls);
+            Assert.Empty(shopEmail.Confirmed);
+
+            await postCommit.RunAsync();
+
+            var call = Assert.Single(invoiceEmail.Calls);
+            Assert.True(call.WasNewlyMinted);
+            Assert.Equal(seeded.ShopOrderId, Assert.Single(shopEmail.Confirmed));
+        }
+
+        [Fact]
+        public async Task Apply_ShopOrder_TransactionDoesNotCommit_SendsNoEmail()
+        {
+            await using var context = CreateContext();
+            await SeedAwaitingShopOrderAsync(context, "ord_shop_rollback");
+            var invoiceEmail = new RecordingInvoiceEmailDelivery();
+            var shopEmail = new RecordingShopOrderEmail();
+            var postCommit = new PostCommitActions(
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<PostCommitActions>.Instance
+            );
+            var clock = new FixedTimeProvider(_now);
+            var applier = CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, clock),
+                clock,
+                invoiceEmail: invoiceEmail,
+                shopOrderEmail: shopEmail,
+                postCommit: postCommit
+            );
+
+            postCommit.BeginDeferral();
+            await applier.ApplyAsync(CompletedRequest("ord_shop_rollback"));
+            // The outer transaction fails after the mint: the webhook discards.
+            postCommit.Discard();
+            await postCommit.RunAsync();
+
+            Assert.Empty(invoiceEmail.Calls);
+            Assert.Empty(shopEmail.Confirmed);
+        }
+
+        [Fact]
+        public async Task Apply_ShopOrder_AlreadyPaidByWebhook_StaleTrackedRowsDoNotReplayThePaidWrite()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .ConfigureWarnings(w =>
+                    w.Ignore(InMemoryEventId.TransactionIgnoredWarning)
+                )
+                .Options;
+            await using var sweeperContext = new ApplicationDbContext(options);
+            var seeded = await SeedAwaitingShopOrderAsync(sweeperContext, "ord_shop_stale");
+
+            // The sweeper read the intent and order before the webhook paid them.
+            var staleIntent = await sweeperContext.RevolutOrderIntents
+                .SingleAsync(row => row.OrderId == "ord_shop_stale");
+            var staleOrder = await sweeperContext.ShopOrders
+                .Include(row => row.Lines)
+                .SingleAsync();
+            Assert.True(staleIntent.IsOpen);
+
+            var webhookEmail = new RecordingInvoiceEmailDelivery();
+            await using (var webhookContext = new ApplicationDbContext(options))
+            {
+                var clock = new FixedTimeProvider(_now);
+                var webhookApplier = CreateApplier(
+                    webhookContext,
+                    new IncludedPeriodMintService(webhookContext, _pricebook, clock),
+                    clock,
+                    invoiceEmail: webhookEmail
+                );
+                await webhookApplier.ApplyAsync(CompletedRequest("ord_shop_stale"));
+                var paid = await webhookContext.ShopOrders.SingleAsync();
+                paid.FulfilmentStatus = ShopFulfilmentStatuses.InTransit;
+                await webhookContext.SaveChangesAsync();
+            }
+
+            var sweeperInvoiceEmail = new RecordingInvoiceEmailDelivery();
+            var sweeperShopEmail = new RecordingShopOrderEmail();
+            var laterClock = new FixedTimeProvider(_now.AddHours(1));
+            var sweeperApplier = CreateApplier(
+                sweeperContext,
+                new IncludedPeriodMintService(sweeperContext, _pricebook, laterClock),
+                laterClock,
+                invoiceEmail: sweeperInvoiceEmail,
+                shopOrderEmail: sweeperShopEmail
+            );
+
+            await sweeperApplier.ApplyAsync(CompletedRequest("ord_shop_stale"));
+
+            await using var verify = new ApplicationDbContext(options);
+            var order = await verify.ShopOrders.AsNoTracking().SingleAsync();
+            Assert.Equal(ShopPaymentStatuses.Paid, order.PaymentStatus);
+            Assert.Equal(_now, order.PaidAtUtc);
+            Assert.Equal(_now, order.ProcessingStartedAtUtc);
+            Assert.Equal(ShopFulfilmentStatuses.InTransit, order.FulfilmentStatus);
+            Assert.Empty(sweeperInvoiceEmail.Calls);
+            Assert.Empty(sweeperShopEmail.Confirmed);
+            Assert.Single(await verify.TummlyVatInvoices.ToListAsync());
+            Assert.Equal(seeded.ShopOrderId, order.Id);
+        }
+
+        [Fact]
         public async Task Apply_Setup_ActivatesPausedQrWithinCap()
         {
             await using var context = CreateContext();
@@ -2215,7 +2345,9 @@ namespace TummlyBackend.Tests.Services
             ITummlyVatInvoiceEmailDelivery? invoiceEmail = null,
             TummlySellerVatSettings? sellerVat = null,
             IEmailService? emailService = null,
-            ICreditLedger? creditLedger = null
+            ICreditLedger? creditLedger = null,
+            IShopOrderEmailNotifier? shopOrderEmail = null,
+            IPostCommitActions? postCommit = null
         )
         {
             var vat =
@@ -2261,7 +2393,9 @@ namespace TummlyBackend.Tests.Services
                 Options.Create(vat),
                 emailService ?? new EmailServiceStubBase(),
                 CreateCaptureQrLifecycle(context),
-                invoiceEmail
+                invoiceEmail,
+                shopOrderEmail,
+                postCommitActions: postCommit
             );
         }
 
@@ -2409,6 +2543,95 @@ namespace TummlyBackend.Tests.Services
                 Calls++;
                 return Task.CompletedTask;
             }
+        }
+
+        private static RevolutOrderCompletedApplyRequest CompletedRequest(
+            string orderId
+        ) => new(
+            OrderId: orderId,
+            OrderState: "completed",
+            BillingReason: null,
+            SubscriptionId: null,
+            RawWebhookBody: "{}",
+            RawOrderBody: "{}"
+        );
+
+        private async Task<(Guid ShopOrderId, int RestaurantId)> SeedAwaitingShopOrderAsync(
+            ApplicationDbContext context,
+            string revolutOrderId
+        )
+        {
+            var (account, owner) = await SeedPilotAccountAsync(context);
+            var location = new RestaurantLocation
+            {
+                RestaurantId = account.RestaurantId,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = _now,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+            var shopOrder = new ShopOrder
+            {
+                Id = Guid.NewGuid(),
+                OrderNumber = $"SHOP-{revolutOrderId}",
+                RestaurantId = account.RestaurantId,
+                LocationId = location.Id,
+                LocationNameSnapshot = "Main",
+                PlacedByUserId = owner.Id,
+                PlacedByNameSnapshot = "Apply Owner",
+                MaterialsNetPence = 1000,
+                VatPence = 200,
+                DeliveryNetPence = 0,
+                GrossPence = 1200,
+                ShipToContactName = "Apply Owner",
+                ShipToAddressLine1 = "1 High Street",
+                ShipToPostcode = "AB1 2CD",
+                CreatedAtUtc = _now,
+                UpdatedAtUtc = _now,
+            };
+            context.ShopOrders.Add(shopOrder);
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = revolutOrderId,
+                    RestaurantId = account.RestaurantId,
+                    ShopOrderId = shopOrder.Id,
+                    Purpose = RevolutOrderIntentPurposes.ShopMaterialsOrder,
+                    TargetPlan = string.Empty,
+                    TargetCadence = string.Empty,
+                    RevolutSubscriptionId = string.Empty,
+                    CheckoutUrl = "https://checkout.revolut.test/shop",
+                    IdempotencyKey = $"k_{revolutOrderId}",
+                    IsOpen = true,
+                    NetAmountMinor = 1000,
+                    VatAmountMinor = 200,
+                    GrossAmountMinor = 1200,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+            return (shopOrder.Id, account.RestaurantId);
+        }
+
+        private sealed class RecordingShopOrderEmail : IShopOrderEmailNotifier
+        {
+            public List<Guid> Confirmed { get; } = [];
+
+            public Task TryNotifyConfirmedAsync(
+                Guid shopOrderId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                Confirmed.Add(shopOrderId);
+                return Task.CompletedTask;
+            }
+
+            public Task TryNotifyDispatchedAsync(
+                Guid shopOrderId,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
 
         private sealed class RecordingInvoiceEmailDelivery : ITummlyVatInvoiceEmailDelivery
