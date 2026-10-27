@@ -144,24 +144,33 @@ public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
             );
         }
 
-        public Task<RevolutOrderRetrieveResult> GetOrderAsync(
+        /// <summary>
+        /// Runs inside <see cref="GetOrderAsync"/> before it answers, so a test
+        /// can change the database between a caller's read and its write.
+        /// </summary>
+        public Func<string, Task>? OnGetOrderAsync { get; set; }
+
+        public async Task<RevolutOrderRetrieveResult> GetOrderAsync(
             string orderId,
             CancellationToken cancellationToken = default
         )
         {
-            if (Orders.TryGetValue(orderId, out var configured))
+            if (OnGetOrderAsync != null)
             {
-                return Task.FromResult(configured);
+                await OnGetOrderAsync(orderId);
             }
 
-            return Task.FromResult(
-                new RevolutOrderRetrieveResult(
-                    Succeeded: true,
-                    Id: orderId,
-                    State: "pending",
-                    AmountMinor: 1200,
-                    CheckoutUrl: CheckoutUrl
-                )
+            if (Orders.TryGetValue(orderId, out var configured))
+            {
+                return configured;
+            }
+
+            return new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: orderId,
+                State: "pending",
+                AmountMinor: 1200,
+                CheckoutUrl: CheckoutUrl
             );
         }
 
@@ -177,12 +186,15 @@ public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
 
         public int CancelOrderCallCount { get; private set; }
 
+        public List<string> CancelledOrderIds { get; } = [];
+
         public Task<RevolutOrderRetrieveResult> CancelOrderAsync(
             string orderId,
             CancellationToken cancellationToken = default
         )
         {
             CancelOrderCallCount++;
+            CancelledOrderIds.Add(orderId);
             if (CancelResults.TryGetValue(orderId, out var scripted))
             {
                 return Task.FromResult(scripted);
