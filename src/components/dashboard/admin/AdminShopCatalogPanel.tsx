@@ -730,7 +730,7 @@ export function AdminShopCatalogPanel() {
                         })
                       }
                     />
-                    <p className="text-xs text-op-text-primary">
+                    <p className="text-xs leading-body text-op-text-primary">
                       Use finished size, e.g. 105mm x 148mm (A6) or 150mm x
                       150mm.
                     </p>
@@ -805,7 +805,7 @@ export function AdminShopCatalogPanel() {
                   >
                     Add pack tier
                   </Button>
-                  <p className="text-xs text-op-text-primary">
+                  <p className="text-xs leading-body text-op-text-primary">
                     Catalog “From £” uses the lowest pack price. Min order qty
                     syncs to the smallest pack qty.
                   </p>

@@ -34,7 +34,7 @@ export function ShopQrLimitDialog({
         className="w-full max-w-[642px] gap-6 rounded-sm border border-op-border-default bg-op-card-background p-8 text-op-text-primary shadow-2xl sm:max-w-[642px]"
       >
         <DialogHeader className="gap-2 text-left">
-          <DialogTitle className="text-2xl font-bold tracking-tight text-op-text-primary">
+          <DialogTitle className="text-2xl font-bold text-op-text-primary">
             {SHOP_QR_LIMIT_COPY.title}
           </DialogTitle>
           <DialogDescription className="text-sm font-medium leading-relaxed text-op-text-muted">

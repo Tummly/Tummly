@@ -734,12 +734,12 @@ export function AdminShopOrderDetailDrawer({
                 Payment refund
               </h3>
               {order.paymentStatus === "refunded" ? (
-                <p className="text-sm text-op-text-primary">
+                <p className="text-sm leading-body text-op-text-primary">
                   This payment is already marked refunded.
                 </p>
               ) : canRefund ? (
                 <>
-                  <p className="text-sm text-op-text-primary">
+                  <p className="text-sm leading-body text-op-text-primary">
                     Starts a Revolut refund for this Shop payment. Payment
                     status flips to Refunded after the refund webhook, and a
                     credit note is minted then. Leave amount empty for a full
@@ -771,7 +771,7 @@ export function AdminShopOrderDetailDrawer({
                   </Button>
                 </>
               ) : (
-                <p className="text-sm text-op-text-primary">
+                <p className="text-sm leading-body text-op-text-primary">
                   Refund needs a paid order with a Revolut payment id.
                 </p>
               )}

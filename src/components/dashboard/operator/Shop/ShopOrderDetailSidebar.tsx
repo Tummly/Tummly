@@ -171,7 +171,7 @@ export function ShopOrderDetailSidebar({
               <div className="flex flex-1 flex-col gap-4">
                 <SheetHeader className="p-0 text-left">
                   <div className="flex flex-col gap-1.5">
-                    <SheetTitle className="text-2xl font-bold tracking-tight text-op-text-primary">
+                    <SheetTitle className="text-2xl font-bold text-op-text-primary">
                       Order {order.orderNumber}
                     </SheetTitle>
                     <p className="text-sm font-medium text-op-text-primary">

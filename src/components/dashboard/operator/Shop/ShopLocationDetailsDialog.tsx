@@ -187,7 +187,7 @@ export function ShopLocationDetailsDialog({
           </button>
 
           <DialogHeader className="gap-1.5 pr-12 text-left">
-            <DialogTitle className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+            <DialogTitle className="text-xl font-bold text-foreground sm:text-2xl">
               Tell us about {locationName}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
