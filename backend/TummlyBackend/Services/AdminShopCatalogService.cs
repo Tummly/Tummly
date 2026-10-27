@@ -7,6 +7,7 @@ using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop;
 using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Services
@@ -511,6 +512,18 @@ namespace TummlyBackend.Services
             if (sku.AvailableInShop == availableInShop)
             {
                 return (await MapSkuAsync(sku, cancellationToken), null);
+            }
+
+            if (
+                availableInShop
+                && !await ShopQrPathRules.HasQrPathAsync(
+                    _context,
+                    sku,
+                    cancellationToken
+                )
+            )
+            {
+                return (null, ShopQrPathRules.SkuHasNoQrPathCode);
             }
 
             sku.AvailableInShop = availableInShop;

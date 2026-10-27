@@ -4,6 +4,7 @@ using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop;
 using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Services
@@ -382,6 +383,11 @@ namespace TummlyBackend.Services
             if (sku == null)
             {
                 return (null, "Shop product was not found after publish.");
+            }
+
+            if (!await ShopQrPathRules.HasQrPathAsync(_context, sku, cancellationToken))
+            {
+                return (null, ShopQrPathRules.SkuHasNoQrPathCode);
             }
 
             sku.AvailableInShop = true;

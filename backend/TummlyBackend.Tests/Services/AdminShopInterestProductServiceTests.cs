@@ -92,6 +92,37 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task InterestPromote_NoQrPath_Returns409()
+        {
+            await _catalog.DeleteAsync("table-tents");
+            var product = await EnsureInterestProductAsync("tray-liner");
+            await UploadInterestImageAsync(product.ProductKey);
+            product.Dimensions = "A4";
+            product.Material = "Paper";
+            await _context.SaveChangesAsync();
+
+            var tentRecipe = await RecipeIdAsync("table-tent");
+            var (promoted, error) = await _service.PromoteAsync(
+                product.ProductKey,
+                new AdminShopInterestPromoteRequest
+                {
+                    PlacementRecipeId = tentRecipe,
+                    Category = "tabletop",
+                    Packs = [new ShopMaterialPackRow { Qty = 1, NetPence = 999 }],
+                    DeliveryNetPence = 100,
+                    MintOnShopFulfilment = false,
+                }
+            );
+
+            Assert.Null(promoted);
+            Assert.Equal("sku_has_no_qr_path", error);
+            var stillActive = await _context.ShopInterestProducts
+                .AsNoTracking()
+                .SingleAsync(row => row.ProductKey == product.ProductKey);
+            Assert.True(stillActive.IsActive);
+        }
+
+        [Fact]
         public async Task Demote_RestoresInterest_AndUnpublishesSku()
         {
             await _catalog.DeleteAsync("table-tents");
