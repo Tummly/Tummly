@@ -246,9 +246,10 @@ namespace TummlyBackend.Services
         {
             var pending = await FindBySessionTokenAsync(sessionToken);
 
+            // Complete rows answer with the status only. The token and email are not returned again.
             if (pending.Status == PendingSignupStatuses.Complete)
             {
-                return ToSessionResponse(pending);
+                return new SignupSessionResponse { Status = pending.Status };
             }
 
             if (

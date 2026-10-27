@@ -161,6 +161,64 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Onboarding_CompleteRow_StatusOnly()
+        {
+            var email = $"complete-save-{Guid.NewGuid():N}@example.com";
+            var token = await SeedRowAsync(
+                PendingSignupStatuses.Complete,
+                issuedAtUtc: DateTime.UtcNow,
+                email: email,
+                chosenPlan: BillingSubscriptionPlans.Pilot
+            );
+
+            var response = await PostOnboardingWithHeaderAsync(token, PilotOnboardingPayload());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var raw = await response.Content.ReadAsStringAsync();
+            Assert.DoesNotContain(token.ToString(), raw, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(email, raw, StringComparison.OrdinalIgnoreCase);
+            using var body = JsonDocument.Parse(raw);
+            var data = body.RootElement.GetProperty("data");
+            Assert.Equal(PendingSignupStatuses.Complete, data.GetProperty("status").GetString());
+            Assert.False(data.TryGetProperty("sessionToken", out _));
+            Assert.True(
+                !data.TryGetProperty("email", out var email_value)
+                || email_value.GetString() == string.Empty
+            );
+        }
+
+        [Fact]
+        public async Task ProvisioningStatus_CompleteRowOpenPayment_ReturnsUrlOnly()
+        {
+            var email = $"pay-{Guid.NewGuid():N}@example.com";
+            const string checkoutUrl = "https://checkout.example.test/pay/open";
+            var token = await SeedRowAsync(
+                PendingSignupStatuses.Complete,
+                issuedAtUtc: DateTime.UtcNow,
+                email: email,
+                chosenPlan: BillingSubscriptionPlans.Starter
+            );
+            var restaurantId = await SeedPilotOwnerAsync(email);
+            await SeedOpenPaySessionAsync(restaurantId, checkoutUrl);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, "/api/signup/provisioning-status");
+            request.Headers.Add(SessionHeader, token.ToString());
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var data = body.RootElement.GetProperty("data");
+            Assert.Equal(checkoutUrl, data.GetProperty("paymentRedirectUrl").GetString());
+            Assert.Equal(PendingSignupStatuses.AwaitingPayment, data.GetProperty("status").GetString());
+            Assert.True(data.GetProperty("ready").GetBoolean());
+            var names = data.EnumerateObject().Select(p => p.Name).Order().ToArray();
+            Assert.Equal(
+                new[] { "paymentFailureCode", "paymentRedirectUrl", "ready", "status" },
+                names
+            );
+        }
+
+        [Fact]
         public async Task Onboarding_HeaderToken_Works()
         {
             var token = await SeedRowAsync(
@@ -328,7 +386,29 @@ namespace TummlyBackend.Tests.Integration
             return sessionToken;
         }
 
-        private async Task SeedPilotOwnerAsync(string email)
+        private async Task SeedOpenPaySessionAsync(int restaurantId, string checkoutUrl)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.RevolutPendingPaySessions.Add(
+                new RevolutPendingPaySession
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = restaurantId,
+                    TargetPlan = BillingSubscriptionPlans.Starter,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub-test",
+                    SetupOrderId = "order-test",
+                    CheckoutUrl = checkoutUrl,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    IsOpen = true,
+                    CreatedAtUtc = DateTime.UtcNow,
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        private async Task<int> SeedPilotOwnerAsync(string email)
         {
             using var scope = _factory.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -365,6 +445,7 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
             await db.SaveChangesAsync();
+            return restaurant.Id;
         }
 
         private sealed class ThrowingSignupService : ISignupService

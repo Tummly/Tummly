@@ -617,8 +617,8 @@ namespace TummlyBackend.Tests.Services
                     secondCode,
                     initialToken.ToString(),
                     initialToken.ToString("N"),
-                    session.SessionToken.ToString(),
-                    session.SessionToken.ToString("N"),
+                    session.SessionToken!.Value.ToString(),
+                    session.SessionToken!.Value.ToString("N"),
                 }
             )
             {
