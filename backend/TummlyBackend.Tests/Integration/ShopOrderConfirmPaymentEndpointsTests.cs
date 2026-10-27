@@ -148,7 +148,52 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Confirm_OrderNotAwaitingPayment_ReturnsUnchanged_WithoutReadingRevolut()
+        public async Task Confirm_PaymentFailedOrder_RevolutCompleted_MarksPaid_AndConvertsReservation()
+        {
+            // A declined attempt closes the intent and marks the order
+            // payment_failed; the buyer retries on the same Revolut order and
+            // pays. The return page must settle it.
+            var held = await PayGuestCardOrderAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                (await db.ShopOrders.SingleAsync(row => row.Id == held.OrderId))
+                    .PaymentStatus = ShopPaymentStatuses.PaymentFailed;
+                (await db.RevolutOrderIntents.SingleAsync(
+                    row => row.ShopOrderId == held.OrderId
+                )).IsOpen = false;
+                await db.SaveChangesAsync();
+            }
+
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(
+                held.RevolutOrderId,
+                "completed"
+            );
+            var cancelsBefore = _factory.Merchant.CancelOrderCallCount;
+            var refundsBefore = _factory.Merchant.RefundOrderCallCount;
+
+            var response = await _client.SendAsync(
+                ConfirmRequest(held.Workspace, held.OrderId)
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("paid", body.GetProperty("paymentStatus").GetString());
+            Assert.Equal(cancelsBefore, _factory.Merchant.CancelOrderCallCount);
+            Assert.Equal(refundsBefore, _factory.Merchant.RefundOrderCallCount);
+
+            using var verify = _factory.Services.CreateScope();
+            var verifyDb = verify.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(1, await verifyDb.TummlyVatInvoices
+                .CountAsync(row => row.RevolutOrderId == held.RevolutOrderId));
+            var reservation = await verifyDb.ShopQrSlotReservations.AsNoTracking()
+                .SingleAsync(row => row.ShopOrderId == held.OrderId);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, reservation.Status);
+        }
+
+        [Fact]
+        public async Task Confirm_PaymentFailedOrder_RevolutNotCompleted_ChangesNothing()
         {
             var held = await PayGuestCardOrderAsync();
             using (var scope = _factory.Services.CreateScope())
@@ -156,6 +201,43 @@ namespace TummlyBackend.Tests.Integration
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 (await db.ShopOrders.SingleAsync(row => row.Id == held.OrderId))
                     .PaymentStatus = ShopPaymentStatuses.PaymentFailed;
+                await db.SaveChangesAsync();
+            }
+
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(
+                held.RevolutOrderId,
+                "failed"
+            );
+            var cancelsBefore = _factory.Merchant.CancelOrderCallCount;
+
+            var response = await _client.SendAsync(
+                ConfirmRequest(held.Workspace, held.OrderId)
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(
+                "payment_failed",
+                body.GetProperty("paymentStatus").GetString()
+            );
+            Assert.Equal(cancelsBefore, _factory.Merchant.CancelOrderCallCount);
+            using var verify = _factory.Services.CreateScope();
+            var reservation = await verify.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>()
+                .ShopQrSlotReservations.AsNoTracking()
+                .SingleAsync(row => row.ShopOrderId == held.OrderId);
+            Assert.Equal(ShopQrSlotReservationStatuses.Open, reservation.Status);
+        }
+
+        [Fact]
+        public async Task Confirm_RefundedOrder_ReturnsUnchanged_WithoutReadingRevolut()
+        {
+            var held = await PayGuestCardOrderAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                (await db.ShopOrders.SingleAsync(row => row.Id == held.OrderId))
+                    .PaymentStatus = ShopPaymentStatuses.Refunded;
                 await db.SaveChangesAsync();
             }
 
@@ -172,7 +254,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
             Assert.Equal(
-                "payment_failed",
+                "refunded",
                 body.GetProperty("paymentStatus").GetString()
             );
             Assert.Equal(readsBefore, _factory.Merchant.GetOrderCallCount);

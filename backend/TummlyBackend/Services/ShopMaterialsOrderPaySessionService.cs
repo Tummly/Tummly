@@ -320,18 +320,16 @@ namespace TummlyBackend.Services
                 }
             }
             catch (Exception ex) when (
-                ex is HttpRequestException or TaskCanceledException
-                    or InvalidOperationException
+                !(ex is OperationCanceledException
+                    && cancellationToken.IsCancellationRequested)
             )
             {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-
+                // Any failure here (HTTP, timeout, bad payload) must not block
+                // payment. Only the exception type is logged: the message can
+                // echo the billing email.
                 _logger.LogWarning(
-                    ex,
-                    "Revolut customer email update threw for restaurant {RestaurantId}",
+                    "Revolut customer email update threw {ExceptionType} for restaurant {RestaurantId}",
+                    ex.GetType().Name,
                     billingAccount.RestaurantId
                 );
             }

@@ -50,10 +50,19 @@ namespace TummlyBackend.Services
                 )
                 .Select(row => row.PaymentStatus)
                 .FirstOrDefaultAsync(cancellationToken);
+            // awaiting_payment: the normal case. payment_failed: a declined
+            // attempt closed the intent, yet the buyer can retry on the same
+            // Revolut order and pay. Both are settled only when Revolut says
+            // completed; no other state touches the order.
             if (
                 !string.Equals(
                     paymentStatus,
                     ShopPaymentStatuses.AwaitingPayment,
+                    StringComparison.Ordinal
+                )
+                && !string.Equals(
+                    paymentStatus,
+                    ShopPaymentStatuses.PaymentFailed,
                     StringComparison.Ordinal
                 )
             )
@@ -61,8 +70,11 @@ namespace TummlyBackend.Services
                 return false;
             }
 
-            // Every attempt, open or closed: the /pay reuse path leaves older
-            // Revolut orders behind and a closed attempt can still be paid.
+            // Every attempt, open or closed, newest first: the /pay reuse path
+            // leaves older Revolut orders behind, and a failure webhook closes
+            // the intent of an order the buyer can still pay on retry. Only a
+            // completed read is applied; nothing here cancels, refunds or
+            // releases a reservation.
             var intents = await _context.RevolutOrderIntents
                 .AsNoTracking()
                 .Where(row =>
