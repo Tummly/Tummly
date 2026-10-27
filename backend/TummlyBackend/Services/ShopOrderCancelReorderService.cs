@@ -147,33 +147,19 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var unavailable = new List<string>();
             var unavailableLines = new List<ShopReorderUnavailableLineDto>();
             var lines = new List<ShopReorderPrefillLineDto>();
 
+            // A line is unavailable when its SKU has no catalog entry, no usable
+            // pack for the stored quantity, or AvailableInShop is off. Unavailable
+            // lines never enter the prefill; they are reported with the order line title.
             foreach (var line in order.Lines.OrderBy(row => row.CatalogSkuId))
             {
                 var detail = _catalog.TryBuildDetail(line.CatalogSkuId);
-                if (detail == null)
-                {
-                    unavailable.Add(line.CatalogSkuId);
-                    continue;
-                }
-
-                // "Coming soon" (AvailableInShop off) lines are dropped and reported
-                // to the operator; they never enter the prefill.
-                if (!detail.AvailableInShop)
-                {
-                    unavailableLines.Add(new ShopReorderUnavailableLineDto
-                    {
-                        SkuId = line.CatalogSkuId,
-                        Title = line.TitleSnapshot,
-                    });
-                    continue;
-                }
-
                 if (
-                    !ShopMaterialPacks.TryResolve(
+                    detail == null
+                    || !detail.AvailableInShop
+                    || !ShopMaterialPacks.TryResolve(
                         detail.Packs,
                         line.Quantity,
                         out var pack
@@ -181,7 +167,11 @@ namespace TummlyBackend.Services
                     || pack == null
                 )
                 {
-                    unavailable.Add(line.CatalogSkuId);
+                    unavailableLines.Add(new ShopReorderUnavailableLineDto
+                    {
+                        SkuId = line.CatalogSkuId,
+                        Title = line.TitleSnapshot,
+                    });
                     continue;
                 }
 
@@ -193,11 +183,6 @@ namespace TummlyBackend.Services
                     UnitNetPence = pack.NetPence,
                     LineNetPence = pack.NetPence,
                 });
-            }
-
-            if (unavailable.Count > 0)
-            {
-                return ShopOrderReorderResult.SkuUnavailable(unavailable);
             }
 
             if (lines.Count == 0 && unavailableLines.Count > 0)

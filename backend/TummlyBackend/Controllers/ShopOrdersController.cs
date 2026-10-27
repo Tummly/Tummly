@@ -352,17 +352,6 @@ namespace TummlyBackend.Controllers
                     });
                 }
 
-                if (result.ErrorCode == "catalog_sku_unavailable")
-                {
-                    return Conflict(new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                        unavailableSkuIds = result.UnavailableSkuIds,
-                    });
-                }
-
                 if (result.ErrorCode == "shop_order_not_reorderable")
                 {
                     return Conflict(new
