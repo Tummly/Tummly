@@ -66,11 +66,42 @@ namespace TummlyBackend.Services
             return usedByLocation.GetValueOrDefault(locationId);
         }
 
+        public async Task<int> ActivationCostAsync(
+            int locationId,
+            QrType qrType,
+            CancellationToken ct
+        )
+        {
+            var heldOfType = await _context.ShopQrSlotReservations.AnyAsync(row =>
+                row.RestaurantLocationId == locationId
+                && row.QrType == qrType
+                && (
+                    row.Status == ShopQrSlotReservationStatuses.Open
+                    || row.Status == ShopQrSlotReservationStatuses.Review
+                ),
+                ct
+            );
+            if (!heldOfType)
+            {
+                return 1;
+            }
+
+            // A held slot with no Active code of that type is taken over, not added to.
+            var activeOfType = await _context.QrCodes.AnyAsync(qr =>
+                qr.RestaurantLocationId == locationId
+                && qr.QrType == qrType
+                && qr.Status == QrCodeStatus.Active,
+                ct
+            );
+            return activeOfType ? 1 : 0;
+        }
+
         public async Task<ActiveQrCapacityDecision> EvaluateAsync(
             int restaurantId,
             int locationId,
             int increment,
-            CancellationToken ct
+            QrType? activatingType = null,
+            CancellationToken ct = default
         )
         {
             if (increment <= 0)
@@ -97,7 +128,14 @@ namespace TummlyBackend.Services
 
             var perLocCap = allowance.PerLocationCap;
             var used = await CountUsedAsync(locationId, ct);
-            if (used + increment <= perLocCap)
+
+            // Activating a type with a held slot takes over that slot, so it leaves the count.
+            var takenOverHeld = activatingType is { } type
+                ? 1 - await ActivationCostAsync(locationId, type, ct)
+                : 0;
+            var usedBefore = used - takenOverHeld;
+
+            if (usedBefore + increment <= perLocCap)
             {
                 return new ActiveQrCapacityDecision(true, true, perLocCap, used);
             }
@@ -121,7 +159,7 @@ namespace TummlyBackend.Services
                 var count = usedByLocation.GetValueOrDefault(locId);
                 if (locId == locationId)
                 {
-                    count = used + increment;
+                    count = usedBefore + increment;
                 }
 
                 totalOverflow += Math.Max(0, count - perLocCap);
