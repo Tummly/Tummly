@@ -112,6 +112,18 @@ namespace TummlyBackend.Services
             }
         }
 
+        private enum AttemptOutcome
+        {
+            /// <summary>Revolut confirmed this attempt cancelled or failed.</summary>
+            Confirmed,
+
+            /// <summary>The attempt may still complete or could not be read.</summary>
+            NotConfirmed,
+
+            /// <summary>The attempt completed and the paid path ran.</summary>
+            Completed,
+        }
+
         private async Task ReconcileOrderAsync(
             IServiceProvider services,
             Guid orderId,
@@ -129,9 +141,13 @@ namespace TummlyBackend.Services
             var order = await context.ShopOrders
                 .Include(row => row.Lines)
                 .FirstOrDefaultAsync(row => row.Id == orderId, ct);
+            if (order == null)
+            {
+                return;
+            }
+
             if (
-                order != null
-                && string.Equals(
+                string.Equals(
                     order.PaymentStatus,
                     ShopPaymentStatuses.Paid,
                     StringComparison.Ordinal
@@ -143,23 +159,76 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            // The newest intent, open or not: a declined or authorised event
-            // closes the intent while the Revolut order can still be paid.
-            var intent = await context.RevolutOrderIntents
+            // Every Revolut attempt for the order, open or closed: a declined or
+            // authorised event closes an intent while its Revolut order can still
+            // be paid, and the /pay reuse path leaves older attempts behind.
+            var intents = await context.RevolutOrderIntents
                 .Where(row =>
                     row.ShopOrderId == orderId
                     && row.Purpose == RevolutOrderIntentPurposes.ShopMaterialsOrder
                 )
                 .OrderByDescending(row => row.CreatedAtUtc)
-                .FirstOrDefaultAsync(ct);
-            if (intent == null)
+                .ToListAsync(ct);
+            if (intents.Count == 0)
             {
                 // Pay never opened a session, so no payment can exist.
-                await ReleaseAsync(context, orderId, now, ct);
+                await ReleaseAsync(services, context, order.RestaurantId, orderId, now, ct);
                 return;
             }
 
             var merchant = services.GetRequiredService<IRevolutMerchantClient>();
+            var errors = new List<string>();
+            foreach (var intent in intents)
+            {
+                var (outcome, error) = await ReconcileIntentAsync(
+                    services,
+                    context,
+                    merchant,
+                    order,
+                    intent,
+                    now,
+                    ct
+                );
+                if (outcome == AttemptOutcome.Completed)
+                {
+                    return;
+                }
+
+                if (outcome == AttemptOutcome.NotConfirmed)
+                {
+                    errors.Add(error ?? "revolut_state:unknown");
+                }
+            }
+
+            if (errors.Count == 0)
+            {
+                // Every attempt is confirmed cancelled or failed: no payment can
+                // still complete, so the slot goes back.
+                await FailAndReleaseAsync(services, context, order, intents, now, ct);
+                return;
+            }
+
+            await BackOffAsync(
+                services,
+                context,
+                order.RestaurantId,
+                due,
+                string.Join("; ", errors.Distinct()),
+                now,
+                ct
+            );
+        }
+
+        private async Task<(AttemptOutcome Outcome, string? Error)> ReconcileIntentAsync(
+            IServiceProvider services,
+            ApplicationDbContext context,
+            IRevolutMerchantClient merchant,
+            ShopOrder order,
+            RevolutOrderIntent intent,
+            DateTime now,
+            CancellationToken ct
+        )
+        {
             RevolutOrderRetrieveResult read;
             try
             {
@@ -167,65 +236,54 @@ namespace TummlyBackend.Services
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                await BackOffAsync(context, due, DescribeException(ex), now, ct);
-                return;
+                return (AttemptOutcome.NotConfirmed, DescribeException(ex));
             }
 
             if (!read.Succeeded)
             {
-                await BackOffAsync(
-                    context,
-                    due,
-                    read.ErrorCode ?? "revolut_get_order_failed",
-                    now,
-                    ct
+                return (
+                    AttemptOutcome.NotConfirmed,
+                    read.ErrorCode ?? "revolut_get_order_failed"
                 );
-                return;
             }
 
             var state = read.State?.Trim().ToLowerInvariant();
             switch (state)
             {
                 case "completed":
-                    await ApplyCompletedAsync(services, context, intent, read, now, ct);
-                    return;
+                    await ApplyCompletedAsync(services, context, order, intent, read, now, ct);
+                    return (AttemptOutcome.Completed, null);
 
                 case "pending":
                 case "authorised":
-                    await CancelPendingAsync(
+                    return await CancelPendingAsync(
                         services,
                         context,
                         merchant,
+                        order,
                         intent,
-                        due,
                         now,
                         ct
                     );
-                    return;
 
                 case "cancelled":
                 case "failed":
-                    await FailAndReleaseAsync(context, intent, orderId, now, ct);
-                    return;
+                    return (AttemptOutcome.Confirmed, null);
 
                 default:
-                    await BackOffAsync(
-                        context,
-                        due,
-                        $"revolut_state:{state ?? "unknown"}",
-                        now,
-                        ct
+                    return (
+                        AttemptOutcome.NotConfirmed,
+                        $"revolut_state:{state ?? "unknown"}"
                     );
-                    return;
             }
         }
 
-        private async Task CancelPendingAsync(
+        private async Task<(AttemptOutcome Outcome, string? Error)> CancelPendingAsync(
             IServiceProvider services,
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
+            ShopOrder order,
             RevolutOrderIntent intent,
-            List<ShopQrSlotReservation> due,
             DateTime now,
             CancellationToken ct
         )
@@ -237,14 +295,12 @@ namespace TummlyBackend.Services
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                await BackOffAsync(context, due, DescribeException(ex), now, ct);
-                return;
+                return (AttemptOutcome.NotConfirmed, DescribeException(ex));
             }
 
             if (cancel.Succeeded && IsCancelledState(cancel.State))
             {
-                await FailAndReleaseAsync(context, intent, intent.ShopOrderId!.Value, now, ct);
-                return;
+                return (AttemptOutcome.Confirmed, null);
             }
 
             // The cancel may have raced a payment or a retry; read Revolut again.
@@ -255,14 +311,12 @@ namespace TummlyBackend.Services
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                await BackOffAsync(context, due, DescribeException(ex), now, ct);
-                return;
+                return (AttemptOutcome.NotConfirmed, DescribeException(ex));
             }
 
             if (reread.Succeeded && IsCancelledState(reread.State))
             {
-                await FailAndReleaseAsync(context, intent, intent.ShopOrderId!.Value, now, ct);
-                return;
+                return (AttemptOutcome.Confirmed, null);
             }
 
             if (
@@ -274,22 +328,20 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                await ApplyCompletedAsync(services, context, intent, reread, now, ct);
-                return;
+                await ApplyCompletedAsync(services, context, order, intent, reread, now, ct);
+                return (AttemptOutcome.Completed, null);
             }
 
-            await BackOffAsync(
-                context,
-                due,
-                $"cancel_failed:{cancel.ErrorCode ?? cancel.State ?? "unknown"}",
-                now,
-                ct
+            return (
+                AttemptOutcome.NotConfirmed,
+                $"cancel_failed:{cancel.ErrorCode ?? cancel.State ?? "unknown"}"
             );
         }
 
         private async Task ApplyCompletedAsync(
             IServiceProvider services,
             ApplicationDbContext context,
+            ShopOrder order,
             RevolutOrderIntent intent,
             RevolutOrderRetrieveResult read,
             DateTime now,
@@ -314,11 +366,8 @@ namespace TummlyBackend.Services
                     ct
                 );
 
-            if (intent.ShopOrderId is Guid shopOrderId)
-            {
-                await ReleaseLeftoversAsync(context, shopOrderId, now, ct);
-                await TryQueuePrintMaterialsAsync(services, shopOrderId);
-            }
+            await ReleaseLeftoversAsync(services, context, order.RestaurantId, order.Id, now, ct);
+            await TryQueuePrintMaterialsAsync(services, order.Id);
         }
 
         private async Task ConvertPaidOrderAsync(
@@ -329,121 +378,187 @@ namespace TummlyBackend.Services
             CancellationToken ct
         )
         {
-            var capacity = services.GetRequiredService<IActiveQrCapacity>();
             var slots = services.GetRequiredService<IShopQrSlotReservationService>();
+            await InLockAsync(
+                services,
+                context,
+                order.RestaurantId,
+                async () =>
+                {
+                    await slots.ConvertForPaidOrderAsync(order, ct);
+                    await ReleaseLeftoversInLockAsync(context, order.Id, now, ct);
+                },
+                ct
+            );
+        }
+
+        private static Task ReleaseLeftoversAsync(
+            IServiceProvider services,
+            ApplicationDbContext context,
+            int restaurantId,
+            Guid shopOrderId,
+            DateTime now,
+            CancellationToken ct
+        ) =>
+            // A paid order's open rows that conversion did not take can never
+            // convert; give their slot back.
+            InLockAsync(
+                services,
+                context,
+                restaurantId,
+                () => ReleaseLeftoversInLockAsync(context, shopOrderId, now, ct),
+                ct
+            );
+
+        private static async Task ReleaseLeftoversInLockAsync(
+            ApplicationDbContext context,
+            Guid shopOrderId,
+            DateTime now,
+            CancellationToken ct
+        )
+        {
+            if (
+                await ShopQrSlotReservationRelease.ReleaseOpenForOrderAsync(
+                    context,
+                    shopOrderId,
+                    now,
+                    ct
+                ) > 0
+            )
+            {
+                await context.SaveChangesAsync(ct);
+            }
+        }
+
+        private static Task FailAndReleaseAsync(
+            IServiceProvider services,
+            ApplicationDbContext context,
+            ShopOrder order,
+            List<RevolutOrderIntent> intents,
+            DateTime now,
+            CancellationToken ct
+        ) =>
+            InLockAsync(
+                services,
+                context,
+                order.RestaurantId,
+                async () =>
+                {
+                    // Marks the order payment_failed, closes every attempt and
+                    // releases the rows that are still open.
+                    foreach (var intent in intents)
+                    {
+                        await ShopMaterialsOrderPaymentFailure.TryMarkFailedAsync(
+                            context,
+                            intent.OrderId,
+                            ct,
+                            releaseQrReservations: true,
+                            nowUtc: now
+                        );
+                    }
+
+                    await ReleaseLeftoversInLockAsync(context, order.Id, now, ct);
+                },
+                ct
+            );
+
+        private static Task ReleaseAsync(
+            IServiceProvider services,
+            ApplicationDbContext context,
+            int restaurantId,
+            Guid shopOrderId,
+            DateTime now,
+            CancellationToken ct
+        ) =>
+            InLockAsync(
+                services,
+                context,
+                restaurantId,
+                () => ReleaseLeftoversInLockAsync(context, shopOrderId, now, ct),
+                ct
+            );
+
+        /// <summary>
+        /// Runs a reservation write under the billing-account lock that the
+        /// paid path also takes, so a row the paid path converted meanwhile is
+        /// never overwritten.
+        /// </summary>
+        private static async Task InLockAsync(
+            IServiceProvider services,
+            ApplicationDbContext context,
+            int restaurantId,
+            Func<Task> write,
+            CancellationToken ct
+        )
+        {
+            var capacity = services.GetRequiredService<IActiveQrCapacity>();
             await using var transaction =
                 await QrCapacityTransaction.BeginIfNeededAsync(context, ct);
-            await capacity.LockBillingAccountAsync(order.RestaurantId, ct);
-            await slots.ConvertForPaidOrderAsync(order, ct);
-            await ReleaseLeftoversAsync(context, order.Id, now, ct);
+            await capacity.LockBillingAccountAsync(restaurantId, ct);
+            await write();
             if (transaction != null)
             {
                 await transaction.CommitAsync(ct);
             }
         }
 
-        private static async Task ReleaseLeftoversAsync(
+        private Task BackOffAsync(
+            IServiceProvider services,
             ApplicationDbContext context,
-            Guid shopOrderId,
-            DateTime now,
-            CancellationToken ct
-        )
-        {
-            // A paid order's open rows that conversion did not take can never
-            // convert; give their slot back.
-            if (
-                await ShopQrSlotReservationRelease.ReleaseOpenForOrderAsync(
-                    context,
-                    shopOrderId,
-                    now,
-                    ct
-                ) > 0
-            )
-            {
-                await context.SaveChangesAsync(ct);
-            }
-        }
-
-        private static async Task FailAndReleaseAsync(
-            ApplicationDbContext context,
-            RevolutOrderIntent intent,
-            Guid shopOrderId,
-            DateTime now,
-            CancellationToken ct
-        )
-        {
-            // Marks the order payment_failed, closes the intent and releases.
-            await ShopMaterialsOrderPaymentFailure.TryMarkFailedAsync(
-                context,
-                intent.OrderId,
-                ct,
-                releaseQrReservations: true,
-                nowUtc: now
-            );
-            await ReleaseAsync(context, shopOrderId, now, ct);
-        }
-
-        private static async Task ReleaseAsync(
-            ApplicationDbContext context,
-            Guid shopOrderId,
-            DateTime now,
-            CancellationToken ct
-        )
-        {
-            if (
-                await ShopQrSlotReservationRelease.ReleaseOpenForOrderAsync(
-                    context,
-                    shopOrderId,
-                    now,
-                    ct
-                ) > 0
-            )
-            {
-                await context.SaveChangesAsync(ct);
-            }
-        }
-
-        private async Task BackOffAsync(
-            ApplicationDbContext context,
+            int restaurantId,
             List<ShopQrSlotReservation> reservations,
             string error,
             DateTime now,
             CancellationToken ct
-        )
-        {
-            var trimmed = error.Length > MaxErrorLength
-                ? error[..MaxErrorLength]
-                : error;
-
-            foreach (var reservation in reservations)
-            {
-                reservation.ReconcileAttempts++;
-                reservation.LastReconcileAtUtc = now;
-                reservation.LastReconcileError = trimmed;
-                reservation.UpdatedAtUtc = now;
-
-                if (now >= reservation.CreatedAtUtc + ReviewAfter)
+        ) =>
+            InLockAsync(
+                services,
+                context,
+                restaurantId,
+                async () =>
                 {
-                    reservation.Status = ShopQrSlotReservationStatuses.Review;
-                    _logger.LogWarning(
-                        "Shop QR slot reservation {ReservationId} for order {ShopOrderId} ({QrType} at location {LocationId}) moved to review after {Attempts} attempts; last error {LastError}",
-                        reservation.Id,
-                        reservation.ShopOrderId,
-                        reservation.QrType,
-                        reservation.RestaurantLocationId,
-                        reservation.ReconcileAttempts,
-                        trimmed
-                    );
-                }
-                else
-                {
-                    reservation.ReconcileAfterUtc =
-                        now + BackoffAfterAttempt(reservation.ReconcileAttempts);
-                }
-            }
+                    var trimmed = error.Length > MaxErrorLength
+                        ? error[..MaxErrorLength]
+                        : error;
 
-            await context.SaveChangesAsync(ct);
-        }
+                    foreach (var reservation in reservations)
+                    {
+                        // The row may have changed since the sweeper read it.
+                        await context.Entry(reservation).ReloadAsync(ct);
+                        if (reservation.Status != ShopQrSlotReservationStatuses.Open)
+                        {
+                            continue;
+                        }
+
+                        reservation.ReconcileAttempts++;
+                        reservation.LastReconcileAtUtc = now;
+                        reservation.LastReconcileError = trimmed;
+                        reservation.UpdatedAtUtc = now;
+
+                        if (now >= reservation.CreatedAtUtc + ReviewAfter)
+                        {
+                            reservation.Status = ShopQrSlotReservationStatuses.Review;
+                            _logger.LogWarning(
+                                "Shop QR slot reservation {ReservationId} for order {ShopOrderId} ({QrType} at location {LocationId}) moved to review after {Attempts} attempts; last error {LastError}",
+                                reservation.Id,
+                                reservation.ShopOrderId,
+                                reservation.QrType,
+                                reservation.RestaurantLocationId,
+                                reservation.ReconcileAttempts,
+                                trimmed
+                            );
+                        }
+                        else
+                        {
+                            reservation.ReconcileAfterUtc =
+                                now + BackoffAfterAttempt(reservation.ReconcileAttempts);
+                        }
+                    }
+
+                    await context.SaveChangesAsync(ct);
+                },
+                ct
+            );
 
         private async Task RecordFailureAsync(
             Guid orderId,
@@ -457,10 +572,22 @@ namespace TummlyBackend.Services
                 using var scope = _scopeFactory.CreateScope();
                 var context = scope.ServiceProvider
                     .GetRequiredService<ApplicationDbContext>();
+                var restaurantId = await context.ShopOrders
+                    .Where(row => row.Id == orderId)
+                    .Select(row => (int?)row.RestaurantId)
+                    .FirstOrDefaultAsync(ct);
                 var due = await DueReservationsAsync(context, orderId, now, ct);
-                if (due.Count > 0)
+                if (due.Count > 0 && restaurantId is int restaurant)
                 {
-                    await BackOffAsync(context, due, DescribeException(ex), now, ct);
+                    await BackOffAsync(
+                        scope.ServiceProvider,
+                        context,
+                        restaurant,
+                        due,
+                        DescribeException(ex),
+                        now,
+                        ct
+                    );
                 }
             }
             catch (Exception inner) when (inner is not OperationCanceledException)

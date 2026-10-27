@@ -227,6 +227,122 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Sweep_OlderIntentPending_NewestFailed_CancelsOlderFirst_ReleasesOnlyWhenConfirmed()
+        {
+            var held = await PayGuestCardOrderAsync(freeSlots: 1);
+            var newest = await AddSecondIntentAsync(held);
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(held, "pending");
+            _factory.Merchant.Orders[newest] = Revolut(held, "failed", newest);
+            // The first cancel does not take.
+            _factory.Merchant.CancelResults[held.RevolutOrderId] =
+                new RevolutOrderRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error"
+                );
+            _factory.Merchant.CancelledOrderIds.Clear();
+            var clock = ClockAfterDeadline(held);
+
+            await SweepAsync(clock);
+
+            // The newest intent is terminal, but the older one can still be paid.
+            Assert.Equal(
+                new[] { held.RevolutOrderId },
+                _factory.Merchant.CancelledOrderIds
+            );
+            await using (var db = OpenDb())
+            {
+                var reservation = await ReservationAsync(db, held);
+                Assert.Equal(ShopQrSlotReservationStatuses.Open, reservation.Status);
+                Assert.Equal(1, reservation.ReconcileAttempts);
+                Assert.Contains("cancel_failed", reservation.LastReconcileError);
+            }
+
+            // Now the cancel takes: both attempts are confirmed, so the slot goes.
+            _factory.Merchant.CancelResults[held.RevolutOrderId] =
+                Revolut(held, "cancelled");
+            clock.Advance(TimeSpan.FromMinutes(5));
+            await SweepAsync(clock);
+
+            await using var verify = OpenDb();
+            Assert.Equal(
+                ShopQrSlotReservationStatuses.Released,
+                (await ReservationAsync(verify, held)).Status
+            );
+            Assert.Equal(
+                ShopPaymentStatuses.PaymentFailed,
+                (await verify.Context.ShopOrders.SingleAsync(row => row.Id == held.OrderId))
+                    .PaymentStatus
+            );
+            Assert.False(await verify.Context.RevolutOrderIntents
+                .AnyAsync(row => row.ShopOrderId == held.OrderId && row.IsOpen));
+        }
+
+        [Fact]
+        public async Task Sweep_OlderIntentCompleted_NewestFailed_AppliesPaidAndConverts()
+        {
+            var held = await PayGuestCardOrderAsync(freeSlots: 1);
+            var newest = await AddSecondIntentAsync(held);
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(held, "completed");
+            _factory.Merchant.Orders[newest] = Revolut(held, "failed", newest);
+            var refundsBefore = _factory.Merchant.RefundOrderCallCount;
+
+            await SweepAsync(ClockAfterDeadline(held));
+
+            Assert.Equal(refundsBefore, _factory.Merchant.RefundOrderCallCount);
+            await using var db = OpenDb();
+            var order = await db.Context.ShopOrders.SingleAsync(row => row.Id == held.OrderId);
+            Assert.Equal(ShopPaymentStatuses.Paid, order.PaymentStatus);
+            Assert.Equal(held.RevolutOrderId, order.RevolutOrderId);
+            var reservation = await ReservationAsync(db, held);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, reservation.Status);
+            Assert.NotNull(reservation.ConvertedQrCodeId);
+        }
+
+        [Theory]
+        [InlineData("processing", 1)]
+        [InlineData("processing", 25)]
+        [InlineData("cancelled", 1)]
+        public async Task Sweep_ReservationConvertedWhileRevolutIsRead_StaysConverted(
+            string revolutState,
+            int hoursAfterCreation
+        )
+        {
+            var held = await PayGuestCardOrderAsync(freeSlots: 1);
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(held, revolutState);
+            var clock = new AdjustableTimeProvider(
+                new DateTimeOffset(held.CreatedAtUtc.AddHours(hoursAfterCreation), TimeSpan.Zero)
+            );
+            // A concurrent apply converts the row after the sweeper read it.
+            _factory.Merchant.OnGetOrderAsync = async _ =>
+            {
+                _factory.Merchant.OnGetOrderAsync = null;
+                using var scope = _factory.Services.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var row = await db.ShopQrSlotReservations
+                    .SingleAsync(r => r.ShopOrderId == held.OrderId);
+                row.Status = ShopQrSlotReservationStatuses.Converted;
+                row.ConvertedQrCodeId = 4242;
+                await db.SaveChangesAsync();
+            };
+
+            try
+            {
+                await SweepAsync(clock);
+            }
+            finally
+            {
+                _factory.Merchant.OnGetOrderAsync = null;
+            }
+
+            await using var verify = OpenDb();
+            var reservation = await ReservationAsync(verify, held);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, reservation.Status);
+            Assert.Equal(4242, reservation.ConvertedQrCodeId);
+            Assert.Equal(0, reservation.ReconcileAttempts);
+            Assert.Null(reservation.LastReconcileError);
+        }
+
+        [Fact]
         public async Task Sweep_NoIntent_Releases()
         {
             var workspace = await SeedAsync(freeSlots: 1);
@@ -378,6 +494,41 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        /// <summary>
+        /// Adds a newer Revolut attempt for the order, as the /pay reuse path
+        /// does: the first intent closes and the order is payment_failed.
+        /// </summary>
+        private async Task<string> AddSecondIntentAsync(HeldReservation held)
+        {
+            var newest = $"ord_second_{Guid.NewGuid():N}";
+            await using var db = OpenDb();
+            var first = await db.Context.RevolutOrderIntents
+                .SingleAsync(row => row.ShopOrderId == held.OrderId);
+            first.IsOpen = false;
+            (await db.Context.ShopOrders.SingleAsync(row => row.Id == held.OrderId))
+                .PaymentStatus = ShopPaymentStatuses.PaymentFailed;
+            db.Context.RevolutOrderIntents.Add(new RevolutOrderIntent
+            {
+                Id = Guid.NewGuid(),
+                OrderId = newest,
+                RestaurantId = first.RestaurantId,
+                ShopOrderId = held.OrderId,
+                Purpose = RevolutOrderIntentPurposes.ShopMaterialsOrder,
+                TargetPlan = string.Empty,
+                TargetCadence = string.Empty,
+                RevolutSubscriptionId = string.Empty,
+                CheckoutUrl = FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                IdempotencyKey = Guid.NewGuid().ToString("D"),
+                IsOpen = true,
+                NetAmountMinor = first.NetAmountMinor,
+                VatAmountMinor = first.VatAmountMinor,
+                GrossAmountMinor = first.GrossAmountMinor,
+                CreatedAtUtc = first.CreatedAtUtc.AddMinutes(5),
+            });
+            await db.Context.SaveChangesAsync();
+            return newest;
+        }
+
         private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request) =>
             await _client.SendAsync(request);
 
@@ -416,10 +567,11 @@ namespace TummlyBackend.Tests.Services
 
         private static RevolutOrderRetrieveResult Revolut(
             HeldReservation held,
-            string state
+            string state,
+            string? revolutOrderId = null
         ) => new(
             Succeeded: true,
-            Id: held.RevolutOrderId,
+            Id: revolutOrderId ?? held.RevolutOrderId,
             State: state,
             AmountMinor: 1200,
             CheckoutUrl: FakeFirstPaidRevolutMerchantClient.CheckoutUrl,

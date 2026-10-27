@@ -205,6 +205,64 @@ namespace TummlyBackend.Tests.SqlServer
             Assert.Equal(code.Id, converted.ConvertedQrCodeId);
         }
 
+        [SkippableFact]
+        public async Task Sweep_ReservationConvertedWhileRevolutIsRead_StaysConverted_OnSqlServer()
+        {
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+            await using var factory = _fixture.CreateFactory();
+            var workspace = await SeedAsync(factory, freeSlots: 1);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            using var client = factory.CreateClient();
+            using (var pay = await client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(workspace, orderId)))
+            {
+                Assert.Equal(HttpStatusCode.OK, pay.StatusCode);
+            }
+
+            await using var read = _fixture.CreateContext();
+            var intent = await read.RevolutOrderIntents
+                .SingleAsync(row => row.ShopOrderId == orderId);
+            var reservation = await read.ShopQrSlotReservations
+                .SingleAsync(row => row.ShopOrderId == orderId);
+            var merchant = (FakeFirstPaidRevolutMerchantClient)factory.Services
+                .GetRequiredService<IRevolutMerchantClient>();
+            merchant.Orders[intent.OrderId] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: intent.OrderId,
+                State: "processing"
+            );
+            // The paid path converts the row after the sweeper read it and
+            // before its back-off write.
+            merchant.OnGetOrderAsync = async _ =>
+            {
+                merchant.OnGetOrderAsync = null;
+                await using var other = _fixture.CreateContext();
+                await other.Database.ExecuteSqlInterpolatedAsync(
+                    $"UPDATE [ShopQrSlotReservations] SET [Status] = N'converted', [ConvertedQrCodeId] = 4242 WHERE [ShopOrderId] = {orderId}"
+                );
+            };
+            var sweeper = new ShopQrSlotReservationSweeperBackgroundService(
+                factory.Services.GetRequiredService<IServiceScopeFactory>(),
+                new AdjustableTimeProvider(
+                    new DateTimeOffset(
+                        reservation.CreatedAtUtc.AddMinutes(31),
+                        TimeSpan.Zero
+                    )
+                ),
+                NullLogger<ShopQrSlotReservationSweeperBackgroundService>.Instance
+            );
+
+            await sweeper.SweepAsync(CancellationToken.None);
+
+            await using var verify = _fixture.CreateContext();
+            var after = await verify.ShopQrSlotReservations
+                .AsNoTracking()
+                .SingleAsync(row => row.ShopOrderId == orderId);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, after.Status);
+            Assert.Equal(0, after.ReconcileAttempts);
+            Assert.Null(after.LastReconcileError);
+        }
+
         private Func<Task<HttpStatusCode>> PayAsync(
             WebApplicationFactory<Program> factory,
             ShopCapacityWorkspace workspace,
