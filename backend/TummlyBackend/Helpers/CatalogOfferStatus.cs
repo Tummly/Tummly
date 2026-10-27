@@ -27,6 +27,14 @@ namespace TummlyBackend.Helpers
             int utcOffsetMinutes
         ) => DateOnly.FromDateTime(utcNow.AddMinutes(utcOffsetMinutes));
 
+        /// <summary>
+        /// Offer "today" for the UK venue calendar (Tummly is UK-only). Uses the
+        /// London wall-clock date, so between 23:00Z and 23:59Z in BST the date
+        /// is already the next day.
+        /// </summary>
+        public static DateOnly LondonToday(DateTime utcNow) =>
+            DateOnly.FromDateTime(LondonDateFormat.ToLondonLocal(utcNow));
+
         public static string ResolveEffectiveStatus(
             string storedStatus,
             CatalogOfferValidity validity,
@@ -233,7 +241,7 @@ namespace TummlyBackend.Helpers
                     offer.Status,
                     offer.Validity,
                     offer.CustomExpiryDate,
-                    VenueLocalToday(utcNow, 0)
+                    LondonToday(utcNow)
                 );
         }
 
