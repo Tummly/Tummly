@@ -562,6 +562,16 @@ namespace TummlyBackend.Controllers
                 order,
                 cancellationToken
             );
+            if (!capacity.OrderPayable)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "shop_order_not_payable",
+                    message = "shop_order_not_payable",
+                });
+            }
+
             if (!capacity.EntitlementsAvailable)
             {
                 return Conflict(new

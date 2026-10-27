@@ -278,11 +278,11 @@ namespace TummlyBackend.Services
                     _context,
                     orderId,
                     cancellationToken,
-                    // Only a confirmed end gives the QR slot back. A declined or
-                    // authorised payment can still be retried or captured.
-                    releaseQrReservations: eventName
-                        is "ORDER_FAILED"
-                            or "ORDER_CANCELLED",
+                    // A webhook never gives the QR slot back, even for a final
+                    // ORDER_FAILED or ORDER_CANCELLED: it covers one Revolut order,
+                    // and a newer one for the same Shop order may still be paid.
+                    // Only the sweeper releases, after it confirmed every attempt.
+                    releaseQrReservations: false,
                     nowUtc: _clock.GetUtcNow().UtcDateTime
                 );
 

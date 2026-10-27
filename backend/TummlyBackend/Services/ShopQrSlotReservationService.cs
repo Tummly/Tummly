@@ -70,7 +70,15 @@ namespace TummlyBackend.Services
         )
         {
             var types = ShopQrSlotTypes.FromOrderLines(order.Lines, _catalog);
-            if (types.Count == 0)
+            if (
+                types.Count == 0
+                && !await _context.ShopQrSlotReservations.AnyAsync(
+                    row =>
+                        row.ShopOrderId == order.Id
+                        && row.Status == ShopQrSlotReservationStatuses.Open,
+                    ct
+                )
+            )
             {
                 return new QrCapacityCheck(true, 0);
             }
@@ -81,30 +89,64 @@ namespace TummlyBackend.Services
             // One lock, held to the commit, for the count and the write.
             await _capacity.LockBillingAccountAsync(order.RestaurantId, ct);
 
-            var needsSlot = await ResolveNeedsSlotAsync(order.LocationId, types, ct);
-            if (needsSlot.Count == 0)
+            // The sweeper or a webhook may have failed the order since the
+            // request read it. A failed order must not keep a reservation alive.
+            var paymentStatus = await _context.ShopOrders
+                .AsNoTracking()
+                .Where(row => row.Id == order.Id)
+                .Select(row => row.PaymentStatus)
+                .FirstOrDefaultAsync(ct);
+            if (
+                !string.Equals(
+                    paymentStatus,
+                    ShopPaymentStatuses.AwaitingPayment,
+                    StringComparison.Ordinal
+                )
+            )
             {
-                return new QrCapacityCheck(true, 0);
+                return new QrCapacityCheck(
+                    false,
+                    0,
+                    EntitlementsAvailable: true,
+                    OrderPayable: false
+                );
             }
 
-            var held = await HeldTypesAsync(order.LocationId, ct);
-            var needed = needsSlot.Count(slot => !held.Contains(slot.QrType));
-            var check = await EvaluateAsync(
-                order.RestaurantId,
-                order.LocationId,
-                needed,
-                ct
-            );
-            if (!check.Ok)
+            var needsSlot = await ResolveNeedsSlotAsync(order.LocationId, types, ct);
+            var check = new QrCapacityCheck(true, 0);
+            if (needsSlot.Count > 0)
             {
-                // Nothing was written. Disposing the transaction ends the lock.
-                return check;
+                var held = await HeldTypesAsync(order.LocationId, ct);
+                var needed = needsSlot.Count(slot => !held.Contains(slot.QrType));
+                check = await EvaluateAsync(
+                    order.RestaurantId,
+                    order.LocationId,
+                    needed,
+                    ct
+                );
+                if (!check.Ok)
+                {
+                    // Nothing was written. Disposing the transaction ends the lock.
+                    return check;
+                }
             }
 
             var now = _clock.GetUtcNow().UtcDateTime;
             var own = await _context.ShopQrSlotReservations
                 .Where(row => row.ShopOrderId == order.Id)
                 .ToListAsync(ct);
+
+            // A new Revolut order may be made after this lock ends. Give the
+            // sweeper a full window so it cannot release a slot this pay needs.
+            foreach (
+                var open in own.Where(row =>
+                    row.Status == ShopQrSlotReservationStatuses.Open
+                )
+            )
+            {
+                open.ReconcileAfterUtc = now + ReconcileDelay;
+                open.UpdatedAtUtc = now;
+            }
 
             foreach (var slot in needsSlot)
             {
@@ -171,12 +213,6 @@ namespace TummlyBackend.Services
             CancellationToken ct
         )
         {
-            var types = ShopQrSlotTypes.FromOrderLines(order.Lines, _catalog);
-            if (types.Count == 0)
-            {
-                return [];
-            }
-
             var now = _clock.GetUtcNow().UtcDateTime;
             // Rows the caller already tracked can be stale; refresh them under the lock.
             var trackedBefore = _context.ChangeTracker
@@ -190,6 +226,20 @@ namespace TummlyBackend.Services
             foreach (var row in own.Where(row => trackedBefore.Contains(row.Id)))
             {
                 await _context.Entry(row).ReloadAsync(ct);
+            }
+
+            // The reservation rows say what /pay held. The live catalog can
+            // change between pay and payment, so it only decides the types that
+            // have no row (for example after the sweeper released one).
+            var types = own
+                .Select(row => row.QrType)
+                .Concat(ShopQrSlotTypes.FromOrderLines(order.Lines, _catalog))
+                .Distinct()
+                .Order()
+                .ToList();
+            if (types.Count == 0)
+            {
+                return [];
             }
 
             var qrCodeIds = new List<int>();
