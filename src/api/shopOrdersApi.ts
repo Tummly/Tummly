@@ -104,7 +104,8 @@ export type ShopReorderPrefillWire = {
     lineNetPence: number
   }>
   shipTo: ShopShipToPayload
-  deliveryMethod: "standard" | "express"
+  /** Express is removed; the backend always returns "standard". */
+  deliveryMethod: "standard"
   sourceOrderNumber: string
   /** Lines dropped from the prefill because they are no longer sold in the Shop. */
   unavailableLines?: { skuId: string; title: string }[]
@@ -125,7 +126,7 @@ export type PlaceShopOrderInput = {
   locationId: number
   fromCart?: true
   lines?: Array<{ skuId: string; quantity: number }>
-  deliveryMethod: "standard" | "express"
+  deliveryMethod: "standard"
   expectedGrossPence: number
   shipTo: ShopShipToPayload
 }
@@ -274,12 +275,9 @@ export async function reorderShopOrder(input: {
   return response.data
 }
 
-const EXPRESS_DELIVERY_SURCHARGE_PENCE = 2000
-
 /** Matches backend TummlyVatMath (exclusive, half-up AwayFromZero). */
 export function computeShopCheckoutTotalsPence(input: {
   materialsNetPence: number
-  deliveryMethod: "standard" | "express"
   /** Catalog / seller effective rate in basis points; 0 = net-only (launch OFF). */
   vatRateBps?: number
   /** Max of per-SKU standard delivery nets on the order. */
@@ -290,14 +288,7 @@ export function computeShopCheckoutTotalsPence(input: {
   deliveryNetPence: number
   grossPence: number
 } {
-  const standardDeliveryNetPence = Math.max(
-    0,
-    input.standardDeliveryNetPence ?? 0
-  )
-  const deliveryNetPence =
-    input.deliveryMethod === "express"
-      ? standardDeliveryNetPence + EXPRESS_DELIVERY_SURCHARGE_PENCE
-      : standardDeliveryNetPence
+  const deliveryNetPence = Math.max(0, input.standardDeliveryNetPence ?? 0)
   const vatRateBps = input.vatRateBps ?? 0
   const vatPence = Math.round(input.materialsNetPence * (vatRateBps / 10_000))
   return {

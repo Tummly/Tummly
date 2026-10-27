@@ -4,7 +4,6 @@ import {
   Package,
   CreditCard,
   X,
-  ChevronDown,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useNavigate } from "react-router-dom"
@@ -57,15 +56,13 @@ import { operatorDashboardBillingCreditsManagePlanPath } from "@/lib/operatorBil
 import { readShopQrLimitError } from "@/lib/operatorShop/shopQrLimitPresentation"
 import { cn } from "@/lib/utils"
 
-type DeliveryMethod = "standard" | "express"
-type CheckoutStep = "delivery" | "payment" | "add-address"
+type CheckoutStep = "delivery" | "payment"
 
 type ShopCheckoutScreenProps = {
   locationId: number
   lines: CheckoutLine[]
   fromCart: boolean
   initialShipTo?: ShopShipToPayload
-  initialDeliveryMethod?: DeliveryMethod
   selectedLocationName: string
   selectedLocationAddress?: string
   locations: ShopLocationOption[]
@@ -103,7 +100,6 @@ export function ShopCheckoutScreen({
   lines,
   fromCart,
   initialShipTo,
-  initialDeliveryMethod,
   selectedLocationName,
   locations,
   brandLogoPublicUrl,
@@ -118,9 +114,6 @@ export function ShopCheckoutScreen({
 }: ShopCheckoutScreenProps) {
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>("delivery")
   const [checkoutLines, setCheckoutLines] = useState<CheckoutLine[]>(lines)
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(
-    initialDeliveryMethod ?? "standard"
-  )
 
   const [contactName, setContactName] = useState("")
   const [contactPhone, setContactPhone] = useState("")
@@ -130,13 +123,6 @@ export function ShopCheckoutScreen({
   const [country, setCountry] = useState("United Kingdom")
   const [deliveryInstructions, setDeliveryInstructions] = useState("")
 
-  const [addressContactName, setAddressContactName] = useState("")
-  const [addressContactPhone, setAddressContactPhone] = useState("")
-  const [addressPostcode, setAddressPostcode] = useState("")
-  const [addressCountry, setAddressCountry] = useState("United Kingdom")
-  const [addressFormLine1, setAddressFormLine1] = useState("")
-  const [addressFormLine2, setAddressFormLine2] = useState("")
-
   const [checkedReviewDetails, setCheckedReviewDetails] = useState(false)
   const [checkedAgreeTerms, setCheckedAgreeTerms] = useState(false)
 
@@ -145,9 +131,6 @@ export function ShopCheckoutScreen({
   const [isQrLimitOpen, setIsQrLimitOpen] = useState(false)
   const [qrLimit, setQrLimit] = useState(0)
   const navigate = useNavigate()
-  const [returnStepAfterAddress, setReturnStepAfterAddress] = useState<
-    "delivery" | "payment"
-  >("payment")
 
   const purchaseBlocked = paidWriteChrome.purchaseDisabled
 
@@ -216,7 +199,6 @@ export function ShopCheckoutScreen({
   )
   const totals = computeShopCheckoutTotalsPence({
     materialsNetPence,
-    deliveryMethod,
     vatRateBps,
     standardDeliveryNetPence,
   })
@@ -225,10 +207,7 @@ export function ShopCheckoutScreen({
     showVatChrome
       ? `${penceToPounds(netPence)} excluding VAT`
       : penceToPounds(netPence)
-  const deliveryDisplay =
-    totals.deliveryNetPence === 0
-      ? "Free"
-      : penceToPounds(totals.deliveryNetPence)
+  const deliveryDisplay = penceToPounds(totals.deliveryNetPence)
   const shipToDisplay = formatShipToAddress({
     addressLine1,
     addressLine2,
@@ -243,35 +222,6 @@ export function ShopCheckoutScreen({
 
   const handleBackToDelivery = () => {
     setCheckoutStep("delivery")
-    scrollShopPaneToTop()
-  }
-
-  const handleOpenAddAddress = (returnTo: "delivery" | "payment" = "payment") => {
-    setAddressContactName(contactName)
-    setAddressContactPhone(contactPhone)
-    setAddressFormLine1(addressLine1)
-    setAddressFormLine2(addressLine2)
-    setAddressPostcode(postcode)
-    setAddressCountry(country || "United Kingdom")
-    setReturnStepAfterAddress(returnTo)
-    setCheckoutStep("add-address")
-    scrollShopPaneToTop()
-  }
-
-  const handleSaveAndUseAddress = () => {
-    setContactName(addressContactName.trim())
-    setContactPhone(addressContactPhone.trim())
-    setAddressLine1(addressFormLine1.trim())
-    setAddressLine2(addressFormLine2.trim())
-    setPostcode(addressPostcode.trim())
-    setCountry(addressCountry.trim() || "United Kingdom")
-    toast.success("Delivery address updated")
-    setCheckoutStep(returnStepAfterAddress)
-    scrollShopPaneToTop()
-  }
-
-  const handleCancelAddAddress = () => {
-    setCheckoutStep(returnStepAfterAddress)
     scrollShopPaneToTop()
   }
 
@@ -337,7 +287,7 @@ export function ShopCheckoutScreen({
         ? await placeShopOrder({
             locationId,
             fromCart: true,
-            deliveryMethod,
+            deliveryMethod: "standard",
             expectedGrossPence: totals.grossPence,
             shipTo,
           })
@@ -347,7 +297,7 @@ export function ShopCheckoutScreen({
               skuId: line.skuId,
               quantity: line.quantity,
             })),
-            deliveryMethod,
+            deliveryMethod: "standard",
             expectedGrossPence: totals.grossPence,
             shipTo,
           })
@@ -382,9 +332,9 @@ export function ShopCheckoutScreen({
   }
 
   const renderSummaryRow = (label: string, value: string) => (
-    <div className="flex w-full flex-col gap-3.5">
+    <div className="flex w-full flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
-        <span className="shrink-0 text-base font-semibold text-[var(--op-color-gray-550)]">
+        <span className="shrink-0 text-base font-semibold text-[var(--op-color-gray-650)]">
           {label}
         </span>
         <span className="text-right text-base font-medium text-op-text-primary">
@@ -446,7 +396,7 @@ export function ShopCheckoutScreen({
               )
             )}
             <div className="flex items-center justify-between gap-4 pt-1">
-              <span className="shrink-0 text-base font-semibold text-[var(--op-color-gray-550)]">
+              <span className="shrink-0 text-base font-semibold text-[var(--op-color-gray-650)]">
                 Total
               </span>
               <span className="text-right text-base font-bold text-op-text-primary">
@@ -466,595 +416,385 @@ export function ShopCheckoutScreen({
 
   return (
     <div className="flex flex-col gap-6">
-      {checkoutStep === "add-address" ? (
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-between border-b border-op-border-default pb-4">
-            <img
-              src={logo}
-              alt="tummly"
-              width={157}
-              height={38}
-              className="h-[38px] w-auto max-w-[157px] object-contain brightness-0 dark:brightness-100"
-            />
+      <div className="flex items-center justify-between border-b border-op-border-default pb-4">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <button
+            type="button"
+            onClick={onBackToShop}
+            className="text-op-text-primary transition-colors hover:underline"
+          >
+            Shop
+          </button>
+          <ChevronRight className="size-3.5 text-op-text-muted" />
+          <button
+            type="button"
+            onClick={onBackToProduct || onBackToShop}
+            className="text-op-text-muted transition-colors hover:text-op-text-primary hover:underline"
+          >
+            {materialsLabel}
+          </button>
+          <ChevronRight className="size-3.5 text-op-text-muted" />
+          <span className="text-op-text-muted">Checkout</span>
+        </div>
 
-            <Button
-              type="button"
-              variant="op-collapse"
-              onClick={handleCancelAddAddress}
-              aria-label="Close address form"
-            >
-              <X className="size-4" />
-            </Button>
+        <Button
+          type="button"
+          variant="op-collapse"
+          onClick={onBackToShop}
+          aria-label="Close checkout"
+        >
+          <X className="size-4" />
+        </Button>
+      </div>
+
+      <div className="mx-auto flex w-full max-w-[824px] flex-col items-start gap-[52px] pt-[60px] text-op-text-primary">
+        <img
+          src={logo}
+          alt="tummly"
+          width={157}
+          height={38}
+          className="h-[38px] w-auto max-w-[157px] object-contain brightness-0 dark:brightness-100"
+        />
+
+        <div className="flex w-full flex-col gap-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-[29px] font-bold tracking-tight text-op-text-primary">
+              {pageTitle}
+            </h1>
+            <p className="max-w-[425px] text-sm font-medium leading-5 text-[var(--op-color-gray-650)]">
+              Review the material, QR connection, delivery details and
+              payment before placing your order.
+            </p>
           </div>
 
-          <div className="mx-auto flex w-full max-w-[824px] flex-col items-start gap-10 pt-8 pb-24 text-op-text-primary">
-            <div className="flex flex-col gap-2">
-              <h1 className="text-[29px] font-bold tracking-tight text-op-text-primary">
-                Add delivery address
-              </h1>
-              <p className="text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
-                Add the address and contact details Tummly should use for this
-                delivery.
-              </p>
+        {checkoutStep === "delivery" && (
+          <div className="flex w-full flex-col gap-6">
+            <div className={SHOP_CHECKOUT_REVIEW_CARD_CLASS}>
+              <div className="flex flex-col gap-3">
+                <h2 className="text-lg font-semibold text-op-text-primary">
+                  Review your material
+                </h2>
+                <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                  Confirm the materials, quantities and selected location
+                  before continuing.
+                </p>
+              </div>
+
+              {renderLinesSummary(false)}
+
+              <div className="flex items-center gap-3">
+                {canEditQuantity ? (
+                  <Button
+                    type="button"
+                    variant="op-secondary"
+                    onClick={() => setIsEditQuantityOpen(true)}
+                  >
+                    Edit quantity
+                  </Button>
+                ) : null}
+
+                {locations.length > 1 && onSelectLocation ? (
+                  <ShopLocationPicker
+                    variant="change"
+                    selectedLocationId={locationId}
+                    selectedLocationName={selectedLocationName}
+                    locations={locations}
+                    brandLogoPublicUrl={brandLogoPublicUrl}
+                    mode={mode}
+                    onSelectLocation={onSelectLocation}
+                    onAfterSelectLocation={(loc) => {
+                      toast.success(
+                        `Location switched to ${loc.locationName}`
+                      )
+                    }}
+                  />
+                ) : (
+                  <Button
+                    type="button"
+                    variant="op-tertiary"
+                    onClick={() =>
+                      toast.info(`Current location: ${selectedLocationName}`)
+                    }
+                  >
+                    Change location
+                  </Button>
+                )}
+              </div>
             </div>
 
-            <div className="flex w-full flex-col gap-5">
-              <div className={SHOP_CHECKOUT_SECTION_CARD_CLASS}>
-                <h2 className="text-lg font-semibold text-op-text-primary">
-                  Contact details
-                </h2>
-
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold leading-5 text-op-text-primary">
-                      Contact name
-                    </label>
-                    <Input
-                      value={addressContactName}
-                      onChange={(e) => setAddressContactName(e.target.value)}
-                      placeholder="Enter full name"
-                      className={SHOP_CHECKOUT_INPUT_CLASS}
-                    />
-                  </div>
-                  <p className="text-sm font-normal text-[var(--op-color-gray-550)]">
-                    This person may be contacted if there is an issue with the
-                    delivery.
-                  </p>
+            <div className={SHOP_CHECKOUT_SECTION_CARD_CLASS}>
+              <div className="flex items-center gap-5">
+                <div className={SHOP_CHECKOUT_ICON_WELL_CLASS}>
+                  <Package className="size-7" />
                 </div>
-
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold leading-5 text-op-text-primary">
-                      Contact phone number
-                    </label>
-                    <Input
-                      value={addressContactPhone}
-                      onChange={(e) => setAddressContactPhone(e.target.value)}
-                      placeholder="Enter phone number"
-                      className={SHOP_CHECKOUT_INPUT_CLASS}
-                    />
-                  </div>
-                  <p className="text-sm font-normal text-[var(--op-color-gray-550)]">
-                    Used only for delivery updates or access questions.
+                <div className="flex flex-col gap-1.5">
+                  <h2 className="text-lg font-semibold text-op-text-primary">
+                    Delivery details
+                  </h2>
+                  <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                    Confirm the delivery address, contact information and
+                    preferred delivery method.
                   </p>
                 </div>
               </div>
 
-              <div className={SHOP_CHECKOUT_SECTION_CARD_CLASS}>
-                <h2 className="text-lg font-semibold text-op-text-primary">
-                  Address
-                </h2>
+              <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-semibold leading-5 text-op-text-primary">
-                    Postcode
-                  </label>
-                  <Input
-                    value={addressPostcode}
-                    onChange={(e) => setAddressPostcode(e.target.value)}
-                    placeholder="Enter postcode"
-                    className={SHOP_CHECKOUT_INPUT_CLASS}
-                  />
-                </div>
+              <div className="flex w-full flex-col gap-3.5">
+                <h3 className="text-lg font-semibold text-op-text-primary">
+                  Saved address
+                </h3>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-semibold leading-5 text-op-text-primary">
-                    Country
-                  </label>
-                  <div
-                    className={cn(
-                      SHOP_CHECKOUT_INPUT_CLASS,
-                      "flex items-center justify-between opacity-80"
-                    )}
-                  >
-                    <span>{addressCountry}</span>
-                    <ChevronDown className="size-4 text-[var(--op-color-gray-550)]" />
+                <div className={SHOP_CHECKOUT_OPTION_SELECTED_CLASS}>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="text-sm font-medium text-op-text-primary">
+                      {contactName || "Contact pending"}
+                      {contactPhone ? ` · ${contactPhone}` : ""}
+                    </span>
+                    <span className="text-sm font-medium text-[var(--op-color-gray-650)]">
+                      {selectedLocationName}
+                      {shipToDisplay ? ` · ${shipToDisplay}` : ""}
+                    </span>
                   </div>
-                </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-semibold leading-5 text-op-text-primary">
-                    Address line 1
-                  </label>
-                  <Input
-                    value={addressFormLine1}
-                    onChange={(e) => setAddressFormLine1(e.target.value)}
-                    placeholder="Enter address line 1"
-                    className={SHOP_CHECKOUT_INPUT_CLASS}
-                  />
-                </div>
-
-                <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-semibold leading-5 text-op-text-primary">
-                    Address line 2
-                  </label>
-                  <Input
-                    value={addressFormLine2}
-                    onChange={(e) => setAddressFormLine2(e.target.value)}
-                    placeholder="Enter address line 2"
-                    className={SHOP_CHECKOUT_INPUT_CLASS}
-                  />
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
+
+              <div className="flex w-full flex-col gap-3.5">
+                <h3 className="text-lg font-semibold text-op-text-primary">
+                  Delivery method
+                </h3>
+
+                <div className={SHOP_CHECKOUT_OPTION_SELECTED_CLASS}>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
+                    <span className="text-sm font-medium text-op-text-primary">
+                      Standard delivery
+                    </span>
+                    <span className="text-sm font-medium text-[var(--op-color-gray-650)]">
+                      Delivered within 3–5 business days after dispatch.
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-sm font-medium text-op-text-primary">
+                    {deliveryDisplay}
+                  </span>
+                </div>
+
+                <p className="max-w-[547px] text-sm font-normal leading-normal text-[var(--op-color-gray-650)]">
+                  Production time is separate from delivery time. The
+                  estimated dispatch date will be confirmed after your order
+                  has been processed.
+                </p>
+              </div>
+
+              <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
+
+              <div className="flex w-full flex-col gap-3.5">
+                <h3 className="text-lg font-semibold text-op-text-primary">
+                  Contact
+                </h3>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-semibold leading-5 text-op-text-primary">
+                    Contact name
+                  </label>
+                  <Input
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    className={SHOP_CHECKOUT_INPUT_CLASS}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-semibold leading-5 text-op-text-primary">
+                    Phone number
+                  </label>
+                  <Input
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    className={SHOP_CHECKOUT_INPUT_CLASS}
+                  />
+                </div>
+
+                <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                  The delivery provider may contact this person if there is
+                  an access or delivery issue.
+                </p>
+              </div>
+
+              <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
+
+              <div className="flex w-full flex-col gap-2">
+                <label className="text-sm font-semibold leading-5 text-op-text-primary">
+                  Delivery instructions — optional
+                </label>
+                <Textarea
+                  value={deliveryInstructions}
+                  onChange={(e) => setDeliveryInstructions(e.target.value)}
+                  placeholder="Add delivery instructions"
+                  rows={3}
+                  className={SHOP_CHECKOUT_TEXTAREA_CLASS}
+                />
+              </div>
+
+              <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
+
+              <div>
                 <Button
                   type="button"
                   variant="op-secondary"
-                  onClick={handleSaveAndUseAddress}
+                  onClick={handleContinueToPayment}
                 >
-                  Save and use address
+                  Continue
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {checkoutStep === "payment" && (
+          <div className="flex w-full flex-col gap-6">
+            <div className={SHOP_CHECKOUT_SECTION_CARD_CLASS}>
+              <div className="flex items-center gap-5">
+                <div className={SHOP_CHECKOUT_ICON_WELL_CLASS}>
+                  <Package className="size-7" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <h2 className="text-lg font-semibold text-op-text-primary">
+                    Delivery details
+                  </h2>
+                  <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                    Confirm the delivery address, contact information and
+                    preferred delivery method.
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-sm font-normal text-op-text-primary">
+                {selectedLocationName}
+                {postcode ? `, ${postcode}` : ""} / Standard delivery /{" "}
+                {deliveryDisplay}
+              </div>
+            </div>
+
+            <div className={SHOP_CHECKOUT_SECTION_CARD_CLASS}>
+              <div className="flex items-center gap-5">
+                <div className={SHOP_CHECKOUT_ICON_WELL_CLASS}>
+                  <CreditCard className="size-7" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <h2 className="text-lg font-semibold text-op-text-primary">
+                    Payment details
+                  </h2>
+                  <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                    Choose a payment method, confirm the invoice details and
+                    place your order.
+                  </p>
+                </div>
+              </div>
+
+              <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
+
+              <div className="flex flex-col gap-3.5">
+                <h3 className="text-lg font-semibold text-op-text-primary">
+                  Payment
+                </h3>
+
+                <div className={SHOP_CHECKOUT_OPTION_DEFAULT_CLASS}>
+                  <div className="flex flex-col gap-1 text-left">
+                    <p className="text-sm font-medium text-op-text-primary">
+                      Pay securely with Revolut
+                    </p>
+                    <p className="text-sm text-[var(--op-color-gray-650)]">
+                      After you place the order, you are redirected to
+                      Revolut to complete payment. Your order is marked paid
+                      only after Revolut confirms payment.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className={SHOP_CHECKOUT_REVIEW_CARD_CLASS}>
+              <div className="flex flex-col gap-3">
+                <h2 className="text-lg font-semibold text-op-text-primary">
+                  Order summary
+                </h2>
+                <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                  Confirm the materials, quantities and selected location
+                  before continuing.
+                </p>
+              </div>
+
+              {renderLinesSummary(true)}
+            </div>
+
+            <label
+              htmlFor="check-review-details"
+              className="flex cursor-pointer items-start gap-3 select-none"
+            >
+              <Checkbox
+                id="check-review-details"
+                checked={checkedReviewDetails}
+                onCheckedChange={(c) => setCheckedReviewDetails(Boolean(c))}
+                className="mt-0.5 border-op-border-default bg-op-surface-secondary data-checked:bg-op-action-primary data-checked:border-op-action-primary data-checked:text-white"
+              />
+              <span className="text-sm font-medium leading-snug text-op-text-primary">
+                I have checked the materials, quantity, location, delivery
+                and invoice details.
+              </span>
+            </label>
+
+            <label
+              htmlFor="check-agree-terms"
+              className="flex max-w-xl cursor-pointer items-start gap-3 select-none"
+            >
+              <Checkbox
+                id="check-agree-terms"
+                checked={checkedAgreeTerms}
+                onCheckedChange={(c) => setCheckedAgreeTerms(Boolean(c))}
+                className="mt-0.5 border-op-border-default bg-op-surface-secondary data-checked:bg-op-action-primary data-checked:border-op-action-primary data-checked:text-white"
+              />
+              <span className="text-sm font-medium leading-snug text-op-text-primary">
+                I agree to the Tummly Shop terms and understand that
+                made-to-order materials cannot normally be changed after
+                production begins.
+              </span>
+            </label>
+
+            <div className="flex flex-col gap-3 pt-2">
+              <div className="flex flex-wrap items-center gap-4">
+                <Button
+                  type="button"
+                  variant="op-primary"
+                  disabled={isPaymentProcessing || purchaseBlocked}
+                  onClick={() => {
+                    void handlePlaceOrder()
+                  }}
+                >
+                  {isPaymentProcessing
+                    ? "Processing..."
+                    : "Continue to payment"}
                 </Button>
 
                 <Button
                   type="button"
                   variant="op-tertiary"
-                  onClick={handleCancelAddAddress}
+                  onClick={handleBackToDelivery}
                 >
-                  Cancel
+                  Back
                 </Button>
               </div>
+
+              {purchaseBlocked ? (
+                <ShopPaidWriteHelperNote chrome={paidWriteChrome} />
+              ) : null}
             </div>
           </div>
+        )}
         </div>
-      ) : (
-        <>
-          <div className="flex items-center justify-between border-b border-op-border-default pb-4">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <button
-                type="button"
-                onClick={onBackToShop}
-                className="text-op-text-primary transition-colors hover:underline"
-              >
-                Shop
-              </button>
-              <ChevronRight className="size-3.5 text-op-text-muted" />
-              <button
-                type="button"
-                onClick={onBackToProduct || onBackToShop}
-                className="text-op-text-muted transition-colors hover:text-op-text-primary hover:underline"
-              >
-                {materialsLabel}
-              </button>
-              <ChevronRight className="size-3.5 text-op-text-muted" />
-              <span className="text-op-text-muted">Checkout</span>
-            </div>
-
-            <Button
-              type="button"
-              variant="op-collapse"
-              onClick={onBackToShop}
-              aria-label="Close checkout"
-            >
-              <X className="size-4" />
-            </Button>
-          </div>
-
-          <div className="mx-auto flex w-full max-w-[824px] flex-col items-start gap-[52px] pt-[60px] text-op-text-primary">
-            <img
-              src={logo}
-              alt="tummly"
-              width={157}
-              height={38}
-              className="h-[38px] w-auto max-w-[157px] object-contain brightness-0 dark:brightness-100"
-            />
-
-            <div className="flex w-full flex-col gap-8">
-              <div className="flex flex-col gap-2">
-                <h1 className="text-[29px] font-bold tracking-tight text-op-text-primary">
-                  {pageTitle}
-                </h1>
-                <p className="max-w-[425px] text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
-                  Review the material, QR connection, delivery details and
-                  payment before placing your order.
-                </p>
-              </div>
-
-            {checkoutStep === "delivery" && (
-              <div className="flex w-full flex-col gap-[22px]">
-                <div className={SHOP_CHECKOUT_REVIEW_CARD_CLASS}>
-                  <div className="flex flex-col gap-3">
-                    <h2 className="text-lg font-semibold text-op-text-primary">
-                      Review your material
-                    </h2>
-                    <p className="text-sm font-normal text-[var(--op-color-gray-550)]">
-                      Confirm the materials, quantities and selected location
-                      before continuing.
-                    </p>
-                  </div>
-
-                  {renderLinesSummary(false)}
-
-                  <div className="flex items-center gap-3">
-                    {canEditQuantity ? (
-                      <Button
-                        type="button"
-                        variant="op-secondary"
-                        onClick={() => setIsEditQuantityOpen(true)}
-                      >
-                        Edit quantity
-                      </Button>
-                    ) : null}
-
-                    {locations.length > 1 && onSelectLocation ? (
-                      <ShopLocationPicker
-                        variant="change"
-                        selectedLocationId={locationId}
-                        selectedLocationName={selectedLocationName}
-                        locations={locations}
-                        brandLogoPublicUrl={brandLogoPublicUrl}
-                        mode={mode}
-                        onSelectLocation={onSelectLocation}
-                        onAfterSelectLocation={(loc) => {
-                          toast.success(
-                            `Location switched to ${loc.locationName}`
-                          )
-                        }}
-                      />
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="op-tertiary"
-                        onClick={() =>
-                          toast.info(`Current location: ${selectedLocationName}`)
-                        }
-                      >
-                        Change location
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className={SHOP_CHECKOUT_SECTION_CARD_CLASS}>
-                  <div className="flex items-center gap-5">
-                    <div className={SHOP_CHECKOUT_ICON_WELL_CLASS}>
-                      <Package className="size-7" />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <h2 className="text-lg font-semibold text-op-text-primary">
-                        Delivery details
-                      </h2>
-                      <p className="text-sm font-normal text-[var(--op-color-gray-550)]">
-                        Confirm the delivery address, contact information and
-                        preferred delivery method.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
-
-                  <div className="flex w-full flex-col gap-3.5">
-                    <h3 className="text-lg font-semibold text-op-text-primary">
-                      Saved address
-                    </h3>
-
-                    <div className={SHOP_CHECKOUT_OPTION_SELECTED_CLASS}>
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="text-sm font-medium text-op-text-primary">
-                          {contactName || "Contact pending"}
-                          {contactPhone ? ` · ${contactPhone}` : ""}
-                        </span>
-                        <span className="text-sm font-medium text-[var(--op-color-gray-550)]">
-                          {selectedLocationName}
-                          {shipToDisplay ? ` · ${shipToDisplay}` : ""}
-                        </span>
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant="op-tertiary"
-                        className="shrink-0"
-                        onClick={() => handleOpenAddAddress("delivery")}
-                      >
-                        Edit address
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
-
-                  <div className="flex w-full flex-col gap-3.5">
-                    <h3 className="text-lg font-semibold text-op-text-primary">
-                      Delivery method
-                    </h3>
-
-                    <button
-                      type="button"
-                      onClick={() => setDeliveryMethod("standard")}
-                      className={cn(
-                        "cursor-pointer text-left hover:border-[var(--op-color-gray-550)]",
-                        deliveryMethod === "standard"
-                          ? SHOP_CHECKOUT_OPTION_SELECTED_CLASS
-                          : SHOP_CHECKOUT_OPTION_DEFAULT_CLASS
-                      )}
-                    >
-                      <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
-                        <span className="text-sm font-medium text-op-text-primary">
-                          Standard delivery
-                        </span>
-                        <span className="text-sm font-medium text-[var(--op-color-gray-550)]">
-                          Delivered within 3–5 business days after dispatch.
-                        </span>
-                      </div>
-                      <span className="shrink-0 text-sm font-medium text-[var(--op-color-gray-550)]">
-                        Free
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDeliveryMethod("express")}
-                      className={cn(
-                        "cursor-pointer text-left hover:border-[var(--op-color-gray-550)]",
-                        deliveryMethod === "express"
-                          ? SHOP_CHECKOUT_OPTION_SELECTED_CLASS
-                          : SHOP_CHECKOUT_OPTION_DEFAULT_CLASS
-                      )}
-                    >
-                      <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
-                        <span className="text-sm font-medium text-op-text-primary">
-                          Express delivery
-                        </span>
-                        <span className="text-sm font-medium text-[var(--op-color-gray-550)]">
-                          Delivered within 1–2 business days after dispatch.
-                        </span>
-                      </div>
-                      <span className="shrink-0 text-sm font-medium text-[var(--op-color-gray-550)]">
-                        £20.00
-                      </span>
-                    </button>
-
-                    <p className="max-w-[547px] text-sm font-normal leading-normal text-[var(--op-color-gray-550)]">
-                      Production time is separate from delivery time. The
-                      estimated dispatch date will be confirmed after your order
-                      has been processed.
-                    </p>
-                  </div>
-
-                  <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
-
-                  <div className="flex w-full flex-col gap-3.5">
-                    <h3 className="text-lg font-semibold text-op-text-primary">
-                      Contact
-                    </h3>
-
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-semibold leading-5 text-op-text-primary">
-                        Contact name
-                      </label>
-                      <Input
-                        value={contactName}
-                        onChange={(e) => setContactName(e.target.value)}
-                        className={SHOP_CHECKOUT_INPUT_CLASS}
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-semibold leading-5 text-op-text-primary">
-                        Phone number
-                      </label>
-                      <Input
-                        value={contactPhone}
-                        onChange={(e) => setContactPhone(e.target.value)}
-                        className={SHOP_CHECKOUT_INPUT_CLASS}
-                      />
-                    </div>
-
-                    <p className="text-sm font-normal text-[var(--op-color-gray-550)]">
-                      The delivery provider may contact this person if there is
-                      an access or delivery issue.
-                    </p>
-                  </div>
-
-                  <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
-
-                  <div className="flex w-full flex-col gap-2">
-                    <label className="text-sm font-semibold leading-5 text-op-text-primary">
-                      Delivery instructions — optional
-                    </label>
-                    <Textarea
-                      value={deliveryInstructions}
-                      onChange={(e) => setDeliveryInstructions(e.target.value)}
-                      placeholder="Add delivery instructions"
-                      rows={3}
-                      className={SHOP_CHECKOUT_TEXTAREA_CLASS}
-                    />
-                  </div>
-
-                  <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
-
-                  <div>
-                    <Button
-                      type="button"
-                      variant="op-secondary"
-                      onClick={handleContinueToPayment}
-                    >
-                      Continue to payment
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {checkoutStep === "payment" && (
-              <div className="flex w-full flex-col gap-[22px]">
-                <div className={SHOP_CHECKOUT_SECTION_CARD_CLASS}>
-                  <div className="flex items-center gap-5">
-                    <div className={SHOP_CHECKOUT_ICON_WELL_CLASS}>
-                      <Package className="size-7" />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <h2 className="text-lg font-semibold text-op-text-primary">
-                        Delivery details
-                      </h2>
-                      <p className="text-sm font-normal text-[var(--op-color-gray-550)]">
-                        Confirm the delivery address, contact information and
-                        preferred delivery method.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="text-sm font-normal text-op-text-primary">
-                    {selectedLocationName}
-                    {postcode ? `, ${postcode}` : ""} /{" "}
-                    {deliveryMethod === "express"
-                      ? "Express delivery"
-                      : "Standard delivery"}{" "}
-                    / {deliveryDisplay}
-                  </div>
-
-                  <div>
-                    <Button
-                      type="button"
-                      variant="op-tertiary"
-                      onClick={() => handleOpenAddAddress("payment")}
-                    >
-                      Edit
-                    </Button>
-                  </div>
-                </div>
-
-                <div className={SHOP_CHECKOUT_SECTION_CARD_CLASS}>
-                  <div className="flex items-center gap-5">
-                    <div className={SHOP_CHECKOUT_ICON_WELL_CLASS}>
-                      <CreditCard className="size-7" />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <h2 className="text-lg font-semibold text-op-text-primary">
-                        Payment details
-                      </h2>
-                      <p className="text-sm font-normal text-[var(--op-color-gray-550)]">
-                        Choose a payment method, confirm the invoice details and
-                        place your order.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
-
-                  <div className="flex flex-col gap-3.5">
-                    <h3 className="text-lg font-semibold text-op-text-primary">
-                      Payment
-                    </h3>
-
-                    <div className={SHOP_CHECKOUT_OPTION_DEFAULT_CLASS}>
-                      <div className="flex flex-col gap-1 text-left">
-                        <p className="text-sm font-medium text-op-text-primary">
-                          Pay securely with Revolut
-                        </p>
-                        <p className="text-sm text-[var(--op-color-gray-550)]">
-                          After you place the order, you are redirected to
-                          Revolut to complete payment. Your order is marked paid
-                          only after Revolut confirms payment.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className={SHOP_CHECKOUT_REVIEW_CARD_CLASS}>
-                  <div className="flex flex-col gap-3">
-                    <h2 className="text-lg font-semibold text-op-text-primary">
-                      Order summary
-                    </h2>
-                    <p className="text-sm font-normal text-[var(--op-color-gray-550)]">
-                      Confirm the materials, quantities and selected location
-                      before continuing.
-                    </p>
-                  </div>
-
-                  {renderLinesSummary(true)}
-                </div>
-
-                <label
-                  htmlFor="check-review-details"
-                  className="flex cursor-pointer items-start gap-3 select-none"
-                >
-                  <Checkbox
-                    id="check-review-details"
-                    checked={checkedReviewDetails}
-                    onCheckedChange={(c) => setCheckedReviewDetails(Boolean(c))}
-                    className="mt-0.5 border-op-border-default bg-op-surface-secondary data-checked:bg-op-action-primary data-checked:border-op-action-primary data-checked:text-white"
-                  />
-                  <span className="text-sm font-medium leading-snug text-op-text-primary">
-                    I have checked the materials, quantity, location, delivery
-                    and invoice details.
-                  </span>
-                </label>
-
-                <label
-                  htmlFor="check-agree-terms"
-                  className="flex max-w-xl cursor-pointer items-start gap-3 select-none"
-                >
-                  <Checkbox
-                    id="check-agree-terms"
-                    checked={checkedAgreeTerms}
-                    onCheckedChange={(c) => setCheckedAgreeTerms(Boolean(c))}
-                    className="mt-0.5 border-op-border-default bg-op-surface-secondary data-checked:bg-op-action-primary data-checked:border-op-action-primary data-checked:text-white"
-                  />
-                  <span className="text-sm font-medium leading-snug text-op-text-primary">
-                    I agree to the Tummly Shop terms and understand that
-                    made-to-order materials cannot normally be changed after
-                    production begins.
-                  </span>
-                </label>
-
-                <div className="flex flex-col gap-3 pt-2">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <Button
-                      type="button"
-                      variant="op-primary"
-                      disabled={isPaymentProcessing || purchaseBlocked}
-                      onClick={() => {
-                        void handlePlaceOrder()
-                      }}
-                    >
-                      {isPaymentProcessing
-                        ? "Processing..."
-                        : "Continue to payment"}
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="op-tertiary"
-                      onClick={handleBackToDelivery}
-                    >
-                      Back
-                    </Button>
-                  </div>
-
-                  {purchaseBlocked ? (
-                    <ShopPaidWriteHelperNote chrome={paidWriteChrome} />
-                  ) : null}
-                </div>
-              </div>
-            )}
-            </div>
-          </div>
-        </>
-      )}
+      </div>
 
       {canEditQuantity && singleLine ? (
         <Dialog open={isEditQuantityOpen} onOpenChange={setIsEditQuantityOpen}>
@@ -1102,7 +842,7 @@ export function ShopCheckoutScreen({
                     "flex items-center justify-between rounded-sm border p-3 text-sm transition-colors",
                     singleLine.quantity === pack.qty
                       ? "border-op-action-primary bg-op-surface-secondary font-semibold text-op-text-primary"
-                      : "border-op-border-default bg-op-background-primary text-op-text-secondary hover:bg-op-surface-secondary/50"
+                      : "border-op-border-default bg-op-background-primary text-[var(--op-color-gray-650)] hover:bg-op-surface-secondary/50"
                   )}
                 >
                   <span>Pack of {pack.qty.toLocaleString("en-GB")}</span>
