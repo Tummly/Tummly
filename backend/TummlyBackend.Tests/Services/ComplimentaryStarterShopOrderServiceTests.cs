@@ -369,6 +369,28 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task StarterKit_ExcludesStarterFlaggedSkuWhenUnavailable()
+        {
+            var counter = await _context.ShopMaterialSkus
+                .SingleAsync(row =>
+                    row.SkuId == ShopMaterialsCatalogSeed.CounterDisplaySkuId
+                );
+            counter.AvailableInShop = false;
+            await _context.SaveChangesAsync();
+
+            var result = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+
+            Assert.False(result.Created);
+            Assert.Equal(Guid.Empty, result.ShopOrderId);
+            Assert.Empty(await _context.ShopOrders.ToListAsync());
+        }
+
         public void Dispose()
         {
             _context.Dispose();

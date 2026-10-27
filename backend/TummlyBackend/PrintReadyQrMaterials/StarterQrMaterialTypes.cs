@@ -12,8 +12,10 @@ namespace TummlyBackend.PrintReadyQrMaterials
     public static class StarterQrMaterialTypes
     {
         /// <summary>
-        /// Published SKUs on active complimentary-starter recipes, ordered by
-        /// recipe then SKU. Shared by Capture mint and complimentary £0 orders.
+        /// Published, available-in-shop SKUs on active complimentary-starter
+        /// recipes, ordered by recipe then SKU. Shared by Capture mint and
+        /// complimentary £0 orders. "Coming soon" SKUs (AvailableInShop off) are
+        /// left out of both.
         /// </summary>
         public static IQueryable<ShopMaterialSku> QueryPublishedStarterSkus(
             ApplicationDbContext context
@@ -23,6 +25,7 @@ namespace TummlyBackend.PrintReadyQrMaterials
                 .AsNoTracking()
                 .Where(row =>
                     row.Status == ShopMaterialSkuStatuses.Published
+                    && row.AvailableInShop
                     && row.PlacementRecipe != null
                     && row.PlacementRecipe.IsActive
                     && row.PlacementRecipe.IncludeInComplimentaryStarter

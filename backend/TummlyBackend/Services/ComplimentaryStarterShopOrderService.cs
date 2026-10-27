@@ -246,8 +246,9 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// One published SKU per starter placement recipe (Admin can replace commerce
-        /// while keeping the recipe slot).
+        /// One published, available-in-shop SKU per starter placement recipe (Admin
+        /// can replace commerce while keeping the recipe slot). Filtering lives in
+        /// <see cref="StarterQrMaterialTypes.QueryPublishedStarterSkus"/>.
         /// </summary>
         private async Task<IReadOnlyList<ShopMaterialSku>> LoadComplimentaryStarterSkusAsync(
             CancellationToken cancellationToken

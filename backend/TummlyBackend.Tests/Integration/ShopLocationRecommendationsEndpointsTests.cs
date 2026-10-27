@@ -9,6 +9,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -80,6 +81,8 @@ namespace TummlyBackend.Tests.Integration
         public async Task PutDetailsThenGetRecommendations_ReturnsBaselineKit_WithEmptyMetrics()
         {
             var seeded = await SeedWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "table-tents", true);
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "window-stickers", true);
 
             var put = await PutDetailsAsync(
                 seeded.MemberJwt,
@@ -131,7 +134,8 @@ namespace TummlyBackend.Tests.Integration
         public async Task GetRecommendations_AppliesActivityFloor_WhenFeedbackAtLeastFive()
         {
             var seeded = await SeedWorkspaceAsync();
-            var smartGuestQrId = await SeedTableTentQrWithFeedbackAsync(
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "table-tents", true);
+            var smartGuestQrId = await SeedQrWithFeedbackAsync(
                 seeded.LocationId,
                 feedbackCount: 6
             );
@@ -175,7 +179,8 @@ namespace TummlyBackend.Tests.Integration
             // baseline = tableCount + 2 = 2; uncapped floor = ceil(2.2)+2 = 5;
             // cap = 2 * baseline = 4 — so the 2× baseline cap must bind.
             var seeded = await SeedWorkspaceAsync();
-            var smartGuestQrId = await SeedTableTentQrWithFeedbackAsync(
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "table-tents", true);
+            var smartGuestQrId = await SeedQrWithFeedbackAsync(
                 seeded.LocationId,
                 feedbackCount: 6
             );
@@ -212,6 +217,47 @@ namespace TummlyBackend.Tests.Integration
                 baseline * 2,
                 tableLine.Value.GetProperty("quantity").GetInt32()
             );
+        }
+
+        [Fact]
+        public async Task Recommendations_SkipUnavailableSkus()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "table-tents", false);
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", false);
+            var guestCardQrId = await SeedQrWithFeedbackAsync(
+                seeded.LocationId,
+                feedbackCount: 5,
+                qrType: QrType.GuestCard
+            );
+            Assert.True(guestCardQrId > 0);
+
+            await PutDetailsAsync(
+                seeded.MemberJwt,
+                seeded.LocationId,
+                new
+                {
+                    tableCount = 18,
+                    counterCount = 2,
+                    entranceCount = 2,
+                    secondaryEntranceCount = 0,
+                    takeawayVolume = "100-249",
+                    promptLocations = "tables,counters",
+                    existingMaterials = "no",
+                }
+            );
+
+            using var getRequest = AuthorizedGet(
+                $"/api/shop/locations/{seeded.LocationId}/recommendations",
+                seeded.MemberJwt
+            );
+            var getResponse = await _client.SendAsync(getRequest);
+            Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+            var lines = (await ReadJsonAsync(getResponse)).GetProperty("lines");
+            Assert.NotNull(FindLine(lines, "qr-counter-display"));
+            Assert.Null(FindLine(lines, "table-tents"));
+            Assert.Null(FindLine(lines, "qr-guest-cards"));
         }
 
         [Fact]
@@ -280,9 +326,10 @@ namespace TummlyBackend.Tests.Integration
             return null;
         }
 
-        private async Task<int> SeedTableTentQrWithFeedbackAsync(
+        private async Task<int> SeedQrWithFeedbackAsync(
             int locationId,
-            int feedbackCount
+            int feedbackCount,
+            QrType qrType = QrType.TableTent
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -292,8 +339,8 @@ namespace TummlyBackend.Tests.Integration
             var qr = new QrCode
             {
                 RestaurantLocationId = locationId,
-                QrType = QrType.TableTent,
-                Token = $"tt-{Guid.NewGuid():N}"[..32],
+                QrType = qrType,
+                Token = $"qr-{Guid.NewGuid():N}"[..32],
                 Status = QrCodeStatus.Active,
                 CreatedAt = DateTime.UtcNow,
             };

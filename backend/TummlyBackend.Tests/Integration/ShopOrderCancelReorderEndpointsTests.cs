@@ -9,6 +9,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -289,6 +290,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task ReorderPrefill_RePricesFromCurrentCatalog()
         {
             var seeded = await SeedWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "table-tents", true);
             var orderId = await InsertOrderAsync(
                 seeded,
                 seeded.InScopeLocationId,
@@ -327,6 +329,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task ReorderPrefill_InvalidPackQty_Returns409()
         {
             var seeded = await SeedWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "table-tents", true);
             var orderId = await InsertOrderAsync(
                 seeded,
                 seeded.InScopeLocationId,
@@ -356,6 +359,71 @@ namespace TummlyBackend.Tests.Integration
                 "catalog_sku_unavailable",
                 body.GetProperty("code").GetString()
             );
+        }
+
+        [Fact]
+        public async Task Reorder_DropsUnavailableLines_ReturnsThemInUnavailableLines()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "table-tents", true);
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", false);
+            var orderId = await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.Delivered
+            );
+            await AddOrderLineAsync(orderId, "qr-guest-cards", "QR Guest Cards");
+
+            using var request = AuthorizedPost(
+                $"/api/shop/orders/{orderId}/reorder?locationId={seeded.InScopeLocationId}",
+                seeded.MemberJwt,
+                body: null
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                new[] { "table-tents" },
+                body.GetProperty("lines")
+                    .EnumerateArray()
+                    .Select(line => line.GetProperty("skuId").GetString())
+                    .ToArray()
+            );
+            var unavailable = Assert.Single(body.GetProperty("unavailableLines").EnumerateArray());
+            Assert.Equal("qr-guest-cards", unavailable.GetProperty("skuId").GetString());
+            Assert.Equal("QR Guest Cards", unavailable.GetProperty("title").GetString());
+        }
+
+        [Fact]
+        public async Task Reorder_AllLinesUnavailable_Returns409ReorderNoAvailableLines()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "table-tents", false);
+            var orderId = await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.Delivered
+            );
+
+            using var request = AuthorizedPost(
+                $"/api/shop/orders/{orderId}/reorder?locationId={seeded.InScopeLocationId}",
+                seeded.MemberJwt,
+                body: null
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "reorder_no_available_lines",
+                body.GetProperty("code").GetString()
+            );
+            var unavailable = Assert.Single(body.GetProperty("unavailableLines").EnumerateArray());
+            Assert.Equal("table-tents", unavailable.GetProperty("skuId").GetString());
+            Assert.Equal("Table tents", unavailable.GetProperty("title").GetString());
         }
 
         [Fact]
@@ -428,6 +496,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task SoftLock_ReorderPrefill200_SubsequentPlace403()
         {
             var seeded = await SeedWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "table-tents", true);
             await SetBillingStatusAsync(
                 seeded.RestaurantId,
                 BillingStatuses.SoftLock
@@ -496,6 +565,25 @@ namespace TummlyBackend.Tests.Integration
             var account = await context.BillingAccounts
                 .SingleAsync(row => row.RestaurantId == restaurantId);
             account.BillingStatus = billingStatus;
+            await context.SaveChangesAsync();
+        }
+
+        private async Task AddOrderLineAsync(Guid orderId, string skuId, string title)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            context.ShopOrderLines.Add(new ShopOrderLine
+            {
+                Id = Guid.NewGuid(),
+                ShopOrderId = orderId,
+                CatalogSkuId = skuId,
+                TitleSnapshot = title,
+                MaterialType = title,
+                Quantity = 5,
+                UnitNetPence = 500,
+                LineNetPence = 2500,
+            });
             await context.SaveChangesAsync();
         }
 
