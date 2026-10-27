@@ -120,7 +120,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task SessionLogin_ClaimRevokesToken_SecondCall401()
+        public async Task SessionLogin_ClaimedToken_SecondCall409_SessionLoginUsed()
         {
             var email = $"login-{Guid.NewGuid():N}@example.com";
             var token = await SeedRowAsync(
@@ -141,7 +141,107 @@ namespace TummlyBackend.Tests.Integration
                 "/api/signup/session-login",
                 new { sessionToken = token, continueOnFree = false }
             );
-            await AssertSessionExpiredAsync(second);
+            Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+            using var body = JsonDocument.Parse(await second.Content.ReadAsStringAsync());
+            Assert.Equal("session_login_used", body.RootElement.GetProperty("code").GetString());
+
+            // Every other signup call with the claimed token is the expired-session 401.
+            await AssertSessionExpiredAsync(await GetSessionAsync(token));
+        }
+
+        [Fact]
+        public async Task QueryStringToken_OnSessionRetryProvisioningStatusAndSessionLogin_401()
+        {
+            var token = await SeedRowAsync(
+                PendingSignupStatuses.Verified,
+                issuedAtUtc: DateTime.UtcNow
+            );
+
+            // A valid header is sent too: the query string still wins and refuses the call.
+            foreach (var (method, path) in new[]
+            {
+                (HttpMethod.Get, "/api/signup/session"),
+                (HttpMethod.Post, "/api/signup/retry-provision"),
+                (HttpMethod.Get, "/api/signup/provisioning-status"),
+            })
+            {
+                var request = new HttpRequestMessage(method, $"{path}?sessionToken={token}");
+                request.Headers.Add(SessionHeader, token.ToString());
+                await AssertSessionExpiredAsync(await _client.SendAsync(request));
+            }
+
+            var login = await _client.PostAsJsonAsync(
+                $"/api/signup/session-login?sessionToken={token}",
+                new { sessionToken = token, continueOnFree = false }
+            );
+            await AssertSessionExpiredAsync(login);
+        }
+
+        [Fact]
+        public async Task SignupToken_OnTeamInviteAcceptAndTrialEndpoints_Refused()
+        {
+            var token = await SeedRowAsync(
+                PendingSignupStatuses.Verified,
+                issuedAtUtc: DateTime.UtcNow
+            );
+
+            // Team invite accept needs a real access token. The signup token is only a GUID.
+            var accept = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/team-invitations/accept?invite={token:N}"
+            )
+            {
+                Headers = { Authorization = new AuthenticationHeaderValue("Bearer", token.ToString()) },
+            };
+            Assert.Equal(HttpStatusCode.Unauthorized, (await _client.SendAsync(accept)).StatusCode);
+
+            // Trial verify: the signup token is not a trial code.
+            var trial = await _client.PostAsJsonAsync(
+                "/api/trial/verify-otp",
+                new { email = "nobody@example.com", otpCode = token.ToString("N") }
+            );
+            Assert.Equal(HttpStatusCode.BadRequest, trial.StatusCode);
+        }
+
+        [Fact]
+        public async Task VerifyOtp_WindowLocked_429_RetryAfterUtcEndsWithZ()
+        {
+            var email = $"locked-{Guid.NewGuid():N}@example.com";
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                db.PendingSignups.Add(
+                    new PendingSignup
+                    {
+                        Id = Guid.NewGuid(),
+                        SessionToken = Guid.NewGuid(),
+                        Email = email,
+                        Status = PendingSignupStatuses.EmailPending,
+                        TermsAccepted = true,
+                        // SQL Server returns Kind=Unspecified for datetime2 columns.
+                        AbuseWindowStartUtc = DateTime.SpecifyKind(
+                            DateTime.UtcNow.AddHours(-1),
+                            DateTimeKind.Unspecified
+                        ),
+                        FailedVerifiesInWindow = 15,
+                        CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                        UpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                    }
+                );
+                await db.SaveChangesAsync();
+            }
+
+            var response = await _client.PostAsJsonAsync(
+                "/api/signup/verify-otp",
+                new { email, otpCode = "123456" }
+            );
+
+            Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+            var raw = await response.Content.ReadAsStringAsync();
+            using var body = JsonDocument.Parse(raw);
+            Assert.Equal("challenge_locked", body.RootElement.GetProperty("code").GetString());
+            var retryAfter = body.RootElement.GetProperty("retryAfterUtc").GetString();
+            Assert.EndsWith("Z", retryAfter, StringComparison.Ordinal);
         }
 
         [Fact]

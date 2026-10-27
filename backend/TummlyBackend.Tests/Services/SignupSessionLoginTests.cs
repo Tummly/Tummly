@@ -58,12 +58,11 @@ namespace TummlyBackend.Tests.Services
             var pending = await _db.PendingSignups.SingleAsync();
             Assert.NotNull(pending.SessionLoginConsumedAtUtc);
 
-            // The claim revoked the token: a second session-login is refused as an expired session.
-            var used = await Assert.ThrowsAsync<SignupFlowException>(() =>
+            // A replay of the claimed token is refused as already used, not as an expired session.
+            var used = await Assert.ThrowsAsync<SignupConflictException>(() =>
                 _sut.SessionLoginAsync(sessionToken)
             );
-            Assert.Equal("signup_session_expired", used.Code);
-            Assert.Equal(401, used.StatusCode);
+            Assert.Equal("session_login_used", used.Code);
         }
 
         [Fact]

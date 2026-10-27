@@ -20,6 +20,7 @@ namespace TummlyBackend.Tests.Services
         private readonly FakeExternalOAuthProviderClient _providerClient;
         private readonly FakeAuthService _authService;
         private readonly ExternalAuthService _sut;
+        private readonly ListLogger _logger = new();
 
         public ExternalAuthServiceTests()
         {
@@ -45,7 +46,7 @@ namespace TummlyBackend.Tests.Services
                 _providerClient,
                 _authService,
                 configuration,
-                NullLogger<ExternalAuthService>.Instance
+                _logger
             );
         }
 
@@ -387,6 +388,39 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(pending.SessionToken, session.SessionToken);
             Assert.NotNull(pending.SessionTokenIssuedAtUtc);
             Assert.InRange(pending.SessionTokenIssuedAtUtc.Value, before, DateTime.UtcNow);
+        }
+
+        [Fact]
+        public async Task AcceptTerms_IssuesToken_LogsTokenIssued_NeverTheToken()
+        {
+            var token = await SeedSignUpExchangeAsync(
+                email: "audit-social@example.com",
+                provider: ExternalAuthProviders.Google,
+                providerSubject: "sub-audit",
+                fullName: "Audit User"
+            );
+
+            var session = await _sut.AcceptTermsAsync(
+                new ExternalAuthAcceptTermsDto { Token = token, TermsAccepted = true }
+            );
+
+            var pending = await _db.PendingSignups.SingleAsync();
+            var line = Assert.Single(
+                _logger.Entries,
+                entry => entry.StartsWith("signup.token_issued ", StringComparison.Ordinal)
+            );
+            Assert.Contains($"pending_id={pending.Id}", line, StringComparison.Ordinal);
+            Assert.Contains("purpose=signup", line, StringComparison.Ordinal);
+            Assert.Contains(
+                $"email={TummlyBackend.Helpers.LogContactMask.Email("audit-social@example.com")}",
+                line,
+                StringComparison.Ordinal
+            );
+            var all = string.Join("\n", _logger.Entries);
+            Assert.DoesNotContain(session.SessionToken!.Value.ToString(), all, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(session.SessionToken!.Value.ToString("N"), all, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(token, all, StringComparison.Ordinal);
+            Assert.DoesNotContain("audit-social@example.com", all, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -956,6 +990,24 @@ namespace TummlyBackend.Tests.Services
 
             public Task<object> GetDemoGuestEntryAsync() =>
                 throw new NotImplementedException();
+        }
+
+        private sealed class ListLogger : Microsoft.Extensions.Logging.ILogger<ExternalAuthService>
+        {
+            public List<string> Entries { get; } = [];
+
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                Microsoft.Extensions.Logging.LogLevel logLevel,
+                Microsoft.Extensions.Logging.EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter
+            ) => Entries.Add(formatter(state, exception));
         }
     }
 }

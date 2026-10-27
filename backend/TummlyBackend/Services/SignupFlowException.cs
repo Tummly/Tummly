@@ -21,7 +21,11 @@ namespace TummlyBackend.Services
         {
             Code = code;
             StatusCode = statusCode;
-            RetryAfterUtc = retryAfterUtc;
+            // The value is UTC. SQL Server returns Kind=Unspecified, which would be written
+            // without the "Z" and be read as local time by the browser.
+            RetryAfterUtc = retryAfterUtc is { } at
+                ? DateTime.SpecifyKind(at, DateTimeKind.Utc)
+                : null;
         }
     }
 }

@@ -1338,6 +1338,7 @@ var signupRateLimit =
 
 // A limit below 1 would reject every signup request. Fail at start, like the Otp:HashKey check.
 signupRateLimit.Validate();
+builder.Services.AddSingleton(signupRateLimit);
 
 builder.Services.AddRateLimiter(options =>
 {

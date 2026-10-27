@@ -1,5 +1,10 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Signup;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Migrations;
@@ -191,6 +196,200 @@ namespace TummlyBackend.Tests.SqlServer
             if (verified == 1)
             {
                 Assert.True(row.IsUsed);
+            }
+        }
+
+        [SkippableFact]
+        public async Task ParallelStartResend_SendsAtMostOneCodePerCooldown()
+        {
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+
+            var email = $"lane-d1-send-{Guid.NewGuid():N}@example.com";
+            var now = DateTime.UtcNow;
+            Guid pendingId;
+            await using (var seed = _fixture.CreateContext())
+            {
+                // The cooldown of the first code has passed: exactly one new send may win.
+                var row = SignupRow(PendingSignupStatuses.EmailPending, Guid.NewGuid(), now);
+                row.Email = email;
+                row.TermsAccepted = true;
+                row.CodeGeneration = 1;
+                row.CodesSentInWindow = 1;
+                row.AbuseWindowStartUtc = now.AddMinutes(-5);
+                row.LastOtpSentAt = now.AddMinutes(-2);
+                seed.PendingSignups.Add(row);
+                await seed.SaveChangesAsync();
+                pendingId = row.Id;
+            }
+
+            var mail = new ConcurrentMail();
+            await Task.WhenAll(
+                Enumerable
+                    .Range(0, 20)
+                    .Select(i => RunOnFreshServiceAsync(
+                        mail,
+                        service => i % 2 == 0
+                            ? service.StartAsync(new StartSignupDto { Email = email, TermsAccepted = true })
+                            : service.ResendOtpAsync(email)
+                    ))
+            );
+
+            Assert.Single(mail.Sent);
+
+            await using var check = _fixture.CreateContext();
+            var after = await check.PendingSignups.AsNoTracking().SingleAsync(r => r.Id == pendingId);
+            Assert.Equal(2, after.CodesSentInWindow);
+            Assert.Equal(2, after.CodeGeneration);
+
+            // One live code of the current generation, never several with the same generation.
+            var live = await check.OtpVerifications
+                .AsNoTracking()
+                .Where(r => r.Email == email && r.Purpose == OtpPurposes.Signup && !r.IsUsed)
+                .ToListAsync();
+            var current = Assert.Single(live);
+            Assert.Equal(2, current.Generation);
+        }
+
+        [SkippableFact]
+        public async Task ParallelFirstStarts_CreateOneRow_SendOneCode()
+        {
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+
+            var email = $"lane-d1-first-{Guid.NewGuid():N}@example.com";
+            var mail = new ConcurrentMail();
+
+            await Task.WhenAll(
+                Enumerable
+                    .Range(0, 10)
+                    .Select(_ => RunOnFreshServiceAsync(
+                        mail,
+                        service => service.StartAsync(new StartSignupDto { Email = email, TermsAccepted = true })
+                    ))
+            );
+
+            Assert.Single(mail.Sent);
+            await using var check = _fixture.CreateContext();
+            var row = await check.PendingSignups.AsNoTracking().SingleAsync(r => r.Email == email);
+            Assert.Equal(1, row.CodesSentInWindow);
+            Assert.Equal(1, row.CodeGeneration);
+        }
+
+        [SkippableFact]
+        public async Task ParallelWrongVerifies_CountAll()
+        {
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+
+            var (email, pendingId, code) = await StartedSignupAsync();
+
+            var outcomes = await Task.WhenAll(
+                Enumerable
+                    .Range(0, 12)
+                    .Select(i => VerifyThroughServiceAsync(email, WrongGuess(code, i + 1)))
+            );
+
+            // No increment is lost: every wrong guess moved the window counter by one.
+            await using var check = _fixture.CreateContext();
+            var row = await check.PendingSignups.AsNoTracking().SingleAsync(r => r.Id == pendingId);
+            Assert.Equal(12, row.FailedVerifiesInWindow);
+            Assert.DoesNotContain("challenge_locked", outcomes);
+            Assert.DoesNotContain("verified", outcomes);
+        }
+
+        [SkippableFact]
+        public async Task ParallelWrongVerifies_StopAtWindowLimit()
+        {
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+
+            var (email, pendingId, code) = await StartedSignupAsync();
+
+            var outcomes = await Task.WhenAll(
+                Enumerable
+                    .Range(0, 20)
+                    .Select(i => VerifyThroughServiceAsync(email, WrongGuess(code, i + 1)))
+            );
+
+            await using var check = _fixture.CreateContext();
+            var row = await check.PendingSignups.AsNoTracking().SingleAsync(r => r.Id == pendingId);
+            Assert.Equal(SignupAbuseLimits.MaxFailedVerifiesPerWindow, row.FailedVerifiesInWindow);
+            Assert.Equal(5, outcomes.Count(o => o == "challenge_locked"));
+        }
+
+        private async Task<(string Email, Guid PendingId, string Code)> StartedSignupAsync()
+        {
+            var email = $"lane-d1-wrong-{Guid.NewGuid():N}@example.com";
+            var mail = new ConcurrentMail();
+            await RunOnFreshServiceAsync(
+                mail,
+                service => service.StartAsync(new StartSignupDto { Email = email, TermsAccepted = true })
+            );
+            var sent = Assert.Single(mail.Sent);
+
+            await using var context = _fixture.CreateContext();
+            var id = (await context.PendingSignups.AsNoTracking().SingleAsync(r => r.Email == email)).Id;
+            return (email, id, sent.Otp);
+        }
+
+        private async Task<string> VerifyThroughServiceAsync(string email, string code)
+        {
+            await using var context = _fixture.CreateContext();
+            var service = CreateSignupService(context, new ConcurrentMail());
+            try
+            {
+                await service.VerifyOtpAsync(
+                    new VerifySignupOtpDto { Email = email, OtpCode = code }
+                );
+                return "verified";
+            }
+            catch (SignupFlowException ex)
+            {
+                return ex.Code;
+            }
+        }
+
+        private async Task RunOnFreshServiceAsync(
+            ConcurrentMail mail,
+            Func<SignupService, Task> action
+        )
+        {
+            await using var context = _fixture.CreateContext();
+            var service = CreateSignupService(context, mail);
+            try
+            {
+                await action(service);
+            }
+            catch (SignupFlowException)
+            {
+                // A refused call is an outcome the assertions look at, not a test error.
+            }
+        }
+
+        private static SignupService CreateSignupService(
+            ApplicationDbContext context,
+            ConcurrentMail mail
+        ) =>
+            new(
+                context,
+                mail,
+                new NoOpProvisioningService(),
+                new CustomPlanQuoteService(context, Options.Create(new TummlySellerVatSettings())),
+                new StubJwtService(),
+                OtpTestHelpers.CreateChallengeService(context),
+                TimeProvider.System,
+                NullLogger<SignupService>.Instance
+            );
+
+        private sealed class ConcurrentMail : EmailServiceStubBase
+        {
+            public ConcurrentBag<(string Email, string Otp)> Sent { get; } = [];
+
+            public override Task SendOtpEmailAsync(
+                string toEmail,
+                string otp,
+                string? restaurantName = null
+            )
+            {
+                Sent.Add((toEmail, otp));
+                return Task.CompletedTask;
             }
         }
 

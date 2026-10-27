@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using TummlyBackend.Configurations;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Signup;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Services;
 
@@ -24,14 +25,20 @@ namespace TummlyBackend.Controllers
 
         private readonly ISignupService _signupService;
         private readonly ILogger<SignupController> _logger;
+        private readonly IOtpCodeHasher _hasher;
+        private readonly SignupRateLimitSettings _rateLimit;
 
         public SignupController(
             ISignupService signupService,
-            ILogger<SignupController> logger
+            ILogger<SignupController> logger,
+            IOtpCodeHasher hasher,
+            SignupRateLimitSettings rateLimit
         )
         {
             _signupService = signupService;
             _logger = logger;
+            _hasher = hasher;
+            _rateLimit = rateLimit;
         }
 
         [EnableRateLimiting(SignupRateLimitSettings.PolicyName)]
@@ -329,9 +336,20 @@ namespace TummlyBackend.Controllers
                 return false;
             }
 
-            _logger.LogInformation("signup.token_rejected reason=query_string");
+            _logger.LogInformation(
+                "signup.token_rejected reason=query_string ip_hash={IpHash}",
+                ClientIpHash()
+            );
             return true;
         }
+
+        /// <summary>
+        /// The client IP is known only here, not in the service. Request-level events carry its
+        /// hash (never the IP); service-level events (code sent, verify failed, token issued)
+        /// carry the pending id, purpose, generation and masked email instead.
+        /// </summary>
+        private string ClientIpHash() =>
+            _hasher.HashIp(SignupClientIp.Resolve(HttpContext, _rateLimit.TrustedProxyHops));
 
         private bool TryReadSessionHeader(Guid? header, out Guid sessionToken)
         {
@@ -341,7 +359,10 @@ namespace TummlyBackend.Controllers
                 return true;
             }
 
-            _logger.LogInformation("signup.token_rejected reason=missing");
+            _logger.LogInformation(
+                "signup.token_rejected reason=missing ip_hash={IpHash}",
+                ClientIpHash()
+            );
             sessionToken = Guid.Empty;
             return false;
         }

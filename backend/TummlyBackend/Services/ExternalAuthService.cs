@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Signup;
 using TummlyBackend.Interfaces;
@@ -341,6 +342,16 @@ namespace TummlyBackend.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // The social exchange issues a signup token like Verify does, so it is audited the same way.
+            _logger.LogInformation(
+                "signup.token_issued pending_id={PendingId} purpose={Purpose} provider={Provider} email={MaskedEmail} status={Status}",
+                pending.Id,
+                OtpPurposes.Signup,
+                payload.Provider,
+                LogContactMask.Email(pending.Email),
+                pending.Status
+            );
 
             return new SignupSessionResponse
             {

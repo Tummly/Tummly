@@ -180,24 +180,29 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task StartAsync_EmailPendingWithinCooldown_Throws()
+        public async Task Start_WithinCooldown_ReturnsCodeSent_NothingSent_EarlierCodeValid()
         {
             await StartFor("start-cooldown@example.com");
+            var firstCode = LastCode();
 
-            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
-                StartFor("start-cooldown@example.com")
-            );
+            var second = await StartFor("start-cooldown@example.com");
 
-            Assert.Equal("resend_cooldown", ex.Code);
-            Assert.Equal(429, ex.StatusCode);
-            Assert.Equal("Please wait before requesting another code.", ex.Message);
+            // Ruling 13: the same answer as a sent code, so the response does not tell
+            // whether the email has an account or is cooling down.
+            Assert.Equal("code_sent", second.Status);
+            Assert.Equal("start-cooldown@example.com", second.Email);
             Assert.Single(_emailService.SentOtpEmails);
             var pending = await Row("start-cooldown@example.com");
             Assert.Equal(0, pending.OtpResendCount);
+            Assert.Equal(1, pending.CodesSentInWindow);
+            Assert.Equal(1, pending.CodeGeneration);
+
+            var session = await VerifyWith("start-cooldown@example.com", firstCode);
+            Assert.Equal(PendingSignupStatuses.Verified, session.Status);
         }
 
         [Fact]
-        public async Task StartAsync_EmailPendingAtResendLimit_SetsAbandoned()
+        public async Task Start_AtResendCap_ReturnsCodeSent_NothingSent_Abandoned()
         {
             await StartFor("start-limit@example.com");
             _time.Advance(ResendWait);
@@ -205,11 +210,9 @@ namespace TummlyBackend.Tests.Services
             pending.OtpResendCount = 5;
             await _db.SaveChangesAsync();
 
-            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
-                StartFor("start-limit@example.com")
-            );
+            var result = await StartFor("start-limit@example.com");
 
-            Assert.Equal("OTP resend limit reached.", ex.Message);
+            Assert.Equal("code_sent", result.Status);
             pending = await Row("start-limit@example.com");
             Assert.Equal(PendingSignupStatuses.Abandoned, pending.Status);
             Assert.Single(_emailService.SentOtpEmails);
@@ -411,13 +414,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(15, spentPending.FailedVerifiesInWindow);
             Assert.Equal(3, spentPending.CodesSentInWindow);
 
+            // Ruling 13: a locked send is silent. Only verify-otp answers challenge_locked.
             _time.Advance(ResendWait);
-            var resend = await Assert.ThrowsAsync<SignupFlowException>(() =>
-                _sut.ResendOtpAsync(email)
-            );
-            Assert.Equal("challenge_locked", resend.Code);
-            Assert.Equal(429, resend.StatusCode);
-            Assert.Equal("Too many attempts for this email. Try again later.", resend.Message);
+            var resend = await _sut.ResendOtpAsync(email);
+            Assert.Equal("code_sent", resend.Status);
 
             var verify = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 VerifyWith(email, third)
@@ -442,8 +442,9 @@ namespace TummlyBackend.Tests.Services
             }
 
             _time.Advance(ResendWait);
-            var cap = await Assert.ThrowsAsync<SignupFlowException>(() => _sut.ResendOtpAsync(email));
-            Assert.Equal("OTP resend limit reached.", cap.Message);
+            var cap = await _sut.ResendOtpAsync(email);
+            Assert.Equal("code_sent", cap.Status);
+            Assert.Equal(6, _emailService.SentOtpEmails.Count);
 
             var abandoned = await Row(email);
             Assert.Equal(PendingSignupStatuses.Abandoned, abandoned.Status);
@@ -473,7 +474,8 @@ namespace TummlyBackend.Tests.Services
             }
 
             _time.Advance(ResendWait);
-            await Assert.ThrowsAsync<SignupFlowException>(() => _sut.ResendOtpAsync(email));
+            await _sut.ResendOtpAsync(email);
+            Assert.Equal(6, _emailService.SentOtpEmails.Count);
 
             await StartFor(email);
             for (var i = 0; i < 3; i++)
@@ -483,18 +485,45 @@ namespace TummlyBackend.Tests.Services
             }
             Assert.Equal(10, _emailService.SentOtpEmails.Count);
 
+            // The eleventh code is not sent, and the answer still says code_sent (Ruling 13).
             _time.Advance(ResendWait);
+            var eleventh = await _sut.ResendOtpAsync(email);
+            Assert.Equal("code_sent", eleventh.Status);
+            var started = await StartFor(email);
+            Assert.Equal("code_sent", started.Status);
+
+            var pending = await Row(email);
+            Assert.Equal(10, pending.CodesSentInWindow);
+            Assert.Equal(10, _emailService.SentOtpEmails.Count);
+        }
+
+        [Fact]
+        public async Task Verify_WindowLocked_ChallengeLocked_RetryAfterIsUtcKind()
+        {
+            const string email = "locked-verify@example.com";
+            await StartFor(email);
+            var pending = await Row(email);
+            // SQL Server returns DateTime values with Kind=Unspecified.
+            pending.AbuseWindowStartUtc = DateTime.SpecifyKind(
+                T0.UtcDateTime.AddHours(-1),
+                DateTimeKind.Unspecified
+            );
+            pending.FailedVerifiesInWindow = SignupAbuseLimits.MaxFailedVerifiesPerWindow;
+            await _db.SaveChangesAsync();
+
             var locked = await Assert.ThrowsAsync<SignupFlowException>(() =>
-                _sut.ResendOtpAsync(email)
+                VerifyWith(email, LastCode())
             );
 
             Assert.Equal("challenge_locked", locked.Code);
             Assert.Equal(429, locked.StatusCode);
-            var pending = await Row(email);
-            Assert.Equal(10, pending.CodesSentInWindow);
-            Assert.Equal(pending.AbuseWindowStartUtc!.Value.AddHours(24), locked.RetryAfterUtc);
-            Assert.Equal(T0.UtcDateTime.AddHours(24), locked.RetryAfterUtc);
-            Assert.Equal(10, _emailService.SentOtpEmails.Count);
+            Assert.Equal("Too many attempts for this email. Try again later.", locked.Message);
+            Assert.Equal(T0.UtcDateTime.AddHours(23), locked.RetryAfterUtc);
+            Assert.Equal(DateTimeKind.Utc, locked.RetryAfterUtc!.Value.Kind);
+            Assert.EndsWith(
+                "Z",
+                System.Text.Json.JsonSerializer.Serialize(locked.RetryAfterUtc!.Value).Trim('"')
+            );
         }
 
         [Fact]
@@ -523,10 +552,8 @@ namespace TummlyBackend.Tests.Services
             await _db.SaveChangesAsync();
 
             _time.Advance(TimeSpan.FromHours(23));
-            var locked = await Assert.ThrowsAsync<SignupFlowException>(() =>
-                _sut.ResendOtpAsync(email)
-            );
-            Assert.Equal("challenge_locked", locked.Code);
+            var locked = await _sut.ResendOtpAsync(email);
+            Assert.Equal("code_sent", locked.Status);
             Assert.Empty(_emailService.SentOtpEmails);
 
             _time.Advance(TimeSpan.FromHours(1));
@@ -589,6 +616,26 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task TokenRefusal_ClaimedToken_LogsClaimed_NotLegacy()
+        {
+            var token = await SeedVerifiedPendingAsync("claimed@example.com");
+            var row = await Row("claimed@example.com");
+            row.Status = PendingSignupStatuses.Complete;
+            // The claim clears the issued time. A replay must still be logged as claimed.
+            row.SessionLoginConsumedAtUtc = T0.UtcDateTime.AddMinutes(-1);
+            row.SessionTokenIssuedAtUtc = null;
+            await _db.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<SignupFlowException>(() => _sut.GetBySessionAsync(token));
+
+            Assert.Equal("signup_session_expired", ex.Code);
+            var logged = string.Join("\n", _logger.Entries);
+            Assert.Contains("signup.token_rejected reason=claimed", logged, StringComparison.Ordinal);
+            Assert.DoesNotContain("reason=legacy", logged, StringComparison.Ordinal);
+            Assert.DoesNotContain(token.ToString(), logged, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public async Task Logs_NeverContainCodeOrToken()
         {
             const string email = "logs@example.com";
@@ -629,6 +676,42 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Logs_AuditEvents_CarryPendingIdPurposeGenerationMaskedEmail_NoSecrets()
+        {
+            const string email = "audit@example.com";
+            await StartFor(email);
+            var pending = await Row(email);
+            var code = LastCode();
+
+            await Assert.ThrowsAsync<SignupFlowException>(() => VerifyWith(email, WrongCode(code)));
+            var session = await VerifyWith(email, code);
+
+            string Event(string name) =>
+                Assert.Single(_logger.Entries, entry => entry.StartsWith(name + " ", StringComparison.Ordinal));
+
+            foreach (var name in new[] { "signup.code_sent", "signup.verify_failed", "signup.token_issued" })
+            {
+                var line = Event(name);
+                Assert.Contains($"pending_id={pending.Id}", line, StringComparison.Ordinal);
+                Assert.Contains("purpose=signup", line, StringComparison.Ordinal);
+                Assert.Contains($"email={LogContactMask.Email(email)}", line, StringComparison.Ordinal);
+                Assert.DoesNotContain(code, line, StringComparison.Ordinal);
+                Assert.DoesNotContain(session.SessionToken!.Value.ToString(), line, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("ip", line.Split(' ').Select(part => part.Split('=')[0]));
+            }
+
+            Assert.Contains("generation=1", Event("signup.code_sent"), StringComparison.Ordinal);
+            Assert.Contains("generation=1", Event("signup.verify_failed"), StringComparison.Ordinal);
+            Assert.Contains("generation=1", Event("signup.token_issued"), StringComparison.Ordinal);
+            Assert.Contains("reason=Invalid", Event("signup.verify_failed"), StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                _logger.Entries,
+                entry => entry.StartsWith("signup.otp_rejected", StringComparison.Ordinal)
+                    || entry.StartsWith("signup.verified", StringComparison.Ordinal)
+            );
+        }
+
+        [Fact]
         public async Task ResendOtpAsync_NoRow_GenericResponse_NoEmail()
         {
             var result = await _sut.ResendOtpAsync("nobody@example.com");
@@ -640,21 +723,22 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ResendOtpAsync_WithinCooldown_Throws()
+        public async Task ResendOtpAsync_WithinCooldown_ReturnsCodeSent_NothingSent()
         {
             await StartFor("cooldown@example.com");
 
-            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
-                _sut.ResendOtpAsync("cooldown@example.com")
-            );
+            var result = await _sut.ResendOtpAsync("cooldown@example.com");
 
-            Assert.Equal("resend_cooldown", ex.Code);
-            Assert.Equal(429, ex.StatusCode);
-            Assert.Equal("Please wait before requesting another code.", ex.Message);
+            Assert.Equal("code_sent", result.Status);
+            Assert.Single(_emailService.SentOtpEmails);
+            var pending = await Row("cooldown@example.com");
+            Assert.Equal(1, pending.CodesSentInWindow);
+            Assert.Equal(1, pending.CodeGeneration);
+            Assert.Equal(1, await _db.OtpVerifications.CountAsync(x => !x.IsUsed));
         }
 
         [Fact]
-        public async Task ResendOtpAsync_MaxResends_SetsAbandoned()
+        public async Task ResendOtpAsync_MaxResends_ReturnsCodeSent_NothingSent_Abandoned()
         {
             await StartFor("limit@example.com");
             _time.Advance(ResendWait);
@@ -662,15 +746,136 @@ namespace TummlyBackend.Tests.Services
             pending.OtpResendCount = 5;
             await _db.SaveChangesAsync();
 
-            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
-                _sut.ResendOtpAsync("limit@example.com")
-            );
-            Assert.Equal("OTP resend limit reached.", ex.Message);
-            Assert.Equal("signup_invalid_request", ex.Code);
-            Assert.Equal(400, ex.StatusCode);
+            var result = await _sut.ResendOtpAsync("limit@example.com");
 
+            Assert.Equal("code_sent", result.Status);
+            Assert.Single(_emailService.SentOtpEmails);
             pending = await Row("limit@example.com");
             Assert.Equal(PendingSignupStatuses.Abandoned, pending.Status);
+        }
+
+        [Fact]
+        public async Task ResendOtpAsync_AbandonedRow_RestartsAndSends()
+        {
+            const string email = "resend-restart@example.com";
+            await StartFor(email);
+            for (var i = 0; i < 5; i++)
+            {
+                _time.Advance(ResendWait);
+                await _sut.ResendOtpAsync(email);
+            }
+
+            // The sixth resend hits the cap: nothing is sent and the row is Abandoned.
+            _time.Advance(ResendWait);
+            await _sut.ResendOtpAsync(email);
+            Assert.Equal(PendingSignupStatuses.Abandoned, (await Row(email)).Status);
+            Assert.Equal(6, _emailService.SentOtpEmails.Count);
+
+            // The seventh finds the Abandoned row and restarts it like Start does.
+            var result = await _sut.ResendOtpAsync(email);
+
+            Assert.Equal("code_sent", result.Status);
+            Assert.Equal(7, _emailService.SentOtpEmails.Count);
+            var restarted = await Row(email);
+            Assert.Equal(PendingSignupStatuses.EmailPending, restarted.Status);
+            Assert.Equal(0, restarted.OtpResendCount);
+            Assert.Equal(7, restarted.CodesSentInWindow);
+        }
+
+        [Fact]
+        public async Task ResendOtpAsync_AbandonedRow_WindowStillLimits()
+        {
+            const string email = "resend-restart-window@example.com";
+            _db.PendingSignups.Add(
+                new PendingSignup
+                {
+                    Id = Guid.NewGuid(),
+                    SessionToken = Guid.NewGuid(),
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
+                    Email = email,
+                    Status = PendingSignupStatuses.Abandoned,
+                    TermsAccepted = true,
+                    AbuseWindowStartUtc = T0.UtcDateTime.AddHours(-1),
+                    CodesSentInWindow = SignupAbuseLimits.MaxCodesPerWindow,
+                    CreatedAtUtc = T0.UtcDateTime.AddDays(-1),
+                    UpdatedAtUtc = T0.UtcDateTime.AddDays(-1),
+                }
+            );
+            await _db.SaveChangesAsync();
+
+            var result = await _sut.ResendOtpAsync(email);
+
+            Assert.Equal("code_sent", result.Status);
+            Assert.Empty(_emailService.SentOtpEmails);
+            Assert.Equal(SignupAbuseLimits.MaxCodesPerWindow, (await Row(email)).CodesSentInWindow);
+        }
+
+        [Fact]
+        public async Task ResendOtpAsync_AbandonedRow_AccountExists_NothingSent()
+        {
+            const string email = "resend-restart-user@example.com";
+            _db.PendingSignups.Add(
+                new PendingSignup
+                {
+                    Id = Guid.NewGuid(),
+                    SessionToken = Guid.NewGuid(),
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
+                    Email = email,
+                    Status = PendingSignupStatuses.Abandoned,
+                    TermsAccepted = true,
+                    CreatedAtUtc = T0.UtcDateTime.AddDays(-1),
+                    UpdatedAtUtc = T0.UtcDateTime.AddDays(-1),
+                }
+            );
+            _db.Users.Add(new User { Email = email, FullName = "Owner", PasswordHash = "hash" });
+            await _db.SaveChangesAsync();
+
+            var result = await _sut.ResendOtpAsync(email);
+
+            Assert.Equal("code_sent", result.Status);
+            Assert.Empty(_emailService.SentOtpEmails);
+            Assert.Equal(PendingSignupStatuses.Abandoned, (await Row(email)).Status);
+        }
+
+        [Fact]
+        public async Task SuppressedAnswers_LookTheSame_ForAccountCooldownLockAndCap()
+        {
+            _db.Users.Add(new User { Email = "has-account@example.com", FullName = "A", PasswordHash = "h" });
+            await _db.SaveChangesAsync();
+            await StartFor("cooling@example.com");
+
+            var account = await StartFor("has-account@example.com");
+            var cooling = await StartFor("cooling@example.com");
+            var fresh = await StartFor("fresh@example.com");
+
+            Assert.Equal(account.Status, cooling.Status);
+            Assert.Equal(account.Status, fresh.Status);
+            Assert.Equal(
+                System.Text.Json.JsonSerializer.Serialize(account).Replace("has-account", "x"),
+                System.Text.Json.JsonSerializer.Serialize(cooling).Replace("cooling", "x")
+            );
+        }
+
+        [Fact]
+        public async Task Verify_SignInCodeForSameEmail_Refused()
+        {
+            const string email = "wrong-purpose@example.com";
+            await StartFor(email);
+            var pending = await Row(email);
+
+            // A sign-in code for this email is not a signup code, even when the digits are right.
+            var challenge = new OtpChallengeService(_db, new OtpCodeHasher(HashKey), _time);
+            var signIn = await challenge.IssueAsync(
+                new OtpIssueRequest(email, OtpPurposes.SignIn, "42", 0)
+            );
+
+            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
+                VerifyWith(email, signIn.Code)
+            );
+
+            Assert.Equal("otp_invalid", ex.Code);
+            Assert.Equal(PendingSignupStatuses.EmailPending, (await Row(email)).Status);
+            Assert.Equal(pending.Id, (await Row(email)).Id);
         }
 
         [Fact]
