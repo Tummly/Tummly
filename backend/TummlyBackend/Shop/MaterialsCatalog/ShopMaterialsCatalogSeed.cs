@@ -230,25 +230,33 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             var hadTalker = bySkuId.ContainsKey("table-talker");
             var hadGuestCards = bySkuId.ContainsKey("qr-guest-cards");
 
+            // Remap and soft-delete decisions consider live rows only. A Deleted
+            // counter row must not block the remap, and a Deleted offer-card row
+            // must not be remapped back to life.
+            var hasLiveCounterDisplay =
+                bySkuId.TryGetValue(CounterDisplaySkuId, out var counterSku)
+                && counterSku.Status != ShopMaterialSkuStatuses.Deleted;
             if (
                 bySkuId.TryGetValue(LegacyOfferCardSkuId, out var legacyOfferSku)
-                && !bySkuId.ContainsKey(CounterDisplaySkuId)
+                && legacyOfferSku.Status != ShopMaterialSkuStatuses.Deleted
             )
             {
-                legacyOfferSku.SkuId = CounterDisplaySkuId;
-                bySkuId.Remove(LegacyOfferCardSkuId);
-                bySkuId[CounterDisplaySkuId] = legacyOfferSku;
-                remappedOfferCard = true;
-                changed = true;
-            }
-            else if (
-                bySkuId.TryGetValue(LegacyOfferCardSkuId, out var duplicateOffer)
-                && bySkuId.ContainsKey(CounterDisplaySkuId)
-            )
-            {
-                duplicateOffer.Status = ShopMaterialSkuStatuses.Deleted;
-                duplicateOffer.UpdatedAtUtc = now;
-                changed = true;
+                if (!hasLiveCounterDisplay)
+                {
+                    // The dictionary now points at the live row, even when a
+                    // Deleted counter row shares the SkuId.
+                    legacyOfferSku.SkuId = CounterDisplaySkuId;
+                    bySkuId.Remove(LegacyOfferCardSkuId);
+                    bySkuId[CounterDisplaySkuId] = legacyOfferSku;
+                    remappedOfferCard = true;
+                    changed = true;
+                }
+                else
+                {
+                    legacyOfferSku.Status = ShopMaterialSkuStatuses.Deleted;
+                    legacyOfferSku.UpdatedAtUtc = now;
+                    changed = true;
+                }
             }
 
             foreach (var seed in SeedSkus())

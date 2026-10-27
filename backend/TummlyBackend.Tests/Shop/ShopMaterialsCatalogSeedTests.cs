@@ -290,6 +290,52 @@ namespace TummlyBackend.Tests.Shop
             );
         }
 
+        [Fact]
+        public async Task EnsureSeeded_WithOnlyDeletedCounterDisplayRow_RemapsLiveOfferCard()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var counter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "qr-counter-display"
+            );
+            var counterRecipeId = counter.PlacementRecipeId;
+            counter.Status = ShopMaterialSkuStatuses.Deleted;
+            counter.UpdatedAtUtc = DateTime.UtcNow.AddDays(-2);
+            var offerCard = BuildSkuRow(
+                "offer-card",
+                counterRecipeId,
+                ShopMaterialSkuStatuses.Published,
+                DateTime.UtcNow.AddDays(-1)
+            );
+            _context.ShopMaterialSkus.Add(offerCard);
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            Assert.True(
+                await _context.ShopMaterialSkus.AnyAsync(row =>
+                    row.SkuId == "qr-counter-display"
+                    && row.Status != ShopMaterialSkuStatuses.Deleted
+                ),
+                "A live qr-counter-display row must exist after the remap."
+            );
+            var liveCounter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "qr-counter-display"
+                && row.Status != ShopMaterialSkuStatuses.Deleted
+            );
+            Assert.Equal(offerCard.Id, liveCounter.Id);
+            Assert.False(
+                await _context.ShopMaterialSkus.AnyAsync(row =>
+                    row.SkuId == "offer-card"
+                    && row.Status != ShopMaterialSkuStatuses.Deleted
+                )
+            );
+            var deletedCounter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.Id == counter.Id
+            );
+            Assert.Equal(ShopMaterialSkuStatuses.Deleted, deletedCounter.Status);
+        }
+
         private static ShopMaterialSku BuildSkuRow(
             string skuId,
             int placementRecipeId,
