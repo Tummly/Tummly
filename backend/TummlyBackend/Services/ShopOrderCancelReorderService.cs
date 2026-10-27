@@ -202,7 +202,8 @@ namespace TummlyBackend.Services
                 Lines = lines,
                 UnavailableLines = unavailableLines,
                 ShipTo = ShopOrderDtoMapper.MapShipTo(order),
-                DeliveryMethod = order.DeliveryMethod,
+                // Express delivery is retired; an old express order reorders as standard.
+                DeliveryMethod = ShopDeliveryMethods.Standard,
                 SourceOrderNumber = order.OrderNumber,
             });
         }

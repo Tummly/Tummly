@@ -74,7 +74,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PlaceExpress_LeavesCartIntact()
+        public async Task PlaceExpress_Returns400_InvalidDeliveryMethod_AndLeavesCartIntact()
         {
             var seeded = await SeedOwnerAndMemberAsync(
                 PermissionRoles.Admin,
@@ -88,7 +88,6 @@ namespace TummlyBackend.Tests.Integration
                 5
             );
 
-            // express pack 5@4499; vat 900; delivery 299+2000; gross 7698
             var place = await PlaceOrderAsync(
                 seeded.MemberJwt,
                 new
@@ -104,11 +103,17 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
 
-            Assert.Equal(HttpStatusCode.OK, place.StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, place.StatusCode);
             var body = await ReadJsonAsync(place);
-            Assert.Equal("ORD-1", body.GetProperty("orderNumber").GetString());
-            Assert.Equal(1, body.GetProperty("lines").GetArrayLength());
-            Assert.Equal(2299, body.GetProperty("deliveryNetPence").GetInt32());
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "invalid_delivery_method",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(
+                "deliveryMethod must be standard.",
+                body.GetProperty("message").GetString()
+            );
 
             using var cartRequest = AuthorizedGet(
                 $"/api/shop/cart?locationId={seeded.InScopeLocationId}",

@@ -13,7 +13,6 @@ namespace TummlyBackend.Services
     public sealed class ShopOrderPlaceService : IShopOrderPlaceService
     {
         private const string UkCountry = "United Kingdom";
-        private const int ExpressDeliveryNetPence = 2000;
 
         private readonly ApplicationDbContext _context;
         private readonly IMaterialsCatalog _catalog;
@@ -113,16 +112,11 @@ namespace TummlyBackend.Services
                     ShopDeliveryMethods.Standard,
                     StringComparison.Ordinal
                 )
-                && !string.Equals(
-                    request.DeliveryMethod,
-                    ShopDeliveryMethods.Express,
-                    StringComparison.Ordinal
-                )
             )
             {
                 return ShopOrderPlaceResult.Fail(
                     "invalid_delivery_method",
-                    "deliveryMethod must be standard or express."
+                    "deliveryMethod must be standard."
                 );
             }
 
@@ -231,14 +225,7 @@ namespace TummlyBackend.Services
             }
 
             var materialsNetPence = pricedLines.Sum(line => line.LineNetPence);
-            var standardDeliveryNetPence = pricedLines.Max(line => line.DeliveryNetPence);
-            var deliveryNetPence = string.Equals(
-                request.DeliveryMethod,
-                ShopDeliveryMethods.Express,
-                StringComparison.Ordinal
-            )
-                ? checked(standardDeliveryNetPence + ExpressDeliveryNetPence)
-                : standardDeliveryNetPence;
+            var deliveryNetPence = pricedLines.Max(line => line.DeliveryNetPence);
 
             var vatPence = TummlyVatMath.VatPenceFromNetPence(
                 materialsNetPence,
