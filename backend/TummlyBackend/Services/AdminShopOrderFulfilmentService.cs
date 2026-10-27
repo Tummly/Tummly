@@ -753,6 +753,23 @@ namespace TummlyBackend.Services
                     PrintRoute = row.PrintRoute,
                 })
                 .ToList();
+            var reviewRows = await _context.ShopQrSlotReservations
+                .AsNoTracking()
+                .Where(row =>
+                    row.ShopOrderId == order.Id
+                    && row.Status == ShopQrSlotReservationStatuses.Review
+                )
+                .OrderBy(row => row.CreatedAtUtc)
+                .ToListAsync(cancellationToken);
+            item.ReviewQrReservations = reviewRows
+                .Select(row => new AdminShopQrReservationReviewDto
+                {
+                    Status = row.Status,
+                    QrType = row.QrType.ToString(),
+                    LastReconcileError = row.LastReconcileError,
+                    CreatedAtUtc = row.CreatedAtUtc,
+                })
+                .ToList();
             return item;
         }
 
@@ -774,6 +791,7 @@ namespace TummlyBackend.Services
                 PaidAtUtc = order.PaidAtUtc,
                 ProductionStartedAtUtc = order.ProductionStartedAtUtc,
                 GrossPence = order.GrossPence,
+                ReviewReason = order.ReviewReason,
                 Lines = order.Lines
                     .OrderBy(line => line.CatalogSkuId, StringComparer.OrdinalIgnoreCase)
                     .Select(line => new AdminShopOrderLineSummaryDto

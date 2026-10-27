@@ -190,6 +190,7 @@ namespace TummlyBackend.Tests.Services
                 entry => entry.Level == LogLevel.Warning
                     && entry.Message.Contains(held.OrderId.ToString())
                     && entry.Message.Contains("review")
+                    && entry.EventName == "ShopQrReservationReview"
             );
 
             // A review reservation is not swept again.
@@ -728,7 +729,7 @@ namespace TummlyBackend.Tests.Services
         private sealed class CapturingLogger
             : ILogger<ShopQrSlotReservationSweeperBackgroundService>
         {
-            public List<(LogLevel Level, string Message)> Entries { get; } = new();
+            public List<(LogLevel Level, string Message, string? EventName)> Entries { get; } = new();
 
             public IDisposable? BeginScope<TState>(TState state)
                 where TState : notnull => null;
@@ -741,7 +742,7 @@ namespace TummlyBackend.Tests.Services
                 TState state,
                 Exception? exception,
                 Func<TState, Exception?, string> formatter
-            ) => Entries.Add((logLevel, formatter(state, exception)));
+            ) => Entries.Add((logLevel, formatter(state, exception), eventId.Name));
         }
     }
 }

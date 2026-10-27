@@ -64,6 +64,29 @@ namespace TummlyBackend.DTOs.Admin
         public List<AdminShopOrderLineSummaryDto> Lines { get; set; } = [];
 
         public List<AdminShopPrintAssetDto> PrintAssets { get; set; } = [];
+
+        /// <summary>
+        /// Why the paid order needs Admin attention (for example
+        /// <c>qr_capacity_unavailable_after_payment</c>); null when none.
+        /// </summary>
+        public string? ReviewReason { get; set; }
+
+        /// <summary>
+        /// QR slot reservations held in <c>review</c> after 24 h without a
+        /// final Revolut answer (spec 4.4.5).
+        /// </summary>
+        public List<AdminShopQrReservationReviewDto> ReviewQrReservations { get; set; } = [];
+    }
+
+    public sealed class AdminShopQrReservationReviewDto
+    {
+        public string Status { get; set; } = string.Empty;
+
+        public string QrType { get; set; } = string.Empty;
+
+        public string? LastReconcileError { get; set; }
+
+        public DateTime CreatedAtUtc { get; set; }
     }
 
     public sealed class AdminShopOrderLineSummaryDto
