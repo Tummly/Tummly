@@ -13,10 +13,59 @@ namespace TummlyBackend.Helpers
     public static class ShopQrSlotReservationRelease
     {
         /// <summary>
-        /// Marks the order's open reservations released on the tracked
-        /// context. The caller saves. Returns how many rows changed.
+        /// Releases the order's <c>open</c> reservations and returns how many
+        /// rows changed. On a relational database this is one conditional
+        /// UPDATE (<c>WHERE Status = 'open'</c>) that runs at once, so a row
+        /// that another writer converted meanwhile is never overwritten. Rows
+        /// the context already tracks are refreshed. The in-memory test
+        /// provider has no such update and uses tracked changes the caller
+        /// saves.
         /// </summary>
         public static async Task<int> ReleaseOpenForOrderAsync(
+            ApplicationDbContext db,
+            Guid shopOrderId,
+            DateTime nowUtc,
+            CancellationToken ct
+        )
+        {
+            if (!db.Database.IsRelational())
+            {
+                return await ReleaseTrackedAsync(db, shopOrderId, nowUtc, ct);
+            }
+
+            var changed = await db.ShopQrSlotReservations
+                .Where(row =>
+                    row.ShopOrderId == shopOrderId
+                    && row.Status == ShopQrSlotReservationStatuses.Open
+                )
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(
+                            row => row.Status,
+                            ShopQrSlotReservationStatuses.Released
+                        )
+                        .SetProperty(row => row.UpdatedAtUtc, nowUtc),
+                    ct
+                );
+
+            // The update bypassed the change tracker, so refresh tracked rows.
+            foreach (
+                var entry in db.ChangeTracker
+                    .Entries<ShopQrSlotReservation>()
+                    .Where(entry =>
+                        entry.Entity.ShopOrderId == shopOrderId
+                        && entry.State == EntityState.Unchanged
+                    )
+                    .ToList()
+            )
+            {
+                await entry.ReloadAsync(ct);
+            }
+
+            return changed;
+        }
+
+        private static async Task<int> ReleaseTrackedAsync(
             ApplicationDbContext db,
             Guid shopOrderId,
             DateTime nowUtc,

@@ -366,8 +366,21 @@ namespace TummlyBackend.Services
                     ct
                 );
 
-            await ReleaseLeftoversAsync(services, context, order.RestaurantId, order.Id, now, ct);
-            await TryQueuePrintMaterialsAsync(services, order.Id);
+            // A completed payment never gives a slot back. If the applier paid the
+            // order (or the webhook did), convert any row still open; if it did
+            // not, leave the rows open and retry later.
+            var paid = await SettleAsync(
+                services,
+                context,
+                order,
+                "completed_not_applied",
+                now,
+                ct
+            );
+            if (paid)
+            {
+                await TryQueuePrintMaterialsAsync(services, order.Id);
+            }
         }
 
         private async Task ConvertPaidOrderAsync(
@@ -378,37 +391,76 @@ namespace TummlyBackend.Services
             CancellationToken ct
         )
         {
+            await SettleAsync(
+                services,
+                context,
+                order,
+                "paid_order_reservation_not_converted",
+                now,
+                ct
+            );
+        }
+
+        /// <summary>
+        /// Under the billing lock, re-reads the order. If it is Paid, converts
+        /// its open reservations. Rows that stay open are backed off, never
+        /// released: a payment completed (or the order is not yet confirmed).
+        /// Returns whether the order is Paid.
+        /// </summary>
+        private async Task<bool> SettleAsync(
+            IServiceProvider services,
+            ApplicationDbContext context,
+            ShopOrder order,
+            string leftoverError,
+            DateTime now,
+            CancellationToken ct
+        )
+        {
             var slots = services.GetRequiredService<IShopQrSlotReservationService>();
+            var paid = false;
+            var leftovers = new List<ShopQrSlotReservation>();
             await InLockAsync(
                 services,
                 context,
                 order.RestaurantId,
                 async () =>
                 {
-                    await slots.ConvertForPaidOrderAsync(order, ct);
-                    await ReleaseLeftoversInLockAsync(context, order.Id, now, ct);
+                    await context.Entry(order).ReloadAsync(ct);
+                    paid = string.Equals(
+                        order.PaymentStatus,
+                        ShopPaymentStatuses.Paid,
+                        StringComparison.Ordinal
+                    );
+                    if (paid)
+                    {
+                        await slots.ConvertForPaidOrderAsync(order, ct);
+                    }
+
+                    leftovers = await context.ShopQrSlotReservations
+                        .Where(row =>
+                            row.ShopOrderId == order.Id
+                            && row.Status == ShopQrSlotReservationStatuses.Open
+                        )
+                        .ToListAsync(ct);
                 },
                 ct
             );
-        }
 
-        private static Task ReleaseLeftoversAsync(
-            IServiceProvider services,
-            ApplicationDbContext context,
-            int restaurantId,
-            Guid shopOrderId,
-            DateTime now,
-            CancellationToken ct
-        ) =>
-            // A paid order's open rows that conversion did not take can never
-            // convert; give their slot back.
-            InLockAsync(
-                services,
-                context,
-                restaurantId,
-                () => ReleaseLeftoversInLockAsync(context, shopOrderId, now, ct),
-                ct
-            );
+            if (leftovers.Count > 0)
+            {
+                await BackOffAsync(
+                    services,
+                    context,
+                    order.RestaurantId,
+                    leftovers,
+                    paid ? "paid_order_reservation_not_converted" : leftoverError,
+                    now,
+                    ct
+                );
+            }
+
+            return paid;
+        }
 
         private static async Task ReleaseLeftoversInLockAsync(
             ApplicationDbContext context,
@@ -430,24 +482,42 @@ namespace TummlyBackend.Services
             }
         }
 
-        private static Task FailAndReleaseAsync(
+        private async Task FailAndReleaseAsync(
             IServiceProvider services,
             ApplicationDbContext context,
             ShopOrder order,
             List<RevolutOrderIntent> intents,
             DateTime now,
             CancellationToken ct
-        ) =>
-            InLockAsync(
+        )
+        {
+            var paid = false;
+            await InLockAsync(
                 services,
                 context,
                 order.RestaurantId,
                 async () =>
                 {
+                    // The order and intents were read before the Revolut calls.
+                    // A webhook may have paid the order since.
+                    await context.Entry(order).ReloadAsync(ct);
+                    if (
+                        string.Equals(
+                            order.PaymentStatus,
+                            ShopPaymentStatuses.Paid,
+                            StringComparison.Ordinal
+                        )
+                    )
+                    {
+                        paid = true;
+                        return;
+                    }
+
                     // Marks the order payment_failed, closes every attempt and
                     // releases the rows that are still open.
                     foreach (var intent in intents)
                     {
+                        await context.Entry(intent).ReloadAsync(ct);
                         await ShopMaterialsOrderPaymentFailure.TryMarkFailedAsync(
                             context,
                             intent.OrderId,
@@ -461,6 +531,20 @@ namespace TummlyBackend.Services
                 },
                 ct
             );
+
+            if (paid)
+            {
+                // Paid: no failure mark and no release, convert instead.
+                await SettleAsync(
+                    services,
+                    context,
+                    order,
+                    "completed_not_applied",
+                    now,
+                    ct
+                );
+            }
+        }
 
         private static Task ReleaseAsync(
             IServiceProvider services,
