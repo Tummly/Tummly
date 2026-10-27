@@ -48,6 +48,7 @@ import {
   createAdminShopOrderPrintAssetsPageModule,
   httpAdminShopOrderPrintAssetsAdapters,
 } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
+import { adminShopOrderPaymentLabel } from "@/lib/admin/adminShopOrdersTablePresentation"
 import {
   OPERATOR_RIGHT_DRAWER_BODY_CLASS,
   OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
@@ -471,7 +472,7 @@ export function AdminShopOrderDetailDrawer({
                     {adminShopFulfilmentLabel(order.fulfilmentStatus)}
                   </Badge>
                   <Badge variant="soft">
-                    {order.isComplimentary ? "Free" : order.paymentStatus}
+                    {adminShopOrderPaymentLabel(order)}
                   </Badge>
                   {productionStarted ? (
                     <Badge variant="soft">Production started</Badge>
