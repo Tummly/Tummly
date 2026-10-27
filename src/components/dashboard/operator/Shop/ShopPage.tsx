@@ -23,7 +23,7 @@ import {
   saveShopLocationDetails,
   type ShopLocationRecommendations,
 } from "@/api/shopRecommendationsApi"
-import type { CheckoutLine, ShopShipToPayload } from "@/api/shopOrdersApi"
+import type { CheckoutLine } from "@/api/shopOrdersApi"
 import { ShopHeader } from "@/components/dashboard/operator/Shop/ShopHeader"
 import { ShopToolbar } from "@/components/dashboard/operator/Shop/ShopToolbar"
 import { ShopBanner } from "@/components/dashboard/operator/Shop/ShopBanner"
@@ -85,7 +85,6 @@ type ShopPageProps = {
 
 type DirectCheckoutState = {
   lines: CheckoutLine[]
-  shipTo?: ShopShipToPayload
   sourceOrderNumber?: string
 }
 
@@ -743,7 +742,6 @@ export function ShopPage({
           locationId={selectedLocationId}
           lines={checkoutLines}
           fromCart={checkoutFromCart}
-          initialShipTo={directCheckout?.shipTo}
           selectedLocationName={locationName}
           selectedLocationAddress={locationAddress}
           locations={locations}
@@ -813,7 +811,6 @@ export function ShopPage({
                 unitNetPence: line.unitNetPence,
                 lineNetPence: line.lineNetPence,
               })),
-              shipTo: prefill.shipTo,
               sourceOrderNumber: prefill.sourceOrderNumber,
             })
             setSearchParams({ view: "checkout" })

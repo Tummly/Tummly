@@ -62,7 +62,6 @@ type ShopCheckoutScreenProps = {
   locationId: number
   lines: CheckoutLine[]
   fromCart: boolean
-  initialShipTo?: ShopShipToPayload
   selectedLocationName: string
   selectedLocationAddress?: string
   locations: ShopLocationOption[]
@@ -99,7 +98,6 @@ export function ShopCheckoutScreen({
   locationId,
   lines,
   fromCart,
-  initialShipTo,
   selectedLocationName,
   locations,
   brandLogoPublicUrl,
@@ -142,16 +140,16 @@ export function ShopCheckoutScreen({
     let cancelled = false
 
     async function loadDeliveryDefaults() {
-      if (initialShipTo) {
-        setContactName(initialShipTo.contactName)
-        setContactPhone(initialShipTo.contactPhone ?? "")
-        setAddressLine1(initialShipTo.addressLine1)
-        setAddressLine2(initialShipTo.addressLine2 ?? "")
-        setPostcode(initialShipTo.postcode)
-        setCountry(initialShipTo.country || "United Kingdom")
-        setDeliveryInstructions(initialShipTo.deliveryInstructions ?? "")
-        return
-      }
+      // The delivery address is always the selected location's defaults,
+      // also for reorders. Clear the previous location's address first so a
+      // slow or failed load never leaves it on screen.
+      setContactName("")
+      setContactPhone("")
+      setAddressLine1("")
+      setAddressLine2("")
+      setPostcode("")
+      setCountry("United Kingdom")
+      setDeliveryInstructions("")
 
       try {
         const defaults = await fetchShopDeliveryDefaults(locationId)
@@ -176,7 +174,7 @@ export function ShopCheckoutScreen({
     return () => {
       cancelled = true
     }
-  }, [locationId, initialShipTo])
+  }, [locationId])
 
   const canEditQuantity = !fromCart && checkoutLines.length === 1
   const singleLine = checkoutLines.length === 1 ? checkoutLines[0] : null
