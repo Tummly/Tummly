@@ -28,7 +28,20 @@ namespace TummlyBackend.Helpers
                 : $"Tummly Shop · {title}";
         }
 
+        public static string StandardDeliveryLineName { get; } =
+            "Tummly Shop · Standard delivery";
+
+        /// <summary>Kept for old express orders that are still unpaid.</summary>
         public static string ExpressDeliveryLineName { get; } =
             "Tummly Shop · Express delivery";
+
+        public static string DeliveryLineName(string? deliveryMethod) =>
+            string.Equals(
+                deliveryMethod,
+                ShopDeliveryMethods.Express,
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? ExpressDeliveryLineName
+                : StandardDeliveryLineName;
     }
 }

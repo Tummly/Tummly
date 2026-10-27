@@ -32,6 +32,24 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Updates the email of an existing Revolut customer
+        /// (<c>PATCH …/customers/{id}</c>). Does not use the create gate;
+        /// still needs Merchant API credentials. Implementations that do not
+        /// support it report <c>not_implemented</c>.
+        /// </summary>
+        Task<RevolutMerchantCreateResult> UpdateCustomerAsync(
+            string customerId,
+            string email,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "not_implemented"
+                )
+            );
+
+        /// <summary>
         /// Creates a Revolut subscription for a mapped plan variation. Gates
         /// with the lookup key first. Response may include
         /// <see cref="RevolutMerchantCreateResult.SetupOrderId"/>.

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
@@ -119,6 +120,121 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task StartAsync_DeliveryLine_IsNamedStandardDelivery_AsService()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedAsync(context, vatPence: 0, grossPence: 1299);
+            seeded.Order.DeliveryNetPence = 299;
+            await context.SaveChangesAsync();
+            var merchant = new RecordingMerchant();
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = false }
+            );
+
+            await service.StartAsync(
+                seeded.Account,
+                "Single",
+                seeded.Order,
+                "key-shop-delivery-line"
+            );
+
+            var items = merchant.LastCreateOrderRequest!.LineItems!;
+            var delivery = Assert.Single(
+                items,
+                item => item.Name.EndsWith("delivery", StringComparison.Ordinal)
+            );
+            Assert.Equal("Tummly Shop · Standard delivery", delivery.Name);
+            Assert.Equal("service", delivery.Type);
+            Assert.Equal(299, delivery.TotalAmount);
+        }
+
+        [Fact]
+        public async Task StartAsync_BillingEmailSet_UpdatesRevolutCustomerEmailBeforeCreatingOrder()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedAsync(context, vatPence: 0, grossPence: 1000);
+            seeded.Account.BillingEmail = "  billing@venue.example  ";
+            await context.SaveChangesAsync();
+            var merchant = new RecordingMerchant();
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = false }
+            );
+
+            await service.StartAsync(
+                seeded.Account,
+                "Single",
+                seeded.Order,
+                "key-shop-update-customer"
+            );
+
+            Assert.Equal("cust_shop", merchant.LastUpdatedCustomerId);
+            Assert.Equal("billing@venue.example", merchant.LastUpdatedCustomerEmail);
+            Assert.Equal(
+                ["update-customer", "create-order"],
+                merchant.CallOrder
+            );
+        }
+
+        [Fact]
+        public async Task StartAsync_BillingEmailMissing_DoesNotUpdateCustomer()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedAsync(context, vatPence: 0, grossPence: 1000);
+            var merchant = new RecordingMerchant();
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = false }
+            );
+
+            await service.StartAsync(
+                seeded.Account,
+                "Single",
+                seeded.Order,
+                "key-shop-no-billing-email"
+            );
+
+            Assert.Equal(0, merchant.UpdateCustomerCallCount);
+            Assert.NotNull(merchant.LastCreateOrderRequest);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task StartAsync_CustomerUpdateFails_StillCreatesOrder(bool throws)
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedAsync(context, vatPence: 0, grossPence: 1000);
+            seeded.Account.BillingEmail = "billing@venue.example";
+            await context.SaveChangesAsync();
+            var merchant = new RecordingMerchant
+            {
+                UpdateCustomerFails = !throws,
+                UpdateCustomerThrows = throws,
+            };
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = false }
+            );
+
+            var checkoutUrl = await service.StartAsync(
+                seeded.Account,
+                "Single",
+                seeded.Order,
+                "key-shop-update-customer-fails"
+            );
+
+            Assert.Equal(1, merchant.UpdateCustomerCallCount);
+            Assert.Equal("https://checkout.revolut.com/shop", checkoutUrl);
+            Assert.NotNull(merchant.LastCreateOrderRequest);
+        }
+
         private ShopMaterialsOrderPaySessionService CreateService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
@@ -137,7 +253,8 @@ namespace TummlyBackend.Tests.Services
                     )
                     .Build(),
                 new FixedTimeProvider(_now),
-                Options.Create(sellerVat)
+                Options.Create(sellerVat),
+                NullLogger<ShopMaterialsOrderPaySessionService>.Instance
             );
         }
 
@@ -250,6 +367,46 @@ namespace TummlyBackend.Tests.Services
         {
             public RevolutCreateOrderRequest? LastCreateOrderRequest { get; private set; }
 
+            public List<string> CallOrder { get; } = [];
+
+            public int UpdateCustomerCallCount { get; private set; }
+
+            public string? LastUpdatedCustomerId { get; private set; }
+
+            public string? LastUpdatedCustomerEmail { get; private set; }
+
+            public bool UpdateCustomerFails { get; set; }
+
+            public bool UpdateCustomerThrows { get; set; }
+
+            public Task<RevolutMerchantCreateResult> UpdateCustomerAsync(
+                string customerId,
+                string email,
+                CancellationToken cancellationToken = default
+            )
+            {
+                UpdateCustomerCallCount++;
+                CallOrder.Add("update-customer");
+                LastUpdatedCustomerId = customerId;
+                LastUpdatedCustomerEmail = email;
+                if (UpdateCustomerThrows)
+                {
+                    throw new HttpRequestException("boom");
+                }
+
+                return Task.FromResult(
+                    UpdateCustomerFails
+                        ? new RevolutMerchantCreateResult(
+                            Succeeded: false,
+                            ErrorCode: "revolut_http_error"
+                        )
+                        : new RevolutMerchantCreateResult(
+                            Succeeded: true,
+                            Id: customerId
+                        )
+                );
+            }
+
             public void EnsureReadyForCreate(string? planVariationLookupKey = null)
             {
             }
@@ -281,6 +438,7 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 LastCreateOrderRequest = request;
+                CallOrder.Add("create-order");
                 return Task.FromResult(
                     new RevolutMerchantCreateResult(
                         Succeeded: true,

@@ -194,18 +194,58 @@ namespace TummlyBackend.Services
                 })
                 .ToListAsync(cancellationToken);
 
-            var counts = await _context.ShopInterestRegistrations
+            // Every active product shows, even with no interest yet. A product
+            // that left the active list keeps its row while it still has
+            // registrations.
+            var registered = await _context.ShopInterestRegistrations
                 .AsNoTracking()
                 .GroupBy(row => new { row.ProductKey, row.ProductTitleSnapshot })
-                .Select(group => new AdminShopInterestProductCountDto
+                .Select(group => new
                 {
-                    ProductKey = group.Key.ProductKey,
+                    group.Key.ProductKey,
                     Title = group.Key.ProductTitleSnapshot,
                     Count = group.Count(),
                 })
-                .OrderByDescending(row => row.Count)
-                .ThenBy(row => row.Title)
                 .ToListAsync(cancellationToken);
+            var activeProducts = await _context.ShopInterestProducts
+                .AsNoTracking()
+                .Where(row => row.IsActive)
+                .Select(row => new { row.ProductKey, row.Title })
+                .ToListAsync(cancellationToken);
+
+            var countsByKey = new Dictionary<string, AdminShopInterestProductCountDto>(
+                StringComparer.Ordinal
+            );
+            foreach (var product in activeProducts)
+            {
+                countsByKey[product.ProductKey] = new AdminShopInterestProductCountDto
+                {
+                    ProductKey = product.ProductKey,
+                    Title = product.Title,
+                    Count = 0,
+                };
+            }
+
+            foreach (var row in registered)
+            {
+                if (countsByKey.TryGetValue(row.ProductKey, out var existing))
+                {
+                    existing.Count += row.Count;
+                    continue;
+                }
+
+                countsByKey[row.ProductKey] = new AdminShopInterestProductCountDto
+                {
+                    ProductKey = row.ProductKey,
+                    Title = row.Title,
+                    Count = row.Count,
+                };
+            }
+
+            var counts = countsByKey.Values
+                .OrderByDescending(row => row.Count)
+                .ThenBy(row => row.Title, StringComparer.Ordinal)
+                .ToList();
 
             return new AdminShopInterestListDto
             {

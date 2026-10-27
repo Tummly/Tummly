@@ -8,6 +8,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -26,7 +27,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task ListShopOrders_DefaultsToProcessingFilter()
+        public async Task ListShopOrders_DefaultsToAllStatuses_AndExposesRestaurantNameAndCreatedAt()
         {
             var seeded = await SeedWorkspaceAsync();
             await InsertOrderAsync(
@@ -48,17 +49,28 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
-            Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(2, body.GetProperty("totalCount").GetInt32());
             Assert.Equal(1, body.GetProperty("page").GetInt32());
             Assert.Equal(25, body.GetProperty("pageSize").GetInt32());
+            var items = body.GetProperty("items").EnumerateArray().ToList();
             Assert.Equal(
-                ShopFulfilmentStatuses.Processing,
-                body.GetProperty("items")[0].GetProperty("fulfilmentStatus").GetString()
+                new[]
+                {
+                    ShopFulfilmentStatuses.InTransit,
+                    ShopFulfilmentStatuses.Processing,
+                },
+                items
+                    .Select(item => item.GetProperty("fulfilmentStatus").GetString()!)
+                    .OrderBy(status => status)
             );
-            Assert.True(body.GetProperty("items")[0].TryGetProperty("opsNotes", out _));
-            Assert.True(
-                body.GetProperty("items")[0].TryGetProperty("revolutOrderId", out _)
+            var first = items[0];
+            Assert.True(first.TryGetProperty("opsNotes", out _));
+            Assert.True(first.TryGetProperty("revolutOrderId", out _));
+            Assert.False(
+                string.IsNullOrWhiteSpace(first.GetProperty("restaurantName").GetString())
             );
+            var createdAt = first.GetProperty("createdAtUtc").GetString();
+            Assert.EndsWith("Z", createdAt);
         }
 
         [Fact]
@@ -71,6 +83,44 @@ namespace TummlyBackend.Tests.Integration
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ListShopOrders_CounterDisplayAsset_CarriesProductTitleNotOfferCardMapping()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                titleSnapshot: "Offer Card",
+                quantity: 10
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                await scope.ServiceProvider
+                    .GetRequiredService<IPrintReadyQrMaterialsService>()
+                    .EnsureShopOrderMaterialsAsync(orderId);
+            }
+
+            using var list = AuthorizedGet(
+                $"/api/admin/shop-orders?restaurantId={seeded.RestaurantId}",
+                seeded.AdminJwt
+            );
+            var listResponse = await _client.SendAsync(list);
+            Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+            var listBody = await ReadJsonAsync(listResponse);
+            var asset = Assert.Single(
+                listBody.GetProperty("items")[0]
+                    .GetProperty("printAssets")
+                    .EnumerateArray()
+            );
+
+            Assert.Equal("OfferCard", asset.GetProperty("qrType").GetString());
+            Assert.Equal(
+                "QR Counter Display",
+                asset.GetProperty("productTitle").GetString()
+            );
         }
 
         [Fact]

@@ -399,6 +399,84 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("cust_match", result.FirstCustomerId);
         }
 
+        [Fact]
+        public async Task UpdateCustomerAsync_PatchesCustomerEmail()
+        {
+            HttpMethod? method = null;
+            string? path = null;
+            string? body = null;
+            var handler = new CountingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            """{"id":"cust_1","email":"billing@venue.test"}"""
+                        ),
+                    },
+                OnSend = request =>
+                {
+                    method = request.Method;
+                    path = request.RequestUri!.AbsolutePath;
+                    body = request.Content is null
+                        ? null
+                        : request.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                },
+            };
+            var client = CreateClient(handler, FullVat(), FullRevolut());
+
+            var result = await client.UpdateCustomerAsync(
+                " cust_1 ",
+                " billing@venue.test "
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Equal("cust_1", result.Id);
+            Assert.Equal(HttpMethod.Patch, method);
+            Assert.EndsWith("/api/customers/cust_1", path);
+            using var doc = System.Text.Json.JsonDocument.Parse(body!);
+            Assert.Equal(
+                "billing@venue.test",
+                doc.RootElement.GetProperty("email").GetString()
+            );
+            Assert.Single(doc.RootElement.EnumerateObject());
+        }
+
+        [Fact]
+        public async Task UpdateCustomerAsync_NonSuccess_ReturnsFailedResult()
+        {
+            var handler = new CountingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
+                    {
+                        Content = new StringContent("""{"message":"bad"}"""),
+                    },
+            };
+            var client = CreateClient(handler, FullVat(), FullRevolut());
+
+            var result = await client.UpdateCustomerAsync(
+                "cust_1",
+                "billing@venue.test"
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("revolut_http_error", result.ErrorCode);
+            Assert.Equal(1, handler.SendCount);
+        }
+
+        [Fact]
+        public async Task UpdateCustomerAsync_BlankEmail_DoesNotCallHttp()
+        {
+            var handler = new CountingHandler();
+            var client = CreateClient(handler, FullVat(), FullRevolut());
+
+            var result = await client.UpdateCustomerAsync("cust_1", "  ");
+
+            Assert.False(result.Succeeded);
+            Assert.Equal(0, handler.SendCount);
+        }
+
         private static IRevolutMerchantClient CreateClient(
             CountingHandler handler,
             TummlySellerVatSettings vat,

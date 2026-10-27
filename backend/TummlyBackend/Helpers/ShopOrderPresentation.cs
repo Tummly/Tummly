@@ -1,15 +1,24 @@
+using System.Globalization;
+
 namespace TummlyBackend.Helpers
 {
     internal static class ShopOrderPresentation
     {
+
         internal static string FormatGbp(int pence)
         {
             return $"£{(pence / 100m):0.00}";
         }
 
+        /// <summary>
+        /// Order date as the buyer sees it: the stored UTC instant in London
+        /// time, so an order placed at 23:30 UTC in summer reads as the next day.
+        /// </summary>
         internal static string FormatDisplayDate(DateTime utc)
         {
-            return utc.ToString("dd MMM yyyy");
+            return LondonDateFormat
+                .ToLondonLocal(utc)
+                .ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
         }
 
         internal static string BuildMaterialsSummary(IEnumerable<Models.ShopOrderLine> lines)

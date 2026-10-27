@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -210,6 +211,106 @@ namespace TummlyBackend.Tests.Integration
                     row.GetProperty("productKey").GetString() == "stickers"
                 );
             Assert.Equal(1, stickers.GetProperty("count").GetInt32());
+        }
+
+        [Fact]
+        public async Task AdminList_CountsIncludeEveryActiveProduct_WithZeroWhenNoInterest()
+        {
+            await ClearInterestTablesAsync();
+            var seeded = await SeedOperatorAndAdminAsync();
+            await SeedInterestProductAsync("tray-liners", "Tray liners", "A");
+            await SeedInterestProductAsync("stickers", "Stickers", "B");
+            await SeedInterestProductAsync(
+                "promoted-tray",
+                "Promoted tray",
+                "Now sold in the Shop.",
+                isActive: false
+            );
+
+            using var post = AuthorizedPostJson(
+                "/api/shop/interest",
+                seeded.OwnerJwt,
+                new
+                {
+                    productKey = "tray-liners",
+                    locationId = seeded.LocationId,
+                }
+            );
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(post)).StatusCode
+            );
+
+            using var adminGet = AuthorizedGet(
+                "/api/admin/shop-interest",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(adminGet);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+
+            foreach (var name in new[] { "counts", "countsByProduct" })
+            {
+                var counts = body.GetProperty(name).EnumerateArray().ToList();
+                // Active products only: the promoted one has no interest to show.
+                Assert.Equal(2, counts.Count);
+                Assert.Equal(
+                    "tray-liners",
+                    counts[0].GetProperty("productKey").GetString()
+                );
+                Assert.Equal(1, counts[0].GetProperty("count").GetInt32());
+                Assert.Equal(
+                    "stickers",
+                    counts[1].GetProperty("productKey").GetString()
+                );
+                Assert.Equal(0, counts[1].GetProperty("count").GetInt32());
+                Assert.Equal("Stickers", counts[1].GetProperty("title").GetString());
+            }
+        }
+
+        [Fact]
+        public async Task AdminList_CountsStillShowAnInactiveProductThatHasInterest()
+        {
+            await ClearInterestTablesAsync();
+            var seeded = await SeedOperatorAndAdminAsync();
+            await SeedInterestProductAsync("retired-liners", "Retired liners", "A");
+            using (var post = AuthorizedPostJson(
+                "/api/shop/interest",
+                seeded.OwnerJwt,
+                new
+                {
+                    productKey = "retired-liners",
+                    locationId = seeded.LocationId,
+                }
+            ))
+            {
+                Assert.Equal(
+                    HttpStatusCode.OK,
+                    (await _client.SendAsync(post)).StatusCode
+                );
+            }
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                (await context.ShopInterestProducts
+                    .SingleAsync(row => row.ProductKey == "retired-liners"))
+                    .IsActive = false;
+                await context.SaveChangesAsync();
+            }
+
+            using var adminGet = AuthorizedGet(
+                "/api/admin/shop-interest",
+                seeded.AdminJwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(adminGet));
+
+            var row = Assert.Single(body.GetProperty("counts").EnumerateArray());
+            Assert.Equal("retired-liners", row.GetProperty("productKey").GetString());
+            Assert.Equal(1, row.GetProperty("count").GetInt32());
+
+            await ClearInterestTablesAsync();
         }
 
         [Fact]

@@ -506,15 +506,14 @@ namespace TummlyBackend.Services
                 .Distinct()
                 .ToList();
 
-            if (fulfilmentFilters.Count == 0)
+            // No status chosen means every status.
+            if (fulfilmentFilters.Count > 0)
             {
-                fulfilmentFilters.Add(ShopFulfilmentStatuses.Processing);
+                query = query.Where(row =>
+                    row.FulfilmentStatus != null
+                    && fulfilmentFilters.Contains(row.FulfilmentStatus)
+                );
             }
-
-            query = query.Where(row =>
-                row.FulfilmentStatus != null
-                && fulfilmentFilters.Contains(row.FulfilmentStatus)
-            );
 
             if (listQuery.RestaurantId is int restaurantId)
             {
@@ -736,6 +735,12 @@ namespace TummlyBackend.Services
         )
         {
             var item = MapListItem(order);
+            item.RestaurantName = await _context.Restaurants
+                .AsNoTracking()
+                .Where(row => row.Id == order.RestaurantId)
+                .Select(row => row.Name)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? string.Empty;
             var printAssets =
                 await _printReadyQrMaterials.ListShopOrderReadinessAsync(
                     order.Id,
@@ -745,6 +750,7 @@ namespace TummlyBackend.Services
                 .Select(row => new AdminShopPrintAssetDto
                 {
                     QrType = row.QrType,
+                    ProductTitle = row.ProductTitle,
                     Quantity = row.Quantity,
                     Status = row.Status,
                     FileName = row.FileName,
@@ -788,6 +794,10 @@ namespace TummlyBackend.Services
                 RevolutOrderId = order.RevolutOrderId,
                 TrackingUrl = order.TrackingUrl,
                 OpsNotes = order.OpsNotes,
+                CreatedAtUtc = DateTime.SpecifyKind(
+                    order.CreatedAtUtc,
+                    DateTimeKind.Utc
+                ),
                 PaidAtUtc = order.PaidAtUtc,
                 ProductionStartedAtUtc = order.ProductionStartedAtUtc,
                 GrossPence = order.GrossPence,

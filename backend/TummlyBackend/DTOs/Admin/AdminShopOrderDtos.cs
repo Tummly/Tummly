@@ -35,6 +35,8 @@ namespace TummlyBackend.DTOs.Admin
 
         public int RestaurantId { get; set; }
 
+        public string RestaurantName { get; set; } = string.Empty;
+
         public int LocationId { get; set; }
 
         public string LocationNameSnapshot { get; set; } = string.Empty;
@@ -51,6 +53,9 @@ namespace TummlyBackend.DTOs.Admin
         public string? TrackingUrl { get; set; }
 
         public string? OpsNotes { get; set; }
+
+        /// <summary>When the order was placed (UTC).</summary>
+        public DateTime CreatedAtUtc { get; set; }
 
         public DateTime? PaidAtUtc { get; set; }
 
@@ -105,6 +110,9 @@ namespace TummlyBackend.DTOs.Admin
     public sealed class AdminShopPrintAssetDto
     {
         public string QrType { get; set; } = string.Empty;
+
+        /// <summary>The ordered product title, for example "QR Counter Display".</summary>
+        public string ProductTitle { get; set; } = string.Empty;
 
         public int Quantity { get; set; }
 
