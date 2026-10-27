@@ -659,6 +659,60 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task GuestCards_OfferBelongsToAnotherLocation_Pay_Returns409()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            var otherLocationId = await ShopTestSeed.AddLocationAsync(
+                _factory,
+                seeded.RestaurantId,
+                "Other Site"
+            );
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(OfferLocationId: otherLocationId)
+            );
+            var orderId = await InsertAwaitingPaymentGuestCardOrderAsync(seeded);
+
+            await AssertPayOfferRequiredAsync(seeded, orderId);
+        }
+
+        [Fact]
+        public async Task GuestCards_ExpiredCardOffer_Pay_Returns409()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    Validity: CatalogOfferValidity.ChooseExpiryDate,
+                    CustomExpiryDate: new DateOnly(2020, 1, 1)
+                )
+            );
+            var orderId = await InsertAwaitingPaymentGuestCardOrderAsync(seeded);
+
+            await AssertPayOfferRequiredAsync(seeded, orderId);
+        }
+
+        private async Task AssertPayOfferRequiredAsync(ShopSeed seeded, Guid orderId)
+        {
+            var pay = await PayOrderAsync(
+                seeded.MemberJwt,
+                orderId,
+                seeded.InScopeLocationId
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, pay.StatusCode);
+            var body = await ReadJsonAsync(pay);
+            Assert.Equal(
+                OfferCardOfferRequiredException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
         private async Task<HttpResponseMessage> PayOrderAsync(
             string jwt,
             Guid orderId,

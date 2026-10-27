@@ -30,12 +30,25 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         /// <summary>
-        /// Creates an Active 30-day free-item card offer at the location and
-        /// attaches it as the location's Offer Card print offer.
+        /// Shape of the card offer to create. Defaults to an Active 30-day
+        /// free-item offer at the attaching location.
         /// </summary>
-        public static async Task AttachActiveCardOfferAsync(
+        public sealed record CardOfferSetup(
+            string Status = CatalogOfferStatus.Active,
+            CatalogOfferValidity Validity = CatalogOfferValidity.Days30AfterIssue,
+            DateOnly? CustomExpiryDate = null,
+            int? OfferLocationId = null
+        );
+
+        /// <summary>
+        /// Creates a free-item card offer and attaches it as the location's
+        /// Offer Card print offer. <see cref="CardOfferSetup.OfferLocationId"/>
+        /// sets which location the offer belongs to (default: <paramref name="locationId"/>).
+        /// </summary>
+        public static async Task<int> AttachCardOfferAsync(
             TummlyWebApplicationFactory factory,
-            int locationId
+            int locationId,
+            CardOfferSetup setup
         )
         {
             using var scope = factory.Services.CreateScope();
@@ -43,11 +56,12 @@ namespace TummlyBackend.Tests.Helpers
                 .GetRequiredService<ApplicationDbContext>();
             var offer = new CatalogOffer
             {
-                RestaurantLocationId = locationId,
+                RestaurantLocationId = setup.OfferLocationId ?? locationId,
                 Title = "Free Dessert Friday",
                 Description = "Guest card offer",
-                Status = CatalogOfferStatus.Active,
-                Validity = CatalogOfferValidity.Days30AfterIssue,
+                Status = setup.Status,
+                Validity = setup.Validity,
+                CustomExpiryDate = setup.CustomExpiryDate,
                 OfferType = CatalogOfferType.FreeItem,
                 FreeItemText = "Dessert",
                 CreatedAt = DateTime.UtcNow,
@@ -60,6 +74,40 @@ namespace TummlyBackend.Tests.Helpers
                 .SingleAsync(row => row.Id == locationId);
             location.OfferCardCatalogOfferId = offer.Id;
             await context.SaveChangesAsync();
+            return offer.Id;
+        }
+
+        /// <summary>
+        /// Creates an Active 30-day free-item card offer at the location and
+        /// attaches it as the location's Offer Card print offer.
+        /// </summary>
+        public static Task AttachActiveCardOfferAsync(
+            TummlyWebApplicationFactory factory,
+            int locationId
+        ) => AttachCardOfferAsync(factory, locationId, new CardOfferSetup());
+
+        /// <summary>Adds a second location to an existing restaurant.</summary>
+        public static async Task<int> AddLocationAsync(
+            TummlyWebApplicationFactory factory,
+            int restaurantId,
+            string locationName
+        )
+        {
+            using var scope = factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurantId,
+                LocationName = locationName,
+                Address = "9 Other Street",
+                City = "London",
+                Postcode = "SE1 1TQ",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+            return location.Id;
         }
 
         public static async Task DetachCardOfferAsync(

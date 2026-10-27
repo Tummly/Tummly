@@ -297,6 +297,121 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task GuestCards_OfferBelongsToAnotherLocation_Cart_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    OfferLocationId: seeded.OutOfScopeLocationId
+                )
+            );
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            await AssertOfferRequiredAsync(response);
+        }
+
+        [Fact]
+        public async Task GuestCards_ArchivedCardOffer_Cart_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    Status: CatalogOfferStatus.Archived
+                )
+            );
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            await AssertOfferRequiredAsync(response);
+        }
+
+        [Fact]
+        public async Task GuestCards_ExpiredCardOffer_Cart_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    Validity: CatalogOfferValidity.ChooseExpiryDate,
+                    CustomExpiryDate: new DateOnly(2020, 1, 1)
+                )
+            );
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            await AssertOfferRequiredAsync(response);
+        }
+
+        [Fact]
+        public async Task GuestCards_PausedCardOffer_Cart_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    Status: CatalogOfferStatus.Paused
+                )
+            );
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            await AssertOfferRequiredAsync(response);
+        }
+
+        private static async Task AssertOfferRequiredAsync(HttpResponseMessage response)
+        {
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                OfferCardOfferRequiredException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
         private async Task<HttpResponseMessage> PutLineAsync(
             string jwt,
             int locationId,

@@ -9,6 +9,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Shop.MaterialsCatalog;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -400,6 +401,77 @@ namespace TummlyBackend.Tests.Integration
             var guestCards = Assert.Single(await ListShopReadinessAsync(orderId));
             Assert.Equal("GuestCard", guestCards.QrType);
             Assert.Equal("Preparing", guestCards.Status);
+        }
+
+        [Fact]
+        public async Task GuestCard_ShopOrderAsset_StaysPreparingWhenAttachedOfferBelongsToAnotherLocation()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var otherLocationId = await ShopTestSeed.AddLocationAsync(
+                _factory,
+                seeded.RestaurantId,
+                "Other Site"
+            );
+            await AddActiveGuestCardQrAsync(seeded.LocationId);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.LocationId,
+                new ShopTestSeed.CardOfferSetup(OfferLocationId: otherLocationId)
+            );
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-guest-cards",
+                titleSnapshot: "QR Guest Cards",
+                quantity: 12
+            );
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var guestCards = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("GuestCard", guestCards.QrType);
+            Assert.Equal("Preparing", guestCards.Status);
+        }
+
+        [Fact]
+        public async Task GuestCard_ShopOrderAsset_BecomesReadyWithOwnLocationOffer()
+        {
+            // Positive control for the test above: same QR and order, offer at
+            // this location, so the gate opens and the asset becomes Ready.
+            var seeded = await SeedWorkspaceAsync();
+            await AddActiveGuestCardQrAsync(seeded.LocationId);
+            await ShopTestSeed.AttachActiveCardOfferAsync(_factory, seeded.LocationId);
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-guest-cards",
+                titleSnapshot: "QR Guest Cards",
+                quantity: 12
+            );
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var guestCards = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("GuestCard", guestCards.QrType);
+            Assert.Equal("Ready", guestCards.Status);
+        }
+
+        private async Task AddActiveGuestCardQrAsync(int locationId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            context.QrCodes.Add(
+                new QrCode
+                {
+                    RestaurantLocationId = locationId,
+                    QrType = QrType.GuestCard,
+                    Token = $"admin-shop-guest-{Guid.NewGuid():N}",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
         }
 
         [Fact]
