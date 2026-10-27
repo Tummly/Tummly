@@ -326,7 +326,7 @@ namespace TummlyBackend.Services
                 return new CatalogOfferInFlightSyncResult.Ok();
             }
 
-            var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
+            var today = CatalogOfferStatus.LondonToday(_utcNow());
             var rawCount = await CountRawLiveAttachesAsync(
                 offerId,
                 cancellationToken
@@ -1639,7 +1639,7 @@ namespace TummlyBackend.Services
                 return kinds;
             }
 
-            var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
+            var today = CatalogOfferStatus.LondonToday(_utcNow());
             var effective = CatalogOfferStatus.ResolveEffectiveStatus(
                 offer.Status,
                 offer.Validity,

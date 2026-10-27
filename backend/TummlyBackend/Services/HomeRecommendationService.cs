@@ -457,7 +457,7 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
 
-            var venueToday = CatalogOfferStatus.VenueLocalToday(utcNow, 0);
+            var venueToday = CatalogOfferStatus.LondonToday(utcNow);
             var offerRows = await _context.CatalogOffers
                 .AsNoTracking()
                 .Where(o => o.RestaurantLocationId == locationId)
