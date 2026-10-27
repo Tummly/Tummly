@@ -1491,10 +1491,15 @@ namespace TummlyBackend.Services
             var catalog = materialsCatalog.GetRequired(
                 materialsCatalog.CurrentCatalogId
             );
-            var skus = catalog.Skus.ToDictionary(
-                row => row.SkuId,
-                StringComparer.OrdinalIgnoreCase
-            );
+            // A soft-deleted row keeps its SkuId, so a recreated SKU can share it.
+            // Prefer the live row; OrderBy is stable, so catalog order breaks ties.
+            var skus = catalog.Skus
+                .GroupBy(row => row.SkuId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.OrderBy(row => row.IsDeleted).First(),
+                    StringComparer.OrdinalIgnoreCase
+                );
             var result = new Dictionary<QrType, int>();
 
             foreach (var line in lines)

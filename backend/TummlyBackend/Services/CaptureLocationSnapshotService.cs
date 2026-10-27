@@ -142,9 +142,11 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var shopPrintedQrTypes = await ResolveShopPrintedQrTypesAsync(
-                query.LocationId
-            );
+            // No codes means no placement rows can carry the flag, so skip the lookup.
+            var shopPrintedQrTypes =
+                qrCodeIds.Count > 0
+                    ? await ResolveShopPrintedQrTypesAsync(query.LocationId)
+                    : new HashSet<QrType>();
 
             object? lastJourneyUpdate = null;
             if (qrCodeIds.Count > 0)
