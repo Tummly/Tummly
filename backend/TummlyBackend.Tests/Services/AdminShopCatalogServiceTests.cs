@@ -347,6 +347,67 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SetAvailable_NoQrPath_Returns409SkuHasNoQrPath()
+        {
+            var tent = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            tent.MintOnShopFulfilment = false;
+            await _context.SaveChangesAsync();
+
+            var (sku, error) = await _service.SetAvailableInShopAsync(
+                "table-tents",
+                availableInShop: true,
+                actorAdminUserId: 1,
+                actorIdentity: "admin@example.com"
+            );
+
+            Assert.Null(sku);
+            Assert.Equal("sku_has_no_qr_path", error);
+            var stored = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.SkuId == "table-tents");
+            Assert.False(stored.AvailableInShop);
+        }
+
+        [Fact]
+        public async Task SetAvailable_MintFlagTrue_Succeeds()
+        {
+            var (sku, error) = await _service.SetAvailableInShopAsync(
+                "table-tents",
+                availableInShop: true,
+                actorAdminUserId: 1,
+                actorIdentity: "admin@example.com"
+            );
+
+            Assert.Null(error);
+            Assert.NotNull(sku);
+            Assert.True(sku!.AvailableInShop);
+        }
+
+        [Fact]
+        public async Task SetAvailable_StarterRecipeWithoutMintFlag_Succeeds()
+        {
+            var counter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == ShopMaterialsCatalogSeed.CounterDisplaySkuId
+            );
+            counter.AvailableInShop = false;
+            counter.MintOnShopFulfilment = false;
+            await _context.SaveChangesAsync();
+
+            var (sku, error) = await _service.SetAvailableInShopAsync(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                availableInShop: true,
+                actorAdminUserId: 1,
+                actorIdentity: "admin@example.com"
+            );
+
+            Assert.Null(error);
+            Assert.NotNull(sku);
+            Assert.True(sku!.AvailableInShop);
+        }
+
+        [Fact]
         public async Task Publish_DefaultsAvailableInShopToFalse()
         {
             await _service.DeleteAsync("table-tents");

@@ -43,7 +43,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 "Table Tent",
                 "TableTent",
                 PlacementPrintRoutes.PatchCsv60,
-                false,
+                true,
                 false
             ),
             (
@@ -51,7 +51,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 "Table Talker",
                 "TableTalker",
                 PlacementPrintRoutes.PatchCsv60,
-                false,
+                true,
                 false
             ),
             (
@@ -59,7 +59,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 "Window Sticker",
                 "WindowSticker",
                 PlacementPrintRoutes.PatchCsv60,
-                false,
+                true,
                 false
             ),
             (
@@ -67,7 +67,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 "QR Guest Cards",
                 "GuestCard",
                 PlacementPrintRoutes.GuestCardCsv,
-                false,
+                true,
                 false
             ),
         ];
@@ -720,7 +720,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 999,
                 5,
                 "GBP",
-                false,
+                null,
                 false,
                 "/assets/images/shop/tummly-sticker.png",
                 "The Tummly Table Tent gives dine-in guests a clear opportunity to share private feedback while their experience is still recent. Each order uses a location-specific QR placement.",
@@ -767,7 +767,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 999,
                 10,
                 "GBP",
-                false,
+                null,
                 false,
                 "/assets/images/shop/tummly-sticker.png",
                 "The Tummly Table Talker is a larger tabletop prompt for promotions and private feedback. Each order uses a location-specific QR placement.",
@@ -799,7 +799,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 499,
                 1,
                 "GBP",
-                false,
+                null,
                 false,
                 "/assets/images/shop/tummly-sticker.png",
                 "The Tummly Window Sticker invites guests to share private feedback at an entrance or front window. Each order uses a location-specific QR placement.",
@@ -841,7 +841,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 1499,
                 250,
                 "GBP",
-                false,
+                null,
                 false,
                 "/assets/images/shop/tummly-sticker.png",
                 "Tummly QR Guest Cards carry a location-specific QR and offer headline for feedback and redemption. Print uses the Guest Card CSV route.",

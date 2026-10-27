@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Shop;
 
 namespace TummlyBackend.Controllers
 {
@@ -157,6 +158,18 @@ namespace TummlyBackend.Controllers
             );
             if (error != null)
             {
+                if (error == ShopQrPathRules.SkuHasNoQrPathCode)
+                {
+                    return Conflict(
+                        new
+                        {
+                            success = false,
+                            code = error,
+                            message = ShopQrPathRules.SkuHasNoQrPathMessage,
+                        }
+                    );
+                }
+
                 if (error.Contains("not found", StringComparison.OrdinalIgnoreCase))
                 {
                     return NotFound(new { success = false, message = error });
