@@ -226,9 +226,11 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             var bySkuId = IndexBySkuId(skus);
             var now = DateTime.UtcNow;
             var changed = false;
-            // True only when the legacy Offer Card became the sole counter row.
-            // A remap onto a Deleted counter row must not run the launch upgrade,
-            // which would overwrite Admin-edited packs and prices.
+            // Set only when the legacy Offer Card became the sole counter row (no
+            // counter row existed). A remap onto a Deleted counter row never sets
+            // it. The pre-existing (!hadTalker && !hadGuestCards) trigger below can
+            // still run the upgrade on its own, so the upgrade loop also skips
+            // Admin-deleted rows.
             var upgradeFromLegacyOfferCard = false;
             var hadTalker = bySkuId.ContainsKey("table-talker");
             var hadGuestCards = bySkuId.ContainsKey("qr-guest-cards");
@@ -253,6 +255,32 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                     bySkuId.Remove(LegacyOfferCardSkuId);
                     bySkuId[CounterDisplaySkuId] = legacyOfferSku;
                     upgradeFromLegacyOfferCard = !counterRowExisted;
+
+                    // The remapped row was never edited as a Counter Display, so it
+                    // takes the Counter Display seed values. Only this row changes.
+                    var counterSeed = SeedSkus().First(seed =>
+                        seed.SkuId == CounterDisplaySkuId
+                    );
+                    if (
+                        recipeBySlug.TryGetValue(
+                            counterSeed.RecipeSlug,
+                            out var counterRecipe
+                        )
+                    )
+                    {
+                        ApplySeedToSku(
+                            legacyOfferSku,
+                            counterSeed,
+                            counterRecipe,
+                            ResolveCommercial(
+                                counterSeed.SkuId,
+                                counterSeed.UnitNetPence
+                            ),
+                            now,
+                            tagBySlug
+                        );
+                    }
+
                     changed = true;
                 }
                 else
