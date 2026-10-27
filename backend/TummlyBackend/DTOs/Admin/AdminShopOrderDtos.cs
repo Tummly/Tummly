@@ -111,6 +111,9 @@ namespace TummlyBackend.DTOs.Admin
     {
         public string QrType { get; set; } = string.Empty;
 
+        /// <summary>The ordered product title, for example "QR Counter Display".</summary>
+        public string ProductTitle { get; set; } = string.Empty;
+
         public int Quantity { get; set; }
 
         public string Status { get; set; } = string.Empty;

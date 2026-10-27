@@ -8,6 +8,7 @@ using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.PrintReadyQrMaterials;
 using TummlyBackend.Shop;
+using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Services
 {
@@ -352,6 +353,10 @@ namespace TummlyBackend.Services
                 order.Lines,
                 _materialsCatalog
             );
+            var productTitles = ResolveOrderedProductTitles(
+                order.Lines,
+                _materialsCatalog
+            );
             var assets = await _context.PrintReadyQrAssets
                 .AsNoTracking()
                 .Where(row => row.ShopOrderId == shopOrderId)
@@ -366,6 +371,7 @@ namespace TummlyBackend.Services
                     return MapShopReadiness(
                         pair.Key,
                         pair.Value,
+                        productTitles.GetValueOrDefault(pair.Key),
                         asset,
                         shopOrderId
                     );
@@ -596,7 +602,14 @@ namespace TummlyBackend.Services
             }
 
             await GenerateAndStoreAsync(order.Location, asset, cancellationToken);
-            return MapShopReadiness(qrType, quantity, asset, shopOrderId);
+            return MapShopReadiness(
+                qrType,
+                quantity,
+                ResolveOrderedProductTitles(order.Lines, _materialsCatalog)
+                    .GetValueOrDefault(qrType),
+                asset,
+                shopOrderId
+            );
         }
 
         public async Task<ShopPrintAssetPreviewDto?> GetShopOrderPreviewAsync(
@@ -786,7 +799,14 @@ namespace TummlyBackend.Services
             );
 
             await _context.SaveChangesAsync(cancellationToken);
-            return MapShopReadiness(qrType, quantity, asset, shopOrderId);
+            return MapShopReadiness(
+                qrType,
+                quantity,
+                ResolveOrderedProductTitles(order.Lines, _materialsCatalog)
+                    .GetValueOrDefault(qrType),
+                asset,
+                shopOrderId
+            );
         }
 
         private async Task EnsureOneAsync(
@@ -1490,44 +1510,12 @@ namespace TummlyBackend.Services
             IMaterialsCatalog materialsCatalog
         )
         {
-            var catalog = materialsCatalog.GetRequired(
-                materialsCatalog.CurrentCatalogId
-            );
-            // A soft-deleted row keeps its SkuId, so a recreated SKU can share it.
-            // Prefer the live row; OrderBy is stable, so catalog order breaks ties.
-            var skus = catalog.Skus
-                .GroupBy(row => row.SkuId, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.OrderBy(row => row.IsDeleted).First(),
-                    StringComparer.OrdinalIgnoreCase
-                );
+            var skus = IndexCatalogSkus(materialsCatalog);
             var result = new Dictionary<QrType, int>();
 
             foreach (var line in lines)
             {
-                // Prefer recipe-backed catalog QrType (denormalized PlacementKey).
-                // Fall back to legacy sku-id map for older complimentary orders.
-                QrType qrType;
-                if (
-                    skus.TryGetValue(line.CatalogSkuId, out var sku)
-                    && Enum.TryParse<QrType>(
-                        sku.QrType,
-                        ignoreCase: false,
-                        out qrType
-                    )
-                )
-                {
-                    // ok
-                }
-                else if (
-                    !TryResolveLegacySkuQrType(line.CatalogSkuId, out qrType)
-                )
-                {
-                    continue;
-                }
-
-                if (!PhysicalShopPrintQrTypes.Contains(qrType))
+                if (!TryResolveOrderedLine(skus, line, out var qrType, out _))
                 {
                     continue;
                 }
@@ -1537,6 +1525,84 @@ namespace TummlyBackend.Services
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// The ordered product title for each physical QR type on the order
+        /// (for example <c>QR Counter Display</c> for <c>OfferCard</c>). The
+        /// catalog title is used; a line whose SKU left the catalog keeps the
+        /// title it was ordered under. The first line of a type wins.
+        /// </summary>
+        public static IReadOnlyDictionary<QrType, string> ResolveOrderedProductTitles(
+            IEnumerable<ShopOrderLine> lines,
+            IMaterialsCatalog materialsCatalog
+        )
+        {
+            var skus = IndexCatalogSkus(materialsCatalog);
+            var result = new Dictionary<QrType, string>();
+
+            foreach (var line in lines)
+            {
+                if (
+                    TryResolveOrderedLine(skus, line, out var qrType, out var title)
+                    && !result.ContainsKey(qrType)
+                )
+                {
+                    result[qrType] = title;
+                }
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, MaterialsCatalogSku> IndexCatalogSkus(
+            IMaterialsCatalog materialsCatalog
+        )
+        {
+            var catalog = materialsCatalog.GetRequired(
+                materialsCatalog.CurrentCatalogId
+            );
+            // A soft-deleted row keeps its SkuId, so a recreated SKU can share it.
+            // Prefer the live row; OrderBy is stable, so catalog order breaks ties.
+            return catalog.Skus
+                .GroupBy(row => row.SkuId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.OrderBy(row => row.IsDeleted).First(),
+                    StringComparer.OrdinalIgnoreCase
+                );
+        }
+
+        private static bool TryResolveOrderedLine(
+            IReadOnlyDictionary<string, MaterialsCatalogSku> skus,
+            ShopOrderLine line,
+            out QrType qrType,
+            out string title
+        )
+        {
+            title = line.TitleSnapshot;
+            // Prefer recipe-backed catalog QrType (denormalized PlacementKey).
+            // Fall back to legacy sku-id map for older complimentary orders.
+            if (
+                skus.TryGetValue(line.CatalogSkuId, out var sku)
+                && Enum.TryParse<QrType>(
+                    sku.QrType,
+                    ignoreCase: false,
+                    out qrType
+                )
+            )
+            {
+                if (!string.IsNullOrWhiteSpace(sku.Title))
+                {
+                    title = sku.Title;
+                }
+            }
+            else if (!TryResolveLegacySkuQrType(line.CatalogSkuId, out qrType))
+            {
+                return false;
+            }
+
+            return PhysicalShopPrintQrTypes.Contains(qrType);
         }
 
         /// <summary>
@@ -1639,6 +1705,7 @@ namespace TummlyBackend.Services
         private ShopPrintAssetReadinessDto MapShopReadiness(
             QrType qrType,
             int quantity,
+            string? productTitle,
             PrintReadyQrAsset? asset,
             Guid? shopOrderId
         )
@@ -1646,6 +1713,7 @@ namespace TummlyBackend.Services
             return new ShopPrintAssetReadinessDto
             {
                 QrType = qrType.ToString(),
+                ProductTitle = productTitle ?? qrType.ToString(),
                 Quantity = quantity,
                 Status = asset?.Status.ToString()
                     ?? PrintReadyQrAssetStatus.Preparing.ToString(),
