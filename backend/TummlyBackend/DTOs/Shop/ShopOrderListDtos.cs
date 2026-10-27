@@ -26,7 +26,14 @@ namespace TummlyBackend.DTOs.Shop
 
         public required string FulfilmentStatus { get; init; }
 
+        public required string PaymentStatusLabel { get; init; }
+
+        public required string FulfilmentStatusLabel { get; init; }
+
         public bool IsComplimentary { get; init; }
+
+        /// <summary>"Complimentary Starter Kit" for a free starter order; otherwise null.</summary>
+        public string? OrderKindLabel { get; init; }
 
         public DateTime UpdatedAtUtc { get; init; }
     }
@@ -111,6 +118,9 @@ namespace TummlyBackend.DTOs.Shop
         public required string Currency { get; init; }
 
         public bool IsComplimentary { get; init; }
+
+        /// <summary>"Complimentary Starter Kit" for a free starter order; otherwise null.</summary>
+        public string? OrderKindLabel { get; init; }
 
         public required IReadOnlyList<ShopOrderLineDto> Lines { get; init; }
 
