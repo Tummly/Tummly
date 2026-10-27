@@ -361,6 +361,14 @@ builder.Services.AddScoped<
     GuestContactSuppressionService
 >();
 
+builder.Services.AddSingleton<IOtpCodeHasher>(sp =>
+    OtpCodeHasher.FromConfiguration(
+        sp.GetRequiredService<IConfiguration>(),
+        sp.GetRequiredService<IHostEnvironment>()
+    )
+);
+builder.Services.AddScoped<IOtpChallengeService, OtpChallengeService>();
+
 builder.Services.AddScoped<GuestsListService>();
 builder.Services.AddScoped<IGuestsListService>(sp =>
     sp.GetRequiredService<GuestsListService>()
@@ -1311,9 +1319,10 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Resolve once so a missing GuestSuppression:HashKey fails start outside
-// Development/Testing (never log the key).
+// Resolve once so a missing GuestSuppression:HashKey or Otp:HashKey fails start
+// outside Development/Testing (never log the key).
 _ = app.Services.GetRequiredService<IGuestContactHasher>();
+_ = app.Services.GetRequiredService<IOtpCodeHasher>();
 
 app.UseForwardedHeaders();
 app.UseMiddleware<SecurityHeadersMiddleware>();
