@@ -163,7 +163,7 @@ namespace TummlyBackend.Services
             }
 
             EnsureAbuseWindow(pending, now);
-            if (IsChallengeLocked(pending))
+            if (IsVerifyLocked(pending))
             {
                 await _context.SaveChangesAsync();
                 throw ChallengeLocked(pending, email);
@@ -1026,7 +1026,7 @@ namespace TummlyBackend.Services
             var isEmailPending = pending.Status == PendingSignupStatuses.EmailPending;
 
             EnsureAbuseWindow(pending, now);
-            if (IsChallengeLocked(pending))
+            if (IsSendLocked(pending))
             {
                 await _context.SaveChangesAsync();
                 throw ChallengeLocked(pending, email);
@@ -1141,9 +1141,19 @@ namespace TummlyBackend.Services
             pending.FailedVerifiesInWindow = 0;
         }
 
-        private static bool IsChallengeLocked(PendingSignup pending) =>
+        /// <summary>
+        /// Sending stops when the window has used all codes or all wrong verifies.
+        /// </summary>
+        private static bool IsSendLocked(PendingSignup pending) =>
             pending.CodesSentInWindow >= SignupAbuseLimits.MaxCodesPerWindow
-            || pending.FailedVerifiesInWindow >= SignupAbuseLimits.MaxFailedVerifiesPerWindow;
+            || IsVerifyLocked(pending);
+
+        /// <summary>
+        /// Verifying stops only when the window has used all wrong verifies. A correct
+        /// code that was already sent must still verify after the send limit is reached.
+        /// </summary>
+        private static bool IsVerifyLocked(PendingSignup pending) =>
+            pending.FailedVerifiesInWindow >= SignupAbuseLimits.MaxFailedVerifiesPerWindow;
 
         private SignupFlowException ChallengeLocked(PendingSignup pending, string email)
         {

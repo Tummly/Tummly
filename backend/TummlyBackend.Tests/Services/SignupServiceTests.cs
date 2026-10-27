@@ -343,6 +343,25 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Verify_TenthCodeSent_RightCodeStillVerifies()
+        {
+            const string email = "tenth@example.com";
+            await StartFor(email);
+            var code = LastCode();
+
+            // Ten codes sent is the send limit. It must not lock a correct code.
+            var pending = await Row(email);
+            pending.CodesSentInWindow = SignupAbuseLimits.MaxCodesPerWindow;
+            pending.FailedVerifiesInWindow = SignupAbuseLimits.MaxFailedVerifiesPerWindow - 1;
+            await _db.SaveChangesAsync();
+
+            var session = await VerifyWith(email, code);
+
+            Assert.Equal(PendingSignupStatuses.Verified, session.Status);
+            Assert.Equal(session.SessionToken, (await Row(email)).SessionToken);
+        }
+
+        [Fact]
         public async Task Verify_NoLiveRow_OtpInvalid()
         {
             _db.PendingSignups.Add(
