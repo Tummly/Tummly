@@ -428,6 +428,7 @@ export interface CaptureLocationSnapshotResponse {
   thankYouOfferTitle: string | null
   thankYouOfferLive: boolean
   entitlements?: {
+    /** Workspace-wide active QR pool: cap = Workspace limit, current = Workspace used. */
     activeQrPlacements?: {
       cap?: number
       current?: number

@@ -115,6 +115,59 @@ namespace TummlyBackend.Tests.SqlServer
             );
         }
 
+        [SkippableFact]
+        public async Task ConcurrentCaptureActivateAtA_AndShopReserveAtB_LastWorkspaceSlot_ExactlyOneSucceeds()
+        {
+            // B6: one slot left in the Workspace pool; the two requests hit different Locations.
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+            await using var factory = _fixture.CreateFactory();
+            var atA = await SeedAsync(factory, freeSlots: 1);
+            var atB = await AddLocationAsync(atA);
+            var order = await InsertOrderAsync(atB, TableTalker);
+
+            var results = await RunBlockedAsync(
+                atA,
+                CaptureCreateAsync(factory, atA),
+                PayAsync(factory, atB, order)
+            );
+
+            var captureOk = results[0] == HttpStatusCode.OK;
+            var payOk = results[1] == HttpStatusCode.OK;
+            Assert.True(captureOk ^ payOk, $"capture={results[0]} pay={results[1]}");
+
+            await using var verify = _fixture.CreateContext();
+            var reservations = await verify.ShopQrSlotReservations
+                .CountAsync(row => row.RestaurantLocationId == atB.LocationId);
+            Assert.Equal(payOk ? 1 : 0, reservations);
+            Assert.Equal(
+                await ShopCapacityTestSeed.CapAsync(verify, atA),
+                await CountUsedAsync(factory, atA)
+            );
+        }
+
+        [SkippableFact]
+        public async Task ConcurrentCaptureActivations_AtTwoLocations_LastWorkspaceSlot_ExactlyOneSucceeds()
+        {
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+            await using var factory = _fixture.CreateFactory();
+            var atA = await SeedAsync(factory, freeSlots: 1);
+            var atB = await AddLocationAsync(atA);
+
+            var results = await RunBlockedAsync(
+                atA,
+                CaptureCreateAsync(factory, atA),
+                CaptureCreateAsync(factory, atB)
+            );
+
+            Assert.Equal(1, results.Count(code => code == HttpStatusCode.OK));
+            Assert.Equal(1, results.Count(code => code == HttpStatusCode.Conflict));
+            await using var verify = _fixture.CreateContext();
+            Assert.Equal(
+                await ShopCapacityTestSeed.CapAsync(verify, atA),
+                await CountUsedAsync(factory, atA)
+            );
+        }
+
         /// <summary>
         /// Holds the account lock, starts both calls, waits until both queue
         /// behind it, then releases. The calls then contend for real.
@@ -635,7 +688,7 @@ namespace TummlyBackend.Tests.SqlServer
             using var scope = factory.Services.CreateScope();
             return await scope.ServiceProvider
                 .GetRequiredService<IActiveQrCapacity>()
-                .CountUsedAsync(workspace.LocationId, CancellationToken.None);
+                .CountUsedForRestaurantAsync(workspace.RestaurantId, CancellationToken.None);
         }
 
         private async Task<ShopCapacityWorkspace> SeedAsync(
@@ -668,6 +721,16 @@ namespace TummlyBackend.Tests.SqlServer
                 freeSlots
             );
             return workspace;
+        }
+
+        private async Task<ShopCapacityWorkspace> AddLocationAsync(
+            ShopCapacityWorkspace workspace
+        )
+        {
+            await using var context = _fixture.CreateContext();
+            var other = await ShopCapacityTestSeed.AddLocationAsync(context, workspace);
+            await ShopCapacityTestSeed.MakeOrderableAsync(context, other, TableTalker);
+            return other;
         }
 
         private async Task<Guid> InsertOrderAsync(

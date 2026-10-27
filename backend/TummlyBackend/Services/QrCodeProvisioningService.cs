@@ -11,14 +11,17 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly IActiveQrCapacity _activeQrCapacity;
 
         public QrCodeProvisioningService(
             ApplicationDbContext context,
-            ISmartGuestLinkService smartGuestLink
+            ISmartGuestLinkService smartGuestLink,
+            IActiveQrCapacity activeQrCapacity
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
+            _activeQrCapacity = activeQrCapacity;
         }
 
         public async Task<IReadOnlyList<QrCode>> MintDefaultQrCodesAsync(
@@ -32,11 +35,12 @@ namespace TummlyBackend.Services
             }
 
             // Free (no plan) mints Paused; Pilot / paid activation or Pilot start
-            // activates plan-paused codes within cap (WS3b).
+            // activates plan-paused codes within cap (WS3b). With a plan, codes mint
+            // Active only within the Workspace headroom (pool - used, Commercial V4);
+            // the rest mint Paused and use no capacity. Codes of this batch are not
+            // saved yet, so headroom is read once and spent as the batch mints.
             var account = await LoadBillingAccountAsync(location);
-            var status = account == null || OperatorPlanGate.HasPlan(account)
-                ? QrCodeStatus.Active
-                : QrCodeStatus.Paused;
+            var headroom = await ActiveHeadroomAsync(account, location);
 
             var existingTypes = await LoadExistingPlacementTypesAsync(location);
             var qrCodes = new List<QrCode>();
@@ -53,6 +57,17 @@ namespace TummlyBackend.Services
                 // every token already minted in this batch.
                 var token = await _smartGuestLink.GenerateTokenAsync();
 
+                var status = QrCodeStatus.Paused;
+                if (headroom is null)
+                {
+                    status = QrCodeStatus.Active;
+                }
+                else if (headroom > 0)
+                {
+                    status = QrCodeStatus.Active;
+                    headroom--;
+                }
+
                 var qrCode = new QrCode
                 {
                     RestaurantLocation = location,
@@ -68,6 +83,81 @@ namespace TummlyBackend.Services
             }
 
             return qrCodes;
+        }
+
+        /// <summary>
+        /// Active codes this mint may still create. Null means no limit applies
+        /// (no billing account to check). Zero means every code mints Paused: no
+        /// plan, or the plan cannot be resolved (fail closed).
+        /// </summary>
+        private async Task<int?> ActiveHeadroomAsync(
+            BillingAccount? account,
+            RestaurantLocation location
+        )
+        {
+            if (account == null)
+            {
+                return null;
+            }
+
+            if (!OperatorPlanGate.HasPlan(account))
+            {
+                return 0;
+            }
+
+            var allowance = await _activeQrCapacity.GetAllowanceAsync(
+                account,
+                CancellationToken.None
+            );
+            if (allowance == null)
+            {
+                return 0;
+            }
+
+            var restaurantId = account.RestaurantId;
+            var used = await _activeQrCapacity.CountUsedForRestaurantAsync(
+                restaurantId,
+                CancellationToken.None
+            );
+            used += CountUnsavedActiveCodes(restaurantId, location);
+
+            return Math.Max(0, allowance.WorkspacePool - used);
+        }
+
+        /// <summary>
+        /// Active codes already added to the context for this Workspace but not
+        /// saved (earlier Locations of the same signup batch).
+        /// </summary>
+        private int CountUnsavedActiveCodes(
+            int restaurantId,
+            RestaurantLocation location
+        )
+        {
+            var count = 0;
+            foreach (var entry in _context.ChangeTracker.Entries<QrCode>())
+            {
+                if (
+                    entry.State != EntityState.Added
+                    || entry.Entity.Status != QrCodeStatus.Active
+                )
+                {
+                    continue;
+                }
+
+                var owner = entry.Entity.RestaurantLocation;
+                var ownerRestaurantId = owner?.RestaurantId ?? 0;
+                if (owner != null && ReferenceEquals(owner, location))
+                {
+                    ownerRestaurantId = restaurantId;
+                }
+
+                if (ownerRestaurantId == restaurantId)
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         private async Task<BillingAccount?> LoadBillingAccountAsync(

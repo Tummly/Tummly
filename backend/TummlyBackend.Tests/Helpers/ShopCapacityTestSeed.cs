@@ -130,18 +130,19 @@ namespace TummlyBackend.Tests.Helpers
 
         /// <summary>
         /// Adds Active Digital Guest Link codes until exactly
-        /// <paramref name="freeSlots"/> slots remain under the per-location
-        /// cap. Returns the cap.
+        /// <paramref name="freeSlots"/> slots remain under the Workspace
+        /// pool. Returns the pool.
         /// </summary>
         public static async Task<int> LeaveFreeSlotsAsync(
             ApplicationDbContext context,
             ShopCapacityWorkspace workspace,
-            int freeSlots
+            int freeSlots,
+            int? fillLocationId = null
         )
         {
             var cap = await CapAsync(context, workspace);
             var used = await new ActiveQrCapacityProbe(context)
-                .CountUsedAsync(workspace.LocationId);
+                .CountUsedAsync(workspace.RestaurantId);
             var toAdd = cap - freeSlots - used;
             Assert.True(toAdd >= 0, $"Seed already uses {used} of cap {cap}.");
 
@@ -149,7 +150,7 @@ namespace TummlyBackend.Tests.Helpers
             {
                 context.QrCodes.Add(new QrCode
                 {
-                    RestaurantLocationId = workspace.LocationId,
+                    RestaurantLocationId = fillLocationId ?? workspace.LocationId,
                     QrType = QrType.DigitalGuestLink,
                     Token = $"fill-{Guid.NewGuid():N}"[..32],
                     Status = QrCodeStatus.Active,
@@ -159,6 +160,32 @@ namespace TummlyBackend.Tests.Helpers
 
             await context.SaveChangesAsync();
             return cap;
+        }
+
+        /// <summary>
+        /// Adds a second Location (no codes) to the same Workspace. The result
+        /// has the same restaurant, owner and token; only the Location differs.
+        /// </summary>
+        public static async Task<ShopCapacityWorkspace> AddLocationAsync(
+            ApplicationDbContext context,
+            ShopCapacityWorkspace workspace,
+            string name = "Second Site"
+        )
+        {
+            var location = new RestaurantLocation
+            {
+                RestaurantId = workspace.RestaurantId,
+                LocationName = name,
+                Address = "2 High Street",
+                City = "London",
+                Postcode = "SE1 1TQ",
+                LocalContact = "Site Contact",
+                LocationPhone = "+442074071234",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+            return workspace with { LocationId = location.Id };
         }
 
         public static async Task<int> CapAsync(
@@ -172,11 +199,10 @@ namespace TummlyBackend.Tests.Helpers
             var capacity = new ActiveQrCapacityProbe(context).Capacity;
             var allowance = await capacity.GetAllowanceAsync(
                 account,
-                workspace.LocationId,
                 CancellationToken.None
             );
             Assert.NotNull(allowance);
-            return allowance!.PerLocationCap;
+            return allowance!.WorkspacePool;
         }
 
         /// <summary>
@@ -327,8 +353,11 @@ namespace TummlyBackend.Tests.Helpers
 
             public ActiveQrCapacity Capacity { get; }
 
-            public Task<int> CountUsedAsync(int locationId) =>
-                Capacity.CountUsedAsync(locationId, CancellationToken.None);
+            public Task<int> CountUsedAsync(int restaurantId) =>
+                Capacity.CountUsedForRestaurantAsync(
+                    restaurantId,
+                    CancellationToken.None
+                );
         }
     }
 }

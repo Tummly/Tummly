@@ -16,14 +16,17 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebook;
+        private readonly IActiveQrCapacity _activeQrCapacity;
 
         public PlanEntitlementsSnapshotService(
             ApplicationDbContext context,
-            IPricebookCatalog pricebook
+            IPricebookCatalog pricebook,
+            IActiveQrCapacity activeQrCapacity
         )
         {
             _context = context;
             _pricebook = pricebook;
+            _activeQrCapacity = activeQrCapacity;
         }
 
         public async Task<PlanEntitlementsSnapshotDto> GetAsync(
@@ -102,59 +105,11 @@ namespace TummlyBackend.Services
                 );
             var teamCurrent = activeMembers + pendingInvites;
 
-            PlanEntitlementLimitDto? qrAccountExtra = null;
-            if (
-                string.Equals(
-                    billingAccount.SubscriptionPlan,
-                    BillingSubscriptionPlans.Custom,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                var custom = CustomPlanConfig.TryParse(
-                    billingAccount.CustomPlanConfigJson
-                );
-                if (custom != null && custom.Quantities.QrPlacementsAccountExtra > 0)
-                {
-                    var perLocCap = Math.Max(0, custom.Quantities.QrPlacements);
-                    var locationIds = await _context.RestaurantLocations
-                        .AsNoTracking()
-                        .Where(row => row.RestaurantId == restaurantId)
-                        .Select(row => row.Id)
-                        .ToListAsync(cancellationToken);
-                    var activeByLocation = await _context.QrCodes
-                        .AsNoTracking()
-                        .Where(qr =>
-                            locationIds.Contains(qr.RestaurantLocationId)
-                            && qr.Status == QrCodeStatus.Active
-                        )
-                        .GroupBy(qr => qr.RestaurantLocationId)
-                        .Select(g => new { LocationId = g.Key, Count = g.Count() })
-                        .ToDictionaryAsync(
-                            row => row.LocationId,
-                            row => row.Count,
-                            cancellationToken
-                        );
-                    var overflow = 0;
-                    foreach (var locId in locationIds)
-                    {
-                        var active = activeByLocation.GetValueOrDefault(locId);
-                        overflow += Math.Max(0, active - perLocCap);
-                    }
-
-                    qrAccountExtra = Limit(
-                        custom.Quantities.QrPlacementsAccountExtra,
-                        overflow
-                    );
-                }
-            }
-
             return new PlanEntitlementsAccountSnapshotDto
             {
                 Locations = Limit(locationCap, locationCount),
                 TeamMembers = Limit(teamCap, teamCurrent),
                 ActiveOffers = Limit(plan.ActiveOffersAccount, activeOffers),
-                ActiveQrPlacementsAccountExtra = qrAccountExtra,
             };
         }
 
@@ -177,7 +132,7 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            if (!TryResolvePlan(restaurantId, out var plan, out _))
+            if (!TryResolvePlan(restaurantId, out var plan, out var billingAccount))
             {
                 return new PlanEntitlementsLocationSnapshotDto
                 {
@@ -187,14 +142,16 @@ namespace TummlyBackend.Services
                 };
             }
 
-            var activeQr = await _context.QrCodes
-                .AsNoTracking()
-                .CountAsync(
-                    row =>
-                        row.RestaurantLocationId == locationId
-                        && row.Status == QrCodeStatus.Active,
-                    cancellationToken
-                );
+            // Workspace pool and Workspace used (Commercial V4): the same numbers
+            // for every Location of the Workspace.
+            var qrAllowance = await _activeQrCapacity.GetAllowanceAsync(
+                billingAccount,
+                cancellationToken
+            );
+            var activeQr = await _activeQrCapacity.CountUsedForRestaurantAsync(
+                restaurantId,
+                cancellationToken
+            );
 
             // Standard private feedback form is always published per location.
             const int publishedGuestFormsCurrent = 1;
@@ -202,12 +159,11 @@ namespace TummlyBackend.Services
 
             return new PlanEntitlementsLocationSnapshotDto
             {
-                ActiveQrPlacements = Limit(
-                    plan!.ActiveQrPlacementsPerLocation,
-                    activeQr
-                ),
+                ActiveQrPlacements = qrAllowance == null
+                    ? Unavailable()
+                    : Limit(qrAllowance.WorkspacePool, activeQr),
                 PublishedGuestForms = Limit(
-                    plan.PublishedGuestFormsPerLocation,
+                    plan!.PublishedGuestFormsPerLocation,
                     publishedGuestFormsCurrent
                 ),
                 DraftGuestForms = Limit(

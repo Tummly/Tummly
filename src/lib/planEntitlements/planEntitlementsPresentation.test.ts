@@ -5,6 +5,7 @@ import {
 } from "vitest"
 
 import {
+  activeQrCapReachedMessage,
   formatEntitlementUsage,
   normalizePlanEntitlementLimit,
   teamMemberCapReachedMessage,
@@ -40,6 +41,19 @@ describe("planEntitlementsPresentation", () => {
       })
     ).toBe(
       "Your current plan’s user allowance has been reached (3 team users). Upgrade your plan to add more users."
+    )
+  })
+
+  it("words the active QR cap as a Workspace limit", () => {
+    expect(
+      activeQrCapReachedMessage({
+        cap: 25,
+        current: 25,
+        atCap: true,
+        available: true,
+      })
+    ).toBe(
+      "Your plan includes up to 25 active QR placements across your Workspace. Pause one to activate another."
     )
   })
 })

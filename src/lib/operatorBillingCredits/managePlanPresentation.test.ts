@@ -12,6 +12,8 @@ import {
   MANAGE_PLAN_CADENCE_ITEM_ACTIVE_CLASS,
   MANAGE_PLAN_CADENCE_ITEM_CLASS,
   MANAGE_PLAN_CADENCE_SHELL_CLASS,
+  MANAGE_PLAN_CATALOG,
+  MANAGE_PLAN_COMPARISON_ROWS,
   MANAGE_PLAN_FAQ_TRIGGER_CLASS,
   resolvePlanCardCta,
   resolvePlanChangeKind,
@@ -164,6 +166,40 @@ describe("buildManagePlanCardViewModels", () => {
 
     expect(cards[1]?.priceHeadline).toBe("£39 / month")
     expect(cards[1]?.priceSuffix).toBe("/ month")
+  })
+})
+
+describe("Active QR placements copy (Workspace pool)", () => {
+  const expected = {
+    Pilot: "Up to 5 active QR codes across your Workspace",
+    Starter: "Up to 10 active QR codes across your Workspace",
+    Growth: "Up to 25 active QR codes across your Workspace",
+    Group:
+      "Up to 50 active QR codes across your Workspace, plus 10 for each additional paid Location",
+  } as const
+
+  it("plan cards describe the QR limit as one Workspace pool", () => {
+    for (const [plan, value] of Object.entries(expected)) {
+      const row = MANAGE_PLAN_CATALOG[plan as keyof typeof expected].coreFeatures
+        .find((feature) => feature.label === "Active QR placements")
+      expect(row?.value).toBe(value)
+    }
+  })
+
+  it("comparison table describes the QR limit as one Workspace pool", () => {
+    const row = MANAGE_PLAN_COMPARISON_ROWS.find(
+      (item) => item.label === "Active QR placements"
+    )
+    expect(row?.values).toEqual(expected)
+  })
+
+  it("never says the QR limit is per Location", () => {
+    const row = MANAGE_PLAN_COMPARISON_ROWS.find(
+      (item) => item.label === "Active QR placements"
+    )
+    for (const value of Object.values(row?.values ?? {})) {
+      expect(value).not.toMatch(/per Location/i)
+    }
   })
 })
 

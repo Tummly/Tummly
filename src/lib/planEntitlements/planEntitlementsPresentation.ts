@@ -121,5 +121,5 @@ export function activeQrCapReachedMessage(
   if (!limit.available) {
     return "Plan limits are unavailable right now."
   }
-  return `Your plan includes up to ${limit.cap} active QR placements at this location. Pause one to activate another.`
+  return `Your plan includes up to ${limit.cap} active QR placements across your Workspace. Pause one to activate another.`
 }

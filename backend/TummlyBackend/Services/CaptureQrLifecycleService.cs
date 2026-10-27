@@ -748,10 +748,9 @@ namespace TummlyBackend.Services
                 restaurantId,
                 cancellationToken
             );
-            // The plan cap is account-wide, so no single location is passed.
+            // The pool is Workspace-wide (Commercial V4), so no Location is passed.
             var allowance = await _activeQrCapacity.GetAllowanceAsync(
                 billingAccount,
-                0,
                 cancellationToken
             );
             if (allowance == null)
@@ -759,7 +758,7 @@ namespace TummlyBackend.Services
                 return 0;
             }
 
-            var perLocationCap = allowance.PerLocationCap;
+            var workspacePool = allowance.WorkspacePool;
 
             var locations = await _context.RestaurantLocations
                 .Where(row =>
@@ -782,6 +781,12 @@ namespace TummlyBackend.Services
                 .ThenBy(qr => qr.Id)
                 .ToListAsync(cancellationToken);
 
+            // Count the Workspace once under the lock, then add each activation's
+            // cost. Held reservations at any Location are already in this count.
+            var used = await _activeQrCapacity.CountUsedForRestaurantAsync(
+                restaurantId,
+                cancellationToken
+            );
             var activated = 0;
             foreach (var qr in pausedCodes)
             {
@@ -796,24 +801,21 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
-                // Headroom is the spec 4.4.2 count, so held reservations are included.
+                // Headroom is Workspace-wide, so held reservations at any Location count.
                 var cost = await _activeQrCapacity.ActivationCostAsync(
                     qr.RestaurantLocationId,
                     qr.QrType,
                     cancellationToken
                 );
-                var used = await _activeQrCapacity.CountUsedAsync(
-                    qr.RestaurantLocationId,
-                    cancellationToken
-                );
-                if (used + cost > perLocationCap)
+                if (used + cost > workspacePool)
                 {
                     continue;
                 }
 
                 qr.Status = QrCodeStatus.Active;
+                used += cost;
                 activated++;
-                // Save each activation so the next count sees it.
+                // Save each activation so the next cost check sees it.
                 await _context.SaveChangesAsync(cancellationToken);
             }
 
@@ -882,7 +884,7 @@ namespace TummlyBackend.Services
             }
 
             return QrLifecycleResult.ActiveQrCapReached(
-                decision.PerLocationCap,
+                decision.WorkspacePool,
                 decision.Used
             );
         }

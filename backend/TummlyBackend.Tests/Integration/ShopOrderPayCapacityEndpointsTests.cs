@@ -79,6 +79,82 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Pay_NeedsNewQr_WhenOtherLocationFilledWorkspacePool_Returns409WithWorkspaceLimit()
+        {
+            // A1: the pool is Workspace-wide, so Location B filling it blocks a new placement at A.
+            var workspace = await SeedAsync(freeSlots: 1, GuestCards);
+            var other = await AddLocationAsync(workspace);
+            var cap = await CapAsync(workspace);
+            await FillAtAsync(workspace, other.LocationId, freeSlots: 0);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+
+            var pay = await _client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(workspace, orderId)
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, pay.StatusCode);
+            var body = await pay.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("qr_limit_reached", body.GetProperty("code").GetString());
+            Assert.Equal(cap, body.GetProperty("limit").GetInt32());
+        }
+
+        [Fact]
+        public async Task Pay_ReorderAtLocationA_WhenOtherLocationFilledWorkspacePool_UsesNoSlot()
+        {
+            // B8: a reorder reuses the Active code at A and needs no slot, even with the Workspace full.
+            // Seed with a free slot, then fill the pool at Location B so the fill is real.
+            var workspace = await SeedAsync(freeSlots: 2, TableTents);
+            var other = await AddLocationAsync(workspace);
+            await FillAtAsync(workspace, other.LocationId, freeSlots: 0);
+            using (var fullScope = _factory.Services.CreateScope())
+            {
+                var fullDb = fullScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var cap = await ShopCapacityTestSeed.CapAsync(fullDb, workspace);
+                var used = await fullDb.QrCodes.CountAsync(row =>
+                    row.Status == QrCodeStatus.Active
+                    && fullDb.RestaurantLocations.Any(location =>
+                        location.Id == row.RestaurantLocationId
+                        && location.RestaurantId == workspace.RestaurantId));
+                Assert.Equal(cap, used);
+            }
+
+            var orderId = await InsertOrderAsync(workspace, TableTents);
+
+            var pay = await _client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(workspace, orderId)
+            );
+
+            Assert.Equal(HttpStatusCode.OK, pay.StatusCode);
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Empty(await db.ShopQrSlotReservations
+                .Where(row => row.ShopOrderId == orderId)
+                .ToListAsync());
+        }
+
+        [Fact]
+        public async Task Pay_AtLocationB_CountsReservationHeldAtLocationA()
+        {
+            // B4: an Open reservation at A takes the last Workspace slot, so B is refused.
+            var workspace = await SeedAsync(freeSlots: 1, GuestCards);
+            var other = await AddLocationAsync(workspace);
+            var atA = await InsertOrderAsync(workspace, GuestCards);
+            var atB = await InsertOrderAsync(other, TableTalker);
+
+            var payA = await _client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(workspace, atA)
+            );
+            var payB = await _client.SendAsync(
+                ShopCapacityTestSeed.PayRequest(other, atB)
+            );
+
+            Assert.Equal(HttpStatusCode.OK, payA.StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, payB.StatusCode);
+            var body = await payB.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("qr_limit_reached", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
         public async Task Pay_MixedReuseAndNew_AtLimitMinusOne_WritesExactlyOneReservation()
         {
             var workspace = await SeedAsync(
@@ -356,6 +432,33 @@ namespace TummlyBackend.Tests.Integration
                 freeSlots
             );
             return workspace;
+        }
+
+        private async Task<ShopCapacityWorkspace> AddLocationAsync(
+            ShopCapacityWorkspace workspace
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var other = await ShopCapacityTestSeed.AddLocationAsync(context, workspace);
+            await ShopCapacityTestSeed.MakeOrderableAsync(context, other, TableTalker);
+            return other;
+        }
+
+        private async Task FillAtAsync(
+            ShopCapacityWorkspace workspace,
+            int fillLocationId,
+            int freeSlots
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            await ShopCapacityTestSeed.LeaveFreeSlotsAsync(
+                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
+                workspace,
+                freeSlots,
+                fillLocationId
+            );
         }
 
         private async Task<int> CapAsync(ShopCapacityWorkspace workspace)

@@ -722,7 +722,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task Resume_CustomPlan_UsesAccountQrPoolBeyondPerLocationCap()
+        public async Task Resume_CustomPlan_UsesWorkspacePoolIncludingAccountExtra()
         {
             var restaurant = await _context.Restaurants.SingleAsync();
             var billing = await _context.BillingAccounts.SingleAsync(b =>
@@ -773,7 +773,7 @@ namespace TummlyBackend.Tests.Services
                 _restaurantId
             );
 
-            // Pilot cap is 5 Active codes per Location.
+            // Pilot pool is 5 Active codes across the Workspace.
             Assert.Equal(5, activated);
             Assert.Equal(
                 5,
@@ -846,9 +846,184 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Resume_AtLocationB_WhenLocationAFilledWorkspacePool_Denied()
+        {
+            // A1: Pilot pool is 5 across the Workspace; Location B has none of its own.
+            for (var i = 1; i <= 5; i++)
+            {
+                await SeedDigitalAsync($"Pool link {i}", QrCodeStatus.Active);
+            }
+
+            var locationB = await AddLocationAsync("Location B");
+            var paused = await SeedQrAtAsync(
+                locationB.Id,
+                QrType.CounterCard,
+                QrCodeStatus.Paused
+            );
+
+            var result = await _service.ResumeAsync(
+                new QrCodeLifecycleCommand
+                {
+                    UserId = _userId,
+                    LocationId = locationB.Id,
+                    QrCodeId = paused.Id,
+                }
+            );
+
+            Assert.Equal(QrLifecycleResultKind.Conflict, result.Kind);
+            Assert.Equal("active_qr_cap_reached", result.Code);
+            Assert.Equal(5, result.Cap);
+            Assert.Equal(5, result.Current);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(paused.Id)).Status);
+        }
+
+        [Fact]
+        public async Task Create_ActiveDigitalLinkAtLocationB_WhenLocationAFilledWorkspacePool_Denied()
+        {
+            for (var i = 1; i <= 5; i++)
+            {
+                await SeedDigitalAsync($"Pool link {i}", QrCodeStatus.Active);
+            }
+
+            var locationB = await AddLocationAsync("Location B");
+
+            var result = await _service.CreateDigitalGuestLinkAsync(
+                new CreateDigitalGuestLinkCommand
+                {
+                    UserId = _userId,
+                    LocationId = locationB.Id,
+                    LinkName = "Location B link",
+                    Channel = "Email",
+                    Status = "Active",
+                }
+            );
+
+            Assert.Equal(QrLifecycleResultKind.Conflict, result.Kind);
+            Assert.Equal("active_qr_cap_reached", result.Code);
+            Assert.Equal(5, result.Cap);
+        }
+
+        [Fact]
+        public async Task ActivateLocationCapture_AtLocationB_WhenLocationAFilledWorkspacePool_Denied()
+        {
+            for (var i = 1; i <= 4; i++)
+            {
+                await SeedDigitalAsync($"Pool link {i}", QrCodeStatus.Active);
+            }
+
+            var locationB = await AddLocationAsync("Location B");
+            var one = await SeedQrAtAsync(locationB.Id, QrType.CounterCard, QrCodeStatus.Active);
+            var two = await SeedQrAtAsync(locationB.Id, QrType.TableTent, QrCodeStatus.Active);
+            var command = new LocationCaptureLifecycleCommand
+            {
+                UserId = _userId,
+                LocationId = locationB.Id,
+            };
+            Assert.Equal(
+                QrLifecycleResultKind.Ok,
+                (await _service.PauseLocationCaptureAsync(command)).Kind
+            );
+            // Location A refills the freed slots, so B's two codes no longer fit.
+            await SeedDigitalAsync("Pool link 5", QrCodeStatus.Active);
+            await SeedDigitalAsync("Pool link 6", QrCodeStatus.Paused);
+
+            var result = await _service.ActivateLocationCaptureAsync(command);
+
+            Assert.Equal(QrLifecycleResultKind.Conflict, result.Kind);
+            Assert.Equal("active_qr_cap_reached", result.Code);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(one.Id)).Status);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(two.Id)).Status);
+        }
+
+        [Fact]
+        public async Task Resume_Growth_20_3_2_Valid_26thRefusedAtAnyLocation()
+        {
+            // B2: Growth pool is 25 across the Workspace.
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Growth, BillingStatuses.Active);
+            var locationB = await AddLocationAsync("Location B");
+            var locationC = await AddLocationAsync("Location C");
+            for (var i = 1; i <= 20; i++)
+            {
+                await SeedDigitalAsync($"A link {i}", QrCodeStatus.Active);
+            }
+
+            for (var i = 0; i < 3; i++)
+            {
+                await SeedQrAtAsync(locationB.Id, QrType.DigitalGuestLink, QrCodeStatus.Active);
+            }
+
+            for (var i = 0; i < 2; i++)
+            {
+                await SeedQrAtAsync(locationC.Id, QrType.DigitalGuestLink, QrCodeStatus.Active);
+            }
+
+            foreach (var locationId in new[] { _locationId, locationB.Id, locationC.Id })
+            {
+                var paused = await SeedQrAtAsync(
+                    locationId,
+                    QrType.CounterCard,
+                    QrCodeStatus.Paused
+                );
+
+                var result = await _service.ResumeAsync(
+                    new QrCodeLifecycleCommand
+                    {
+                        UserId = _userId,
+                        LocationId = locationId,
+                        QrCodeId = paused.Id,
+                    }
+                );
+
+                Assert.Equal(QrLifecycleResultKind.Conflict, result.Kind);
+                Assert.Equal(25, result.Cap);
+                Assert.Equal(25, result.Current);
+            }
+        }
+
+        [Fact]
+        public async Task ActivatePlanPausedCodes_FillsWorkspaceHeadroomAcrossLocations()
+        {
+            // Pilot pool 5: Location A has 3 Active; Location B has 4 plan-paused codes.
+            for (var i = 1; i <= 3; i++)
+            {
+                await SeedDigitalAsync($"Live link {i}", QrCodeStatus.Active);
+            }
+
+            var locationB = await AddLocationAsync("Location B");
+            for (var i = 0; i < 4; i++)
+            {
+                await SeedQrAtAsync(locationB.Id, QrType.DigitalGuestLink, QrCodeStatus.Paused);
+            }
+
+            var activated = await _service.ActivatePlanPausedCodesAsync(_restaurantId);
+
+            Assert.Equal(2, activated);
+            Assert.Equal(
+                5,
+                await _context.QrCodes.CountAsync(qr => qr.Status == QrCodeStatus.Active)
+            );
+        }
+
+        [Fact]
+        public async Task Restore_ArchivedCode_ComesBackPaused_UsesNoSlot()
+        {
+            for (var i = 1; i <= 5; i++)
+            {
+                await SeedDigitalAsync($"Pool link {i}", QrCodeStatus.Active);
+            }
+
+            var archived = await SeedQrAsync(QrType.CounterCard, QrCodeStatus.Archived);
+
+            var result = await _service.RestoreAsync(CodeCommand(archived.Id));
+
+            Assert.Equal(QrLifecycleResultKind.Ok, result.Kind);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(archived.Id)).Status);
+        }
+
+        [Fact]
         public async Task ActivatePlanPausedCodes_HeldReservationAtCap_DoesNotReactivateBeyondHeadroom()
         {
-            // Pilot cap is 5 Active codes per Location. Four Active codes plus
+            // Pilot pool is 5 Active codes across the Workspace. Four Active codes plus
             // one held reservation fill the cap, so no Paused code may reactivate.
             for (var i = 1; i <= 4; i++)
             {
@@ -863,6 +1038,27 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(0, activated);
             Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(paused.Id)).Status);
+        }
+
+        [Fact]
+        public async Task ActivatePlanPausedCodes_TakeoverThenSameType_RunningCountBlocksSecond()
+        {
+            // Pilot pool 5: four Active codes plus a held GuestCard slot fill the pool.
+            // The first Paused GuestCard takes over the held slot (cost 0); the second
+            // is a new slot (cost 1) and must stay Paused.
+            for (var i = 1; i <= 4; i++)
+            {
+                await SeedDigitalAsync($"Running link {i}", QrCodeStatus.Active);
+            }
+            await SeedHeldReservationAsync(_locationId, QrType.GuestCard);
+            var first = await SeedQrAsync(QrType.GuestCard, QrCodeStatus.Paused);
+            var second = await SeedQrAsync(QrType.GuestCard, QrCodeStatus.Paused);
+
+            var activated = await _service.ActivatePlanPausedCodesAsync(_restaurantId);
+
+            Assert.Equal(1, activated);
+            Assert.Equal(QrCodeStatus.Active, (await ReloadAsync(first.Id)).Status);
+            Assert.Equal(QrCodeStatus.Paused, (await ReloadAsync(second.Id)).Status);
         }
 
         [Fact]
@@ -1168,6 +1364,40 @@ namespace TummlyBackend.Tests.Services
                 ArchivedAt = status == QrCodeStatus.Archived
                     ? DateTime.UtcNow
                     : null,
+            };
+            _context.QrCodes.Add(qr);
+            await _context.SaveChangesAsync();
+            return qr;
+        }
+
+        private async Task<RestaurantLocation> AddLocationAsync(string name)
+        {
+            var location = new RestaurantLocation
+            {
+                RestaurantId = _restaurantId,
+                LocationName = name,
+                Address = "3 High Street",
+                CreatedAt = DateTime.UtcNow,
+                CaptureLocationStatus = CaptureLocationStatus.Active,
+            };
+            _context.RestaurantLocations.Add(location);
+            await _context.SaveChangesAsync();
+            return location;
+        }
+
+        private async Task<QrCode> SeedQrAtAsync(
+            int locationId,
+            QrType qrType,
+            QrCodeStatus status
+        )
+        {
+            var qr = new QrCode
+            {
+                RestaurantLocationId = locationId,
+                QrType = qrType,
+                Token = Guid.NewGuid().ToString("N")[..32],
+                Status = status,
+                CreatedAt = DateTime.UtcNow,
             };
             _context.QrCodes.Add(qr);
             await _context.SaveChangesAsync();

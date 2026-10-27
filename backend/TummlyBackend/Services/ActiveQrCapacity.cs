@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Billing.CustomPlan;
+using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -8,9 +9,8 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Shared active-QR capacity rule (spec 4.4.2). Capture and Shop checkout
-    /// use this one service, so both count slots the same way and lock the same
-    /// <c>BillingAccounts</c> row.
+    /// Shared Workspace-wide active-QR capacity (G1 / V4). Capture and Shop
+    /// checkout use this one service and lock the same <c>BillingAccounts</c> row.
     /// </summary>
     public class ActiveQrCapacity : IActiveQrCapacity
     {
@@ -46,24 +46,38 @@ namespace TummlyBackend.Services
             );
         }
 
-        public Task<ActiveQrAllowance?> GetAllowanceAsync(
+        public async Task<ActiveQrAllowance?> GetAllowanceAsync(
             BillingAccount? account,
-            int locationId,
             CancellationToken ct
         )
         {
-            // The plan cap is account-wide; locationId does not change it.
-            return Task.FromResult(ResolveAllowance(account));
+            try
+            {
+                return await ResolveAllowanceAsync(account, ct);
+            }
+            catch (OverflowException)
+            {
+                // A pool too large for int is a bad plan row, not a 500: fail closed.
+                return null;
+            }
         }
 
-        public async Task<int> CountUsedAsync(int locationId, CancellationToken ct)
+        public async Task<int> CountUsedForRestaurantAsync(
+            int restaurantId,
+            CancellationToken ct
+        )
         {
-            var usedByLocation = await CountUsedByLocationAsync(
-                new List<int> { locationId },
-                ct
-            );
+            var locationIds = await _context.RestaurantLocations
+                .Where(row => row.RestaurantId == restaurantId)
+                .Select(row => row.Id)
+                .ToListAsync(ct);
+            if (locationIds.Count == 0)
+            {
+                return 0;
+            }
 
-            return usedByLocation.GetValueOrDefault(locationId);
+            var usedByLocation = await CountUsedByLocationAsync(locationIds, ct);
+            return usedByLocation.Values.Sum();
         }
 
         public async Task<int> ActivationCostAsync(
@@ -109,25 +123,25 @@ namespace TummlyBackend.Services
                 return new ActiveQrCapacityDecision(
                     EntitlementsAvailable: true,
                     Fits: true,
-                    PerLocationCap: 0,
+                    WorkspacePool: 0,
                     Used: 0
                 );
             }
 
             var billingAccount = await LockBillingAccountAsync(restaurantId, ct);
-            var allowance = await GetAllowanceAsync(billingAccount, locationId, ct);
+            var allowance = await GetAllowanceAsync(billingAccount, ct);
             if (allowance == null)
             {
                 return new ActiveQrCapacityDecision(
                     EntitlementsAvailable: false,
                     Fits: false,
-                    PerLocationCap: 0,
+                    WorkspacePool: 0,
                     Used: 0
                 );
             }
 
-            var perLocCap = allowance.PerLocationCap;
-            var used = await CountUsedAsync(locationId, ct);
+            var pool = allowance.WorkspacePool;
+            var used = await CountUsedForRestaurantAsync(restaurantId, ct);
 
             // Activating a type with a held slot takes over that slot, so it leaves the count.
             var takenOverHeld = activatingType is { } type
@@ -135,43 +149,13 @@ namespace TummlyBackend.Services
                 : 0;
             var usedBefore = used - takenOverHeld;
 
-            if (usedBefore + increment <= perLocCap)
-            {
-                return new ActiveQrCapacityDecision(true, true, perLocCap, used);
-            }
-
-            if (allowance.AccountExtra <= 0)
-            {
-                return new ActiveQrCapacityDecision(true, false, perLocCap, used);
-            }
-
-            // Account-wide pool: Σ max(0, used_l − perLocCap) may use accountExtra.
-            var locationIds = await _context.RestaurantLocations
-                .Where(row => row.RestaurantId == restaurantId)
-                .Select(row => row.Id)
-                .ToListAsync(ct);
-
-            var usedByLocation = await CountUsedByLocationAsync(locationIds, ct);
-
-            var totalOverflow = 0;
-            foreach (var locId in locationIds)
-            {
-                var count = usedByLocation.GetValueOrDefault(locId);
-                if (locId == locationId)
-                {
-                    count = usedBefore + increment;
-                }
-
-                totalOverflow += Math.Max(0, count - perLocCap);
-            }
-
-            var fits = totalOverflow <= allowance.AccountExtra;
-            return new ActiveQrCapacityDecision(true, fits, perLocCap, used);
+            var fits = usedBefore + increment <= pool;
+            return new ActiveQrCapacityDecision(true, fits, pool, used);
         }
 
         /// <summary>
-        /// Spec 4.4.2 per location: Active codes plus each distinct held
-        /// reservation QR type that has no Active code of that type.
+        /// Per Location: Active codes plus each distinct held reservation QR type
+        /// that has no Active code of that type.
         /// </summary>
         private async Task<Dictionary<int, int>> CountUsedByLocationAsync(
             List<int> locationIds,
@@ -220,7 +204,19 @@ namespace TummlyBackend.Services
             return used;
         }
 
-        private ActiveQrAllowance? ResolveAllowance(BillingAccount? billingAccount)
+        /// <summary>
+        /// Commercial V4 (25 Oct 2026) Workspace pool. Standard plans: pricebook
+        /// base allowance, plus 10 per paid extra Group Location on Group; no
+        /// purchase path for single slots yet, so purchased extras are 0. Custom
+        /// v2: <c>Quantities.QrPlacements</c> + (Group base only) 10 x Locations
+        /// beyond the base plan's included Locations + <c>QrPlacementsAccountExtra</c>.
+        /// Custom v1 (no base plan): <c>QrPlacements</c> + <c>QrPlacementsAccountExtra</c>.
+        /// Returns null when the plan cannot be resolved (fail closed).
+        /// </summary>
+        private async Task<ActiveQrAllowance?> ResolveAllowanceAsync(
+            BillingAccount? billingAccount,
+            CancellationToken ct
+        )
         {
             if (
                 billingAccount == null
@@ -235,18 +231,7 @@ namespace TummlyBackend.Services
             var key = billingAccount.SubscriptionPlan.Trim().ToLowerInvariant();
             if (key == "custom")
             {
-                var custom = CustomPlanConfig.TryParse(
-                    billingAccount.CustomPlanConfigJson
-                );
-                if (custom == null)
-                {
-                    return null;
-                }
-
-                return new ActiveQrAllowance(
-                    Math.Max(0, custom.Quantities.QrPlacements),
-                    Math.Max(0, custom.Quantities.QrPlacementsAccountExtra)
-                );
+                return await ResolveCustomAllowanceAsync(billingAccount, ct);
             }
 
             PricebookSnapshot book;
@@ -266,7 +251,114 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            return new ActiveQrAllowance(plan.ActiveQrPlacementsPerLocation, 0);
+            var additionalPaidLocations = key == "group"
+                ? Math.Max(0, billingAccount.PaidExtraLocationCount)
+                : 0;
+            return new ActiveQrAllowance(
+                WorkspaceQrPool.Compute(
+                    plan.ActiveQrPlacementsPerLocation,
+                    additionalPaidLocations,
+                    purchasedExtras: 0
+                )
+            );
+        }
+
+        private async Task<ActiveQrAllowance?> ResolveCustomAllowanceAsync(
+            BillingAccount billingAccount,
+            CancellationToken ct
+        )
+        {
+            var custom = CustomPlanConfig.TryParse(
+                billingAccount.CustomPlanConfigJson
+            );
+            if (custom == null)
+            {
+                return null;
+            }
+
+            var quantities = custom.Quantities;
+            var additionalPaidLocations = 0;
+            // Only a Group base earns +10 per additional paid Location (ordinals
+            // 6-500). Starter and Growth bases add nothing for Locations.
+            if (
+                string.Equals(
+                    custom.BasePlan?.Trim(),
+                    "group",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                var includedLocations = await ResolveGroupIncludedLocationsAsync(
+                    custom,
+                    billingAccount,
+                    ct
+                );
+                if (includedLocations == null)
+                {
+                    return null;
+                }
+
+                var configured = Math.Min(
+                    Math.Max(0, quantities.Locations),
+                    CustomPlanConfig.MaxLocations
+                );
+                additionalPaidLocations = Math.Max(
+                    0,
+                    configured - Math.Max(0, includedLocations.Value)
+                );
+            }
+
+            return new ActiveQrAllowance(
+                WorkspaceQrPool.Compute(
+                    quantities.QrPlacements,
+                    additionalPaidLocations,
+                    quantities.QrPlacementsAccountExtra
+                )
+            );
+        }
+
+        /// <summary>
+        /// Locations the Group base includes, read from the catalog version the
+        /// customer's quote was priced on (<c>CatalogPublicId</c>). Falls back to
+        /// the contracted pricebook only when that catalog version has no Group
+        /// row. Null when neither source can answer (fail closed).
+        /// </summary>
+        private async Task<int?> ResolveGroupIncludedLocationsAsync(
+            CustomPlanConfig custom,
+            BillingAccount billingAccount,
+            CancellationToken ct
+        )
+        {
+            var planKey = custom.BasePlan!.Trim().ToLowerInvariant();
+            var catalogPublicId = custom.CatalogPublicId?.Trim();
+            if (!string.IsNullOrEmpty(catalogPublicId))
+            {
+                var fromCatalog = await _context.CommercialCatalogVersions
+                    .AsNoTracking()
+                    .Where(version => version.PublicId == catalogPublicId)
+                    .SelectMany(version => version.Plans)
+                    .Where(plan => plan.PlanKey == planKey)
+                    .Select(plan => (int?)plan.IncludedLocations)
+                    .FirstOrDefaultAsync(ct);
+                if (fromCatalog != null)
+                {
+                    return fromCatalog;
+                }
+            }
+
+            try
+            {
+                var book = _pricebookCatalog.GetRequired(
+                    billingAccount.ContractedPricebookId
+                );
+                return book.Plans.TryGetValue(planKey, out var basePlan)
+                    ? basePlan.IncludedLocations
+                    : null;
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
+            }
         }
     }
 }

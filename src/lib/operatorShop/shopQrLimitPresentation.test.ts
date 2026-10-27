@@ -10,7 +10,7 @@ import {
 describe("buildShopQrLimitBody", () => {
   it("uses the limit verbatim in the exact copy", () => {
     expect(buildShopQrLimitBody(3)).toBe(
-      "Your plan allows 3 active QR codes at this location. You can use an existing active QR code or upgrade your plan to add another."
+      "Your plan allows 3 active QR codes on this Workspace. You can use an existing active QR code or upgrade your plan to add another."
     )
   })
 })

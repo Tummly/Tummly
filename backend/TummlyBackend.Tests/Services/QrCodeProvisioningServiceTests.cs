@@ -41,7 +41,9 @@ namespace TummlyBackend.Tests.Services
                 configuration,
                 new NoOpBillingAccountLifecycle()
             );
-            _service = new QrCodeProvisioningService(_context, smartGuestLink);
+            _service = new QrCodeProvisioningService(_context, smartGuestLink,
+                TestActiveQrCapacity.For(_context)
+            );
         }
 
         [Fact]
@@ -203,6 +205,7 @@ namespace TummlyBackend.Tests.Services
                 BillingSubscriptionPlans.Custom,
                 BillingStatuses.Active
             );
+            await SetCustomPoolAsync(location.RestaurantId, qrPlacements: 5);
 
             var qrCodes = await _service.MintDefaultQrCodesAsync(location);
 
@@ -224,9 +227,177 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(QrCodeStatus.Active, minted.Status);
         }
 
+        [Fact]
+        public async Task MintDefault_FullWorkspace_MintsStarterQrPaused()
+        {
+            // B5: Pilot pool is 5 and another Location already uses all five.
+            var first = await CreateLocationWithPlanAsync(
+                BillingSubscriptionPlans.Pilot,
+                BillingStatuses.Pilot
+            );
+            await AddActiveCodesAsync(first, 5);
+            var second = await AddLocationAsync(first.RestaurantId, "Second");
+
+            var qrCodes = await _service.MintDefaultQrCodesAsync(second);
+
+            var minted = Assert.Single(qrCodes);
+            Assert.Equal(QrCodeStatus.Paused, minted.Status);
+        }
+
+        [Fact]
+        public async Task MintDefault_Headroom_MintsAtMostHeadroomActive()
+        {
+            await EnableSecondStarterTypeAsync();
+            var first = await CreateLocationWithPlanAsync(
+                BillingSubscriptionPlans.Pilot,
+                BillingStatuses.Pilot
+            );
+            await AddActiveCodesAsync(first, 4);
+            var second = await AddLocationAsync(first.RestaurantId, "Second");
+
+            var qrCodes = await _service.MintDefaultQrCodesAsync(second);
+
+            Assert.Equal(2, qrCodes.Count);
+            Assert.Equal(1, qrCodes.Count(q => q.Status == QrCodeStatus.Active));
+            Assert.Equal(1, qrCodes.Count(q => q.Status == QrCodeStatus.Paused));
+        }
+
+        [Fact]
+        public async Task MintDefault_HeldReservationAtOtherLocation_ReducesHeadroom()
+        {
+            var first = await CreateLocationWithPlanAsync(
+                BillingSubscriptionPlans.Pilot,
+                BillingStatuses.Pilot
+            );
+            await AddActiveCodesAsync(first, 4);
+            var now = DateTime.UtcNow;
+            _context.ShopQrSlotReservations.Add(new ShopQrSlotReservation
+            {
+                Id = Guid.NewGuid(),
+                ShopOrderId = Guid.NewGuid(),
+                RestaurantLocationId = first.Id,
+                QrType = QrType.GuestCard,
+                Status = ShopQrSlotReservationStatuses.Open,
+                ReconcileAfterUtc = now.AddMinutes(30),
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now,
+            });
+            await _context.SaveChangesAsync();
+            var second = await AddLocationAsync(first.RestaurantId, "Second");
+
+            var qrCodes = await _service.MintDefaultQrCodesAsync(second);
+
+            Assert.Equal(QrCodeStatus.Paused, Assert.Single(qrCodes).Status);
+        }
+
+        [Fact]
+        public async Task MintDefault_TwoUnsavedLocationsInOneBatch_ShareTheHeadroom()
+        {
+            // Signup mints for several Locations before one save: headroom is spent once.
+            var first = await CreateLocationWithPlanAsync(
+                BillingSubscriptionPlans.Pilot,
+                BillingStatuses.Pilot
+            );
+            await AddActiveCodesAsync(first, 4);
+            var second = await AddLocationAsync(first.RestaurantId, "Second");
+            var third = await AddLocationAsync(first.RestaurantId, "Third");
+
+            var fromSecond = await _service.MintDefaultQrCodesAsync(second);
+            var fromThird = await _service.MintDefaultQrCodesAsync(third);
+
+            Assert.Equal(QrCodeStatus.Active, Assert.Single(fromSecond).Status);
+            Assert.Equal(QrCodeStatus.Paused, Assert.Single(fromThird).Status);
+        }
+
+        [Fact]
+        public async Task MintDefault_PlanWithUnresolvablePool_MintsPaused()
+        {
+            var location = await CreateLocationWithPlanAsync(
+                BillingSubscriptionPlans.Starter,
+                BillingStatuses.Active
+            );
+            var account = await _context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == location.RestaurantId);
+            account.ContractedPricebookId = "NO-SUCH-PRICEBOOK";
+            await _context.SaveChangesAsync();
+
+            var qrCodes = await _service.MintDefaultQrCodesAsync(location);
+
+            Assert.Equal(QrCodeStatus.Paused, Assert.Single(qrCodes).Status);
+        }
+
         public void Dispose()
         {
             _context.Dispose();
+        }
+
+        private async Task EnableSecondStarterTypeAsync()
+        {
+            var tentRecipe = await _context.PlacementRecipes.SingleAsync(row =>
+                row.Slug == "table-tent"
+            );
+            tentRecipe.IncludeInComplimentaryStarter = true;
+            foreach (
+                var tentSku in await _context.ShopMaterialSkus
+                    .Where(row => row.PlacementRecipeId == tentRecipe.Id)
+                    .ToListAsync()
+            )
+            {
+                tentSku.AvailableInShop = true;
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task SetCustomPoolAsync(int restaurantId, int qrPlacements)
+        {
+            var account = await _context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == restaurantId);
+            account.CustomPlanConfigJson = new TummlyBackend.Billing.CustomPlan.CustomPlanConfig
+            {
+                Version = 1,
+                Cadence = "monthly",
+                Quantities = new TummlyBackend.Billing.CustomPlan.CustomPlanQuantities
+                {
+                    Locations = 1,
+                    QrPlacements = qrPlacements,
+                },
+            }.ToJson();
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task AddActiveCodesAsync(RestaurantLocation location, int count)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                _context.QrCodes.Add(new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.DigitalGuestLink,
+                    Token = Guid.NewGuid().ToString("N"),
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                });
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task<RestaurantLocation> AddLocationAsync(
+            int restaurantId,
+            string name
+        )
+        {
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurantId,
+                LocationName = name,
+                Address = "2 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.RestaurantLocations.Add(location);
+            await _context.SaveChangesAsync();
+            return location;
         }
 
         private async Task<RestaurantLocation> CreateLocationWithPlanAsync(

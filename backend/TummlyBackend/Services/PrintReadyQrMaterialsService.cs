@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.PrintReadyQrMaterials;
@@ -29,6 +30,7 @@ namespace TummlyBackend.Services
         private readonly IQrCodeProvisioningService _qrCodeProvisioning;
         private readonly IPrintReadyQrMaterialsWork _work;
         private readonly IAdminAuditService _audit;
+        private readonly IActiveQrCapacity _activeQrCapacity;
         private readonly ILogger<PrintReadyQrMaterialsService> _logger;
 
         public PrintReadyQrMaterialsService(
@@ -41,6 +43,7 @@ namespace TummlyBackend.Services
             IQrCodeProvisioningService qrCodeProvisioning,
             IPrintReadyQrMaterialsWork work,
             IAdminAuditService audit,
+            IActiveQrCapacity activeQrCapacity,
             ILogger<PrintReadyQrMaterialsService> logger
         )
         {
@@ -53,6 +56,7 @@ namespace TummlyBackend.Services
             _qrCodeProvisioning = qrCodeProvisioning;
             _work = work;
             _audit = audit;
+            _activeQrCapacity = activeQrCapacity;
             _logger = logger;
         }
 
@@ -75,8 +79,27 @@ namespace TummlyBackend.Services
 
             // Mint missing Capture placements for the current starter-kit set
             // before print-ready ensure (idempotent).
-            await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
-            await _context.SaveChangesAsync(cancellationToken);
+            // The mint counts the Workspace pool, so it runs under the
+            // billing-row lock with the save.
+            await using (
+                var mintTransaction =
+                    await QrCapacityTransaction.BeginIfNeededAsync(
+                        _context,
+                        cancellationToken
+                    )
+            )
+            {
+                await _activeQrCapacity.LockBillingAccountAsync(
+                    location.RestaurantId,
+                    cancellationToken
+                );
+                await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
+                await _context.SaveChangesAsync(cancellationToken);
+                if (mintTransaction != null)
+                {
+                    await mintTransaction.CommitAsync(cancellationToken);
+                }
+            }
 
             var ensureTypes = (
                 await StarterQrMaterialTypes.LoadAsync(

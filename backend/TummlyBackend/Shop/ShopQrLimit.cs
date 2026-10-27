@@ -8,7 +8,7 @@ namespace TummlyBackend.Shop
         public const string ErrorCode = "qr_limit_reached";
 
         public const string Message =
-            "This order needs a new QR code and your plan's active QR code limit is reached.";
+            "This order needs a new QR code and your Workspace's active QR code limit is reached.";
 
         public const string EntitlementsUnavailableCode =
             "plan_entitlements_unavailable";

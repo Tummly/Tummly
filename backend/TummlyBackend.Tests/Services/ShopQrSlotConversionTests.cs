@@ -176,6 +176,36 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Reservation_AtLocationA_CountsAtLocationB_AndConversionKeepsOneCount()
+        {
+            // B4: the held slot at A blocks Capture at B; paying converts it, count stays one.
+            var workspace = await SeedAsync(freeSlots: 1);
+            var locationB = await AddLocationAsync(workspace);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            var revolutOrderId = await PayAsync(workspace, orderId);
+            var pool = await PoolAsync(workspace);
+            Assert.Equal(pool, await UsedAsync(workspace));
+            Assert.NotEqual(
+                QrLifecycleResultKind.Ok,
+                (await CaptureCreateAsync(locationB)).Kind
+            );
+
+            await CompleteViaApplierAsync(revolutOrderId);
+
+            Assert.Equal(pool, await UsedAsync(workspace));
+            Assert.NotEqual(
+                QrLifecycleResultKind.Ok,
+                (await CaptureCreateAsync(locationB)).Kind
+            );
+            await using var db = OpenDb();
+            Assert.Equal(
+                ShopQrSlotReservationStatuses.Converted,
+                (await db.Context.ShopQrSlotReservations
+                    .SingleAsync(row => row.ShopOrderId == orderId)).Status
+            );
+        }
+
+        [Fact]
         public async Task SharedKey_FirstConverts_SecondLaterConvertsToSameCode()
         {
             var workspace = await SeedAsync(freeSlots: 1);
@@ -470,6 +500,37 @@ namespace TummlyBackend.Tests.Services
                 freeSlots
             );
             return workspace;
+        }
+
+        private async Task<ShopCapacityWorkspace> AddLocationAsync(
+            ShopCapacityWorkspace workspace
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            return await ShopCapacityTestSeed.AddLocationAsync(
+                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
+                workspace
+            );
+        }
+
+        private async Task<int> PoolAsync(ShopCapacityWorkspace workspace)
+        {
+            using var scope = _factory.Services.CreateScope();
+            return await ShopCapacityTestSeed.CapAsync(
+                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
+                workspace
+            );
+        }
+
+        private async Task<int> UsedAsync(ShopCapacityWorkspace workspace)
+        {
+            using var scope = _factory.Services.CreateScope();
+            return await scope.ServiceProvider
+                .GetRequiredService<IActiveQrCapacity>()
+                .CountUsedForRestaurantAsync(
+                    workspace.RestaurantId,
+                    CancellationToken.None
+                );
         }
 
         private async Task<Guid> InsertOrderAsync(

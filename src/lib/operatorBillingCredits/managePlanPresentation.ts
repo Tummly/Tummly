@@ -114,7 +114,10 @@ export const MANAGE_PLAN_CATALOG: Record<ManagePlanId, PlanCatalogEntry> = {
       { label: "Locations", value: "1" },
       { label: "Team users", value: "2" },
       { label: "Guest Form", value: "1 Published + 1 Draft" },
-      { label: "Active QR placements", value: "Up to 5" },
+      {
+        label: "Active QR placements",
+        value: "Up to 5 active QR codes across your Workspace",
+      },
       { label: "Private Feedback", value: INCLUDED },
       { label: "Guest list & permissions", value: INCLUDED },
       { label: "Campaigns", value: INCLUDED },
@@ -144,7 +147,10 @@ export const MANAGE_PLAN_CATALOG: Record<ManagePlanId, PlanCatalogEntry> = {
       { label: "Locations", value: "1" },
       { label: "Team users", value: "3" },
       { label: "Guest Form", value: "1 Published + 1 Draft" },
-      { label: "Active QR placements", value: "Up to 10" },
+      {
+        label: "Active QR placements",
+        value: "Up to 10 active QR codes across your Workspace",
+      },
       { label: "Private Feedback & recovery", value: INCLUDED },
       { label: "Guest list & permissions", value: INCLUDED },
       { label: "Campaigns", value: INCLUDED },
@@ -176,7 +182,10 @@ export const MANAGE_PLAN_CATALOG: Record<ManagePlanId, PlanCatalogEntry> = {
       { label: "Locations", value: "Up to 3" },
       { label: "Team users", value: "10" },
       { label: "Guest Forms", value: "1 Published + 1 Draft per Location" },
-      { label: "Active QR placements", value: "Up to 25 per Location" },
+      {
+        label: "Active QR placements",
+        value: "Up to 25 active QR codes across your Workspace",
+      },
       { label: "Private Feedback & recovery", value: INCLUDED },
       { label: "Guest list & permissions", value: INCLUDED },
       { label: "Campaigns", value: INCLUDED },
@@ -208,7 +217,11 @@ export const MANAGE_PLAN_CATALOG: Record<ManagePlanId, PlanCatalogEntry> = {
       { label: "Locations", value: "Up to 5" },
       { label: "Team users", value: "25" },
       { label: "Guest Forms", value: "1 Published + 1 Draft per Location" },
-      { label: "Active QR placements", value: "Up to 50 per Location" },
+      {
+        label: "Active QR placements",
+        value:
+          "Up to 50 active QR codes across your Workspace, plus 10 for each additional paid Location",
+      },
       { label: "Private Feedback & recovery", value: INCLUDED },
       { label: "Guest list & permissions", value: INCLUDED },
       { label: "Campaigns", value: INCLUDED },
@@ -239,10 +252,11 @@ export const MANAGE_PLAN_COMPARISON_ROWS: ManagePlanComparisonRow[] = [
   {
     label: "Active QR placements",
     values: {
-      Pilot: "Up to 5",
-      Starter: "Up to 10",
-      Growth: "Up to 25 per Location",
-      Group: "Up to 50 per Location",
+      Pilot: "Up to 5 active QR codes across your Workspace",
+      Starter: "Up to 10 active QR codes across your Workspace",
+      Growth: "Up to 25 active QR codes across your Workspace",
+      Group:
+        "Up to 50 active QR codes across your Workspace, plus 10 for each additional paid Location",
     },
   },
   {

@@ -17,6 +17,7 @@ namespace TummlyBackend.Services
         private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
         private readonly IRestaurantAccountTypePromotion _accountTypePromotion;
         private readonly IPricebookCatalog _pricebook;
+        private readonly IActiveQrCapacity _activeQrCapacity;
 
         public LocationsLifecycleWriteService(
             ApplicationDbContext context,
@@ -24,7 +25,8 @@ namespace TummlyBackend.Services
             IComplimentaryStarterShopOrderService complimentaryStarterShopOrders,
             IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
             IRestaurantAccountTypePromotion accountTypePromotion,
-            IPricebookCatalog pricebook
+            IPricebookCatalog pricebook,
+            IActiveQrCapacity activeQrCapacity
         )
         {
             _context = context;
@@ -33,6 +35,7 @@ namespace TummlyBackend.Services
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
             _accountTypePromotion = accountTypePromotion;
             _pricebook = pricebook;
+            _activeQrCapacity = activeQrCapacity;
         }
 
         public async Task<LocationLifecycleWriteResult> ActivateDraftAsync(
@@ -88,9 +91,27 @@ namespace TummlyBackend.Services
                 );
 
             // Mint any Capture placements added to the starter kit since Draft
-            // insert (missing types only).
-            await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
-            await _context.SaveChangesAsync();
+            // insert (missing types only). The mint counts the Workspace pool,
+            // so it runs under the billing-row lock with the save.
+            await using (
+                var mintTransaction =
+                    await QrCapacityTransaction.BeginIfNeededAsync(
+                        _context,
+                        CancellationToken.None
+                    )
+            )
+            {
+                await _activeQrCapacity.LockBillingAccountAsync(
+                    restaurantId,
+                    CancellationToken.None
+                );
+                await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
+                await _context.SaveChangesAsync();
+                if (mintTransaction != null)
+                {
+                    await mintTransaction.CommitAsync();
+                }
+            }
 
             var actorDisplayName = await _context.Users
                 .AsNoTracking()

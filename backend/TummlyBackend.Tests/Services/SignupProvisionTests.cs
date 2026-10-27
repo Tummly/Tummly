@@ -63,7 +63,8 @@ namespace TummlyBackend.Tests.Services
 
             var qrCodeProvisioning = new QrCodeProvisioningService(
                 _db,
-                smartGuestLink
+                smartGuestLink,
+                TestActiveQrCapacity.For(_db)
             );
 
             var packDir = ResolvePricebookPackDir();

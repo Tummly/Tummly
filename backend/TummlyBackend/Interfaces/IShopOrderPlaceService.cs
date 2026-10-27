@@ -30,7 +30,7 @@ namespace TummlyBackend.Interfaces
         public string? ErrorMessage { get; init; }
 
         /// <summary>
-        /// Per-location active QR cap. Set with <c>qr_limit_reached</c>.
+        /// Workspace active QR pool. Set with <c>qr_limit_reached</c>.
         /// </summary>
         public int? Limit { get; init; }
 

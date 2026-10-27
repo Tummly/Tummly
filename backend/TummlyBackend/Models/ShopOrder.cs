@@ -27,6 +27,13 @@ namespace TummlyBackend.Models
         /// </summary>
         public const string QrCapacityUnavailableAfterPayment =
             "qr_capacity_unavailable_after_payment";
+
+        /// <summary>
+        /// A complimentary starter order whose Location has no Active code of a
+        /// starter type because the Workspace QR pool is full (the code minted
+        /// Paused). The order waits until an Active code exists.
+        /// </summary>
+        public const string QrCapacityUnavailable = "qr_capacity_unavailable";
     }
 
     public static class ShopDeliveryMethods

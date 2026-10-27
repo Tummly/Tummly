@@ -75,7 +75,7 @@ namespace TummlyBackend.DTOs.Capture
         ) => new()
         {
             Kind = QrLifecycleResultKind.Conflict,
-            Message = "Active QR cap reached.",
+            Message = "Your Workspace has reached its active QR limit.",
             Code = "active_qr_cap_reached",
             Cap = cap,
             Current = current,

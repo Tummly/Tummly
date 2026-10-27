@@ -174,12 +174,12 @@ namespace TummlyBackend.Tests.Services
                 Assert.Equal(ShopQrSlotReservationStatuses.Review, reservation.Status);
                 Assert.Equal(1, reservation.ReconcileAttempts);
                 Assert.Equal("revolut_http_error", reservation.LastReconcileError);
-                // Review still holds the slot: the location stays at its cap.
+                // Review still holds the slot: the Workspace stays at its pool.
                 var capacity = db.Services.GetRequiredService<IActiveQrCapacity>();
                 Assert.Equal(
                     await ShopCapacityTestSeed.CapAsync(db.Context, held.Workspace),
-                    await capacity.CountUsedAsync(
-                        held.Workspace.LocationId,
+                    await capacity.CountUsedForRestaurantAsync(
+                        held.Workspace.RestaurantId,
                         CancellationToken.None
                     )
                 );

@@ -47,7 +47,9 @@ namespace TummlyBackend.Tests.Services
             _insert = new OwnedLocationInsertService(
                 _context,
                 pricebook,
-                new QrCodeProvisioningService(_context, smartGuestLink),
+                new QrCodeProvisioningService(_context, smartGuestLink,
+                TestActiveQrCapacity.For(_context)
+            ),
                 NoOpPrintReadyQrMaterialsWork.Instance
             );
 

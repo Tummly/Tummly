@@ -41,7 +41,8 @@ namespace TummlyBackend.Tests.Services
                     _context,
                     configuration,
                     new NoOpBillingAccountLifecycle()
-                )
+                ),
+                TestActiveQrCapacity.For(_context)
             );
         }
 
@@ -71,6 +72,7 @@ namespace TummlyBackend.Tests.Services
                 CreateQrProvisioning(),
                 new NoOpPrintReadyQrMaterialsWork(),
                 new AdminAuditService(_context, TimeProvider.System),
+                TestActiveQrCapacity.For(_context),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
 
@@ -135,6 +137,7 @@ namespace TummlyBackend.Tests.Services
                 CreateQrProvisioning(),
                 new NoOpPrintReadyQrMaterialsWork(),
                 new AdminAuditService(_context, TimeProvider.System),
+                TestActiveQrCapacity.For(_context),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
 
@@ -252,6 +255,7 @@ namespace TummlyBackend.Tests.Services
                 CreateQrProvisioning(),
                 new NoOpPrintReadyQrMaterialsWork(),
                 new AdminAuditService(_context, TimeProvider.System),
+                TestActiveQrCapacity.For(_context),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
 
@@ -386,6 +390,7 @@ namespace TummlyBackend.Tests.Services
                 CreateQrProvisioning(),
                 new NoOpPrintReadyQrMaterialsWork(),
                 new AdminAuditService(_context, TimeProvider.System),
+                TestActiveQrCapacity.For(_context),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
             var orderId = await SeedPaidOrderAsync(location, quantity: 1);
@@ -730,6 +735,7 @@ namespace TummlyBackend.Tests.Services
                 CreateQrProvisioning(),
                 work,
                 new AdminAuditService(_context, TimeProvider.System),
+                TestActiveQrCapacity.For(_context),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
         }

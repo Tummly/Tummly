@@ -48,7 +48,8 @@ namespace TummlyBackend.Tests.Services
 
             var qrCodeProvisioning = new QrCodeProvisioningService(
                 _context,
-                smartGuestLink
+                smartGuestLink,
+                TestActiveQrCapacity.For(_context)
             );
 
             var packDir = Path.GetFullPath(

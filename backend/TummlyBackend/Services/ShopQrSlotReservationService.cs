@@ -426,7 +426,7 @@ namespace TummlyBackend.Services
             );
             return new QrCapacityCheck(
                 decision.EntitlementsAvailable && decision.Fits,
-                decision.PerLocationCap,
+                decision.WorkspacePool,
                 decision.EntitlementsAvailable
             );
         }
