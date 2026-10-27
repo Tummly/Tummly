@@ -162,6 +162,10 @@ export type DetailedShopOrder = {
   totalNumeric: number
   paymentStatus: "Paid" | "Refunded" | "Free"
   fulfilmentStatus: "Processing" | "Dispatched" | "Delivered" | "Cancelled"
+  /** API display labels. Render these; filters keep using the fields above. */
+  paymentStatusLabel: string
+  fulfilmentStatusLabel: string
+  orderKindLabel: string | null
   updatedDate: string
   items?: string[]
   canCancel?: boolean

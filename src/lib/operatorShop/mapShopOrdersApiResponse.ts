@@ -29,6 +29,9 @@ export function mapShopOrderListItemToRow(
     totalNumeric: item.totalGrossPence / 100,
     paymentStatus: item.paymentStatus as DetailedShopOrder["paymentStatus"],
     fulfilmentStatus: item.fulfilmentStatus as DetailedShopOrder["fulfilmentStatus"],
+    paymentStatusLabel: item.paymentStatusLabel,
+    fulfilmentStatusLabel: item.fulfilmentStatusLabel,
+    orderKindLabel: item.orderKindLabel,
     updatedDate: formatShopDisplayDate(item.updatedAtUtc),
     isComplimentary: item.isComplimentary === true,
   }
@@ -67,6 +70,9 @@ export function mapShopOrderDetailToRow(
     paymentStatus: detail.paymentStatusLabel as DetailedShopOrder["paymentStatus"],
     fulfilmentStatus:
       detail.fulfilmentStatusLabel as DetailedShopOrder["fulfilmentStatus"],
+    paymentStatusLabel: detail.paymentStatusLabel,
+    fulfilmentStatusLabel: detail.fulfilmentStatusLabel,
+    orderKindLabel: detail.orderKindLabel,
     updatedDate: formatShopDisplayDate(detail.updatedAtUtc),
     canCancel: detail.canCancel,
     cancelBlockReason: detail.cancelBlockReason ?? null,
