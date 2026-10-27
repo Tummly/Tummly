@@ -52,17 +52,17 @@ export function ShopQrLimitDialog({
           </Button>
           <Button
             type="button"
-            variant="op-secondary"
-            onClick={onManageQrCodes}
-          >
-            {SHOP_QR_LIMIT_COPY.manageQrCodes}
-          </Button>
-          <Button
-            type="button"
             variant="op-primary"
             onClick={onReviewPlanOptions}
           >
             {SHOP_QR_LIMIT_COPY.reviewPlanOptions}
+          </Button>
+          <Button
+            type="button"
+            variant="op-secondary"
+            onClick={onManageQrCodes}
+          >
+            {SHOP_QR_LIMIT_COPY.manageQrCodes}
           </Button>
         </DialogFooter>
       </DialogContent>
