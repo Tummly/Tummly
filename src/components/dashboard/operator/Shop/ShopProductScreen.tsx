@@ -148,7 +148,7 @@ export function ShopProductScreen({
             Tummly Shop
           </button>
           <ChevronRight className="size-3.5 text-op-text-muted" />
-          <span className="text-op-text-secondary capitalize">
+          <span className="text-op-text-body capitalize">
             {product.category === "tabletop" ? "Table and dine-in" : product.category}
           </span>
           <ChevronRight className="size-3.5 text-op-text-muted" />

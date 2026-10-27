@@ -83,7 +83,7 @@ type ShopPageProps = {
   subscriptionPlan: string
 }
 
-type ExpressCheckoutState = {
+type DirectCheckoutState = {
   lines: CheckoutLine[]
   shipTo?: ShopShipToPayload
   sourceOrderNumber?: string
@@ -157,8 +157,8 @@ export function ShopPage({
   const [isMaterialsPackOpen, setIsMaterialsPackOpen] = useState<boolean>(false)
   const [isLocationDetailsOpen, setIsLocationDetailsOpen] = useState<boolean>(false)
   const [checkoutFromCart, setCheckoutFromCart] = useState(false)
-  const [expressCheckout, setExpressCheckout] =
-    useState<ExpressCheckoutState | null>(null)
+  const [directCheckout, setDirectCheckout] =
+    useState<DirectCheckoutState | null>(null)
 
   const [locationDetails, setLocationDetails] = useState<LocationDetails | null>(null)
   const [recommendations, setRecommendations] =
@@ -665,8 +665,8 @@ export function ShopPage({
         ? cartItems.map((item) =>
             toCheckoutLine(item.product, item.quantity)
           )
-        : (expressCheckout?.lines ?? []),
-    [cartItems, checkoutFromCart, expressCheckout]
+        : (directCheckout?.lines ?? []),
+    [cartItems, checkoutFromCart, directCheckout]
   )
 
   const handleCheckout = () => {
@@ -688,7 +688,7 @@ export function ShopPage({
 
     setIsCartOpen(false)
     setCheckoutFromCart(true)
-    setExpressCheckout(null)
+    setDirectCheckout(null)
     setSearchParams({ view: "checkout" })
     scrollShopPaneToTop()
   }
@@ -715,9 +715,9 @@ export function ShopPage({
       return
     }
 
-    // Express path (lock 05): do not merge into the server cart.
+    // Direct (non-cart) checkout, lock 05: do not merge into the server cart.
     setCheckoutFromCart(false)
-    setExpressCheckout({
+    setDirectCheckout({
       lines: [toCheckoutLine(product, quantity)],
     })
     setSearchParams({ view: "checkout" })
@@ -726,14 +726,14 @@ export function ShopPage({
 
   const handleBackToShop = () => {
     setCheckoutFromCart(false)
-    setExpressCheckout(null)
+    setDirectCheckout(null)
     setSearchParams({})
     scrollShopPaneToTop()
   }
 
   const clearCheckoutSession = () => {
     setCheckoutFromCart(false)
-    setExpressCheckout(null)
+    setDirectCheckout(null)
   }
 
   return (
@@ -743,7 +743,7 @@ export function ShopPage({
           locationId={selectedLocationId}
           lines={checkoutLines}
           fromCart={checkoutFromCart}
-          initialShipTo={expressCheckout?.shipTo}
+          initialShipTo={directCheckout?.shipTo}
           selectedLocationName={locationName}
           selectedLocationAddress={locationAddress}
           locations={locations}
@@ -754,10 +754,10 @@ export function ShopPage({
           onOfferCardRequired={openOfferCardSetup}
           onBackToProduct={() => {
             const wasFromCart = checkoutFromCart
-            const expressSkuId = expressCheckout?.lines[0]?.skuId
+            const directSkuId = directCheckout?.lines[0]?.skuId
             clearCheckoutSession()
-            if (!wasFromCart && expressSkuId) {
-              setSearchParams({ product: expressSkuId })
+            if (!wasFromCart && directSkuId) {
+              setSearchParams({ product: directSkuId })
             } else {
               setSearchParams({})
             }
@@ -805,7 +805,7 @@ export function ShopPage({
               return
             }
             setCheckoutFromCart(false)
-            setExpressCheckout({
+            setDirectCheckout({
               lines: prefill.lines.map((line) => ({
                 skuId: line.skuId,
                 title: line.title,

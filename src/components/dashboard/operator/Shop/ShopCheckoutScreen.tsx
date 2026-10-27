@@ -334,7 +334,7 @@ export function ShopCheckoutScreen({
   const renderSummaryRow = (label: string, value: string) => (
     <div className="flex w-full flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
-        <span className="shrink-0 text-base font-semibold text-[var(--op-color-gray-650)]">
+        <span className="shrink-0 text-base font-semibold text-op-text-body">
           {label}
         </span>
         <span className="text-right text-base font-medium text-op-text-primary">
@@ -396,7 +396,7 @@ export function ShopCheckoutScreen({
               )
             )}
             <div className="flex items-center justify-between gap-4 pt-1">
-              <span className="shrink-0 text-base font-semibold text-[var(--op-color-gray-650)]">
+              <span className="shrink-0 text-base font-semibold text-op-text-body">
                 Total
               </span>
               <span className="text-right text-base font-bold text-op-text-primary">
@@ -418,21 +418,25 @@ export function ShopCheckoutScreen({
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between border-b border-op-border-default pb-4">
         <div className="flex items-center gap-2 text-sm font-medium">
-          <button
+          <Button
             type="button"
+            variant="op-ghost"
+            size="link-sm"
             onClick={onBackToShop}
-            className="text-op-text-primary transition-colors hover:underline"
+            className="font-medium text-op-text-primary hover:underline"
           >
             Shop
-          </button>
+          </Button>
           <ChevronRight className="size-3.5 text-op-text-muted" />
-          <button
+          <Button
             type="button"
+            variant="op-ghost"
+            size="link-sm"
             onClick={onBackToProduct || onBackToShop}
-            className="text-op-text-muted transition-colors hover:text-op-text-primary hover:underline"
+            className="font-medium text-op-text-muted hover:text-op-text-primary hover:underline"
           >
             {materialsLabel}
-          </button>
+          </Button>
           <ChevronRight className="size-3.5 text-op-text-muted" />
           <span className="text-op-text-muted">Checkout</span>
         </div>
@@ -461,7 +465,7 @@ export function ShopCheckoutScreen({
             <h1 className="text-[29px] font-bold tracking-tight text-op-text-primary">
               {pageTitle}
             </h1>
-            <p className="max-w-[425px] text-sm font-medium leading-5 text-[var(--op-color-gray-650)]">
+            <p className="max-w-[425px] text-sm font-medium leading-5 text-op-text-body">
               Review the material, QR connection, delivery details and
               payment before placing your order.
             </p>
@@ -474,7 +478,7 @@ export function ShopCheckoutScreen({
                 <h2 className="text-lg font-semibold text-op-text-primary">
                   Review your material
                 </h2>
-                <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                <p className="text-sm font-normal text-op-text-body">
                   Confirm the materials, quantities and selected location
                   before continuing.
                 </p>
@@ -531,7 +535,7 @@ export function ShopCheckoutScreen({
                   <h2 className="text-lg font-semibold text-op-text-primary">
                     Delivery details
                   </h2>
-                  <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                  <p className="text-sm font-normal text-op-text-body">
                     Confirm the delivery address, contact information and
                     preferred delivery method.
                   </p>
@@ -551,7 +555,7 @@ export function ShopCheckoutScreen({
                       {contactName || "Contact pending"}
                       {contactPhone ? ` · ${contactPhone}` : ""}
                     </span>
-                    <span className="text-sm font-medium text-[var(--op-color-gray-650)]">
+                    <span className="text-sm font-medium text-op-text-body">
                       {selectedLocationName}
                       {shipToDisplay ? ` · ${shipToDisplay}` : ""}
                     </span>
@@ -572,7 +576,7 @@ export function ShopCheckoutScreen({
                     <span className="text-sm font-medium text-op-text-primary">
                       Standard delivery
                     </span>
-                    <span className="text-sm font-medium text-[var(--op-color-gray-650)]">
+                    <span className="text-sm font-medium text-op-text-body">
                       Delivered within 3–5 business days after dispatch.
                     </span>
                   </div>
@@ -581,7 +585,7 @@ export function ShopCheckoutScreen({
                   </span>
                 </div>
 
-                <p className="max-w-[547px] text-sm font-normal leading-normal text-[var(--op-color-gray-650)]">
+                <p className="max-w-[547px] text-sm font-normal leading-normal text-op-text-body">
                   Production time is separate from delivery time. The
                   estimated dispatch date will be confirmed after your order
                   has been processed.
@@ -617,7 +621,7 @@ export function ShopCheckoutScreen({
                   />
                 </div>
 
-                <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                <p className="text-sm font-normal text-op-text-body">
                   The delivery provider may contact this person if there is
                   an access or delivery issue.
                 </p>
@@ -664,7 +668,7 @@ export function ShopCheckoutScreen({
                   <h2 className="text-lg font-semibold text-op-text-primary">
                     Delivery details
                   </h2>
-                  <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                  <p className="text-sm font-normal text-op-text-body">
                     Confirm the delivery address, contact information and
                     preferred delivery method.
                   </p>
@@ -687,7 +691,7 @@ export function ShopCheckoutScreen({
                   <h2 className="text-lg font-semibold text-op-text-primary">
                     Payment details
                   </h2>
-                  <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                  <p className="text-sm font-normal text-op-text-body">
                     Choose a payment method, confirm the invoice details and
                     place your order.
                   </p>
@@ -706,7 +710,7 @@ export function ShopCheckoutScreen({
                     <p className="text-sm font-medium text-op-text-primary">
                       Pay securely with Revolut
                     </p>
-                    <p className="text-sm text-[var(--op-color-gray-650)]">
+                    <p className="text-sm text-op-text-body">
                       After you place the order, you are redirected to
                       Revolut to complete payment. Your order is marked paid
                       only after Revolut confirms payment.
@@ -721,7 +725,7 @@ export function ShopCheckoutScreen({
                 <h2 className="text-lg font-semibold text-op-text-primary">
                   Order summary
                 </h2>
-                <p className="text-sm font-normal text-[var(--op-color-gray-650)]">
+                <p className="text-sm font-normal text-op-text-body">
                   Confirm the materials, quantities and selected location
                   before continuing.
                 </p>
@@ -821,9 +825,11 @@ export function ShopCheckoutScreen({
                     },
                   ]
               ).map((pack) => (
-                <button
+                <Button
                   key={pack.qty}
                   type="button"
+                  variant="op-ghost"
+                  size="link-block"
                   onClick={() => {
                     setCheckoutLines([
                       {
@@ -839,15 +845,15 @@ export function ShopCheckoutScreen({
                     )
                   }}
                   className={cn(
-                    "flex items-center justify-between rounded-sm border p-3 text-sm transition-colors",
+                    "justify-between rounded-sm border p-3 text-sm transition-colors",
                     singleLine.quantity === pack.qty
                       ? "border-op-action-primary bg-op-surface-secondary font-semibold text-op-text-primary"
-                      : "border-op-border-default bg-op-background-primary text-[var(--op-color-gray-650)] hover:bg-op-surface-secondary/50"
+                      : "border-op-border-default bg-op-background-primary font-normal text-op-text-body hover:bg-op-surface-secondary/50"
                   )}
                 >
                   <span>Pack of {pack.qty.toLocaleString("en-GB")}</span>
                   <span>{penceToPounds(pack.netPence)}</span>
-                </button>
+                </Button>
               ))}
             </div>
           </DialogContent>

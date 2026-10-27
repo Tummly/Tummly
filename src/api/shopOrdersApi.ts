@@ -142,7 +142,7 @@ export type CheckoutLine = {
   unitNetPence: number
   lineNetPence: number
   specification?: string
-  /** Catalog pack tiers for express checkout quantity edits. */
+  /** Catalog pack tiers for direct checkout quantity edits. */
   packs?: Array<{ qty: number; netPence: number }>
   /** Per-SKU standard delivery net (pence). */
   deliveryNetPence?: number
@@ -219,6 +219,9 @@ export async function payShopOrder(input: {
   return response.data
 }
 
+/** Revolut check on return can be slower than a normal read. */
+const CONFIRM_PAYMENT_TIMEOUT_MS = 15_000
+
 /**
  * Asks the server to check Revolut for an order that is still awaiting payment
  * (used on return from Revolut). Never releases a reservation or refunds.
@@ -230,7 +233,10 @@ export async function confirmShopOrderPayment(input: {
   const response = await axiosInstance.post<ShopOrderDetailWire>(
     `/shop/orders/${input.orderId}/confirm-payment`,
     {},
-    { params: { locationId: input.locationId } }
+    {
+      params: { locationId: input.locationId },
+      timeout: CONFIRM_PAYMENT_TIMEOUT_MS,
+    }
   )
   return response.data
 }

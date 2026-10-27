@@ -89,6 +89,7 @@
   --color-op-text-muted: var(--op-text-muted);
   --color-op-text-inverse: var(--op-text-inverse);
   --color-op-text-success: var(--op-text-success);
+  --color-op-text-body: var(--op-text-body);
   --color-op-icon-default: var(--op-icon-default);
   --color-op-action-primary: var(--op-action-primary);
   --color-op-action-primary-hover: var(--op-action-primary-hover);
@@ -509,6 +510,8 @@ html.op {
   --op-text-primary: var(--op-color-black);
   --op-text-secondary: var(--op-color-gray-500);
   --op-text-muted: var(--op-color-gray-650);
+  /* Body copy — gray-650 light; dark uses gray-500 for contrast on dark surfaces. */
+  --op-text-body: var(--op-color-gray-650);
   --op-text-inverse: var(--op-color-white);
   --op-text-success: var(--op-color-green-600);
   --op-icon-default: var(--op-color-gray-650);
@@ -695,6 +698,7 @@ html.op.dark {
   --op-text-primary: var(--op-color-white);
   --op-text-secondary: var(--op-color-gray-500);
   --op-text-muted: var(--op-color-gray-600);
+  --op-text-body: var(--op-color-gray-500);
   --op-text-inverse: var(--op-color-black);
   --op-text-success: var(--op-color-green-600);
   --op-empty-title-color: var(--op-color-white);
