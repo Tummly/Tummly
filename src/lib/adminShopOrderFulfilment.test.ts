@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   adminShopFulfilmentLabel,
+  adminShopOrderReviewNotice,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
   nextAdminShopFulfilmentAction,
@@ -33,5 +34,63 @@ describe("adminShopOrderFulfilment", () => {
     expect(canEditAdminShopTrackingUrl("delivered")).toBe(false)
     expect(canEditAdminShopOpsNotes("cancelled")).toBe(false)
     expect(canEditAdminShopOpsNotes("delivered")).toBe(true)
+  })
+})
+
+describe("adminShopOrderReviewNotice", () => {
+  it("returns null when the order needs no review", () => {
+    expect(adminShopOrderReviewNotice({})).toBeNull()
+    expect(
+      adminShopOrderReviewNotice({
+        reviewReason: null,
+        reviewQrReservations: [],
+      })
+    ).toBeNull()
+  })
+
+  it("explains the capacity-after-payment review reason", () => {
+    expect(
+      adminShopOrderReviewNotice({
+        reviewReason: "qr_capacity_unavailable_after_payment",
+      })
+    ).toEqual({
+      title:
+        "Needs review: paid, but the plan had no room for a new QR code.",
+      lines: [],
+    })
+  })
+
+  it("shows an unknown reason code as is", () => {
+    expect(
+      adminShopOrderReviewNotice({ reviewReason: "some_new_reason" })?.title
+    ).toBe("Needs review: some_new_reason")
+  })
+
+  it("lists each held review reservation with its last error", () => {
+    expect(
+      adminShopOrderReviewNotice({
+        reviewReason: null,
+        reviewQrReservations: [
+          {
+            status: "review",
+            qrType: "GuestCard",
+            lastReconcileError: "revolut_state:processing",
+            createdAtUtc: "2026-09-20T09:30:00Z",
+          },
+          {
+            status: "review",
+            qrType: "TableTalker",
+            lastReconcileError: null,
+            createdAtUtc: "2026-09-20T10:00:00Z",
+          },
+        ],
+      })
+    ).toEqual({
+      title: "Needs review: a QR slot has been held for over 24 hours.",
+      lines: [
+        "GuestCard held since 2026-09-20 09:30 UTC (revolut_state:processing)",
+        "TableTalker held since 2026-09-20 10:00 UTC (no error recorded)",
+      ],
+    })
   })
 })

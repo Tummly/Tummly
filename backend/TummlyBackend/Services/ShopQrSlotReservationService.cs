@@ -16,6 +16,13 @@ namespace TummlyBackend.Services
     {
         public static readonly TimeSpan ReconcileDelay = TimeSpan.FromMinutes(30);
 
+        /// <summary>
+        /// Stable name for alerting: a paid order got no QR code because the
+        /// plan had no room, and Admin must look at it (spec 4.4.5).
+        /// </summary>
+        public static readonly EventId OrderReviewEvent =
+            new(5202, "ShopOrderQrCapacityReview");
+
         private readonly ApplicationDbContext _context;
         private readonly IActiveQrCapacity _capacity;
         private readonly IQrPlacementResolver _resolver;
@@ -215,6 +222,7 @@ namespace TummlyBackend.Services
                         ShopOrderReviewReasons.QrCapacityUnavailableAfterPayment;
                     order.UpdatedAtUtc = now;
                     _logger.LogWarning(
+                        OrderReviewEvent,
                         "Shop order {ShopOrderId} was paid but the plan has no room for a new {QrType} QR code at location {LocationId}; order moved to review",
                         order.Id,
                         type,

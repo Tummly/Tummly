@@ -24,6 +24,13 @@ namespace TummlyBackend.Services
         /// </summary>
         public static readonly TimeSpan ReviewAfter = TimeSpan.FromHours(24);
 
+        /// <summary>
+        /// Stable name for alerting: a held reservation moved to <c>review</c>
+        /// and Admin must look at the order (spec 4.4.5).
+        /// </summary>
+        public static readonly EventId ReservationReviewEvent =
+            new(5201, "ShopQrReservationReview");
+
         private const int MaxErrorLength = 500;
 
         private readonly IServiceScopeFactory _scopeFactory;
@@ -623,6 +630,7 @@ namespace TummlyBackend.Services
                         {
                             reservation.Status = ShopQrSlotReservationStatuses.Review;
                             _logger.LogWarning(
+                                ReservationReviewEvent,
                                 "Shop QR slot reservation {ReservationId} for order {ShopOrderId} ({QrType} at location {LocationId}) moved to review after {Attempts} attempts; last error {LastError}",
                                 reservation.Id,
                                 reservation.ShopOrderId,

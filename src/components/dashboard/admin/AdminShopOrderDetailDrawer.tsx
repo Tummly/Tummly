@@ -4,6 +4,7 @@ import {
   DownloadIcon,
   FactoryIcon,
   RefreshCcwIcon,
+  TriangleAlertIcon,
   XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -26,6 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
@@ -42,6 +44,7 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import {
   adminShopFulfilmentLabel,
+  adminShopOrderReviewNotice,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
   formatAdminShopGbpFromPence,
@@ -198,6 +201,7 @@ export function AdminShopOrderDetailDrawer({
     return null
   }
 
+  const reviewNotice = adminShopOrderReviewNotice(order)
   const nextAction = nextAdminShopFulfilmentAction(order.fulfilmentStatus)
   const trackingEditable = canEditAdminShopTrackingUrl(order.fulfilmentStatus)
   const notesEditable = canEditAdminShopOpsNotes(order.fulfilmentStatus)
@@ -517,6 +521,20 @@ export function AdminShopOrderDetailDrawer({
               "flex flex-col gap-6 px-[22px] pb-[22px]"
             )}
           >
+            {reviewNotice ? (
+              <Alert variant="destructive">
+                <TriangleAlertIcon aria-hidden />
+                <AlertTitle>{reviewNotice.title}</AlertTitle>
+                {reviewNotice.lines.length > 0 ? (
+                  <AlertDescription>
+                    {reviewNotice.lines.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </AlertDescription>
+                ) : null}
+              </Alert>
+            ) : null}
+
             <section className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
                 <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">

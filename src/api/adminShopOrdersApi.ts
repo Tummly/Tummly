@@ -42,6 +42,13 @@ export type AdminShopPrintAssetPreview = {
   approvedAtUtc: string | null
 }
 
+export type AdminShopQrReservationReview = {
+  status: string
+  qrType: string
+  lastReconcileError: string | null
+  createdAtUtc: string
+}
+
 export type AdminShopOrderListItem = {
   id: string
   orderNumber: string
@@ -60,6 +67,10 @@ export type AdminShopOrderListItem = {
   grossPence: number
   lines: AdminShopOrderLineSummary[]
   printAssets: AdminShopPrintAsset[]
+  /** Set when a paid order needs Admin attention (for example no QR room). */
+  reviewReason?: string | null
+  /** QR slot reservations held in `review` after 24 h without a final answer. */
+  reviewQrReservations?: AdminShopQrReservationReview[]
 }
 
 export type AdminShopOrderListResponse = {
