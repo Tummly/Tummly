@@ -326,6 +326,34 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ReorderPrefill_OfOldExpressOrder_ReturnsStandard()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "table-tents", true);
+            var orderId = await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.Delivered,
+                deliveryMethod: ShopDeliveryMethods.Express
+            );
+
+            using var request = AuthorizedPost(
+                $"/api/shop/orders/{orderId}/reorder?locationId={seeded.InScopeLocationId}",
+                seeded.MemberJwt,
+                body: null
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "standard",
+                body.GetProperty("deliveryMethod").GetString()
+            );
+        }
+
+        [Fact]
         public async Task ReorderPrefill_InvalidPackQty_Returns409()
         {
             var seeded = await SeedWorkspaceAsync();
@@ -639,7 +667,8 @@ namespace TummlyBackend.Tests.Integration
             string? trackingUrl = null,
             int unitNetPence = 1200,
             string catalogSkuId = "table-tents",
-            string? revolutOrderId = null
+            string? revolutOrderId = null,
+            string deliveryMethod = ShopDeliveryMethods.Standard
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -684,7 +713,7 @@ namespace TummlyBackend.Tests.Integration
                 VatPence = vatPence,
                 DeliveryNetPence = 0,
                 GrossPence = materialsNet + vatPence,
-                DeliveryMethod = ShopDeliveryMethods.Standard,
+                DeliveryMethod = deliveryMethod,
                 PaymentStatus = paymentStatus,
                 RevolutOrderId = revolutOrderId,
                 FulfilmentStatus = fulfilmentStatus,
