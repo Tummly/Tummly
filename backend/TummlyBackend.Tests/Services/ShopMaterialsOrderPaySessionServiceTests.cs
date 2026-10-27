@@ -235,6 +235,65 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(merchant.LastCreateOrderRequest);
         }
 
+        [Fact]
+        public async Task StartAsync_CustomerUpdateThrowsUnexpectedException_StillCreatesOrder()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedAsync(context, vatPence: 0, grossPence: 1000);
+            seeded.Account.BillingEmail = "billing@venue.example";
+            await context.SaveChangesAsync();
+            var merchant = new RecordingMerchant
+            {
+                UpdateCustomerThrowsGeneric = true,
+            };
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = false }
+            );
+
+            var checkoutUrl = await service.StartAsync(
+                seeded.Account,
+                "Single",
+                seeded.Order,
+                "key-shop-update-customer-generic"
+            );
+
+            Assert.Equal(1, merchant.UpdateCustomerCallCount);
+            Assert.Equal("https://checkout.revolut.com/shop", checkoutUrl);
+            Assert.NotNull(merchant.LastCreateOrderRequest);
+        }
+
+        [Fact]
+        public async Task StartAsync_RequestCancelledDuringCustomerUpdate_Propagates()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedAsync(context, vatPence: 0, grossPence: 1000);
+            seeded.Account.BillingEmail = "billing@venue.example";
+            await context.SaveChangesAsync();
+            using var cts = new CancellationTokenSource();
+            var merchant = new RecordingMerchant
+            {
+                UpdateCustomerThrowsCancelled = cts,
+            };
+            var service = CreateService(
+                context,
+                merchant,
+                new TummlySellerVatSettings { IsActive = false }
+            );
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => service.StartAsync(
+                    seeded.Account,
+                    "Single",
+                    seeded.Order,
+                    "key-shop-update-customer-cancelled",
+                    cts.Token
+                )
+            );
+            Assert.Null(merchant.LastCreateOrderRequest);
+        }
+
         private ShopMaterialsOrderPaySessionService CreateService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
@@ -379,6 +438,10 @@ namespace TummlyBackend.Tests.Services
 
             public bool UpdateCustomerThrows { get; set; }
 
+            public bool UpdateCustomerThrowsGeneric { get; set; }
+
+            public CancellationTokenSource? UpdateCustomerThrowsCancelled { get; set; }
+
             public Task<RevolutMerchantCreateResult> UpdateCustomerAsync(
                 string customerId,
                 string email,
@@ -392,6 +455,19 @@ namespace TummlyBackend.Tests.Services
                 if (UpdateCustomerThrows)
                 {
                     throw new HttpRequestException("boom");
+                }
+
+                if (UpdateCustomerThrowsGeneric)
+                {
+                    throw new System.Text.Json.JsonException("bad payload");
+                }
+
+                if (UpdateCustomerThrowsCancelled != null)
+                {
+                    UpdateCustomerThrowsCancelled.Cancel();
+                    throw new OperationCanceledException(
+                        UpdateCustomerThrowsCancelled.Token
+                    );
                 }
 
                 return Task.FromResult(
