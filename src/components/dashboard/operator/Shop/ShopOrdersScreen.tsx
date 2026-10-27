@@ -7,6 +7,7 @@ import {
   Inbox,
 } from "lucide-react"
 import { toast } from "sonner"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
@@ -510,7 +511,12 @@ export function ShopOrdersScreen({
                           {order.locationName}
                         </td>
                         <td className="px-4 py-3.5 text-op-text-primary">
-                          {order.materials}
+                          <div className="flex flex-col items-start gap-1.5">
+                            <span>{order.materials}</span>
+                            {order.orderKindLabel ? (
+                              <Badge variant="tag">{order.orderKindLabel}</Badge>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-3.5 text-op-text-secondary">
                           {order.placedBy}
@@ -519,11 +525,11 @@ export function ShopOrdersScreen({
                           {order.total}
                         </td>
                         <td className="px-4 py-3.5 text-op-text-primary">
-                          {order.paymentStatus}
+                          {order.paymentStatusLabel}
                         </td>
                         <td className="px-4 py-3.5">
                           <span className="inline-flex items-center rounded-xs border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-op-text-primary">
-                            {order.fulfilmentStatus}
+                            {order.fulfilmentStatusLabel}
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-op-text-secondary">

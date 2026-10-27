@@ -51,6 +51,9 @@ export type ShopOrderListItemWire = {
   totalGrossPence: number
   paymentStatus: string
   fulfilmentStatus: string
+  paymentStatusLabel: string
+  fulfilmentStatusLabel: string
+  orderKindLabel: string | null
   isComplimentary?: boolean
   updatedAtUtc: string
 }
@@ -86,6 +89,7 @@ export type ShopOrderDetailWire = ShopOrderWire & {
   placedBy: string
   paymentStatusLabel: string
   fulfilmentStatusLabel: string
+  orderKindLabel: string | null
   paymentSummary: ShopOrderPaymentSummaryWire
   progress: ShopOrderProgressWire
   updatedAtUtc: string
