@@ -14,6 +14,11 @@ namespace TummlyBackend.Services
     {
         public const string ChoosePlanMessage = "Choose a plan to continue.";
 
+        public const string SessionExpiredCode = "signup_session_expired";
+
+        public const string SessionExpiredMessage =
+            "Your signup session has expired. Enter your email to continue.";
+
         private static readonly TimeSpan SessionLoginWindow = TimeSpan.FromHours(24);
 
         private readonly ApplicationDbContext _context;
@@ -21,13 +26,19 @@ namespace TummlyBackend.Services
         private readonly IProvisioningService _provisioningService;
         private readonly ICustomPlanQuoteService _customPlanQuote;
         private readonly IJwtService _jwt;
+        private readonly IOtpChallengeService _otp;
+        private readonly TimeProvider _clock;
+        private readonly ILogger<SignupService> _logger;
 
         public SignupService(
             ApplicationDbContext context,
             IEmailService emailService,
             IProvisioningService provisioningService,
             ICustomPlanQuoteService customPlanQuote,
-            IJwtService jwt
+            IJwtService jwt,
+            IOtpChallengeService otp,
+            TimeProvider clock,
+            ILogger<SignupService> logger
         )
         {
             _context = context;
@@ -35,68 +46,57 @@ namespace TummlyBackend.Services
             _provisioningService = provisioningService;
             _customPlanQuote = customPlanQuote;
             _jwt = jwt;
+            _otp = otp;
+            _clock = clock;
+            _logger = logger;
         }
 
-        public async Task<SignupSessionResponse> StartAsync(StartSignupDto dto)
+        // A List, not an array: array Contains binds to the span overload, which EF cannot translate.
+        private static readonly List<string> LiveSignupStatuses =
+        [
+            PendingSignupStatuses.EmailPending,
+            PendingSignupStatuses.Verified,
+            PendingSignupStatuses.OnboardingComplete,
+            PendingSignupStatuses.AwaitingPayment,
+            PendingSignupStatuses.Provisioning,
+        ];
+
+        /// <summary>Resends allowed on one EmailPending row before it becomes Abandoned.</summary>
+        private const int ResendLimit = 5;
+
+        private const string ExpiredCodeMessage =
+            "That code has expired. Resend a new code to continue.";
+
+        private const string InvalidCodeMessage =
+            "That code doesn't match. Check your email and try again.";
+
+        public async Task<SignupCodeSentResponse> StartAsync(StartSignupDto dto)
         {
-            var email = dto.Email.Trim().ToLower();
+            var email = NormalizeEmail(dto.Email);
 
             if (!dto.TermsAccepted)
             {
-                throw new Exception("Terms must be accepted.");
+                throw Invalid("Terms must be accepted.");
             }
 
-            var existingUser = await _context.Users.FirstOrDefaultAsync(x =>
-                x.Email == email
-            );
-
-            if (existingUser != null)
+            if (await _context.Users.AnyAsync(x => x.Email == email))
             {
-                throw new Exception("Email already in use.");
+                _logger.LogInformation(
+                    "signup.code_suppressed reason=account_exists purpose={Purpose} email={MaskedEmail}",
+                    OtpPurposes.Signup,
+                    LogContactMask.Email(email)
+                );
+                return CodeSent(email);
             }
 
             var pending = await _context.PendingSignups.FirstOrDefaultAsync(x =>
                 x.Email == email
             );
 
-            var isExistingEmailPending =
-                pending != null
-                && pending.Status == PendingSignupStatuses.EmailPending;
-
-            if (pending != null)
+            if (pending == null)
             {
-                if (pending.Status == PendingSignupStatuses.Complete)
-                {
-                    throw new Exception("Email already in use.");
-                }
-
-                // Mid-flow: resume existing session (no duplicate row, no OTP).
-                if (
-                    pending.Status
-                        is PendingSignupStatuses.Verified
-                            or PendingSignupStatuses.OnboardingComplete
-                            or PendingSignupStatuses.AwaitingPayment
-                            or PendingSignupStatuses.Provisioning
-                )
-                {
-                    return ToSessionResponse(pending);
-                }
-
-                if (pending.Status == PendingSignupStatuses.Abandoned)
-                {
-                    pending.Status = PendingSignupStatuses.EmailPending;
-                    pending.OtpResendCount = 0;
-                    pending.LastOtpSentAt = null;
-                    pending.EmailVerifiedAt = null;
-                    pending.SessionToken = Guid.NewGuid();
-                }
-
-                pending.TermsAccepted = dto.TermsAccepted;
-                pending.UpdatedAtUtc = DateTime.UtcNow;
-            }
-            else
-            {
-                pending = new PendingSignup
+                var now = _clock.GetUtcNow().UtcDateTime;
+                var created = new PendingSignup
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = Guid.NewGuid(),
@@ -104,80 +104,193 @@ namespace TummlyBackend.Services
                     Status = PendingSignupStatuses.EmailPending,
                     OtpResendCount = 0,
                     TermsAccepted = dto.TermsAccepted,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    UpdatedAtUtc = DateTime.UtcNow,
+                    AbuseWindowStartUtc = now,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now,
                 };
 
-                await _context.PendingSignups.AddAsync(pending);
+                // The row is saved first: the send counters are updated with conditional
+                // UPDATEs that need an existing row.
+                _context.PendingSignups.Add(created);
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException) when (_context.Database.IsRelational())
+                {
+                    // Another request created the row for this email first (unique index).
+                    _context.Entry(created).State = EntityState.Detached;
+                    pending = await _context.PendingSignups.FirstOrDefaultAsync(x =>
+                        x.Email == email
+                    );
+                    if (pending == null)
+                    {
+                        throw;
+                    }
+                }
+
+                if (pending == null)
+                {
+                    await SendCodeAsync(created, countAsResend: false);
+                    return CodeSent(email);
+                }
             }
 
-            // Re-POST Start on EmailPending uses the same cooldown / resend cap as Resend.
-            if (isExistingEmailPending)
+            if (pending.Status == PendingSignupStatuses.Complete)
             {
-                await EnforceAndSendOtpAsync(pending, countAsResend: true);
-            }
-            else
-            {
-                await EnforceAndSendOtpAsync(pending, countAsResend: false);
+                _logger.LogInformation(
+                    "signup.code_suppressed reason=complete pending_id={PendingId} purpose={Purpose} email={MaskedEmail}",
+                    pending.Id,
+                    OtpPurposes.Signup,
+                    LogContactMask.Email(email)
+                );
+                return CodeSent(email);
             }
 
-            return ToSessionResponse(pending);
+            if (pending.Status == PendingSignupStatuses.Abandoned)
+            {
+                RestartAbandoned(pending);
+                pending.TermsAccepted = dto.TermsAccepted;
+
+                // Window counters are kept on restart (abuse limits are per email, not per row state).
+                await SendCodeAsync(pending, countAsResend: false);
+                return CodeSent(email);
+            }
+
+            if (!LiveSignupStatuses.Contains(pending.Status))
+            {
+                return CodeSent(email);
+            }
+
+            if (pending.Status == PendingSignupStatuses.EmailPending)
+            {
+                pending.TermsAccepted = dto.TermsAccepted;
+            }
+
+            // Mid-flow rows get a fresh code too, but keep their status and session token.
+            await SendCodeAsync(pending, countAsResend: true);
+            return CodeSent(email);
         }
 
         public async Task<SignupSessionResponse> VerifyOtpAsync(
             VerifySignupOtpDto dto
         )
         {
-            var email = dto.Email.Trim().ToLower();
-            var otpCode = dto.OtpCode.Trim();
+            var email = NormalizeEmail(dto.Email);
+            var code = (dto.OtpCode ?? string.Empty).Trim();
+            var now = _clock.GetUtcNow().UtcDateTime;
 
-            var otpRecord = await _context.OtpVerifications.FirstOrDefaultAsync(
-                x =>
-                    x.Email == email
-                    && x.OtpCode == otpCode
-                    && x.IsUsed == false
-            );
-
-            if (otpRecord == null || otpRecord.ExpiresAt < DateTime.UtcNow)
-            {
-                throw new Exception("Invalid or expired OTP.");
-            }
-
-            var pending = await _context.PendingSignups.FirstOrDefaultAsync(x =>
-                x.Email == email
-                && x.Status == PendingSignupStatuses.EmailPending
-            );
-
+            var pending = await FindLiveSignupAsync(email);
             if (pending == null)
             {
-                throw new Exception("No pending signup found.");
+                _logger.LogInformation(
+                    "signup.verify_failed reason=no_live_signup purpose={Purpose} email={MaskedEmail}",
+                    OtpPurposes.Signup,
+                    LogContactMask.Email(email)
+                );
+                throw new SignupFlowException("otp_invalid", InvalidCodeMessage);
             }
 
-            otpRecord.IsUsed = true;
-            pending.Status = PendingSignupStatuses.Verified;
-            pending.EmailVerifiedAt = DateTime.UtcNow;
-            pending.UpdatedAtUtc = DateTime.UtcNow;
+            await EnsureAbuseWindowAsync(pending, now);
+
+            // One window failure is reserved before the code is compared, atomically. A burst of
+            // parallel guesses can then not run past the window limit. A right code also uses
+            // one attempt: it is not given back.
+            if (!await TryReserveVerifyAttemptAsync(pending, now))
+            {
+                throw ChallengeLocked(pending, email);
+            }
+
+            var result = await _otp.VerifyAsync(
+                new OtpVerifyRequest(
+                    email,
+                    OtpPurposes.Signup,
+                    SubjectFor(pending),
+                    pending.CodeGeneration,
+                    code
+                )
+            );
+
+            if (result.Outcome != OtpVerifyOutcome.Verified)
+            {
+                _logger.LogInformation(
+                    "signup.verify_failed reason={Outcome} pending_id={PendingId} purpose={Purpose} generation={Generation} email={MaskedEmail} failedInWindow={FailedInWindow}",
+                    result.Outcome,
+                    pending.Id,
+                    OtpPurposes.Signup,
+                    pending.CodeGeneration,
+                    LogContactMask.Email(email),
+                    pending.FailedVerifiesInWindow
+                );
+                throw VerificationFailure(result.Outcome);
+            }
+
+            if (pending.Status == PendingSignupStatuses.EmailPending)
+            {
+                pending.Status = PendingSignupStatuses.Verified;
+            }
+
+            // Each successful Verify is a fresh proof of the email. The old token stops working.
+            pending.EmailVerifiedAt = now;
+            pending.SessionToken = Guid.NewGuid();
+            pending.SessionTokenIssuedAtUtc = now;
+            pending.UpdatedAtUtc = now;
 
             await _context.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "signup.token_issued pending_id={PendingId} purpose={Purpose} generation={Generation} email={MaskedEmail} status={Status}",
+                pending.Id,
+                OtpPurposes.Signup,
+                pending.CodeGeneration,
+                LogContactMask.Email(email),
+                pending.Status
+            );
 
             return ToSessionResponse(pending);
         }
 
-        public async Task ResendOtpAsync(string email)
+        public async Task<SignupCodeSentResponse> ResendOtpAsync(string email)
         {
-            email = email.Trim().ToLower();
+            var normalised = NormalizeEmail(email);
 
             var pending = await _context.PendingSignups.FirstOrDefaultAsync(x =>
-                x.Email == email
-                && x.Status == PendingSignupStatuses.EmailPending
+                x.Email == normalised
+                && (
+                    LiveSignupStatuses.Contains(x.Status)
+                    || x.Status == PendingSignupStatuses.Abandoned
+                )
             );
-
             if (pending == null)
             {
-                throw new Exception("No pending signup found.");
+                _logger.LogInformation(
+                    "signup.code_suppressed reason=no_live_signup purpose={Purpose} email={MaskedEmail}",
+                    OtpPurposes.Signup,
+                    LogContactMask.Email(normalised)
+                );
+                return CodeSent(normalised);
             }
 
-            await EnforceAndSendOtpAsync(pending, countAsResend: true);
+            if (pending.Status == PendingSignupStatuses.Abandoned)
+            {
+                // An Abandoned row restarts like Start does. An email that already has an account never does.
+                if (await _context.Users.AnyAsync(x => x.Email == normalised))
+                {
+                    _logger.LogInformation(
+                        "signup.code_suppressed reason=account_exists purpose={Purpose} email={MaskedEmail}",
+                        OtpPurposes.Signup,
+                        LogContactMask.Email(normalised)
+                    );
+                    return CodeSent(normalised);
+                }
+
+                RestartAbandoned(pending);
+                await SendCodeAsync(pending, countAsResend: false);
+                return CodeSent(normalised);
+            }
+
+            await SendCodeAsync(pending, countAsResend: true);
+            return CodeSent(normalised);
         }
 
         public async Task<SignupSessionResponse> SaveOnboardingAsync(
@@ -187,9 +300,10 @@ namespace TummlyBackend.Services
         {
             var pending = await FindBySessionTokenAsync(sessionToken);
 
+            // Complete rows answer with the status only. The token and email are not returned again.
             if (pending.Status == PendingSignupStatuses.Complete)
             {
-                return ToSessionResponse(pending);
+                return new SignupSessionResponse { Status = pending.Status };
             }
 
             if (
@@ -200,9 +314,7 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                throw new Exception(
-                    "Email must be verified before onboarding."
-                );
+                throw Invalid("Email must be verified before onboarding.");
             }
 
             var isSocial = !string.IsNullOrWhiteSpace(pending.AuthProvider);
@@ -252,7 +364,13 @@ namespace TummlyBackend.Services
             Guid sessionToken
         )
         {
+            // Complete rows answer with the status only: the profile and email are not needed after payment.
             var pending = await FindBySessionTokenAsync(sessionToken);
+
+            if (pending.Status == PendingSignupStatuses.Complete)
+            {
+                return new SignupResumeResponse { Status = pending.Status };
+            }
 
             SignupOnboardingPayload? profile = null;
             if (!string.IsNullOrWhiteSpace(pending.OnboardingJson))
@@ -264,7 +382,6 @@ namespace TummlyBackend.Services
 
             return new SignupResumeResponse
             {
-                SessionToken = pending.SessionToken,
                 Email = pending.Email,
                 Status = pending.Status,
                 LastStepHint = ResolveLastStepHint(pending),
@@ -311,14 +428,12 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                throw new Exception(
-                    "Account setup is not ready to provision."
-                );
+                throw Invalid("Account setup is not ready to provision.");
             }
 
             if (string.IsNullOrWhiteSpace(pending.ChosenPlan))
             {
-                throw new Exception(ChoosePlanMessage);
+                throw Invalid(ChoosePlanMessage);
             }
             pending.Status = PendingSignupStatuses.Provisioning;
             pending.UpdatedAtUtc = DateTime.UtcNow;
@@ -332,7 +447,7 @@ namespace TummlyBackend.Services
             bool continueOnFree = false
         )
         {
-            var pending = await FindBySessionTokenAsync(sessionToken);
+            var pending = await FindBySessionTokenAsync(sessionToken, allowClaimed: true);
 
             if (pending.Status != PendingSignupStatuses.Complete)
             {
@@ -353,7 +468,7 @@ namespace TummlyBackend.Services
             var completedAt = pending.UpdatedAtUtc;
             if (DateTime.UtcNow - completedAt > SessionLoginWindow)
             {
-                throw new Exception("Signup session login has expired.");
+                throw Invalid("Signup session login has expired.");
             }
 
             var user = await _context.Users.FirstOrDefaultAsync(row =>
@@ -423,6 +538,7 @@ namespace TummlyBackend.Services
         private async Task ClaimSessionLoginAsync(PendingSignup pending)
         {
             var now = DateTime.UtcNow;
+            // The claim also revokes the session token: any other signup call with it gets the 401.
             if (_context.Database.IsRelational())
             {
                 var updated = await _context.PendingSignups
@@ -432,6 +548,7 @@ namespace TummlyBackend.Services
                     )
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(row => row.SessionLoginConsumedAtUtc, now)
+                        .SetProperty(row => row.SessionTokenIssuedAtUtc, (DateTime?)null)
                         .SetProperty(row => row.UpdatedAtUtc, now)
                     );
                 if (updated == 0)
@@ -443,11 +560,13 @@ namespace TummlyBackend.Services
                 }
 
                 pending.SessionLoginConsumedAtUtc = now;
+                pending.SessionTokenIssuedAtUtc = null;
                 pending.UpdatedAtUtc = now;
                 return;
             }
 
             pending.SessionLoginConsumedAtUtc = now;
+            pending.SessionTokenIssuedAtUtc = null;
             pending.UpdatedAtUtc = now;
         }
 
@@ -712,8 +831,15 @@ namespace TummlyBackend.Services
                 );
         }
 
+        /// <summary>
+        /// The only place that resolves a signup session token. A refused token logs its
+        /// reason and gets the same 401 as an expired session. The token is never logged.
+        /// Complete rows stay readable (status, retry, idempotent onboarding, session-login):
+        /// the session-login claim is what revokes the token.
+        /// </summary>
         private async Task<PendingSignup> FindBySessionTokenAsync(
-            Guid sessionToken
+            Guid sessionToken,
+            bool allowClaimed = false
         )
         {
             var pending = await _context.PendingSignups.FirstOrDefaultAsync(x =>
@@ -722,11 +848,60 @@ namespace TummlyBackend.Services
 
             if (pending == null)
             {
-                throw new Exception("No pending signup found.");
+                throw RejectSessionToken("missing", null);
+            }
+
+            // The claim is checked first: it clears the issued time, so a replay of a claimed
+            // token would otherwise look like a legacy token. Session-login passes
+            // allowClaimed and answers a replay with 409 session_login_used.
+            if (pending.SessionLoginConsumedAtUtc != null)
+            {
+                if (allowClaimed)
+                {
+                    return pending;
+                }
+
+                throw RejectSessionToken("claimed", pending.Id);
+            }
+
+            if (pending.SessionTokenIssuedAtUtc is not { } issuedAtUtc)
+            {
+                throw RejectSessionToken("legacy", pending.Id);
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            if (now - issuedAtUtc > SignupAbuseLimits.TokenLifetime)
+            {
+                throw RejectSessionToken("expired", pending.Id);
+            }
+
+            if (pending.Status == PendingSignupStatuses.Abandoned)
+            {
+                throw RejectSessionToken("abandoned", pending.Id);
             }
 
             return pending;
         }
+
+        /// <summary>
+        /// Logs the refusal reason and returns the 401 that every refused token gets.
+        /// </summary>
+        private SignupFlowException RejectSessionToken(string reason, Guid? pendingId)
+        {
+            _logger.LogInformation(
+                "signup.token_rejected reason={Reason} pending_id={PendingId}",
+                reason,
+                pendingId
+            );
+            return new SignupFlowException(
+                SessionExpiredCode,
+                SessionExpiredMessage,
+                401
+            );
+        }
+
+        private static SignupFlowException Invalid(string message) =>
+            new("signup_invalid_request", message);
 
         private static void ValidateOnboardingPayload(
             SaveSignupOnboardingDto dto,
@@ -737,7 +912,7 @@ namespace TummlyBackend.Services
             {
                 if (dto.Password != dto.ConfirmPassword)
                 {
-                    throw new Exception("Passwords do not match.");
+                    throw Invalid("Passwords do not match.");
                 }
 
                 if (
@@ -745,30 +920,28 @@ namespace TummlyBackend.Services
                     || dto.Password.Length < 8
                 )
                 {
-                    throw new Exception(
-                        "Password must be at least 8 characters."
-                    );
+                    throw Invalid("Password must be at least 8 characters.");
                 }
             }
 
             if (string.IsNullOrWhiteSpace(dto.FullName))
             {
-                throw new Exception("Full name is required.");
+                throw Invalid("Full name is required.");
             }
 
             if (string.IsNullOrWhiteSpace(dto.GroupName))
             {
-                throw new Exception("Group name is required.");
+                throw Invalid("Group name is required.");
             }
 
             if (string.IsNullOrWhiteSpace(dto.BusinessCategory))
             {
-                throw new Exception("Business category is required.");
+                throw Invalid("Business category is required.");
             }
 
             if (dto.Locations == null || dto.Locations.Count != 1)
             {
-                throw new Exception("Exactly one location is required.");
+                throw Invalid("Exactly one location is required.");
             }
         }
 
@@ -842,9 +1015,7 @@ namespace TummlyBackend.Services
                     )
                 )
                 {
-                    throw new Exception(
-                        "Custom plan config must be version 2 (base plan + packs)."
-                    );
+                    throw Invalid("Custom plan config must be version 2 (base plan + packs).");
                 }
             }
 
@@ -856,7 +1027,7 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                throw new Exception("Custom plan config is required.");
+                throw Invalid("Custom plan config is required.");
             }
 
             pending.ChosenPlan = chosen;
@@ -874,18 +1045,18 @@ namespace TummlyBackend.Services
         {
             if (string.IsNullOrWhiteSpace(raw))
             {
-                throw new Exception(ChoosePlanMessage);
+                throw Invalid(ChoosePlanMessage);
             }
 
             return raw.Trim().ToLowerInvariant() switch
             {
-                "free" => throw new Exception(ChoosePlanMessage),
+                "free" => throw Invalid(ChoosePlanMessage),
                 "pilot" => BillingSubscriptionPlans.Pilot,
                 "starter" => BillingSubscriptionPlans.Starter,
                 "growth" => BillingSubscriptionPlans.Growth,
                 "group" => BillingSubscriptionPlans.Group,
                 "custom" => BillingSubscriptionPlans.Custom,
-                _ => throw new Exception("Invalid plan selection."),
+                _ => throw Invalid("Invalid plan selection."),
             };
         }
 
@@ -962,75 +1133,360 @@ namespace TummlyBackend.Services
         private static string? NormalizeOptional(string? value) =>
             string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-        private async Task EnforceAndSendOtpAsync(
-            PendingSignup pending,
-            bool countAsResend
-        )
+        /// <summary>
+        /// Puts an Abandoned row back to EmailPending with a fresh session token. The send
+        /// cooldown and the window counters are kept, so a restart never bypasses them.
+        /// </summary>
+        private static void RestartAbandoned(PendingSignup pending)
         {
+            pending.Status = PendingSignupStatuses.EmailPending;
+            pending.OtpResendCount = 0;
+            pending.EmailVerifiedAt = null;
+            pending.SessionToken = Guid.NewGuid();
+        }
+
+        /// <summary>
+        /// Sends one code. The cooldown, the resend cap and the per-email window limits are
+        /// enforced by one conditional UPDATE (see <see cref="TryReserveSendAsync"/>), so a
+        /// parallel burst of Start and Resend sends at most one code per cooldown. A refused
+        /// send answers like a sent one and sends nothing: the earlier code stays valid and
+        /// the response cannot tell whether the email has an account.
+        /// </summary>
+        private async Task SendCodeAsync(PendingSignup pending, bool countAsResend)
+        {
+            var now = _clock.GetUtcNow().UtcDateTime;
             var email = pending.Email;
+            var capApplies = countAsResend && pending.Status == PendingSignupStatuses.EmailPending;
 
-            if (countAsResend)
+            // Row changes made by the caller (restart, terms) are saved before conditional UPDATEs run.
+            await _context.SaveChangesAsync();
+            await EnsureAbuseWindowAsync(pending, now);
+
+            if (!await TryReserveSendAsync(pending, now, capApplies))
             {
-                if (pending.LastOtpSentAt == null)
-                {
-                    pending.LastOtpSentAt = DateTime.UtcNow.AddMinutes(-2);
-                }
-
-                if (pending.LastOtpSentAt.Value.AddSeconds(60) > DateTime.UtcNow)
-                {
-                    throw new Exception("Please wait before resending OTP.");
-                }
-
-                if (pending.OtpResendCount >= 5)
-                {
-                    pending.Status = PendingSignupStatuses.Abandoned;
-                    pending.UpdatedAtUtc = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
-                    throw new Exception("OTP resend limit reached.");
-                }
+                await SuppressSendAsync(pending, now, capApplies);
+                return;
             }
 
-            await ReplaceUnusedOtpsAsync(email);
-
-            var otpCode = GenerateOtp.CreateOtp();
-
-            await _context.OtpVerifications.AddAsync(
-                new OtpVerification
-                {
-                    Email = email,
-                    OtpCode = otpCode,
-                    IsUsed = false,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(10),
-                    CreatedAt = DateTime.UtcNow,
-                }
+            // The reserve reloaded the row: CodeGeneration is the generation of this send.
+            var issued = await _otp.IssueAsync(
+                new OtpIssueRequest(
+                    email,
+                    OtpPurposes.Signup,
+                    SubjectFor(pending),
+                    pending.CodeGeneration
+                )
             );
 
-            if (countAsResend)
+            try
+            {
+                await _emailService.SendOtpEmailAsync(email, issued.Code);
+            }
+            catch (Exception ex)
+            {
+                // The code was never delivered, so it must not verify and must not count.
+                await _otp.InvalidateAsync(issued.OtpVerificationId);
+                await ReleaseSendAsync(pending, capApplies);
+
+                // Do not log the exception itself. Provider messages can echo the address or body.
+                _logger.LogWarning(
+                    "signup.code_delivery_failed pending_id={PendingId} purpose={Purpose} generation={Generation} email={MaskedEmail} error={ErrorType}",
+                    pending.Id,
+                    OtpPurposes.Signup,
+                    pending.CodeGeneration,
+                    LogContactMask.Email(email),
+                    ex.GetType().Name
+                );
+                throw new SignupFlowException(
+                    "code_delivery_failed",
+                    "We could not send the code. Try again in a minute.",
+                    503
+                );
+            }
+
+            _logger.LogInformation(
+                "signup.code_sent pending_id={PendingId} purpose={Purpose} generation={Generation} email={MaskedEmail}",
+                pending.Id,
+                OtpPurposes.Signup,
+                pending.CodeGeneration,
+                LogContactMask.Email(email)
+            );
+        }
+
+        /// <summary>
+        /// Takes the right to send one code. On a relational provider this is one conditional
+        /// UPDATE: it succeeds only while the window has codes and wrong verifies left, the
+        /// cooldown has passed and (for a counted resend) the cap is not reached. It then adds
+        /// one to the codes sent and the generation and stamps the send time. On success the
+        /// tracked row is reloaded so it holds the new generation.
+        /// </summary>
+        private async Task<bool> TryReserveSendAsync(
+            PendingSignup pending,
+            DateTime now,
+            bool capApplies
+        )
+        {
+            var cutoff = now - SignupAbuseLimits.ResendCooldown;
+
+            if (_context.Database.IsRelational())
+            {
+                var resendIncrement = capApplies ? 1 : 0;
+                var reserved = await _context.PendingSignups
+                    .Where(row =>
+                        row.Id == pending.Id
+                        && row.CodesSentInWindow < SignupAbuseLimits.MaxCodesPerWindow
+                        && row.FailedVerifiesInWindow < SignupAbuseLimits.MaxFailedVerifiesPerWindow
+                        && (row.LastOtpSentAt == null || row.LastOtpSentAt <= cutoff)
+                        && (!capApplies || row.OtpResendCount < ResendLimit)
+                    )
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(row => row.CodesSentInWindow, row => row.CodesSentInWindow + 1)
+                        .SetProperty(row => row.CodeGeneration, row => row.CodeGeneration + 1)
+                        .SetProperty(row => row.OtpResendCount, row => row.OtpResendCount + resendIncrement)
+                        .SetProperty(row => row.LastOtpSentAt, (DateTime?)now)
+                        .SetProperty(row => row.UpdatedAtUtc, now)
+                    );
+                if (reserved == 0)
+                {
+                    return false;
+                }
+
+                await _context.Entry(pending).ReloadAsync();
+                return true;
+            }
+
+            if (
+                pending.CodesSentInWindow >= SignupAbuseLimits.MaxCodesPerWindow
+                || pending.FailedVerifiesInWindow >= SignupAbuseLimits.MaxFailedVerifiesPerWindow
+                || (pending.LastOtpSentAt is { } lastSent && lastSent > cutoff)
+                || (capApplies && pending.OtpResendCount >= ResendLimit)
+            )
+            {
+                return false;
+            }
+
+            pending.CodesSentInWindow += 1;
+            pending.CodeGeneration += 1;
+            if (capApplies)
             {
                 pending.OtpResendCount += 1;
             }
-
-            pending.LastOtpSentAt = DateTime.UtcNow;
-            pending.UpdatedAtUtc = DateTime.UtcNow;
-
+            pending.LastOtpSentAt = now;
+            pending.UpdatedAtUtc = now;
             await _context.SaveChangesAsync();
-
-            await _emailService.SendOtpEmailAsync(email, otpCode);
+            return true;
         }
 
-        private async Task ReplaceUnusedOtpsAsync(string email)
+        /// <summary>
+        /// A refused send: logs the reason, and on the resend cap marks the row Abandoned.
+        /// Nothing is thrown and nothing is sent. The caller answers like a sent code.
+        /// </summary>
+        private async Task SuppressSendAsync(PendingSignup pending, DateTime now, bool capApplies)
         {
-            var oldOtps = await _context
-                .OtpVerifications.Where(x =>
-                    x.Email == email && x.IsUsed == false
-                )
-                .ToListAsync();
+            await _context.Entry(pending).ReloadAsync();
 
-            if (oldOtps.Count > 0)
+            string reason;
+            if (
+                pending.CodesSentInWindow >= SignupAbuseLimits.MaxCodesPerWindow
+                || pending.FailedVerifiesInWindow >= SignupAbuseLimits.MaxFailedVerifiesPerWindow
+            )
             {
-                _context.OtpVerifications.RemoveRange(oldOtps);
+                reason = "send_locked";
             }
+            else if (
+                pending.LastOtpSentAt is { } lastSent
+                && lastSent.Add(SignupAbuseLimits.ResendCooldown) > now
+            )
+            {
+                reason = "resend_cooldown";
+            }
+            else if (capApplies && pending.OtpResendCount >= ResendLimit)
+            {
+                reason = "resend_cap";
+                pending.Status = PendingSignupStatuses.Abandoned;
+                pending.UpdatedAtUtc = now;
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                // Another request took the send between the read and the update.
+                reason = "send_taken";
+            }
+
+            _logger.LogInformation(
+                "signup.code_suppressed reason={Reason} pending_id={PendingId} purpose={Purpose} email={MaskedEmail}",
+                reason,
+                pending.Id,
+                OtpPurposes.Signup,
+                LogContactMask.Email(pending.Email)
+            );
         }
+
+        /// <summary>
+        /// Gives back the counts of a send whose email was not delivered. The generation and
+        /// the send time stay: the cooldown still applies after a delivery failure.
+        /// </summary>
+        private async Task ReleaseSendAsync(PendingSignup pending, bool capApplies)
+        {
+            var resendDecrement = capApplies ? 1 : 0;
+
+            if (_context.Database.IsRelational())
+            {
+                await _context.PendingSignups
+                    .Where(row => row.Id == pending.Id && row.CodesSentInWindow > 0)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(row => row.CodesSentInWindow, row => row.CodesSentInWindow - 1)
+                        .SetProperty(
+                            row => row.OtpResendCount,
+                            row => row.OtpResendCount >= resendDecrement
+                                ? row.OtpResendCount - resendDecrement
+                                : row.OtpResendCount
+                        )
+                    );
+                await _context.Entry(pending).ReloadAsync();
+                return;
+            }
+
+            if (pending.CodesSentInWindow > 0)
+            {
+                pending.CodesSentInWindow -= 1;
+            }
+            if (capApplies && pending.OtpResendCount > 0)
+            {
+                pending.OtpResendCount -= 1;
+            }
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Reserves one wrong-verify attempt in the window before a code is compared.
+        /// Succeeds only while the window has attempts left. On a relational provider the
+        /// check and the increment are one conditional UPDATE, so parallel guesses all count.
+        /// </summary>
+        private async Task<bool> TryReserveVerifyAttemptAsync(PendingSignup pending, DateTime now)
+        {
+            if (_context.Database.IsRelational())
+            {
+                var reserved = await _context.PendingSignups
+                    .Where(row =>
+                        row.Id == pending.Id
+                        && row.FailedVerifiesInWindow < SignupAbuseLimits.MaxFailedVerifiesPerWindow
+                    )
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(
+                            row => row.FailedVerifiesInWindow,
+                            row => row.FailedVerifiesInWindow + 1
+                        )
+                        .SetProperty(row => row.UpdatedAtUtc, now)
+                    );
+                await _context.Entry(pending).ReloadAsync();
+                return reserved == 1;
+            }
+
+            if (IsVerifyLocked(pending))
+            {
+                return false;
+            }
+
+            pending.FailedVerifiesInWindow += 1;
+            pending.UpdatedAtUtc = now;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        private async Task<PendingSignup?> FindLiveSignupAsync(string email) =>
+            await _context.PendingSignups.FirstOrDefaultAsync(x =>
+                x.Email == email && LiveSignupStatuses.Contains(x.Status)
+            );
+
+        /// <summary>
+        /// Starts a new 24 hour window when none is open or the open one has expired. On a
+        /// relational provider this is one conditional UPDATE, so parallel calls reset once.
+        /// </summary>
+        private async Task EnsureAbuseWindowAsync(PendingSignup pending, DateTime now)
+        {
+            var windowCutoff = now - SignupAbuseLimits.Window;
+
+            if (_context.Database.IsRelational())
+            {
+                var reset = await _context.PendingSignups
+                    .Where(row =>
+                        row.Id == pending.Id
+                        && (row.AbuseWindowStartUtc == null || row.AbuseWindowStartUtc <= windowCutoff)
+                    )
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(row => row.AbuseWindowStartUtc, (DateTime?)now)
+                        .SetProperty(row => row.CodesSentInWindow, 0)
+                        .SetProperty(row => row.FailedVerifiesInWindow, 0)
+                    );
+                if (reset > 0)
+                {
+                    await _context.Entry(pending).ReloadAsync();
+                }
+                return;
+            }
+
+            if (pending.AbuseWindowStartUtc is { } windowStart && windowStart > windowCutoff)
+            {
+                return;
+            }
+
+            pending.AbuseWindowStartUtc = now;
+            pending.CodesSentInWindow = 0;
+            pending.FailedVerifiesInWindow = 0;
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Verifying stops only when the window has used all wrong verifies. A correct
+        /// code that was already sent must still verify after the send limit is reached.
+        /// </summary>
+        private static bool IsVerifyLocked(PendingSignup pending) =>
+            pending.FailedVerifiesInWindow >= SignupAbuseLimits.MaxFailedVerifiesPerWindow;
+
+        private SignupFlowException ChallengeLocked(PendingSignup pending, string email)
+        {
+            _logger.LogWarning(
+                "signup.challenge_locked pending_id={PendingId} purpose={Purpose} email={MaskedEmail} codesInWindow={CodesInWindow} failedInWindow={FailedInWindow}",
+                pending.Id,
+                OtpPurposes.Signup,
+                LogContactMask.Email(email),
+                pending.CodesSentInWindow,
+                pending.FailedVerifiesInWindow
+            );
+
+            // SQL Server returns Kind=Unspecified. The value is UTC, and the JSON needs the "Z".
+            return new SignupFlowException(
+                "challenge_locked",
+                "Too many attempts for this email. Try again later.",
+                429,
+                DateTime.SpecifyKind(
+                    pending.AbuseWindowStartUtc!.Value.Add(SignupAbuseLimits.Window),
+                    DateTimeKind.Utc
+                )
+            );
+        }
+
+        private static SignupFlowException VerificationFailure(OtpVerifyOutcome outcome) =>
+            outcome switch
+            {
+                OtpVerifyOutcome.Expired => new SignupFlowException(
+                    "otp_expired",
+                    ExpiredCodeMessage
+                ),
+                OtpVerifyOutcome.AttemptsExceeded => new SignupFlowException(
+                    "otp_attempts_exceeded",
+                    "Too many wrong codes. Request a new code."
+                ),
+                _ => new SignupFlowException("otp_invalid", InvalidCodeMessage),
+            };
+
+        private static string SubjectFor(PendingSignup pending) => pending.Id.ToString("N");
+
+        private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+
+        private static SignupCodeSentResponse CodeSent(string email) =>
+            new() { Email = email, Status = "code_sent" };
 
         private static SignupSessionResponse ToSessionResponse(
             PendingSignup pending

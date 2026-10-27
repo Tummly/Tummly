@@ -1,7 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using TummlyBackend.Configurations;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Signup;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -9,13 +13,35 @@ namespace TummlyBackend.Controllers
     [Route("api/[controller]")]
     public class SignupController : ControllerBase
     {
-        private readonly ISignupService _signupService;
+        private const string CodeSentMessage =
+            "If this email can be used, we sent a 6-digit code.";
 
-        public SignupController(ISignupService signupService)
+        private const string SignupErrorMessage = "Something went wrong. Try again.";
+
+        /// <summary>The header that carries the signup session token. Query strings never carry it.</summary>
+        private const string SessionHeader = "X-Signup-Session";
+
+        private const string QueryTokenName = "sessionToken";
+
+        private readonly ISignupService _signupService;
+        private readonly ILogger<SignupController> _logger;
+        private readonly IOtpCodeHasher _hasher;
+        private readonly SignupRateLimitSettings _rateLimit;
+
+        public SignupController(
+            ISignupService signupService,
+            ILogger<SignupController> logger,
+            IOtpCodeHasher hasher,
+            SignupRateLimitSettings rateLimit
+        )
         {
             _signupService = signupService;
+            _logger = logger;
+            _hasher = hasher;
+            _rateLimit = rateLimit;
         }
 
+        [EnableRateLimiting(SignupRateLimitSettings.PolicyName)]
         [HttpPost("start")]
         public async Task<IActionResult> Start([FromBody] StartSignupDto dto)
         {
@@ -27,19 +53,19 @@ namespace TummlyBackend.Controllers
                     new
                     {
                         success = true,
-                        message = "OTP sent successfully.",
+                        code = "code_sent",
+                        message = CodeSentMessage,
                         data = result,
                     }
                 );
             }
             catch (Exception ex)
             {
-                return BadRequest(
-                    new { success = false, message = ex.Message }
-                );
+                return ToError(ex);
             }
         }
 
+        [EnableRateLimiting(SignupRateLimitSettings.PolicyName)]
         [HttpPost("verify-otp")]
         public async Task<IActionResult> VerifyOtp(
             [FromBody] VerifySignupOtpDto dto
@@ -60,12 +86,11 @@ namespace TummlyBackend.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(
-                    new { success = false, message = ex.Message }
-                );
+                return ToError(ex);
             }
         }
 
+        [EnableRateLimiting(SignupRateLimitSettings.PolicyName)]
         [HttpPost("resend-otp")]
         public async Task<IActionResult> ResendOtp(
             [FromBody] ResendOtpDto dto
@@ -73,30 +98,36 @@ namespace TummlyBackend.Controllers
         {
             try
             {
-                await _signupService.ResendOtpAsync(dto.Email);
+                var result = await _signupService.ResendOtpAsync(dto.Email);
 
                 return Ok(
                     new
                     {
                         success = true,
-                        message = "OTP resent successfully.",
+                        code = "code_sent",
+                        message = CodeSentMessage,
+                        data = result,
                     }
                 );
             }
             catch (Exception ex)
             {
-                return BadRequest(
-                    new { success = false, message = ex.Message }
-                );
+                return ToError(ex);
             }
         }
 
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpPost("onboarding")]
         public async Task<IActionResult> SaveOnboarding(
-            [FromQuery] Guid sessionToken,
+            [FromHeader(Name = SessionHeader)] Guid? signupSession,
             [FromBody] SaveSignupOnboardingDto dto
         )
         {
+            if (QueryTokenPresent() || !TryReadSessionHeader(signupSession, out var sessionToken))
+            {
+                return SessionExpired();
+            }
+
             try
             {
                 var result = await _signupService.SaveOnboardingAsync(
@@ -113,35 +144,26 @@ namespace TummlyBackend.Controllers
                     }
                 );
             }
-            catch (CustomPlanQuoteException ex)
-            {
-                return BadRequest(
-                    new
-                    {
-                        success = false,
-                        code = ex.Code,
-                        message = ex.Message,
-                    }
-                );
-            }
             catch (Exception ex)
             {
-                return BadRequest(
-                    new { success = false, message = ex.Message }
-                );
+                return ToError(ex);
             }
         }
 
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpGet("session")]
         public async Task<IActionResult> GetSession(
-            [FromQuery] Guid sessionToken
+            [FromHeader(Name = SessionHeader)] Guid? signupSession
         )
         {
+            if (QueryTokenPresent() || !TryReadSessionHeader(signupSession, out var sessionToken))
+            {
+                return SessionExpired();
+            }
+
             try
             {
-                var result = await _signupService.GetBySessionAsync(
-                    sessionToken
-                );
+                var result = await _signupService.GetBySessionAsync(sessionToken);
 
                 return Ok(
                     new
@@ -154,17 +176,21 @@ namespace TummlyBackend.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(
-                    new { success = false, message = ex.Message }
-                );
+                return ToError(ex);
             }
         }
 
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpPost("retry-provision")]
         public async Task<IActionResult> RetryProvision(
-            [FromQuery] Guid sessionToken
+            [FromHeader(Name = SessionHeader)] Guid? signupSession
         )
         {
+            if (QueryTokenPresent() || !TryReadSessionHeader(signupSession, out var sessionToken))
+            {
+                return SessionExpired();
+            }
+
             try
             {
                 await _signupService.RetryProvisionAsync(sessionToken);
@@ -179,17 +205,21 @@ namespace TummlyBackend.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(
-                    new { success = false, message = ex.Message }
-                );
+                return ToError(ex);
             }
         }
 
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpGet("provisioning-status")]
         public async Task<IActionResult> GetProvisioningStatus(
-            [FromQuery] Guid sessionToken
+            [FromHeader(Name = SessionHeader)] Guid? signupSession
         )
         {
+            if (QueryTokenPresent() || !TryReadSessionHeader(signupSession, out var sessionToken))
+            {
+                return SessionExpired();
+            }
+
             try
             {
                 var result = await _signupService.GetProvisioningStatusAsync(
@@ -207,17 +237,21 @@ namespace TummlyBackend.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(
-                    new { success = false, message = ex.Message }
-                );
+                return ToError(ex);
             }
         }
 
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpPost("session-login")]
         public async Task<IActionResult> SessionLogin(
             [FromBody] SignupSessionLoginDto dto
         )
         {
+            if (QueryTokenPresent())
+            {
+                return SessionExpired();
+            }
+
             try
             {
                 var data = await _signupService.SessionLoginAsync(
@@ -233,23 +267,104 @@ namespace TummlyBackend.Controllers
                     }
                 );
             }
-            catch (SignupConflictException ex)
-            {
-                return Conflict(
-                    new
-                    {
-                        success = false,
-                        code = ex.Code,
-                        message = ex.Message,
-                    }
-                );
-            }
             catch (Exception ex)
             {
-                return BadRequest(
-                    new { success = false, message = ex.Message }
-                );
+                return ToError(ex);
             }
+        }
+
+        /// <summary>
+        /// The one mapper for every signup action. Only signup-owned refusals reach the body;
+        /// anything else is logged and returned as a fixed 500 with no exception text.
+        /// </summary>
+        private IActionResult ToError(Exception ex)
+        {
+            switch (ex)
+            {
+                case SignupFlowException flow:
+                    return FlowError(flow.StatusCode, flow.Code, flow.Message, flow.RetryAfterUtc);
+                case SignupConflictException conflict:
+                    return FlowError(StatusCodes.Status409Conflict, conflict.Code, conflict.Message, null);
+                case CustomPlanQuoteException quote:
+                    return FlowError(StatusCodes.Status400BadRequest, quote.Code, quote.Message, null);
+                default:
+                    // Log the exception for operators. Never put its message in the response.
+                    _logger.LogError(ex, "signup.unexpected_error");
+                    return FlowError(
+                        StatusCodes.Status500InternalServerError,
+                        "signup_error",
+                        SignupErrorMessage,
+                        null
+                    );
+            }
+        }
+
+        private IActionResult FlowError(
+            int statusCode,
+            string code,
+            string message,
+            DateTime? retryAfterUtc
+        )
+        {
+            var body = new Dictionary<string, object?>
+            {
+                ["success"] = false,
+                ["code"] = code,
+                ["message"] = message,
+            };
+            if (retryAfterUtc is { } retryAt)
+            {
+                body["retryAfterUtc"] = retryAt;
+            }
+
+            return StatusCode(statusCode, body);
+        }
+
+        private IActionResult SessionExpired() =>
+            FlowError(
+                StatusCodes.Status401Unauthorized,
+                SignupService.SessionExpiredCode,
+                SignupService.SessionExpiredMessage,
+                null
+            );
+
+        /// <summary>A token sent in the query string is refused, even when the header is also valid.</summary>
+        private bool QueryTokenPresent()
+        {
+            if (!Request.Query.ContainsKey(QueryTokenName))
+            {
+                return false;
+            }
+
+            _logger.LogInformation(
+                "signup.token_rejected reason=query_string ip_hash={IpHash}",
+                ClientIpHash()
+            );
+            return true;
+        }
+
+        /// <summary>
+        /// The client IP is known only here, not in the service. Request-level events carry its
+        /// hash (never the IP); service-level events (code sent, verify failed, token issued)
+        /// carry the pending id, purpose, generation and masked email instead.
+        /// </summary>
+        private string ClientIpHash() =>
+            _hasher.HashIp(SignupClientIp.Resolve(HttpContext, _rateLimit.TrustedProxyHops));
+
+        private bool TryReadSessionHeader(Guid? header, out Guid sessionToken)
+        {
+            if (header is { } value && value != Guid.Empty)
+            {
+                sessionToken = value;
+                return true;
+            }
+
+            _logger.LogInformation(
+                "signup.token_rejected reason=missing ip_hash={IpHash}",
+                ClientIpHash()
+            );
+            sessionToken = Guid.Empty;
+            return false;
         }
     }
 }

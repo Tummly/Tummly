@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Signup;
 using TummlyBackend.Interfaces;
@@ -300,6 +301,13 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            // Re-read after the consume: the in-memory consume fallback clears the change
+            // tracker, which would detach the row loaded above and drop the update.
+            pending = await _context.PendingSignups.FirstOrDefaultAsync(
+                x => x.Email.ToLower() == email,
+                cancellationToken
+            );
+
             var now = DateTime.UtcNow;
 
             if (pending == null)
@@ -321,6 +329,9 @@ namespace TummlyBackend.Services
             pending.EmailVerifiedAt = now;
             pending.PasswordHash = null;
             pending.UpdatedAtUtc = now;
+            // A social exchange is a fresh proof of the email: it issues a new, timed session token.
+            pending.SessionToken = Guid.NewGuid();
+            pending.SessionTokenIssuedAtUtc = now;
 
             if (
                 string.IsNullOrWhiteSpace(pending.FullName)
@@ -331,6 +342,16 @@ namespace TummlyBackend.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // The social exchange issues a signup token like Verify does, so it is audited the same way.
+            _logger.LogInformation(
+                "signup.token_issued pending_id={PendingId} purpose={Purpose} provider={Provider} email={MaskedEmail} status={Status}",
+                pending.Id,
+                OtpPurposes.Signup,
+                payload.Provider,
+                LogContactMask.Email(pending.Email),
+                pending.Status
+            );
 
             return new SignupSessionResponse
             {

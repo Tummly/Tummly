@@ -1,63 +1,51 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
-import { isAxiosError } from "axios"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { resendSignupOtp, verifySignupOtp } from "@/api/signupApi"
 import {
-  mapResendApiMessage,
-  mapVerifyApiMessage,
-  MAX_VERIFY_ATTEMPTS,
   OTP_MESSAGES,
   RESEND_COOLDOWN_SECONDS,
-  type OtpFeedback,
 } from "@/components/home/hero-trial-otp"
 import { SignupModalShell } from "@/components/signup/SignupModalShell"
 import { SignupVerifyStep } from "@/components/signup/SignupVerifyStep"
 import { useCountdown } from "@/hooks/use-countdown"
 import {
+  mapSignupOtpError,
+  type SignupOtpFeedback,
+} from "@/lib/signupOtpFeedback"
+import {
   clearSignupSessionToken,
-  readSignupSessionToken,
+  saveSignupSessionToken,
 } from "@/lib/signupSession"
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (isAxiosError<{ message?: string }>(error)) {
-    return error.response?.data?.message ?? fallback
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message
-  }
-
-  return fallback
-}
 
 function readVerifyEmail(searchParams: URLSearchParams) {
   const email = searchParams.get("email")?.trim() ?? ""
   return email
 }
 
+/** Only `email` is needed. The token comes back from a correct code. */
 function SignupVerifyPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const email = readVerifyEmail(searchParams)
-  const sessionToken = readSignupSessionToken()
 
   const [otpCode, setOtpCode] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [otpFeedback, setOtpFeedback] = useState<OtpFeedback | null>(null)
-  const [verifyAttempts, setVerifyAttempts] = useState(0)
+  const [otpFeedback, setOtpFeedback] = useState<SignupOtpFeedback | null>(
+    null
+  )
   const {
     secondsRemaining: resendSecondsRemaining,
     isComplete: canResend,
     restart: restartResendTimer,
-  } = useCountdown(RESEND_COOLDOWN_SECONDS, Boolean(email && sessionToken))
+  } = useCountdown(RESEND_COOLDOWN_SECONDS, Boolean(email))
 
   useEffect(() => {
-    if (!email || !sessionToken) {
+    if (!email) {
       navigate("/signup", { replace: true })
     }
-  }, [email, sessionToken, navigate])
+  }, [email, navigate])
 
   const handleVerifyOtp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -68,17 +56,9 @@ function SignupVerifyPage() {
     if (otpCode.trim().length !== 6) {
       setOtpFeedback({
         kind: "error",
-        code: "invalid",
         message: OTP_MESSAGES.incomplete,
-      })
-      return
-    }
-
-    if (verifyAttempts >= MAX_VERIFY_ATTEMPTS) {
-      setOtpFeedback({
-        kind: "error",
-        code: "too_many_attempts",
-        message: OTP_MESSAGES.too_many_attempts,
+        showRecoveryLinks: false,
+        retryAtLabel: null,
       })
       return
     }
@@ -86,26 +66,14 @@ function SignupVerifyPage() {
     setSubmitting(true)
 
     try {
-      await verifySignupOtp({
+      const session = await verifySignupOtp({
         email: email.trim().toLowerCase(),
         otpCode: otpCode.trim(),
       })
+      saveSignupSessionToken(session.sessionToken)
       navigate("/signup/onboarding")
     } catch (error) {
-      const message = getApiErrorMessage(error, OTP_MESSAGES.invalid)
-      const feedback = mapVerifyApiMessage(message)
-      const nextAttempts = verifyAttempts + 1
-      setVerifyAttempts(nextAttempts)
-
-      if (nextAttempts >= MAX_VERIFY_ATTEMPTS) {
-        setOtpFeedback({
-          kind: "error",
-          code: "too_many_attempts",
-          message: OTP_MESSAGES.too_many_attempts,
-        })
-      } else {
-        setOtpFeedback(feedback)
-      }
+      setOtpFeedback(mapSignupOtpError(error))
     } finally {
       setSubmitting(false)
     }
@@ -120,22 +88,15 @@ function SignupVerifyPage() {
     try {
       await resendSignupOtp(email.trim().toLowerCase())
       setOtpCode("")
-      setVerifyAttempts(0)
       restartResendTimer(RESEND_COOLDOWN_SECONDS)
       setOtpFeedback({
         kind: "info",
-        code: "code_resent",
         message: OTP_MESSAGES.code_resent,
+        showRecoveryLinks: false,
+        retryAtLabel: null,
       })
     } catch (error) {
-      setOtpFeedback(
-        mapResendApiMessage(
-          getApiErrorMessage(
-            error,
-            "We couldn't resend the code. Try again shortly."
-          )
-        )
-      )
+      setOtpFeedback(mapSignupOtpError(error))
     } finally {
       setSubmitting(false)
     }
@@ -153,14 +114,13 @@ function SignupVerifyPage() {
     navigate("/signup")
   }
 
-  if (!email || !sessionToken) {
+  if (!email) {
     return null
   }
 
   return (
     <SignupModalShell>
       <SignupVerifyStep
-        email={email}
         otpCode={otpCode}
         submitting={submitting}
         feedback={otpFeedback}

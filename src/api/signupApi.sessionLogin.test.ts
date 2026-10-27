@@ -67,4 +67,36 @@ describe("signupSessionLogin", () => {
       expect((error as SignupSessionLoginError).code).toBe("session_login_used")
     }
   })
+
+  it("keeps the signup_session_expired code on a 401", async () => {
+    mock.onPost("/Signup/session-login").reply(401, {
+      success: false,
+      code: "signup_session_expired",
+      message: "Your signup session has expired. Enter your email to continue.",
+    })
+
+    const error = await signupSessionLogin(
+      "11111111-1111-1111-1111-111111111111"
+    ).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(SignupSessionLoginError)
+    expect((error as SignupSessionLoginError).code).toBe(
+      "signup_session_expired"
+    )
+  })
+
+  it("keeps a plain error for a 500", async () => {
+    mock.onPost("/Signup/session-login").reply(500, {
+      success: false,
+      code: "signup_error",
+      message: "Something went wrong. Try again.",
+    })
+
+    const error = await signupSessionLogin(
+      "11111111-1111-1111-1111-111111111111"
+    ).catch((caught: unknown) => caught)
+
+    expect(error).not.toBeInstanceOf(SignupSessionLoginError)
+    expect((error as Error).message).toBe("Something went wrong. Try again.")
+  })
 })

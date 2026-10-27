@@ -12,7 +12,10 @@ import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
 import { Button } from "@/components/ui/button"
 import {
   clearSignupSessionToken,
+  isSessionLoginExpiredError,
   readSignupSessionToken,
+  redirectIfSignupSessionExpired,
+  SIGNUP_SETUP_LOGIN_PATH,
 } from "@/lib/signupSession"
 import { buildPilotSetupConfirmation } from "@/lib/signupPilotConfirmation"
 import { persistSignupLoginSession } from "@/pages/utils/authHelpers"
@@ -70,12 +73,12 @@ function SignupCompletePage() {
 
   const goToLogin = useCallback(() => {
     clearSignupSessionToken()
-    navigate("/login?setup=complete", { replace: true })
+    navigate(SIGNUP_SETUP_LOGIN_PATH, { replace: true })
   }, [navigate])
 
   useEffect(() => {
     if (!sessionToken) {
-      navigate("/login?setup=complete", { replace: true })
+      navigate(SIGNUP_SETUP_LOGIN_PATH, { replace: true })
       return
     }
 
@@ -160,9 +163,12 @@ function SignupCompletePage() {
             return "login"
           }
 
+          // Used or expired link: the account exists, so the user signs in
+          // (never the "enter your email" step).
           if (
-            caught instanceof SignupSessionLoginError
-            && caught.code === "session_login_used"
+            (caught instanceof SignupSessionLoginError
+              && caught.code === "session_login_used")
+            || isSessionLoginExpiredError(caught)
           ) {
             return "login"
           }
@@ -217,6 +223,9 @@ function SignupCompletePage() {
         }
       } catch (caught) {
         if (!isCurrent()) {
+          return
+        }
+        if (redirectIfSignupSessionExpired(caught, navigate)) {
           return
         }
         setError(

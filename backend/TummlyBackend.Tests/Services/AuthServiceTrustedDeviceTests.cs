@@ -71,7 +71,8 @@ namespace TummlyBackend.Tests.Services
                 _notifications,
                 new NoOpBillingAccountLifecycle(),
                 new NoOpCreditLedger(),
-                Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.DemoSessionOptions())
+                Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.DemoSessionOptions()),
+                OtpTestHelpers.CreateChallengeService(_context)
             );
         }
 
@@ -615,15 +616,27 @@ namespace TummlyBackend.Tests.Services
             string channel = OtpVerification.ChannelEmail
         )
         {
+            var user = await _context.Users.SingleAsync(x => x.Email == email);
+
+            if (channel == OtpVerification.ChannelEmail)
+            {
+                await OtpTestHelpers.SeedSignInEmailCodeAsync(_context, email, user.Id, otpCode);
+                return;
+            }
+
+            // SMS rows are Twilio-managed: the code is not stored, purpose and subject still set.
             await _context.OtpVerifications.AddAsync(
                 new OtpVerification
                 {
+                    UserId = user.Id,
                     Email = email,
                     OtpCode = otpCode,
                     Channel = channel,
                     IsUsed = false,
                     CreatedAt = DateTime.UtcNow,
                     ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+                    Purpose = OtpPurposes.SignIn,
+                    SubjectId = user.Id.ToString(),
                 }
             );
 

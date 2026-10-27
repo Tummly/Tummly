@@ -4,11 +4,11 @@ namespace TummlyBackend.Interfaces
 {
     public interface ISignupService
     {
-        Task<SignupSessionResponse> StartAsync(StartSignupDto dto);
+        Task<SignupCodeSentResponse> StartAsync(StartSignupDto dto);
 
         Task<SignupSessionResponse> VerifyOtpAsync(VerifySignupOtpDto dto);
 
-        Task ResendOtpAsync(string email);
+        Task<SignupCodeSentResponse> ResendOtpAsync(string email);
 
         Task<SignupSessionResponse> SaveOnboardingAsync(
             Guid sessionToken,

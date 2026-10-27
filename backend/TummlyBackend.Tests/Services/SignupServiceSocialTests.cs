@@ -100,7 +100,14 @@ namespace TummlyBackend.Tests.Services
                 new TrackingEmailService(),
                 _provisioning,
                 new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())),
-                new StubJwtService()
+                new StubJwtService(),
+                new OtpChallengeService(
+                    _db,
+                    new OtpCodeHasher("tests-only-otp-hash-key"),
+                    TimeProvider.System
+                ),
+                TimeProvider.System,
+                NullLogger<SignupService>.Instance
             );
         }
 
@@ -113,6 +120,7 @@ namespace TummlyBackend.Tests.Services
             {
                 Id = Guid.NewGuid(),
                 SessionToken = sessionToken,
+                SessionTokenIssuedAtUtc = DateTime.UtcNow,
                 Email = email,
                 Status = PendingSignupStatuses.Verified,
                 OtpResendCount = 0,
@@ -155,6 +163,7 @@ namespace TummlyBackend.Tests.Services
             {
                 Id = Guid.NewGuid(),
                 SessionToken = Guid.NewGuid(),
+                SessionTokenIssuedAtUtc = DateTime.UtcNow,
                 Email = email,
                 Status = PendingSignupStatuses.Verified,
                 OtpResendCount = 0,
@@ -236,6 +245,7 @@ namespace TummlyBackend.Tests.Services
             {
                 Id = Guid.NewGuid(),
                 SessionToken = Guid.NewGuid(),
+                SessionTokenIssuedAtUtc = DateTime.UtcNow,
                 Email = email,
                 Status = PendingSignupStatuses.Verified,
                 TermsAccepted = true,
@@ -276,6 +286,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = sessionToken,
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = email,
                     Status = PendingSignupStatuses.Verified,
                     OtpResendCount = 0,
@@ -290,7 +301,7 @@ namespace TummlyBackend.Tests.Services
             );
             await _db.SaveChangesAsync();
 
-            var ex = await Assert.ThrowsAsync<Exception>(() =>
+            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 _signup.SaveOnboardingAsync(
                     sessionToken,
                     BuildOnboardingDto(password: "short", confirmPassword: "short")
@@ -310,6 +321,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = sessionToken,
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = "social-resume@example.com",
                     Status = PendingSignupStatuses.Verified,
                     OtpResendCount = 0,

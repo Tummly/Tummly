@@ -4,7 +4,10 @@ import { useNavigate } from "react-router-dom"
 
 import { getSignupSession } from "@/api/signupApi"
 import { SetupAccountStatus } from "@/components/auth/SetupAccountShell"
-import { readSignupSessionToken } from "@/lib/signupSession"
+import {
+  readSignupSessionToken,
+  redirectIfSignupSessionExpired,
+} from "@/lib/signupSession"
 
 const PROVISIONING_STATUSES = new Set([
   "Provisioning",
@@ -65,6 +68,9 @@ function SignupChoosePlanRedirectPage() {
         navigate("/signup", { replace: true })
       } catch (error) {
         if (cancelled) return
+        if (redirectIfSignupSessionExpired(error, navigate)) {
+          return
+        }
         setGateError(
           getApiErrorMessage(
             error,

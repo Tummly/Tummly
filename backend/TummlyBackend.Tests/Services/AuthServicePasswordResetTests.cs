@@ -65,7 +65,8 @@ namespace TummlyBackend.Tests.Services
                 _notifications,
                 new NoOpBillingAccountLifecycle(),
                 new NoOpCreditLedger(),
-                Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.DemoSessionOptions())
+                Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.DemoSessionOptions()),
+                OtpTestHelpers.CreateChallengeService(_context)
             );
         }
 

@@ -22,7 +22,10 @@ import {
   readSignupOnboardingDraft,
   saveSignupOnboardingDraft,
 } from "@/lib/signupOnboardingDraft"
-import { readSignupSessionToken } from "@/lib/signupSession"
+import {
+  readSignupSessionToken,
+  redirectIfSignupSessionExpired,
+} from "@/lib/signupSession"
 import {
   activeCustomConfig,
   clearSignupPlanIntent,
@@ -180,6 +183,9 @@ function SignupOnboardingWizard({ prefill }: SignupOnboardingWizardProps) {
       clearSignupOnboardingDraft(sessionToken)
       navigate("/signup/provisioning", { replace: true })
     } catch (error) {
+      if (redirectIfSignupSessionExpired(error, navigate)) {
+        return
+      }
       if (getApiErrorCode(error) === "quote_changed") {
         setQuoteChanged(true)
         return
@@ -410,6 +416,9 @@ function SignupOnboardingPage() {
         setGateState("ready")
       } catch (error) {
         if (cancelled) return
+        if (redirectIfSignupSessionExpired(error, navigate)) {
+          return
+        }
         setGateError(
           getApiErrorMessage(
             error,

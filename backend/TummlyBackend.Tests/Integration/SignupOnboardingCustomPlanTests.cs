@@ -40,8 +40,8 @@ namespace TummlyBackend.Tests.Integration
         {
             var sessionToken = await SeedVerifiedPendingAsync();
 
-            var response = await _client.PostAsJsonAsync(
-                $"/api/signup/onboarding?sessionToken={sessionToken}",
+            var response = await PostOnboardingAsync(
+                sessionToken,
                 new
                 {
                     password = "Password1!",
@@ -90,8 +90,8 @@ namespace TummlyBackend.Tests.Integration
         {
             var sessionToken = await SeedVerifiedPendingAsync();
 
-            var response = await _client.PostAsJsonAsync(
-                $"/api/signup/onboarding?sessionToken={sessionToken}",
+            var response = await PostOnboardingAsync(
+                sessionToken,
                 new
                 {
                     password = "Password1!",
@@ -138,6 +138,19 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        private async Task<HttpResponseMessage> PostOnboardingAsync(
+            Guid sessionToken,
+            object payload
+        )
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/signup/onboarding")
+            {
+                Content = JsonContent.Create(payload),
+            };
+            request.Headers.Add("X-Signup-Session", sessionToken.ToString());
+            return await _client.SendAsync(request);
+        }
+
         private async Task<Guid> SeedVerifiedPendingAsync()
         {
             var sessionToken = Guid.NewGuid();
@@ -148,6 +161,7 @@ namespace TummlyBackend.Tests.Integration
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = sessionToken,
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = $"signup-{Guid.NewGuid():N}@example.com",
                     Status = PendingSignupStatuses.Verified,
                     OtpResendCount = 0,

@@ -78,5 +78,20 @@ namespace TummlyBackend.Models
         /// Set when POST /api/Signup/session-login succeeds (one-time use).
         /// </summary>
         public DateTime? SessionLoginConsumedAtUtc { get; set; }
+
+        /// <summary>When the signup session token was last issued.</summary>
+        public DateTime? SessionTokenIssuedAtUtc { get; set; }
+
+        /// <summary>Incremented each time a new signup code is issued.</summary>
+        public int CodeGeneration { get; set; }
+
+        /// <summary>Start of the current 24 hour abuse window.</summary>
+        public DateTime? AbuseWindowStartUtc { get; set; }
+
+        /// <summary>Codes sent inside the current abuse window.</summary>
+        public int CodesSentInWindow { get; set; }
+
+        /// <summary>Wrong code submissions inside the current abuse window.</summary>
+        public int FailedVerifiesInWindow { get; set; }
     }
 }

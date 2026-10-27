@@ -63,7 +63,8 @@ namespace TummlyBackend.Tests.Services
                 new TrackingOperatorNotificationsService(),
                 new NoOpBillingAccountLifecycle(),
                 new NoOpCreditLedger(),
-                Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.DemoSessionOptions())
+                Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.DemoSessionOptions()),
+                OtpTestHelpers.CreateChallengeService(_context)
             );
         }
 
@@ -186,18 +187,8 @@ namespace TummlyBackend.Tests.Services
 
         private async Task SeedActiveOtpAsync(string email)
         {
-            await _context.OtpVerifications.AddAsync(
-                new OtpVerification
-                {
-                    Email = email,
-                    OtpCode = "123456",
-                    Channel = OtpVerification.ChannelEmail,
-                    IsUsed = false,
-                    CreatedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(10),
-                }
-            );
-            await _context.SaveChangesAsync();
+            var user = await _context.Users.SingleAsync(x => x.Email == email);
+            await OtpTestHelpers.SeedSignInEmailCodeAsync(_context, email, user.Id, "123456");
         }
 
         private static Dictionary<string, object?> ToPropertyDictionary(

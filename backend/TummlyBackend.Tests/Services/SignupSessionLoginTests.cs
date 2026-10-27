@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using System.Text.Json;
@@ -32,7 +33,14 @@ namespace TummlyBackend.Tests.Services
                 new EmailServiceStubBase(),
                 new NoOpProvisioningService(),
                 new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())),
-                new StubJwtService()
+                new StubJwtService(),
+                new OtpChallengeService(
+                    _db,
+                    new OtpCodeHasher("tests-only-otp-hash-key"),
+                    TimeProvider.System
+                ),
+                TimeProvider.System,
+                NullLogger<SignupService>.Instance
             );
         }
 
@@ -50,6 +58,7 @@ namespace TummlyBackend.Tests.Services
             var pending = await _db.PendingSignups.SingleAsync();
             Assert.NotNull(pending.SessionLoginConsumedAtUtc);
 
+            // A replay of the claimed token is refused as already used, not as an expired session.
             var used = await Assert.ThrowsAsync<SignupConflictException>(() =>
                 _sut.SessionLoginAsync(sessionToken)
             );
@@ -65,6 +74,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = sessionToken,
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = "pending@example.com",
                     Status = PendingSignupStatuses.AwaitingPayment,
                     TermsAccepted = true,
@@ -88,7 +98,7 @@ namespace TummlyBackend.Tests.Services
                 completedAt: DateTime.UtcNow.AddHours(-25)
             );
 
-            var ex = await Assert.ThrowsAsync<Exception>(() =>
+            var ex = await Assert.ThrowsAsync<SignupFlowException>(() =>
                 _sut.SessionLoginAsync(sessionToken)
             );
             Assert.Contains("expired", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -195,6 +205,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = Guid.NewGuid(),
                     SessionToken = sessionToken,
+                    SessionTokenIssuedAtUtc = DateTime.UtcNow,
                     Email = email,
                     Status = PendingSignupStatuses.Complete,
                     TermsAccepted = true,

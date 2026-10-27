@@ -36,6 +36,9 @@ namespace TummlyBackend.Tests.Integration
                     new Dictionary<string, string?>
                     {
                         ["Frontend:BaseUrl"] = "https://tummly.example",
+                        // Signup per-IP limits are exercised with real values in SignupRateLimitEndpointsTests.
+                        ["SignupRateLimit:PerEndpointPerMinute"] = "1000",
+                        ["SignupRateLimit:CombinedPerMinute"] = "1000",
                         [TummlySellerVatSettings.ModeActiveKey] = "true",
                         [TummlySellerVatSettings.RegistrationNumberKey] =
                             "GB123456789",

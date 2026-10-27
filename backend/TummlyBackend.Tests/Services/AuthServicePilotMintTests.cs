@@ -76,7 +76,8 @@ namespace TummlyBackend.Tests.Services
                 ledger,
                 Microsoft.Extensions.Options.Options.Create(
                     new TummlyBackend.Configurations.DemoSessionOptions()
-                )
+                ),
+                OtpTestHelpers.CreateChallengeService(_context)
             );
         }
 

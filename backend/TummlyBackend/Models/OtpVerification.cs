@@ -27,5 +27,20 @@ namespace TummlyBackend.Models
         public DateTime ExpiresAt { get; set; }
 
         public DateTime CreatedAt { get; set; }
+
+        /// <summary>See <see cref="TummlyBackend.Helpers.OtpPurposes"/>.</summary>
+        public string? Purpose { get; set; }
+
+        /// <summary>Id of the subject the code was issued for (purpose-specific).</summary>
+        public string? SubjectId { get; set; }
+
+        /// <summary>Incremented each time a new code is issued for the same subject.</summary>
+        public int Generation { get; set; }
+
+        /// <summary>Lower-hex HMAC-SHA256 of the code. Never the plain code.</summary>
+        public string? CodeHash { get; set; }
+
+        /// <summary>Wrong code submissions against this row.</summary>
+        public int FailedAttempts { get; set; }
     }
 }
