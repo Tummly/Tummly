@@ -97,6 +97,7 @@ namespace TummlyBackend.Services
                     && candidate.Purpose == request.Purpose
                     && candidate.SubjectId == request.SubjectId
                     && !candidate.IsUsed
+                    && candidate.FailedAttempts < MaxWrongAttempts
                 )
                 .OrderByDescending(candidate => candidate.CreatedAt)
                 .ThenByDescending(candidate => candidate.Id)
@@ -117,6 +118,13 @@ namespace TummlyBackend.Services
                 return new OtpVerifyResult(OtpVerifyOutcome.Expired, null);
             }
 
+            // Reserve one attempt before any comparison. A burst of parallel guesses
+            // can then compare at most MaxWrongAttempts times for this code.
+            if (!await ReserveAttemptAsync(row.Id, ct))
+            {
+                return Invalid();
+            }
+
             var submitted = request.Code?.Trim() ?? string.Empty;
             var expected = _hasher.HashCode(
                 request.Purpose,
@@ -132,7 +140,7 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                var locked = await RecordWrongAttemptAsync(row, ct);
+                var locked = await LockIfBudgetSpentAsync(row.Id, ct);
                 return locked
                     ? new OtpVerifyResult(OtpVerifyOutcome.AttemptsExceeded, null)
                     : Invalid();
@@ -153,16 +161,20 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Returns true when this wrong guess reached <see cref="MaxWrongAttempts"/>
-        /// and the code is now locked. On a relational provider the counter is an
-        /// atomic increment, so parallel wrong guesses are all counted.
+        /// Counts one guess against the budget before it is compared. Succeeds only
+        /// while the row is unused and under <see cref="MaxWrongAttempts"/>. On a
+        /// relational provider the check and the increment are one conditional UPDATE.
         /// </summary>
-        private async Task<bool> RecordWrongAttemptAsync(OtpVerification row, CancellationToken ct)
+        private async Task<bool> ReserveAttemptAsync(int otpVerificationId, CancellationToken ct)
         {
             if (_context.Database.IsRelational())
             {
-                await _context.OtpVerifications
-                    .Where(candidate => candidate.Id == row.Id && !candidate.IsUsed)
+                var reserved = await _context.OtpVerifications
+                    .Where(candidate =>
+                        candidate.Id == otpVerificationId
+                        && !candidate.IsUsed
+                        && candidate.FailedAttempts < MaxWrongAttempts
+                    )
                     .ExecuteUpdateAsync(
                         setters => setters.SetProperty(
                             candidate => candidate.FailedAttempts,
@@ -170,30 +182,45 @@ namespace TummlyBackend.Services
                         ),
                         ct
                     );
+                return reserved == 1;
+            }
 
-                var attempts = await _context.OtpVerifications
-                    .AsNoTracking()
-                    .Where(candidate => candidate.Id == row.Id)
-                    .Select(candidate => candidate.FailedAttempts)
-                    .FirstOrDefaultAsync(ct);
-
-                if (attempts < MaxWrongAttempts)
-                {
-                    return false;
-                }
-
-                await MarkUsedAsync(row.Id, ct);
-                return true;
+            var row = await _context.OtpVerifications.FirstOrDefaultAsync(
+                candidate =>
+                    candidate.Id == otpVerificationId
+                    && !candidate.IsUsed
+                    && candidate.FailedAttempts < MaxWrongAttempts,
+                ct
+            );
+            if (row is null)
+            {
+                return false;
             }
 
             row.FailedAttempts += 1;
-            if (row.FailedAttempts >= MaxWrongAttempts)
+            await _context.SaveChangesAsync(ct);
+            return true;
+        }
+
+        /// <summary>
+        /// Called after a wrong guess that reserved an attempt. Locks the row when the
+        /// budget is spent and returns true in that case.
+        /// </summary>
+        private async Task<bool> LockIfBudgetSpentAsync(int otpVerificationId, CancellationToken ct)
+        {
+            var attempts = await _context.OtpVerifications
+                .AsNoTracking()
+                .Where(candidate => candidate.Id == otpVerificationId)
+                .Select(candidate => candidate.FailedAttempts)
+                .FirstOrDefaultAsync(ct);
+
+            if (attempts < MaxWrongAttempts)
             {
-                row.IsUsed = true;
+                return false;
             }
 
-            await _context.SaveChangesAsync(ct);
-            return row.FailedAttempts >= MaxWrongAttempts;
+            await MarkUsedAsync(otpVerificationId, ct);
+            return true;
         }
 
         /// <summary>

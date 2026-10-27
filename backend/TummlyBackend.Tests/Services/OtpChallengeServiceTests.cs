@@ -20,6 +20,7 @@ namespace TummlyBackend.Tests.Services
         private const string Email = "owner@example.com";
         private const string Subject = "subject-a";
         private const string HashKey = "test-otp-hash-key";
+        private const int MaxWrongAttempts = OtpChallengeService.MaxWrongAttempts;
 
         private readonly ApplicationDbContext _db;
         private readonly FakeTimeProvider _time;
@@ -195,6 +196,40 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Verify_FifthAttemptRight_Verified()
+        {
+            var issued = await _sut.IssueAsync(
+                new OtpIssueRequest(Email, OtpPurposes.Signup, Subject, 1)
+            );
+            var wrong = WrongCodeFor(issued.Code);
+
+            for (var i = 1; i <= 4; i++)
+            {
+                await _sut.VerifyAsync(
+                    new OtpVerifyRequest(Email, OtpPurposes.Signup, Subject, 1, wrong)
+                );
+            }
+
+            var result = await _sut.VerifyAsync(
+                new OtpVerifyRequest(Email, OtpPurposes.Signup, Subject, 1, issued.Code)
+            );
+
+            Assert.Equal(OtpVerifyOutcome.Verified, result.Outcome);
+        }
+
+        [Fact]
+        public async Task Verify_BudgetSpentButUnused_RightCodeInvalid()
+        {
+            await SeedRowAsync(OtpPurposes.Signup, Subject, 1, "123456", failedAttempts: MaxWrongAttempts);
+
+            var result = await _sut.VerifyAsync(
+                new OtpVerifyRequest(Email, OtpPurposes.Signup, Subject, 1, "123456")
+            );
+
+            Assert.Equal(OtpVerifyOutcome.Invalid, result.Outcome);
+        }
+
+        [Fact]
         public async Task Verify_SameCodeTwice_SecondInvalid()
         {
             var issued = await _sut.IssueAsync(
@@ -264,7 +299,13 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("Otp:HashKey is required.", ex.Message);
         }
 
-        private async Task SeedRowAsync(string purpose, string subjectId, int generation, string code)
+        private async Task SeedRowAsync(
+            string purpose,
+            string subjectId,
+            int generation,
+            string code,
+            int failedAttempts = 0
+        )
         {
             _db.OtpVerifications.Add(
                 new OtpVerification
@@ -278,6 +319,7 @@ namespace TummlyBackend.Tests.Services
                     SubjectId = subjectId,
                     Generation = generation,
                     CodeHash = ExpectedHmac(purpose, subjectId, generation, code),
+                    FailedAttempts = failedAttempts,
                 }
             );
             await _db.SaveChangesAsync();
