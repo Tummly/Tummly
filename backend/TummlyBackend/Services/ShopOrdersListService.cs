@@ -396,9 +396,21 @@ namespace TummlyBackend.Services
                     order.IsComplimentary
                 ),
                 FulfilmentStatus = ShopOrderFulfilmentLabels.ToDisplayLabel(
-                    order.FulfilmentStatus
+                    order.FulfilmentStatus,
+                    order.PaymentStatus
+                ),
+                PaymentStatusLabel = ShopOrderFulfilmentLabels.ToPaymentDisplayLabel(
+                    order.PaymentStatus,
+                    order.IsComplimentary
+                ),
+                FulfilmentStatusLabel = ShopOrderFulfilmentLabels.ToDisplayLabel(
+                    order.FulfilmentStatus,
+                    order.PaymentStatus
                 ),
                 IsComplimentary = order.IsComplimentary,
+                OrderKindLabel = ShopOrderFulfilmentLabels.ToOrderKindLabel(
+                    order.IsComplimentary
+                ),
                 UpdatedAtUtc = order.UpdatedAtUtc,
             };
         }
