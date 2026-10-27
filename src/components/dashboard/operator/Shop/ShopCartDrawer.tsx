@@ -162,8 +162,8 @@ export function ShopCartDrawer({
                 <span className="text-op-text-success font-medium">Free</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
-                <span>Standard Delivery (2-3 business days)</span>
-                <span className="text-op-text-success font-medium">Free</span>
+                <span>Standard delivery</span>
+                <span className="font-medium text-foreground">Calculated at checkout</span>
               </div>
               <div className="mt-2 flex justify-between border-t border-op-border-default/60 pt-2 text-sm font-bold text-foreground">
                 <span>Total to pay</span>

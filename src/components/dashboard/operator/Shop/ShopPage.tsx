@@ -84,7 +84,6 @@ type ShopPageProps = {
 type ExpressCheckoutState = {
   lines: CheckoutLine[]
   shipTo?: ShopShipToPayload
-  deliveryMethod?: "standard" | "express"
   sourceOrderNumber?: string
 }
 
@@ -735,7 +734,6 @@ export function ShopPage({
           lines={checkoutLines}
           fromCart={checkoutFromCart}
           initialShipTo={expressCheckout?.shipTo}
-          initialDeliveryMethod={expressCheckout?.deliveryMethod}
           selectedLocationName={locationName}
           selectedLocationAddress={locationAddress}
           locations={locations}
@@ -806,7 +804,6 @@ export function ShopPage({
                 lineNetPence: line.lineNetPence,
               })),
               shipTo: prefill.shipTo,
-              deliveryMethod: prefill.deliveryMethod,
               sourceOrderNumber: prefill.sourceOrderNumber,
             })
             setSearchParams({ view: "checkout" })

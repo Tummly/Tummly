@@ -6,7 +6,6 @@ describe("computeShopCheckoutTotalsPence", () => {
   it("OFF (vatRateBps 0): expectedGross is net only", () => {
     const totals = computeShopCheckoutTotalsPence({
       materialsNetPence: 2400,
-      deliveryMethod: "standard",
       vatRateBps: 0,
     })
 
@@ -18,7 +17,6 @@ describe("computeShopCheckoutTotalsPence", () => {
     const materialsNetPence = 2400
     const totals = computeShopCheckoutTotalsPence({
       materialsNetPence,
-      deliveryMethod: "standard",
       vatRateBps: 2000,
     })
 
@@ -27,15 +25,15 @@ describe("computeShopCheckoutTotalsPence", () => {
     expect(totals.grossPence).toBe(2880)
   })
 
-  it("ACTIVE with express: VAT on materials only; delivery stays net", () => {
+  it("delivery is the standard delivery net with no express surcharge", () => {
     const totals = computeShopCheckoutTotalsPence({
       materialsNetPence: 2400,
-      deliveryMethod: "express",
       vatRateBps: 2000,
+      standardDeliveryNetPence: 1250,
     })
 
-    expect(totals.deliveryNetPence).toBe(2000)
+    expect(totals.deliveryNetPence).toBe(1250)
     expect(totals.vatPence).toBe(480)
-    expect(totals.grossPence).toBe(4880)
+    expect(totals.grossPence).toBe(4130)
   })
 })
