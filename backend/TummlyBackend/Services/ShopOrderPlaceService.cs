@@ -6,6 +6,7 @@ using TummlyBackend.DTOs.Shop;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop;
 
 namespace TummlyBackend.Services
 {
@@ -173,11 +174,21 @@ namespace TummlyBackend.Services
                     .ToList();
             }
 
+            var priced = PriceLines(rawLines);
+            if (priced.Error != null)
+            {
+                return priced.Error;
+            }
+
+            var pricedLines = priced.Lines!;
             if (
-                rawLines.Any(line =>
-                    string.Equals(line.SkuId, "offer-card", StringComparison.Ordinal)
+                pricedLines.Any(line => line.RequiresCardOffer)
+                && !await ShopCardOfferRules.HasAttachableOfferAsync(
+                    _context,
+                    restaurantId,
+                    location.Id,
+                    cancellationToken
                 )
-                && location.OfferCardCatalogOfferId == null
             )
             {
                 return ShopOrderPlaceResult.Fail(
@@ -186,13 +197,6 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var priced = PriceLines(rawLines);
-            if (priced.Error != null)
-            {
-                return priced.Error;
-            }
-
-            var pricedLines = priced.Lines!;
             var materialsNetPence = pricedLines.Sum(line => line.LineNetPence);
             var standardDeliveryNetPence = pricedLines.Max(line => line.DeliveryNetPence);
             var deliveryNetPence = string.Equals(
@@ -478,7 +482,8 @@ namespace TummlyBackend.Services
                     raw.Quantity,
                     pack.NetPence,
                     pack.NetPence,
-                    detail.DeliveryNetPence
+                    detail.DeliveryNetPence,
+                    ShopCardOfferRules.RequiresCardOffer(detail)
                 ));
             }
 
@@ -523,7 +528,8 @@ namespace TummlyBackend.Services
             int Quantity,
             int UnitNetPence,
             int LineNetPence,
-            int DeliveryNetPence
+            int DeliveryNetPence,
+            bool RequiresCardOffer
         );
     }
 }

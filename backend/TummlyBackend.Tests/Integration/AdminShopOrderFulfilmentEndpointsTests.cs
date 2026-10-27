@@ -39,8 +39,9 @@ namespace TummlyBackend.Tests.Integration
                 trackingUrl: "https://track.example/1"
             );
 
+            // Scope to this workspace: the in-memory store is shared across tests.
             using var request = AuthorizedGet(
-                "/api/admin/shop-orders",
+                $"/api/admin/shop-orders?restaurantId={seeded.RestaurantId}",
                 seeded.AdminJwt
             );
             var response = await _client.SendAsync(request);
@@ -170,7 +171,8 @@ namespace TummlyBackend.Tests.Integration
         public async Task CounterDisplay_EmbeddedPdf_DownloadsAfterApprove()
         {
             // Ticket 04 binds QR Counter Display to OfferCard placement + EmbeddedPdf.
-            // Offer Card print generation waits until a catalog offer is attached.
+            // Counter Display never needs a card offer, so its PDF generates
+            // without one. Approval is still required before download.
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
                 seeded,
@@ -181,27 +183,6 @@ namespace TummlyBackend.Tests.Integration
             );
             using (var scope = _factory.Services.CreateScope())
             {
-                var context = scope.ServiceProvider
-                    .GetRequiredService<ApplicationDbContext>();
-                var location = await context.RestaurantLocations
-                    .SingleAsync(row => row.Id == seeded.LocationId);
-                var offer = new CatalogOffer
-                {
-                    RestaurantLocationId = seeded.LocationId,
-                    Title = "Counter launch offer",
-                    Description = "Counter print offer",
-                    Status = CatalogOfferStatus.Active,
-                    Validity = CatalogOfferValidity.Days30AfterIssue,
-                    OfferType = CatalogOfferType.FreeItem,
-                    FreeItemText = "Drink",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                };
-                context.CatalogOffers.Add(offer);
-                await context.SaveChangesAsync();
-                location.OfferCardCatalogOfferId = offer.Id;
-                await context.SaveChangesAsync();
-
                 await scope.ServiceProvider
                     .GetRequiredService<IPrintReadyQrMaterialsService>()
                     .EnsureShopOrderMaterialsAsync(orderId);
@@ -241,6 +222,77 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal((byte)'P', bytes[1]);
             Assert.Equal((byte)'D', bytes[2]);
             Assert.Equal((byte)'F', bytes[3]);
+        }
+
+        [Fact]
+        public async Task CounterDisplay_PaidOrderPdf_ReadyWithoutAttachedOffer()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-counter-display",
+                titleSnapshot: "QR Counter Display",
+                quantity: 2
+            );
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var counter = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("OfferCard", counter.QrType);
+            Assert.Equal("Ready", counter.Status);
+        }
+
+        [Fact]
+        public async Task StarterKit_CounterPdf_ReadyWithoutAttachedOffer()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            Guid orderId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var billing = await context.BillingAccounts
+                    .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+                billing.SubscriptionPlan = BillingSubscriptionPlans.Starter;
+                await context.SaveChangesAsync();
+
+                var starter = await scope.ServiceProvider
+                    .GetRequiredService<IComplimentaryStarterShopOrderService>()
+                    .EnsureForLocationAsync(
+                        seeded.RestaurantId,
+                        seeded.LocationId,
+                        seeded.OwnerUserId,
+                        "Admin Shop Owner"
+                    );
+                Assert.True(starter.Created);
+                orderId = starter.ShopOrderId;
+            }
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var counter = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("OfferCard", counter.QrType);
+            Assert.Equal("Ready", counter.Status);
+        }
+
+        [Fact]
+        public async Task GuestCard_ShopOrderAsset_StaysPreparingWithoutOffer()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-guest-cards",
+                titleSnapshot: "QR Guest Cards",
+                quantity: 250
+            );
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var guestCards = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("GuestCard", guestCards.QrType);
+            Assert.Equal("Preparing", guestCards.Status);
         }
 
         [Fact]
@@ -851,6 +903,24 @@ namespace TummlyBackend.Tests.Integration
                 failStored.FulfilmentStatus
             );
             Assert.Null(failStored.CancelledAtUtc);
+        }
+
+        private async Task EnsureShopMaterialsAsync(Guid orderId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            await scope.ServiceProvider
+                .GetRequiredService<IPrintReadyQrMaterialsService>()
+                .EnsureShopOrderMaterialsAsync(orderId);
+        }
+
+        private async Task<IReadOnlyList<ShopPrintAssetReadinessDto>> ListShopReadinessAsync(
+            Guid orderId
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            return await scope.ServiceProvider
+                .GetRequiredService<IPrintReadyQrMaterialsService>()
+                .ListShopOrderReadinessAsync(orderId);
         }
 
         private async Task<ShopOrder> ReadOrderAsync(Guid orderId)

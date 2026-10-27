@@ -79,7 +79,7 @@ namespace TummlyBackend.Tests.Services
             var asset = await _context.PrintReadyQrAssets.SingleAsync(row =>
                 row.QrType == QrType.TableTent
             );
-            Assert.Equal(2, storage.UploadAttempts);
+            Assert.Equal(2, storage.UploadAttemptsFor(asset.StorageKey));
             Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
             Assert.Null(asset.LastError);
         }
@@ -144,7 +144,7 @@ namespace TummlyBackend.Tests.Services
             var asset = await _context.PrintReadyQrAssets.SingleAsync(row =>
                 row.QrType == QrType.TableTent
             );
-            Assert.Equal(0, storage.UploadAttempts);
+            Assert.Equal(0, storage.UploadAttemptsFor(storageKey));
             Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
             Assert.Equal(originalUpdatedAt, asset.UpdatedAtUtc);
         }
@@ -185,7 +185,7 @@ namespace TummlyBackend.Tests.Services
             var asset = await _context.PrintReadyQrAssets.SingleAsync(row =>
                 row.QrType == QrType.TableTent
             );
-            Assert.Equal(1, storage.UploadAttempts);
+            Assert.Equal(1, storage.UploadAttemptsFor(asset.StorageKey));
             Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
             Assert.NotEqual("missing/table-tent.pdf", asset.StorageKey);
         }
@@ -851,10 +851,14 @@ namespace TummlyBackend.Tests.Services
         private sealed class RecordingStorage : IQueryAttachmentStorage
         {
             private readonly Dictionary<string, byte[]> _objects = [];
+            private readonly Dictionary<string, int> _attemptsByKey = [];
 
             public bool IsConfigured => true;
 
             public int UploadAttempts { get; private set; }
+
+            public int UploadAttemptsFor(string storageKey) =>
+                _attemptsByKey.GetValueOrDefault(storageKey);
 
             public void Seed(string storageKey, byte[] content)
             {
@@ -870,6 +874,7 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 UploadAttempts++;
+                _attemptsByKey[storageKey] = UploadAttemptsFor(storageKey) + 1;
                 using var buffer = new MemoryStream();
                 await content.CopyToAsync(buffer, cancellationToken);
                 _objects[storageKey] = buffer.ToArray();
@@ -895,17 +900,23 @@ namespace TummlyBackend.Tests.Services
             }
         }
 
+        /// <summary>
+        /// Fails the first upload of every storage key once, so each asset
+        /// exercises its own retry.
+        /// </summary>
         private sealed class FailFirstUploadStorage : IQueryAttachmentStorage
         {
-            private byte[]? _stored;
+            private readonly Dictionary<string, byte[]> _objects = [];
+            private readonly Dictionary<string, int> _attemptsByKey = [];
 
             public bool IsConfigured => true;
 
-            public int UploadAttempts { get; private set; }
+            public int UploadAttemptsFor(string storageKey) =>
+                _attemptsByKey.GetValueOrDefault(storageKey);
 
             public void Seed(string storageKey, byte[] content)
             {
-                _stored = content;
+                _objects[storageKey] = content;
             }
 
             public async Task UploadAsync(
@@ -916,15 +927,16 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             )
             {
-                UploadAttempts++;
-                if (UploadAttempts == 1)
+                var attempt = UploadAttemptsFor(storageKey) + 1;
+                _attemptsByKey[storageKey] = attempt;
+                if (attempt == 1)
                 {
                     throw new IOException("Transient storage failure.");
                 }
 
                 using var buffer = new MemoryStream();
                 await content.CopyToAsync(buffer, cancellationToken);
-                _stored = buffer.ToArray();
+                _objects[storageKey] = buffer.ToArray();
             }
 
             public Task<Stream> OpenReadAsync(
@@ -934,7 +946,8 @@ namespace TummlyBackend.Tests.Services
             {
                 return Task.FromResult<Stream>(
                     new MemoryStream(
-                        _stored ?? throw new FileNotFoundException(storageKey)
+                        _objects.GetValueOrDefault(storageKey)
+                            ?? throw new FileNotFoundException(storageKey)
                     )
                 );
             }
@@ -944,7 +957,7 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             )
             {
-                _stored = null;
+                _objects.Remove(storageKey);
                 return Task.CompletedTask;
             }
         }

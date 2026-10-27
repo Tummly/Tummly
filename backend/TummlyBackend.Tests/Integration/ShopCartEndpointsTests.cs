@@ -244,6 +244,65 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(2, second.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
         }
 
+        [Fact]
+        public async Task GuestCards_Available_CartWithoutOffer_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await SetSkuAvailableInShopAsync("qr-guest-cards", true);
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                OfferCardOfferRequiredException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GuestCards_ComingSoon_Cart_Returns400SkuNotAvailable()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await SetSkuAvailableInShopAsync("qr-guest-cards", false);
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                ShopSkuNotAvailableException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        private async Task SetSkuAvailableInShopAsync(string skuId, bool available)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var sku = await context.ShopMaterialSkus
+                .SingleAsync(row => row.SkuId == skuId);
+            sku.AvailableInShop = available;
+            await context.SaveChangesAsync();
+        }
+
         private async Task<HttpResponseMessage> PutLineAsync(
             string jwt,
             int locationId,
