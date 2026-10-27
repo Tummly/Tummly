@@ -17,8 +17,12 @@ using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
+using System.Globalization;
 using System.Text;
+using System.Threading.RateLimiting;
+using TummlyBackend.Controllers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -1317,6 +1321,98 @@ builder.Services.AddCors(options =>
     );
 });
 
+/*
+ =========================================
+ SIGNUP RATE LIMITS
+ =========================================
+ Only endpoints marked [EnableRateLimiting("signup")] are limited. Behind the platform
+ ingress RemoteIpAddress is the ingress, so clients are partitioned by the forwarded
+ client IP (see SignupClientIp), never by RemoteIpAddress alone.
+*/
+
+var signupRateLimit =
+    builder.Configuration
+        .GetSection(SignupRateLimitSettings.SectionName)
+        .Get<SignupRateLimitSettings>()
+    ?? new SignupRateLimitSettings();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.GlobalLimiter = PartitionedRateLimiter.CreateChained(
+        PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            IsSignupRequest(context)
+                ? RateLimitPartition.GetFixedWindowLimiter(
+                    $"{SignupClientIpOf(context)}|{context.Request.Path.Value?.ToLowerInvariant()}",
+                    _ => SignupWindow(signupRateLimit.PerEndpointPerMinute)
+                )
+                : RateLimitPartition.GetNoLimiter<string>("none")
+        ),
+        PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            IsSignupRequest(context)
+                ? RateLimitPartition.GetFixedWindowLimiter(
+                    SignupClientIpOf(context),
+                    _ => SignupWindow(signupRateLimit.CombinedPerMinute)
+                )
+                : RateLimitPartition.GetNoLimiter<string>("none")
+        )
+    );
+
+    // The endpoint attribute must resolve to a registered policy. The limits themselves are
+    // applied by GlobalLimiter above, which runs only for requests that carry this policy.
+    options.AddPolicy<string>(
+        SignupRateLimitSettings.PolicyName,
+        _ => RateLimitPartition.GetNoLimiter("signup")
+    );
+
+    options.OnRejected = async (context, token) =>
+    {
+        var http = context.HttpContext;
+        var retrySeconds =
+            context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter)
+                ? Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds))
+                : 60;
+        http.Response.Headers["Retry-After"] = retrySeconds.ToString(CultureInfo.InvariantCulture);
+
+        var logger = http.RequestServices.GetRequiredService<ILogger<SignupController>>();
+        var hasher = http.RequestServices.GetRequiredService<IOtpCodeHasher>();
+        logger.LogWarning(
+            "signup.rate_limited ip_hash={IpHash} path={Path}",
+            hasher.HashIp(SignupClientIpOf(http)),
+            http.Request.Path.Value
+        );
+
+        await http.Response.WriteAsJsonAsync(
+            new
+            {
+                success = false,
+                code = "rate_limited",
+                message = "Too many attempts. Wait a moment and try again.",
+            },
+            token
+        );
+    };
+
+    bool IsSignupRequest(HttpContext context) =>
+        context.GetEndpoint()?.Metadata
+            .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+        == SignupRateLimitSettings.PolicyName;
+
+    string SignupClientIpOf(HttpContext context) =>
+        SignupClientIp.Resolve(context, signupRateLimit.TrustedProxyHops);
+
+    static FixedWindowRateLimiterOptions SignupWindow(int permitLimit) =>
+        new()
+        {
+            PermitLimit = permitLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true,
+        };
+});
+
 var app = builder.Build();
 
 // Resolve once so a missing GuestSuppression:HashKey or Otp:HashKey fails start
@@ -1328,6 +1424,9 @@ app.UseForwardedHeaders();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
 app.UseCors("AllowFrontend");
+
+// After CORS so a 429 still carries the allowed-origin headers; before auth so floods are cut early.
+app.UseRateLimiter();
 
 app.UseAuthentication();
 
