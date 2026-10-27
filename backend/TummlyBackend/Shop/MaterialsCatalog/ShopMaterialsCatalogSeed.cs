@@ -223,10 +223,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 .Include(row => row.SkuTags)
                 .Include(row => row.Images)
                 .ToListAsync(cancellationToken);
-            var bySkuId = skus.ToDictionary(
-                row => row.SkuId,
-                StringComparer.Ordinal
-            );
+            var bySkuId = IndexBySkuId(skus);
             var now = DateTime.UtcNow;
             var changed = false;
             var remappedOfferCard = false;
@@ -335,6 +332,52 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             {
                 await context.SaveChangesAsync(cancellationToken);
             }
+        }
+
+        /// <summary>
+        /// One row per SkuId. The SkuId unique index excludes Deleted rows, so a
+        /// soft-deleted row and a re-created live row can share an id. Prefers the
+        /// live row; when only Deleted rows exist, takes the most recently updated.
+        /// </summary>
+        private static Dictionary<string, ShopMaterialSku> IndexBySkuId(
+            IEnumerable<ShopMaterialSku> skus
+        )
+        {
+            var bySkuId = new Dictionary<string, ShopMaterialSku>(
+                StringComparer.Ordinal
+            );
+            foreach (var row in skus)
+            {
+                if (
+                    !bySkuId.TryGetValue(row.SkuId, out var current)
+                    || IsPreferredSkuRow(row, current)
+                )
+                {
+                    bySkuId[row.SkuId] = row;
+                }
+            }
+
+            return bySkuId;
+        }
+
+        private static bool IsPreferredSkuRow(
+            ShopMaterialSku candidate,
+            ShopMaterialSku current
+        )
+        {
+            var candidateLive = candidate.Status != ShopMaterialSkuStatuses.Deleted;
+            var currentLive = current.Status != ShopMaterialSkuStatuses.Deleted;
+            if (candidateLive != currentLive)
+            {
+                return candidateLive;
+            }
+
+            if (candidate.UpdatedAtUtc != current.UpdatedAtUtc)
+            {
+                return candidate.UpdatedAtUtc > current.UpdatedAtUtc;
+            }
+
+            return candidate.Id > current.Id;
         }
 
         /// <summary>

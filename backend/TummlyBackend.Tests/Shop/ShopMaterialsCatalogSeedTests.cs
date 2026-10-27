@@ -218,6 +218,106 @@ namespace TummlyBackend.Tests.Shop
             );
         }
 
+        [Fact]
+        public async Task EnsureSeeded_WithDeletedAndLiveRowsSharingSkuId_AppliesSeedToLiveRow()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var live = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            live.QrType = "StaleQrType";
+            var tableTentRecipeId = live.PlacementRecipeId;
+            await _context.SaveChangesAsync();
+
+            // Soft-deleted row is newer than the live row, so only the
+            // prefer-live rule (not recency) can pick the live row.
+            _context.ShopMaterialSkus.Add(
+                BuildSkuRow(
+                    "table-tents",
+                    tableTentRecipeId,
+                    ShopMaterialSkuStatuses.Deleted,
+                    DateTime.UtcNow.AddHours(1)
+                )
+            );
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var liveAfter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+                && row.Status != ShopMaterialSkuStatuses.Deleted
+            );
+            Assert.Equal("TableTent", liveAfter.QrType);
+
+            var deletedAfter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+                && row.Status == ShopMaterialSkuStatuses.Deleted
+            );
+            Assert.Equal("DeletedQrType", deletedAfter.QrType);
+        }
+
+        [Fact]
+        public async Task EnsureSeeded_WithOnlyDeletedRowsSharingSkuId_DoesNotThrow()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var live = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            var tableTentRecipeId = live.PlacementRecipeId;
+            live.Status = ShopMaterialSkuStatuses.Deleted;
+            live.UpdatedAtUtc = DateTime.UtcNow.AddDays(-2);
+            _context.ShopMaterialSkus.Add(
+                BuildSkuRow(
+                    "table-tents",
+                    tableTentRecipeId,
+                    ShopMaterialSkuStatuses.Deleted,
+                    DateTime.UtcNow.AddDays(-1)
+                )
+            );
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var rows = await _context.ShopMaterialSkus
+                .Where(row => row.SkuId == "table-tents")
+                .ToListAsync();
+            Assert.Equal(2, rows.Count);
+            Assert.All(
+                rows,
+                row => Assert.Equal(ShopMaterialSkuStatuses.Deleted, row.Status)
+            );
+        }
+
+        private static ShopMaterialSku BuildSkuRow(
+            string skuId,
+            int placementRecipeId,
+            string status,
+            DateTime updatedAtUtc
+        )
+        {
+            return new ShopMaterialSku
+            {
+                SkuId = skuId,
+                Title = "Duplicate SKU row",
+                Category = "tabletop",
+                Description = "duplicate",
+                Material = "Acrylic",
+                Dimensions = "A6",
+                PlacementRecipeId = placementRecipeId,
+                QrType = status == ShopMaterialSkuStatuses.Deleted
+                    ? "DeletedQrType"
+                    : "TableTent",
+                UnitNetPence = 999,
+                MinOrderQty = 1,
+                PacksJson = "[]",
+                Status = status,
+                CreatedAtUtc = updatedAtUtc,
+                UpdatedAtUtc = updatedAtUtc,
+            };
+        }
+
         private async Task SeedLegacyThreeProductsAsync()
         {
             var now = DateTime.UtcNow;
