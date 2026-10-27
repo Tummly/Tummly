@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { mapSignupOtpError } from "./signupOtpFeedback"
+import { mapSignupOtpError, mapSignupStartError } from "./signupOtpFeedback"
 
 function withCode(code: string, extra: Record<string, unknown> = {}) {
   return Object.assign(new Error("server text"), { code, ...extra })
@@ -81,5 +81,60 @@ describe("mapSignupOtpError", () => {
     expect(mapSignupOtpError(new Error("Network Error")).message).toBe(
       "Something went wrong. Try again."
     )
+  })
+})
+
+describe("retryAfterUtc without a zone", () => {
+  it("reads a time with no Z as UTC", () => {
+    const withZone = mapSignupOtpError(
+      withCode("challenge_locked", { retryAfterUtc: "2026-10-27T11:00:00Z" })
+    )
+    const withoutZone = mapSignupOtpError(
+      withCode("challenge_locked", { retryAfterUtc: "2026-10-27T11:00:00" })
+    )
+
+    expect(withoutZone.retryAtLabel).toBe(withZone.retryAtLabel)
+    expect(withoutZone.retryAtLabel).not.toBeNull()
+  })
+
+  it("keeps an explicit offset", () => {
+    const offset = mapSignupOtpError(
+      withCode("challenge_locked", { retryAfterUtc: "2026-10-27T12:00:00+01:00" })
+    )
+    const utc = mapSignupOtpError(
+      withCode("challenge_locked", { retryAfterUtc: "2026-10-27T11:00:00Z" })
+    )
+
+    expect(offset.retryAtLabel).toBe(utc.retryAtLabel)
+  })
+})
+
+describe("mapSignupStartError", () => {
+  it("maps rate_limited to the fixed text with recovery links", () => {
+    expect(
+      mapSignupStartError(withCode("rate_limited"), "fallback")
+    ).toEqual({
+      message: "Too many attempts. Wait a moment and try again.",
+      showRecoveryLinks: true,
+    })
+  })
+
+  it("maps code_delivery_failed to the fixed text without links", () => {
+    expect(
+      mapSignupStartError(withCode("code_delivery_failed"), "fallback")
+    ).toEqual({
+      message: "We could not send the code. Try again in a minute.",
+      showRecoveryLinks: false,
+    })
+  })
+
+  it("keeps the server or fallback text for any other error", () => {
+    expect(
+      mapSignupStartError(withCode("signup_invalid_request"), "Terms must be accepted.")
+    ).toEqual({ message: "Terms must be accepted.", showRecoveryLinks: false })
+    expect(mapSignupStartError(new Error("Network Error"), "fallback")).toEqual({
+      message: "fallback",
+      showRecoveryLinks: false,
+    })
   })
 })

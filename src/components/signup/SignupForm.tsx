@@ -5,11 +5,15 @@ import { Link } from "react-router-dom"
 import { AuthSocialContinueButtons } from "@/components/auth/AuthSocialContinueButtons"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
+import { SignupRecoveryLinks } from "@/components/signup/SignupRecoveryLinks"
 import { Button } from "@/components/ui/button"
 import { FieldErrorSlot } from "@/components/ui/field"
 import { Form } from "@/components/ui/form"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import type { SignupStartValues } from "@/schemas/signup"
+
+/** `setError("root", { type })` value that asks the form to show the recovery links. */
+export const SIGNUP_RECOVERY_ERROR_TYPE = "signup_recovery"
 
 const signupPrimaryButtonClassName =
   "h-[45px] min-h-[45px] w-full rounded-[4px] bg-[#14a74a] px-[18px] py-3 text-sm font-medium leading-[22px] text-white hover:bg-[#129641]"
@@ -21,6 +25,8 @@ type SignupFormProps = {
 
 export function SignupForm({ form, onSubmit }: SignupFormProps) {
   const rootError = form.formState.errors.root?.message
+  const showRecoveryLinks =
+    form.formState.errors.root?.type === SIGNUP_RECOVERY_ERROR_TYPE
   const isSubmitting = form.formState.isSubmitting
 
   useEffect(() => {
@@ -92,6 +98,8 @@ export function SignupForm({ form, onSubmit }: SignupFormProps) {
             </FormCheckboxLabel>
 
             <FieldErrorSlot error={rootError} />
+
+            {showRecoveryLinks ? <SignupRecoveryLinks /> : null}
 
             <Button
               type="submit"

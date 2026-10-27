@@ -104,4 +104,32 @@ describe("SignupVerifyPage", () => {
     )
     expect(html).not.toContain('href="/help-center/contact"')
   })
+
+  it("verifyPage_lockedState_hasOneForgotPasswordLink", () => {
+    for (const code of ["challenge_locked", "rate_limited"]) {
+      const html = renderStep(
+        mapSignupOtpError(Object.assign(new Error("x"), { code }))
+      )
+
+      expect(html.match(/href="\/forgot-password"/g)).toHaveLength(1)
+    }
+  })
+
+  it("verifyPage_normalState_keepsTheForgotPasswordLink", () => {
+    const html = renderStep(null)
+
+    expect(html.match(/href="\/forgot-password"/g)).toHaveLength(1)
+  })
+
+  it("verifyPage_linksAreAnchorsWithoutButtonType", () => {
+    const html = renderStep(
+      mapSignupOtpError(Object.assign(new Error("x"), { code: "rate_limited" }))
+    )
+
+    const anchors = html.match(/<a\b[^>]*>/g) ?? []
+    expect(anchors.length).toBeGreaterThanOrEqual(4)
+    for (const anchor of anchors) {
+      expect(anchor).not.toContain('type="button"')
+    }
+  })
 })

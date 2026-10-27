@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { NavigateFunction } from "react-router-dom"
+import { SignupSessionLoginError } from "@/api/signupApi"
 import {
   buildSignupVerifyPath,
   clearSignupSessionToken,
@@ -7,6 +8,7 @@ import {
   isSignupSessionExpiredState,
   readSignupSessionToken,
   redirectIfSignupSessionExpired,
+  redirectToLoginIfSessionLoginExpired,
   SIGNUP_SESSION_EXPIRED_STATE,
   saveSignupSessionToken,
 } from "./signupSession"
@@ -100,6 +102,53 @@ describe("redirectIfSignupSessionExpired", () => {
     )
 
     expect(handled).toBe(false)
+    expect(readSignupSessionToken()).toBe("token-live")
+    expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+describe("redirectToLoginIfSessionLoginExpired", () => {
+  beforeEach(() => {
+    clearSignupSessionToken()
+  })
+
+  function fakeNavigate() {
+    const spy = vi.fn()
+    return { spy, navigate: spy as unknown as NavigateFunction }
+  }
+
+  it("sessionLoginExpired_clearsTokenAndGoesToLogin_notSignup", () => {
+    saveSignupSessionToken("token-expired")
+    const { spy, navigate } = fakeNavigate()
+
+    const handled = redirectToLoginIfSessionLoginExpired(
+      new SignupSessionLoginError("signup_session_expired", "expired"),
+      navigate
+    )
+
+    expect(handled).toBe(true)
+    expect(readSignupSessionToken()).toBeNull()
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith("/login?setup=complete", { replace: true })
+  })
+
+  it("otherErrors_noop", () => {
+    saveSignupSessionToken("token-live")
+    const { spy, navigate } = fakeNavigate()
+
+    expect(
+      redirectToLoginIfSessionLoginExpired(
+        new SignupSessionLoginError("payment_pending", "pending"),
+        navigate
+      )
+    ).toBe(false)
+    // A plain expired-code error (not from session-login) still belongs to the signup redirect.
+    expect(
+      redirectToLoginIfSessionLoginExpired(
+        Object.assign(new Error("expired"), { code: "signup_session_expired" }),
+        navigate
+      )
+    ).toBe(false)
     expect(readSignupSessionToken()).toBe("token-live")
     expect(spy).not.toHaveBeenCalled()
   })

@@ -32,9 +32,15 @@ function isKnownOtpCode(
   return Object.prototype.hasOwnProperty.call(SIGNUP_OTP_MESSAGES, code)
 }
 
+/** A time with no zone designator is read as UTC: the server only sends UTC times. */
+function parseUtcTimestamp(value: string): Date {
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value.trim())
+  return new Date(hasZone ? value : `${value.trim()}Z`)
+}
+
 function formatRetryAt(value: unknown): string | null {
   if (typeof value !== "string") return null
-  const date = new Date(value)
+  const date = parseUtcTimestamp(value)
   if (Number.isNaN(date.getTime())) return null
   return date.toLocaleString(undefined, {
     dateStyle: "medium",
@@ -74,4 +80,35 @@ export function mapSignupOtpError(error: unknown): SignupOtpFeedback {
     showRecoveryLinks: false,
     retryAtLabel: null,
   }
+}
+
+/** True when the error carries one of the signup codes that have fixed copy. */
+export function hasKnownSignupCode(error: unknown): boolean {
+  const code = (error as SignupOtpErrorFields | null)?.code
+  return typeof code === "string" && isKnownOtpCode(code)
+}
+
+export type SignupStartFeedback = {
+  message: string
+  showRecoveryLinks: boolean
+}
+
+/**
+ * Start-signup errors. A known signup code (rate_limited, code_delivery_failed, ...)
+ * uses the fixed copy and, when the user is stuck, the recovery links. Any other
+ * error (for example "Terms must be accepted.") keeps the server or fallback text.
+ */
+export function mapSignupStartError(
+  error: unknown,
+  fallbackMessage: string
+): SignupStartFeedback {
+  if (hasKnownSignupCode(error)) {
+    const feedback = mapSignupOtpError(error)
+    return {
+      message: feedback.message,
+      showRecoveryLinks: feedback.showRecoveryLinks,
+    }
+  }
+
+  return { message: fallbackMessage, showRecoveryLinks: false }
 }

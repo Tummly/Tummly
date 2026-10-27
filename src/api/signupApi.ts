@@ -56,6 +56,7 @@ export type SignupSessionLoginResult = {
 export type SignupSessionLoginErrorCode =
   | "payment_pending"
   | "session_login_used"
+  | "signup_session_expired"
 
 export class SignupSessionLoginError extends Error {
   readonly code: SignupSessionLoginErrorCode
@@ -293,7 +294,9 @@ function readConflictCode(payload: unknown): string | null {
 
 /**
  * Exchange a completed signup session for an operator auth session.
- * 409 `payment_pending` / `session_login_used` → SignupSessionLoginError.
+ * 409 `payment_pending` / `session_login_used` and 401 `signup_session_expired`
+ * → SignupSessionLoginError (the 401 keeps its code so the page can send the user
+ * to sign in: the account exists).
  */
 export async function signupSessionLogin(
   sessionToken: string,
@@ -327,6 +330,15 @@ export async function signupSessionLogin(
         throw new SignupSessionLoginError(
           "session_login_used",
           "This setup link was already used. Please sign in.",
+          { cause: error }
+        )
+      }
+    }
+    if (isAxiosError(error) && error.response?.status === 401) {
+      if (readConflictCode(error.response.data) === "signup_session_expired") {
+        throw new SignupSessionLoginError(
+          "signup_session_expired",
+          "This setup link has expired. Please sign in.",
           { cause: error }
         )
       }

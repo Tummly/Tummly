@@ -5,9 +5,13 @@ import { useForm } from "react-hook-form"
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 
 import { startSignup } from "@/api/signupApi"
-import { SignupForm } from "@/components/signup/SignupForm"
+import {
+  SIGNUP_RECOVERY_ERROR_TYPE,
+  SignupForm,
+} from "@/components/signup/SignupForm"
 import { SignupModalShell } from "@/components/signup/SignupModalShell"
 import { defaultFormValidationOptions } from "@/lib/form"
+import { mapSignupStartError } from "@/lib/signupOtpFeedback"
 import {
   clearOAuthErrorMessage,
   peekOAuthErrorMessage,
@@ -118,11 +122,15 @@ function SignupPage() {
       const result = await startSignup(payload)
       navigate(buildSignupVerifyPath(result.email))
     } catch (error) {
+      // A rate-limit or send failure uses the fixed signup copy and, when the user
+      // is stuck, the Sign in / Forgot password / Contact us links.
+      const feedback = mapSignupStartError(
+        error,
+        getApiErrorMessage(error, "We couldn't start signup. Please try again.")
+      )
       form.setError("root", {
-        message: getApiErrorMessage(
-          error,
-          "We couldn't start signup. Please try again."
-        ),
+        type: feedback.showRecoveryLinks ? SIGNUP_RECOVERY_ERROR_TYPE : undefined,
+        message: feedback.message,
       })
     }
   }

@@ -11,6 +11,7 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp"
+import { SignupRecoveryLinks } from "@/components/signup/SignupRecoveryLinks"
 import type { SignupOtpFeedback } from "@/lib/signupOtpFeedback"
 import { cn } from "@/lib/utils"
 
@@ -27,45 +28,6 @@ type SignupVerifyStepProps = {
   onVerify: (event: FormEvent<HTMLFormElement>) => void
   onResend: () => void
   onUseDifferentEmail: () => void
-}
-
-function SignupRecoveryLinks() {
-  const linkClassName =
-    "font-medium text-[#141414] underline underline-offset-2"
-  return (
-    <nav
-      aria-label="Account help"
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
-    >
-      <Button
-        type="button"
-        variant="link"
-        size="link-sm"
-        asChild
-        className={linkClassName}
-      >
-        <Link to="/login">Sign in</Link>
-      </Button>
-      <Button
-        type="button"
-        variant="link"
-        size="link-sm"
-        asChild
-        className={linkClassName}
-      >
-        <Link to="/forgot-password">Forgot password</Link>
-      </Button>
-      <Button
-        type="button"
-        variant="link"
-        size="link-sm"
-        asChild
-        className={linkClassName}
-      >
-        <Link to="/help-center/contact">Contact us</Link>
-      </Button>
-    </nav>
-  )
 }
 
 function OtpFeedbackMessage({ feedback }: { feedback: SignupOtpFeedback }) {
@@ -95,6 +57,7 @@ export function SignupVerifyStep({
 }: SignupVerifyStepProps) {
   const fieldId = useId()
   const hasError = feedback?.kind === "error"
+  const showRecoveryLinks = hasError && feedback.showRecoveryLinks
   const resendDisabled = submitting || !canResend
 
   return (
@@ -108,7 +71,6 @@ export function SignupVerifyStep({
             If this email can be used, we sent a 6-digit code. If you already
             have a Tummly account,{" "}
             <Button
-              type="button"
               variant="link"
               size="link-sm"
               asChild
@@ -169,7 +131,7 @@ export function SignupVerifyStep({
             </p>
           ) : null}
 
-          {hasError && feedback.showRecoveryLinks ? <SignupRecoveryLinks /> : null}
+          {showRecoveryLinks ? <SignupRecoveryLinks /> : null}
 
           {feedback?.kind === "info" ? (
             <OtpFeedbackMessage feedback={feedback} />
@@ -211,15 +173,17 @@ export function SignupVerifyStep({
             Use a different email
           </Button>
 
-          <Button
-            type="button"
-            variant="link"
-            size="link-sm"
-            asChild
-            className="font-medium text-[#141414]"
-          >
-            <Link to="/forgot-password">Forgot password</Link>
-          </Button>
+          {/* The recovery links already hold one Forgot password link. */}
+          {showRecoveryLinks ? null : (
+            <Button
+              variant="link"
+              size="link-sm"
+              asChild
+              className="font-medium text-[#141414]"
+            >
+              <Link to="/forgot-password">Forgot password</Link>
+            </Button>
+          )}
         </div>
       </div>
     </div>
