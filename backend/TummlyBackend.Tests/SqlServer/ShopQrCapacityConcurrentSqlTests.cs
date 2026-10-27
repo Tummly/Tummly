@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Shop.MaterialsCatalog;
@@ -261,6 +262,176 @@ namespace TummlyBackend.Tests.SqlServer
             Assert.Equal(ShopQrSlotReservationStatuses.Converted, after.Status);
             Assert.Equal(0, after.ReconcileAttempts);
             Assert.Null(after.LastReconcileError);
+        }
+
+        [SkippableFact]
+        public async Task Release_RowConvertedAfterTheDecisionToRelease_StaysConverted()
+        {
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+            await using var factory = _fixture.CreateFactory();
+            var workspace = await SeedAsync(factory, freeSlots: 1);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            await using (var seed = _fixture.CreateContext())
+            {
+                seed.ShopQrSlotReservations.Add(OpenReservation(workspace, orderId));
+                await seed.SaveChangesAsync();
+            }
+
+            // The paid path converts the row just before the release writes.
+            var interceptor = new BeforeReservationUpdateInterceptor(() =>
+            {
+                using var connection = new Microsoft.Data.SqlClient.SqlConnection(
+                    _fixture.ConnectionString
+                );
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText =
+                    "UPDATE [ShopQrSlotReservations] SET [Status] = N'converted', [ConvertedQrCodeId] = 4242 WHERE [ShopOrderId] = @id";
+                command.Parameters.AddWithValue("@id", orderId);
+                command.ExecuteNonQuery();
+            });
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseSqlServer(_fixture.ConnectionString)
+                .AddInterceptors(interceptor)
+                .Options;
+            await using (var releasing = new ApplicationDbContext(options))
+            {
+                await ShopQrSlotReservationRelease.ReleaseOpenForOrderAsync(
+                    releasing,
+                    orderId,
+                    DateTime.UtcNow,
+                    CancellationToken.None
+                );
+                await releasing.SaveChangesAsync();
+            }
+
+            Assert.True(interceptor.Fired);
+            await using var verify = _fixture.CreateContext();
+            var row = await verify.ShopQrSlotReservations
+                .AsNoTracking()
+                .SingleAsync(r => r.ShopOrderId == orderId);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, row.Status);
+            Assert.Equal(4242, row.ConvertedQrCodeId);
+        }
+
+        [SkippableFact]
+        public async Task Release_RefreshesRowsTheContextAlreadyTracks()
+        {
+            Skip.IfNot(_fixture.IsAvailable, _fixture.SkipReason);
+            await using var factory = _fixture.CreateFactory();
+            var workspace = await SeedAsync(factory, freeSlots: 1);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            await using var context = _fixture.CreateContext();
+            context.ShopQrSlotReservations.Add(OpenReservation(workspace, orderId));
+            await context.SaveChangesAsync();
+            var tracked = await context.ShopQrSlotReservations
+                .SingleAsync(r => r.ShopOrderId == orderId);
+
+            var released = await ShopQrSlotReservationRelease.ReleaseOpenForOrderAsync(
+                context,
+                orderId,
+                DateTime.UtcNow,
+                CancellationToken.None
+            );
+
+            Assert.Equal(1, released);
+            Assert.Equal(ShopQrSlotReservationStatuses.Released, tracked.Status);
+        }
+
+        private static ShopQrSlotReservation OpenReservation(
+            ShopCapacityWorkspace workspace,
+            Guid orderId
+        ) => new()
+        {
+            Id = Guid.NewGuid(),
+            ShopOrderId = orderId,
+            RestaurantLocationId = workspace.LocationId,
+            QrType = QrType.GuestCard,
+            Status = ShopQrSlotReservationStatuses.Open,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow,
+            ReconcileAfterUtc = DateTime.UtcNow.AddMinutes(30),
+        };
+
+        /// <summary>
+        /// Runs a hook once, right before the first UPDATE of a reservation row
+        /// is sent, so a test can interleave another writer.
+        /// </summary>
+        private sealed class BeforeReservationUpdateInterceptor
+            : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+        {
+            private readonly Action _hook;
+
+            public BeforeReservationUpdateInterceptor(Action hook)
+            {
+                _hook = hook;
+            }
+
+            public bool Fired { get; private set; }
+
+            public override Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>
+                ReaderExecuting(
+                    System.Data.Common.DbCommand command,
+                    Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+                    Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result
+                )
+            {
+                Fire(command);
+                return result;
+            }
+
+            public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>>
+                ReaderExecutingAsync(
+                    System.Data.Common.DbCommand command,
+                    Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+                    Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result,
+                    CancellationToken cancellationToken = default
+                )
+            {
+                Fire(command);
+                return ValueTask.FromResult(result);
+            }
+
+            public override Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>
+                NonQueryExecuting(
+                    System.Data.Common.DbCommand command,
+                    Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+                    Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result
+                )
+            {
+                Fire(command);
+                return result;
+            }
+
+            public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>>
+                NonQueryExecutingAsync(
+                    System.Data.Common.DbCommand command,
+                    Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+                    Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,
+                    CancellationToken cancellationToken = default
+                )
+            {
+                Fire(command);
+                return ValueTask.FromResult(result);
+            }
+
+            private void Fire(System.Data.Common.DbCommand command)
+            {
+                if (
+                    Fired
+                    || !command.CommandText.Contains("UPDATE", StringComparison.Ordinal)
+                    || !command.CommandText.Contains(
+                        "[ShopQrSlotReservations]",
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    return;
+                }
+
+                Fired = true;
+                _hook();
+            }
         }
 
         private Func<Task<HttpStatusCode>> PayAsync(

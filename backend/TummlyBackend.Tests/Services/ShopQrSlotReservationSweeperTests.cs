@@ -298,6 +298,94 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(reservation.ConvertedQrCodeId);
         }
 
+        [Fact]
+        public async Task Sweep_CompletedAttempt_OrderAlreadyPaidByWebhook_LeftoverOpenRowConvertsNotReleased()
+        {
+            var held = await PayGuestCardOrderAsync(freeSlots: 1);
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(held, "completed");
+            // The webhook pays the order after the sweeper read it, but its row
+            // is still open when the sweeper's paid path returns early.
+            _factory.Merchant.OnGetOrderAsync = async _ =>
+            {
+                _factory.Merchant.OnGetOrderAsync = null;
+                await MarkPaidWithoutConvertingAsync(held);
+            };
+
+            try
+            {
+                await SweepAsync(ClockAfterDeadline(held));
+            }
+            finally
+            {
+                _factory.Merchant.OnGetOrderAsync = null;
+            }
+
+            await using var db = OpenDb();
+            var reservation = await ReservationAsync(db, held);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, reservation.Status);
+            Assert.NotNull(reservation.ConvertedQrCodeId);
+            Assert.Equal(
+                ShopPaymentStatuses.Paid,
+                (await db.Context.ShopOrders.SingleAsync(row => row.Id == held.OrderId))
+                    .PaymentStatus
+            );
+        }
+
+        [Fact]
+        public async Task Sweep_OrderBecomesPaidBetweenRevolutReadAndFail_StaysPaid_NotReleased()
+        {
+            var held = await PayGuestCardOrderAsync(freeSlots: 1);
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(held, "failed");
+            _factory.Merchant.OnGetOrderAsync = async _ =>
+            {
+                _factory.Merchant.OnGetOrderAsync = null;
+                await MarkPaidWithoutConvertingAsync(held);
+            };
+
+            try
+            {
+                await SweepAsync(ClockAfterDeadline(held));
+            }
+            finally
+            {
+                _factory.Merchant.OnGetOrderAsync = null;
+            }
+
+            await using var db = OpenDb();
+            var order = await db.Context.ShopOrders.SingleAsync(row => row.Id == held.OrderId);
+            Assert.Equal(ShopPaymentStatuses.Paid, order.PaymentStatus);
+            var reservation = await ReservationAsync(db, held);
+            Assert.NotEqual(ShopQrSlotReservationStatuses.Released, reservation.Status);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, reservation.Status);
+        }
+
+        [Fact]
+        public async Task Sweep_CompletedAttempt_ApplierRefuses_RowStaysOpenAndBacksOff()
+        {
+            var held = await PayGuestCardOrderAsync(freeSlots: 1);
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(held, "completed");
+            // The intent is closed but the order is still awaiting payment, a
+            // state the applier refuses. The row must not be released.
+            await using (var seed = OpenDb())
+            {
+                (await seed.Context.RevolutOrderIntents
+                    .SingleAsync(row => row.ShopOrderId == held.OrderId)).IsOpen = false;
+                await seed.Context.SaveChangesAsync();
+            }
+
+            var clock = ClockAfterDeadline(held);
+            await SweepAsync(clock);
+
+            await using var db = OpenDb();
+            var reservation = await ReservationAsync(db, held);
+            Assert.Equal(ShopQrSlotReservationStatuses.Open, reservation.Status);
+            Assert.Equal(1, reservation.ReconcileAttempts);
+            Assert.Equal(
+                clock.GetUtcNow().UtcDateTime.AddMinutes(5),
+                reservation.ReconcileAfterUtc
+            );
+        }
+
         [Theory]
         [InlineData("processing", 1)]
         [InlineData("processing", 25)]
@@ -527,6 +615,22 @@ namespace TummlyBackend.Tests.Services
             });
             await db.Context.SaveChangesAsync();
             return newest;
+        }
+
+        /// <summary>
+        /// A webhook that wrote Paid but whose conversion has not run for this row.
+        /// </summary>
+        private async Task MarkPaidWithoutConvertingAsync(HeldReservation held)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var order = await db.ShopOrders.SingleAsync(row => row.Id == held.OrderId);
+            order.PaymentStatus = ShopPaymentStatuses.Paid;
+            order.PaidAtUtc = DateTime.UtcNow;
+            order.FulfilmentStatus = ShopFulfilmentStatuses.Processing;
+            (await db.RevolutOrderIntents.SingleAsync(row => row.ShopOrderId == held.OrderId))
+                .IsOpen = false;
+            await db.SaveChangesAsync();
         }
 
         private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request) =>
