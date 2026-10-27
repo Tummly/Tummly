@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
+using TummlyBackend.Helpers;
 using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -15,6 +16,7 @@ namespace TummlyBackend.Tests.Services
         private readonly ApplicationDbContext _context;
         private readonly TrackingEmailService _emailService;
         private readonly TrialService _service;
+        private readonly IOtpChallengeService _otp;
 
         public TrialServiceVerifyOtpTests()
         {
@@ -24,10 +26,12 @@ namespace TummlyBackend.Tests.Services
 
             _context = new ApplicationDbContext(options);
             _emailService = new TrackingEmailService();
+            _otp = OtpTestHelpers.CreateChallengeService(_context);
             _service = new TrialService(
                 _context,
                 _emailService,
-                NullLogger<TrialService>.Instance
+                NullLogger<TrialService>.Instance,
+                _otp
             );
         }
 
@@ -35,9 +39,8 @@ namespace TummlyBackend.Tests.Services
         public async Task VerifyOtpAsync_SendsTrialRequestReceivedEmail_OnSuccess()
         {
             const string email = "jane@example.com";
-            const string otp = "123456";
 
-            await SeedPendingTrialAsync(email, otp);
+            var otp = await SeedPendingTrialAsync(email);
 
             var result = await _service.VerifyOtpAsync(
                 new VerifyOtpDto
@@ -62,9 +65,8 @@ namespace TummlyBackend.Tests.Services
         public async Task VerifyOtpAsync_Succeeds_WhenTrialRequestReceivedEmailFails()
         {
             const string email = "jane@example.com";
-            const string otp = "123456";
 
-            await SeedPendingTrialAsync(email, otp);
+            var otp = await SeedPendingTrialAsync(email);
             _emailService.ShouldThrowOnTrialRequestReceivedEmail = true;
 
             var result = await _service.VerifyOtpAsync(
@@ -78,6 +80,38 @@ namespace TummlyBackend.Tests.Services
             Assert.True(result.Verified);
             Assert.False(result.ConfirmationEmailSent);
             Assert.Single(await _context.TrialRequests.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Trial_SignupCodeRefused()
+        {
+            const string email = "jane@example.com";
+            var trialCode = await SeedPendingTrialAsync(email);
+            var signup = await _otp.IssueAsync(
+                new OtpIssueRequest(email, OtpPurposes.Signup, Guid.NewGuid().ToString("N"), 0)
+            );
+
+            var refused = await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = email,
+                    OtpCode = signup.Code,
+                }
+            );
+
+            Assert.False(refused.Verified);
+            Assert.Empty(await _context.TrialRequests.ToListAsync());
+            Assert.Single(await _context.PendingTrialRequests.ToListAsync());
+
+            // The trial code is untouched by the refused signup code.
+            var accepted = await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = email,
+                    OtpCode = trialCode,
+                }
+            );
+            Assert.True(accepted.Verified);
         }
 
         [Fact]
@@ -159,19 +193,8 @@ namespace TummlyBackend.Tests.Services
                 new Microsoft.Extensions.FileProviders.NullFileProvider();
         }
 
-        private async Task SeedPendingTrialAsync(string email, string otp)
+        private async Task<string> SeedPendingTrialAsync(string email)
         {
-            _context.OtpVerifications.Add(
-                new OtpVerification
-                {
-                    Email = email,
-                    OtpCode = otp,
-                    IsUsed = false,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(10),
-                    CreatedAt = DateTime.UtcNow,
-                }
-            );
-
             _context.PendingTrialRequests.Add(
                 new PendingTrialRequest
                 {
@@ -191,6 +214,13 @@ namespace TummlyBackend.Tests.Services
             );
 
             await _context.SaveChangesAsync();
+
+            // The trial code is issued for the pending request id, as the service does on Create.
+            var pending = await _context.PendingTrialRequests.SingleAsync(x => x.Email == email);
+            var issued = await _otp.IssueAsync(
+                new OtpIssueRequest(email, OtpPurposes.Trial, pending.Id.ToString(), 0)
+            );
+            return issued.Code;
         }
 
         public void Dispose()

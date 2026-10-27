@@ -66,7 +66,8 @@ namespace TummlyBackend.Tests.Services
                 new TrackingOperatorNotificationsService(),
                 new NoOpBillingAccountLifecycle(),
                 new NoOpCreditLedger(),
-                Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.DemoSessionOptions())
+                Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.DemoSessionOptions()),
+                OtpTestHelpers.CreateChallengeService(_context)
             );
         }
 
@@ -130,16 +131,11 @@ namespace TummlyBackend.Tests.Services
                 }
             );
 
-            var otp = await _context.OtpVerifications
-                .Where(x => x.Email == user.Email && !x.IsUsed)
-                .OrderByDescending(x => x.CreatedAt)
-                .FirstAsync();
-
             var result = await _service.VerifyOtpAsync(
                 new VerifyOtpDto
                 {
                     Email = user.Email,
-                    OtpCode = otp.OtpCode,
+                    OtpCode = _emailService.SentOtpCodes.Last(),
                     RememberDevice = false,
                 }
             );
@@ -283,6 +279,8 @@ namespace TummlyBackend.Tests.Services
         {
             public List<string> SentOtpEmails { get; } = [];
 
+            public List<string> SentOtpCodes { get; } = [];
+
             public override Task SendOtpEmailAsync(
                 string toEmail,
                 string otp,
@@ -290,6 +288,7 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 SentOtpEmails.Add(toEmail);
+                SentOtpCodes.Add(otp);
                 return Task.CompletedTask;
             }
         }

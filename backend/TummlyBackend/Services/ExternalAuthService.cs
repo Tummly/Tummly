@@ -300,6 +300,13 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            // Re-read after the consume: the in-memory consume fallback clears the change
+            // tracker, which would detach the row loaded above and drop the update.
+            pending = await _context.PendingSignups.FirstOrDefaultAsync(
+                x => x.Email.ToLower() == email,
+                cancellationToken
+            );
+
             var now = DateTime.UtcNow;
 
             if (pending == null)

@@ -14,16 +14,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _email;
         private readonly IJwtService _jwt;
+        private readonly IOtpChallengeService _otpChallenges;
 
         public TeamInvitationAcceptService(
             ApplicationDbContext context,
             IEmailService email,
-            IJwtService jwt
+            IJwtService jwt,
+            IOtpChallengeService otpChallenges
         )
         {
             _context = context;
             _email = email;
             _jwt = jwt;
+            _otpChallenges = otpChallenges;
         }
 
         public async Task<(TeamInvitationPreviewDto? Preview, string? Error)> PreviewAsync(
@@ -110,7 +113,7 @@ namespace TummlyBackend.Services
                 request.Password
             );
             await SendEmailOtpAsync(
-                loaded.Invite.Email,
+                loaded.Invite,
                 restaurantName: loaded.Restaurant!.Name
             );
             await _context.SaveChangesAsync();
@@ -139,7 +142,7 @@ namespace TummlyBackend.Services
             }
 
             await SendEmailOtpAsync(
-                user.Email,
+                loaded.Invite!,
                 user.Id,
                 loaded.Restaurant!.Name
             );
@@ -163,20 +166,20 @@ namespace TummlyBackend.Services
                 return (null, InvalidInviteMessage);
             }
 
-            var otp = await _context.OtpVerifications
-                .Where(row =>
-                    row.Email.ToLower() == email.ToLower()
-                    && !row.IsUsed
-                    && row.ExpiresAt > DateTime.UtcNow
+            var verify = await _otpChallenges.VerifyAsync(
+                new OtpVerifyRequest(
+                    email,
+                    OtpPurposes.TeamInvite,
+                    loaded.Invite!.Id.ToString(),
+                    Generation: 0,
+                    Code: request.OtpCode ?? string.Empty
                 )
-                .OrderByDescending(row => row.CreatedAt)
-                .FirstOrDefaultAsync();
-            if (otp == null || otp.OtpCode != (request.OtpCode ?? string.Empty).Trim())
+            );
+            if (verify.Outcome != OtpVerifyOutcome.Verified)
             {
                 return (null, "Invalid OTP.");
             }
 
-            otp.IsUsed = true;
             var user = await FindUserByEmailAsync(email);
             if (user == null)
             {
@@ -269,33 +272,21 @@ namespace TummlyBackend.Services
         }
 
         private async Task SendEmailOtpAsync(
-            string email,
+            TeamInvitation invite,
             int? userId = null,
             string? restaurantName = null
         )
         {
-            var old = await _context.OtpVerifications
-                .Where(row => row.Email == email && !row.IsUsed)
-                .ToListAsync();
-            if (old.Count > 0)
-            {
-                _context.OtpVerifications.RemoveRange(old);
-            }
-
-            var otpCode = Random.Shared.Next(100000, 999999).ToString();
-            _context.OtpVerifications.Add(
-                new OtpVerification
-                {
-                    UserId = userId,
-                    Email = email,
-                    OtpCode = otpCode,
-                    Channel = OtpVerification.ChannelEmail,
-                    IsUsed = false,
-                    CreatedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(10),
-                }
+            var issued = await _otpChallenges.IssueAsync(
+                new OtpIssueRequest(
+                    invite.Email,
+                    OtpPurposes.TeamInvite,
+                    invite.Id.ToString(),
+                    Generation: 0,
+                    UserId: userId
+                )
             );
-            await _email.SendOtpEmailAsync(email, otpCode, restaurantName);
+            await _email.SendOtpEmailAsync(invite.Email, issued.Code, restaurantName);
         }
 
         private async Task<User> CreateInviteeUserAsync(

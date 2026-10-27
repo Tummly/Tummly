@@ -346,6 +346,66 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task AcceptTerms_ResumedPending_RotatesToken_SetsIssuedAt()
+        {
+            const string email = "resume@example.com";
+            var oldToken = Guid.NewGuid();
+            var stale = DateTime.UtcNow.AddDays(-3);
+            _db.PendingSignups.Add(
+                new PendingSignup
+                {
+                    Id = Guid.NewGuid(),
+                    SessionToken = oldToken,
+                    SessionTokenIssuedAtUtc = stale,
+                    Email = email,
+                    Status = PendingSignupStatuses.EmailPending,
+                    TermsAccepted = false,
+                    CreatedAtUtc = stale,
+                    UpdatedAtUtc = stale,
+                }
+            );
+            await _db.SaveChangesAsync();
+
+            var token = await SeedSignUpExchangeAsync(
+                email: email,
+                provider: ExternalAuthProviders.Google,
+                providerSubject: "sub-resume",
+                fullName: "Resume User"
+            );
+
+            var before = DateTime.UtcNow;
+            var session = await _sut.AcceptTermsAsync(
+                new ExternalAuthAcceptTermsDto
+                {
+                    Token = token,
+                    TermsAccepted = true,
+                }
+            );
+
+            var pending = await _db.PendingSignups.SingleAsync();
+            Assert.NotEqual(oldToken, pending.SessionToken);
+            Assert.Equal(pending.SessionToken, session.SessionToken);
+            Assert.NotNull(pending.SessionTokenIssuedAtUtc);
+            Assert.InRange(pending.SessionTokenIssuedAtUtc.Value, before, DateTime.UtcNow);
+        }
+
+        [Fact]
+        public async Task AcceptTerms_InvalidTicket_NoToken()
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                _sut.AcceptTermsAsync(
+                    new ExternalAuthAcceptTermsDto
+                    {
+                        Token = "not-a-real-exchange-token",
+                        TermsAccepted = true,
+                    }
+                )
+            );
+
+            Assert.Empty(_db.PendingSignups);
+        }
+
+        [Fact]
         public async Task AcceptTerms_TermsFalse_ThrowsAndLeavesTicketUnconsumed()
         {
             var token = await SeedSignUpExchangeAsync(

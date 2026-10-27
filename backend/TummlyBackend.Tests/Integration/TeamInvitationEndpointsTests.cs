@@ -195,14 +195,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(HttpStatusCode.OK, credentials.StatusCode);
 
-            string otp;
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                otp = (await context.OtpVerifications.SingleAsync(row =>
-                    row.Email == email
-                )).OtpCode;
-            }
+            string otp = tracking.OtpEmails.Last().Code;
 
             var verify = await client.PostAsJsonAsync(
                 "/api/team-invitations/verify-otp",
@@ -398,12 +391,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(HttpStatusCode.OK, credentials.StatusCode);
 
-            string otp;
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                otp = (await context.OtpVerifications.SingleAsync(row => row.Email == email)).OtpCode;
-            }
+            string otp = tracking.OtpEmails.Last().Code;
 
             var verify = await client.PostAsJsonAsync(
                 "/api/team-invitations/verify-otp",
@@ -438,9 +426,97 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task TeamInvite_SignupCodeRefused()
+        {
+            var tracking = new TrackingTeamInvitationEmailService();
+            var client = CreateClientWithEmail(tracking);
+            var seeded = await SeedWorkspaceAsync();
+            var email = $"{Guid.NewGuid():N}@new.example";
+            await SendInviteAsync(client, seeded.OwnerJwt, email);
+
+            string opaque;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                opaque = (await context.TeamInvitations.SingleAsync(row =>
+                    row.Email == email
+                )).OpaqueReference;
+            }
+
+            var credentials = await client.PostAsJsonAsync(
+                "/api/team-invitations/credentials",
+                new { invite = opaque, fullName = "New Member", password = "Password1" }
+            );
+            Assert.Equal(HttpStatusCode.OK, credentials.StatusCode);
+            var teamCode = tracking.OtpEmails.Last().Code;
+
+            string signupCode;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var otpService = scope.ServiceProvider.GetRequiredService<IOtpChallengeService>();
+                signupCode = (await otpService.IssueAsync(
+                    new OtpIssueRequest(email, OtpPurposes.Signup, Guid.NewGuid().ToString("N"), 1)
+                )).Code;
+            }
+
+            var refused = await client.PostAsJsonAsync(
+                "/api/team-invitations/verify-otp",
+                new { invite = opaque, email, otpCode = signupCode }
+            );
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+            var refusedBody = await refused.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("Invalid OTP.", refusedBody.GetProperty("message").GetString());
+
+            var accepted = await client.PostAsJsonAsync(
+                "/api/team-invitations/verify-otp",
+                new { invite = opaque, email, otpCode = teamCode }
+            );
+            Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        }
+
+        [Fact]
+        public async Task TeamInvite_CodeIsCsprngSixDigits()
+        {
+            var tracking = new TrackingTeamInvitationEmailService();
+            var client = CreateClientWithEmail(tracking);
+            var seeded = await SeedWorkspaceAsync();
+            var email = $"{Guid.NewGuid():N}@new.example";
+            await SendInviteAsync(client, seeded.OwnerJwt, email);
+
+            string opaque;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                opaque = (await context.TeamInvitations.SingleAsync(row =>
+                    row.Email == email
+                )).OpaqueReference;
+            }
+
+            var credentials = await client.PostAsJsonAsync(
+                "/api/team-invitations/credentials",
+                new { invite = opaque, fullName = "New Member", password = "Password1" }
+            );
+            Assert.Equal(HttpStatusCode.OK, credentials.StatusCode);
+
+            Assert.Matches("^[0-9]{6}$", tracking.OtpEmails.Last().Code);
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var verifyContext = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var invite = await verifyContext.TeamInvitations.SingleAsync(row => row.Email == email);
+            var otpRow = await verifyContext.OtpVerifications.SingleAsync(row =>
+                row.Email == email && row.Purpose == OtpPurposes.TeamInvite
+            );
+            Assert.Equal(invite.Id.ToString(), otpRow.SubjectId);
+            Assert.Equal(0, otpRow.Generation);
+            Assert.Equal(string.Empty, otpRow.OtpCode);
+            Assert.NotNull(otpRow.CodeHash);
+        }
+
+        [Fact]
         public async Task Accept_ExistingUser_SignInThenMembership()
         {
-            var client = CreateClientWithEmail(new TrackingTeamInvitationEmailService());
+            var tracking = new TrackingTeamInvitationEmailService();
+            var client = CreateClientWithEmail(tracking);
             var seeded = await SeedWorkspaceAsync();
             const string password = "Password1";
             string email;
@@ -491,14 +567,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(HttpStatusCode.OK, signIn.StatusCode);
 
-            string otp;
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                otp = (await context.OtpVerifications
-                    .OrderByDescending(row => row.Id)
-                    .FirstAsync(row => row.Email == email)).OtpCode;
-            }
+            string otp = tracking.OtpEmails.Last().Code;
 
             var verify = await client.PostAsJsonAsync(
                 "/api/team-invitations/verify-otp",
@@ -549,7 +618,8 @@ namespace TummlyBackend.Tests.Integration
         [Fact]
         public async Task Accept_PausedWorkspace_StillCreatesMembership()
         {
-            var client = CreateClientWithEmail(new TrackingTeamInvitationEmailService());
+            var tracking = new TrackingTeamInvitationEmailService();
+            var client = CreateClientWithEmail(tracking);
             var seeded = await SeedWorkspaceAsync();
             var email = $"{Guid.NewGuid():N}@pause.example";
             await SendInviteAsync(client, seeded.OwnerJwt, email);
@@ -575,12 +645,7 @@ namespace TummlyBackend.Tests.Integration
                 new { invite = opaque, fullName = "Paused Join", password = "Password1" }
             );
             Assert.Equal(HttpStatusCode.OK, credentials.StatusCode);
-            string otp;
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                otp = (await context.OtpVerifications.SingleAsync(row => row.Email == email)).OtpCode;
-            }
+            string otp = tracking.OtpEmails.Last().Code;
 
             var verify = await client.PostAsJsonAsync(
                 "/api/team-invitations/verify-otp",
@@ -592,7 +657,8 @@ namespace TummlyBackend.Tests.Integration
         [Fact]
         public async Task Accept_FollowsOwnerPendingActivation_OnRestaurantApis()
         {
-            var client = CreateClientWithEmail(new TrackingTeamInvitationEmailService());
+            var tracking = new TrackingTeamInvitationEmailService();
+            var client = CreateClientWithEmail(tracking);
             var seeded = await SeedWorkspaceAsync();
             var email = $"{Guid.NewGuid():N}@wait.example";
             await SendInviteAsync(client, seeded.OwnerJwt, email);
@@ -617,12 +683,7 @@ namespace TummlyBackend.Tests.Integration
                 "/api/team-invitations/credentials",
                 new { invite = opaque, fullName = "Waiter", password = "Password1" }
             );
-            string otp;
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                otp = (await context.OtpVerifications.SingleAsync(row => row.Email == email)).OtpCode;
-            }
+            string otp = tracking.OtpEmails.Last().Code;
 
             var verify = await client.PostAsJsonAsync(
                 "/api/team-invitations/verify-otp",
@@ -931,6 +992,18 @@ namespace TummlyBackend.Tests.Integration
                 string Subject,
                 string AcceptUrl
             )> Sent { get; } = [];
+
+            public List<(string ToEmail, string Code)> OtpEmails { get; } = [];
+
+            public override Task SendOtpEmailAsync(
+                string toEmail,
+                string otp,
+                string? restaurantName = null
+            )
+            {
+                OtpEmails.Add((toEmail, otp));
+                return Task.CompletedTask;
+            }
 
             public override Task SendTeamInvitationEmailAsync(
                 string toEmail,

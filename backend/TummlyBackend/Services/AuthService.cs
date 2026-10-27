@@ -39,6 +39,8 @@ namespace TummlyBackend.Services
 
         private readonly DemoSessionOptions _demoSession;
 
+        private readonly IOtpChallengeService _otpChallenges;
+
         private const int MaxActivationVerifyAttempts = 5;
 
         private static readonly TimeSpan ActivationVerifyLockout =
@@ -57,7 +59,8 @@ namespace TummlyBackend.Services
     IOperatorNotificationsService notifications,
     IBillingAccountLifecycle lifecycle,
     ICreditLedger creditLedger,
-    IOptions<DemoSessionOptions> demoSession
+    IOptions<DemoSessionOptions> demoSession,
+    IOtpChallengeService otpChallenges
 )
         {
             _context = context;
@@ -73,6 +76,7 @@ namespace TummlyBackend.Services
             _lifecycle = lifecycle;
             _creditLedger = creditLedger;
             _demoSession = demoSession.Value;
+            _otpChallenges = otpChallenges;
         }
 
         /*
@@ -398,6 +402,7 @@ namespace TummlyBackend.Services
             return await _context.OtpVerifications
                 .Where(x =>
                     x.Email == email &&
+                    x.Purpose == OtpPurposes.SignIn &&
                     x.IsUsed == false &&
                     x.ExpiresAt > DateTime.UtcNow
                 )
@@ -411,7 +416,10 @@ namespace TummlyBackend.Services
         {
             var latestOtp =
                 await _context.OtpVerifications
-                    .Where(x => x.Email == email)
+                    .Where(x =>
+                        x.Email == email &&
+                        x.Purpose == OtpPurposes.SignIn
+                    )
                     .OrderByDescending(x => x.CreatedAt)
                     .FirstOrDefaultAsync();
 
@@ -444,60 +452,63 @@ namespace TummlyBackend.Services
             string channel
         )
         {
-            var oldOtps =
-                await _context.OtpVerifications
-                    .Where(x =>
-                        x.Email == user.Email &&
-                        x.IsUsed == false
-                    )
-                    .ToListAsync();
-
-            if (oldOtps.Any())
-            {
-                _context.OtpVerifications
-                    .RemoveRange(oldOtps);
-            }
-
-            string otpCode;
             if (channel == OtpVerification.ChannelSms)
             {
                 await _smsService.SendOtpSmsAsync(
                     user.PhoneNumber
                 );
-                otpCode = OtpVerification.TwilioManagedCode;
-            }
-            else
-            {
-                otpCode =
-                    new Random()
-                        .Next(100000, 999999)
-                        .ToString();
-            }
 
-            var otpRecord =
-                new OtpVerification
+                // Twilio Verify owns the code. Replace only unused sign-in rows.
+                var staleSmsRows =
+                    await _context.OtpVerifications
+                        .Where(x =>
+                            x.Email == user.Email &&
+                            x.Purpose == OtpPurposes.SignIn &&
+                            x.IsUsed == false
+                        )
+                        .ToListAsync();
+
+                if (staleSmsRows.Any())
                 {
-                    UserId = user.Id,
-                    Email = user.Email,
-                    OtpCode = otpCode,
-                    Channel = channel,
-                    IsUsed = false,
-                    CreatedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(10)
-                };
+                    _context.OtpVerifications
+                        .RemoveRange(staleSmsRows);
+                }
 
-            await _context.OtpVerifications
-                .AddAsync(otpRecord);
+                await _context.OtpVerifications
+                    .AddAsync(
+                        new OtpVerification
+                        {
+                            UserId = user.Id,
+                            Email = user.Email,
+                            OtpCode = OtpVerification.TwilioManagedCode,
+                            Channel = channel,
+                            IsUsed = false,
+                            CreatedAt = DateTime.UtcNow,
+                            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+                            Purpose = OtpPurposes.SignIn,
+                            SubjectId = user.Id.ToString(),
+                            Generation = 0,
+                        }
+                    );
 
-            await _context.SaveChangesAsync();
-
-            if (channel == OtpVerification.ChannelEmail)
-            {
-                await _emailService.SendOtpEmailAsync(
-                    user.Email,
-                    otpCode
-                );
+                await _context.SaveChangesAsync();
+                return;
             }
+
+            var issued = await _otpChallenges.IssueAsync(
+                new OtpIssueRequest(
+                    user.Email,
+                    OtpPurposes.SignIn,
+                    user.Id.ToString(),
+                    Generation: 0,
+                    UserId: user.Id
+                )
+            );
+
+            await _emailService.SendOtpEmailAsync(
+                user.Email,
+                issued.Code
+            );
         }
 
         private async Task SendSignInOtpAsync(User user)
@@ -772,6 +783,7 @@ namespace TummlyBackend.Services
                 await _context.OtpVerifications
                     .Where(x =>
                         x.Email == dto.Email &&
+                        x.Purpose == OtpPurposes.SignIn &&
                         x.IsUsed == false &&
                         x.ExpiresAt > DateTime.UtcNow
                     )
@@ -806,7 +818,17 @@ namespace TummlyBackend.Services
                         user.PhoneNumber,
                         dto.OtpCode
                     )
-                    : otpRecord.OtpCode == dto.OtpCode;
+                    : (
+                        await _otpChallenges.VerifyAsync(
+                            new OtpVerifyRequest(
+                                dto.Email,
+                                OtpPurposes.SignIn,
+                                user.Id.ToString(),
+                                Generation: 0,
+                                Code: dto.OtpCode
+                            )
+                        )
+                    ).Outcome == OtpVerifyOutcome.Verified;
 
             if (!isValid)
             {

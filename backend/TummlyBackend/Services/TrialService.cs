@@ -17,10 +17,13 @@ namespace TummlyBackend.Services
 
         private readonly ILogger<TrialService> _logger;
 
+        private readonly IOtpChallengeService _otpChallenges;
+
         public TrialService(
             ApplicationDbContext context,
             IEmailService emailService,
-            ILogger<TrialService> logger
+            ILogger<TrialService> logger,
+            IOtpChallengeService otpChallenges
         )
         {
             _context = context;
@@ -28,6 +31,8 @@ namespace TummlyBackend.Services
             _emailService = emailService;
 
             _logger = logger;
+
+            _otpChallenges = otpChallenges;
         }
 
         /*
@@ -210,44 +215,19 @@ namespace TummlyBackend.Services
                     .AddAsync(trialRequest);
             }
 
-            var oldOtps = await _context
-                .OtpVerifications
-                .Where(x =>
-                    x.Email == dto.Email &&
-                    x.IsUsed == false
-                )
-                .ToListAsync();
-
-            if (oldOtps.Any())
-            {
-                _context
-                    .OtpVerifications
-                    .RemoveRange(oldOtps);
-            }
-
-            var otpCode =
-                GenerateOtp.CreateOtp();
-
-            var otpVerification =
-                new OtpVerification
-                {
-                    Email = dto.Email,
-
-                    OtpCode = otpCode,
-
-                    ExpiresAt =
-                        DateTime.UtcNow
-                            .AddMinutes(10),
-
-                    IsUsed = false,
-
-                    CreatedAt =
-                        DateTime.UtcNow
-                };
-
+            // The code is bound to the pending request id, so save first to assign it.
             await _context
-                .OtpVerifications
-                .AddAsync(otpVerification);
+                .SaveChangesAsync();
+
+            var issued =
+                await _otpChallenges.IssueAsync(
+                    new OtpIssueRequest(
+                        dto.Email,
+                        OtpPurposes.Trial,
+                        trialRequest.Id.ToString(),
+                        Generation: 0
+                    )
+                );
 
             trialRequest.LastOtpSentAt =
                 DateTime.UtcNow;
@@ -258,7 +238,7 @@ namespace TummlyBackend.Services
             await _emailService
                 .SendOtpEmailAsync(
                     dto.Email,
-                    otpCode,
+                    issued.Code,
                     dto.BusinessName
                 );
 
@@ -281,32 +261,6 @@ namespace TummlyBackend.Services
             dto.OtpCode =
                 dto.OtpCode.Trim();
 
-            var otpRecord = await _context
-                .OtpVerifications
-                .FirstOrDefaultAsync(x =>
-                    x.Email == dto.Email &&
-                    x.OtpCode == dto.OtpCode &&
-                    x.IsUsed == false
-                );
-
-            if (otpRecord == null)
-            {
-                return new TrialVerifyOtpResult(
-                    Verified: false,
-                    ConfirmationEmailSent: false
-                );
-            }
-
-            if (otpRecord.ExpiresAt < DateTime.UtcNow)
-            {
-                return new TrialVerifyOtpResult(
-                    Verified: false,
-                    ConfirmationEmailSent: false
-                );
-            }
-
-            otpRecord.IsUsed = true;
-
             var pendingTrial = await _context
                 .PendingTrialRequests
                 .FirstOrDefaultAsync(x =>
@@ -314,6 +268,25 @@ namespace TummlyBackend.Services
                 );
 
             if (pendingTrial == null)
+            {
+                return new TrialVerifyOtpResult(
+                    Verified: false,
+                    ConfirmationEmailSent: false
+                );
+            }
+
+            var verify =
+                await _otpChallenges.VerifyAsync(
+                    new OtpVerifyRequest(
+                        dto.Email,
+                        OtpPurposes.Trial,
+                        pendingTrial.Id.ToString(),
+                        Generation: 0,
+                        Code: dto.OtpCode
+                    )
+                );
+
+            if (verify.Outcome != OtpVerifyOutcome.Verified)
             {
                 return new TrialVerifyOtpResult(
                     Verified: false,
@@ -469,57 +442,26 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var oldOtps = await _context
-                .OtpVerifications
-                .Where(x =>
-                    x.Email == email &&
-                    x.IsUsed == false
-                )
-                .ToListAsync();
-
-            if (oldOtps.Any())
-            {
-                _context
-                    .OtpVerifications
-                    .RemoveRange(oldOtps);
-            }
-
-            var otpCode =
-                GenerateOtp.CreateOtp();
-
-            var otp =
-                new OtpVerification
-                {
-                    Email = email,
-
-                    OtpCode = otpCode,
-
-                    IsUsed = false,
-
-                    ExpiresAt =
-                        DateTime.UtcNow
-                            .AddMinutes(10),
-
-                    CreatedAt =
-                        DateTime.UtcNow
-                };
-
-            await _context
-                .OtpVerifications
-                .AddAsync(otp);
-
             pendingRequest.OtpResendCount += 1;
 
             pendingRequest.LastOtpSentAt =
                 DateTime.UtcNow;
 
-            await _context
-                .SaveChangesAsync();
+            // Issue saves the counters with the new code.
+            var issued =
+                await _otpChallenges.IssueAsync(
+                    new OtpIssueRequest(
+                        email,
+                        OtpPurposes.Trial,
+                        pendingRequest.Id.ToString(),
+                        Generation: 0
+                    )
+                );
 
             await _emailService
                 .SendOtpEmailAsync(
                     email,
-                    otpCode,
+                    issued.Code,
                     pendingRequest.BusinessName
                 );
         }
