@@ -11,10 +11,11 @@ namespace TummlyBackend.Helpers
     public static class ShopMaterialsOrderPaymentFailure
     {
         /// <param name="releaseQrReservations">
-        /// Release the order's open QR slot reservations. Pass true only when
-        /// Revolut confirmed the payment cannot complete (ORDER_FAILED,
-        /// ORDER_CANCELLED, or the sweeper read cancelled/failed). A declined
-        /// or authorised event, or an unreadable session, keeps the slot.
+        /// Release the order's open QR slot reservations. Pass true only from
+        /// the reservation sweeper, under the billing-account lock, after it
+        /// confirmed that every Revolut attempt of the order is cancelled or
+        /// failed. Webhooks, the /pay reuse path and unreadable sessions pass
+        /// false: one Revolut order ending does not prove no other can be paid.
         /// </param>
         /// <param name="nowUtc">Clock reading of the caller; defaults to UTC now.</param>
         public static async Task<bool> TryMarkFailedAsync(

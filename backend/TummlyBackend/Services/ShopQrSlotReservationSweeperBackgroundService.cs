@@ -178,8 +178,9 @@ namespace TummlyBackend.Services
                 .ToListAsync(ct);
             if (intents.Count == 0)
             {
-                // Pay never opened a session, so no payment can exist.
-                await ReleaseAsync(services, context, order.RestaurantId, orderId, now, ct);
+                // Pay never opened a session, so no payment can exist. Under the
+                // lock the release still checks for a pay that began meanwhile.
+                await ReleaseConfirmedAsync(services, context, order, due, intents, now, ct);
                 return;
             }
 
@@ -211,7 +212,7 @@ namespace TummlyBackend.Services
             {
                 // Every attempt is confirmed cancelled or failed: no payment can
                 // still complete, so the slot goes back.
-                await FailAndReleaseAsync(services, context, order, intents, now, ct);
+                await ReleaseConfirmedAsync(services, context, order, due, intents, now, ct);
                 return;
             }
 
@@ -489,24 +490,47 @@ namespace TummlyBackend.Services
             }
         }
 
-        private async Task FailAndReleaseAsync(
+        private enum ReleaseOutcome
+        {
+            Released,
+
+            /// <summary>The order was paid meanwhile: convert, never release.</summary>
+            Paid,
+
+            /// <summary>
+            /// /pay extended a deadline since this pass read the rows. Its new
+            /// Revolut order is not read yet, so nothing is touched.
+            /// </summary>
+            Superseded,
+
+            /// <summary>A Revolut attempt this pass never read now exists.</summary>
+            NewerAttempt,
+        }
+
+        /// <summary>
+        /// Gives the slot back after every Revolut attempt this pass read was
+        /// confirmed cancelled or failed. The Revolut reads ran outside the lock,
+        /// so under the lock this re-checks what could have changed: the order
+        /// was paid, /pay extended the deadline, or /pay opened a newer attempt.
+        /// In each case the slot stays held (spec 4.4.4).
+        /// </summary>
+        private async Task ReleaseConfirmedAsync(
             IServiceProvider services,
             ApplicationDbContext context,
             ShopOrder order,
+            List<ShopQrSlotReservation> due,
             List<RevolutOrderIntent> intents,
             DateTime now,
             CancellationToken ct
         )
         {
-            var paid = false;
+            var outcome = ReleaseOutcome.Released;
             await InLockAsync(
                 services,
                 context,
                 order.RestaurantId,
                 async () =>
                 {
-                    // The order and intents were read before the Revolut calls.
-                    // A webhook may have paid the order since.
                     await context.Entry(order).ReloadAsync(ct);
                     if (
                         string.Equals(
@@ -516,7 +540,39 @@ namespace TummlyBackend.Services
                         )
                     )
                     {
-                        paid = true;
+                        outcome = ReleaseOutcome.Paid;
+                        return;
+                    }
+
+                    var deadlines = await context.ShopQrSlotReservations
+                        .AsNoTracking()
+                        .Where(row =>
+                            row.ShopOrderId == order.Id
+                            && row.Status == ShopQrSlotReservationStatuses.Open
+                        )
+                        .Select(row => row.ReconcileAfterUtc)
+                        .ToListAsync(ct);
+                    if (deadlines.Any(deadline => deadline > now))
+                    {
+                        outcome = ReleaseOutcome.Superseded;
+                        return;
+                    }
+
+                    var seen = intents.Select(intent => intent.Id).ToList();
+                    if (
+                        await context.RevolutOrderIntents
+                            .AsNoTracking()
+                            .AnyAsync(
+                                row =>
+                                    row.ShopOrderId == order.Id
+                                    && row.Purpose
+                                        == RevolutOrderIntentPurposes.ShopMaterialsOrder
+                                    && !seen.Contains(row.Id),
+                                ct
+                            )
+                    )
+                    {
+                        outcome = ReleaseOutcome.NewerAttempt;
                         return;
                     }
 
@@ -539,35 +595,33 @@ namespace TummlyBackend.Services
                 ct
             );
 
-            if (paid)
+            switch (outcome)
             {
-                // Paid: no failure mark and no release, convert instead.
-                await SettleAsync(
-                    services,
-                    context,
-                    order,
-                    "completed_not_applied",
-                    now,
-                    ct
-                );
+                case ReleaseOutcome.Paid:
+                    // Paid: no failure mark and no release, convert instead.
+                    await SettleAsync(
+                        services,
+                        context,
+                        order,
+                        "completed_not_applied",
+                        now,
+                        ct
+                    );
+                    break;
+
+                case ReleaseOutcome.NewerAttempt:
+                    await BackOffAsync(
+                        services,
+                        context,
+                        order.RestaurantId,
+                        due,
+                        "newer_payment_attempt",
+                        now,
+                        ct
+                    );
+                    break;
             }
         }
-
-        private static Task ReleaseAsync(
-            IServiceProvider services,
-            ApplicationDbContext context,
-            int restaurantId,
-            Guid shopOrderId,
-            DateTime now,
-            CancellationToken ct
-        ) =>
-            InLockAsync(
-                services,
-                context,
-                restaurantId,
-                () => ReleaseLeftoversInLockAsync(context, shopOrderId, now, ct),
-                ct
-            );
 
         /// <summary>
         /// Runs a reservation write under the billing-account lock that the

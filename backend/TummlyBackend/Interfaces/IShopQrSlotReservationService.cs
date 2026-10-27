@@ -7,12 +7,15 @@ namespace TummlyBackend.Interfaces
     /// per-location cap shown in the "QR code limit reached" dialog.
     /// <paramref name="EntitlementsAvailable"/> is false when the plan could
     /// not be resolved (the order needs a new slot and nothing can be said
-    /// about the cap).
+    /// about the cap). <paramref name="OrderPayable"/> is false when the order
+    /// is no longer awaiting payment once the billing-account lock is held
+    /// (a sweeper or webhook moved it); nothing was written.
     /// </summary>
     public sealed record QrCapacityCheck(
         bool Ok,
         int Limit,
-        bool EntitlementsAvailable = true
+        bool EntitlementsAvailable = true,
+        bool OrderPayable = true
     );
 
     /// <summary>

@@ -148,7 +148,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SharedKey_FirstOrderFails_SlotStillHeld_CaptureActivateDenied()
+        public async Task SharedKey_FirstOrderFails_SlotStillHeldUntilSweeper_CaptureActivateDenied()
         {
             var workspace = await SeedAsync(freeSlots: 1);
             var first = await InsertOrderAsync(workspace, GuestCards);
@@ -158,9 +158,11 @@ namespace TummlyBackend.Tests.Services
 
             await SendWebhookAsync("ORDER_FAILED", firstRevolut);
 
+            // The webhook never releases a slot: only the sweeper does, after it
+            // has confirmed every Revolut attempt of the order.
             await using var db = OpenDb();
             Assert.Equal(
-                ShopQrSlotReservationStatuses.Released,
+                ShopQrSlotReservationStatuses.Open,
                 (await db.Context.ShopQrSlotReservations
                     .SingleAsync(row => row.ShopOrderId == first)).Status
             );
@@ -252,7 +254,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task OrderFailed_ReleasesOpenReservation()
+        public async Task OrderFailed_MarksPaymentFailed_KeepsReservationOpenForSweeper()
         {
             var workspace = await SeedAsync(freeSlots: 1);
             var orderId = await InsertOrderAsync(workspace, GuestCards);
@@ -262,7 +264,7 @@ namespace TummlyBackend.Tests.Services
 
             await using var db = OpenDb();
             Assert.Equal(
-                ShopQrSlotReservationStatuses.Released,
+                ShopQrSlotReservationStatuses.Open,
                 (await db.Context.ShopQrSlotReservations
                     .SingleAsync(row => row.ShopOrderId == orderId)).Status
             );
@@ -279,8 +281,8 @@ namespace TummlyBackend.Tests.Services
         [InlineData("ORDER_AUTHORISED")]
         public async Task NonTerminalOrderEvents_LeaveReservationOpen(string eventName)
         {
-            // The customer can retry or the payment can still capture, so only a
-            // confirmed ORDER_FAILED or ORDER_CANCELLED gives the slot back.
+            // The customer can retry or the payment can still capture, so these
+            // events never give the slot back.
             var workspace = await SeedAsync(freeSlots: 1);
             var orderId = await InsertOrderAsync(workspace, GuestCards);
             var revolutOrderId = await PayAsync(workspace, orderId);
@@ -296,7 +298,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task OrderCancelled_ReleasesOpenReservation()
+        public async Task OrderCancelled_KeepsReservationOpenForSweeper()
         {
             var workspace = await SeedAsync(freeSlots: 1);
             var orderId = await InsertOrderAsync(workspace, GuestCards);
@@ -306,141 +308,146 @@ namespace TummlyBackend.Tests.Services
 
             await using var db = OpenDb();
             Assert.Equal(
-                ShopQrSlotReservationStatuses.Released,
+                ShopQrSlotReservationStatuses.Open,
                 (await db.Context.ShopQrSlotReservations
                     .SingleAsync(row => row.ShopOrderId == orderId)).Status
             );
         }
 
         [Fact]
-        public async Task OrderCompleted_AfterRelease_CapacityFull_OrderReviewNoRefund()
+        public async Task OrderCancelled_OldIntent_NewerIntentLive_ReservationStaysOpen()
         {
             var workspace = await SeedAsync(freeSlots: 1);
             var orderId = await InsertOrderAsync(workspace, GuestCards);
-            var revolutOrderId = await PayAsync(workspace, orderId);
-            await SendWebhookAsync("ORDER_FAILED", revolutOrderId);
-            // Capture takes the slot the release freed.
-            await using (var fill = OpenDb())
-            {
-                await ShopCapacityTestSeed.LeaveFreeSlotsAsync(
-                    fill.Context,
-                    workspace,
-                    freeSlots: 0
-                );
-            }
+            var oldIntent = await PayAsync(workspace, orderId);
+            // A second /pay (new Idempotency-Key) opens a newer Revolut order.
+            var newIntent = await PayAsync(workspace, orderId);
+            Assert.NotEqual(oldIntent, newIntent);
 
-            var refundsBefore = _factory.Merchant.RefundOrderCallCount;
-            await CompleteViaWebhookAsync(revolutOrderId);
+            await SendWebhookAsync("ORDER_CANCELLED", oldIntent);
 
             await using var db = OpenDb();
-            var order = await db.Context.ShopOrders.SingleAsync(row => row.Id == orderId);
-            Assert.Equal(ShopPaymentStatuses.Paid, order.PaymentStatus);
             Assert.Equal(
-                ShopOrderReviewReasons.QrCapacityUnavailableAfterPayment,
-                order.ReviewReason
+                ShopQrSlotReservationStatuses.Open,
+                (await db.Context.ShopQrSlotReservations
+                    .SingleAsync(row => row.ShopOrderId == orderId)).Status
             );
-            Assert.Empty(await GuestCardCodesAsync(db, workspace));
-            Assert.Equal(refundsBefore, _factory.Merchant.RefundOrderCallCount);
+            Assert.True((await db.Context.RevolutOrderIntents
+                .SingleAsync(row => row.OrderId == newIntent)).IsOpen);
         }
 
         [Fact]
-        public async Task OrderCompleted_AfterRelease_CapacityFree_MintsCode()
+        public async Task Pay_AgainOnSameOrder_ExtendsOpenReservationDeadline_KeepsCreatedAt()
+        {
+            var workspace = await SeedAsync(freeSlots: 1);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            await PayAsync(workspace, orderId);
+            ShopQrSlotReservation first;
+            await using (var db = OpenDb())
+            {
+                first = await db.Context.ShopQrSlotReservations
+                    .AsNoTracking()
+                    .SingleAsync(row => row.ShopOrderId == orderId);
+            }
+
+            await Task.Delay(50);
+            await PayAsync(workspace, orderId);
+
+            await using var verify = OpenDb();
+            var second = await verify.Context.ShopQrSlotReservations
+                .AsNoTracking()
+                .SingleAsync(row => row.ShopOrderId == orderId);
+            Assert.Equal(ShopQrSlotReservationStatuses.Open, second.Status);
+            Assert.Equal(first.CreatedAtUtc, second.CreatedAtUtc);
+            Assert.True(second.ReconcileAfterUtc > first.ReconcileAfterUtc);
+            Assert.True(
+                second.ReconcileAfterUtc
+                    >= DateTime.UtcNow.AddMinutes(29)
+            );
+        }
+
+        [Fact]
+        public async Task ReserveForPay_OrderNoLongerAwaitingPayment_IsNotPayable_AndWritesNothing()
+        {
+            var workspace = await SeedAsync(freeSlots: 1);
+            var orderId = await InsertOrderAsync(workspace, GuestCards);
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            // The request loaded the order while it was awaiting payment...
+            var stale = await context.ShopOrders
+                .Include(row => row.Lines)
+                .SingleAsync(row => row.Id == orderId);
+            // ...and the sweeper failed it before /pay took the lock.
+            await using (var other = OpenDb())
+            {
+                (await other.Context.ShopOrders.SingleAsync(row => row.Id == orderId))
+                    .PaymentStatus = ShopPaymentStatuses.PaymentFailed;
+                await other.Context.SaveChangesAsync();
+            }
+
+            var check = await scope.ServiceProvider
+                .GetRequiredService<IShopQrSlotReservationService>()
+                .ReserveForPayAsync(stale, CancellationToken.None);
+
+            Assert.False(check.OrderPayable);
+            await using var verify = OpenDb();
+            Assert.Empty(await verify.Context.ShopQrSlotReservations
+                .Where(row => row.ShopOrderId == orderId)
+                .ToListAsync());
+        }
+
+        [Fact]
+        public async Task Paid_MintFlagFlippedOffAfterPay_ReservationStillConvertsAndMintsCode()
         {
             var workspace = await SeedAsync(freeSlots: 1);
             var orderId = await InsertOrderAsync(workspace, GuestCards);
             var revolutOrderId = await PayAsync(workspace, orderId);
-            await SendWebhookAsync("ORDER_FAILED", revolutOrderId);
-
-            await CompleteViaWebhookAsync(revolutOrderId);
+            // Admin takes Guest Cards off the QR path between pay and payment.
+            // The catalog is shared by every test in this class, so restore it.
+            await ShopCapacityTestSeed.SetMintOnShopFulfilmentAsync(
+                _factory.Services,
+                GuestCards,
+                false
+            );
+            try
+            {
+                await CompleteViaWebhookAsync(revolutOrderId);
+            }
+            finally
+            {
+                await ShopCapacityTestSeed.SetMintOnShopFulfilmentAsync(
+                    _factory.Services,
+                    GuestCards,
+                    true
+                );
+            }
 
             await using var db = OpenDb();
             var order = await db.Context.ShopOrders.SingleAsync(row => row.Id == orderId);
             Assert.Equal(ShopPaymentStatuses.Paid, order.PaymentStatus);
             Assert.Null(order.ReviewReason);
             var code = Assert.Single(await GuestCardCodesAsync(db, workspace));
-            Assert.Equal(
-                code.Id,
-                (await db.Context.ShopQrSlotReservations
-                    .SingleAsync(row => row.ShopOrderId == orderId)).ConvertedQrCodeId
-            );
-        }
-
-        [Fact]
-        public async Task Cancel_UnpaidOrder_ReleasesReservation()
-        {
-            // CancelAsync only accepts paid orders, so the release for an unpaid
-            // order runs through the service seam that cancel and failure share.
-            var workspace = await SeedAsync(freeSlots: 1);
-            var orderId = await InsertOrderAsync(workspace, GuestCards);
-            await PayAsync(workspace, orderId);
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                await scope.ServiceProvider
-                    .GetRequiredService<IShopQrSlotReservationService>()
-                    .ReleaseForOrderAsync(orderId, CancellationToken.None);
-            }
-
-            await using var db = OpenDb();
-            Assert.Equal(
-                ShopQrSlotReservationStatuses.Released,
-                (await db.Context.ShopQrSlotReservations
-                    .SingleAsync(row => row.ShopOrderId == orderId)).Status
-            );
-        }
-
-        [Fact]
-        public async Task Cancel_PaidOrder_ReleasesStrayOpenReservation_AndKeepsConverted()
-        {
-            var workspace = await SeedAsync(freeSlots: 2);
-            var orderId = await InsertOrderAsync(workspace, GuestCards);
-            await CompleteViaWebhookAsync(await PayAsync(workspace, orderId));
-            await using (var seed = OpenDb())
-            {
-                // A stray open row for another type on the paid order.
-                seed.Context.ShopQrSlotReservations.Add(new ShopQrSlotReservation
-                {
-                    Id = Guid.NewGuid(),
-                    ShopOrderId = orderId,
-                    RestaurantLocationId = workspace.LocationId,
-                    QrType = QrType.TableTalker,
-                    Status = ShopQrSlotReservationStatuses.Open,
-                    ReconcileAfterUtc = DateTime.UtcNow.AddMinutes(30),
-                    CreatedAtUtc = DateTime.UtcNow,
-                    UpdatedAtUtc = DateTime.UtcNow,
-                });
-                await seed.Context.SaveChangesAsync();
-            }
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var cancel = scope.ServiceProvider
-                    .GetRequiredService<IShopOrderCancelReorderService>();
-                var result = await cancel.CancelAsync(
-                    workspace.RestaurantId,
-                    workspace.OwnerUserId,
-                    orderId,
-                    workspace.LocationId,
-                    ShopCancelReasons.OrderedByMistake
-                );
-                Assert.NotNull(result.Order);
-            }
-
-            await using var db = OpenDb();
-            var rows = await db.Context.ShopQrSlotReservations
-                .Where(row => row.ShopOrderId == orderId)
-                .ToListAsync();
-            Assert.Equal(
-                ShopQrSlotReservationStatuses.Converted,
-                rows.Single(row => row.QrType == QrType.GuestCard).Status
-            );
-            Assert.Equal(
-                ShopQrSlotReservationStatuses.Released,
-                rows.Single(row => row.QrType == QrType.TableTalker).Status
-            );
+            Assert.Equal(QrCodeStatus.Active, code.Status);
+            var reservation = await db.Context.ShopQrSlotReservations
+                .SingleAsync(row => row.ShopOrderId == orderId);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, reservation.Status);
+            Assert.Equal(code.Id, reservation.ConvertedQrCodeId);
         }
 
         // ---- arrange / act helpers ----
+
+        /// <summary>
+        /// Only the sweeper releases a slot, after it confirmed every Revolut
+        /// attempt. This is the same release it runs.
+        /// </summary>
+        private async Task ReleaseAsSweeperDoesAsync(Guid orderId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            await scope.ServiceProvider
+                .GetRequiredService<IShopQrSlotReservationService>()
+                .ReleaseForOrderAsync(orderId, CancellationToken.None);
+        }
 
         private async Task<ShopCapacityWorkspace> SeedAsync(int freeSlots)
         {

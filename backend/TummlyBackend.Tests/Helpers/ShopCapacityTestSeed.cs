@@ -231,6 +231,25 @@ namespace TummlyBackend.Tests.Helpers
             return order.Id;
         }
 
+        /// <summary>
+        /// Flips the catalog flag that decides whether a SKU mints a QR code
+        /// at Shop fulfilment (Admin can do this between pay and payment).
+        /// </summary>
+        public static async Task SetMintOnShopFulfilmentAsync(
+            IServiceProvider services,
+            string skuId,
+            bool mint
+        )
+        {
+            using var scope = services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var sku = await context.ShopMaterialSkus
+                .SingleAsync(row => row.SkuId == skuId);
+            sku.MintOnShopFulfilment = mint;
+            await context.SaveChangesAsync();
+        }
+
         public static HttpRequestMessage PayRequest(
             ShopCapacityWorkspace workspace,
             Guid orderId,

@@ -474,6 +474,107 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Sweep_PayExtendsDeadlineWhileRevolutIsRead_NoReleaseNoFailMark()
+        {
+            var held = await PayGuestCardOrderAsync(freeSlots: 1);
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(held, "failed");
+            var clock = ClockAfterDeadline(held);
+            var extended = clock.GetUtcNow().UtcDateTime.AddMinutes(30);
+            // /pay pushed the deadline out after the sweeper picked the row.
+            _factory.Merchant.OnGetOrderAsync = async revolutOrderId =>
+            {
+                // The store is shared, so the sweep also reads other tests' orders.
+                if (revolutOrderId != held.RevolutOrderId)
+                {
+                    return;
+                }
+
+                _factory.Merchant.OnGetOrderAsync = null;
+                await using var other = OpenDb();
+                (await other.Context.ShopQrSlotReservations
+                    .SingleAsync(row => row.ShopOrderId == held.OrderId))
+                    .ReconcileAfterUtc = extended;
+                await other.Context.SaveChangesAsync();
+            };
+
+            try
+            {
+                await SweepAsync(clock);
+            }
+            finally
+            {
+                _factory.Merchant.OnGetOrderAsync = null;
+            }
+
+            await using var db = OpenDb();
+            var reservation = await ReservationAsync(db, held);
+            Assert.Equal(ShopQrSlotReservationStatuses.Open, reservation.Status);
+            Assert.Equal(0, reservation.ReconcileAttempts);
+            Assert.Equal(extended, reservation.ReconcileAfterUtc);
+            var order = await db.Context.ShopOrders.SingleAsync(row => row.Id == held.OrderId);
+            Assert.Equal(ShopPaymentStatuses.AwaitingPayment, order.PaymentStatus);
+            Assert.True((await db.Context.RevolutOrderIntents
+                .SingleAsync(row => row.ShopOrderId == held.OrderId)).IsOpen);
+        }
+
+        [Fact]
+        public async Task Sweep_NewIntentAppearsWhileRevolutIsRead_BacksOff_ThenReconcilesNewIntent()
+        {
+            var held = await PayGuestCardOrderAsync(freeSlots: 1);
+            var newest = $"ord_newer_{Guid.NewGuid():N}";
+            _factory.Merchant.Orders[held.RevolutOrderId] = Revolut(held, "failed");
+            // /pay opens a newer Revolut order after the sweeper listed intents.
+            _factory.Merchant.OnGetOrderAsync = async revolutOrderId =>
+            {
+                // The store is shared, so the sweep also reads other tests' orders.
+                if (revolutOrderId != held.RevolutOrderId)
+                {
+                    return;
+                }
+
+                _factory.Merchant.OnGetOrderAsync = null;
+                await InsertOpenIntentAsync(held, newest);
+            };
+            var clock = ClockAfterDeadline(held);
+
+            try
+            {
+                await SweepAsync(clock);
+            }
+            finally
+            {
+                _factory.Merchant.OnGetOrderAsync = null;
+            }
+
+            await using (var db = OpenDb())
+            {
+                var reservation = await ReservationAsync(db, held);
+                Assert.Equal(ShopQrSlotReservationStatuses.Open, reservation.Status);
+                Assert.Equal(1, reservation.ReconcileAttempts);
+                Assert.Contains("newer_payment_attempt", reservation.LastReconcileError);
+                var order = await db.Context.ShopOrders
+                    .SingleAsync(row => row.Id == held.OrderId);
+                Assert.Equal(ShopPaymentStatuses.AwaitingPayment, order.PaymentStatus);
+                Assert.True(await db.Context.RevolutOrderIntents
+                    .AnyAsync(row => row.OrderId == newest && row.IsOpen));
+            }
+
+            // Next pass sees the newer intent and pays from it.
+            _factory.Merchant.Orders[newest] = Revolut(held, "completed", newest);
+            clock.Advance(TimeSpan.FromMinutes(5));
+            await SweepAsync(clock);
+
+            await using var verify = OpenDb();
+            var after = await ReservationAsync(verify, held);
+            Assert.Equal(ShopQrSlotReservationStatuses.Converted, after.Status);
+            Assert.Equal(
+                ShopPaymentStatuses.Paid,
+                (await verify.Context.ShopOrders.SingleAsync(row => row.Id == held.OrderId))
+                    .PaymentStatus
+            );
+        }
+
+        [Fact]
         public async Task Sweep_BackoffSequence_5_15_60_60()
         {
             var held = await PayGuestCardOrderAsync(freeSlots: 1);
@@ -616,6 +717,34 @@ namespace TummlyBackend.Tests.Services
             });
             await db.Context.SaveChangesAsync();
             return newest;
+        }
+
+        private async Task InsertOpenIntentAsync(HeldReservation held, string revolutOrderId)
+        {
+            await using var db = OpenDb();
+            var first = await db.Context.RevolutOrderIntents
+                .AsNoTracking()
+                .OrderBy(row => row.CreatedAtUtc)
+                .FirstAsync(row => row.ShopOrderId == held.OrderId);
+            db.Context.RevolutOrderIntents.Add(new RevolutOrderIntent
+            {
+                Id = Guid.NewGuid(),
+                OrderId = revolutOrderId,
+                RestaurantId = first.RestaurantId,
+                ShopOrderId = held.OrderId,
+                Purpose = RevolutOrderIntentPurposes.ShopMaterialsOrder,
+                TargetPlan = string.Empty,
+                TargetCadence = string.Empty,
+                RevolutSubscriptionId = string.Empty,
+                CheckoutUrl = FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                IdempotencyKey = Guid.NewGuid().ToString("D"),
+                IsOpen = true,
+                NetAmountMinor = first.NetAmountMinor,
+                VatAmountMinor = first.VatAmountMinor,
+                GrossAmountMinor = first.GrossAmountMinor,
+                CreatedAtUtc = first.CreatedAtUtc.AddSeconds(1),
+            });
+            await db.Context.SaveChangesAsync();
         }
 
         /// <summary>
