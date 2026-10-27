@@ -12,6 +12,9 @@ param(
 
   [string] $ResourceGroup = 'rg-tummly-qa',
   [string] $Location = 'uksouth',
+  # Azure SQL lives in its own group since the 22 Sep 2026 Resource Mover move from Central US.
+  [string] $SqlResourceGroup = 'rg-tummly-qa-uksouth',
+  [string] $SqlLocation = 'uksouth',
   [ValidateSet('Free', 'S0')]
   [string] $SqlSkuMode = 'S0',
   [string] $SubscriptionId = '',
@@ -49,8 +52,14 @@ if ($SubscriptionId) {
 
 Write-Host "Subscription: $($account.name) ($($account.id))"
 Write-Host "Resource group: $ResourceGroup ($Location)"
+Write-Host "SQL resource group: $SqlResourceGroup ($SqlLocation)"
 
 az group create --name $ResourceGroup --location $Location --tags app=tummly env=qa managedBy=bicep | Out-Null
+
+# Create only when missing: az group create on an existing group overwrites its tags.
+if ((az group exists --name $SqlResourceGroup) -ne 'true') {
+  az group create --name $SqlResourceGroup --location $SqlLocation --tags app=tummly env=qa managedBy=bicep | Out-Null
+}
 
 $plain = [System.Net.NetworkCredential]::new('', $SqlAdminPassword).Password
 
@@ -61,7 +70,8 @@ az deployment group create `
   --parameters `
     location=$Location `
     swaLocation=eastus2 `
-    sqlLocation=centralus `
+    sqlLocation=$SqlLocation `
+    sqlResourceGroup=$SqlResourceGroup `
     environment=qa `
     sqlAdminLogin=tummlysqladmin `
     sqlAdminPassword=$plain `
