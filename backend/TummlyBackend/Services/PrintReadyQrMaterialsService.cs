@@ -7,6 +7,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.PrintReadyQrMaterials;
+using TummlyBackend.Shop;
 
 namespace TummlyBackend.Services
 {
@@ -824,12 +825,13 @@ namespace TummlyBackend.Services
         {
             if (qrType == QrType.GuestCard)
             {
-                var hasOfferCardOffer = await _context.RestaurantLocations
-                    .AsNoTracking()
-                    .AnyAsync(
-                        row =>
-                            row.Id == location.Id
-                            && row.OfferCardCatalogOfferId != null,
+                // Same rule as checkout: an expired or archived attached offer
+                // does not count.
+                var hasOfferCardOffer =
+                    await ShopCardOfferRules.HasAttachableOfferAsync(
+                        _context,
+                        location.RestaurantId,
+                        location.Id,
                         cancellationToken
                     );
                 if (!hasOfferCardOffer)
