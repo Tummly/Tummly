@@ -32,6 +32,8 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     items = result.Items,
+                    counts = result.CountsByProduct,
+                    // Same list under the name the first admin screen reads.
                     countsByProduct = result.CountsByProduct,
                 }
             );
