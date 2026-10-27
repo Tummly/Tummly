@@ -11,6 +11,9 @@
  * Checkout review / section cards `#171717`; nested options `#202020` / selected `#7c7c7c` border.
  */
 
+/** Shop body copy — mode-aware `--op-text-body` (gray-650 light / gray-500 dark). */
+export const SHOP_BODY_TEXT_CLASS = "text-op-text-body"
+
 /** Main pane behind Shop catalog and product — Operator page canvas. */
 export const SHOP_PAGE_BACKGROUND_CLASS = "bg-op-background-primary"
 
@@ -94,7 +97,7 @@ export const SHOP_CHECKOUT_REVIEW_CARD_CLASS =
  * `#171717` + border `#262626`, radius 6px.
  */
 export const SHOP_CHECKOUT_SECTION_CARD_CLASS =
-  "flex w-full flex-col gap-5 rounded-op-lg border border-op-border-default bg-op-color-gray-60 p-5 dark:bg-[var(--op-color-gray-1000)]"
+  "flex w-full flex-col gap-6 rounded-op-lg border border-op-border-default bg-op-color-gray-60 p-5 dark:bg-[var(--op-color-gray-1000)]"
 
 /** Delivery icon well — circular `#202020` + `#262626`. */
 export const SHOP_CHECKOUT_ICON_WELL_CLASS =
