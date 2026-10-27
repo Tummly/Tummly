@@ -76,7 +76,7 @@ export function ShopCancelOrderDialog({
         {/* Header Section */}
         <div className="flex items-start justify-between gap-5">
           <DialogHeader className="gap-2 text-left">
-            <DialogTitle className="text-2xl font-bold tracking-tight text-op-text-primary">
+            <DialogTitle className="text-2xl font-bold text-op-text-primary">
               Cancel order {order.orderNumber}?
             </DialogTitle>
             <DialogDescription className="text-sm font-medium text-op-text-muted leading-relaxed">

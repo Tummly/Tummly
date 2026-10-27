@@ -78,14 +78,14 @@ export function ShopCatalogItemCard({
           <h4 className="text-lg font-medium leading-normal text-op-text-primary">
             {title}
           </h4>
-          <p className="line-clamp-3 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+          <p className="line-clamp-3 text-sm font-medium leading-body text-op-text-body">
             {description}
           </p>
         </div>
 
         <div className="flex flex-col gap-3">
           <p className="m-0 text-[0px] leading-none">
-            <span className="text-sm font-medium text-[var(--op-color-gray-550)]">
+            <span className="text-sm font-medium text-op-text-body">
               From{" "}
             </span>
             <span className="text-[22px] font-medium text-op-text-primary">

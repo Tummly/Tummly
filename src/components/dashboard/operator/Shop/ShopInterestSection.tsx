@@ -107,7 +107,7 @@ export function ShopInterestSection({
   return (
     <div className="flex flex-col gap-6" data-testid="shop-interest-section">
       <div className="flex flex-col gap-1">
-        <h3 className="font-jakarta text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+        <h3 className="font-jakarta text-xl font-bold text-foreground sm:text-2xl">
           Register interest
         </h3>
         <p className="text-xs font-normal text-muted-foreground sm:text-sm">
@@ -145,7 +145,7 @@ export function ShopInterestSection({
                   <h4 className="text-lg font-medium leading-normal text-op-text-primary">
                     {product.title}
                   </h4>
-                  <p className="line-clamp-3 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+                  <p className="line-clamp-3 text-sm font-medium leading-body text-op-text-body">
                     {product.description}
                   </p>
                 </div>
@@ -168,7 +168,7 @@ export function ShopInterestSection({
                     <div className="h-px w-full bg-op-border-default" />
                     <button
                       type="button"
-                      className="text-xs font-medium text-[var(--op-color-gray-550)] hover:underline"
+                      className="text-xs font-medium text-op-text-body hover:underline"
                       disabled={busyKey === product.productKey}
                       onClick={() => void handleUnregister(product)}
                     >

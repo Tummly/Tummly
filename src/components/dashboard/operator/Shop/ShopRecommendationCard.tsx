@@ -79,10 +79,10 @@ export function ShopRecommendationCard({
           <h4 className="text-lg font-medium leading-normal whitespace-nowrap text-op-text-primary">
             {title}
           </h4>
-          <p className="line-clamp-2 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+          <p className="line-clamp-2 text-sm font-medium leading-body text-op-text-body">
             {description}
           </p>
-          <p className="line-clamp-1 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+          <p className="line-clamp-1 text-sm font-medium leading-5 text-op-text-body">
             {allocationText}
           </p>
         </div>
@@ -94,7 +94,7 @@ export function ShopRecommendationCard({
               £{totalPrice}
             </span>
             {showExcludingVat ? (
-              <span className="pb-px text-xs font-medium leading-normal text-[var(--op-color-gray-550)]">
+              <span className="pb-px text-xs font-medium leading-normal text-op-text-body">
                 excluding VAT
               </span>
             ) : null}

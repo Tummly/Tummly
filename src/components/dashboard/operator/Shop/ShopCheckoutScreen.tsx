@@ -460,10 +460,10 @@ export function ShopCheckoutScreen({
 
         <div className="flex w-full flex-col gap-8">
           <div className="flex flex-col gap-2">
-            <h1 className="text-[29px] font-bold tracking-tight text-op-text-primary">
+            <h1 className="text-[29px] font-bold text-op-text-primary">
               {pageTitle}
             </h1>
-            <p className="max-w-[425px] text-sm font-medium leading-5 text-op-text-body">
+            <p className="max-w-[425px] text-sm font-medium leading-body text-op-text-body">
               Review the material, QR connection, delivery details and
               payment before placing your order.
             </p>

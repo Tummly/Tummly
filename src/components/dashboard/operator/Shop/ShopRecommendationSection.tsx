@@ -81,7 +81,7 @@ export function ShopRecommendationSection({
     return (
       <div className={SHOP_RECOMMENDATION_PARENT_CLASS}>
         <div className={SHOP_RECOMMENDATION_HEADER_CLASS}>
-          <p className="text-sm text-[var(--op-color-gray-550)]">
+          <p className="text-sm text-op-text-body">
             Loading recommendations…
           </p>
         </div>
@@ -98,7 +98,7 @@ export function ShopRecommendationSection({
             <h3 className="text-xl font-semibold leading-none text-op-text-primary">
               Recommended for {locationName}
             </h3>
-            <p className="max-w-[610px] text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]">
+            <p className="max-w-[610px] text-sm font-medium leading-body text-op-text-body">
               Based on how this location operates and its recent QR activity,
               Tummly has suggested the materials and quantities most likely to
               give guests the right opportunities to respond.
@@ -112,7 +112,7 @@ export function ShopRecommendationSection({
           <h4 className="text-sm font-medium text-op-text-primary">
             Get a recommendation for this location
           </h4>
-          <p className="mt-1 text-xs text-[var(--op-color-gray-550)]">
+          <p className="mt-1 text-xs text-op-text-body">
             Tell us how this location operates and Tummly will suggest suitable
             QR materials and quantities.
           </p>
@@ -210,7 +210,7 @@ export function ShopRecommendationSection({
                     <h4 className="text-lg font-medium text-op-text-primary">
                       Recommendation summary
                     </h4>
-                    <span className="text-sm font-medium text-[var(--op-color-gray-550)]">
+                    <span className="text-sm font-medium text-op-text-body">
                       {summary.materialTypeCount} material types ·{" "}
                       {summary.totalPieces} total pieces
                     </span>
@@ -218,7 +218,7 @@ export function ShopRecommendationSection({
 
                   <div className="flex w-full max-w-[473px] flex-col gap-2.5 text-base">
                     <div className="flex items-center justify-between gap-4">
-                      <span className="font-semibold text-[var(--op-color-gray-550)]">
+                      <span className="font-semibold text-op-text-body">
                         Materials subtotal:
                       </span>
                       <span className="font-medium text-op-text-primary">
@@ -227,7 +227,7 @@ export function ShopRecommendationSection({
                     </div>
                     <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
                     <div className="flex items-center justify-between gap-4">
-                      <span className="font-semibold text-[var(--op-color-gray-550)]">
+                      <span className="font-semibold text-op-text-body">
                         Estimated total:
                       </span>
                       <span className="font-medium text-op-text-primary text-right">

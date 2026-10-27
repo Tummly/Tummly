@@ -306,7 +306,7 @@ export function ShopOrdersScreen({
       {/* Header & Location Switcher */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
-          <h1 className="font-jakarta text-2xl font-bold tracking-tight text-op-text-primary sm:text-3xl">
+          <h1 className="font-jakarta text-2xl font-bold text-op-text-primary sm:text-3xl">
             Orders
           </h1>
           <p className="text-sm font-normal text-op-text-muted">

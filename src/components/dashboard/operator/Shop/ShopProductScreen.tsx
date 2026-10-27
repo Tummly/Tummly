@@ -220,7 +220,7 @@ export function ShopProductScreen({
         <div className="flex flex-col gap-6 lg:col-span-6">
           {/* Title & Description */}
           <div className="flex flex-col gap-2">
-            <h1 className="font-jakarta text-2xl font-bold tracking-tight text-op-text-primary sm:text-3xl">
+            <h1 className="font-jakarta text-2xl font-bold text-op-text-primary sm:text-3xl">
               {product.title}
             </h1>
             <p className={cn("text-sm leading-relaxed", SHOP_BODY_TEXT_CLASS)}>

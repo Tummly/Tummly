@@ -662,7 +662,7 @@ export function AiAssistantDrawer({
                   {snapshot.greeting.hello}
                 </div>
               </div>
-              <h2 className="text-center text-2xl font-medium tracking-tight text-op-assistant-list-title">
+              <h2 className="text-center text-2xl font-medium text-op-assistant-list-title">
                 {snapshot.greeting.headline}
               </h2>
             </div>
@@ -885,7 +885,7 @@ export function AiAssistantDrawer({
                       </span>
                     </div>
                     <div className="flex flex-col gap-2.5">
-                      <h2 className="text-2xl font-medium tracking-tight text-op-assistant-list-title">
+                      <h2 className="text-2xl font-medium text-op-assistant-list-title">
                         {snapshot.greeting.headline}
                       </h2>
                       <p className="max-w-[380px] text-sm font-normal leading-relaxed text-op-assistant-list-subtitle">
