@@ -14,7 +14,7 @@ namespace TummlyBackend.Services
         /// it later.
         /// </summary>
         public static readonly EventId CompletedNotAppliedEvent =
-            new(5202, "completed_not_applied");
+            new(5203, "completed_not_applied");
 
         private readonly ApplicationDbContext _context;
         private readonly IRevolutMerchantClient _merchant;
