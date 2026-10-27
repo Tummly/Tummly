@@ -82,6 +82,23 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Cancels a <c>pending</c> or <c>authorised</c> order:
+        /// <c>POST …/orders/{id}/cancel</c>. The result carries the order
+        /// <c>state</c> (<c>cancelled</c> on success). Implementations that do
+        /// not support it report <c>not_supported</c>.
+        /// </summary>
+        Task<RevolutOrderRetrieveResult> CancelOrderAsync(
+            string orderId,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new RevolutOrderRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "not_supported"
+                )
+            );
+
+        /// <summary>
         /// Merchant refund: <c>POST …/orders/{id}/refund</c> with
         /// <c>Idempotency-Key</c>. Omit <paramref name="amountMinor"/> for a
         /// full refund when the API allows.

@@ -216,6 +216,55 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task CancelOrderAsync_ParsesCancelledState()
+        {
+            HttpRequestMessage? captured = null;
+            var handler = new CountingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            """{"id":"ord_9","state":"cancelled","type":"payment","amount":1200}"""
+                        ),
+                    },
+                OnSend = request => captured = request,
+            };
+            var client = CreateClient(handler, FullVat(), FullRevolut());
+
+            var result = await client.CancelOrderAsync("ord_9");
+
+            Assert.True(result.Succeeded);
+            Assert.Equal("ord_9", result.Id);
+            Assert.Equal("cancelled", result.State);
+            Assert.Equal(1200, result.AmountMinor);
+            Assert.NotNull(captured);
+            Assert.Equal(HttpMethod.Post, captured!.Method);
+            Assert.EndsWith("/api/orders/ord_9/cancel", captured.RequestUri!.AbsolutePath);
+            Assert.DoesNotContain("/1.0/", captured.RequestUri.AbsolutePath);
+        }
+
+        [Fact]
+        public async Task CancelOrderAsync_HttpError_ReportsFailure()
+        {
+            var handler = new CountingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
+                    {
+                        Content = new StringContent("""{"message":"order is not cancellable"}"""),
+                    },
+            };
+            var client = CreateClient(handler, FullVat(), FullRevolut());
+
+            var result = await client.CancelOrderAsync("ord_9");
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("revolut_http_error", result.ErrorCode);
+            Assert.Null(result.State);
+        }
+
+        [Fact]
         public async Task GetOrderAsync_UsesOrdersApi_AndParsesSubscriptionData()
         {
             HttpRequestMessage? captured = null;
