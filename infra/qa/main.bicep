@@ -4,8 +4,11 @@ param location string = 'uksouth'
 @description('Static Web Apps region — Free SKU is not available in UK South (use eastus2 / westus2 / etc.).')
 param swaLocation string = 'eastus2'
 
-@description('Azure SQL region — this subscription cannot provision SQL in UK South; Central US works.')
-param sqlLocation string = 'centralus'
+@description('Azure SQL region. Moved from Central US to UK South on 22 Sep 2026 (Resource Mover).')
+param sqlLocation string = 'uksouth'
+
+@description('Resource group for Azure SQL. Resource Mover put the server in its own group; it must exist before deploy (deploy.ps1 creates it).')
+param sqlResourceGroup string = 'rg-tummly-qa-uksouth'
 
 @description('Environment label used in names (qa | prod).')
 param environment string = 'qa'
@@ -38,7 +41,7 @@ var names = {
   cae: 'cae-tummly-${environment}'
   ca: 'ca-tummly-${environment}-api'
   acr: 'acrtummly${environment}${suffix}'
-  // Globally unique; include region slug when SQL cannot live in the primary RG location
+  // Globally unique; region slug kept from when SQL lived outside the primary RG location
   sql: 'sql-tummly-${environment}-${sqlLocation}'
   sqldb: 'sqldb-tummly-${environment}'
   st: 'sttummly${environment}${suffix}'
@@ -148,60 +151,18 @@ resource storageBlobDataContributor 'Microsoft.Authorization/roleAssignments@202
 
 // --- Azure SQL ---
 
-resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
-  name: names.sql
-  location: sqlLocation
-  tags: tags
-  properties: {
-    administratorLogin: sqlAdminLogin
-    administratorLoginPassword: sqlAdminPassword
-    version: '12.0'
-    publicNetworkAccess: 'Enabled'
-    minimalTlsVersion: '1.2'
+module sql 'sql.bicep' = {
+  name: 'sql-${environment}'
+  scope: resourceGroup(sqlResourceGroup)
+  params: {
+    location: sqlLocation
+    serverName: names.sql
+    databaseName: names.sqldb
+    sqlAdminLogin: sqlAdminLogin
+    sqlAdminPassword: sqlAdminPassword
+    sqlSkuMode: sqlSkuMode
+    tags: tags
   }
-}
-
-resource sqlFirewallAzure 'Microsoft.Sql/servers/firewallRules@2021-11-01' = {
-  parent: sqlServer
-  name: 'AllowAllWindowsAzureIps'
-  properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '0.0.0.0'
-  }
-}
-
-// Single resource (not two conditionals) so Free↔S0 is an in-place SKU update, not delete+recreate.
-resource sqlDb 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
-  parent: sqlServer
-  name: names.sqldb
-  location: sqlLocation
-  tags: tags
-  sku: sqlSkuMode == 'S0'
-    ? {
-        name: 'S0'
-        tier: 'Standard'
-      }
-    : {
-        name: 'GP_S_Gen5'
-        tier: 'GeneralPurpose'
-        family: 'Gen5'
-        capacity: 1
-      }
-  properties: sqlSkuMode == 'S0'
-    ? {
-        collation: 'SQL_Latin1_General_CP1_CI_AS'
-        // Standard DTU does not allow the free-offer 32 GiB size; 30 GiB is valid for S0.
-        maxSizeBytes: 32212254720
-      }
-    : {
-        collation: 'SQL_Latin1_General_CP1_CI_AS'
-        autoPauseDelay: 60
-        // Serverless min vCores (type defs often wrongly declare int)
-        #disable-next-line BCP036
-        minCapacity: json('0.5')
-        useFreeLimit: true
-        freeLimitExhaustionBehavior: 'AutoPause'
-      }
 }
 
 // --- Static Web Apps (frontend) ---
@@ -333,9 +294,9 @@ output containerAppName string = api.name
 output containerAppFqdn string = api.properties.configuration.ingress.fqdn
 output acrName string = acr.name
 output acrLoginServer string = acr.properties.loginServer
-output sqlServerName string = sqlServer.name
-output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
-output sqlDatabaseName string = names.sqldb
+output sqlServerName string = sql.outputs.serverName
+output sqlServerFqdn string = sql.outputs.serverFqdn
+output sqlDatabaseName string = sql.outputs.databaseName
 output storageAccountName string = storage.name
 output blobContainerName string = attachmentsContainer.name
 output apiIdentityName string = apiIdentity.name
