@@ -303,17 +303,10 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
 
-            if (entity == null)
-            {
-                return false;
-            }
-
-            var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
-            return CatalogOfferStatus.IsAttachable(
-                entity.Status,
-                entity.Validity,
-                entity.CustomExpiryDate,
-                today
+            return CatalogOfferStatus.IsAttachableAtLocation(
+                entity,
+                locationId,
+                _utcNow()
             );
         }
 

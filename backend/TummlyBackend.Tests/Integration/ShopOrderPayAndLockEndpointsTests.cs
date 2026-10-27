@@ -635,11 +635,11 @@ namespace TummlyBackend.Tests.Integration
         public async Task GuestCards_OfferDetachedBetweenPlaceAndPay_PayReturns409()
         {
             var seeded = await SeedPaidShopWorkspaceAsync();
-            await SetSkuAvailableInShopAsync("qr-guest-cards", true);
-            await AttachActiveCardOfferAsync(seeded.InScopeLocationId);
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachActiveCardOfferAsync(_factory, seeded.InScopeLocationId);
             // Order as placed while the card offer was attached.
             var orderId = await InsertAwaitingPaymentGuestCardOrderAsync(seeded);
-            await DetachCardOfferAsync(seeded.InScopeLocationId);
+            await ShopTestSeed.DetachCardOfferAsync(_factory, seeded.InScopeLocationId);
 
             var pay = await PayOrderAsync(
                 seeded.MemberJwt,
@@ -669,54 +669,6 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", jwt);
             request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
             return await _client.SendAsync(request);
-        }
-
-        private async Task SetSkuAvailableInShopAsync(string skuId, bool available)
-        {
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
-            var sku = await context.ShopMaterialSkus
-                .SingleAsync(row => row.SkuId == skuId);
-            sku.AvailableInShop = available;
-            await context.SaveChangesAsync();
-        }
-
-        private async Task AttachActiveCardOfferAsync(int locationId)
-        {
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
-            var offer = new CatalogOffer
-            {
-                RestaurantLocationId = locationId,
-                Title = "Free Dessert Friday",
-                Description = "Guest card offer",
-                Status = CatalogOfferStatus.Active,
-                Validity = CatalogOfferValidity.Days30AfterIssue,
-                OfferType = CatalogOfferType.FreeItem,
-                FreeItemText = "Dessert",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-            };
-            context.CatalogOffers.Add(offer);
-            await context.SaveChangesAsync();
-
-            var location = await context.RestaurantLocations
-                .SingleAsync(row => row.Id == locationId);
-            location.OfferCardCatalogOfferId = offer.Id;
-            await context.SaveChangesAsync();
-        }
-
-        private async Task DetachCardOfferAsync(int locationId)
-        {
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
-            var location = await context.RestaurantLocations
-                .SingleAsync(row => row.Id == locationId);
-            location.OfferCardCatalogOfferId = null;
-            await context.SaveChangesAsync();
         }
 
         private async Task<Guid> InsertAwaitingPaymentGuestCardOrderAsync(

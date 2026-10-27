@@ -216,6 +216,28 @@ namespace TummlyBackend.Helpers
         }
 
         /// <summary>
+        /// True when <paramref name="offer"/> belongs to the location and may
+        /// receive a live attach (<see cref="IsAttachable"/> on the venue-local
+        /// date). Null offer is not attachable. Shared by the offer catalog
+        /// lookup and the Shop card-offer rule.
+        /// </summary>
+        public static bool IsAttachableAtLocation(
+            CatalogOffer? offer,
+            int locationId,
+            DateTime utcNow
+        )
+        {
+            return offer != null
+                && offer.RestaurantLocationId == locationId
+                && IsAttachable(
+                    offer.Status,
+                    offer.Validity,
+                    offer.CustomExpiryDate,
+                    VenueLocalToday(utcNow, 0)
+                );
+        }
+
+        /// <summary>
         /// Stored draft ↔ active from raw live attach count (excludes Campaign
         /// Draft / cancelled). Leaves paused / archived / expired-effective
         /// rows unchanged.
