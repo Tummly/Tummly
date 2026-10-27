@@ -29,6 +29,10 @@ import {
 import { downloadShopOrderInvoicePdf } from "@/lib/operatorShop/downloadOrderInvoice"
 import type { DetailedShopOrder } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
 import { shopOrderCancelBlockMessage } from "@/lib/operatorShop/shopOrderCancelBlockMessage"
+import {
+  shopDeliveryMethodLabel,
+  shopPaymentBadgeVariant,
+} from "@/lib/operatorShop/shopOrderDetailPresentation"
 import { OPERATOR_RIGHT_SHEET_WIDTH_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
@@ -99,6 +103,11 @@ export function ShopOrderDetailSidebar({
 
   const detail = order.detail
   const showVat = (detail?.vatPence ?? 0) > 0
+  const paymentBadgeVariant = shopPaymentBadgeVariant({
+    paymentStatus: detail?.paymentStatus,
+    paymentLabel: order.paymentStatusLabel,
+    isComplimentary: order.isComplimentary || detail?.isComplimentary,
+  })
   const progress = detail?.progress
   const receivedAt =
     formatShopProgressTimestamp(progress?.orderReceivedAtUtc) ?? order.orderDate
@@ -175,12 +184,10 @@ export function ShopOrderDetailSidebar({
                 </SheetHeader>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center rounded-xs bg-op-surface-secondary px-2.5 py-1 text-xs font-medium text-op-text-primary">
+                  <Badge variant={paymentBadgeVariant}>
                     {order.paymentStatusLabel}
-                  </span>
-                  <span className="inline-flex items-center rounded-xs bg-op-surface-secondary px-2.5 py-1 text-xs font-medium text-op-text-primary">
-                    {order.fulfilmentStatusLabel}
-                  </span>
+                  </Badge>
+                  <Badge variant="tag">{order.fulfilmentStatusLabel}</Badge>
                   {order.orderKindLabel ? (
                     <Badge variant="tag">{order.orderKindLabel}</Badge>
                   ) : null}
@@ -461,7 +468,9 @@ export function ShopOrderDetailSidebar({
                   <span className="text-sm font-semibold text-op-text-primary">
                     Delivery method
                   </span>
-                  <p className="text-sm text-op-text-muted">Standard delivery</p>
+                  <p className="text-sm text-op-text-muted">
+                    {shopDeliveryMethodLabel(detail?.deliveryMethod)}
+                  </p>
                 </div>
 
                 <div className="flex flex-col gap-1">
@@ -552,9 +561,9 @@ export function ShopOrderDetailSidebar({
                       ? "No invoice"
                       : (invoiceDocumentNumber ?? "Invoice pending")}
                   </span>
-                  <span className="rounded-xs bg-green-600/20 px-2 py-0.5 text-xs font-medium text-green-500">
+                  <Badge variant={paymentBadgeVariant}>
                     {order.paymentStatusLabel}
-                  </span>
+                  </Badge>
                 </div>
 
                 {order.isComplimentary || detail?.isComplimentary ? (

@@ -463,8 +463,9 @@ export function AdminShopOrderDetailDrawer({
                     {order.orderNumber}
                   </DrawerTitle>
                   <DrawerDescription className="text-sm font-medium text-op-text-primary">
-                    {order.locationNameSnapshot} · Restaurant #
-                    {order.restaurantId}
+                    {order.locationNameSnapshot} ·{" "}
+                    {order.restaurantName?.trim() ||
+                      `Restaurant #${order.restaurantId}`}
                   </DrawerDescription>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
