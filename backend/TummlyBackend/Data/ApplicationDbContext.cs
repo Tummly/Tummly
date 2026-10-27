@@ -333,6 +333,21 @@ namespace TummlyBackend.Data
                 .HasForeignKey(o => o.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<OtpVerification>()
+                .Property(o => o.Purpose)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<OtpVerification>()
+                .Property(o => o.SubjectId)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<OtpVerification>()
+                .Property(o => o.CodeHash)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<OtpVerification>()
+                .HasIndex(o => new { o.Email, o.Purpose, o.IsUsed });
+
             /*
              =========================================
              REFRESH TOKEN TABLE
