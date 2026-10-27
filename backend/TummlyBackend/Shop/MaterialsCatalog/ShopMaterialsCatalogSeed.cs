@@ -223,35 +223,72 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 .Include(row => row.SkuTags)
                 .Include(row => row.Images)
                 .ToListAsync(cancellationToken);
-            var bySkuId = skus.ToDictionary(
-                row => row.SkuId,
-                StringComparer.Ordinal
-            );
+            var bySkuId = IndexBySkuId(skus);
             var now = DateTime.UtcNow;
             var changed = false;
-            var remappedOfferCard = false;
+            // Set only when the legacy Offer Card became the sole counter row (no
+            // counter row existed). A remap onto a Deleted counter row never sets
+            // it. The pre-existing (!hadTalker && !hadGuestCards) trigger below can
+            // still run the upgrade on its own, so the upgrade loop also skips
+            // Admin-deleted rows.
+            var upgradeFromLegacyOfferCard = false;
             var hadTalker = bySkuId.ContainsKey("table-talker");
             var hadGuestCards = bySkuId.ContainsKey("qr-guest-cards");
 
+            // Remap and soft-delete decisions consider live rows only. A Deleted
+            // counter row must not block the remap, and a Deleted offer-card row
+            // must not be remapped back to life.
+            var counterRowExisted = bySkuId.ContainsKey(CounterDisplaySkuId);
+            var hasLiveCounterDisplay =
+                bySkuId.TryGetValue(CounterDisplaySkuId, out var counterSku)
+                && counterSku.Status != ShopMaterialSkuStatuses.Deleted;
             if (
                 bySkuId.TryGetValue(LegacyOfferCardSkuId, out var legacyOfferSku)
-                && !bySkuId.ContainsKey(CounterDisplaySkuId)
+                && legacyOfferSku.Status != ShopMaterialSkuStatuses.Deleted
             )
             {
-                legacyOfferSku.SkuId = CounterDisplaySkuId;
-                bySkuId.Remove(LegacyOfferCardSkuId);
-                bySkuId[CounterDisplaySkuId] = legacyOfferSku;
-                remappedOfferCard = true;
-                changed = true;
-            }
-            else if (
-                bySkuId.TryGetValue(LegacyOfferCardSkuId, out var duplicateOffer)
-                && bySkuId.ContainsKey(CounterDisplaySkuId)
-            )
-            {
-                duplicateOffer.Status = ShopMaterialSkuStatuses.Deleted;
-                duplicateOffer.UpdatedAtUtc = now;
-                changed = true;
+                if (!hasLiveCounterDisplay)
+                {
+                    // The dictionary now points at the live row, even when a
+                    // Deleted counter row shares the SkuId.
+                    legacyOfferSku.SkuId = CounterDisplaySkuId;
+                    bySkuId.Remove(LegacyOfferCardSkuId);
+                    bySkuId[CounterDisplaySkuId] = legacyOfferSku;
+                    upgradeFromLegacyOfferCard = !counterRowExisted;
+
+                    // The remapped row was never edited as a Counter Display, so it
+                    // takes the Counter Display seed values. Only this row changes.
+                    var counterSeed = SeedSkus().First(seed =>
+                        seed.SkuId == CounterDisplaySkuId
+                    );
+                    if (
+                        recipeBySlug.TryGetValue(
+                            counterSeed.RecipeSlug,
+                            out var counterRecipe
+                        )
+                    )
+                    {
+                        ApplySeedToSku(
+                            legacyOfferSku,
+                            counterSeed,
+                            counterRecipe,
+                            ResolveCommercial(
+                                counterSeed.SkuId,
+                                counterSeed.UnitNetPence
+                            ),
+                            now,
+                            tagBySlug
+                        );
+                    }
+
+                    changed = true;
+                }
+                else
+                {
+                    legacyOfferSku.Status = ShopMaterialSkuStatuses.Deleted;
+                    legacyOfferSku.UpdatedAtUtc = now;
+                    changed = true;
+                }
             }
 
             foreach (var seed in SeedSkus())
@@ -264,7 +301,11 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 var commercial = ResolveCommercial(seed.SkuId, seed.UnitNetPence);
                 if (bySkuId.TryGetValue(seed.SkuId, out var existing))
                 {
-                    if (SyncRecipeBinding(existing, recipe, now))
+                    // Admin-deleted rows stay deleted: no rebinding, no re-create.
+                    if (
+                        existing.Status != ShopMaterialSkuStatuses.Deleted
+                        && SyncRecipeBinding(existing, recipe, now)
+                    )
                     {
                         changed = true;
                     }
@@ -298,14 +339,16 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             // Inserts already received ApplySeedToSku above; do not re-apply on
             // steady-state startups or when only a single missing SKU is restored.
             var upgradeToFive =
-                remappedOfferCard || (!hadTalker && !hadGuestCards);
+                upgradeFromLegacyOfferCard || (!hadTalker && !hadGuestCards);
             if (upgradeToFive)
             {
                 foreach (var seed in SeedSkus())
                 {
+                    // Skip Admin-deleted rows: ApplySeedToSku would set Status back to Published.
                     if (
                         !recipeBySlug.TryGetValue(seed.RecipeSlug, out var recipe)
                         || !bySkuId.TryGetValue(seed.SkuId, out var sku)
+                        || sku.Status == ShopMaterialSkuStatuses.Deleted
                     )
                     {
                         continue;
@@ -335,6 +378,56 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             {
                 await context.SaveChangesAsync(cancellationToken);
             }
+        }
+
+        /// <summary>
+        /// One row per SkuId. The SkuId unique index excludes Deleted rows, so a
+        /// soft-deleted row and a re-created live row can share an id. Prefers the
+        /// live row; when only Deleted rows exist, takes the most recently updated.
+        /// </summary>
+        private static Dictionary<string, ShopMaterialSku> IndexBySkuId(
+            IEnumerable<ShopMaterialSku> skus
+        )
+        {
+            var bySkuId = new Dictionary<string, ShopMaterialSku>(
+                StringComparer.Ordinal
+            );
+            foreach (var row in skus)
+            {
+                if (
+                    !bySkuId.TryGetValue(row.SkuId, out var current)
+                    || IsPreferredSkuRow(row, current)
+                )
+                {
+                    bySkuId[row.SkuId] = row;
+                }
+            }
+
+            return bySkuId;
+        }
+
+        /// <summary>
+        /// True when <paramref name="candidate"/> should be kept over <paramref name="current"/>
+        /// for the same SkuId: a live row beats a Deleted row, then newer UpdatedAtUtc, then higher Id.
+        /// </summary>
+        public static bool IsPreferredSkuRow(
+            ShopMaterialSku candidate,
+            ShopMaterialSku current
+        )
+        {
+            var candidateLive = candidate.Status != ShopMaterialSkuStatuses.Deleted;
+            var currentLive = current.Status != ShopMaterialSkuStatuses.Deleted;
+            if (candidateLive != currentLive)
+            {
+                return candidateLive;
+            }
+
+            if (candidate.UpdatedAtUtc != current.UpdatedAtUtc)
+            {
+                return candidate.UpdatedAtUtc > current.UpdatedAtUtc;
+            }
+
+            return candidate.Id > current.Id;
         }
 
         /// <summary>

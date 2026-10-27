@@ -218,6 +218,446 @@ namespace TummlyBackend.Tests.Shop
             );
         }
 
+        [Fact]
+        public async Task EnsureSeeded_WithDeletedAndLiveRowsSharingSkuId_AppliesSeedToLiveRow()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var live = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            live.QrType = "StaleQrType";
+            var tableTentRecipeId = live.PlacementRecipeId;
+            await _context.SaveChangesAsync();
+
+            // Soft-deleted row is newer than the live row, so only the
+            // prefer-live rule (not recency) can pick the live row.
+            _context.ShopMaterialSkus.Add(
+                BuildSkuRow(
+                    "table-tents",
+                    tableTentRecipeId,
+                    ShopMaterialSkuStatuses.Deleted,
+                    DateTime.UtcNow.AddHours(1)
+                )
+            );
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var liveAfter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+                && row.Status != ShopMaterialSkuStatuses.Deleted
+            );
+            Assert.Equal("TableTent", liveAfter.QrType);
+
+            var deletedAfter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+                && row.Status == ShopMaterialSkuStatuses.Deleted
+            );
+            Assert.Equal("DeletedQrType", deletedAfter.QrType);
+        }
+
+        [Fact]
+        public async Task EnsureSeeded_WithOnlyDeletedRowsSharingSkuId_DoesNotThrow()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var live = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            var tableTentRecipeId = live.PlacementRecipeId;
+            live.Status = ShopMaterialSkuStatuses.Deleted;
+            live.UpdatedAtUtc = DateTime.UtcNow.AddDays(-2);
+            _context.ShopMaterialSkus.Add(
+                BuildSkuRow(
+                    "table-tents",
+                    tableTentRecipeId,
+                    ShopMaterialSkuStatuses.Deleted,
+                    DateTime.UtcNow.AddDays(-1)
+                )
+            );
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var rows = await _context.ShopMaterialSkus
+                .Where(row => row.SkuId == "table-tents")
+                .ToListAsync();
+            Assert.Equal(2, rows.Count);
+            Assert.All(
+                rows,
+                row => Assert.Equal(ShopMaterialSkuStatuses.Deleted, row.Status)
+            );
+        }
+
+        [Fact]
+        public async Task EnsureSeeded_WithOnlyDeletedCounterDisplayRow_RemapsLiveOfferCard()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var counter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "qr-counter-display"
+            );
+            var counterRecipeId = counter.PlacementRecipeId;
+            counter.Status = ShopMaterialSkuStatuses.Deleted;
+            counter.UpdatedAtUtc = DateTime.UtcNow.AddDays(-2);
+            var offerCard = BuildSkuRow(
+                "offer-card",
+                counterRecipeId,
+                ShopMaterialSkuStatuses.Published,
+                DateTime.UtcNow.AddDays(-1)
+            );
+            _context.ShopMaterialSkus.Add(offerCard);
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            Assert.True(
+                await _context.ShopMaterialSkus.AnyAsync(row =>
+                    row.SkuId == "qr-counter-display"
+                    && row.Status != ShopMaterialSkuStatuses.Deleted
+                ),
+                "A live qr-counter-display row must exist after the remap."
+            );
+            var liveCounter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "qr-counter-display"
+                && row.Status != ShopMaterialSkuStatuses.Deleted
+            );
+            Assert.Equal(offerCard.Id, liveCounter.Id);
+            Assert.False(
+                await _context.ShopMaterialSkus.AnyAsync(row =>
+                    row.SkuId == "offer-card"
+                    && row.Status != ShopMaterialSkuStatuses.Deleted
+                )
+            );
+            var deletedCounter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.Id == counter.Id
+            );
+            Assert.Equal(ShopMaterialSkuStatuses.Deleted, deletedCounter.Status);
+        }
+
+        [Fact]
+        public async Task EnsureSeeded_RemapWithoutCounterRow_DoesNotReviveDeletedCoreSku()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var tableTents = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            var counter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "qr-counter-display"
+            );
+            var counterRecipeId = counter.PlacementRecipeId;
+            tableTents.Status = ShopMaterialSkuStatuses.Deleted;
+            tableTents.UpdatedAtUtc = DateTime.UtcNow.AddDays(-3);
+            _context.ShopMaterialSkus.Remove(counter);
+            _context.ShopMaterialSkus.Add(
+                BuildSkuRow(
+                    "offer-card",
+                    counterRecipeId,
+                    ShopMaterialSkuStatuses.Published,
+                    DateTime.UtcNow.AddDays(-1)
+                )
+            );
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            Assert.True(
+                await _context.ShopMaterialSkus.AnyAsync(row =>
+                    row.SkuId == "qr-counter-display"
+                    && row.Status != ShopMaterialSkuStatuses.Deleted
+                ),
+                "The legacy Offer Card must be remapped to a live counter row."
+            );
+            var tableTentsAfter = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == tableTents.Id);
+            Assert.Equal(ShopMaterialSkuStatuses.Deleted, tableTentsAfter.Status);
+        }
+
+        [Fact]
+        public async Task EnsureSeeded_DeletedCounterRemap_DoesNotOverwriteAdminEditedCoreSkus()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var tent = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            var adminPacks = ShopMaterialPacks.Serialize(
+                [new ShopMaterialPackRow { Qty = 3, NetPence = 999 }]
+            );
+            tent.PacksJson = adminPacks;
+            tent.UnitNetPence = 4242;
+
+            var counter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "qr-counter-display"
+            );
+            var counterRecipeId = counter.PlacementRecipeId;
+            counter.Status = ShopMaterialSkuStatuses.Deleted;
+            counter.UpdatedAtUtc = DateTime.UtcNow.AddDays(-2);
+            _context.ShopMaterialSkus.Add(
+                BuildSkuRow(
+                    "offer-card",
+                    counterRecipeId,
+                    ShopMaterialSkuStatuses.Published,
+                    DateTime.UtcNow.AddDays(-1)
+                )
+            );
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            Assert.True(
+                await _context.ShopMaterialSkus.AnyAsync(row =>
+                    row.SkuId == "qr-counter-display"
+                    && row.Status != ShopMaterialSkuStatuses.Deleted
+                ),
+                "The legacy Offer Card must be remapped to a live counter row."
+            );
+            var tentAfter = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == tent.Id);
+            Assert.Equal(adminPacks, tentAfter.PacksJson);
+            Assert.Equal(4242, tentAfter.UnitNetPence);
+        }
+
+        [Fact]
+        public async Task EnsureSeeded_DeletedCoreSku_IsNotRebound()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var tent = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            var stamp = DateTime.UtcNow.AddDays(-2);
+            // A different recipe than the seed's, so a rebind would be visible.
+            var windowRecipeId = await _context.PlacementRecipes
+                .Where(row => row.Slug == "window-sticker")
+                .Select(row => row.Id)
+                .SingleAsync();
+            tent.Status = ShopMaterialSkuStatuses.Deleted;
+            tent.QrType = "DeletedQrType";
+            tent.PlacementRecipeId = windowRecipeId;
+            tent.UpdatedAtUtc = stamp;
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var tentAfter = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == tent.Id);
+            Assert.Equal(ShopMaterialSkuStatuses.Deleted, tentAfter.Status);
+            Assert.Equal("DeletedQrType", tentAfter.QrType);
+            Assert.Equal(windowRecipeId, tentAfter.PlacementRecipeId);
+            Assert.Equal(stamp, tentAfter.UpdatedAtUtc);
+        }
+
+        [Fact]
+        public async Task EnsureSeeded_LiveCounterAndLiveOfferCard_SoftDeletesOfferCardOnly()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var counter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "qr-counter-display"
+            );
+            var counterId = counter.Id;
+            var counterStamp = counter.UpdatedAtUtc;
+            _context.ShopMaterialSkus.Add(
+                BuildSkuRow(
+                    "offer-card",
+                    counter.PlacementRecipeId,
+                    ShopMaterialSkuStatuses.Published,
+                    DateTime.UtcNow.AddDays(-1)
+                )
+            );
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var offerAfter = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.SkuId == "offer-card");
+            Assert.Equal(ShopMaterialSkuStatuses.Deleted, offerAfter.Status);
+
+            var counterAfter = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == counterId);
+            Assert.Equal(ShopMaterialSkuStatuses.Published, counterAfter.Status);
+            Assert.Equal("OfferCard", counterAfter.QrType);
+            Assert.Equal(counterStamp, counterAfter.UpdatedAtUtc);
+        }
+
+        [Fact]
+        public void IsPreferredSkuRow_AllDeleted_PrefersNewerUpdatedAt()
+        {
+            var now = DateTime.UtcNow;
+            var older = BuildSkuRow("table-tents", 1, ShopMaterialSkuStatuses.Deleted, now.AddDays(-3));
+            older.Id = 1;
+            var newer = BuildSkuRow("table-tents", 1, ShopMaterialSkuStatuses.Deleted, now.AddDays(-1));
+            newer.Id = 2;
+
+            Assert.True(ShopMaterialsCatalogSeed.IsPreferredSkuRow(newer, older));
+            Assert.False(ShopMaterialsCatalogSeed.IsPreferredSkuRow(older, newer));
+        }
+
+        [Fact]
+        public void IsPreferredSkuRow_AllDeleted_TieOnUpdatedAt_PrefersHigherId()
+        {
+            var stamp = DateTime.UtcNow.AddDays(-1);
+            var lowId = BuildSkuRow("table-tents", 1, ShopMaterialSkuStatuses.Deleted, stamp);
+            lowId.Id = 3;
+            var highId = BuildSkuRow("table-tents", 1, ShopMaterialSkuStatuses.Deleted, stamp);
+            highId.Id = 7;
+
+            Assert.True(ShopMaterialsCatalogSeed.IsPreferredSkuRow(highId, lowId));
+            Assert.False(ShopMaterialsCatalogSeed.IsPreferredSkuRow(lowId, highId));
+        }
+
+        [Fact]
+        public void IsPreferredSkuRow_LiveRowBeatsNewerDeletedRow()
+        {
+            var now = DateTime.UtcNow;
+            var live = BuildSkuRow("table-tents", 1, ShopMaterialSkuStatuses.Published, now.AddDays(-5));
+            live.Id = 1;
+            var deleted = BuildSkuRow("table-tents", 1, ShopMaterialSkuStatuses.Deleted, now);
+            deleted.Id = 9;
+
+            Assert.True(ShopMaterialsCatalogSeed.IsPreferredSkuRow(live, deleted));
+            Assert.False(ShopMaterialsCatalogSeed.IsPreferredSkuRow(deleted, live));
+        }
+
+        [Fact]
+        public async Task EnsureSeeded_RemapOntoDeletedCounter_AppliesCounterDisplaySeedToRemappedRowOnly()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var tent = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            var adminPacks = ShopMaterialPacks.Serialize(
+                [new ShopMaterialPackRow { Qty = 3, NetPence = 999 }]
+            );
+            tent.PacksJson = adminPacks;
+            tent.UnitNetPence = 4242;
+
+            var counter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "qr-counter-display"
+            );
+            counter.Status = ShopMaterialSkuStatuses.Deleted;
+            counter.UpdatedAtUtc = DateTime.UtcNow.AddDays(-2);
+            var offerCard = BuildSkuRow(
+                "offer-card",
+                counter.PlacementRecipeId,
+                ShopMaterialSkuStatuses.Published,
+                DateTime.UtcNow.AddDays(-1)
+            );
+            offerCard.Title = "Legacy Offer Card";
+            _context.ShopMaterialSkus.Add(offerCard);
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            Assert.True(
+                ShopLaunchCommercialDefaults.TryForSkuId(
+                    "qr-counter-display",
+                    out var commercial
+                )
+            );
+            var remapped = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == offerCard.Id);
+            Assert.Equal("qr-counter-display", remapped.SkuId);
+            Assert.Equal("QR Counter Display", remapped.Title);
+            Assert.Equal("OfferCard", remapped.QrType);
+            Assert.Equal(
+                ShopMaterialPacks.Serialize(commercial.Packs),
+                remapped.PacksJson
+            );
+            Assert.Equal(
+                ShopMaterialPacks.LowestNetPence(commercial.Packs),
+                remapped.UnitNetPence
+            );
+
+            var tentAfter = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == tent.Id);
+            Assert.Equal(adminPacks, tentAfter.PacksJson);
+            Assert.Equal(4242, tentAfter.UnitNetPence);
+        }
+
+        [Fact]
+        public async Task EnsureSeeded_UpgradeFromMissingTalkerAndGuestCards_SkipsDeletedCoreSku()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var talker = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-talker"
+            );
+            var guestCards = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "qr-guest-cards"
+            );
+            var tableTents = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            var counter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "qr-counter-display"
+            );
+            var now = DateTime.UtcNow;
+            // No table-talker and no qr-guest-cards rows: the pre-existing
+            // (!hadTalker && !hadGuestCards) trigger runs the upgrade loop.
+            _context.ShopMaterialSkus.Remove(talker);
+            _context.ShopMaterialSkus.Remove(guestCards);
+            tableTents.Status = ShopMaterialSkuStatuses.Deleted;
+            tableTents.UpdatedAtUtc = now.AddDays(-3);
+            counter.Status = ShopMaterialSkuStatuses.Deleted;
+            counter.UpdatedAtUtc = now.AddDays(-2);
+            _context.ShopMaterialSkus.Add(
+                BuildSkuRow(
+                    "offer-card",
+                    counter.PlacementRecipeId,
+                    ShopMaterialSkuStatuses.Published,
+                    now.AddDays(-1)
+                )
+            );
+            await _context.SaveChangesAsync();
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var tableTentsAfter = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == tableTents.Id);
+            Assert.Equal(ShopMaterialSkuStatuses.Deleted, tableTentsAfter.Status);
+        }
+
+        private static ShopMaterialSku BuildSkuRow(
+            string skuId,
+            int placementRecipeId,
+            string status,
+            DateTime updatedAtUtc
+        )
+        {
+            return new ShopMaterialSku
+            {
+                SkuId = skuId,
+                Title = "Duplicate SKU row",
+                Category = "tabletop",
+                Description = "duplicate",
+                Material = "Acrylic",
+                Dimensions = "A6",
+                PlacementRecipeId = placementRecipeId,
+                QrType = status == ShopMaterialSkuStatuses.Deleted
+                    ? "DeletedQrType"
+                    : "TableTent",
+                UnitNetPence = 999,
+                MinOrderQty = 1,
+                PacksJson = "[]",
+                Status = status,
+                CreatedAtUtc = updatedAtUtc,
+                UpdatedAtUtc = updatedAtUtc,
+            };
+        }
+
         private async Task SeedLegacyThreeProductsAsync()
         {
             var now = DateTime.UtcNow;
