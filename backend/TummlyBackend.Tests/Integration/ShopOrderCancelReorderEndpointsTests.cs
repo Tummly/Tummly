@@ -356,9 +356,12 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
             var body = await ReadJsonAsync(response);
             Assert.Equal(
-                "catalog_sku_unavailable",
+                "reorder_no_available_lines",
                 body.GetProperty("code").GetString()
             );
+            var unavailable = Assert.Single(body.GetProperty("unavailableLines").EnumerateArray());
+            Assert.Equal("table-tents", unavailable.GetProperty("skuId").GetString());
+            Assert.Equal("Table tents", unavailable.GetProperty("title").GetString());
         }
 
         [Fact]
@@ -447,14 +450,55 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
             var body = await ReadJsonAsync(response);
             Assert.Equal(
-                "catalog_sku_unavailable",
+                "reorder_no_available_lines",
                 body.GetProperty("code").GetString()
             );
-            Assert.Contains(
-                "delisted-sku-test",
-                body.GetProperty("unavailableSkuIds")
-                    .EnumerateArray()
-                    .Select(item => item.GetString())
+            var unavailable = Assert.Single(body.GetProperty("unavailableLines").EnumerateArray());
+            Assert.Equal("delisted-sku-test", unavailable.GetProperty("skuId").GetString());
+            Assert.Equal("Table tents", unavailable.GetProperty("title").GetString());
+        }
+
+        [Fact]
+        public async Task Reorder_ComingSoonAndDelistedLines_Returns409ListingBoth()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", false);
+            var orderId = await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.Delivered,
+                catalogSkuId: "delisted-sku-test"
+            );
+            await AddOrderLineAsync(orderId, "qr-guest-cards", "QR Guest Cards");
+
+            using var request = AuthorizedPost(
+                $"/api/shop/orders/{orderId}/reorder?locationId={seeded.InScopeLocationId}",
+                seeded.MemberJwt,
+                body: null
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "reorder_no_available_lines",
+                body.GetProperty("code").GetString()
+            );
+            var unavailable = body.GetProperty("unavailableLines")
+                .EnumerateArray()
+                .Select(item => (
+                    SkuId: item.GetProperty("skuId").GetString(),
+                    Title: item.GetProperty("title").GetString()
+                ))
+                .OrderBy(item => item.SkuId, StringComparer.Ordinal)
+                .ToArray();
+            Assert.Equal(
+                new[]
+                {
+                    (SkuId: "delisted-sku-test", Title: "Table tents"),
+                    (SkuId: "qr-guest-cards", Title: "QR Guest Cards"),
+                },
+                unavailable
             );
         }
 
