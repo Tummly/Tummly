@@ -332,7 +332,7 @@ export function ShopOrdersScreen({
       <div className="rounded-md border border-op-border-default bg-op-card-background p-6">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
           <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-op-text-secondary">
+            <span className="text-sm font-medium text-op-text-body">
               Orders in progress
             </span>
             <span className="font-jakarta text-3xl font-extrabold leading-none text-op-text-primary">
@@ -344,7 +344,7 @@ export function ShopOrdersScreen({
           </div>
 
           <div className="flex flex-col gap-1 sm:border-l sm:border-op-border-default/60 sm:pl-6">
-            <span className="text-sm font-medium text-op-text-secondary">
+            <span className="text-sm font-medium text-op-text-body">
               Dispatched
             </span>
             <span className="font-jakarta text-3xl font-extrabold leading-none text-op-text-primary">
@@ -356,7 +356,7 @@ export function ShopOrdersScreen({
           </div>
 
           <div className="flex flex-col gap-1 sm:border-l sm:border-op-border-default/60 sm:pl-6">
-            <span className="text-sm font-medium text-op-text-secondary">
+            <span className="text-sm font-medium text-op-text-body">
               Delivered
             </span>
             <span className="font-jakarta text-3xl font-extrabold leading-none text-op-text-primary">
@@ -507,7 +507,7 @@ export function ShopOrdersScreen({
                         <td className="px-4 py-3.5 font-normal text-op-text-primary">
                           {order.orderNumber} · {order.orderDate}
                         </td>
-                        <td className="px-4 py-3.5 text-op-text-secondary">
+                        <td className="px-4 py-3.5 text-op-text-body">
                           {order.locationName}
                         </td>
                         <td className="px-4 py-3.5 text-op-text-primary">
@@ -518,7 +518,7 @@ export function ShopOrdersScreen({
                             ) : null}
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 text-op-text-secondary">
+                        <td className="px-4 py-3.5 text-op-text-body">
                           {order.placedBy}
                         </td>
                         <td className="px-4 py-3.5 font-medium text-op-text-primary">
@@ -532,7 +532,7 @@ export function ShopOrdersScreen({
                             {order.fulfilmentStatusLabel}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-op-text-secondary">
+                        <td className="px-4 py-3.5 text-op-text-body">
                           {order.updatedDate}
                         </td>
                         <td className="px-4 py-3.5 text-center">

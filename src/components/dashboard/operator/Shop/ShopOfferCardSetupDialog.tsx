@@ -320,7 +320,7 @@ export function ShopOfferCardSetupDialog({
                 <DialogTitle className="pr-0 font-jakarta text-2xl font-bold leading-none text-op-text-primary">
                   {SHOP_OFFER_CARD_SETUP_COPY.title}
                 </DialogTitle>
-                <DialogDescription className="font-sans text-base font-medium text-[var(--op-color-gray-650)]">
+                <DialogDescription className="font-sans text-base font-medium text-op-text-body">
                   {SHOP_OFFER_CARD_SETUP_COPY.subtitle}
                 </DialogDescription>
               </div>
@@ -387,7 +387,7 @@ export function ShopOfferCardSetupDialog({
                   <p className="m-0 font-sans text-base font-medium text-op-text-primary">
                     {SHOP_OFFER_CARD_SETUP_COPY.importantTitle}
                   </p>
-                  <p className="m-0 max-w-[531px] font-sans text-sm text-[var(--op-color-gray-650)]">
+                  <p className="m-0 max-w-[531px] font-sans text-sm text-op-text-body">
                     {SHOP_OFFER_CARD_SETUP_COPY.importantBody}
                   </p>
                 </div>
@@ -431,7 +431,7 @@ export function ShopOfferCardSetupDialog({
             >
               <XIcon className="size-[18px]" aria-hidden />
             </Button>
-            <p className="m-0 font-sans text-base font-medium text-[var(--op-color-gray-550)]">
+            <p className="m-0 font-sans text-base font-medium text-op-text-body">
               {SHOP_OFFER_CARD_SETUP_COPY.previewLabel}
             </p>
             <OfferCardPrintPreview
