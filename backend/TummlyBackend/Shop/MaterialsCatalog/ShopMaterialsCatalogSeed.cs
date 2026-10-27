@@ -226,13 +226,17 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             var bySkuId = IndexBySkuId(skus);
             var now = DateTime.UtcNow;
             var changed = false;
-            var remappedOfferCard = false;
+            // True only when the legacy Offer Card became the sole counter row.
+            // A remap onto a Deleted counter row must not run the launch upgrade,
+            // which would overwrite Admin-edited packs and prices.
+            var upgradeFromLegacyOfferCard = false;
             var hadTalker = bySkuId.ContainsKey("table-talker");
             var hadGuestCards = bySkuId.ContainsKey("qr-guest-cards");
 
             // Remap and soft-delete decisions consider live rows only. A Deleted
             // counter row must not block the remap, and a Deleted offer-card row
             // must not be remapped back to life.
+            var counterRowExisted = bySkuId.ContainsKey(CounterDisplaySkuId);
             var hasLiveCounterDisplay =
                 bySkuId.TryGetValue(CounterDisplaySkuId, out var counterSku)
                 && counterSku.Status != ShopMaterialSkuStatuses.Deleted;
@@ -248,7 +252,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                     legacyOfferSku.SkuId = CounterDisplaySkuId;
                     bySkuId.Remove(LegacyOfferCardSkuId);
                     bySkuId[CounterDisplaySkuId] = legacyOfferSku;
-                    remappedOfferCard = true;
+                    upgradeFromLegacyOfferCard = !counterRowExisted;
                     changed = true;
                 }
                 else
@@ -269,7 +273,11 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                 var commercial = ResolveCommercial(seed.SkuId, seed.UnitNetPence);
                 if (bySkuId.TryGetValue(seed.SkuId, out var existing))
                 {
-                    if (SyncRecipeBinding(existing, recipe, now))
+                    // Admin-deleted rows stay deleted: no rebinding, no re-create.
+                    if (
+                        existing.Status != ShopMaterialSkuStatuses.Deleted
+                        && SyncRecipeBinding(existing, recipe, now)
+                    )
                     {
                         changed = true;
                     }
@@ -303,14 +311,16 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             // Inserts already received ApplySeedToSku above; do not re-apply on
             // steady-state startups or when only a single missing SKU is restored.
             var upgradeToFive =
-                remappedOfferCard || (!hadTalker && !hadGuestCards);
+                upgradeFromLegacyOfferCard || (!hadTalker && !hadGuestCards);
             if (upgradeToFive)
             {
                 foreach (var seed in SeedSkus())
                 {
+                    // Skip Admin-deleted rows: ApplySeedToSku would set Status back to Published.
                     if (
                         !recipeBySlug.TryGetValue(seed.RecipeSlug, out var recipe)
                         || !bySkuId.TryGetValue(seed.SkuId, out var sku)
+                        || sku.Status == ShopMaterialSkuStatuses.Deleted
                     )
                     {
                         continue;
@@ -368,7 +378,11 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             return bySkuId;
         }
 
-        private static bool IsPreferredSkuRow(
+        /// <summary>
+        /// True when <paramref name="candidate"/> should be kept over <paramref name="current"/>
+        /// for the same SkuId: a live row beats a Deleted row, then newer UpdatedAtUtc, then higher Id.
+        /// </summary>
+        public static bool IsPreferredSkuRow(
             ShopMaterialSku candidate,
             ShopMaterialSku current
         )
