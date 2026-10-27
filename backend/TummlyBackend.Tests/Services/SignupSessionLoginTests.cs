@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using System.Text.Json;
@@ -32,7 +33,14 @@ namespace TummlyBackend.Tests.Services
                 new EmailServiceStubBase(),
                 new NoOpProvisioningService(),
                 new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())),
-                new StubJwtService()
+                new StubJwtService(),
+                new OtpChallengeService(
+                    _db,
+                    new OtpCodeHasher("tests-only-otp-hash-key"),
+                    TimeProvider.System
+                ),
+                TimeProvider.System,
+                NullLogger<SignupService>.Instance
             );
         }
 

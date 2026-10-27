@@ -111,7 +111,14 @@ namespace TummlyBackend.Tests.Services
                 new TrackingEmailService(),
                 _provisioning,
                 new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())),
-                new StubJwtService()
+                new StubJwtService(),
+                new OtpChallengeService(
+                    _db,
+                    new OtpCodeHasher("tests-only-otp-hash-key"),
+                    TimeProvider.System
+                ),
+                TimeProvider.System,
+                NullLogger<SignupService>.Instance
             );
         }
 

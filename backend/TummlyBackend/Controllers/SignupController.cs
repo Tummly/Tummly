@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Signup;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -9,12 +10,27 @@ namespace TummlyBackend.Controllers
     [Route("api/[controller]")]
     public class SignupController : ControllerBase
     {
+        private const string CodeSentMessage =
+            "If this email can be used, we sent a 6-digit code.";
+
         private readonly ISignupService _signupService;
 
         public SignupController(ISignupService signupService)
         {
             _signupService = signupService;
         }
+
+        private IActionResult FlowError(SignupFlowException ex) =>
+            StatusCode(
+                ex.StatusCode,
+                new
+                {
+                    success = false,
+                    code = ex.Code,
+                    message = ex.Message,
+                    retryAfterUtc = ex.RetryAfterUtc,
+                }
+            );
 
         [HttpPost("start")]
         public async Task<IActionResult> Start([FromBody] StartSignupDto dto)
@@ -27,10 +43,15 @@ namespace TummlyBackend.Controllers
                     new
                     {
                         success = true,
-                        message = "OTP sent successfully.",
+                        code = "code_sent",
+                        message = CodeSentMessage,
                         data = result,
                     }
                 );
+            }
+            catch (SignupFlowException ex)
+            {
+                return FlowError(ex);
             }
             catch (Exception ex)
             {
@@ -58,6 +79,10 @@ namespace TummlyBackend.Controllers
                     }
                 );
             }
+            catch (SignupFlowException ex)
+            {
+                return FlowError(ex);
+            }
             catch (Exception ex)
             {
                 return BadRequest(
@@ -73,15 +98,21 @@ namespace TummlyBackend.Controllers
         {
             try
             {
-                await _signupService.ResendOtpAsync(dto.Email);
+                var result = await _signupService.ResendOtpAsync(dto.Email);
 
                 return Ok(
                     new
                     {
                         success = true,
-                        message = "OTP resent successfully.",
+                        code = "code_sent",
+                        message = CodeSentMessage,
+                        data = result,
                     }
                 );
+            }
+            catch (SignupFlowException ex)
+            {
+                return FlowError(ex);
             }
             catch (Exception ex)
             {
