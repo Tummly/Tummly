@@ -729,6 +729,7 @@ builder.Services.AddScoped<
     ComplimentaryStarterShopOrderService
 >();
 builder.Services.AddScoped<IShopMaterialsOrderPaySession, ShopMaterialsOrderPaySessionService>();
+builder.Services.AddScoped<IShopOrderPaymentConfirmService, ShopOrderPaymentConfirmService>();
 builder.Services.AddScoped<IShopOrdersListService, ShopOrdersListService>();
 builder.Services.AddScoped<IShopOrderCancelReorderService, ShopOrderCancelReorderService>();
 builder.Services.AddScoped<IAdminShopOrderFulfilmentService, AdminShopOrderFulfilmentService>();

@@ -25,6 +25,7 @@ namespace TummlyBackend.Controllers
         private readonly IShopOrderCancelReorderService _cancelReorder;
         private readonly IMaterialsCatalog _catalog;
         private readonly IShopQrSlotReservationService _qrSlots;
+        private readonly IShopOrderPaymentConfirmService _paymentConfirm;
 
         public ShopOrdersController(
             IShopOrderPlaceService orders,
@@ -35,7 +36,8 @@ namespace TummlyBackend.Controllers
             ApplicationDbContext context,
             IShopOrderCancelReorderService cancelReorder,
             IMaterialsCatalog catalog,
-            IShopQrSlotReservationService qrSlots
+            IShopQrSlotReservationService qrSlots,
+            IShopOrderPaymentConfirmService paymentConfirm
         )
         {
             _orders = orders;
@@ -47,6 +49,7 @@ namespace TummlyBackend.Controllers
             _cancelReorder = cancelReorder;
             _catalog = catalog;
             _qrSlots = qrSlots;
+            _paymentConfirm = paymentConfirm;
         }
 
         [HttpGet("orders")]
@@ -258,6 +261,77 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            return Ok(
+                await ShopOrderDtoMapper.MapOperatorDetailAsync(
+                    _context,
+                    order,
+                    cancellationToken
+                )
+            );
+        }
+
+        /// <summary>
+        /// Return-page check after Revolut Hosted Checkout. Reads Revolut and,
+        /// when the payment completed, applies the paid path now instead of
+        /// waiting for the webhook. Safe to repeat. Never releases a QR slot
+        /// reservation and never refunds.
+        /// </summary>
+        [HttpPost("orders/{orderId:guid}/confirm-payment")]
+        public async Task<IActionResult> ConfirmPayment(
+            Guid orderId,
+            [FromQuery] int? locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var gate = await AuthorizeShopAsync(
+                locationId,
+                PermissionLevel.Scoped
+            );
+            if (gate.Denied != null)
+            {
+                return gate.Denied;
+            }
+
+            var owned = await _context.ShopOrders
+                .AsNoTracking()
+                .Where(row =>
+                    row.Id == orderId && row.RestaurantId == gate.RestaurantId
+                )
+                .Select(row => new { row.LocationId })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (owned == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Shop order was not found.",
+                });
+            }
+
+            if (!gate.LocationIds.Contains(owned.LocationId))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    success = false,
+                    message = "You do not have access to this location.",
+                });
+            }
+
+            await _paymentConfirm.ConfirmAsync(
+                orderId,
+                gate.RestaurantId,
+                cancellationToken
+            );
+
+            var order = await _context.ShopOrders
+                .AsNoTracking()
+                .Include(row => row.Lines)
+                .FirstAsync(
+                    row =>
+                        row.Id == orderId
+                        && row.RestaurantId == gate.RestaurantId,
+                    cancellationToken
+                );
             return Ok(
                 await ShopOrderDtoMapper.MapOperatorDetailAsync(
                     _context,

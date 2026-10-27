@@ -150,11 +150,14 @@ public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
         /// </summary>
         public Func<string, Task>? OnGetOrderAsync { get; set; }
 
+        public int GetOrderCallCount { get; private set; }
+
         public async Task<RevolutOrderRetrieveResult> GetOrderAsync(
             string orderId,
             CancellationToken cancellationToken = default
         )
         {
+            GetOrderCallCount++;
             if (OnGetOrderAsync != null)
             {
                 await OnGetOrderAsync(orderId);
