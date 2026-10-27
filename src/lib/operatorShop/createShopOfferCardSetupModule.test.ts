@@ -141,4 +141,78 @@ describe("createShopOfferCardSetupModule", () => {
     expect(module.getSnapshot().isOpen).toBe(false)
     expect(module.getSnapshot().hasAttach).toBe(true)
   })
+
+  it("title follows the percentage value until the operator types", async () => {
+    const { module } = createModule()
+    await module.loadForLocation()
+    module.open()
+
+    module.setOfferType("percentage_discount")
+    expect(module.getSnapshot().draft.title).toBe("Get 20% off your next visit")
+
+    module.patchDraft({ discountPercentage: "30" })
+    expect(module.getSnapshot().draft.title).toBe("Get 30% off your next visit")
+
+    module.patchDraft({ discountPercentage: "40" })
+    expect(module.getSnapshot().draft.title).toBe("Get 40% off your next visit")
+  })
+
+  it("keeps a manually typed title when the value changes", async () => {
+    const { module } = createModule()
+    await module.loadForLocation()
+    module.open()
+    module.setOfferType("percentage_discount")
+
+    module.patchDraft({ title: "Welcome back offer" })
+    module.patchDraft({ discountPercentage: "50" })
+
+    expect(module.getSnapshot().draft.title).toBe("Welcome back offer")
+    expect(module.getSnapshot().draft.titleTouched).toBe(true)
+  })
+
+  it("keeps a manually typed title when the offer type changes", async () => {
+    const { module } = createModule()
+    await module.loadForLocation()
+    module.open()
+    module.setOfferType("percentage_discount")
+    module.patchDraft({ title: "Welcome back offer" })
+
+    module.setOfferType("fixed_discount")
+
+    expect(module.getSnapshot().draft.title).toBe("Welcome back offer")
+  })
+
+  it("sends default description, validity and staff instructions on confirm", async () => {
+    const { module, createCatalogOffer } = createModule()
+    await module.loadForLocation()
+    module.open()
+    module.setOfferType("percentage_discount")
+
+    const result = await module.confirm()
+
+    expect(result).toBe("created")
+    expect(createCatalogOffer).toHaveBeenCalledWith({
+      locationId: 9,
+      offerType: "percentage_discount",
+      title: "Get 20% off your next visit",
+      description:
+        "Show this offer to a member of staff on your next visit to redeem it.",
+      validity: "30_days_after_issue",
+      staffInstructions:
+        "Ask the guest for their unique offer code. Check the code in Tummly and select Confirm redemption before applying the offer.",
+      discountPercentage: 20,
+    })
+  })
+
+  it("does not confirm with a blank percentage", async () => {
+    const { module, createCatalogOffer } = createModule()
+    await module.loadForLocation()
+    module.open()
+    module.setOfferType("percentage_discount")
+    module.patchDraft({ discountPercentage: "" })
+
+    expect(module.getSnapshot().canConfirm).toBe(false)
+    expect(await module.confirm()).toBe("noop")
+    expect(createCatalogOffer).not.toHaveBeenCalled()
+  })
 })

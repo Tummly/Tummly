@@ -23,14 +23,11 @@ import {
 import {
   CAMPAIGN_CATALOG_OFFER_PURCHASE_REQUIREMENT_OPTIONS,
   CAMPAIGN_CATALOG_OFFER_TYPE_OPTIONS,
-  CAMPAIGN_CATALOG_OFFER_VALIDITY_OPTIONS,
   CAMPAIGN_OFFER_ADDITIONAL_EXCLUSIONS_MAX,
-  CAMPAIGN_OFFER_DESCRIPTION_MAX,
   CAMPAIGN_OFFER_TITLE_MAX,
   type CampaignCatalogOfferDetailsDraft,
   type CampaignCatalogOfferPurchaseRequirementId,
   type CampaignCatalogOfferTypeId,
-  type CampaignCatalogOfferValidityId,
 } from "@/lib/operatorOffers/offerCatalogPresentation"
 import type { ShopOfferCardSetupSnapshot } from "@/lib/operatorShop/createShopOfferCardSetupModule"
 import {
@@ -323,7 +320,7 @@ export function ShopOfferCardSetupDialog({
                 <DialogTitle className="pr-0 font-jakarta text-2xl font-bold leading-none text-op-text-primary">
                   {SHOP_OFFER_CARD_SETUP_COPY.title}
                 </DialogTitle>
-                <DialogDescription className="font-sans text-base font-medium text-[var(--op-color-gray-550)]">
+                <DialogDescription className="font-sans text-base font-medium text-[var(--op-color-gray-650)]">
                   {SHOP_OFFER_CARD_SETUP_COPY.subtitle}
                 </DialogDescription>
               </div>
@@ -360,8 +357,6 @@ export function ShopOfferCardSetupDialog({
                       onPatchDraft={onPatchDraft}
                     />
 
-                    <div className="h-px w-full bg-op-border-default" />
-
                     <div className="flex w-full flex-col gap-2">
                       <Label className={FEEDBACK_FIELD_LABEL_CLASS}>
                         {SHOP_OFFER_CARD_SETUP_COPY.titleLabel}
@@ -383,80 +378,6 @@ export function ShopOfferCardSetupDialog({
                         }
                       />
                     </div>
-
-                    <div className="flex w-full flex-col gap-2">
-                      <Label className={FEEDBACK_FIELD_LABEL_CLASS}>
-                        {SHOP_OFFER_CARD_SETUP_COPY.descriptionLabel}
-                      </Label>
-                      <Textarea
-                        disabled={saving}
-                        value={snapshot.draft.description}
-                        maxLength={CAMPAIGN_OFFER_DESCRIPTION_MAX}
-                        onChange={(event) =>
-                          onPatchDraft({ description: event.target.value })
-                        }
-                        className={cn(FEEDBACK_TEXTAREA_CLASS, "min-h-[96px]")}
-                        placeholder={
-                          SHOP_OFFER_CARD_SETUP_COPY.descriptionPlaceholder
-                        }
-                      />
-                    </div>
-
-                    <FloatingLabelSelect
-                      label={SHOP_OFFER_CARD_SETUP_COPY.validityLabel}
-                      options={CAMPAIGN_CATALOG_OFFER_VALIDITY_OPTIONS.map(
-                        (option) => ({
-                          value: option.id,
-                          label: option.label,
-                        })
-                      )}
-                      value={snapshot.draft.validity}
-                      onValueChange={(value) =>
-                        onPatchDraft({
-                          validity: value as CampaignCatalogOfferValidityId,
-                        })
-                      }
-                      disabled={saving}
-                      disableFocusRing
-                      contentClassName={cn(
-                        FEEDBACK_RECOVERY_SELECT_MENU_CLASS,
-                        "z-[150]"
-                      )}
-                      itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
-                    />
-
-                    {snapshot.draft.validity === "choose_expiry_date" ? (
-                      <div className="flex w-full flex-col gap-2">
-                        <Label className={FEEDBACK_FIELD_LABEL_CLASS}>
-                          {SHOP_OFFER_CARD_SETUP_COPY.expiryDateLabel}
-                        </Label>
-                        <Input
-                          type="date"
-                          disabled={saving}
-                          value={snapshot.draft.expiryDate}
-                          onChange={(event) =>
-                            onPatchDraft({ expiryDate: event.target.value })
-                          }
-                          className={FIELD_INPUT_CLASS}
-                        />
-                      </div>
-                    ) : null}
-
-                    <div className="flex w-full flex-col gap-2">
-                      <Label className={FEEDBACK_FIELD_LABEL_CLASS}>
-                        {SHOP_OFFER_CARD_SETUP_COPY.staffInstructionsLabel}
-                      </Label>
-                      <Textarea
-                        disabled={saving}
-                        value={snapshot.draft.staffInstructions}
-                        onChange={(event) =>
-                          onPatchDraft({
-                            staffInstructions: event.target.value,
-                          })
-                        }
-                        className={cn(FEEDBACK_TEXTAREA_CLASS, "min-h-[80px]")}
-                      />
-                    </div>
                   </>
                 ) : null}
 
@@ -466,7 +387,7 @@ export function ShopOfferCardSetupDialog({
                   <p className="m-0 font-sans text-base font-medium text-op-text-primary">
                     {SHOP_OFFER_CARD_SETUP_COPY.importantTitle}
                   </p>
-                  <p className="m-0 max-w-[531px] font-sans text-sm text-[var(--op-color-gray-550)]">
+                  <p className="m-0 max-w-[531px] font-sans text-sm text-[var(--op-color-gray-650)]">
                     {SHOP_OFFER_CARD_SETUP_COPY.importantBody}
                   </p>
                 </div>
