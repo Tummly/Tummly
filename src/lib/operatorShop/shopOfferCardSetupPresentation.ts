@@ -34,8 +34,8 @@ export const SHOP_OFFER_CARD_SETUP_COPY = {
   previewError: "Could not load the card preview.",
 } as const
 
-/** Counter Display SKU — Offer Card print attach still uses OfferCard placement. */
-export const SHOP_OFFER_CARD_SKU_ID = "qr-counter-display" as const
+/** Guest Cards SKU — the card-offer rule applies to lines of this SKU. */
+export const SHOP_GUEST_CARD_SKU_ID = "qr-guest-cards" as const
 
 /** Print pack viewBox — keep in sync with print-template-pack-v1 card-dev.svg. */
 export const SHOP_OFFER_CARD_PREVIEW_ASPECT = "240.94 / 155.91" as const

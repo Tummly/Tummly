@@ -26,6 +26,8 @@ export type ShopOfferCardSetupAdapters = {
   locationId: () => number | null
   /** False on Free — no Starter materials / offer creation. */
   isEnabled: () => boolean
+  /** False when the Guest Cards SKU is not available in the Shop catalog. */
+  isGuestCardAvailable: () => boolean
   getAttached: () => Promise<ShopOfferCardOfferFact>
   createCatalogOffer: (
     body: CreateCatalogOfferRequestBody
@@ -42,7 +44,6 @@ export type ShopOfferCardSetupModule = {
   getSnapshot: () => ShopOfferCardSetupSnapshot
   subscribe: (listener: () => void) => () => void
   loadForLocation: () => Promise<void>
-  openIfNeeded: () => "opened" | "noop"
   open: () => "opened" | "noop"
   close: () => void
   patchDraft: (patch: Partial<CampaignCatalogOfferDetailsDraft>) => void
@@ -172,9 +173,12 @@ export function createShopOfferCardSetupModule(
         return
       }
 
+      // A reload never opens the card-offer dialog. It closes any dialog
+      // left open for the previous location.
       state = {
         ...state,
         loadStatus: "loading",
+        isOpen: false,
         saveStatus: "idle",
         saveError: null,
       }
@@ -190,7 +194,7 @@ export function createShopOfferCardSetupModule(
           ...state,
           loadStatus: "ready",
           attached,
-          isOpen: !hasAttach,
+          isOpen: false,
           draft: hasAttach ? state.draft : initialDraft(),
         }
         publish()
@@ -208,26 +212,12 @@ export function createShopOfferCardSetupModule(
         adapters.onError?.(SHOP_OFFER_CARD_SETUP_COPY.loadError)
       }
     },
-    openIfNeeded() {
+    open() {
       if (
         !adapters.isEnabled()
-        || state.attached.offerId != null
         || adapters.locationId() == null
+        || !adapters.isGuestCardAvailable()
       ) {
-        return "noop"
-      }
-      state = {
-        ...state,
-        isOpen: true,
-        draft: initialDraft(),
-        saveStatus: "idle",
-        saveError: null,
-      }
-      publish()
-      return "opened"
-    },
-    open() {
-      if (!adapters.isEnabled() || adapters.locationId() == null) {
         return "noop"
       }
       state = {
