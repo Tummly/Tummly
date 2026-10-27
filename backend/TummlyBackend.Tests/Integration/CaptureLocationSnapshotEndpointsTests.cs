@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -205,6 +206,231 @@ namespace TummlyBackend.Tests.Integration
                 "Journey Guest",
                 lastJourney.GetProperty("guestName").GetString()
             );
+        }
+
+        [Fact]
+        public async Task Snapshot_PlacementWithPaidShopOrderOfType_HasShopPrintedMaterialsTrue()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedShopPrintedPlacementsAsync(
+                email: "capture-snapshot-shop-printed@example.com",
+                tokenSuffix: "shopprint"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SnapshotUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var placements = body.GetProperty("placements");
+
+            // Table Tent: paid order at this location. Guest Card: only an
+            // awaiting-payment order. Smart Guest: no order at all.
+            Assert.True(
+                PlacementByType(placements, "TableTent")
+                    .GetProperty("hasShopPrintedMaterials")
+                    .GetBoolean()
+            );
+            Assert.False(
+                PlacementByType(placements, "GuestCard")
+                    .GetProperty("hasShopPrintedMaterials")
+                    .GetBoolean()
+            );
+            Assert.False(
+                PlacementByType(placements, "SmartGuest")
+                    .GetProperty("hasShopPrintedMaterials")
+                    .GetBoolean()
+            );
+        }
+
+        [Fact]
+        public async Task Snapshot_PaidGuestCardLine_FlagsGuestCardCode()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerLocationAsync(
+                email: "capture-snapshot-paid-guest-card@example.com",
+                tokenSuffix: "paidgc"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .AsNoTracking()
+                    .SingleAsync(row => row.Id == seeded.LocationId);
+                var ownerUserId = await context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.Id == location.RestaurantId)
+                    .Select(row => row.OwnerUserId)
+                    .SingleAsync();
+
+                context.QrCodes.Add(
+                    new QrCode
+                    {
+                        RestaurantLocationId = location.Id,
+                        QrType = QrType.GuestCard,
+                        Token = "cap-snap-paidgc-gc-token123",
+                        Status = QrCodeStatus.Active,
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                context.ShopOrders.Add(
+                    NewShopOrderForLocation(
+                        location,
+                        ownerUserId,
+                        ShopPaymentStatuses.Paid,
+                        "qr-guest-cards",
+                        "QR Guest Cards"
+                    )
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SnapshotUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var placements = body.GetProperty("placements");
+            Assert.True(
+                PlacementByType(placements, "GuestCard")
+                    .GetProperty("hasShopPrintedMaterials")
+                    .GetBoolean()
+            );
+            // The owner location's default Smart Guest code has no order.
+            Assert.False(
+                PlacementByType(placements, "SmartGuest")
+                    .GetProperty("hasShopPrintedMaterials")
+                    .GetBoolean()
+            );
+        }
+
+        [Fact]
+        public async Task Snapshot_PaidShopOrderAtAnotherLocation_DoesNotFlagThisLocation()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerLocationAsync(
+                email: "capture-snapshot-other-site@example.com",
+                tokenSuffix: "othersite"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .AsNoTracking()
+                    .SingleAsync(row => row.Id == seeded.LocationId);
+                var restaurant = await context.Restaurants
+                    .AsNoTracking()
+                    .SingleAsync(row => row.Id == location.RestaurantId);
+
+                // Same restaurant, second site. The paid order belongs to it.
+                var otherSite = new RestaurantLocation
+                {
+                    RestaurantId = restaurant.Id,
+                    LocationName = "Other Site",
+                    Address = "2 High Street",
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.RestaurantLocations.Add(otherSite);
+                await context.SaveChangesAsync();
+
+                context.QrCodes.Add(
+                    new QrCode
+                    {
+                        RestaurantLocationId = location.Id,
+                        QrType = QrType.TableTent,
+                        Token = "cap-snap-othersite-tt-token123",
+                        Status = QrCodeStatus.Active,
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                context.ShopOrders.Add(
+                    NewShopOrderForLocation(
+                        otherSite,
+                        restaurant.OwnerUserId,
+                        ShopPaymentStatuses.Paid,
+                        "table-tents",
+                        "Table Tent"
+                    )
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SnapshotUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(
+                PlacementByType(body.GetProperty("placements"), "TableTent")
+                    .GetProperty("hasShopPrintedMaterials")
+                    .GetBoolean()
+            );
+        }
+
+        [Fact]
+        public async Task Snapshot_DuplicateSkuIdWithDeletedRow_StillFlagsPaidLine()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedShopPrintedPlacementsAsync(
+                email: "capture-snapshot-dup-sku@example.com",
+                tokenSuffix: "dupsku"
+            );
+
+            // Admin soft-deletes a SKU and recreates it under the same id, so
+            // the catalog holds a Deleted row and a live row for "table-tents".
+            var deletedRowId = await AddDeletedSkuRowAsync(
+                "table-tents",
+                "WindowSticker"
+            );
+            try
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    SnapshotUrl(seeded.LocationId, from, to)
+                );
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+                var response = await _client.SendAsync(request);
+
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var body = await ReadJsonAsync(response);
+                Assert.True(
+                    PlacementByType(body.GetProperty("placements"), "TableTent")
+                        .GetProperty("hasShopPrintedMaterials")
+                        .GetBoolean()
+                );
+            }
+            finally
+            {
+                await RemoveSkuRowAsync(deletedRowId);
+            }
         }
 
         [Fact]
@@ -892,6 +1118,160 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id);
+        }
+
+        private async Task<(string Jwt, int LocationId)> SeedShopPrintedPlacementsAsync(
+            string email,
+            string tokenSuffix
+        )
+        {
+            var seeded = await SeedOwnerLocationAsync(email, tokenSuffix);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var location = await context.RestaurantLocations
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == seeded.LocationId);
+            var owner = await context.Restaurants
+                .AsNoTracking()
+                .Where(row => row.Id == location.RestaurantId)
+                .Select(row => new { row.OwnerUserId })
+                .SingleAsync();
+
+            context.QrCodes.AddRange(
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.TableTent,
+                    Token = $"cap-snap-{tokenSuffix}-tt-token123",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                },
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.GuestCard,
+                    Token = $"cap-snap-{tokenSuffix}-gc-token123",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            context.ShopOrders.AddRange(
+                NewShopOrderForLocation(
+                    location,
+                    owner.OwnerUserId,
+                    ShopPaymentStatuses.Paid,
+                    "table-tents",
+                    "Table Tent"
+                ),
+                NewShopOrderForLocation(
+                    location,
+                    owner.OwnerUserId,
+                    ShopPaymentStatuses.AwaitingPayment,
+                    "qr-guest-cards",
+                    "QR Guest Cards"
+                )
+            );
+            await context.SaveChangesAsync();
+
+            return seeded;
+        }
+
+        private static ShopOrder NewShopOrderForLocation(
+            RestaurantLocation location,
+            int placedByUserId,
+            string paymentStatus,
+            string catalogSkuId,
+            string title
+        )
+        {
+            var order = new ShopOrder
+            {
+                Id = Guid.NewGuid(),
+                OrderNumber = $"SNAP-{Guid.NewGuid():N}"[..16],
+                RestaurantId = location.RestaurantId,
+                LocationId = location.Id,
+                LocationNameSnapshot = location.LocationName,
+                PlacedByUserId = placedByUserId,
+                PlacedByNameSnapshot = "Capture Snapshot Owner",
+                MaterialsNetPence = 1000,
+                VatPence = 200,
+                DeliveryNetPence = 0,
+                GrossPence = 1200,
+                DeliveryMethod = ShopDeliveryMethods.Standard,
+                PaymentStatus = paymentStatus,
+                ShipToContactName = "Ada Lovelace",
+                ShipToAddressLine1 = "6 Southwark Street",
+                ShipToPostcode = "SE1 1TQ",
+                ShipToCountry = "United Kingdom",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow,
+            };
+            order.Lines.Add(
+                new ShopOrderLine
+                {
+                    Id = Guid.NewGuid(),
+                    CatalogSkuId = catalogSkuId,
+                    TitleSnapshot = title,
+                    MaterialType = catalogSkuId,
+                    Quantity = 1,
+                    UnitNetPence = 1000,
+                    LineNetPence = 1000,
+                }
+            );
+            return order;
+        }
+
+        private async Task<int> AddDeletedSkuRowAsync(string skuId, string qrType)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            // Same recipe as the live row: the catalog load includes
+            // PlacementRecipe, so a dangling recipe id would hide this row.
+            var live = await context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(item =>
+                    item.SkuId == skuId
+                    && item.Status != ShopMaterialSkuStatuses.Deleted
+                );
+            var row = new ShopMaterialSku
+            {
+                SkuId = skuId,
+                Title = "Retired Table Tent",
+                Category = "tabletop",
+                Description = "Soft-deleted before the SKU was recreated.",
+                Material = "3mm Matte Frosted Acrylic",
+                Dimensions = "105mm x 148mm (A6)",
+                QrType = qrType,
+                PlacementRecipeId = live.PlacementRecipeId,
+                Status = ShopMaterialSkuStatuses.Deleted,
+            };
+            context.ShopMaterialSkus.Add(row);
+            await context.SaveChangesAsync();
+            return row.Id;
+        }
+
+        private async Task RemoveSkuRowAsync(int skuRowId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var row = await context.ShopMaterialSkus
+                .SingleAsync(item => item.Id == skuRowId);
+            context.ShopMaterialSkus.Remove(row);
+            await context.SaveChangesAsync();
+        }
+
+        private static JsonElement PlacementByType(
+            JsonElement placements,
+            string qrType
+        )
+        {
+            return placements
+                .EnumerateArray()
+                .Single(item => item.GetProperty("qrType").GetString() == qrType);
         }
     }
 }

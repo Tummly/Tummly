@@ -16,13 +16,15 @@ namespace TummlyBackend.Services
         private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly ICaptureThankYouOfferService _thankYouOffer;
         private readonly IPlanEntitlementsSnapshot _entitlements;
+        private readonly IMaterialsCatalog _materialsCatalog;
 
         public CaptureLocationSnapshotService(
             ApplicationDbContext context,
             CaptureWindowedEngagementAggregate engagement,
             ISmartGuestLinkService smartGuestLink,
             ICaptureThankYouOfferService thankYouOffer,
-            IPlanEntitlementsSnapshot entitlements
+            IPlanEntitlementsSnapshot entitlements,
+            IMaterialsCatalog materialsCatalog
         )
         {
             _context = context;
@@ -30,6 +32,7 @@ namespace TummlyBackend.Services
             _smartGuestLink = smartGuestLink;
             _thankYouOffer = thankYouOffer;
             _entitlements = entitlements;
+            _materialsCatalog = materialsCatalog;
         }
 
         public async Task<object> GetSnapshotAsync(
@@ -139,6 +142,12 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // No codes means no placement rows can carry the flag, so skip the lookup.
+            var shopPrintedQrTypes =
+                qrCodeIds.Count > 0
+                    ? await ResolveShopPrintedQrTypesAsync(query.LocationId)
+                    : new HashSet<QrType>();
+
             object? lastJourneyUpdate = null;
             if (qrCodeIds.Count > 0)
             {
@@ -194,7 +203,10 @@ namespace TummlyBackend.Services
                         ? feedback.MarketingOptIns
                         : 0,
                     offerClaims = 0,
-                    lastScanAt
+                    lastScanAt,
+                    hasShopPrintedMaterials = shopPrintedQrTypes.Contains(
+                        qr.QrType
+                    ),
                 };
             });
 
@@ -223,6 +235,32 @@ namespace TummlyBackend.Services
                 thankYouOfferLive = thankYou.ThankYouOfferLive,
                 entitlements = locationEntitlements,
             };
+        }
+
+        /// <summary>
+        /// QR types that paid Shop orders at this location print. One line
+        /// query for the location, then the same QrType mapping the print
+        /// pipeline uses.
+        /// </summary>
+        private async Task<HashSet<QrType>> ResolveShopPrintedQrTypesAsync(
+            int locationId
+        )
+        {
+            var paidLines = await _context.ShopOrderLines
+                .AsNoTracking()
+                .Where(line =>
+                    line.ShopOrder.LocationId == locationId
+                    && line.ShopOrder.PaymentStatus == ShopPaymentStatuses.Paid
+                )
+                .ToListAsync();
+            if (paidLines.Count == 0)
+            {
+                return [];
+            }
+
+            return PrintReadyQrMaterialsService
+                .ResolveOrderedQrTypes(paidLines, _materialsCatalog)
+                .Keys.ToHashSet();
         }
     }
 }

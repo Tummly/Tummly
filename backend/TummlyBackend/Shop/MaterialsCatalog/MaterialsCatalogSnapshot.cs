@@ -43,5 +43,12 @@ namespace TummlyBackend.Shop.MaterialsCatalog
         public bool AvailableInShop { get; init; }
 
         public bool MintOnShopFulfilment { get; init; }
+
+        /// <summary>
+        /// True for a soft-deleted catalog row. Deleted rows stay loaded so past
+        /// orders can resolve their QrType, and they can share a SkuId with a
+        /// recreated live row.
+        /// </summary>
+        public bool IsDeleted { get; init; }
     }
 }
