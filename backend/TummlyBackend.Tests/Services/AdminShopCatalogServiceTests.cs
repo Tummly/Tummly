@@ -408,6 +408,79 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task UpdateSku_RemovingLastQrPath_FromAvailableSku_Returns409()
+        {
+            var (_, activateError) = await _service.SetAvailableInShopAsync(
+                "table-tents",
+                availableInShop: true,
+                actorAdminUserId: 1,
+                actorIdentity: "admin@example.com"
+            );
+            Assert.Null(activateError);
+
+            var (sku, error) = await _service.UpdateSkuAsync(
+                "table-tents",
+                new AdminShopCatalogSkuWriteRequest
+                {
+                    MintOnShopFulfilment = false,
+                    Title = "Changed title",
+                }
+            );
+
+            Assert.Null(sku);
+            Assert.Equal("sku_has_no_qr_path", error);
+            var stored = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.SkuId == "table-tents");
+            Assert.True(stored.AvailableInShop);
+            Assert.True(stored.MintOnShopFulfilment);
+            Assert.NotEqual("Changed title", stored.Title);
+        }
+
+        [Fact]
+        public async Task UpdateSku_LegacyAvailableWithoutQrPath_UnrelatedEdit_Succeeds()
+        {
+            var tent = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            tent.AvailableInShop = true;
+            tent.MintOnShopFulfilment = false;
+            await _context.SaveChangesAsync();
+
+            var (sku, error) = await _service.UpdateSkuAsync(
+                "table-tents",
+                new AdminShopCatalogSkuWriteRequest { Title = "Legacy edit" }
+            );
+
+            Assert.Null(error);
+            Assert.NotNull(sku);
+            Assert.Equal("Legacy edit", sku!.Title);
+            Assert.False(sku.MintOnShopFulfilment);
+            Assert.True(sku.AvailableInShop);
+        }
+
+        [Fact]
+        public async Task UpdateSku_StarterRecipe_MintOff_Succeeds()
+        {
+            var counter = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == ShopMaterialsCatalogSeed.CounterDisplaySkuId
+            );
+            Assert.True(counter.AvailableInShop);
+            counter.MintOnShopFulfilment = true;
+            await _context.SaveChangesAsync();
+
+            var (sku, error) = await _service.UpdateSkuAsync(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                new AdminShopCatalogSkuWriteRequest { MintOnShopFulfilment = false }
+            );
+
+            Assert.Null(error);
+            Assert.NotNull(sku);
+            Assert.False(sku!.MintOnShopFulfilment);
+            Assert.True(sku.AvailableInShop);
+        }
+
+        [Fact]
         public async Task Publish_DefaultsAvailableInShopToFalse()
         {
             await _service.DeleteAsync("table-tents");

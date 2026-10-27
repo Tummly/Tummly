@@ -120,6 +120,76 @@ namespace TummlyBackend.Tests.Services
                 .AsNoTracking()
                 .SingleAsync(row => row.ProductKey == product.ProductKey);
             Assert.True(stillActive.IsActive);
+            Assert.Null(stillActive.LinkedSkuId);
+            Assert.False(
+                await _context.ShopMaterialSkus.AnyAsync(row =>
+                    row.SkuId == product.ProductKey
+                )
+            );
+        }
+
+        [Fact]
+        public async Task InterestPromote_NoQrPath_ExistingDraft_LeavesSkuUnchanged()
+        {
+            await _catalog.DeleteAsync("table-tents");
+            var product = await EnsureInterestProductAsync("tray-liner");
+            await UploadInterestImageAsync(product.ProductKey);
+            product.Dimensions = "A4";
+            product.Material = "Paper";
+            await _context.SaveChangesAsync();
+
+            var tentRecipe = await RecipeIdAsync("table-tent");
+            var (draft, draftError) = await _catalog.CreateSkuAsync(
+                new AdminShopCatalogSkuWriteRequest
+                {
+                    SkuId = product.ProductKey,
+                    Title = "Tray liner draft",
+                    Category = "tabletop",
+                    Description = "Draft listing",
+                    Material = "Paper",
+                    Dimensions = "A4",
+                    PlacementRecipeId = tentRecipe,
+                    UnitNetPence = 999,
+                    MintOnShopFulfilment = true,
+                    AboutBody = "About draft",
+                }
+            );
+            Assert.Null(draftError);
+            Assert.NotNull(draft);
+            var before = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.SkuId == product.ProductKey);
+
+            var (promoted, error) = await _service.PromoteAsync(
+                product.ProductKey,
+                new AdminShopInterestPromoteRequest
+                {
+                    PlacementRecipeId = tentRecipe,
+                    Category = "tabletop",
+                    Packs = [new ShopMaterialPackRow { Qty = 1, NetPence = 999 }],
+                    DeliveryNetPence = 100,
+                    MintOnShopFulfilment = false,
+                }
+            );
+
+            Assert.Null(promoted);
+            Assert.Equal("sku_has_no_qr_path", error);
+            var after = await _context.ShopMaterialSkus
+                .AsNoTracking()
+                .SingleAsync(row => row.SkuId == product.ProductKey);
+            Assert.Equal(ShopMaterialSkuStatuses.Draft, after.Status);
+            Assert.False(after.AvailableInShop);
+            Assert.True(after.MintOnShopFulfilment);
+            Assert.Equal(before.Title, after.Title);
+            Assert.Equal(before.UpdatedAtUtc, after.UpdatedAtUtc);
+            Assert.Null(before.PublishedAtUtc);
+            Assert.Null(after.PublishedAtUtc);
+            Assert.True(
+                (await _context.ShopInterestProducts
+                    .AsNoTracking()
+                    .SingleAsync(row => row.ProductKey == product.ProductKey))
+                .IsActive
+            );
         }
 
         [Fact]

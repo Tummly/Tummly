@@ -298,6 +298,16 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
 
+            var qrPathError = await PromoteQrPathErrorAsync(
+                request,
+                existingSku,
+                cancellationToken
+            );
+            if (qrPathError != null)
+            {
+                return (null, qrPathError);
+            }
+
             AdminShopCatalogSkuDto? skuDto;
             string? error;
             if (existingSku != null)
@@ -385,11 +395,6 @@ namespace TummlyBackend.Services
                 return (null, "Shop product was not found after publish.");
             }
 
-            if (!await ShopQrPathRules.HasQrPathAsync(_context, sku, cancellationToken))
-            {
-                return (null, ShopQrPathRules.SkuHasNoQrPathCode);
-            }
-
             sku.AvailableInShop = true;
             sku.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -405,6 +410,36 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
             return (MapProduct(product, registrationCount), null);
+        }
+
+        /// <summary>
+        /// Promote activates the SKU, so it is refused before any write when the
+        /// effective mint flag and recipe starter flag leave no QR path. The
+        /// values mirror what CreateSkuAsync or UpdateSkuAsync would persist.
+        /// </summary>
+        private async Task<string?> PromoteQrPathErrorAsync(
+            AdminShopInterestPromoteRequest request,
+            ShopMaterialSku? existingSku,
+            CancellationToken cancellationToken
+        )
+        {
+            var recipeId = existingSku?.PlacementRecipeId ?? request.PlacementRecipeId;
+            var recipe = await _context.PlacementRecipes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == recipeId, cancellationToken);
+            if (recipe == null)
+            {
+                // CreateSkuAsync reports an unknown placement recipe.
+                return null;
+            }
+
+            var mint =
+                existingSku != null
+                    ? request.MintOnShopFulfilment ?? existingSku.MintOnShopFulfilment
+                    : request.MintOnShopFulfilment ?? recipe.MintOnFulfilmentDefault;
+            return ShopQrPathRules.HasQrPath(mint, recipe.IncludeInComplimentaryStarter)
+                ? null
+                : ShopQrPathRules.SkuHasNoQrPathCode;
         }
 
         public async Task<(AdminShopInterestProductDto? Product, string? Error)> DemoteByProductKeyAsync(

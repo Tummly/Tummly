@@ -350,6 +350,19 @@ namespace TummlyBackend.Services
                 }
             }
 
+            // Refuse an update that removes the last QR path from an available SKU.
+            // Runs before any mutation so a rejected update changes nothing.
+            var starter = sku.PlacementRecipe.IncludeInComplimentaryStarter;
+            var mintAfter = request.MintOnShopFulfilment ?? sku.MintOnShopFulfilment;
+            if (
+                sku.AvailableInShop
+                && ShopQrPathRules.HasQrPath(sku.MintOnShopFulfilment, starter)
+                && !ShopQrPathRules.HasQrPath(mintAfter, starter)
+            )
+            {
+                return (null, ShopQrPathRules.SkuHasNoQrPathCode);
+            }
+
             if (request.Title != null)
             {
                 var title = request.Title.Trim();
