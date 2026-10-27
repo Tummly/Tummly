@@ -28,7 +28,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task SetAvailableInShop_NoQrPath_Returns409WithCode()
         {
             var adminJwt = await SeedAdminJwtAsync();
-            await SetTableTentMintAsync(false);
+            await SetTableTentAsync(mint: false, available: false);
 
             using var request = AuthorizedPostJson(
                 "/api/admin/shop-catalog/skus/table-tents/available-in-shop",
@@ -49,7 +49,127 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
-        private async Task SetTableTentMintAsync(bool mint)
+        [Fact]
+        public async Task UpdateSku_RemovingLastQrPath_Returns409WithCode()
+        {
+            var adminJwt = await SeedAdminJwtAsync();
+            await SetTableTentAsync(mint: true, available: true);
+
+            using var request = AuthorizedPatchJson(
+                "/api/admin/shop-catalog/skus/table-tents",
+                adminJwt,
+                new { mintOnShopFulfilment = false }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "sku_has_no_qr_path",
+                body.GetProperty("code").GetString()
+            );
+            Assert.False(
+                string.IsNullOrWhiteSpace(body.GetProperty("message").GetString())
+            );
+        }
+
+        [Fact]
+        public async Task PromoteInterestProduct_NoQrPath_Returns409WithCode()
+        {
+            var adminJwt = await SeedAdminJwtAsync();
+            var productKey = $"promote-409-{Guid.NewGuid():N}";
+            var tentRecipeId = await SeedInterestProductAsync(productKey);
+            // The seeded table-tents SKU holds the table-tent slot; free it so the
+            // only reason to refuse is the QR path. Restored below (shared store).
+            await SetTableTentStatusAsync(ShopMaterialSkuStatuses.Deleted);
+
+            HttpResponseMessage response;
+            try
+            {
+                using var request = AuthorizedPostJson(
+                    $"/api/admin/shop-interest/products/{productKey}/promote",
+                    adminJwt,
+                    new
+                    {
+                        placementRecipeId = tentRecipeId,
+                        category = "tabletop",
+                        packs = new[] { new { qty = 1, netPence = 999 } },
+                        deliveryNetPence = 100,
+                        mintOnShopFulfilment = false,
+                    }
+                );
+                response = await _client.SendAsync(request);
+            }
+            finally
+            {
+                await SetTableTentStatusAsync(ShopMaterialSkuStatuses.Published);
+            }
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "sku_has_no_qr_path",
+                body.GetProperty("code").GetString()
+            );
+            Assert.False(
+                string.IsNullOrWhiteSpace(body.GetProperty("message").GetString())
+            );
+        }
+
+        /// <summary>
+        /// Inserts an active interest product with one image and returns the
+        /// table-tent recipe id. The guard runs after the image, dimension and
+        /// title checks, so these rows are enough to reach it.
+        /// </summary>
+        private async Task<int> SeedInterestProductAsync(string productKey)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var product = new ShopInterestProduct
+            {
+                ProductKey = productKey,
+                Title = "Tray liner",
+                Description = "Print a tray liner",
+                Material = "Paper",
+                Dimensions = "A4",
+                IsActive = true,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow,
+            };
+            product.Images.Add(
+                new ShopInterestProductImage
+                {
+                    StorageKey = $"interest/{productKey}.png",
+                    ContentType = "image/png",
+                    SortOrder = 0,
+                    CreatedAtUtc = DateTime.UtcNow,
+                }
+            );
+            context.ShopInterestProducts.Add(product);
+            await context.SaveChangesAsync();
+
+            return await context.PlacementRecipes
+                .Where(row => row.Slug == "table-tent")
+                .Select(row => row.Id)
+                .SingleAsync();
+        }
+
+        private async Task SetTableTentStatusAsync(string status)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var sku = await context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == "table-tents"
+            );
+            sku.Status = status;
+            await context.SaveChangesAsync();
+        }
+
+        private async Task SetTableTentAsync(bool mint, bool available)
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -58,6 +178,7 @@ namespace TummlyBackend.Tests.Integration
                 row.SkuId == "table-tents"
             );
             sku.MintOnShopFulfilment = mint;
+            sku.AvailableInShop = available;
             await context.SaveChangesAsync();
         }
 
@@ -80,6 +201,21 @@ namespace TummlyBackend.Tests.Integration
             context.Admins.Add(admin);
             await context.SaveChangesAsync();
             return jwtService.GenerateAdminToken(admin);
+        }
+
+        private static HttpRequestMessage AuthorizedPatchJson(
+            string url,
+            string jwt,
+            object payload
+        )
+        {
+            var request = new HttpRequestMessage(HttpMethod.Patch, url)
+            {
+                Content = JsonContent.Create(payload),
+            };
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            return request;
         }
 
         private static HttpRequestMessage AuthorizedPostJson(

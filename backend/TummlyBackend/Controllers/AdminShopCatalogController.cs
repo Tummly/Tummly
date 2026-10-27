@@ -87,6 +87,18 @@ namespace TummlyBackend.Controllers
             );
             if (error != null)
             {
+                if (error == ShopQrPathRules.SkuHasNoQrPathCode)
+                {
+                    return Conflict(
+                        new
+                        {
+                            success = false,
+                            code = error,
+                            message = ShopQrPathRules.SkuHasNoQrPathMessage,
+                        }
+                    );
+                }
+
                 if (error.Contains("not found", StringComparison.OrdinalIgnoreCase))
                 {
                     return NotFound(new { success = false, message = error });
