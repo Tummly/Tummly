@@ -21,6 +21,11 @@ import {
 } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
 import { buildShopOrdersListQueryParams } from "@/lib/operatorShop/shopOrdersListQueryParams"
 import { mapShopOrdersListResponse, mapShopOrderDetailToRow } from "@/lib/operatorShop/mapShopOrdersApiResponse"
+import { readShopApiErrorCode } from "@/lib/operatorShop/readShopApiErrorCode"
+import {
+  buildShopReorderUnavailableMessage,
+  readShopReorderUnavailableLines,
+} from "@/lib/operatorShop/shopReorderUnavailablePresentation"
 import { fetchShopOrdersList, fetchShopOrder, cancelShopOrder, reorderShopOrder, type ShopReorderPrefillWire } from "@/api/shopOrdersApi"
 import {
   emptySelection,
@@ -266,9 +271,13 @@ export function ShopOrdersScreen({
       }
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 409) {
-        const code = error.response.data?.code
-        if (code === "catalog_sku_unavailable") {
-          toast.error("One or more materials are no longer available.")
+        if (readShopApiErrorCode(error) === "reorder_no_available_lines") {
+          const unavailable = readShopReorderUnavailableLines(error)
+          toast.error(
+            unavailable.length > 0
+              ? buildShopReorderUnavailableMessage(unavailable)
+              : "This order cannot be reordered."
+          )
           return
         }
         toast.error("This order cannot be reordered.")

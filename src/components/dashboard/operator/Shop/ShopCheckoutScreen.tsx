@@ -7,6 +7,7 @@ import {
   ChevronDown,
 } from "lucide-react"
 import { toast } from "sonner"
+import { useNavigate } from "react-router-dom"
 import logo from "@/assets/svg/logo.svg"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,8 +33,10 @@ import {
   type CheckoutLine,
   type ShopShipToPayload,
 } from "@/api/shopOrdersApi"
+import { readShopApiErrorCode } from "@/lib/operatorShop/readShopApiErrorCode"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import { ShopPaidWriteHelperNote } from "@/components/dashboard/operator/Shop/ShopPaidWriteHelperNote"
+import { ShopQrLimitDialog } from "@/components/dashboard/operator/Shop/ShopQrLimitDialog"
 import {
   SHOP_CHECKOUT_ICON_WELL_CLASS,
   SHOP_CHECKOUT_INPUT_CLASS,
@@ -46,7 +49,12 @@ import {
 } from "@/lib/operatorShop/shopSurfacePresentation"
 import { ukPostcodeRegex } from "@/lib/locationUpload/locationUploadValidation"
 import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
-import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardCaptureForLocationPath,
+  type OperatorDashboardMode,
+} from "@/lib/operatorHome/operatorDashboardPaths"
+import { operatorDashboardBillingCreditsManagePlanPath } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import { readShopQrLimitError } from "@/lib/operatorShop/shopQrLimitPresentation"
 import { cn } from "@/lib/utils"
 
 type DeliveryMethod = "standard" | "express"
@@ -67,6 +75,8 @@ type ShopCheckoutScreenProps = {
   onBackToShop: () => void
   onBackToProduct?: () => void
   onOrderPlaced?: (orderNumber: string) => void
+  /** Place or pay refused a Guest Card line until a card offer is attached. */
+  onOfferCardRequired?: () => void
   paidWriteChrome: ShopPaidWriteChrome
   /** Effective seller VAT rate (bps). Defaults to 0 (launch OFF / net-only). */
   vatRateBps?: number
@@ -102,6 +112,7 @@ export function ShopCheckoutScreen({
   onBackToShop,
   onBackToProduct,
   onOrderPlaced,
+  onOfferCardRequired,
   paidWriteChrome,
   vatRateBps = 0,
 }: ShopCheckoutScreenProps) {
@@ -131,6 +142,9 @@ export function ShopCheckoutScreen({
 
   const [isEditQuantityOpen, setIsEditQuantityOpen] = useState(false)
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false)
+  const [isQrLimitOpen, setIsQrLimitOpen] = useState(false)
+  const [qrLimit, setQrLimit] = useState(0)
+  const navigate = useNavigate()
   const [returnStepAfterAddress, setReturnStepAfterAddress] = useState<
     "delivery" | "payment"
   >("payment")
@@ -350,7 +364,17 @@ export function ShopCheckoutScreen({
       }
 
       toast.error("Could not start Revolut payment.")
-    } catch {
+    } catch (error) {
+      if (readShopApiErrorCode(error) === "offer_card_offer_required") {
+        onOfferCardRequired?.()
+        return
+      }
+      const planLimit = readShopQrLimitError(error)
+      if (planLimit != null) {
+        setQrLimit(planLimit)
+        setIsQrLimitOpen(true)
+        return
+      }
       toast.error("Could not place order.")
     } finally {
       setIsPaymentProcessing(false)
@@ -1089,6 +1113,22 @@ export function ShopCheckoutScreen({
           </DialogContent>
         </Dialog>
       ) : null}
+
+      <ShopQrLimitDialog
+        open={isQrLimitOpen}
+        limit={qrLimit}
+        onOpenChange={setIsQrLimitOpen}
+        onReviewPlanOptions={() => {
+          setIsQrLimitOpen(false)
+          navigate(
+            operatorDashboardBillingCreditsManagePlanPath(mode, locationId)
+          )
+        }}
+        onManageQrCodes={() => {
+          setIsQrLimitOpen(false)
+          navigate(operatorDashboardCaptureForLocationPath(mode, locationId))
+        }}
+      />
     </div>
   )
 }

@@ -106,6 +106,8 @@ export type ShopReorderPrefillWire = {
   shipTo: ShopShipToPayload
   deliveryMethod: "standard" | "express"
   sourceOrderNumber: string
+  /** Lines dropped from the prefill because they are no longer sold in the Shop. */
+  unavailableLines?: { skuId: string; title: string }[]
 }
 
 export type ShopDeliveryDefaultsWire = {

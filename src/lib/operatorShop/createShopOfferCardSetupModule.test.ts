@@ -8,12 +8,14 @@ function createModule(options?: {
   failCreate?: boolean
   failAttach?: boolean
   enabled?: boolean
+  guestCardAvailable?: boolean
 }) {
   let attached = options?.attached ?? {
     offerId: null,
     title: null,
     live: false,
   }
+  let locationId: number | null = 9
   const getAttached = vi.fn(async () => attached)
   const createCatalogOffer = vi.fn(async () => {
     if (options?.failCreate) {
@@ -34,18 +36,25 @@ function createModule(options?: {
   })
 
   const module = createShopOfferCardSetupModule({
-    locationId: () => 9,
+    locationId: () => locationId,
     isEnabled: () => options?.enabled !== false,
+    isGuestCardAvailable: () => options?.guestCardAvailable !== false,
     getAttached,
     createCatalogOffer,
     putOfferCardOffer,
   })
 
-  return { module, createCatalogOffer, putOfferCardOffer, getAttached }
+  /** Switches the selected location and the attach state that the next load reads. */
+  const moveToLocation = (nextLocationId: number, nextAttached: ShopOfferCardOfferFact) => {
+    locationId = nextLocationId
+    attached = nextAttached
+  }
+
+  return { module, createCatalogOffer, putOfferCardOffer, getAttached, moveToLocation }
 }
 
 describe("createShopOfferCardSetupModule", () => {
-  it("opens on load when attach is missing", async () => {
+  it("loadForLocation never opens when attach is missing", async () => {
     const { module } = createModule()
 
     await module.loadForLocation()
@@ -53,10 +62,10 @@ describe("createShopOfferCardSetupModule", () => {
     const snap = module.getSnapshot()
     expect(snap.loadStatus).toBe("ready")
     expect(snap.hasAttach).toBe(false)
-    expect(snap.isOpen).toBe(true)
+    expect(snap.isOpen).toBe(false)
   })
 
-  it("stays closed on load when attach exists", async () => {
+  it("loadForLocation never opens when attach exists", async () => {
     const { module } = createModule({
       attached: { offerId: 7, title: "Existing", live: true },
     })
@@ -66,6 +75,27 @@ describe("createShopOfferCardSetupModule", () => {
     const snap = module.getSnapshot()
     expect(snap.hasAttach).toBe(true)
     expect(snap.isOpen).toBe(false)
+  })
+
+  it("open returns noop when Guest Cards unavailable", async () => {
+    const { module } = createModule({ guestCardAvailable: false })
+    await module.loadForLocation()
+
+    expect(module.open()).toBe("noop")
+    expect(module.getSnapshot().isOpen).toBe(false)
+  })
+
+  it("location change closes an open dialog and reloads attach state", async () => {
+    const { module, getAttached, moveToLocation } = createModule()
+    await module.loadForLocation()
+    expect(module.open()).toBe("opened")
+    expect(module.getSnapshot().isOpen).toBe(true)
+
+    moveToLocation(10, { offerId: 7, title: "Other location offer", live: true })
+    await module.loadForLocation()
+
+    expect(module.getSnapshot()).toMatchObject({ isOpen: false, hasAttach: true })
+    expect(getAttached).toHaveBeenCalledTimes(2)
   })
 
   it("stays closed on Free without calling attach", async () => {
@@ -94,6 +124,7 @@ describe("createShopOfferCardSetupModule", () => {
   it("Continue creates and attaches then closes", async () => {
     const { module, createCatalogOffer, putOfferCardOffer } = createModule()
     await module.loadForLocation()
+    expect(module.open()).toBe("opened")
     module.setOfferType("percentage_discount")
     module.patchDraft({
       title: "Get 20% off your next visit",

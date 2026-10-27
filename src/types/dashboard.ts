@@ -299,6 +299,8 @@ export interface CapturePlacementItem {
   offerClaims: number
   /** All-time max scan instant; null when never scanned. */
   lastScanAt: string | null
+  /** True when a paid Shop order at this location printed materials for this QR type. */
+  hasShopPrintedMaterials?: boolean
 }
 
 /** GET /api/capture/placements/archived — account-wide archived codes. */

@@ -79,6 +79,59 @@ describe("buildPauseActivateConfirm", () => {
     })
   })
 
+  it("pause with hasShopPrintedMaterials shows shop warning", () => {
+    const view = buildPauseActivateConfirm({
+      fact: fact({
+        qrCodeId: 13,
+        qrType: "CounterCard",
+        status: "Active",
+        hasShopPrintedMaterials: true,
+      }),
+      action: "pause",
+      locationName: "Camden",
+    })
+
+    expect(view).toMatchObject({
+      action: "pause",
+      title: "Pause QR placement?",
+      warningText:
+        "Printed materials from your Tummly Shop orders use this QR code. Guests who scan them will not reach your form while it is paused.",
+      primaryLabel: "Pause placement",
+    })
+  })
+
+  it("pause without hasShopPrintedMaterials keeps print warning", () => {
+    const view = buildPauseActivateConfirm({
+      fact: fact({
+        qrCodeId: 14,
+        qrType: "CounterCard",
+        status: "Active",
+        hasShopPrintedMaterials: false,
+      }),
+      action: "pause",
+      locationName: "Camden",
+    })
+
+    expect(view.warningText).toBe(
+      "Any printed materials using this QR code will remain in circulation but will not work while the placement is paused."
+    )
+  })
+
+  it("activate ignores hasShopPrintedMaterials and shows no warning", () => {
+    const view = buildPauseActivateConfirm({
+      fact: fact({
+        qrCodeId: 15,
+        qrType: "CounterCard",
+        status: "Paused",
+        hasShopPrintedMaterials: true,
+      }),
+      action: "activate",
+      locationName: "Camden",
+    })
+
+    expect(view.warningText).toBeNull()
+  })
+
   it("builds digital Pause with link language and no print warning", () => {
     const view = buildPauseActivateConfirm({
       fact: fact({
