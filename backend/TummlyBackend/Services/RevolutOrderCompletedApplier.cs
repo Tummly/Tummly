@@ -40,6 +40,8 @@ namespace TummlyBackend.Services
             private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
             private readonly IEmailService _emailService;
             private readonly ICaptureQrLifecycleService _captureQrLifecycle;
+            private readonly IShopQrSlotReservationService? _shopQrSlots;
+            private readonly IActiveQrCapacity? _activeQrCapacity;
             private readonly ILogger<RevolutOrderCompletedApplier> _logger;
 
             public RevolutOrderCompletedApplier(
@@ -59,7 +61,9 @@ namespace TummlyBackend.Services
                 IComplimentaryStarterShopOrderService? complimentaryStarterShopOrders =
                     null,
                 IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null,
-                ILogger<RevolutOrderCompletedApplier>? logger = null
+                ILogger<RevolutOrderCompletedApplier>? logger = null,
+                IShopQrSlotReservationService? shopQrSlots = null,
+                IActiveQrCapacity? activeQrCapacity = null
             )
             {
                 _context = context;
@@ -82,6 +86,8 @@ namespace TummlyBackend.Services
                     printReadyQrMaterialsWork
                     ?? NoOpPrintReadyQrMaterialsWork.Instance;
                 _logger = logger ?? NullLogger<RevolutOrderCompletedApplier>.Instance;
+                _shopQrSlots = shopQrSlots;
+                _activeQrCapacity = activeQrCapacity;
             }
 
         public static bool IsMintableBillingReason(string? billingReason)
@@ -1102,13 +1108,50 @@ namespace TummlyBackend.Services
         {
             if (!intent.IsOpen)
             {
-                return;
+                // A failure webhook or the sweeper closed the intent, yet the
+                // payment completed. The money is taken, so the order is paid
+                // (spec 4.4.5). Any other closed intent was already applied.
+                if (
+                    intent.ShopOrderId is not Guid closedOrderId
+                    || !await _context.ShopOrders.AnyAsync(
+                        row =>
+                            row.Id == closedOrderId
+                            && row.PaymentStatus
+                                == ShopPaymentStatuses.PaymentFailed,
+                        cancellationToken
+                    )
+                )
+                {
+                    return;
+                }
+
+                _logger.LogWarning(
+                    "Revolut order {OrderId} completed after shop order {ShopOrderId} was marked payment_failed",
+                    intent.OrderId,
+                    closedOrderId
+                );
             }
 
             var restaurantId = RequireRestaurantId(intent);
             if (intent.ShopOrderId is not Guid shopOrderId)
             {
                 throw new InvalidOperationException("invalid_shop_order_intent");
+            }
+
+            // Paid status and QR conversion commit together under the billing
+            // lock that Capture and /pay also take.
+            await using var capacityTransaction = _shopQrSlots == null
+                ? null
+                : await QrCapacityTransaction.BeginIfNeededAsync(
+                    _context,
+                    cancellationToken
+                );
+            if (_shopQrSlots != null && _activeQrCapacity != null)
+            {
+                await _activeQrCapacity.LockBillingAccountAsync(
+                    restaurantId,
+                    cancellationToken
+                );
             }
 
             var shopOrder = await _context.ShopOrders
@@ -1131,6 +1174,14 @@ namespace TummlyBackend.Services
             shopOrder.ProcessingStartedAtUtc = nowUtc;
             shopOrder.RevolutOrderId = intent.OrderId;
             shopOrder.UpdatedAtUtc = nowUtc;
+
+            if (_shopQrSlots != null)
+            {
+                await _shopQrSlots.ConvertForPaidOrderAsync(
+                    shopOrder,
+                    cancellationToken
+                );
+            }
 
             var billingAccount = await _context.BillingAccounts
                 .AsNoTracking()
@@ -1190,6 +1241,10 @@ namespace TummlyBackend.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+            if (capacityTransaction != null)
+            {
+                await capacityTransaction.CommitAsync(cancellationToken);
+            }
 
             await _shopOrderEmail.TryNotifyConfirmedAsync(
                 shopOrder.Id,

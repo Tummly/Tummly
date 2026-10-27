@@ -63,6 +63,25 @@ namespace TummlyBackend.Helpers
                 changed = true;
             }
 
+            // A paid order's reservations are converted and final. Only an
+            // order that is not paid gives its open slots back.
+            if (
+                !string.Equals(
+                    shopOrder.PaymentStatus,
+                    ShopPaymentStatuses.Paid,
+                    StringComparison.Ordinal
+                )
+                && await ShopQrSlotReservationRelease.ReleaseOpenForOrderAsync(
+                    context,
+                    shopOrder.Id,
+                    now,
+                    cancellationToken
+                ) > 0
+            )
+            {
+                changed = true;
+            }
+
             if (intent.IsOpen)
             {
                 intent.IsOpen = false;

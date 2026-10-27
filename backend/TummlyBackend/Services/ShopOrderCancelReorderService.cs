@@ -102,6 +102,12 @@ namespace TummlyBackend.Services
             order.CancelledAtUtc = now;
             order.CancelledByUserId = userId;
             order.UpdatedAtUtc = now;
+            await ShopQrSlotReservationRelease.ReleaseOpenForOrderAsync(
+                _context,
+                order.Id,
+                now,
+                cancellationToken
+            );
 
             await _context.SaveChangesAsync(cancellationToken);
 
