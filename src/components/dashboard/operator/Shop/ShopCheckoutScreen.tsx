@@ -7,6 +7,7 @@ import {
   ChevronDown,
 } from "lucide-react"
 import { toast } from "sonner"
+import { useNavigate } from "react-router-dom"
 import logo from "@/assets/svg/logo.svg"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,6 +36,7 @@ import {
 import { readShopApiErrorCode } from "@/lib/operatorShop/readShopApiErrorCode"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import { ShopPaidWriteHelperNote } from "@/components/dashboard/operator/Shop/ShopPaidWriteHelperNote"
+import { ShopQrLimitDialog } from "@/components/dashboard/operator/Shop/ShopQrLimitDialog"
 import {
   SHOP_CHECKOUT_ICON_WELL_CLASS,
   SHOP_CHECKOUT_INPUT_CLASS,
@@ -47,7 +49,12 @@ import {
 } from "@/lib/operatorShop/shopSurfacePresentation"
 import { ukPostcodeRegex } from "@/lib/locationUpload/locationUploadValidation"
 import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
-import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardCaptureForLocationPath,
+  type OperatorDashboardMode,
+} from "@/lib/operatorHome/operatorDashboardPaths"
+import { operatorDashboardBillingCreditsManagePlanPath } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import { readShopQrLimitError } from "@/lib/operatorShop/shopQrLimitPresentation"
 import { cn } from "@/lib/utils"
 
 type DeliveryMethod = "standard" | "express"
@@ -135,6 +142,9 @@ export function ShopCheckoutScreen({
 
   const [isEditQuantityOpen, setIsEditQuantityOpen] = useState(false)
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false)
+  const [isQrLimitOpen, setIsQrLimitOpen] = useState(false)
+  const [qrLimit, setQrLimit] = useState(0)
+  const navigate = useNavigate()
   const [returnStepAfterAddress, setReturnStepAfterAddress] = useState<
     "delivery" | "payment"
   >("payment")
@@ -357,6 +367,12 @@ export function ShopCheckoutScreen({
     } catch (error) {
       if (readShopApiErrorCode(error) === "offer_card_offer_required") {
         onOfferCardRequired?.()
+        return
+      }
+      const planLimit = readShopQrLimitError(error)
+      if (planLimit != null) {
+        setQrLimit(planLimit)
+        setIsQrLimitOpen(true)
         return
       }
       toast.error("Could not place order.")
@@ -1097,6 +1113,22 @@ export function ShopCheckoutScreen({
           </DialogContent>
         </Dialog>
       ) : null}
+
+      <ShopQrLimitDialog
+        open={isQrLimitOpen}
+        limit={qrLimit}
+        onOpenChange={setIsQrLimitOpen}
+        onReviewPlanOptions={() => {
+          setIsQrLimitOpen(false)
+          navigate(
+            operatorDashboardBillingCreditsManagePlanPath(mode, locationId)
+          )
+        }}
+        onManageQrCodes={() => {
+          setIsQrLimitOpen(false)
+          navigate(operatorDashboardCaptureForLocationPath(mode, locationId))
+        }}
+      />
     </div>
   )
 }

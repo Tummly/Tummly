@@ -66,6 +66,7 @@ import {
   SHOP_GUEST_CARD_SKU_ID,
 } from "@/lib/operatorShop/shopOfferCardSetupPresentation"
 import { readShopApiErrorCode } from "@/lib/operatorShop/readShopApiErrorCode"
+import { buildShopReorderUnavailableMessage } from "@/lib/operatorShop/shopReorderUnavailablePresentation"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import { shouldShowShopRecommendations } from "@/lib/operatorShop/shouldShowShopRecommendations"
 import type { ShopLocationOption } from "@/components/dashboard/operator/Shop/ShopLocationPicker"
@@ -777,6 +778,11 @@ export function ShopPage({
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
           onReorder={({ prefill }) => {
+            if (prefill.unavailableLines && prefill.unavailableLines.length > 0) {
+              toast.error(
+                buildShopReorderUnavailableMessage(prefill.unavailableLines)
+              )
+            }
             if (
               prefill.lines.some(
                 (line) => line.skuId === SHOP_GUEST_CARD_SKU_ID
