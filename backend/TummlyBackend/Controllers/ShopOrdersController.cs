@@ -7,6 +7,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Shop;
 
 namespace TummlyBackend.Controllers
 {
@@ -22,6 +23,7 @@ namespace TummlyBackend.Controllers
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly ApplicationDbContext _context;
         private readonly IShopOrderCancelReorderService _cancelReorder;
+        private readonly IMaterialsCatalog _catalog;
 
         public ShopOrdersController(
             IShopOrderPlaceService orders,
@@ -30,7 +32,8 @@ namespace TummlyBackend.Controllers
             IGuestsEffectiveLocationService effectiveLocations,
             IRestaurantPermissionHelper permissions,
             ApplicationDbContext context,
-            IShopOrderCancelReorderService cancelReorder
+            IShopOrderCancelReorderService cancelReorder,
+            IMaterialsCatalog catalog
         )
         {
             _orders = orders;
@@ -40,6 +43,7 @@ namespace TummlyBackend.Controllers
             _permissions = permissions;
             _context = context;
             _cancelReorder = cancelReorder;
+            _catalog = catalog;
         }
 
         [HttpGet("orders")]
@@ -162,6 +166,16 @@ namespace TummlyBackend.Controllers
                     return NotFound(new
                     {
                         success = false,
+                        message = result.ErrorMessage,
+                    });
+                }
+
+                if (result.ErrorCode == OfferCardOfferRequiredException.ErrorCode)
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
                         message = result.ErrorMessage,
                     });
                 }
@@ -471,6 +485,32 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message = "Restaurant was not found.",
+                });
+            }
+
+            var payBlock = await ShopCardOfferRules.FirstPayBlockAsync(
+                _context,
+                _catalog,
+                order,
+                cancellationToken
+            );
+            if (payBlock == ShopSkuNotAvailableException.ErrorCode)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = payBlock,
+                    message = "This product is not available for order.",
+                });
+            }
+
+            if (payBlock == OfferCardOfferRequiredException.ErrorCode)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = payBlock,
+                    message = "Set up your card offer before ordering Offer Cards.",
                 });
             }
 

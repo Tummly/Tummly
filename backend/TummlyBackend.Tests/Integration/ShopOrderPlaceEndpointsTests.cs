@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -228,6 +229,115 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("United Kingdom", body.GetProperty("country").GetString());
             Assert.Equal("Site Contact", body.GetProperty("contactName").GetString());
             Assert.Equal("+442074071234", body.GetProperty("contactPhone").GetString());
+        }
+
+        [Fact]
+        public async Task GuestCards_Available_PlaceWithoutOffer_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await SetSkuAvailableInShopAsync("qr-guest-cards", true);
+
+            var place = await PlaceOrderAsync(
+                seeded.MemberJwt,
+                new
+                {
+                    locationId = seeded.InScopeLocationId,
+                    lines = new[]
+                    {
+                        new { skuId = "qr-guest-cards", quantity = 250 },
+                    },
+                    deliveryMethod = "standard",
+                    expectedGrossPence = 0,
+                    shipTo = ValidShipTo(),
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, place.StatusCode);
+            var body = await ReadJsonAsync(place);
+            Assert.Equal(
+                OfferCardOfferRequiredException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task FromCart_GuestCardsMadeUnavailableAfterAdd_PlaceReturnsSkuNotAvailable()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await SetSkuAvailableInShopAsync("qr-guest-cards", true);
+            await AttachActiveCardOfferAsync(seeded.InScopeLocationId);
+
+            var add = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+            Assert.Equal(HttpStatusCode.OK, add.StatusCode);
+
+            await SetSkuAvailableInShopAsync("qr-guest-cards", false);
+
+            var place = await PlaceOrderAsync(
+                seeded.MemberJwt,
+                new
+                {
+                    locationId = seeded.InScopeLocationId,
+                    fromCart = true,
+                    deliveryMethod = "standard",
+                    expectedGrossPence = 0,
+                    shipTo = ValidShipTo(),
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, place.StatusCode);
+            var body = await ReadJsonAsync(place);
+            Assert.Equal(
+                ShopSkuNotAvailableException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        private async Task SetSkuAvailableInShopAsync(string skuId, bool available)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var sku = await context.ShopMaterialSkus
+                .SingleAsync(row => row.SkuId == skuId);
+            sku.AvailableInShop = available;
+            await context.SaveChangesAsync();
+        }
+
+        private async Task AttachActiveCardOfferAsync(int locationId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = locationId,
+                Title = "Free Dessert Friday",
+                Description = "Guest card offer",
+                Status = CatalogOfferStatus.Active,
+                Validity = CatalogOfferValidity.Days30AfterIssue,
+                OfferType = CatalogOfferType.FreeItem,
+                FreeItemText = "Dessert",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
+
+            var location = await context.RestaurantLocations
+                .SingleAsync(row => row.Id == locationId);
+            location.OfferCardCatalogOfferId = offer.Id;
+            await context.SaveChangesAsync();
         }
 
         private static object ValidShipTo()

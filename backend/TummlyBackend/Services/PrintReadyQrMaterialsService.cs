@@ -822,7 +822,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (qrType == QrType.OfferCard)
+            if (qrType == QrType.GuestCard)
             {
                 var hasOfferCardOffer = await _context.RestaurantLocations
                     .AsNoTracking()
@@ -834,8 +834,9 @@ namespace TummlyBackend.Services
                     );
                 if (!hasOfferCardOffer)
                 {
-                    // Starter / shop Offer Card PDFs wait for the print offer.
-                    // Missing readiness row stays Preparing (no Ready default).
+                    // Guest Card PDFs wait for the card offer (headline copy).
+                    // Counter Display does not need one. Missing readiness row
+                    // stays Preparing (no Ready default).
                     return;
                 }
             }
