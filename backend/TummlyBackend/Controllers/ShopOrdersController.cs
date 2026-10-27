@@ -512,6 +512,24 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            // Only an awaiting-payment order can open a session. Checked before any
+            // reservation so a failed or paid order never gets an open slot.
+            if (
+                !string.Equals(
+                    order.PaymentStatus,
+                    ShopPaymentStatuses.AwaitingPayment,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "shop_order_not_payable",
+                    message = "shop_order_not_payable",
+                });
+            }
+
             var payBlock = await ShopCardOfferRules.FirstPayBlockAsync(
                 _context,
                 _catalog,

@@ -125,6 +125,8 @@ namespace TummlyBackend.Services
                 {
                     // The sweeper released it before this later pay.
                     existing.Status = ShopQrSlotReservationStatuses.Open;
+                    // A fresh hold: the 24 h review clock starts again.
+                    existing.CreatedAtUtc = now;
                     existing.ReactivateQrCodeId = slot.ReactivateQrCodeId;
                     existing.ReconcileAfterUtc = now + ReconcileDelay;
                     existing.ReconcileAttempts = 0;
@@ -169,9 +171,20 @@ namespace TummlyBackend.Services
             }
 
             var now = _clock.GetUtcNow().UtcDateTime;
+            // Rows the caller already tracked can be stale; refresh them under the lock.
+            var trackedBefore = _context.ChangeTracker
+                .Entries<ShopQrSlotReservation>()
+                .Where(entry => entry.Entity.ShopOrderId == order.Id)
+                .Select(entry => entry.Entity.Id)
+                .ToHashSet();
             var own = await _context.ShopQrSlotReservations
                 .Where(row => row.ShopOrderId == order.Id)
                 .ToListAsync(ct);
+            foreach (var row in own.Where(row => trackedBefore.Contains(row.Id)))
+            {
+                await _context.Entry(row).ReloadAsync(ct);
+            }
+
             var qrCodeIds = new List<int>();
 
             foreach (var type in types)
