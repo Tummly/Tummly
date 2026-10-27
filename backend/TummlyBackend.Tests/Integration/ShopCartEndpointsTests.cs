@@ -10,6 +10,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Shop.MaterialsCatalog;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -251,7 +252,7 @@ namespace TummlyBackend.Tests.Integration
                 PermissionRoles.Admin,
                 namedInScopeOnly: false
             );
-            await SetSkuAvailableInShopAsync("qr-guest-cards", true);
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
 
             var response = await PutLineAsync(
                 seeded.MemberJwt,
@@ -275,7 +276,7 @@ namespace TummlyBackend.Tests.Integration
                 PermissionRoles.Admin,
                 namedInScopeOnly: false
             );
-            await SetSkuAvailableInShopAsync("qr-guest-cards", false);
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", false);
 
             var response = await PutLineAsync(
                 seeded.MemberJwt,
@@ -290,17 +291,6 @@ namespace TummlyBackend.Tests.Integration
                 ShopSkuNotAvailableException.ErrorCode,
                 body.GetProperty("code").GetString()
             );
-        }
-
-        private async Task SetSkuAvailableInShopAsync(string skuId, bool available)
-        {
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
-            var sku = await context.ShopMaterialSkus
-                .SingleAsync(row => row.SkuId == skuId);
-            sku.AvailableInShop = available;
-            await context.SaveChangesAsync();
         }
 
         private async Task<HttpResponseMessage> PutLineAsync(

@@ -3,13 +3,13 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Shop.MaterialsCatalog;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -238,7 +238,7 @@ namespace TummlyBackend.Tests.Integration
                 PermissionRoles.Admin,
                 namedInScopeOnly: false
             );
-            await SetSkuAvailableInShopAsync("qr-guest-cards", true);
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
 
             var place = await PlaceOrderAsync(
                 seeded.MemberJwt,
@@ -270,8 +270,8 @@ namespace TummlyBackend.Tests.Integration
                 PermissionRoles.Admin,
                 namedInScopeOnly: false
             );
-            await SetSkuAvailableInShopAsync("qr-guest-cards", true);
-            await AttachActiveCardOfferAsync(seeded.InScopeLocationId);
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachActiveCardOfferAsync(_factory, seeded.InScopeLocationId);
 
             var add = await PutLineAsync(
                 seeded.MemberJwt,
@@ -281,7 +281,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(HttpStatusCode.OK, add.StatusCode);
 
-            await SetSkuAvailableInShopAsync("qr-guest-cards", false);
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", false);
 
             var place = await PlaceOrderAsync(
                 seeded.MemberJwt,
@@ -301,43 +301,6 @@ namespace TummlyBackend.Tests.Integration
                 ShopSkuNotAvailableException.ErrorCode,
                 body.GetProperty("code").GetString()
             );
-        }
-
-        private async Task SetSkuAvailableInShopAsync(string skuId, bool available)
-        {
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
-            var sku = await context.ShopMaterialSkus
-                .SingleAsync(row => row.SkuId == skuId);
-            sku.AvailableInShop = available;
-            await context.SaveChangesAsync();
-        }
-
-        private async Task AttachActiveCardOfferAsync(int locationId)
-        {
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
-            var offer = new CatalogOffer
-            {
-                RestaurantLocationId = locationId,
-                Title = "Free Dessert Friday",
-                Description = "Guest card offer",
-                Status = CatalogOfferStatus.Active,
-                Validity = CatalogOfferValidity.Days30AfterIssue,
-                OfferType = CatalogOfferType.FreeItem,
-                FreeItemText = "Dessert",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-            };
-            context.CatalogOffers.Add(offer);
-            await context.SaveChangesAsync();
-
-            var location = await context.RestaurantLocations
-                .SingleAsync(row => row.Id == locationId);
-            location.OfferCardCatalogOfferId = offer.Id;
-            await context.SaveChangesAsync();
         }
 
         private static object ValidShipTo()

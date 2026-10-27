@@ -35,37 +35,19 @@ namespace TummlyBackend.Shop
             CancellationToken cancellationToken
         )
         {
-            var offerId = await db.RestaurantLocations
+            var attachedOffer = await db.RestaurantLocations
                 .AsNoTracking()
                 .Where(row =>
                     row.Id == locationId
                     && row.RestaurantId == restaurantId
                 )
-                .Select(row => row.OfferCardCatalogOfferId)
+                .Select(row => row.OfferCardCatalogOffer)
                 .FirstOrDefaultAsync(cancellationToken);
-            if (offerId is null)
-            {
-                return false;
-            }
 
-            var offer = await db.CatalogOffers
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    row =>
-                        row.Id == offerId
-                        && row.RestaurantLocationId == locationId,
-                    cancellationToken
-                );
-            if (offer == null)
-            {
-                return false;
-            }
-
-            return CatalogOfferStatus.IsAttachable(
-                offer.Status,
-                offer.Validity,
-                offer.CustomExpiryDate,
-                CatalogOfferStatus.VenueLocalToday(DateTime.UtcNow, 0)
+            return CatalogOfferStatus.IsAttachableAtLocation(
+                attachedOffer,
+                locationId,
+                DateTime.UtcNow
             );
         }
 
