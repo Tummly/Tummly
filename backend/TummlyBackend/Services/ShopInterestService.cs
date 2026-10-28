@@ -48,6 +48,7 @@ namespace TummlyBackend.Services
                     .Where(row =>
                         row.UserId == userId.Value
                         && row.LocationId == locationId.Value
+                        && row.WithdrawnAtUtc == null
                     )
                     .Select(row => row.ProductKey)
                     .ToListAsync(cancellationToken);
@@ -113,55 +114,59 @@ namespace TummlyBackend.Services
                 ? request.LocationId
                 : null;
 
-            var already = await _context.ShopInterestRegistrations
-                .AnyAsync(
-                    row =>
-                        row.UserId == userId
-                        && row.ShopInterestProductId == product.Id
-                        && row.LocationId == locationId,
-                    cancellationToken
-                );
+            var already = await ActiveRegistrationExistsAsync(
+                userId,
+                product.Id,
+                restaurantId,
+                locationId,
+                cancellationToken
+            );
             if (already)
             {
                 return (true, null, ThanksMessage);
             }
 
-            _context.ShopInterestRegistrations.Add(
-                new ShopInterestRegistration
-                {
-                    ShopInterestProductId = product.Id,
-                    ProductKey = product.ProductKey,
-                    ProductTitleSnapshot = product.Title,
-                    RestaurantId = restaurantId,
-                    RestaurantNameSnapshot = restaurantName,
-                    LocationId = locationId,
-                    LocationNameSnapshot = locationName,
-                    UserId = userId,
-                    UserFullNameSnapshot = userFullName,
-                    UserEmailSnapshot = userEmail,
-                    CreatedAtUtc = DateTime.UtcNow,
-                }
-            );
+            var registration = new ShopInterestRegistration
+            {
+                ShopInterestProductId = product.Id,
+                ProductKey = product.ProductKey,
+                ProductTitleSnapshot = product.Title,
+                RestaurantId = restaurantId,
+                RestaurantNameSnapshot = restaurantName,
+                LocationId = locationId,
+                LocationNameSnapshot = locationName,
+                UserId = userId,
+                UserFullNameSnapshot = userFullName,
+                UserEmailSnapshot = userEmail,
+                CreatedAtUtc = DateTime.UtcNow,
+            };
+            _context.ShopInterestRegistrations.Add(registration);
             try
             {
                 await _context.SaveChangesAsync(cancellationToken);
             }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException { Number: 2601 or 2627 }
+            )
             {
-                // A concurrent request registered the same user, product and
-                // Location first (IX_ShopInterestRegistrations_User_Product_Location).
-                return (true, null, ThanksMessage);
+                // A concurrent Register for the same key won the filtered unique index.
+                // That active row is the answer, so this is a success. Other failures
+                // are not caught.
+                _context.Entry(registration).State = EntityState.Detached;
+                var raced = await ActiveRegistrationExistsAsync(
+                    userId,
+                    product.Id,
+                    restaurantId,
+                    locationId,
+                    cancellationToken
+                );
+                if (!raced)
+                {
+                    throw;
+                }
             }
 
             return (true, null, ThanksMessage);
-        }
-
-        private static bool IsUniqueConstraintViolation(DbUpdateException exception)
-        {
-            return exception.InnerException is SqlException
-            {
-                Number: 2601 or 2627,
-            };
         }
 
         public async Task<(bool Ok, string? Error)> UnregisterAsync(
@@ -182,6 +187,7 @@ namespace TummlyBackend.Services
                     row.UserId == userId
                     && row.ProductKey == key
                     && row.LocationId == locationId
+                    && row.WithdrawnAtUtc == null
                 )
                 .ToListAsync(cancellationToken);
 
@@ -190,19 +196,52 @@ namespace TummlyBackend.Services
                 return (true, null);
             }
 
-            _context.ShopInterestRegistrations.RemoveRange(rows);
+            var withdrawnAtUtc = DateTime.UtcNow;
+            foreach (var row in rows)
+            {
+                row.WithdrawnAtUtc = withdrawnAtUtc;
+                row.WithdrawnByUserId = userId;
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
             return (true, null);
         }
 
+        private Task<bool> ActiveRegistrationExistsAsync(
+            int userId,
+            int productId,
+            int restaurantId,
+            int? locationId,
+            CancellationToken cancellationToken
+        ) =>
+            _context.ShopInterestRegistrations
+                .AsNoTracking()
+                .AnyAsync(
+                    row =>
+                        row.UserId == userId
+                        && row.ShopInterestProductId == productId
+                        && row.RestaurantId == restaurantId
+                        && row.LocationId == locationId
+                        && row.WithdrawnAtUtc == null,
+                    cancellationToken
+                );
+
         public async Task<AdminShopInterestListDto> ListForAdminAsync(
+            bool includeWithdrawn = false,
             CancellationToken cancellationToken = default
         )
         {
-            var items = await _context.ShopInterestRegistrations
-                .AsNoTracking()
+            var rowsQuery = _context.ShopInterestRegistrations.AsNoTracking();
+            if (!includeWithdrawn)
+            {
+                rowsQuery = rowsQuery.Where(row => row.WithdrawnAtUtc == null);
+            }
+
+            var rows = await rowsQuery
                 .OrderByDescending(row => row.CreatedAtUtc)
                 .ThenByDescending(row => row.Id)
+                .ToListAsync(cancellationToken);
+            var items = rows
                 .Select(row => new AdminShopInterestRegistrationDto
                 {
                     Id = row.Id,
@@ -214,10 +253,14 @@ namespace TummlyBackend.Services
                     LocationName = row.LocationNameSnapshot,
                     UserId = row.UserId,
                     UserFullName = row.UserFullNameSnapshot,
-                    UserEmail = row.UserEmailSnapshot,
+                    UserEmailMasked = ShopInterestEmailMask.Mask(row.UserEmailSnapshot),
+                    State = row.WithdrawnAtUtc == null
+                        ? ShopInterestRegistrationStates.Active
+                        : ShopInterestRegistrationStates.Withdrawn,
                     CreatedAtUtc = row.CreatedAtUtc,
+                    WithdrawnAtUtc = row.WithdrawnAtUtc,
                 })
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             var counts = await ListCountsByProductAsync(cancellationToken);
 
@@ -235,9 +278,13 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            // Removal withdraws the row: it stays as history, leaves the counts and
+            // the user can register again. A withdrawn row cannot be removed again.
             var row = await _context.ShopInterestRegistrations
                 .FirstOrDefaultAsync(
-                    registration => registration.Id == registrationId,
+                    registration =>
+                        registration.Id == registrationId
+                        && registration.WithdrawnAtUtc == null,
                     cancellationToken
                 );
             if (row == null)
@@ -245,7 +292,7 @@ namespace TummlyBackend.Services
                 return (false, "Interest registration was not found.");
             }
 
-            _context.ShopInterestRegistrations.Remove(row);
+            row.WithdrawnAtUtc = DateTime.UtcNow;
             _audit.Append(
                 new AdminAuditAppendRequest(
                     AdminAuditActions.ShopInterestRegistrationRemoved,
@@ -299,9 +346,11 @@ namespace TummlyBackend.Services
         {
             // Every active product shows, even with no interest yet. A product
             // that left the active list keeps its row while it still has
-            // registrations.
+            // registrations. Counts are always active registrations, whatever
+            // the list filter is.
             var registered = await _context.ShopInterestRegistrations
                 .AsNoTracking()
+                .Where(row => row.WithdrawnAtUtc == null)
                 .GroupBy(row => new { row.ProductKey, row.ProductTitleSnapshot })
                 .Select(group => new
                 {

@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Shop.MaterialsCatalog
 {
     /// <summary>
-    /// Seeds the seven Register Interest Shop products (no price / cart).
-    /// Visuals optional until Design drops artwork.
+    /// Seeds the seven Register Interest Shop products (no price / cart),
+    /// each with its bundled artwork. Existing rows are not changed.
     /// </summary>
     public static class ShopInterestCatalogSeed
     {
@@ -28,12 +29,12 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             ),
             (
                 "standard-package-label",
-                "Standard Package Label",
+                "Standard Packaging Label",
                 "Place a trackable QR label on standard packaging before it leaves the kitchen."
             ),
             (
                 "drink-cup-seal",
-                "Drink / Cup Seal",
+                "Drink Cup Seal",
                 "Add a compact QR seal to cups and drink lids for post-visit feedback."
             ),
             (
@@ -43,7 +44,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             ),
             (
                 "poster-customer-club",
-                "Poster / Customer Club",
+                "Customer Club Poster",
                 "Display a poster QR that grows your customer club and private feedback."
             ),
             (
@@ -84,6 +85,18 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                         IsActive = true,
                         CreatedAtUtc = now,
                         UpdatedAtUtc = now,
+                        Images =
+                        [
+                            new ShopInterestProductImage
+                            {
+                                StorageKey = ShopCatalogImageRules.BuildLegacyStorageKey(
+                                    ShopProductArtworkPaths.PathFor(product.ProductKey)
+                                ),
+                                ContentType = ShopProductArtworkPaths.ContentType,
+                                SortOrder = 0,
+                                CreatedAtUtc = now,
+                            },
+                        ],
                     }
                 );
                 changed = true;

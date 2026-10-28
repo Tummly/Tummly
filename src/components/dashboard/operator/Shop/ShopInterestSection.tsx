@@ -131,7 +131,7 @@ export function ShopInterestSection({
                   <img
                     src={resolveShopCatalogImageSrc(product.imageUrl)}
                     alt={product.title}
-                    className="size-full object-contain"
+                    className="size-full object-cover"
                   />
                 ) : (
                   <div className="flex size-full items-center justify-center bg-[var(--op-color-gray-985)] text-sm text-op-text-muted">

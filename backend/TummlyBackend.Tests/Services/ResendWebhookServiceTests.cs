@@ -19,6 +19,7 @@ namespace TummlyBackend.Tests.Services
         private readonly string _signingSecret;
         private readonly DateTime _now = new(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
         private readonly ResendWebhookService _service;
+        private readonly IGuestContactHasher _hasher;
 
         public ResendWebhookServiceTests()
         {
@@ -31,14 +32,12 @@ namespace TummlyBackend.Tests.Services
             RandomNumberGenerator.Fill(_secretBytes);
             _signingSecret = "whsec_" + Convert.ToBase64String(_secretBytes);
 
-            var permissions = new LocationGuestPermissionLedgerService(_context);
-            var suppressions = new GuestContactSuppressionService(
-                _context,
-                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
-            );
+            var hasher = new GuestContactHasher(GuestContactHasher.TestingFallbackKey);
+            _hasher = hasher;
+            var suppressions = new GuestContactSuppressionService(_context, hasher);
             var withdraw = new GuestInitiatedMarketingWithdrawService(
                 _context,
-                permissions,
+                new LocationGuestPermissionLedgerService(_context),
                 suppressions,
                 NullLogger<GuestInitiatedMarketingWithdrawService>.Instance
             );
@@ -299,6 +298,167 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(_now, reply.DeliveryStateAtUtc);
         }
 
+        [Fact]
+        public async Task Resend_PermanentBounce_SuppressesEmailMarketingForCampaignGuest()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-1");
+
+            var status = await PostAsync(
+                MailEventBody("email.bounced", "camp-1", bounceType: "Permanent"),
+                "msg_perm"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            var suppression = await _context.GuestContactSuppressions.SingleAsync(row =>
+                row.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+            );
+            Assert.Equal("bounce", suppression.Source);
+            Assert.Equal(_hasher.Hash("email:guest@example.com"), suppression.ContactHash);
+            Assert.Equal(await RestaurantIdAsync(), suppression.RestaurantId);
+
+            var withdrawal = await _context.LocationGuestPermissionLedgerEntries.SingleAsync();
+            Assert.Equal(LocationGuestPermissionKind.EmailMarketing, withdrawal.PermissionKind);
+            Assert.Equal(LocationGuestPermissionLedgerEventKinds.Withdraw, withdrawal.EventKind);
+            Assert.Equal("bounce", withdrawal.Source);
+        }
+
+        [Fact]
+        public async Task Resend_PermanentBounce_WithdrawsSisterLocationGuestOfSameRestaurant()
+        {
+            var delivery = await SeedDeliveryAsync(providerMessageId: "camp-sister");
+            var first = await _context.LocationGuests
+                .Include(row => row.RestaurantLocation)
+                .SingleAsync(row => row.Id == delivery.LocationGuestId);
+            var sisterLocation = new RestaurantLocation
+            {
+                RestaurantId = first.RestaurantLocation!.RestaurantId,
+                LocationName = "Second",
+                Address = "2 High St",
+                CreatedAt = _now,
+            };
+            _context.RestaurantLocations.Add(sisterLocation);
+            await _context.SaveChangesAsync();
+            var sisterGuest = new LocationGuest
+            {
+                RestaurantLocationId = sisterLocation.Id,
+                MasterGuestId = first.MasterGuestId,
+                Name = "Guest",
+                CreatedAt = _now,
+            };
+            _context.LocationGuests.Add(sisterGuest);
+            await _context.SaveChangesAsync();
+
+            await PostAsync(
+                MailEventBody("email.bounced", "camp-sister", bounceType: "Permanent"),
+                "msg_sister"
+            );
+
+            var withdrawnGuestIds = await _context.LocationGuestPermissionLedgerEntries
+                .Where(row =>
+                    row.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+                    && row.EventKind == LocationGuestPermissionLedgerEventKinds.Withdraw
+                )
+                .Select(row => row.LocationGuestId)
+                .ToListAsync();
+            Assert.Contains(first.Id, withdrawnGuestIds);
+            Assert.Contains(sisterGuest.Id, withdrawnGuestIds);
+            Assert.All(
+                await _context.LocationActivities.ToListAsync(),
+                activity => Assert.Equal("System", activity.ActorDisplayName)
+            );
+        }
+
+        [Fact]
+        public async Task Resend_TemporaryBounce_DoesNotSuppress()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-temp");
+
+            var status = await PostAsync(
+                MailEventBody("email.bounced", "camp-temp", bounceType: "Temporary"),
+                "msg_temp"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            Assert.Empty(await _context.GuestContactSuppressions.ToListAsync());
+            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Resend_BounceWithoutType_TreatedAsHard()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-untyped");
+
+            await PostAsync(
+                MailEventBody("email.bounced", "camp-untyped", bounceType: null),
+                "msg_untyped"
+            );
+
+            var suppression = await _context.GuestContactSuppressions.SingleAsync(row =>
+                row.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+            );
+            Assert.Equal("bounce", suppression.Source);
+        }
+
+        [Fact]
+        public async Task Resend_Complaint_SuppressesEmailMarketingWithComplaintSource()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-spam");
+
+            var status = await PostAsync(
+                MailEventBody("email.complained", "camp-spam", bounceType: null),
+                "msg_spam"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            var suppression = await _context.GuestContactSuppressions.SingleAsync();
+            Assert.Equal(LocationGuestPermissionKind.EmailMarketing, suppression.PermissionKind);
+            Assert.Equal("complaint", suppression.Source);
+            var withdrawal = await _context.LocationGuestPermissionLedgerEntries.SingleAsync();
+            Assert.Equal("complaint", withdrawal.Source);
+        }
+
+        [Fact]
+        public async Task Resend_RepeatedBounce_DoesNotDuplicateSuppressionOrLedgerRow()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-repeat");
+            var body = MailEventBody("email.bounced", "camp-repeat", bounceType: "Permanent");
+
+            await PostAsync(body, "msg_rep_1");
+            await PostAsync(body, "msg_rep_2");
+
+            // One row per kind: EmailMarketing and EmailDelivery.
+            Assert.Equal(2, await _context.GuestContactSuppressions.CountAsync());
+            Assert.Single(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Resend_BounceForUnknownEmailId_SuppressesNothing()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-known");
+
+            var status = await PostAsync(
+                MailEventBody("email.bounced", "system-mail", bounceType: "Permanent"),
+                "msg_unknown_bounce"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            Assert.Empty(await _context.GuestContactSuppressions.ToListAsync());
+            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+        }
+
+        private static string MailEventBody(string type, string emailId, string? bounceType)
+        {
+            var bounce = bounceType == null
+                ? "{\"message\":\"rejected\"}"
+                : "{\"type\":\"" + bounceType + "\",\"message\":\"rejected\"}";
+            return "{\"type\":\"" + type + "\",\"created_at\":\"2026-10-06T11:58:00.000Z\","
+                + "\"data\":{\"email_id\":\"" + emailId + "\",\"to\":[\"guest@example.com\"],"
+                + "\"bounce\":" + bounce + "}}";
+        }
+
+        private async Task<int> RestaurantIdAsync() =>
+            (await _context.Restaurants.SingleAsync()).Id;
+
         private static readonly DateTime EventTime = new(
             2026,
             10,
@@ -310,7 +470,7 @@ namespace TummlyBackend.Tests.Services
         );
 
         [Fact]
-        public async Task Resend_PermanentBounce_WritesDeliverySuppressionNotWithdrawal()
+        public async Task Resend_PermanentBounce_AlsoWritesDeliverySuppression()
         {
             await SeedDeliveryAsync(providerMessageId: "email-bounce-1");
             var restaurantId = (await _context.Restaurants.SingleAsync()).Id;
@@ -324,32 +484,32 @@ namespace TummlyBackend.Tests.Services
             var status = await PostAsync(body, "msg_bounce_perm");
 
             Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
-            // A hard bounce is a delivery failure. It is not a guest withdrawal.
-            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
-            var suppression = await _context.GuestContactSuppressions.SingleAsync();
+            // The address cannot receive mail: service email is blocked too.
+            var suppression = await _context.GuestContactSuppressions.SingleAsync(row =>
+                row.PermissionKind == LocationGuestPermissionKind.EmailDelivery
+            );
             Assert.Equal(restaurantId, suppression.RestaurantId);
-            Assert.Equal(LocationGuestPermissionKind.EmailDelivery, suppression.PermissionKind);
-            Assert.Equal(GuestContactSuppressionSources.EmailBounce, suppression.Source);
-            Assert.Equal(_now, suppression.WithdrawnAtUtc);
+            Assert.Equal(GuestContactSuppressionSources.Bounce, suppression.Source);
+            Assert.Equal(EventTime, suppression.WithdrawnAtUtc);
         }
 
         [Fact]
-        public async Task Resend_PermanentBounceRepeated_KeepsOneSuppressionRow()
+        public async Task Resend_Complaint_WritesNoDeliverySuppression()
         {
-            await SeedDeliveryAsync(providerMessageId: "email-bounce-withdrawn");
+            await SeedDeliveryAsync(providerMessageId: "email-complaint-1");
             var body = BounceBody(
-                "email.bounced",
-                "email-bounce-withdrawn",
+                "email.complained",
+                "email-complaint-1",
                 "guest@example.com",
-                "Permanent"
+                bounceType: null
             );
 
-            await PostAsync(body, "msg_bounce_withdrawn_1");
-            await PostAsync(body, "msg_bounce_withdrawn_2");
+            await PostAsync(body, "msg_complaint");
 
-            // Repeat deliveries stay a single row (unique per restaurant, kind, hash).
-            Assert.Single(await _context.GuestContactSuppressions.ToListAsync());
-            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+            Assert.DoesNotContain(
+                await _context.GuestContactSuppressions.ToListAsync(),
+                row => row.PermissionKind == LocationGuestPermissionKind.EmailDelivery
+            );
         }
 
         [Fact]
@@ -370,31 +530,6 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task Resend_Complained_WithdrawsEmailMarketing()
-        {
-            await SeedDeliveryAsync(providerMessageId: "email-complaint-1");
-            var body = BounceBody(
-                "email.complained",
-                "email-complaint-1",
-                "guest@example.com",
-                bounceType: null
-            );
-
-            var status = await PostAsync(body, "msg_complaint");
-
-            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
-            Assert.Single(
-                await _context.LocationGuestPermissionLedgerEntries
-                    .Where(e =>
-                        e.PermissionKind == LocationGuestPermissionKind.EmailMarketing
-                        && e.EventKind == LocationGuestPermissionLedgerEventKinds.Withdraw
-                        && e.Source == LocationGuestPermissionLedgerSources.EmailComplaint
-                    )
-                    .ToListAsync()
-            );
-        }
-
-        [Fact]
         public async Task Resend_PermanentBounce_OnGuestReply_SuppressesForRestaurant()
         {
             var restaurantId = await SeedFeedbackReplyAsync("reply-bounce-1");
@@ -407,12 +542,19 @@ namespace TummlyBackend.Tests.Services
 
             await PostAsync(body, "msg_reply_bounce");
 
-            var suppression = await _context.GuestContactSuppressions.SingleAsync();
-            Assert.Equal(restaurantId, suppression.RestaurantId);
-            Assert.Equal(GuestContactSuppressionSources.EmailBounce, suppression.Source);
+            var suppressions = await _context.GuestContactSuppressions.ToListAsync();
+            Assert.All(suppressions, row => Assert.Equal(restaurantId, row.RestaurantId));
+            Assert.All(
+                suppressions,
+                row => Assert.Equal(GuestContactSuppressionSources.Bounce, row.Source)
+            );
             Assert.Equal(
-                LocationGuestPermissionKind.EmailDelivery,
-                suppression.PermissionKind
+                new[]
+                {
+                    LocationGuestPermissionKind.EmailMarketing,
+                    LocationGuestPermissionKind.EmailDelivery,
+                },
+                suppressions.Select(row => row.PermissionKind).OrderBy(kind => kind)
             );
         }
 

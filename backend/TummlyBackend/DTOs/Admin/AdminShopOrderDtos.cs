@@ -84,8 +84,32 @@ namespace TummlyBackend.DTOs.Admin
         public int? DispatchedByAdminUserId { get; set; }
 
         public DateTime? DeliveredAtUtc { get; set; }
+        public int MaterialsNetPence { get; set; }
+
+        public int VatPence { get; set; }
+
+        public int DeliveryNetPence { get; set; }
 
         public int GrossPence { get; set; }
+
+        /// <summary>
+        /// <c>revolut</c> for a paid Revolut order, <c>complimentary</c> for a £0
+        /// starter order with no payment.
+        /// </summary>
+        public string PaymentSource { get; set; } = string.Empty;
+
+        /// <summary>Last 6 characters of the Revolut order id, prefixed with an ellipsis.</summary>
+        public string? RevolutOrderRefRedacted { get; set; }
+
+        public string ShipToContactName { get; set; } = string.Empty;
+
+        public string ShipToAddressLine1 { get; set; } = string.Empty;
+
+        public string? ShipToAddressLine2 { get; set; }
+
+        public string ShipToPostcode { get; set; } = string.Empty;
+
+        public string ShipToCountry { get; set; } = string.Empty;
 
         public List<AdminShopOrderLineSummaryDto> Lines { get; set; } = [];
 
@@ -102,6 +126,12 @@ namespace TummlyBackend.DTOs.Admin
         /// final Revolut answer (spec 4.4.5).
         /// </summary>
         public List<AdminShopQrReservationReviewDto> ReviewQrReservations { get; set; } = [];
+    }
+
+    public static class AdminShopPaymentSources
+    {
+        public const string Revolut = "revolut";
+        public const string Complimentary = "complimentary";
     }
 
     public sealed class AdminShopQrReservationReviewDto
@@ -198,6 +228,16 @@ namespace TummlyBackend.DTOs.Admin
         public string? CarrierReference { get; init; }
 
         public string? TrackingUrl { get; init; }
+
+        /// <summary>Optional audit note for this action (max 500 characters).</summary>
+        public string? Note { get; init; }
+    }
+
+    /// <summary>Optional audit note for a preparation, production or delivery action.</summary>
+    public sealed class AdminShopFulfilmentActionRequest
+    {
+        /// <summary>Max 500 characters.</summary>
+        public string? Note { get; init; }
     }
 
     /// <summary>

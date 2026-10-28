@@ -26,6 +26,8 @@
 
             private readonly IAdminAuditService _audit;
 
+            private readonly ICreditBalanceSnapshot _creditBalance;
+
             public AdminService(
                 ApplicationDbContext context,
                 ITrialReviewTransition trialReviewTransition,
@@ -33,7 +35,8 @@
                 ILogger<AdminService> logger,
                 IAssistantConversationService assistantConversations,
                 IBillingAccountLifecycle lifecycle,
-                IAdminAuditService audit
+                IAdminAuditService audit,
+                ICreditBalanceSnapshot creditBalance
             )
             {
                 _context = context;
@@ -49,6 +52,8 @@
                 _lifecycle = lifecycle;
 
                 _audit = audit;
+
+                _creditBalance = creditBalance;
             }
 
             public async Task<OperatorSetupReminderBatchResult>
@@ -491,7 +496,7 @@
             }
 
             // Lifecycle joins this transaction, so the audit row commits with the
-            // extension. Only the lifecycle call locks the billing row.
+            // extension or the refusal. Only the lifecycle call locks the billing row.
             await using var transaction =
                 _context.Database.IsRelational()
                     ? await _context.Database.BeginTransactionAsync()
@@ -501,10 +506,13 @@
                 restaurantId.Value,
                 dto.Days,
                 dto.IdempotencyKey,
-                DateTime.UtcNow
+                DateTime.UtcNow,
+                dto.Reason,
+                dto.ExpectedExtensionCount
             );
 
-            if (result.Outcome == "extended")
+            // An idempotent replay writes nothing. Applied and refused attempts are audited.
+            if (result.Outcome == "extended" || result.Outcome == "refused")
             {
                 _audit.Append(
                     new AdminAuditAppendRequest(
@@ -514,11 +522,8 @@
                         TargetId: userId.ToString(),
                         ActorAdminUserId: actorAdminUserId,
                         RestaurantId: restaurantId.Value,
-                        DetailJson: PilotExtensionAuditDetail(
-                            dto.Days,
-                            dto.IdempotencyKey?.Trim(),
-                            result
-                        )
+                        DetailJson: PilotExtensionAuditDetail(dto, result),
+                        Succeeded: result.Outcome == "extended"
                     )
                 );
                 await _context.SaveChangesAsync();
@@ -543,7 +548,22 @@
                 .OrderBy(account => account.RestaurantId)
                 .FirstOrDefaultAsync();
 
-            return row == null ? null : ToPilotAccountDto(row);
+            if (row == null)
+            {
+                return null;
+            }
+
+            var history = await LoadPilotExtensionHistoryAsync([row.RestaurantId]);
+            var allowances = await LoadPilotAllowancesAsync(row.RestaurantId);
+
+            return ToPilotAccountDto(
+                row,
+                DateTime.UtcNow,
+                history.TryGetValue(row.RestaurantId, out var items)
+                    ? items
+                    : [],
+                allowances
+            );
         }
 
         public async Task<IReadOnlyList<AdminPilotAccountDto>> ListPilotAccountsAsync()
@@ -555,7 +575,28 @@
                 .OrderByDescending(account => account.PilotStartedAtUtc)
                 .ToListAsync();
 
-            return rows.Select(ToPilotAccountDto).ToList();
+            var nowUtc = DateTime.UtcNow;
+            var history = await LoadPilotExtensionHistoryAsync(
+                rows.Select(row => row.RestaurantId).ToList()
+            );
+
+            var accounts = new List<AdminPilotAccountDto>(rows.Count);
+            foreach (var row in rows)
+            {
+                var allowances = await LoadPilotAllowancesAsync(row.RestaurantId);
+                accounts.Add(
+                    ToPilotAccountDto(
+                        row,
+                        nowUtc,
+                        history.TryGetValue(row.RestaurantId, out var items)
+                            ? items
+                            : [],
+                        allowances
+                    )
+                );
+            }
+
+            return accounts;
         }
 
         private IQueryable<PilotAccountRow> PilotAccountRows() =>
@@ -572,13 +613,19 @@
                 billing.SubscriptionPlan,
                 billing.BillingStatus,
                 billing.PilotStartedAtUtc,
+                billing.PilotOriginalEndUtc,
                 billing.PilotPeriodEnd,
                 billing.PilotExtensionCount,
                 billing.PilotExtensionDaysTotal,
                 billing.RenewalDateUtc != null
             );
 
-        private static AdminPilotAccountDto ToPilotAccountDto(PilotAccountRow row)
+        private static AdminPilotAccountDto ToPilotAccountDto(
+            PilotAccountRow row,
+            DateTime nowUtc,
+            IReadOnlyList<AdminPilotExtensionHistoryItemDto> history,
+            IReadOnlyList<AdminPilotAllowanceDto>? allowances
+        )
         {
             var isOpenPilot =
                 row.SubscriptionPlan == BillingSubscriptionPlans.Pilot
@@ -610,9 +657,14 @@
                 OwnerEmail = row.OwnerEmail,
                 BillingStatus = row.BillingStatus,
                 PilotStartedAtUtc = row.PilotStartedAtUtc,
+                PilotOriginalEndUtc = row.PilotOriginalEndUtc,
                 PilotPeriodEnd = row.PilotPeriodEnd,
+                DaysUsed = PilotDaysUsed(row.PilotStartedAtUtc, row.PilotPeriodEnd, nowUtc),
+                HasPaidHistory = row.HasPaidHistory,
                 ExtensionCount = row.ExtensionCount,
                 ExtensionDaysTotal = row.ExtensionDaysTotal,
+                ExtensionHistory = history,
+                Allowances = allowances,
                 CanExtend = reason == null,
                 CannotExtendReason = reason == null
                     ? null
@@ -620,17 +672,134 @@
             };
         }
 
+        /// <summary>
+        /// Whole days from Pilot start to the earlier of now and the effective expiry.
+        /// </summary>
+        private static int PilotDaysUsed(
+            DateTime? startedAtUtc,
+            DateTime? effectiveEndUtc,
+            DateTime nowUtc
+        )
+        {
+            if (startedAtUtc == null)
+            {
+                return 0;
+            }
+
+            var until =
+                effectiveEndUtc is { } end && end < nowUtc ? end : nowUtc;
+            var span = until - startedAtUtc.Value;
+            return span <= TimeSpan.Zero ? 0 : (int)Math.Floor(span.TotalDays);
+        }
+
+        private async Task<Dictionary<int, List<AdminPilotExtensionHistoryItemDto>>>
+            LoadPilotExtensionHistoryAsync(List<int> restaurantIds)
+        {
+            var rows = await _context.AdminAuditEvents
+                .AsNoTracking()
+                .Where(row =>
+                    row.Action == AdminAuditActions.OperatorExtendPilot
+                    && row.Succeeded
+                    && row.RestaurantId != null
+                    && restaurantIds.Contains(row.RestaurantId.Value)
+                )
+                .OrderBy(row => row.OccurredAtUtc)
+                .Select(row => new
+                {
+                    RestaurantId = row.RestaurantId!.Value,
+                    row.OccurredAtUtc,
+                    row.ActorIdentity,
+                    row.DetailJson,
+                })
+                .ToListAsync();
+
+            var byRestaurant = new Dictionary<int, List<AdminPilotExtensionHistoryItemDto>>();
+            foreach (var row in rows)
+            {
+                var (days, reason) = ReadPilotExtensionDetail(row.DetailJson);
+                if (!byRestaurant.TryGetValue(row.RestaurantId, out var items))
+                {
+                    items = [];
+                    byRestaurant[row.RestaurantId] = items;
+                }
+
+                items.Add(
+                    new AdminPilotExtensionHistoryItemDto
+                    {
+                        OccurredAtUtc = row.OccurredAtUtc,
+                        Days = days,
+                        ActorIdentity = row.ActorIdentity,
+                        Reason = reason,
+                    }
+                );
+            }
+
+            return byRestaurant;
+        }
+
+        private static (int Days, string? Reason) ReadPilotExtensionDetail(string? detailJson)
+        {
+            if (string.IsNullOrWhiteSpace(detailJson))
+            {
+                return (0, null);
+            }
+
+            try
+            {
+                using var document = System.Text.Json.JsonDocument.Parse(detailJson);
+                var root = document.RootElement;
+                var days = root.TryGetProperty("days", out var daysElement)
+                    && daysElement.ValueKind == System.Text.Json.JsonValueKind.Number
+                        ? daysElement.GetInt32()
+                        : 0;
+                var reason = root.TryGetProperty("reason", out var reasonElement)
+                    && reasonElement.ValueKind == System.Text.Json.JsonValueKind.String
+                        ? reasonElement.GetString()
+                        : null;
+                return (days, reason);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return (0, null);
+            }
+        }
+
+        private async Task<IReadOnlyList<AdminPilotAllowanceDto>?> LoadPilotAllowancesAsync(
+            int restaurantId
+        )
+        {
+            var snapshot = await _creditBalance.GetAccountAsync(restaurantId);
+            if (snapshot == null)
+            {
+                return null;
+            }
+
+            return snapshot.Channels
+                .Select(channel => new AdminPilotAllowanceDto
+                {
+                    Channel = channel.Channel,
+                    Granted = channel.IncludedThisPeriod,
+                    Used = channel.UsedThisCycle,
+                    Remaining = channel.Remaining,
+                })
+                .ToList();
+        }
+
         private static string PilotExtensionAuditDetail(
-            int days,
-            string? idempotencyKey,
+            ExtendActivationDto dto,
             PilotExtensionResult result
         ) =>
             System.Text.Json.JsonSerializer.Serialize(
                 new
                 {
-                    days,
+                    code = result.Code,
+                    days = dto.Days,
                     // Read back by BillingAccountLifecycleService.PilotExtensionAuditKey.
-                    idempotencyKey,
+                    idempotencyKey = dto.IdempotencyKey?.Trim(),
+                    reason = BillingAccountLifecycleService.NormalizePilotExtensionReason(
+                        dto.Reason
+                    ),
+                    expectedExtensionCount = dto.ExpectedExtensionCount,
                     countAfter = result.CountAfter,
                     totalAfter = result.DaysTotalAfter,
                     oldEnd = result.OldEndUtc?.ToUniversalTime().ToString("O"),
@@ -646,6 +815,7 @@
             string SubscriptionPlan,
             string BillingStatus,
             DateTime? PilotStartedAtUtc,
+            DateTime? PilotOriginalEndUtc,
             DateTime? PilotPeriodEnd,
             int ExtensionCount,
             int ExtensionDaysTotal,

@@ -55,6 +55,24 @@ export interface ExtendActivationPayload {
   days: 14 | 30;
   idempotencyKey: string;
   restaurantId: number;
+  reason: string;
+  expectedExtensionCount: number;
+}
+
+export interface AdminPilotExtensionHistoryItem {
+  occurredAtUtc: string;
+  days: number;
+  actorIdentity: string;
+  /** Null for extensions made before reasons were required. */
+  reason: string | null;
+}
+
+export interface AdminPilotAllowance {
+  /** Credit channel: `ai`, `email` or `sms`. */
+  channel: string;
+  granted: number;
+  used: number;
+  remaining: number;
 }
 
 export interface AdminPilotAccount {
@@ -63,10 +81,19 @@ export interface AdminPilotAccount {
   restaurantName: string;
   ownerEmail: string;
   billingStatus: string;
+  /** Original start of the Pilot term. */
   pilotStartedAtUtc: string | null;
+  /** Original end of the Pilot term. Never changes after start. */
+  pilotOriginalEndUtc: string | null;
+  /** Effective expiry. Moves with each extension. */
   pilotPeriodEnd: string | null;
+  daysUsed: number;
+  hasPaidHistory: boolean;
   extensionCount: number;
   extensionDaysTotal: number;
+  extensionHistory: AdminPilotExtensionHistoryItem[];
+  /** Null when the allowance balance cannot be read. */
+  allowances: AdminPilotAllowance[] | null;
   canExtend: boolean;
   cannotExtendReason: string | null;
 }

@@ -79,6 +79,12 @@ namespace TummlyBackend.Interfaces
         public Guid? AllocationId { get; init; }
 
         public int? HelpCentreQueryId { get; init; }
+
+        /// <summary>Client <c>Idempotency-Key</c> header value (required).</summary>
+        public string IdempotencyKey { get; init; } = string.Empty;
+
+        /// <summary>Ticket, email or log reference that justifies the adjustment (required).</summary>
+        public string EvidenceReference { get; init; } = string.Empty;
     }
 
     public sealed class StaffReverseRequest
@@ -90,6 +96,12 @@ namespace TummlyBackend.Interfaces
         public int ActorStaffUserId { get; init; }
 
         public int? HelpCentreQueryId { get; init; }
+
+        /// <summary>Client <c>Idempotency-Key</c> header value (required).</summary>
+        public string IdempotencyKey { get; init; } = string.Empty;
+
+        /// <summary>Ticket, email or log reference that justifies the reversal (required).</summary>
+        public string EvidenceReference { get; init; } = string.Empty;
     }
 
     public sealed class CreditLedgerConsumeRequest
@@ -198,12 +210,23 @@ namespace TummlyBackend.Interfaces
         public IReadOnlyList<CreditLedgerConsumedFromDrainingPayment> ConsumedFromDrainingPayment
         { get; init; } = [];
 
+        /// <summary>
+        /// True when a staff write replayed a stored first result for the same
+        /// <c>Idempotency-Key</c>. No ledger row was written.
+        /// </summary>
+        public bool Replayed { get; init; }
+
+        /// <summary>Combined pool remaining for the channel after a staff write.</summary>
+        public int? BalanceAfter { get; init; }
+
         public static CreditLedgerWriteResult Ok(
             IReadOnlyList<CreditLedgerInsertedRow> inserted,
             IReadOnlyList<CreditLedgerConsumedFromDrainingPayment>? consumedFromDraining = null,
             string? reservationRef = null,
             int settledUnits = 0,
-            int releasedUnits = 0
+            int releasedUnits = 0,
+            int? balanceAfter = null,
+            bool replayed = false
         )
         {
             return new CreditLedgerWriteResult
@@ -215,6 +238,8 @@ namespace TummlyBackend.Interfaces
                 ReservationRef = reservationRef,
                 SettledUnits = settledUnits,
                 ReleasedUnits = releasedUnits,
+                BalanceAfter = balanceAfter,
+                Replayed = replayed,
             };
         }
 

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -88,6 +89,17 @@ namespace TummlyBackend.Billing
             }
 
             var key = account.SubscriptionPlan.Trim().ToLowerInvariant();
+            if (key == "custom")
+            {
+                // Same source as the entitlements snapshot: the account's quoted
+                // Custom quantities (the pricebook has no "custom" plan row).
+                var custom = CustomPlan.CustomPlanConfig.TryParse(
+                    account.CustomPlanConfigJson
+                );
+                cap = Math.Max(0, custom?.Quantities.Offers ?? 0);
+                return cap >= 1;
+            }
+
             if (!book.Plans.TryGetValue(key, out var plan))
             {
                 return false;
@@ -98,7 +110,14 @@ namespace TummlyBackend.Billing
                 return false;
             }
 
-            cap = plan.ActiveOffersAccount;
+            // Group: +3 per paid extra Location, same count as the QR pool.
+            var additionalPaidLocations = key == "group"
+                ? Math.Max(0, account.PaidExtraLocationCount)
+                : 0;
+            cap = WorkspaceOfferPool.Compute(
+                plan.ActiveOffersAccount,
+                additionalPaidLocations
+            );
             return true;
         }
 

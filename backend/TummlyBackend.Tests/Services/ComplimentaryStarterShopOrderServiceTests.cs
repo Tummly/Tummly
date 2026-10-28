@@ -370,6 +370,93 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task EnsureForLocationAsync_OtherStarterSkuPublished_AddsNoSecondLine()
+        {
+            var tentRecipe = await _context.PlacementRecipes.SingleAsync(row =>
+                row.Slug == "table-tent"
+            );
+            var tentSkus = await _context.ShopMaterialSkus
+                .Where(row => row.PlacementRecipeId == tentRecipe.Id)
+                .ToListAsync();
+            Assert.NotEmpty(tentSkus);
+            tentRecipe.IncludeInComplimentaryStarter = true;
+            foreach (var tentSku in tentSkus)
+            {
+                tentSku.Status = ShopMaterialSkuStatuses.Published;
+                tentSku.AvailableInShop = true;
+            }
+            await _context.SaveChangesAsync();
+
+            var result = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+
+            Assert.True(result.Created);
+            var order = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .SingleAsync(row => row.Id == result.ShopOrderId);
+            var line = Assert.Single(order.Lines);
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                line.CatalogSkuId
+            );
+        }
+
+        [Fact]
+        public async Task EnsureForLocationAsync_SecondCounterSkuPublished_KeepsOneCounterLine()
+        {
+            var counter = await _context.ShopMaterialSkus
+                .Include(row => row.PlacementRecipe)
+                .SingleAsync(row =>
+                    row.SkuId == ShopMaterialsCatalogSeed.CounterDisplaySkuId
+                );
+            _context.ShopMaterialSkus.Add(
+                new ShopMaterialSku
+                {
+                    SkuId = "qr-counter-display-v2",
+                    Title = "QR Counter Display V2",
+                    Category = "payment",
+                    Description = "Second published counter SKU",
+                    Material = "Card",
+                    Dimensions = "A5",
+                    PlacementRecipeId = counter.PlacementRecipeId,
+                    QrType = "OfferCard",
+                    UnitNetPence = 999,
+                    MinOrderQty = 1,
+                    Currency = "GBP",
+                    Status = ShopMaterialSkuStatuses.Published,
+                    AvailableInShop = true,
+                    AboutBody = "",
+                    SpecificationsJson = "[]",
+                    PublishedAtUtc = DateTime.UtcNow,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UpdatedAtUtc = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var result = await _service.EnsureForLocationAsync(
+                _restaurantId,
+                _locationId,
+                _userId,
+                "Alex Owner"
+            );
+
+            Assert.True(result.Created);
+            var order = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .SingleAsync(row => row.Id == result.ShopOrderId);
+            var line = Assert.Single(order.Lines);
+            Assert.Equal(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                line.CatalogSkuId
+            );
+        }
+
+        [Fact]
         public async Task StarterKit_ExcludesStarterFlaggedSkuWhenUnavailable()
         {
             var counter = await _context.ShopMaterialSkus

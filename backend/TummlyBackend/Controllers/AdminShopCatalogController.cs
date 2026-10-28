@@ -61,8 +61,14 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (sku, error) = await _catalog.CreateSkuAsync(
                 request,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -80,9 +86,15 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (sku, error) = await _catalog.UpdateSkuAsync(
                 skuId,
                 request,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -116,7 +128,12 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var (sku, error) = await _catalog.PublishAsync(skuId, cancellationToken);
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
+            var (sku, error) = await _catalog.PublishAsync(skuId, actor, cancellationToken);
             if (error != null)
             {
                 if (error.Contains("not found", StringComparison.OrdinalIgnoreCase))
@@ -164,12 +181,25 @@ namespace TummlyBackend.Controllers
             var (sku, error) = await _catalog.SetAvailableInShopAsync(
                 skuId,
                 request.AvailableInShop,
-                staffId.Value,
-                adminIdentity,
+                new AdminShopActor(staffId.Value, adminIdentity),
+                request.ApprovalReference,
                 cancellationToken
             );
             if (error != null)
             {
+                if (error == ShopSkuReadiness.SkuNotReadyCode)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            success = false,
+                            code = error,
+                            message = "This product is not ready to make available in the Shop.",
+                            blockers = sku?.AvailabilityBlockers ?? [],
+                        }
+                    );
+                }
+
                 if (error == ShopQrPathRules.SkuHasNoQrPathCode)
                 {
                     return Conflict(
@@ -199,8 +229,14 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (sku, error) = await _catalog.UnpublishAsync(
                 skuId,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -217,7 +253,12 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var (sku, error) = await _catalog.DeleteAsync(skuId, cancellationToken);
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
+            var (sku, error) = await _catalog.DeleteAsync(skuId, actor, cancellationToken);
             if (error != null)
             {
                 return NotFound(new { success = false, message = error });
@@ -239,8 +280,14 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (tag, error) = await _catalog.CreateTagAsync(
                 request.Label,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -257,8 +304,14 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (ok, error) = await _catalog.DeleteTagAsync(
                 tagId,
+                actor,
                 cancellationToken
             );
             if (!ok)
@@ -283,9 +336,15 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (image, error) = await _catalog.UploadImageAsync(
                 skuId,
                 file,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -308,9 +367,15 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (sku, error) = await _catalog.ReorderImagesAsync(
                 skuId,
                 request.ImageIds,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -333,9 +398,15 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (ok, error) = await _catalog.DeleteImageAsync(
                 skuId,
                 imageId,
+                actor,
                 cancellationToken
             );
             if (!ok)
@@ -367,5 +438,8 @@ namespace TummlyBackend.Controllers
 
             return staffId;
         }
+
+        private UnauthorizedObjectResult InvalidToken() =>
+            Unauthorized(new { success = false, message = "Invalid token." });
     }
 }

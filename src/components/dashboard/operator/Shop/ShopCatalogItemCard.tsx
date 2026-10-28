@@ -69,7 +69,7 @@ export function ShopCatalogItemCard({
         <img
           src={imageSrc}
           alt={title}
-          className="size-full object-contain transition-transform duration-200 group-hover:scale-[1.04]"
+          className="size-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
         />
       </div>
 
@@ -89,7 +89,7 @@ export function ShopCatalogItemCard({
               From{" "}
             </span>
             <span className="text-[22px] font-medium text-op-text-primary">
-              £{price.toFixed(0)}
+              £{price.toFixed(2)}
             </span>
           </p>
 

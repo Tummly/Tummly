@@ -1641,6 +1641,8 @@ namespace TummlyBackend.Tests.Services
             public Task<ShopPrintAssetReadinessDto?> RetryShopOrderAsync(
                 Guid shopOrderId,
                 QrType qrType,
+                int actorAdminUserId,
+                string actorIdentity,
                 CancellationToken cancellationToken = default
             ) => throw new NotSupportedException();
 

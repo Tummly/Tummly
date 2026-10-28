@@ -118,6 +118,7 @@ namespace TummlyBackend.Services
 
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> CreateSkuAsync(
             AdminShopCatalogSkuWriteRequest request,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -296,6 +297,19 @@ namespace TummlyBackend.Services
             }
 
             await AttachTagsAsync(sku, request.TagIds, cancellationToken);
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopCatalogCreate,
+                    actor.Identity,
+                    AdminAuditTargetTypes.ShopMaterialSku,
+                    skuId,
+                    ActorAdminUserId: actor.AdminUserId,
+                    DetailJson: ShopCatalogChangeLog.Detail(
+                        new Dictionary<string, object?>(),
+                        CatalogSnapshot(sku)
+                    )
+                )
+            );
             await _context.SaveChangesAsync(cancellationToken);
 
             var loaded = await LoadSkuAsync(skuId, tracking: false, cancellationToken);
@@ -305,6 +319,7 @@ namespace TummlyBackend.Services
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> UpdateSkuAsync(
             string skuId,
             AdminShopCatalogSkuWriteRequest request,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -313,6 +328,9 @@ namespace TummlyBackend.Services
             {
                 return (null, "Product was not found.");
             }
+
+            var before = CatalogSnapshot(sku);
+            var blockersBefore = ShopSkuReadiness.Blockers(sku);
 
             if (
                 request.PlacementRecipeId != null
@@ -470,6 +488,37 @@ namespace TummlyBackend.Services
             }
 
             sku.UpdatedAtUtc = DateTime.UtcNow;
+
+            // A SKU on sale must not lose readiness (ADM-09-04). Refuse an edit that
+            // adds a blocker (removes the priced pack, delivery price or supplier);
+            // blockers it already had do not block other edits. Nothing is saved.
+            var newBlockers = ShopSkuReadiness.Blockers(sku).Except(blockersBefore).ToList();
+            if (sku.AvailableInShop && newBlockers.Count > 0)
+            {
+                // Drop the in-memory edits so no later save in this request writes them.
+                _context.ChangeTracker.Clear();
+                return (
+                    null,
+                    "This product is on sale, so this change is refused: "
+                        + string.Join(" ", newBlockers)
+                );
+            }
+
+            var after = CatalogSnapshot(sku);
+            if (ShopCatalogChangeLog.HasChanges(before, after))
+            {
+                _audit.Append(
+                    new AdminAuditAppendRequest(
+                        AdminAuditActions.ShopCatalogUpdate,
+                        actor.Identity,
+                        AdminAuditTargetTypes.ShopMaterialSku,
+                        skuId,
+                        ActorAdminUserId: actor.AdminUserId,
+                        DetailJson: ShopCatalogChangeLog.Detail(before, after)
+                    )
+                );
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
 
             var loaded = await LoadSkuAsync(skuId, tracking: false, cancellationToken);
@@ -478,6 +527,7 @@ namespace TummlyBackend.Services
 
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> PublishAsync(
             string skuId,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -492,10 +542,18 @@ namespace TummlyBackend.Services
                 return (null, "Publish requires at least one product image.");
             }
 
+            var before = CatalogSnapshot(sku);
             sku.Status = ShopMaterialSkuStatuses.Published;
             sku.AvailableInShop = false;
             sku.PublishedAtUtc ??= DateTime.UtcNow;
             sku.UpdatedAtUtc = DateTime.UtcNow;
+            AppendCatalogAudit(
+                AdminAuditActions.ShopCatalogPublish,
+                actor,
+                sku.SkuId,
+                before,
+                CatalogSnapshot(sku)
+            );
             await _context.SaveChangesAsync(cancellationToken);
             return (await MapSkuAsync(sku, cancellationToken), null);
         }
@@ -503,8 +561,8 @@ namespace TummlyBackend.Services
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> SetAvailableInShopAsync(
             string skuId,
             bool availableInShop,
-            int actorAdminUserId,
-            string actorIdentity,
+            AdminShopActor actor,
+            string? approvalReference = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -513,6 +571,14 @@ namespace TummlyBackend.Services
             {
                 return (null, "Product was not found.");
             }
+
+            var reference = approvalReference?.Trim();
+            if (reference is { Length: > 200 })
+            {
+                return (null, "Approval reference must be 200 characters or fewer.");
+            }
+
+            reference = string.IsNullOrEmpty(reference) ? null : reference;
 
             if (sku.Status != ShopMaterialSkuStatuses.Published)
             {
@@ -539,18 +605,32 @@ namespace TummlyBackend.Services
                 return (null, ShopQrPathRules.SkuHasNoQrPathCode);
             }
 
+            if (availableInShop && ShopSkuReadiness.Blockers(sku).Count > 0)
+            {
+                return (
+                    await MapSkuAsync(sku, cancellationToken),
+                    ShopSkuReadiness.SkuNotReadyCode
+                );
+            }
+
+            var previous = sku.AvailableInShop;
             sku.AvailableInShop = availableInShop;
             sku.UpdatedAtUtc = DateTime.UtcNow;
 
             _audit.Append(
                 new AdminAuditAppendRequest(
                     AdminAuditActions.ShopCatalogAvailableInShop,
-                    actorIdentity,
+                    actor.Identity,
                     AdminAuditTargetTypes.ShopMaterialSku,
                     sku.SkuId,
-                    ActorAdminUserId: actorAdminUserId,
+                    ActorAdminUserId: actor.AdminUserId,
                     DetailJson: JsonSerializer.Serialize(
-                        new { availableInShop }
+                        new
+                        {
+                            availableInShop,
+                            previousAvailableInShop = previous,
+                            approvalReference = reference,
+                        }
                     )
                 )
             );
@@ -561,6 +641,7 @@ namespace TummlyBackend.Services
 
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> UnpublishAsync(
             string skuId,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -570,14 +651,25 @@ namespace TummlyBackend.Services
                 return (null, "Product was not found.");
             }
 
+            var before = CatalogSnapshot(sku);
             sku.Status = ShopMaterialSkuStatuses.Draft;
+            // A Draft is never buyable; turning it on again goes through the readiness gate.
+            sku.AvailableInShop = false;
             sku.UpdatedAtUtc = DateTime.UtcNow;
+            AppendCatalogAudit(
+                AdminAuditActions.ShopCatalogUnpublish,
+                actor,
+                sku.SkuId,
+                before,
+                CatalogSnapshot(sku)
+            );
             await _context.SaveChangesAsync(cancellationToken);
             return (await MapSkuAsync(sku, cancellationToken), null);
         }
 
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> DeleteAsync(
             string skuId,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -592,8 +684,16 @@ namespace TummlyBackend.Services
                 return (await MapSkuAsync(sku, cancellationToken), null);
             }
 
+            var before = CatalogSnapshot(sku);
             sku.Status = ShopMaterialSkuStatuses.Deleted;
             sku.UpdatedAtUtc = DateTime.UtcNow;
+            AppendCatalogAudit(
+                AdminAuditActions.ShopCatalogDelete,
+                actor,
+                sku.SkuId,
+                before,
+                CatalogSnapshot(sku)
+            );
             await _context.SaveChangesAsync(cancellationToken);
             return (await MapSkuAsync(sku, cancellationToken), null);
         }
@@ -611,6 +711,7 @@ namespace TummlyBackend.Services
 
         public async Task<(AdminShopCatalogTagDto? Tag, string? Error)> CreateTagAsync(
             string label,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -641,12 +742,26 @@ namespace TummlyBackend.Services
                 CreatedAtUtc = DateTime.UtcNow,
             };
             _context.ShopMaterialTags.Add(tag);
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopCatalogTagChange,
+                    actor.Identity,
+                    AdminAuditTargetTypes.ShopMaterialTag,
+                    slug,
+                    ActorAdminUserId: actor.AdminUserId,
+                    DetailJson: ShopCatalogChangeLog.Detail(
+                        new Dictionary<string, object?>(),
+                        new Dictionary<string, object?> { ["tag"] = trimmed }
+                    )
+                )
+            );
             await _context.SaveChangesAsync(cancellationToken);
             return (MapTag(tag), null);
         }
 
         public async Task<(bool Ok, string? Error)> DeleteTagAsync(
             int tagId,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -663,6 +778,19 @@ namespace TummlyBackend.Services
                 return (false, "Tag is still attached to one or more products.");
             }
 
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopCatalogTagChange,
+                    actor.Identity,
+                    AdminAuditTargetTypes.ShopMaterialTag,
+                    tag.Slug,
+                    ActorAdminUserId: actor.AdminUserId,
+                    DetailJson: ShopCatalogChangeLog.Detail(
+                        new Dictionary<string, object?> { ["tag"] = tag.Label },
+                        new Dictionary<string, object?>()
+                    )
+                )
+            );
             _context.ShopMaterialTags.Remove(tag);
             await _context.SaveChangesAsync(cancellationToken);
             return (true, null);
@@ -671,6 +799,7 @@ namespace TummlyBackend.Services
         public async Task<(AdminShopCatalogImageDto? Image, string? Error)> UploadImageAsync(
             string skuId,
             IFormFile file,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -716,6 +845,7 @@ namespace TummlyBackend.Services
             var sortOrder = sku.Images.Count == 0
                 ? 0
                 : sku.Images.Max(row => row.SortOrder) + 1;
+            var before = ImageChangeSnapshot(sku.Images);
             var image = new ShopMaterialSkuImage
             {
                 SkuId = sku.Id,
@@ -726,6 +856,13 @@ namespace TummlyBackend.Services
             };
             sku.Images.Add(image);
             sku.UpdatedAtUtc = DateTime.UtcNow;
+            AppendCatalogAudit(
+                AdminAuditActions.ShopCatalogImageChange,
+                actor,
+                sku.SkuId,
+                before,
+                ImageChangeSnapshot(sku.Images)
+            );
             await _context.SaveChangesAsync(cancellationToken);
 
             return (
@@ -742,6 +879,7 @@ namespace TummlyBackend.Services
         public async Task<(AdminShopCatalogSkuDto? Sku, string? Error)> ReorderImagesAsync(
             string skuId,
             IReadOnlyList<int> imageIds,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -761,6 +899,7 @@ namespace TummlyBackend.Services
                 return (null, "Image reorder list must include every image exactly once.");
             }
 
+            var before = ImageChangeSnapshot(sku.Images);
             for (var index = 0; index < requested.Count; index++)
             {
                 var image = sku.Images.First(row => row.Id == requested[index]);
@@ -768,6 +907,13 @@ namespace TummlyBackend.Services
             }
 
             sku.UpdatedAtUtc = DateTime.UtcNow;
+            AppendCatalogAudit(
+                AdminAuditActions.ShopCatalogImageChange,
+                actor,
+                sku.SkuId,
+                before,
+                ImageChangeSnapshot(sku.Images)
+            );
             await _context.SaveChangesAsync(cancellationToken);
             return (await MapSkuAsync(sku, cancellationToken), null);
         }
@@ -775,6 +921,7 @@ namespace TummlyBackend.Services
         public async Task<(bool Ok, string? Error)> DeleteImageAsync(
             string skuId,
             int imageId,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -815,11 +962,83 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var before = ImageChangeSnapshot(sku.Images);
             _context.ShopMaterialSkuImages.Remove(image);
             sku.UpdatedAtUtc = DateTime.UtcNow;
+            AppendCatalogAudit(
+                AdminAuditActions.ShopCatalogImageChange,
+                actor,
+                sku.SkuId,
+                before,
+                ImageChangeSnapshot(sku.Images.Where(row => row.Id != imageId))
+            );
             await _context.SaveChangesAsync(cancellationToken);
             return (true, null);
         }
+
+        private void AppendCatalogAudit(
+            string action,
+            AdminShopActor actor,
+            string skuId,
+            IReadOnlyDictionary<string, object?> before,
+            IReadOnlyDictionary<string, object?> after
+        )
+        {
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    action,
+                    actor.Identity,
+                    AdminAuditTargetTypes.ShopMaterialSku,
+                    skuId,
+                    ActorAdminUserId: actor.AdminUserId,
+                    DetailJson: ShopCatalogChangeLog.Detail(before, after)
+                )
+            );
+        }
+
+        /// <summary>
+        /// Values the catalogue history records. Each key is compared between
+        /// the state before and after a change.
+        /// </summary>
+        private static Dictionary<string, object?> CatalogSnapshot(ShopMaterialSku sku) =>
+            new(StringComparer.Ordinal)
+            {
+                ["status"] = sku.Status,
+                ["availableInShop"] = sku.AvailableInShop,
+                ["title"] = sku.Title,
+                ["category"] = sku.Category,
+                ["description"] = sku.Description,
+                ["material"] = sku.Material,
+                ["dimensions"] = sku.Dimensions,
+                ["packs"] = ShopMaterialPacks.Parse(sku.PacksJson),
+                ["deliveryNetPence"] = sku.DeliveryNetPence,
+                ["supplierName"] = sku.SupplierName,
+                ["internalCostNetPence"] = sku.InternalCostNetPence,
+                ["currency"] = sku.Currency,
+                ["mintOnShopFulfilment"] = sku.MintOnShopFulfilment,
+                ["aboutBody"] = sku.AboutBody,
+                ["specifications"] = ShopMaterialSpecifications.Parse(
+                    sku.SpecificationsJson
+                ),
+                ["tags"] = sku.SkuTags
+                    .Where(row => row.Tag != null)
+                    .Select(row => row.Tag!.Label)
+                    .OrderBy(label => label, StringComparer.Ordinal)
+                    .ToList(),
+                ["images"] = ImageChangeSnapshot(sku.Images),
+            };
+
+        private static Dictionary<string, object?> ImageChangeSnapshot(
+            IEnumerable<ShopMaterialSkuImage> images
+        ) =>
+            new(StringComparer.Ordinal)
+            {
+                ["images"] = images
+                    .OrderBy(row => row.SortOrder)
+                    .ThenBy(row => row.Id)
+                    .Select(row => row.StorageKey)
+                    .ToList(),
+            };
 
         private async Task<ShopMaterialSku?> LoadSkuAsync(
             string skuId,
@@ -1082,6 +1301,7 @@ namespace TummlyBackend.Services
                 MintOnShopFulfilment = sku.MintOnShopFulfilment,
                 Status = sku.Status,
                 AvailableInShop = sku.AvailableInShop,
+                AvailabilityBlockers = ShopSkuReadiness.Blockers(sku),
                 LinkedInterestProductKey =
                     linkedBySku != null
                     && linkedBySku.TryGetValue(sku.SkuId, out var interestKey)

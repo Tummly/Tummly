@@ -676,7 +676,7 @@ namespace TummlyBackend.Tests.Integration
                 seeded.LocationId,
                 "email:alex@example.com",
                 LocationGuestPermissionKind.EmailDelivery,
-                GuestContactSuppressionSources.EmailBounce
+                GuestContactSuppressionSources.Bounce
             );
 
             using var post = new HttpRequestMessage(

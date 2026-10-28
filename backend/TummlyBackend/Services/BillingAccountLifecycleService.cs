@@ -32,6 +32,25 @@ namespace TummlyBackend.Services
 
         public static readonly int[] PilotExtensionDayOptions = [14, 30];
 
+        public const string PilotExtensionInvalidReasonCode = "pilot_extension_invalid_reason";
+
+        public const string PilotExtensionStaleVersionCode = "stale_pilot_version";
+
+        public const int PilotExtensionReasonMinLength = 5;
+
+        public const int PilotExtensionReasonMaxLength = 500;
+
+        /// <summary>
+        /// Trims the operator's reason. Returns null when it is missing or outside 5 to 500 characters.
+        /// </summary>
+        public static string? NormalizePilotExtensionReason(string? raw)
+        {
+            var trimmed = raw?.Trim();
+            return trimmed is { Length: >= PilotExtensionReasonMinLength and <= PilotExtensionReasonMaxLength }
+                ? trimmed
+                : null;
+        }
+
         /// <summary>
         /// A paid period was applied to this account at some time. Every paid apply
         /// stamps RenewalDateUtc. Only a new Pilot start clears it, and that start
@@ -48,6 +67,10 @@ namespace TummlyBackend.Services
                 PilotExtensionInvalidDaysCode => "Choose 14 or 30 days.",
                 PilotExtensionIdempotencyKeyRequiredCode =>
                     "An idempotency key is required.",
+                PilotExtensionInvalidReasonCode =>
+                    $"Enter a reason of {PilotExtensionReasonMinLength} to {PilotExtensionReasonMaxLength} characters.",
+                PilotExtensionStaleVersionCode =>
+                    "This Pilot changed after you opened it. Refresh and try again.",
                 PilotExtensionLimitCode =>
                     $"This Pilot has used its extensions. The limit is {PilotExtensionMaxCount} extensions and {PilotExtensionMaxDaysTotal} days in total.",
                 _ =>
@@ -252,6 +275,8 @@ namespace TummlyBackend.Services
             int days,
             string? idempotencyKey,
             DateTime now,
+            string? reason,
+            int? expectedExtensionCount,
             CancellationToken cancellationToken = default
         )
         {
@@ -270,6 +295,8 @@ namespace TummlyBackend.Services
                     days,
                     idempotencyKey,
                     now,
+                    reason,
+                    expectedExtensionCount,
                     cancellationToken
                 );
 
@@ -341,6 +368,8 @@ namespace TummlyBackend.Services
             int days,
             string? idempotencyKey,
             DateTime now,
+            string? reason,
+            int? expectedExtensionCount,
             CancellationToken cancellationToken
         )
         {
@@ -384,6 +413,16 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (NormalizePilotExtensionReason(reason) == null)
+            {
+                return RefusedPilotExtension(
+                    PilotExtensionInvalidReasonCode,
+                    oldEnd,
+                    account.PilotExtensionCount,
+                    account.PilotExtensionDaysTotal
+                );
+            }
+
             var unpaidPilotOpen =
                 IsPilotPlan(account)
                 && !HasPaidHistory(account)
@@ -395,6 +434,17 @@ namespace TummlyBackend.Services
             {
                 return RefusedPilotExtension(
                     PilotExtensionNotAllowedCode,
+                    oldEnd,
+                    account.PilotExtensionCount,
+                    account.PilotExtensionDaysTotal
+                );
+            }
+
+            // A missing version counts as stale: the operator's view cannot be proven current.
+            if (expectedExtensionCount != account.PilotExtensionCount)
+            {
+                return RefusedPilotExtension(
+                    PilotExtensionStaleVersionCode,
                     oldEnd,
                     account.PilotExtensionCount,
                     account.PilotExtensionDaysTotal
@@ -416,6 +466,8 @@ namespace TummlyBackend.Services
 
             var basis = oldEnd is { } currentEnd && currentEnd > now ? currentEnd : now;
             var newEnd = basis.AddDays(days);
+            // A Pilot with no end yet: its original term ends now.
+            account.PilotOriginalEndUtc ??= oldEnd ?? now;
 
             account.PilotPeriodEnd = newEnd;
             account.BillingStatus = BillingStatuses.Pilot;
@@ -447,7 +499,8 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// A key the account already used: the last key on the account, or the key of any
-        /// earlier extension audit row for the same restaurant.
+        /// earlier applied extension audit row for the same restaurant. Refused attempts are
+        /// audited too, but their key was never used, so a retry with it can still apply.
         /// </summary>
         private async Task<bool> IsRepeatedPilotExtensionKeyAsync(
             BillingAccount account,
@@ -471,6 +524,7 @@ namespace TummlyBackend.Services
                 .Where(row =>
                     row.Action == AdminAuditActions.OperatorExtendPilot
                     && row.RestaurantId == account.RestaurantId
+                    && row.Succeeded
                 )
                 .Select(row => row.DetailJson)
                 .ToListAsync(cancellationToken);
@@ -567,6 +621,9 @@ namespace TummlyBackend.Services
             if (ownerExpires != null)
             {
                 account.PilotPeriodEnd = ownerExpires;
+                account.PilotOriginalEndUtc ??= ownerExpires.Value.AddDays(
+                    -account.PilotExtensionDaysTotal
+                );
             }
         }
 

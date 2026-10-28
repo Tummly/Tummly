@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
@@ -8,16 +9,21 @@ namespace TummlyBackend.Services
 {
     public sealed class AdminAuditService : IAdminAuditService
     {
+        private const int CorrelationIdMaxLength = 64;
+
         private readonly ApplicationDbContext _context;
         private readonly TimeProvider _clock;
+        private readonly IHttpContextAccessor? _httpContextAccessor;
 
         public AdminAuditService(
             ApplicationDbContext context,
-            TimeProvider clock
+            TimeProvider clock,
+            IHttpContextAccessor? httpContextAccessor = null
         )
         {
             _context = context;
             _clock = clock;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public void Append(AdminAuditAppendRequest request)
@@ -34,7 +40,8 @@ namespace TummlyBackend.Services
                     TargetId = request.TargetId,
                     RestaurantId = request.RestaurantId,
                     DetailJson = request.DetailJson,
-                    Succeeded = true,
+                    Succeeded = request.Succeeded,
+                    CorrelationId = CurrentCorrelationId(),
                 }
             );
         }
@@ -46,6 +53,24 @@ namespace TummlyBackend.Services
         {
             Append(request);
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Request trace id for the current HTTP request, or null when the
+        /// event is written outside a request (background jobs).
+        /// </summary>
+        private string? CurrentCorrelationId()
+        {
+            var traceIdentifier = _httpContextAccessor?.HttpContext?.TraceIdentifier;
+            if (string.IsNullOrWhiteSpace(traceIdentifier))
+            {
+                return null;
+            }
+
+            var trimmed = traceIdentifier.Trim();
+            return trimmed.Length <= CorrelationIdMaxLength
+                ? trimmed
+                : trimmed[..CorrelationIdMaxLength];
         }
 
         public async Task<AdminAuditListResult> ListAsync(
@@ -67,6 +92,12 @@ namespace TummlyBackend.Services
             if (query.RestaurantId is int restaurantId)
             {
                 filtered = filtered.Where(e => e.RestaurantId == restaurantId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.TargetId))
+            {
+                var targetId = query.TargetId.Trim();
+                filtered = filtered.Where(e => e.TargetId == targetId);
             }
 
             if (query.FromUtc is DateTime fromUtc)
@@ -97,6 +128,7 @@ namespace TummlyBackend.Services
                     RestaurantId = e.RestaurantId,
                     DetailJson = e.DetailJson,
                     Succeeded = e.Succeeded,
+                    CorrelationId = e.CorrelationId,
                 })
                 .ToListAsync(cancellationToken);
 

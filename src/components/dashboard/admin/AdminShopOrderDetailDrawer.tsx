@@ -44,10 +44,12 @@ import {
   ADMIN_SHOP_RECORD_DISPATCH_EVIDENCE_LABEL,
   adminShopOrderFulfilmentLabel,
   adminShopOrderReviewNotice,
+  adminShopPaymentSourceLabel,
   type AdminShopFulfilmentAction,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
   formatAdminShopGbpFromPence,
+  formatAdminShopGbpOrDash,
   isAdminShopDispatchEvidenceMissing,
   nextAdminShopFulfilmentAction,
 } from "@/lib/adminShopOrderFulfilment"
@@ -551,12 +553,67 @@ export function AdminShopOrderDetailDrawer({
                 </p>
                 <p>{formatEvidenceTime(order.deliveredAtUtc)}</p>
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
-                  Revolut payment id
+                  Payment source
                 </p>
-                <p className="break-all font-mono text-xs">
-                  {order.revolutOrderId?.trim() || "—"}
+                <p>{adminShopPaymentSourceLabel(order.paymentSource)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
+                  Revolut order ref
+                </p>
+                <p className="font-mono text-xs">
+                  {order.revolutOrderRefRedacted ?? "—"}
+                </p>
+              </div>
+            </section>
+
+            <Separator />
+
+            <section className="grid gap-3 py-6 text-sm text-op-text-primary sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
+                  Materials (net)
+                </p>
+                <p>{formatAdminShopGbpOrDash(order.materialsNetPence)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
+                  VAT
+                </p>
+                <p>{formatAdminShopGbpOrDash(order.vatPence)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
+                  Delivery (net)
+                </p>
+                <p>{formatAdminShopGbpOrDash(order.deliveryNetPence)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
+                  Total (gross)
+                </p>
+                <p>{formatAdminShopGbpOrDash(order.grossPence)}</p>
+              </div>
+            </section>
+
+            <Separator />
+
+            <section className="flex flex-col gap-2 py-6 text-sm text-op-text-primary">
+              <h3 className="text-sm font-semibold text-op-text-primary">
+                Ship to
+              </h3>
+              <div className="flex flex-col gap-0.5">
+                <p>{order.shipToContactName || "—"}</p>
+                <p>{order.shipToAddressLine1 || "—"}</p>
+                {order.shipToAddressLine2 ? (
+                  <p>{order.shipToAddressLine2}</p>
+                ) : null}
+                <p>
+                  {[order.shipToPostcode, order.shipToCountry]
+                    .filter(Boolean)
+                    .join(", ") || "—"}
                 </p>
               </div>
             </section>
@@ -677,6 +734,14 @@ export function AdminShopOrderDetailDrawer({
                               {preview.qrDestinationUrl}
                             </dd>
                           </div>
+                          <div className="sm:col-span-2">
+                            <dt className="font-medium text-op-text-primary">
+                              Job ID
+                            </dt>
+                            <dd className="break-all font-mono">
+                              {preview.jobId}
+                            </dd>
+                          </div>
                           {preview.offerHeadline && (
                             <div className="sm:col-span-2">
                               <dt className="font-medium text-op-text-primary">
@@ -713,12 +778,13 @@ export function AdminShopOrderDetailDrawer({
                     <div>
                       <p className="font-medium">{line.titleSnapshot}</p>
                       <p className="text-op-text-muted">{line.catalogSkuId}</p>
+                      <p className="text-op-text-muted">
+                        Pack of {line.quantity}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p>
-                        {formatAdminShopGbpFromPence(line.unitNetPence)} each
-                        {" × "}
-                        {line.quantity}
+                        Unit {formatAdminShopGbpFromPence(line.unitNetPence)}
                       </p>
                       <p className="font-medium">
                         Line total{" "}

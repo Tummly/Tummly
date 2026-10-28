@@ -91,6 +91,11 @@ namespace TummlyBackend.DTOs.Admin
         /// </summary>
         public string? LinkedInterestProductKey { get; init; }
 
+        /// <summary>
+        /// What still blocks switching Available in Shop on. Empty when ready.
+        /// </summary>
+        public IReadOnlyList<string> AvailabilityBlockers { get; init; } = [];
+
         public string AboutBody { get; init; } = string.Empty;
 
         public IReadOnlyList<ShopMaterialSpecificationRow> Specifications
@@ -155,6 +160,8 @@ namespace TummlyBackend.DTOs.Admin
     public sealed class AdminShopCatalogSetAvailableRequest
     {
         public bool AvailableInShop { get; init; }
+
+        public string? ApprovalReference { get; init; }
     }
 
     public sealed class AdminShopCatalogCreateTagRequest

@@ -222,6 +222,32 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(80, snapshot!.ActiveQrPlacements.Cap);
         }
 
+        /// <summary>
+        /// ADM-04-03: Group Offers match the gate at 5, 6 and 7 Locations.
+        /// </summary>
+        [Theory]
+        [InlineData(0, 25)]
+        [InlineData(1, 28)]
+        [InlineData(2, 31)]
+        public async Task GetAccountAsync_GroupWithPaidExtraLocations_AddsThreeOffersEach(
+            int paidExtraLocations,
+            int expectedCap
+        )
+        {
+            var restaurantId = await SeedRestaurantAsync(
+                BillingSubscriptionPlans.Group
+            );
+            var account = await _context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == restaurantId);
+            account.PaidExtraLocationCount = paidExtraLocations;
+            await _context.SaveChangesAsync();
+
+            var snapshot = await _service.GetAccountAsync(restaurantId);
+
+            Assert.True(snapshot.ActiveOffers.Available);
+            Assert.Equal(expectedCap, snapshot.ActiveOffers.Cap);
+        }
+
         private static QrCode NewActiveCode(int locationId) =>
             new()
             {

@@ -105,7 +105,8 @@ namespace TummlyBackend.Tests.Services
                     )
                 ),
                 new NoOpBillingAccountLifecycle(),
-                new AdminAuditService(_context, TimeProvider.System)
+                new AdminAuditService(_context, TimeProvider.System),
+                new CreditBalanceSnapshotService(_context, TimeProvider.System)
             );
 
         [Fact]

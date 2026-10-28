@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using System.Text.Json;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Helpers;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Shop.MaterialsCatalog;
@@ -15,6 +17,7 @@ namespace TummlyBackend.Tests.Services
         private readonly InMemoryShopCatalogImageStorage _images = new();
         private readonly AdminShopCatalogService _catalog;
         private readonly AdminShopInterestProductService _service;
+        private static readonly AdminShopActor Actor = new(1, "admin@example.com");
 
         public AdminShopInterestProductServiceTests()
         {
@@ -34,14 +37,15 @@ namespace TummlyBackend.Tests.Services
             _service = new AdminShopInterestProductService(
                 _context,
                 _images,
-                _catalog
+                _catalog,
+                new AdminAuditService(_context, TimeProvider.System)
             );
         }
 
         [Fact]
-        public async Task Promote_HidesInterest_PublishesShopSku_KeepsRegistrations()
+        public async Task Promote_HidesInterest_PublishesShopSku_LeavesCheckoutOff_KeepsRegistrations()
         {
-            await _catalog.DeleteAsync("table-tents");
+            await _catalog.DeleteAsync("table-tents", Actor);
             var product = await EnsureInterestProductAsync("tray-liner");
             await RegisterInterestAsync(product, userId: 11, locationId: 22);
             await UploadInterestImageAsync(product.ProductKey);
@@ -59,7 +63,8 @@ namespace TummlyBackend.Tests.Services
                     Category = "tabletop",
                     Packs = [new ShopMaterialPackRow { Qty = 1, NetPence = 1500 }],
                     DeliveryNetPence = 299,
-                }
+                },
+                Actor
             );
 
             Assert.Null(error);
@@ -80,7 +85,7 @@ namespace TummlyBackend.Tests.Services
                 .Include(row => row.Images)
                 .SingleAsync(row => row.SkuId == product.ProductKey);
             Assert.Equal(ShopMaterialSkuStatuses.Published, sku.Status);
-            Assert.True(sku.AvailableInShop);
+            Assert.False(sku.AvailableInShop);
             Assert.NotEmpty(sku.Images);
 
             Assert.Equal(
@@ -94,7 +99,7 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task InterestPromote_NoQrPath_Returns409()
         {
-            await _catalog.DeleteAsync("table-tents");
+            await _catalog.DeleteAsync("table-tents", Actor);
             var product = await EnsureInterestProductAsync("tray-liner");
             await UploadInterestImageAsync(product.ProductKey);
             product.Dimensions = "A4";
@@ -111,7 +116,8 @@ namespace TummlyBackend.Tests.Services
                     Packs = [new ShopMaterialPackRow { Qty = 1, NetPence = 999 }],
                     DeliveryNetPence = 100,
                     MintOnShopFulfilment = false,
-                }
+                },
+                Actor
             );
 
             Assert.Null(promoted);
@@ -131,7 +137,7 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task InterestPromote_NoQrPath_ExistingDraft_LeavesSkuUnchanged()
         {
-            await _catalog.DeleteAsync("table-tents");
+            await _catalog.DeleteAsync("table-tents", Actor);
             var product = await EnsureInterestProductAsync("tray-liner");
             await UploadInterestImageAsync(product.ProductKey);
             product.Dimensions = "A4";
@@ -152,7 +158,8 @@ namespace TummlyBackend.Tests.Services
                     UnitNetPence = 999,
                     MintOnShopFulfilment = true,
                     AboutBody = "About draft",
-                }
+                },
+                Actor
             );
             Assert.Null(draftError);
             Assert.NotNull(draft);
@@ -169,7 +176,8 @@ namespace TummlyBackend.Tests.Services
                     Packs = [new ShopMaterialPackRow { Qty = 1, NetPence = 999 }],
                     DeliveryNetPence = 100,
                     MintOnShopFulfilment = false,
-                }
+                },
+                Actor
             );
 
             Assert.Null(promoted);
@@ -195,7 +203,7 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task Demote_RestoresInterest_AndUnpublishesSku()
         {
-            await _catalog.DeleteAsync("table-tents");
+            await _catalog.DeleteAsync("table-tents", Actor);
             var product = await EnsureInterestProductAsync("tray-liner");
             await UploadInterestImageAsync(product.ProductKey);
             product.Dimensions = "A4";
@@ -211,13 +219,15 @@ namespace TummlyBackend.Tests.Services
                     Category = "tabletop",
                     Packs = [new ShopMaterialPackRow { Qty = 1, NetPence = 999 }],
                     DeliveryNetPence = 100,
-                }
+                },
+                Actor
             );
             Assert.Null(promoteError);
             Assert.NotNull(promoted);
 
             var (demoted, demoteError) = await _service.DemoteBySkuIdAsync(
-                product.ProductKey
+                product.ProductKey,
+                Actor
             );
             Assert.Null(demoteError);
             Assert.NotNull(demoted);
@@ -246,7 +256,8 @@ namespace TummlyBackend.Tests.Services
                     Category = "tabletop",
                     Packs = [new ShopMaterialPackRow { Qty = 2, NetPence = 1800 }],
                     DeliveryNetPence = 150,
-                }
+                },
+                Actor
             );
             Assert.Null(rePromoteError);
             Assert.NotNull(rePromoted);
@@ -257,7 +268,7 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task Promote_RejectsWhenMissingImageOrDimensions()
         {
-            await _catalog.DeleteAsync("window-sticker");
+            await _catalog.DeleteAsync("window-sticker", Actor);
             var product = await EnsureInterestProductAsync("receipt-label");
             var recipe = await RecipeIdAsync("window-sticker");
 
@@ -268,7 +279,8 @@ namespace TummlyBackend.Tests.Services
                     PlacementRecipeId = recipe,
                     Category = "window",
                     Packs = [new ShopMaterialPackRow { Qty = 1, NetPence = 500 }],
-                }
+                },
+                Actor
             );
             Assert.Null(noImage);
             Assert.Contains("image", imageError, StringComparison.OrdinalIgnoreCase);
@@ -281,7 +293,8 @@ namespace TummlyBackend.Tests.Services
                     PlacementRecipeId = recipe,
                     Category = "window",
                     Packs = [new ShopMaterialPackRow { Qty = 1, NetPence = 500 }],
-                }
+                },
+                Actor
             );
             Assert.Null(noDims);
             Assert.Contains(
@@ -353,6 +366,85 @@ namespace TummlyBackend.Tests.Services
                 }
             );
             await _context.SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task Promote_RefusesRecord_WithoutPricedPack()
+        {
+            await _catalog.DeleteAsync("table-tents", Actor);
+            var product = await EnsureInterestProductAsync("tray-liner");
+            await UploadInterestImageAsync(product.ProductKey);
+            product.Dimensions = "210mm x 297mm";
+            product.Material = "Paper";
+            await _context.SaveChangesAsync();
+
+            var tentRecipe = await RecipeIdAsync("table-tent");
+            var (promoted, error) = await _service.PromoteAsync(
+                product.ProductKey,
+                new AdminShopInterestPromoteRequest
+                {
+                    PlacementRecipeId = tentRecipe,
+                    Category = "tabletop",
+                    Packs = [new ShopMaterialPackRow { Qty = 1, NetPence = 0 }],
+                    DeliveryNetPence = 299,
+                },
+                Actor
+            );
+
+            Assert.Null(promoted);
+            Assert.Equal("Promote requires a pack with a price before promote.", error);
+            Assert.False(
+                await _context.ShopMaterialSkus.AnyAsync(row => row.SkuId == product.ProductKey)
+            );
+        }
+
+        [Fact]
+        public async Task Promote_ThenDemote_WriteAuditWithActorProductKeyAndSkuId()
+        {
+            await _catalog.DeleteAsync("table-tents", Actor);
+            var product = await EnsureInterestProductAsync("tray-liner");
+            await UploadInterestImageAsync(product.ProductKey);
+            product.Dimensions = "210mm x 297mm";
+            product.Material = "Paper";
+            await _context.SaveChangesAsync();
+
+            var tentRecipe = await RecipeIdAsync("table-tent");
+            var (_, promoteError) = await _service.PromoteAsync(
+                product.ProductKey,
+                new AdminShopInterestPromoteRequest
+                {
+                    PlacementRecipeId = tentRecipe,
+                    Category = "tabletop",
+                    Packs = [new ShopMaterialPackRow { Qty = 1, NetPence = 1500 }],
+                    DeliveryNetPence = 299,
+                },
+                Actor
+            );
+            Assert.Null(promoteError);
+
+            var promote = await _context.AdminAuditEvents.SingleAsync(row =>
+                row.Action == AdminAuditActions.ShopInterestPromote
+            );
+            Assert.Equal(Actor.Identity, promote.ActorIdentity);
+            Assert.Equal(Actor.AdminUserId, promote.ActorAdminUserId);
+            Assert.Equal(AdminAuditTargetTypes.ShopInterestProduct, promote.TargetType);
+            Assert.Equal(product.ProductKey, promote.TargetId);
+            using (var detail = JsonDocument.Parse(promote.DetailJson!))
+            {
+                Assert.Equal(product.ProductKey, detail.RootElement.GetProperty("productKey").GetString());
+                Assert.Equal(product.ProductKey, detail.RootElement.GetProperty("skuId").GetString());
+            }
+
+            var (_, demoteError) = await _service.DemoteBySkuIdAsync(product.ProductKey, Actor);
+            Assert.Null(demoteError);
+
+            var demote = await _context.AdminAuditEvents.SingleAsync(row =>
+                row.Action == AdminAuditActions.ShopInterestDemote
+            );
+            Assert.Equal(Actor.Identity, demote.ActorIdentity);
+            Assert.Equal(product.ProductKey, demote.TargetId);
+            using var demoteDetail = JsonDocument.Parse(demote.DetailJson!);
+            Assert.Equal(product.ProductKey, demoteDetail.RootElement.GetProperty("skuId").GetString());
         }
 
         private async Task UploadInterestImageAsync(string productKey)

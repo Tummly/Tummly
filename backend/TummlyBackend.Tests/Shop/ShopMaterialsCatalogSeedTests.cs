@@ -95,6 +95,50 @@ namespace TummlyBackend.Tests.Shop
         }
 
         [Fact]
+        public async Task EnsureSeeded_NewCoreSkus_UseTheirProductArtwork()
+        {
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            var skus = await _context.ShopMaterialSkus
+                .Include(row => row.Images)
+                .Where(row => row.Status == ShopMaterialSkuStatuses.Published)
+                .ToListAsync();
+
+            Assert.Equal(5, skus.Count);
+            Assert.All(skus, sku =>
+            {
+                var image = Assert.Single(sku.Images);
+                Assert.Equal(
+                    $"legacy:/assets/images/shop/products/{sku.SkuId}.webp",
+                    image.StorageKey
+                );
+                Assert.Equal("image/webp", image.ContentType);
+            });
+        }
+
+        [Fact]
+        public async Task InterestSeed_NewProducts_UseTheirProductArtwork_Once()
+        {
+            await ShopInterestCatalogSeed.EnsureSeededAsync(_context);
+            await ShopInterestCatalogSeed.EnsureSeededAsync(_context);
+
+            var products = await _context.ShopInterestProducts
+                .Include(row => row.Images)
+                .ToListAsync();
+
+            Assert.Equal(7, products.Count);
+            Assert.All(products, product =>
+            {
+                var image = Assert.Single(product.Images);
+                Assert.Equal(
+                    $"legacy:/assets/images/shop/products/{product.ProductKey}.webp",
+                    image.StorageKey
+                );
+                Assert.Equal("image/webp", image.ContentType);
+            });
+        }
+
+        [Fact]
         public async Task Seed_NonStarterRecipes_DefaultMintOnFulfilmentTrue()
         {
             Assert.All(

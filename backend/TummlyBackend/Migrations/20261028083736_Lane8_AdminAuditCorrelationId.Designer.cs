@@ -12,8 +12,8 @@ using TummlyBackend.Data;
 namespace TummlyBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20261028084550_AddCampaignAudienceLookbackAndRecommendationKey")]
-    partial class AddCampaignAudienceLookbackAndRecommendationKey
+    [Migration("20261028083736_Lane8_AdminAuditCorrelationId")]
+    partial class Lane8_AdminAuditCorrelationId
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -119,6 +119,10 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("DetailJson")
                         .HasMaxLength(4000)
@@ -536,6 +540,9 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("PilotExtensionDaysTotal")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("PilotOriginalEndUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("PilotPeriodEnd")
                         .HasColumnType("datetime2");
 
@@ -713,13 +720,6 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
-                    b.Property<int?>("AudienceLookbackDays")
-                        .HasColumnType("int");
-
-                    b.Property<string>("AudienceLookbackTimeZone")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
                     b.Property<string>("BillingReservationRef")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
@@ -757,10 +757,6 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("OfferStance")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("RecommendationSourceKey")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
 
                     b.Property<int?>("ReservedEstimate")
                         .HasColumnType("int");
@@ -812,10 +808,6 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("OfferId");
-
-                    b.HasIndex("RestaurantLocationId", "RecommendationSourceKey")
-                        .IsUnique()
-                        .HasFilter("[Status] = N'draft' AND [RecommendationSourceKey] IS NOT NULL");
 
                     b.HasIndex("RestaurantLocationId", "Status", "UpdatedAt")
                         .IsDescending(false, false, true);
@@ -4561,17 +4553,21 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("WithdrawnAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("WithdrawnByUserId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedAtUtc");
 
                     b.HasIndex("ProductKey");
 
-                    b.HasIndex("ShopInterestProductId");
-
-                    b.HasIndex("UserId", "ShopInterestProductId", "LocationId")
+                    b.HasIndex("ShopInterestProductId", "RestaurantId", "LocationId", "UserId")
                         .IsUnique()
-                        .HasDatabaseName("IX_ShopInterestRegistrations_User_Product_Location");
+                        .HasFilter("[WithdrawnAtUtc] IS NULL");
 
                     b.ToTable("ShopInterestRegistrations");
                 });
@@ -5076,6 +5072,61 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("RestaurantLocationId", "QrType", "Status");
 
                     b.ToTable("ShopQrSlotReservations");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.StaffCreditAdjustmentIntent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ActorStaffUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BalanceAfter")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid?>("InsertedAllocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("InsertedEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("StaffCreditAdjustmentIntents");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.TeamInvitation", b =>
