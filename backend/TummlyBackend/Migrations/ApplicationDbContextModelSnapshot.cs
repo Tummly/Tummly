@@ -4546,13 +4546,21 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("WithdrawnAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("WithdrawnByUserId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedAtUtc");
 
                     b.HasIndex("ProductKey");
 
-                    b.HasIndex("ShopInterestProductId");
+                    b.HasIndex("ShopInterestProductId", "RestaurantId", "LocationId", "UserId")
+                        .IsUnique()
+                        .HasFilter("[WithdrawnAtUtc] IS NULL");
 
                     b.ToTable("ShopInterestRegistrations");
                 });

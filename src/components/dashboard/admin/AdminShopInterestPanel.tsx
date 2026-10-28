@@ -14,6 +14,7 @@ import {
   type AdminShopInterestProduct,
   type AdminShopInterestProductCount,
   type AdminShopInterestRegistration,
+  type AdminShopInterestScope,
 } from "@/api/adminShopInterestApi"
 import {
   fetchAdminPlacementRecipes,
@@ -35,6 +36,13 @@ import { FloatingLabelInput } from "@/components/ui/floating-label-input"
 import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import { FloatingLabelTextarea } from "@/components/ui/floating-label-textarea"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -57,8 +65,15 @@ import {
   GUESTS_TABLE_FRAME_CLASS,
   GUESTS_TABLE_HEAD_CELL_CLASS,
   GUESTS_TABLE_HEAD_ROW_CLASS,
+  GUESTS_TOOLBAR_ACTIONS_CLASS,
+  GUESTS_TOOLBAR_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
-import { OPERATOR_RIGHT_DRAWER_CONTENT_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
+import {
+  OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+  OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
+  OPERATOR_SHELL_MENU_ITEM_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import { resolveShopCatalogImageSrc } from "@/lib/operatorShop/resolveShopCatalogImageSrc"
 import { cn } from "@/lib/utils"
 
@@ -103,6 +118,11 @@ type PromoteState = {
 const LOAD_ERROR_TEXT =
   "Could not load shop interest. Use Refresh to try again."
 
+const SCOPE_OPTIONS: { value: AdminShopInterestScope; label: string }[] = [
+  { value: "active", label: "Active only" },
+  { value: "all", label: "All, including withdrawn" },
+]
+
 function formatUtc(iso: string) {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
@@ -146,6 +166,7 @@ export function AdminShopInterestPanel() {
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [promote, setPromote] = useState<PromoteState | null>(null)
   const [saving, setSaving] = useState(false)
+  const [scope, setScope] = useState<AdminShopInterestScope>("active")
 
   const availableRecipes = recipes.filter((recipe) => recipe.isAvailable)
 
@@ -154,7 +175,7 @@ export function AdminShopInterestPanel() {
     try {
       const [interest, nextProducts, nextRecipes, nextTags] = await Promise.all(
         [
-          fetchAdminShopInterest(),
+          fetchAdminShopInterest(scope),
           fetchAdminShopInterestProducts(),
           fetchAdminPlacementRecipes(),
           fetchAdminShopCatalogTags(),
@@ -176,7 +197,7 @@ export function AdminShopInterestPanel() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [scope])
 
   useEffect(() => {
     void reload()
@@ -356,7 +377,7 @@ export function AdminShopInterestPanel() {
                   Status
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Interest
+                  Active registrations
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Actions
@@ -461,7 +482,7 @@ export function AdminShopInterestPanel() {
         <div className="mb-4">
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>Counts by product</h2>
           <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
-            How many people registered interest per product.
+            Active registrations per product. Withdrawn interest is not counted.
           </p>
         </div>
         <div className={GUESTS_TABLE_FRAME_CLASS}>
@@ -472,7 +493,7 @@ export function AdminShopInterestPanel() {
                   Product
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Registered interest
+                  Active registrations
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -518,9 +539,39 @@ export function AdminShopInterestPanel() {
         <div className="mb-4">
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>Interest list</h2>
           <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
-            Account email, restaurant name, and Location where available. Newest
-            first.
+            Workspace, Location, and registrant. Emails are masked. Newest first.
           </p>
+        </div>
+        <div className={cn(GUESTS_TOOLBAR_ROW_CLASS, "mb-4")}>
+          <div className={GUESTS_TOOLBAR_ACTIONS_CLASS}>
+            <Select
+              value={scope}
+              onValueChange={(value) =>
+                setScope(value as AdminShopInterestScope)
+              }
+            >
+              <SelectTrigger
+                aria-label="Show registrations"
+                className={cn(
+                  OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+                  "w-full min-w-40 data-[size=default]:h-auto sm:w-64"
+                )}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className={OPERATOR_SHELL_MENU_PANEL_CLASS}>
+                {SCOPE_OPTIONS.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value}
+                    className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className={GUESTS_TABLE_FRAME_CLASS}>
           <Table className={GUESTS_TABLE_CLASS}>
@@ -530,19 +581,25 @@ export function AdminShopInterestPanel() {
                   Product
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Restaurant
+                  State
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Workspace
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Location
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Email
+                  Email (masked)
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Name
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  When (UTC)
+                  Registered (UTC)
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Withdrawn (UTC)
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -551,7 +608,7 @@ export function AdminShopInterestPanel() {
                 Array.from({ length: 3 }).map((_, index) => (
                   <TableRow key={index} className={GUESTS_TABLE_BODY_ROW_CLASS}>
                     <TableCell
-                      colSpan={6}
+                      colSpan={8}
                       className={GUESTS_TABLE_BODY_CELL_CLASS}
                     >
                       <Skeleton className="h-8 w-full" />
@@ -561,12 +618,14 @@ export function AdminShopInterestPanel() {
               ) : items.length === 0 ? (
                 <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                   <TableCell
-                    colSpan={6}
+                    colSpan={8}
                     className={GUESTS_TABLE_BODY_CELL_CLASS}
                   >
                     {loadError
                       ? LOAD_ERROR_TEXT
-                      : "No interest records yet."}
+                      : scope === "active"
+                        ? "No active interest registrations."
+                        : "No interest records yet."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -579,19 +638,25 @@ export function AdminShopInterestPanel() {
                       </div>
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <Badge variant="soft">{row.state}</Badge>
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       {row.restaurantName}
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       {row.locationName ?? "—"}
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                      {row.userEmail}
+                      {row.userEmailMasked}
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       {row.userFullName}
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       {formatUtc(row.createdAtUtc)}
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      {row.withdrawnAtUtc ? formatUtc(row.withdrawnAtUtc) : "—"}
                     </TableCell>
                   </TableRow>
                 ))

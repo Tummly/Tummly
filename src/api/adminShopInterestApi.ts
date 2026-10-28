@@ -15,9 +15,16 @@ export type AdminShopInterestRegistration = {
   locationName: string | null
   userId: number
   userFullName: string
-  userEmail: string
+  userEmailMasked: string
+  state: AdminShopInterestRegistrationState
   createdAtUtc: string
+  withdrawnAtUtc: string | null
 }
+
+export type AdminShopInterestRegistrationState = "Active" | "Withdrawn"
+
+/** "active" (default) hides withdrawn rows; "all" includes them. */
+export type AdminShopInterestScope = "active" | "all"
 
 export type AdminShopInterestProductCount = {
   productKey: string
@@ -85,12 +92,15 @@ type ImageItemResponse = {
   item: AdminShopInterestProductImage
 }
 
-export async function fetchAdminShopInterest(): Promise<{
+export async function fetchAdminShopInterest(
+  scope: AdminShopInterestScope = "active"
+): Promise<{
   items: AdminShopInterestRegistration[]
   countsByProduct: AdminShopInterestProductCount[]
 }> {
   const response = await axiosInstance.get<AdminShopInterestListResponse>(
-    "/admin/shop-interest"
+    "/admin/shop-interest",
+    { params: { scope } }
   )
   return {
     items: response.data.items ?? [],

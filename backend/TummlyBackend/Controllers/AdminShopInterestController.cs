@@ -23,10 +23,27 @@ namespace TummlyBackend.Controllers
             _products = products;
         }
 
+        /// <param name="scope">"active" (default) lists active rows only; "all" adds withdrawn rows.</param>
         [HttpGet]
-        public async Task<IActionResult> List(CancellationToken cancellationToken)
+        public async Task<IActionResult> List(
+            [FromQuery] string? scope,
+            CancellationToken cancellationToken
+        )
         {
-            var result = await _interest.ListForAdminAsync(cancellationToken);
+            var normalized = (scope ?? "active").Trim().ToLowerInvariant();
+            if (normalized is not ("active" or "all"))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "scope must be active or all.",
+                });
+            }
+
+            var result = await _interest.ListForAdminAsync(
+                includeWithdrawn: normalized == "all",
+                cancellationToken: cancellationToken
+            );
             return Ok(
                 new
                 {

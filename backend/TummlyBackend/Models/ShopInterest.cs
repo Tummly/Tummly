@@ -112,5 +112,16 @@ namespace TummlyBackend.Models
         public string UserEmailSnapshot { get; set; } = string.Empty;
 
         public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Set when the operator withdraws interest. The row stays as history;
+        /// only rows with no withdrawal count as active.
+        /// </summary>
+        public DateTime? WithdrawnAtUtc { get; set; }
+
+        /// <summary>
+        /// The user who withdrew. Null for rows withdrawn by the one-time dedupe migration.
+        /// </summary>
+        public int? WithdrawnByUserId { get; set; }
     }
 }
