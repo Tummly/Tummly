@@ -8,6 +8,12 @@ namespace TummlyBackend.Interfaces
             AdminAccountListQuery query,
             CancellationToken cancellationToken = default
         );
+
+        /// <summary>Returns null when the Workspace does not exist.</summary>
+        Task<AdminAccountProfileDto?> GetProfileAsync(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        );
     }
 
     /// <param name="Search">Workspace ID (exact) or Workspace / trading / legal name (contains).</param>

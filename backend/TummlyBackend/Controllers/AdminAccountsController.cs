@@ -67,5 +67,24 @@ namespace TummlyBackend.Controllers
                 });
             }
         }
+
+        [HttpGet("{restaurantId:int}")]
+        public async Task<IActionResult> GetProfile(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var profile = await _directory.GetProfileAsync(restaurantId, cancellationToken);
+            if (profile == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Account not found.",
+                });
+            }
+
+            return Ok(new { success = true, profile });
+        }
     }
 }

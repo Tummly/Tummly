@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -20,12 +22,28 @@ namespace TummlyBackend.Tests.Services
                 .Options;
 
             _context = new ApplicationDbContext(options);
-            _service = new AdminAccountDirectoryService(_context);
+            _service = CreateService(_context);
         }
 
         public void Dispose()
         {
             _context.Dispose();
+        }
+
+        /// <summary>Wires the directory with the same plan, capacity, credit and audit services the app uses.</summary>
+        internal static AdminAccountDirectoryService CreateService(ApplicationDbContext context)
+        {
+            var pricebook = PricebookCatalog.LoadFromDirectory(TestPricebookPaths.PackDirectory());
+            var clock = TimeProvider.System;
+            var qrCapacity = new ActiveQrCapacity(context, pricebook);
+            return new AdminAccountDirectoryService(
+                context,
+                new PlanEntitlementsSnapshotService(context, pricebook, qrCapacity),
+                qrCapacity,
+                new CreditBalanceSnapshotService(context, clock),
+                new AdminAuditService(context, clock),
+                pricebook
+            );
         }
 
         [Fact]

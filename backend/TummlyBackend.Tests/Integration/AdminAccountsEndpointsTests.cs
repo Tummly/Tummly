@@ -106,6 +106,60 @@ namespace TummlyBackend.Tests.Integration
             Assert.Contains(restaurantId, ids);
         }
 
+        [Fact]
+        public async Task Profile_WithoutToken_401()
+        {
+            var restaurantId = await SeedWorkspaceAsync($"Profile Venue {Guid.NewGuid():N}");
+
+            using var response = await _client.GetAsync($"/api/admin/accounts/{restaurantId}");
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Profile_AsSupport_403()
+        {
+            var tokens = await SeedStaffAsync();
+            var restaurantId = await SeedWorkspaceAsync($"Profile Venue {Guid.NewGuid():N}");
+
+            using var response = await GetAsync($"/api/admin/accounts/{restaurantId}", tokens.SupportJwt);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Profile_UnknownWorkspace_404()
+        {
+            var tokens = await SeedStaffAsync();
+
+            using var response = await GetAsync($"/api/admin/accounts/{int.MaxValue - 7}", tokens.AdminJwt);
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.False(body.GetProperty("success").GetBoolean());
+        }
+
+        [Fact]
+        public async Task Profile_AsAdmin_200_ReturnsEverySection()
+        {
+            var tokens = await SeedStaffAsync();
+            var restaurantId = await SeedWorkspaceAsync($"Profile Venue {Guid.NewGuid():N}");
+
+            using var response = await GetAsync($"/api/admin/accounts/{restaurantId}", tokens.AdminJwt);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var profile = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("profile");
+            Assert.Equal(restaurantId, profile.GetProperty("identity").GetProperty("restaurantId").GetInt32());
+            Assert.Equal("Directory Owner", profile.GetProperty("identity").GetProperty("ownerName").GetString());
+            Assert.Equal(BillingStatuses.Pilot, profile.GetProperty("lifecycle").GetProperty("billingStatus").GetString());
+            Assert.Equal(1, profile.GetProperty("locations").GetProperty("counts").GetProperty("active").GetInt32());
+            Assert.Equal(3, profile.GetProperty("credits").GetArrayLength());
+            Assert.Equal(JsonValueKind.Array, profile.GetProperty("payments").ValueKind);
+            Assert.Equal(JsonValueKind.Array, profile.GetProperty("invoices").ValueKind);
+            Assert.Equal(JsonValueKind.Array, profile.GetProperty("recentAudit").ValueKind);
+            Assert.True(profile.GetProperty("capacity").TryGetProperty("seats", out _));
+        }
+
         private Task<HttpResponseMessage> GetAsync(string path, string jwt)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, path);
