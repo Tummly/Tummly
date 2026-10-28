@@ -18,11 +18,10 @@ import {
   type CustomPlanBasePlanKey,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import {
-  isPriceConfirmed,
-  keepConfirmedHash,
+  capacityRetiredNotice,
   lastQuote,
   quoteHashChanged,
-  quoteView,
+  reviewGate,
 } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import { useServerCustomPlanQuote } from "@/lib/marketingCustomPlan/useServerCustomPlanQuote"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
@@ -140,28 +139,24 @@ export function SignupReviewPlanStep({
   }, [state])
 
   // A changed price needs its own confirmation: the hash of the ready quote the customer confirmed.
-  const readyHash = state.status === "ready" ? state.quote.quoteHash : null
-  const priceChanged = quoteChanged || restoredHashChanged
-  const priceConfirmed = isPriceConfirmed(confirmedHash, readyHash)
+  const waitingForCatalogue = selectable && config == null && plainLocations == null
+  const { view, continueEnabled, priceChanged, priceConfirmed, readyHash, keptHash } =
+    reviewGate({
+      selectable,
+      waitingForCatalogue,
+      check,
+      state,
+      quoteChanged,
+      restoredHashChanged,
+      confirmedHash,
+    })
   // A new ready quote ends the old acknowledgement for good: going back to an
   // earlier total does not bring the tick back.
-  const keptHash = keepConfirmedHash(confirmedHash, readyHash)
   if (keptHash !== confirmedHash) {
     setConfirmedHash(keptHash)
   }
 
   const quote = lastQuote(state)
-  const waitingForCatalogue = selectable && config == null && plainLocations == null
-  const view = waitingForCatalogue
-    ? null
-    : quoteView({
-        check,
-        state,
-        changed: priceChanged,
-        priceConfirmed,
-        failedMessage: CUSTOM_PLAN_QUOTE_COPY.quoteUnverified,
-      })
-  const continueEnabled = selectable && view?.continueEnabled === true
 
   function handleCadenceChange(next: BillingCadence) {
     setCadenceState(next)
@@ -179,8 +174,8 @@ export function SignupReviewPlanStep({
   const selectionMessage =
     selection === "no_selection"
       ? CUSTOM_PLAN_QUOTE_COPY.noSelection
-      : intent?.capacityOptionRetired === true
-        ? CUSTOM_PLAN_QUOTE_COPY.optionUnavailable
+      : capacityRetiredNotice(intent) != null
+        ? capacityRetiredNotice(intent)
         : selection === "restore_failed"
           ? CUSTOM_PLAN_QUOTE_COPY.restoreFailed
           : null

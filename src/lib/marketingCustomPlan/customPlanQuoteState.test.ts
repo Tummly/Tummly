@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { CustomPlanQuoteResult } from "@/api/adminCommercialCatalogApi"
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import {
+  capacityRetiredNotice,
   checkLocationInput,
   checkPackCount,
   isPriceConfirmed,
@@ -13,6 +14,7 @@ import {
   quoteHashChanged,
   quoteReducer,
   quoteView,
+  reviewGate,
   type QuoteState,
 } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 
@@ -320,6 +322,44 @@ describe("quoteView", () => {
     expect(view.continueEnabled).toBe(false)
   })
 
+  it("shows the approved invalid-unit copy for an invalid_pack_quantity failure code", () => {
+    const view = quoteView({
+      check: "ok",
+      state: { status: "failed", last: null, code: "invalid_pack_quantity" },
+      changed: false,
+    })
+    expect(view.message).toBe("Enter a whole number of units, starting from 1.")
+    expect(view.showRetry).toBe(false)
+    expect(view.continueEnabled).toBe(false)
+  })
+
+  it("shows the approved over-limit copy for a pack_quantity_over_limit failure code", () => {
+    const view = quoteView({
+      check: "ok",
+      state: { status: "failed", last: null, code: "pack_quantity_over_limit" },
+      changed: false,
+    })
+    expect(view.message).toBe(
+      "This quantity exceeds the available limit. Reduce the quantity or review your capacity options.",
+    )
+    expect(view.showRetry).toBe(false)
+    expect(view.continueEnabled).toBe(false)
+  })
+
+  it("shows the quote-not-verified copy on the review for an incomplete catalogue", () => {
+    const view = quoteView({
+      check: "ok",
+      state: { status: "failed", last: null, code: "catalog_incomplete" },
+      changed: false,
+      failedMessage: CUSTOM_PLAN_QUOTE_COPY.quoteUnverified,
+    })
+    expect(view.message).toBe(
+      "We couldn't confirm your updated total. Refresh your quote and try again. No payment has been taken.",
+    )
+    expect(view.showRetry).toBe(true)
+    expect(view.continueEnabled).toBe(false)
+  })
+
   it("shows the whole-number copy for an invalid_location_count failure code", () => {
     const view = quoteView({
       check: "ok",
@@ -424,5 +464,102 @@ describe("keepConfirmedHash", () => {
     const afterChange = keepConfirmedHash(a, b)
     expect(afterChange).toBeNull()
     expect(isPriceConfirmed(afterChange, a)).toBe(false)
+  })
+})
+
+describe("capacityRetiredNotice", () => {
+  it("is the approved unavailable-option copy when the saved selection named an old pack", () => {
+    expect(capacityRetiredNotice({ capacityOptionRetired: true })).toBe(
+      "This option is no longer available. Review the current capacity options and confirm your updated total before continuing.",
+    )
+  })
+
+  it("is empty when nothing was retired or there is no saved selection", () => {
+    expect(capacityRetiredNotice({})).toBeNull()
+    expect(capacityRetiredNotice(null)).toBeNull()
+    expect(capacityRetiredNotice(undefined)).toBeNull()
+  })
+})
+
+describe("reviewGate (signup review Continue and acknowledgement)", () => {
+  const a = "a".repeat(32)
+  const b = "b".repeat(32)
+  const ready = (hash: string): QuoteState => ({
+    status: "ready",
+    quote: quote({ quoteHash: hash }),
+  })
+  const base = {
+    selectable: true,
+    waitingForCatalogue: false,
+    check: "ok" as const,
+    quoteChanged: false,
+    restoredHashChanged: false,
+    confirmedHash: null as string | null,
+  }
+
+  it("lets an unchanged ready quote continue without a tick", () => {
+    const gate = reviewGate({ ...base, state: ready(a) })
+    expect(gate.priceChanged).toBe(false)
+    expect(gate.continueEnabled).toBe(true)
+  })
+
+  it("blocks Continue on a changed price until that exact total is ticked", () => {
+    const before = reviewGate({ ...base, state: ready(a), quoteChanged: true })
+    expect(before.priceChanged).toBe(true)
+    expect(before.continueEnabled).toBe(false)
+
+    const after = reviewGate({
+      ...base,
+      state: ready(a),
+      quoteChanged: true,
+      confirmedHash: a,
+    })
+    expect(after.priceConfirmed).toBe(true)
+    expect(after.continueEnabled).toBe(true)
+  })
+
+  it("treats a changed hash restored from the saved config like a rejected one", () => {
+    const gate = reviewGate({ ...base, state: ready(a), restoredHashChanged: true })
+    expect(gate.priceChanged).toBe(true)
+    expect(gate.continueEnabled).toBe(false)
+  })
+
+  it("ends the tick when another total is ready, and going back does not revive it", () => {
+    const onB = reviewGate({
+      ...base,
+      state: ready(b),
+      quoteChanged: true,
+      confirmedHash: a,
+    })
+    expect(onB.continueEnabled).toBe(false)
+    expect(onB.keptHash).toBeNull()
+
+    const backOnA = reviewGate({
+      ...base,
+      state: ready(a),
+      quoteChanged: true,
+      confirmedHash: onB.keptHash,
+    })
+    expect(backOnA.continueEnabled).toBe(false)
+  })
+
+  it("never continues on a failed quote, even with a tick, and shows the not-verified copy", () => {
+    const gate = reviewGate({
+      ...base,
+      state: { status: "failed", last: null, code: "catalog_incomplete" },
+      quoteChanged: true,
+      confirmedHash: a,
+    })
+    expect(gate.continueEnabled).toBe(false)
+    expect(gate.view?.message).toBe(CUSTOM_PLAN_QUOTE_COPY.quoteUnverified)
+  })
+
+  it("does not continue when nothing can be paid for or the catalogue is still loading", () => {
+    expect(
+      reviewGate({ ...base, state: ready(a), selectable: false }).continueEnabled,
+    ).toBe(false)
+    const waiting = reviewGate({ ...base, state: ready(a), waitingForCatalogue: true })
+    expect(waiting.view).toBeNull()
+    expect(waiting.continueEnabled).toBe(false)
   })
 })

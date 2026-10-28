@@ -221,6 +221,20 @@ export function quoteView(input: {
           continueEnabled: false,
         }
       }
+      if (state.code === "invalid_pack_quantity") {
+        return {
+          ...base,
+          message: CUSTOM_PLAN_QUOTE_COPY.unitNotWhole,
+          continueEnabled: false,
+        }
+      }
+      if (state.code === "pack_quantity_over_limit") {
+        return {
+          ...base,
+          message: CUSTOM_PLAN_QUOTE_COPY.unitOverLimit,
+          continueEnabled: false,
+        }
+      }
       if (state.code === "invalid_location_count") {
         return {
           ...base,
@@ -285,4 +299,60 @@ export function keepConfirmedHash(
   return confirmedHash != null && readyHash != null && confirmedHash !== readyHash
     ? null
     : confirmedHash
+}
+
+/** Notice for a saved selection that named a capacity option that is no longer sold. */
+export function capacityRetiredNotice(
+  intent: { capacityOptionRetired?: true } | null | undefined,
+): string | null {
+  return intent?.capacityOptionRetired === true
+    ? CUSTOM_PLAN_QUOTE_COPY.optionUnavailable
+    : null
+}
+
+/**
+ * Signup review: whether Continue to payment is open. A changed price needs the
+ * customer's tick for the exact ready total; a failed or loading quote never continues.
+ */
+export function reviewGate(input: {
+  selectable: boolean
+  waitingForCatalogue: boolean
+  check: LocationInputCheck
+  state: QuoteState
+  /** The server rejected the saved quote hash. */
+  quoteChanged: boolean
+  /** The first ready quote differs from the hash saved earlier. */
+  restoredHashChanged: boolean
+  confirmedHash: string | null
+}): {
+  view: QuoteView | null
+  continueEnabled: boolean
+  priceChanged: boolean
+  priceConfirmed: boolean
+  readyHash: string | null
+  /** The tick to keep: null once another total is ready. */
+  keptHash: string | null
+} {
+  const readyHash =
+    input.state.status === "ready" ? input.state.quote.quoteHash : null
+  const priceChanged = input.quoteChanged || input.restoredHashChanged
+  const priceConfirmed = isPriceConfirmed(input.confirmedHash, readyHash)
+  const keptHash = keepConfirmedHash(input.confirmedHash, readyHash)
+  const view = input.waitingForCatalogue
+    ? null
+    : quoteView({
+        check: input.check,
+        state: input.state,
+        changed: priceChanged,
+        priceConfirmed,
+        failedMessage: CUSTOM_PLAN_QUOTE_COPY.quoteUnverified,
+      })
+  return {
+    view,
+    continueEnabled: input.selectable && view?.continueEnabled === true,
+    priceChanged,
+    priceConfirmed,
+    readyHash,
+    keptHash,
+  }
 }
