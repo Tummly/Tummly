@@ -80,5 +80,7 @@ namespace TummlyBackend.Models
         public const string SmsStop = "sms-stop";
 
         public const string Suppression = "suppression";
+
+        public const string PreferenceCentre = "preference-centre";
     }
 }

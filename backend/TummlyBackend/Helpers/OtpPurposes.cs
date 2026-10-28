@@ -13,5 +13,7 @@ namespace TummlyBackend.Helpers
         public const string Trial = "trial";
 
         public const string TeamInvite = "team_invite";
+
+        public const string GuestPreferences = "guest_preferences";
     }
 }
