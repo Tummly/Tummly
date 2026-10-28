@@ -10226,6 +10226,13 @@ namespace TummlyBackend.Tests.Services
             )
                 => throw new InvalidOperationException("Campaign create failed.");
 
+            public Task<CampaignRecommendationDraftResult> CreateOrGetFromRecommendationAsync(
+                CreateRecommendationCampaignDraftRequest request,
+                int createdByUserId,
+                CancellationToken cancellationToken = default
+            )
+                => throw new InvalidOperationException("Campaign create failed.");
+
             public Task<CampaignDraftDto?> GetByIdAsync(
                 int campaignId,
                 CancellationToken cancellationToken = default
