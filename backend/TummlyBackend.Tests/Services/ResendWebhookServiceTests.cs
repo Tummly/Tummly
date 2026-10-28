@@ -19,6 +19,7 @@ namespace TummlyBackend.Tests.Services
         private readonly string _signingSecret;
         private readonly DateTime _now = new(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
         private readonly ResendWebhookService _service;
+        private readonly IGuestContactHasher _hasher;
 
         public ResendWebhookServiceTests()
         {
@@ -31,12 +32,24 @@ namespace TummlyBackend.Tests.Services
             RandomNumberGenerator.Fill(_secretBytes);
             _signingSecret = "whsec_" + Convert.ToBase64String(_secretBytes);
 
+            var hasher = new GuestContactHasher(GuestContactHasher.TestingFallbackKey);
+            _hasher = hasher;
+            var suppressions = new GuestContactSuppressionService(_context, hasher);
+            var withdraw = new GuestInitiatedMarketingWithdrawService(
+                _context,
+                new LocationGuestPermissionLedgerService(_context),
+                suppressions,
+                NullLogger<GuestInitiatedMarketingWithdrawService>.Instance
+            );
+
             _service = new ResendWebhookService(
                 _context,
                 Options.Create(
                     new EmailSettings { WebhookSigningSecret = _signingSecret }
                 ),
                 NullLogger<ResendWebhookService>.Instance,
+                withdraw,
+                suppressions,
                 () => _now
             );
         }
@@ -284,6 +297,117 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(GuestReplyDeliveryState.Delivered, reply.DeliveryState);
             Assert.Equal(_now, reply.DeliveryStateAtUtc);
         }
+
+        [Fact]
+        public async Task Resend_PermanentBounce_SuppressesEmailMarketingForCampaignGuest()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-1");
+
+            var status = await PostAsync(
+                MailEventBody("email.bounced", "camp-1", bounceType: "Permanent"),
+                "msg_perm"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            var suppression = await _context.GuestContactSuppressions.SingleAsync();
+            Assert.Equal(LocationGuestPermissionKind.EmailMarketing, suppression.PermissionKind);
+            Assert.Equal("bounce", suppression.Source);
+            Assert.Equal(_hasher.Hash("email:guest@example.com"), suppression.ContactHash);
+            Assert.Equal(await RestaurantIdAsync(), suppression.RestaurantId);
+
+            var withdrawal = await _context.LocationGuestPermissionLedgerEntries.SingleAsync();
+            Assert.Equal(LocationGuestPermissionKind.EmailMarketing, withdrawal.PermissionKind);
+            Assert.Equal(LocationGuestPermissionLedgerEventKinds.Withdraw, withdrawal.EventKind);
+            Assert.Equal("bounce", withdrawal.Source);
+        }
+
+        [Fact]
+        public async Task Resend_TemporaryBounce_DoesNotSuppress()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-temp");
+
+            var status = await PostAsync(
+                MailEventBody("email.bounced", "camp-temp", bounceType: "Temporary"),
+                "msg_temp"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            Assert.Empty(await _context.GuestContactSuppressions.ToListAsync());
+            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Resend_BounceWithoutType_TreatedAsHard()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-untyped");
+
+            await PostAsync(
+                MailEventBody("email.bounced", "camp-untyped", bounceType: null),
+                "msg_untyped"
+            );
+
+            var suppression = await _context.GuestContactSuppressions.SingleAsync();
+            Assert.Equal("bounce", suppression.Source);
+        }
+
+        [Fact]
+        public async Task Resend_Complaint_SuppressesEmailMarketingWithComplaintSource()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-spam");
+
+            var status = await PostAsync(
+                MailEventBody("email.complained", "camp-spam", bounceType: null),
+                "msg_spam"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            var suppression = await _context.GuestContactSuppressions.SingleAsync();
+            Assert.Equal(LocationGuestPermissionKind.EmailMarketing, suppression.PermissionKind);
+            Assert.Equal("complaint", suppression.Source);
+            var withdrawal = await _context.LocationGuestPermissionLedgerEntries.SingleAsync();
+            Assert.Equal("complaint", withdrawal.Source);
+        }
+
+        [Fact]
+        public async Task Resend_RepeatedBounce_DoesNotDuplicateSuppressionOrLedgerRow()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-repeat");
+            var body = MailEventBody("email.bounced", "camp-repeat", bounceType: "Permanent");
+
+            await PostAsync(body, "msg_rep_1");
+            await PostAsync(body, "msg_rep_2");
+
+            Assert.Single(await _context.GuestContactSuppressions.ToListAsync());
+            Assert.Single(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Resend_BounceForUnknownEmailId_SuppressesNothing()
+        {
+            await SeedDeliveryAsync(providerMessageId: "camp-known");
+
+            var status = await PostAsync(
+                MailEventBody("email.bounced", "system-mail", bounceType: "Permanent"),
+                "msg_unknown_bounce"
+            );
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            Assert.Empty(await _context.GuestContactSuppressions.ToListAsync());
+            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+        }
+
+        private static string MailEventBody(string type, string emailId, string? bounceType)
+        {
+            var bounce = bounceType == null
+                ? "{\"message\":\"rejected\"}"
+                : "{\"type\":\"" + bounceType + "\",\"message\":\"rejected\"}";
+            return "{\"type\":\"" + type + "\",\"created_at\":\"2026-10-06T11:58:00.000Z\","
+                + "\"data\":{\"email_id\":\"" + emailId + "\",\"to\":[\"guest@example.com\"],"
+                + "\"bounce\":" + bounce + "}}";
+        }
+
+        private async Task<int> RestaurantIdAsync() =>
+            (await _context.Restaurants.SingleAsync()).Id;
 
         private static readonly DateTime EventTime = new(
             2026,
