@@ -150,6 +150,22 @@ namespace TummlyBackend.Helpers
             return events;
         }
 
+        /// <summary>
+        /// True when a Guest Form Grant would repeat consent the guest already
+        /// gave: the channel is Granted and the latest Grant row has the same
+        /// wording version and wording snapshot. A version or wording change
+        /// still writes a new Grant.
+        /// </summary>
+        public static bool IsGrantAlreadyRecorded(
+            LocationGuestPermissionState currentState,
+            PermissionLedgerEvidence? currentGrant,
+            PermissionLedgerEvidence proposedGrant
+        ) =>
+            currentState == LocationGuestPermissionState.Granted
+            && currentGrant is not null
+            && currentGrant.WordingVersion == proposedGrant.WordingVersion
+            && currentGrant.WordingSnapshot == proposedGrant.WordingSnapshot;
+
         public static bool CanSendFeedbackFollowUp(
             Restaurant restaurant,
             IReadOnlyDictionary<

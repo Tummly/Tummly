@@ -40,6 +40,8 @@ export type GuestMicSttAdapters = {
   stopRecording: () => Promise<Blob>
   cancelRecording: () => Promise<void>
   transcribe: (audio: Blob) => Promise<GuestSttResult>
+  /** Current field text. Dictation appends to it; omit to start from empty. */
+  getComment?: () => string
   replaceComment: (text: string) => void
 }
 
@@ -219,9 +221,13 @@ export function createGuestMicSttModule(
   }
 
   const applyTranscript = (text: string) => {
-    const trimmed = text.trim()
-    if (trimmed.length > maxCommentLength) {
-      adapters.replaceComment(trimmed.slice(0, maxCommentLength))
+    const transcript = text.trim()
+    const existing = (adapters.getComment?.() ?? "").trimEnd()
+    const combined =
+      existing && transcript ? `${existing} ${transcript}` : existing || transcript
+
+    if (combined.length > maxCommentLength) {
+      adapters.replaceComment(combined.slice(0, maxCommentLength))
       state = {
         ...state,
         truncateNotice: errorCopy.truncated,
@@ -230,7 +236,7 @@ export function createGuestMicSttModule(
       return
     }
 
-    adapters.replaceComment(trimmed)
+    adapters.replaceComment(combined)
     state = {
       ...state,
       truncateNotice: null,

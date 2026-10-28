@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
+import { tryNormalizeUkMobileToE164 } from "@/lib/phoneNumber"
 import { validationMessages } from "@/schemas/messages"
 
 function isValidEmail(value: string) {
@@ -8,7 +8,7 @@ function isValidEmail(value: string) {
 }
 
 function isValidUkPhone(value: string) {
-  return tryNormalizePhoneToE164(value) !== null
+  return tryNormalizeUkMobileToE164(value) !== null
 }
 
 export const guestContactSchema = z
@@ -38,11 +38,13 @@ export const guestContactSchema = z
 export const guestFeedbackSchema = z.object({
   guestName: z
     .string()
+    .trim()
     .min(1, validationMessages.guestFeedback.guestName.required)
     .max(150, "First name must be 150 characters or fewer."),
   guestContact: guestContactSchema,
   comment: z
     .string()
+    .trim()
     .min(1, validationMessages.guestFeedback.comment.required)
     .max(1000, "Message must be 1000 characters or fewer."),
   acceptsOffers: z.boolean(),

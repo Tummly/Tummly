@@ -35,6 +35,75 @@ namespace TummlyBackend.Helpers
         {
             e164 = null;
 
+            if (!TryParseValidUk(phoneNumber, defaultRegion, out var parsed))
+            {
+                return false;
+            }
+
+            e164 = Util.Format(parsed!, PhoneNumberFormat.E164);
+            return true;
+        }
+
+        /// <summary>
+        /// Guest contact only: valid UK mobile (libphonenumber MOBILE).
+        /// Shared <see cref="TryNormalizeToE164"/> stays unchanged.
+        /// </summary>
+        public static bool TryNormalizeUkMobileToE164(
+            string phoneNumber,
+            string defaultRegion,
+            out string? e164
+        )
+        {
+            e164 = null;
+
+            if (!TryParseUk(phoneNumber, defaultRegion, out var parsed))
+            {
+                return false;
+            }
+
+            if (!IsUkMobile(parsed!))
+            {
+                return false;
+            }
+
+            e164 = Util.Format(parsed!, PhoneNumberFormat.E164);
+            return true;
+        }
+
+        /// <summary>
+        /// Valid UK mobile (libphonenumber MOBILE), plus the Ofcom drama range
+        /// 07700 900000–900999 that libphonenumber rejects. Guest contact only.
+        /// </summary>
+        private static bool IsUkMobile(PhoneNumber parsed)
+        {
+            if (Util.IsValidNumber(parsed))
+            {
+                return Util.GetNumberType(parsed) == PhoneNumberType.MOBILE;
+            }
+
+            var nationalNumber = Util.GetNationalSignificantNumber(parsed);
+            return nationalNumber.Length == 10
+                && nationalNumber.StartsWith("7700900", StringComparison.Ordinal);
+        }
+
+        private static bool TryParseValidUk(
+            string phoneNumber,
+            string defaultRegion,
+            out PhoneNumber? parsed
+        )
+        {
+            return TryParseUk(phoneNumber, defaultRegion, out parsed)
+                && Util.IsValidNumber(parsed!);
+        }
+
+        private static bool TryParseUk(
+            string phoneNumber,
+            string defaultRegion,
+            out PhoneNumber? parsed
+        )
+        {
+            parsed = null;
+
             if (string.IsNullOrWhiteSpace(phoneNumber))
             {
                 return false;
@@ -45,16 +114,16 @@ namespace TummlyBackend.Helpers
             try
             {
                 var trimmed = phoneNumber.Trim();
-                var parsed = trimmed.StartsWith('+')
+                var candidate = trimmed.StartsWith('+')
                     ? Util.Parse(trimmed, null)
                     : Util.Parse(trimmed, region);
 
-                if (!Util.IsValidNumber(parsed) || !IsUkNumber(parsed))
+                if (!IsUkNumber(candidate))
                 {
                     return false;
                 }
 
-                e164 = Util.Format(parsed, PhoneNumberFormat.E164);
+                parsed = candidate;
                 return true;
             }
             catch (NumberParseException)

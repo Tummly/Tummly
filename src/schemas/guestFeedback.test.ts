@@ -29,6 +29,63 @@ describe("guestFeedbackSchema", () => {
     expect(result.success).toBe(false)
   })
 
+  it.each([
+    "020 7946 0000",
+    "+44 20 7946 0000",
+    "02079460000",
+  ])("rejects UK landline contact %s", (guestContact) => {
+    const result = guestFeedbackSchema.safeParse({
+      ...validGuestFeedback,
+      guestContact,
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it.each(["07911 123456", "+44 7911 123456", "07700 900123", "+44 7700 900123"])(
+    "accepts UK mobile contact %s",
+    (guestContact) => {
+      const result = guestFeedbackSchema.safeParse({
+        ...validGuestFeedback,
+        guestContact,
+      })
+
+      expect(result.success).toBe(true)
+    }
+  )
+
+  it.each(["", "   ", "\t\n"])(
+    "rejects whitespace-only first name %j with the guest form message",
+    (guestName) => {
+      const result = guestFeedbackSchema.safeParse({
+        ...validGuestFeedback,
+        guestName,
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe("First name is required.")
+      }
+    }
+  )
+
+  it.each(["", "   ", "\t\n"])(
+    "rejects whitespace-only feedback %j with the guest form message",
+    (comment) => {
+      const result = guestFeedbackSchema.safeParse({
+        ...validGuestFeedback,
+        comment,
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe(
+          "Please leave your feedback."
+        )
+      }
+    }
+  )
+
   it("requires first name with the guest form message", () => {
     const result = guestFeedbackSchema.safeParse({
       ...validGuestFeedback,

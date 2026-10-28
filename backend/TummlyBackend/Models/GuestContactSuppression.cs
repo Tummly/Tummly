@@ -38,5 +38,9 @@ namespace TummlyBackend.Models
         public const string EmailUnsubscribe = "email-unsubscribe";
 
         public const string SmsStop = "sms-stop";
+
+        public const string EmailBounce = "email-bounce";
+
+        public const string EmailComplaint = "email-complaint";
     }
 }
