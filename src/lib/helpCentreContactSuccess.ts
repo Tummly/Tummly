@@ -23,3 +23,20 @@ export type HelpCentreContactSuccessState = {
   queryId: number
   email: string
 }
+
+/** True only when router state carries a real submission (queryId and email). */
+export function isHelpCentreContactSuccessState(
+  value: unknown
+): value is HelpCentreContactSuccessState {
+  if (!value || typeof value !== "object") {
+    return false
+  }
+
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.queryId === "number" &&
+    Number.isFinite(record.queryId) &&
+    typeof record.email === "string" &&
+    record.email.trim().length > 0
+  )
+}

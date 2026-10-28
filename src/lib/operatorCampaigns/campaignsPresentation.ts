@@ -59,8 +59,6 @@ export const CAMPAIGNS_PAGE_COPY = {
 
 export const CAMPAIGNS_MESSAGING_USAGE_ANCHOR_ID = "campaigns-messaging-usage"
 
-export const CAMPAIGNS_HELP_ARTICLE_SLUG = "campaigns"
-
 export const OPERATOR_CAMPAIGNS_DEFAULT_SORT_ID: OperatorCampaignsSortId =
   "recent-activity"
 
