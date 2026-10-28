@@ -363,17 +363,20 @@ export function CustomPlanSummaryCard({
           </div>
 
           <div className="flex shrink-0 flex-col gap-8 bg-[#e5e5e5] p-7">
-            <div className="flex items-center justify-between gap-4">
-              <p className="m-0 font-sans text-lg text-black">Estimated total</p>
-              <p className="m-0 text-[#141414]">
-                <span className="font-sans text-[36px] font-normal leading-none">
-                  {formatPenceGbp(quote.periodNetPence)}
-                </span>
-                <span className="font-sans text-sm font-normal">
-                  {totalSuffix}
-                </span>
-              </p>
-            </div>
+            {/* The breakdown carries its own totals (Total before VAT, Updated total); a second net "Estimated total" beside the gross one would conflict. */}
+            {showBreakdown ? null : (
+              <div className="flex items-center justify-between gap-4">
+                <p className="m-0 font-sans text-lg text-black">Estimated total</p>
+                <p className="m-0 text-[#141414]">
+                  <span className="font-sans text-[36px] font-normal leading-none">
+                    {formatPenceGbp(quote.periodNetPence)}
+                  </span>
+                  <span className="font-sans text-sm font-normal">
+                    {totalSuffix}
+                  </span>
+                </p>
+              </div>
+            )}
             {showBreakdown ? <CustomPlanQuoteBreakdown quote={quote} /> : null}
             {statusMessage != null && statusMessage !== "" ? (
               <CustomPlanQuoteStatus

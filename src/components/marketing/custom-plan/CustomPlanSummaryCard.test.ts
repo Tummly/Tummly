@@ -147,45 +147,67 @@ describe("CustomPlanSummaryCard breakdown", () => {
     )
   }
 
-  it("labels every row the review needs, all from the server quote", () => {
-    const html = renderWith(VAT_QUOTE, true)
-    expect(html).toContain("Quote breakdown")
-    expect(html).toContain("Billing period")
-    expect(html).toContain("Annual")
-    expect(html).toContain("Updated total")
-    expect(html).toContain("£120")
-    expect(html).toContain("Effective date")
-    expect(html).toContain("When payment is confirmed")
-    expect(html).toContain("New recurring amount")
-    expect(html).toContain("Amount due today")
-    expect(html).not.toContain("Due now")
-    expect(html).not.toContain("Each year after")
+  /** Every `<dt>`/`<dd>` pair in order, as plain text. */
+  function pairs(html: string): [string, string][] {
+    return [...html.matchAll(/<dt[^>]*>(.*?)<\/dt><dd[^>]*>(.*?)<\/dd>/g)].map(
+      (match) => [match[1], match[2]],
+    )
+  }
+
+  it("shows each summary row with its exact label and server value", () => {
+    expect(pairs(renderWith(VAT_QUOTE, true))).toEqual([
+      ["Quantity", "1"],
+      ["Price per unit", "£39"],
+      ["Line total", "£39"],
+      ["Quantity", "7"],
+      ["Price per unit", "£3"],
+      ["Line total", "£21"],
+      ["Billing period", "Annual"],
+      ["Total before VAT", "£100"],
+      ["VAT", "£20"],
+      ["Updated total", "£120"],
+      ["Effective date", "When payment is confirmed"],
+      ["New recurring amount", "£120 / per year"],
+      ["Amount due today", "£120"],
+    ])
   })
 
   it("shows name, quantity, price per unit and line total for each line", () => {
     const html = renderWith(NO_VAT_QUOTE, true)
     expect(html).toContain("Additional team users")
-    expect(html).toContain("Quantity")
-    expect(html).toContain("Price per unit")
-    expect(html).toContain("£3")
-    expect(html).toContain("£21")
-    expect(html).toContain(">7<")
+    expect(pairs(html).slice(3, 6)).toEqual([
+      ["Quantity", "7"],
+      ["Price per unit", "£3"],
+      ["Line total", "£21"],
+    ])
   })
 
-  it("shows VAT, the net total and the gross total only when VAT applies", () => {
-    const html = renderWith(VAT_QUOTE, true)
-    expect(html).toContain("VAT")
-    expect(html).toContain("£20")
-    expect(html).toContain("Total before VAT")
-    expect(html).toContain("£100")
-  })
-
-  it("leaves out the VAT row and all VAT wording when VAT is off", () => {
+  it("leaves out the VAT rows and all VAT wording when VAT is off", () => {
     const html = renderWith(NO_VAT_QUOTE, true)
+    const labels = pairs(html).map(([label]) => label)
+    expect(labels).not.toContain("VAT")
+    expect(labels).not.toContain("Total before VAT")
     expect(html).not.toContain("VAT")
-    expect(html).not.toContain("Total before")
-    expect(html).toContain("Updated total")
-    expect(html).toContain("£60")
+    expect(pairs(html).find(([label]) => label === "Updated total")).toEqual([
+      "Updated total",
+      "£60",
+    ])
+  })
+
+  it("shows a net figure only as Total before VAT, never as a second total", () => {
+    const html = renderWith(VAT_QUOTE, true)
+    expect(html).not.toContain("Estimated total")
+    const totals = pairs(html).filter(([label]) => /total/i.test(label) && label !== "Line total")
+    expect(totals).toEqual([
+      ["Total before VAT", "£100"],
+      ["Updated total", "£120"],
+    ])
+    expect(renderWith(NO_VAT_QUOTE, true)).not.toContain("Estimated total")
+  })
+
+  it("keeps the Estimated total when there is no breakdown", () => {
+    const html = renderWith(VAT_QUOTE, false)
+    expect(html).toContain("Estimated total")
   })
 
   it("is off unless asked for", () => {
