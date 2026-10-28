@@ -18,6 +18,7 @@ namespace TummlyBackend.Services
         private readonly IRestaurantAccountTypePromotion _accountTypePromotion;
         private readonly IPricebookCatalog _pricebook;
         private readonly IActiveQrCapacity _activeQrCapacity;
+        private readonly IPremisesReviewService _premises;
 
         public LocationsLifecycleWriteService(
             ApplicationDbContext context,
@@ -26,9 +27,11 @@ namespace TummlyBackend.Services
             IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
             IRestaurantAccountTypePromotion accountTypePromotion,
             IPricebookCatalog pricebook,
-            IActiveQrCapacity activeQrCapacity
+            IActiveQrCapacity activeQrCapacity,
+            IPremisesReviewService? premises = null
         )
         {
+            _premises = premises ?? new PremisesReviewService(context);
             _context = context;
             _qrCodeProvisioning = qrCodeProvisioning;
             _complimentaryStarterShopOrders = complimentaryStarterShopOrders;
@@ -224,6 +227,12 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var previousKey = location.PremisesKey
+                ?? PremisesKey.ForStorage(
+                    PremisesKey.Build(location.Address, location.City, location.Postcode)
+                );
+            var previousFsa = location.FsaEstablishmentId;
+
             location.LocationName = request.LocationName.Trim();
             location.Address = request.Address.Trim();
             location.City = request.City.Trim();
@@ -235,6 +244,17 @@ namespace TummlyBackend.Services
                 ? null
                 : request.LocalContact.Trim();
 
+            // Null means "not sent": keep the stored id. An empty string clears it.
+            var fsa = request.FsaEstablishmentId == null
+                ? previousFsa
+                : PremisesReviewService.NormalizeFsa(request.FsaEstablishmentId);
+            var flaggedCheck = await RecheckPremisesAsync(
+                location,
+                previousKey,
+                previousFsa,
+                fsa
+            );
+
             await EmitEditedAsync(
                 restaurantId,
                 locationId,
@@ -242,9 +262,79 @@ namespace TummlyBackend.Services
                 location.LocationName
             );
             await _context.SaveChangesAsync();
+            if (flaggedCheck != null)
+            {
+                _premises.RecordFlag(location, flaggedCheck);
+                await _context.SaveChangesAsync();
+            }
             return new LocationLifecycleWriteResult.Ok(
                 await CurrentAccountTypeAsync(restaurantId)
             );
+        }
+
+        /// <summary>
+        /// Keeps the persisted premises key in step with an edit. A Draft that
+        /// moved to other premises is checked again: an earlier clearance no
+        /// longer applies, and a new match sends it to review and pauses its
+        /// QR codes so it holds no capacity. A Location already in review stays
+        /// in review; only an Admin resolves it. Returns the check when it
+        /// flagged, so the caller can write the audit row after the save.
+        /// </summary>
+        private async Task<PremisesCheckResult?> RecheckPremisesAsync(
+            RestaurantLocation location,
+            string? previousKey,
+            string? previousFsa,
+            string? fsa
+        )
+        {
+            var check = await _premises.CheckAsync(
+                new PremisesCheckInput(
+                    location.RestaurantId,
+                    location.Address,
+                    location.City,
+                    location.Postcode,
+                    fsa,
+                    ExcludeLocationId: location.Id
+                )
+            );
+            var changed = check.PremisesKey != previousKey || fsa != previousFsa;
+            location.PremisesKey = check.PremisesKey;
+            location.FsaEstablishmentId = fsa;
+
+            if (
+                !changed
+                || location.LifecycleStatus != LocationLifecycleStatus.Draft
+                || PremisesReviewGate.Blocks(location)
+            )
+            {
+                return null;
+            }
+
+            if (location.PremisesReviewStatus == PremisesReviewStatus.Cleared)
+            {
+                location.PremisesReviewStatus = PremisesReviewStatus.None;
+                location.PremisesReviewedAtUtc = null;
+                location.PremisesReviewedByAdminUserId = null;
+                location.PremisesReviewReason = null;
+            }
+
+            if (!_premises.Apply(location, check))
+            {
+                return null;
+            }
+
+            var activeCodes = await _context.QrCodes
+                .Where(qr =>
+                    qr.RestaurantLocationId == location.Id
+                    && qr.Status == QrCodeStatus.Active
+                )
+                .ToListAsync();
+            foreach (var qr in activeCodes)
+            {
+                qr.Status = QrCodeStatus.Paused;
+            }
+
+            return check;
         }
 
         private async Task<string> CurrentAccountTypeAsync(int restaurantId)
@@ -334,6 +424,16 @@ namespace TummlyBackend.Services
             {
                 return new LocationLifecycleWriteResult.InvalidRequest(
                     "Postcode is required."
+                );
+            }
+
+            if (
+                PremisesReviewService.NormalizeFsa(request.FsaEstablishmentId)
+                    is { Length: > PremisesReviewService.FsaMaxLength }
+            )
+            {
+                return new LocationLifecycleWriteResult.InvalidRequest(
+                    "FSA establishment id is too long."
                 );
             }
 

@@ -348,6 +348,125 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(_context.QrCodes);
         }
 
+        // --- Edit (a Draft moved onto taken premises is re-checked) ---
+
+        [Fact]
+        public async Task EditDraft_ontoPremisesOfAnotherLocation_GoesToReview_AndPausesItsQrCodes()
+        {
+            var taken = SeedLocation(LocationLifecycleStatus.Active, PremisesReviewStatus.None);
+            await SetAddressAsync(taken, "5 Market Place", "Leeds", "LS2 2BB");
+            var draft = SeedLocation(LocationLifecycleStatus.Draft, PremisesReviewStatus.None);
+            await SetAddressAsync(draft, "9 Other Road", "Leeds", "LS3 3CC");
+            var qr = SeedQr(draft, QrCodeStatus.Active);
+
+            var result = await _write.EditDetailsAsync(
+                _restaurantId,
+                draft,
+                _userId,
+                new AddOwnedLocationRequest
+                {
+                    LocationName = "Draft",
+                    Address = "5 Market Pl",
+                    City = "Leeds",
+                    Postcode = "LS2 2BB",
+                }
+            );
+
+            Assert.IsType<LocationLifecycleWriteResult.Ok>(result);
+            var location = await Reload(draft);
+            Assert.Equal(PremisesReviewStatus.PendingReview, location.PremisesReviewStatus);
+            Assert.Equal(
+                QrCodeStatus.Paused,
+                (await _context.QrCodes.SingleAsync(row => row.Id == qr.Id)).Status
+            );
+            Assert.Equal(
+                1,
+                await _context.AdminAuditEvents.CountAsync(row =>
+                    row.Action == AdminAuditActions.LocationPremisesFlagged
+                    && row.TargetId == draft.ToString()
+                )
+            );
+        }
+
+        [Fact]
+        public async Task EditDraft_ClearedThenMovedToFreePremises_ResetsReview()
+        {
+            var draft = SeedLocation(LocationLifecycleStatus.Draft, PremisesReviewStatus.Cleared);
+            await SetAddressAsync(draft, "9 Other Road", "Leeds", "LS3 3CC");
+
+            await _write.EditDetailsAsync(
+                _restaurantId,
+                draft,
+                _userId,
+                new AddOwnedLocationRequest
+                {
+                    LocationName = "Draft",
+                    Address = "11 Quiet Road",
+                    City = "Leeds",
+                    Postcode = "LS3 3CC",
+                }
+            );
+
+            Assert.Equal(PremisesReviewStatus.None, (await Reload(draft)).PremisesReviewStatus);
+        }
+
+        [Fact]
+        public async Task EditDraft_WhilePendingReview_DoesNotSelfClear()
+        {
+            var draft = SeedLocation(
+                LocationLifecycleStatus.Draft,
+                PremisesReviewStatus.PendingReview
+            );
+
+            await _write.EditDetailsAsync(
+                _restaurantId,
+                draft,
+                _userId,
+                new AddOwnedLocationRequest
+                {
+                    LocationName = "Draft",
+                    Address = "11 Quiet Road",
+                    City = "Leeds",
+                    Postcode = "LS3 3CC",
+                }
+            );
+
+            Assert.Equal(PremisesReviewStatus.PendingReview, (await Reload(draft)).PremisesReviewStatus);
+        }
+
+        [Fact]
+        public async Task EditDraft_WithoutFsaField_KeepsStoredFsaId_EmptyStringClearsIt()
+        {
+            var draft = SeedLocation(LocationLifecycleStatus.Draft, PremisesReviewStatus.None);
+            var row = await _context.RestaurantLocations.SingleAsync(l => l.Id == draft);
+            row.FsaEstablishmentId = "ABC123";
+            await _context.SaveChangesAsync();
+            AddOwnedLocationRequest Edit(string? fsa) => new()
+            {
+                LocationName = "Draft",
+                Address = "11 Quiet Road",
+                City = "Leeds",
+                Postcode = "LS3 3CC",
+                FsaEstablishmentId = fsa,
+            };
+
+            await _write.EditDetailsAsync(_restaurantId, draft, _userId, Edit(null));
+            Assert.Equal("ABC123", (await Reload(draft)).FsaEstablishmentId);
+
+            await _write.EditDetailsAsync(_restaurantId, draft, _userId, Edit(""));
+            Assert.Null((await Reload(draft)).FsaEstablishmentId);
+        }
+
+        private async Task SetAddressAsync(int id, string address, string city, string postcode)
+        {
+            var row = await _context.RestaurantLocations.SingleAsync(l => l.Id == id);
+            row.Address = address;
+            row.City = city;
+            row.Postcode = postcode;
+            row.PremisesKey = PremisesKey.Build(address, city, postcode);
+            await _context.SaveChangesAsync();
+        }
+
         public void Dispose() => _context.Dispose();
 
         private async Task<RestaurantLocation> Reload(int id)
