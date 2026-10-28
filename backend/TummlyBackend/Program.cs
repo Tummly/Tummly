@@ -353,6 +353,7 @@ builder.Services.AddScoped<IGuestUpsertService, GuestUpsertService>();
 
 builder.Services.AddScoped<IGuestFormSubmitLock, GuestFormSubmitLock>();
 builder.Services.AddScoped<IGuestReplyLock, GuestReplyLock>();
+builder.Services.AddScoped<ICampaignFireLock, CampaignFireLock>();
 
 builder.Services.AddSingleton<IGuestContactHasher>(sp =>
     GuestContactHasher.FromConfiguration(

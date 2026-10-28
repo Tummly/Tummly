@@ -1108,6 +1108,12 @@ namespace TummlyBackend.Controllers
                     code = "not_fireable",
                     message = notFireable.Message,
                 }),
+                CampaignFireResult.InProgress => Conflict(new
+                {
+                    success = false,
+                    code = "fire_in_progress",
+                    message = "This campaign is already being sent. Reload to see its status.",
+                }),
                 CampaignFireResult.Conflict => Conflict(new
                 {
                     success = false,
