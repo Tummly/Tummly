@@ -639,11 +639,12 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(
                 new[]
                 {
-                    AdminAuditActions.ShopDispatched,
                     AdminAuditActions.ShopDelivered,
+                    AdminAuditActions.ShopDispatched,
                 },
+                // Audit ids are GUIDs, so sort by action for a stable order.
                 (await db.AdminAuditEvents
-                    .OrderBy(row => row.Id)
+                    .OrderBy(row => row.Action)
                     .ToListAsync())
                     .Select(row => row.Action)
             );
