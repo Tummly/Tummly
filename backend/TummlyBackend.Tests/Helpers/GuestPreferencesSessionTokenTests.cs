@@ -195,4 +195,48 @@ public class GuestPreferencesSessionTokenTests
             GuestPreferencesSessionToken.ResolveSecret(config)
         );
     }
+
+    [Fact]
+    public void FallsBackToSharedSecret_ProductionWithoutDedicatedKey_True()
+    {
+        var config = ConfigWith(new Dictionary<string, string?>
+        {
+            ["Unsubscribe:SigningSecret"] = "unsubscribe-secret",
+        });
+
+        Assert.True(GuestPreferencesSessionToken.FallsBackToSharedSecret(isProduction: true, config));
+    }
+
+    [Fact]
+    public void FallsBackToSharedSecret_ProductionWithBlankDedicatedKey_True()
+    {
+        var config = ConfigWith(new Dictionary<string, string?>
+        {
+            ["GuestPreferences:SessionSigningSecret"] = "   ",
+        });
+
+        Assert.True(GuestPreferencesSessionToken.FallsBackToSharedSecret(isProduction: true, config));
+    }
+
+    [Fact]
+    public void FallsBackToSharedSecret_ProductionWithDedicatedKey_False()
+    {
+        var config = ConfigWith(new Dictionary<string, string?>
+        {
+            ["GuestPreferences:SessionSigningSecret"] = "session-secret",
+        });
+
+        Assert.False(GuestPreferencesSessionToken.FallsBackToSharedSecret(isProduction: true, config));
+    }
+
+    [Fact]
+    public void FallsBackToSharedSecret_NonProductionWithoutDedicatedKey_False()
+    {
+        var config = ConfigWith(new Dictionary<string, string?>());
+
+        Assert.False(GuestPreferencesSessionToken.FallsBackToSharedSecret(isProduction: false, config));
+    }
+
+    private static IConfiguration ConfigWith(Dictionary<string, string?> values) =>
+        new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 }

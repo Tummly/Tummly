@@ -156,6 +156,15 @@ namespace TummlyBackend.Helpers
             return UnsubscribeLink.ResolveSigningSecret(configuration);
         }
 
+        /// <summary>
+        /// True when session tokens would sign with the shared unsubscribe or JWT secret: the
+        /// environment is Production and <c>GuestPreferences:SessionSigningSecret</c> is blank.
+        /// Startup logs a warning for this. It does not fail.
+        /// </summary>
+        public static bool FallsBackToSharedSecret(bool isProduction, IConfiguration configuration) =>
+            isProduction
+            && string.IsNullOrWhiteSpace(configuration["GuestPreferences:SessionSigningSecret"]);
+
         private static DateTime ToUtc(DateTime value) =>
             value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
 

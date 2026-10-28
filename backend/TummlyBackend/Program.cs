@@ -1538,6 +1538,13 @@ var app = builder.Build();
 _ = app.Services.GetRequiredService<IGuestContactHasher>();
 _ = app.Services.GetRequiredService<IOtpCodeHasher>();
 
+if (GuestPreferencesSessionToken.FallsBackToSharedSecret(app.Environment.IsProduction(), app.Configuration))
+{
+    app.Logger.LogWarning(
+        "GuestPreferences:SessionSigningSecret is not set. Guest preference session tokens fall back to the shared unsubscribe secret."
+    );
+}
+
 app.UseForwardedHeaders();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
