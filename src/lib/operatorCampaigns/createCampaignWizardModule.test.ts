@@ -3778,6 +3778,7 @@ describe("createCampaignWizardModule", () => {
       body: expect.objectContaining({
         rowVersion: "r1",
         scheduleMode: "send-now",
+        confirmed: true,
       }),
     })
     expect(snapshot.stepId).toBe("success")

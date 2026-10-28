@@ -2581,6 +2581,7 @@ export function createCampaignWizardModule(
       rowVersion: state.draftRowVersion,
       scheduleMode: modeId,
       scheduleTimeZone: state.scheduleTimeZone,
+      confirmed: true,
       ...(modeId === "schedule-later"
         ? { scheduledAtUtc }
         : { scheduledAtUtc: null }),

@@ -702,12 +702,16 @@ export type CampaignSendTestResponse = {
   success: boolean
 }
 
-/** POST /campaigns/{id}/commit — schedule / send-now (ticket 26). */
+/**
+ * POST /campaigns/{id}/commit — schedule / send-now (ticket 26).
+ * `confirmed` is true only from the operator's Review confirm action.
+ */
 export type CommitCampaignScheduleRequest = {
   rowVersion: string
   scheduleMode: "send-now" | "schedule-later"
   scheduledAtUtc?: string | null
   scheduleTimeZone: string
+  confirmed: true
 }
 
 export type CampaignScheduleCommitDetail = {

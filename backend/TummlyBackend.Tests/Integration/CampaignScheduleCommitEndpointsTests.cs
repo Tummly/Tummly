@@ -42,6 +42,7 @@ namespace TummlyBackend.Tests.Integration
                 {
                     rowVersion = Convert.ToBase64String(seeded.RowVersion),
                     scheduleMode = "send-now",
+                    confirmed = true,
                     scheduleTimeZone = "Europe/London",
                 }
             );
@@ -82,6 +83,7 @@ namespace TummlyBackend.Tests.Integration
                 {
                     rowVersion = Convert.ToBase64String(seeded.RowVersion),
                     scheduleMode = "send-now",
+                    confirmed = true,
                     scheduleTimeZone = "Europe/London",
                 }
             );
@@ -96,6 +98,41 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(1, campaign.GetProperty("frozenRecipientCount").GetInt32());
             Assert.Equal("res-live-1", campaign.GetProperty("billingReservationRef").GetString());
             Assert.Single(reserve.Calls);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(null)]
+        public async Task Commit_Returns400_WhenConfirmedNotTrue_AndDoesNotReserve(bool? confirmed)
+        {
+            var reserve = new LiveBillingReserve();
+            var client = CreateClientWithReserve(reserve);
+            var seeded = await SeedReviewReadyDraftAsync(
+                "commit-confirm-missing-" + (confirmed?.ToString() ?? "absent"),
+                emailEligibleCount: 1
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                $"/api/campaigns/{seeded.CampaignId}/commit",
+                seeded.Jwt,
+                BuildSendNowBody(seeded.RowVersion, confirmed)
+            );
+            var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("confirmation_required", body.GetProperty("code").GetString());
+            Assert.Empty(reserve.Calls);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var campaign = await context.Campaigns.SingleAsync(
+                c => c.Id == seeded.CampaignId
+            );
+            Assert.Equal("draft", campaign.Status);
         }
 
         [Fact]
@@ -116,6 +153,7 @@ namespace TummlyBackend.Tests.Integration
                 {
                     rowVersion = Convert.ToBase64String(seeded.RowVersion),
                     scheduleMode = "send-now",
+                    confirmed = true,
                     scheduleTimeZone = "Europe/London",
                 }
             );
@@ -144,6 +182,7 @@ namespace TummlyBackend.Tests.Integration
                 {
                     rowVersion = Convert.ToBase64String(seeded.RowVersion),
                     scheduleMode = "send-now",
+                    confirmed = true,
                     scheduleTimeZone = "Europe/London",
                 }
             );
@@ -196,6 +235,7 @@ namespace TummlyBackend.Tests.Integration
                 {
                     rowVersion = Convert.ToBase64String(seeded.RowVersion),
                     scheduleMode = "send-now",
+                    confirmed = true,
                     scheduleTimeZone = "Europe/London",
                 }
             );
@@ -229,6 +269,7 @@ namespace TummlyBackend.Tests.Integration
                 {
                     rowVersion = Convert.ToBase64String(seeded.RowVersion),
                     scheduleMode = "send-now",
+                    confirmed = true,
                     scheduleTimeZone = "Europe/London",
                 }
             );
@@ -456,6 +497,21 @@ namespace TummlyBackend.Tests.Integration
                     new CampaignBillingReleaseResult.Ok()
                 );
             }
+        }
+
+        private static object BuildSendNowBody(byte[] rowVersion, bool? confirmed)
+        {
+            var body = new Dictionary<string, object?>
+            {
+                ["rowVersion"] = Convert.ToBase64String(rowVersion),
+                ["scheduleMode"] = "send-now",
+                ["scheduleTimeZone"] = "Europe/London",
+            };
+            if (confirmed is bool value)
+            {
+                body["confirmed"] = value;
+            }
+            return body;
         }
 
         private sealed class LiveBillingReserve : ICampaignBillingReserve

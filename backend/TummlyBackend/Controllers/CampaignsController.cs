@@ -675,6 +675,16 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
+            if (!request.Confirmed)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "confirmation_required",
+                    message = "Confirm the send or schedule before committing.",
+                });
+            }
+
             try
             {
                 var result = await _campaignScheduleCommit.CommitAsync(
