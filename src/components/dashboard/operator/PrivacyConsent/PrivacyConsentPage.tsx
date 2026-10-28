@@ -177,6 +177,7 @@ export function PrivacyConsentPage() {
             {snap.actorIsWorkspaceOwner ? (
               <PrivacyArchivedActivitySection
                 items={snap.archivedActivityItems}
+                accessRestricted={snap.archivedActivityAccessRestricted}
               />
             ) : null}
           </TabsContent>

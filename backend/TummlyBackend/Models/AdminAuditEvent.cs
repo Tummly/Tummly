@@ -56,6 +56,12 @@
         public const string OperatorPrintMaterialDownload =
             "operator.print_material_download";
         public const string ShopOrdersExport = "shop.orders_export";
+        public const string ShopOrdersRead = "shop.orders_read";
+        public const string TrialRequestsRead = "trial.requests_read";
+        public const string OperatorPilotAccountsRead = "operator.pilot_accounts_read";
+        public const string AdminAuditEventsRead = "audit.events_read";
+        public const string PrivacyArchivedHistoryRead =
+            "privacy_consent.archived_history_read";
         public const string SupportQueriesRead = "support.queries_read";
         public const string SupportQueryRead = "support.query_read";
         public const string CommercialCatalogPublish = "commercial_catalog.publish";
@@ -82,5 +88,6 @@
         public const string ShopInterestRegistration = "shop_interest_registration";
         public const string CommercialCatalogVersion = "commercial_catalog_version";
         public const string HelpCentreQuery = "help_centre_query";
+        public const string AdminAuditEvent = "admin_audit_event";
     }
 }

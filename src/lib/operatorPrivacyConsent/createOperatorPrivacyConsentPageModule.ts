@@ -76,6 +76,7 @@ export type PrivacyConsentSnapshot = {
   activityItems: PrivacyActivityItem[]
   actorIsWorkspaceOwner: boolean
   archivedActivityItems: PrivacyArchivedActivityItem[]
+  archivedActivityAccessRestricted: boolean
   toast: { kind: "success" | "error"; message: string } | null
 }
 
@@ -91,7 +92,10 @@ export type OperatorPrivacyConsentPageAdapters = {
   ) => Promise<PermissionRecordsListResponse>
   getActivity: () => Promise<{ items: PrivacyConsentActivityApiItem[] }>
   /** Owner-only. Called only when the page data reports the actor is the workspace owner. */
-  getArchivedActivity: () => Promise<{ items: PrivacyConsentActivityApiItem[] }>
+  getArchivedActivity: () => Promise<{
+    items: PrivacyConsentActivityApiItem[]
+    accessRestricted?: boolean
+  }>
   getLocationFilterOptions: () => Array<{ id: string; label: string }>
   navigateToGuestProfile?: (
     locationGuestId: number,
@@ -225,6 +229,7 @@ export function createOperatorPrivacyConsentPageModule(
   let canViewGuests = false
   let actorIsWorkspaceOwner = false
   let archivedActivityItems: PrivacyArchivedActivityItem[] = []
+  let archivedActivityAccessRestricted = false
   let privacyReady = false
   let loadStatus: PrivacyConsentSnapshot["loadStatus"] = isDemo
     ? "loaded"
@@ -331,6 +336,7 @@ export function createOperatorPrivacyConsentPageModule(
       activityItems,
       actorIsWorkspaceOwner,
       archivedActivityItems,
+      archivedActivityAccessRestricted,
       toast,
     }
   }
@@ -369,6 +375,7 @@ export function createOperatorPrivacyConsentPageModule(
   const fetchArchivedActivity = async (generation: number) => {
     if (!actorIsWorkspaceOwner) {
       archivedActivityItems = []
+      archivedActivityAccessRestricted = false
       return
     }
 
@@ -378,6 +385,7 @@ export function createOperatorPrivacyConsentPageModule(
         return
       }
       const now = getNow()
+      archivedActivityAccessRestricted = response.accessRestricted === true
       archivedActivityItems = response.items.map((item) =>
         mapArchivedPrivacyActivityItemFromApi(item, now)
       )
@@ -386,6 +394,7 @@ export function createOperatorPrivacyConsentPageModule(
         return
       }
       archivedActivityItems = []
+      archivedActivityAccessRestricted = false
       toast = {
         kind: "error",
         message: getUserFacingApiErrorMessage(

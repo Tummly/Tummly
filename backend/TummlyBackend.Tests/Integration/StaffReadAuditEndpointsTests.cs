@@ -154,6 +154,124 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task TrialRequestsList_WritesOneReadAuditRow_WithoutProspectPii_ForAdmin()
+        {
+            var admin = await SeedStaffAsync("Admin");
+            var prospectEmail = $"prospect-{Guid.NewGuid():N}@example.com";
+            var prospectName = $"Prospect {Guid.NewGuid():N}";
+            await SeedTrialRequestAsync(prospectName, prospectEmail);
+
+            using var request = Authorized("/api/admin/trial-requests", admin.Jwt);
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var rows = await ReadRowsForActorAsync(
+                AdminAuditActions.TrialRequestsRead,
+                admin.Email
+            );
+            var row = Assert.Single(rows);
+            Assert.Equal(AdminAuditTargetTypes.TrialRequest, row.TargetType);
+            Assert.Equal("list", row.TargetId);
+            Assert.Equal(admin.Id, row.ActorAdminUserId);
+            Assert.True(row.Succeeded);
+            Assert.Contains("\"role\":\"Admin\"", row.DetailJson);
+            Assert.DoesNotContain(prospectEmail, row.DetailJson ?? string.Empty);
+            Assert.DoesNotContain(prospectName, row.DetailJson ?? string.Empty);
+        }
+
+        [Fact]
+        public async Task PilotAccountsList_WritesOneReadAuditRow_WithoutOperatorPii_ForAdmin()
+        {
+            var admin = await SeedStaffAsync("Admin");
+
+            using var request = Authorized("/api/admin/pilot-accounts", admin.Jwt);
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var rows = await ReadRowsForActorAsync(
+                AdminAuditActions.OperatorPilotAccountsRead,
+                admin.Email
+            );
+            var row = Assert.Single(rows);
+            Assert.Equal(AdminAuditTargetTypes.OperatorUser, row.TargetType);
+            Assert.Equal("list", row.TargetId);
+            Assert.Equal(admin.Id, row.ActorAdminUserId);
+            Assert.Contains("\"role\":\"Admin\"", row.DetailJson);
+            Assert.DoesNotContain("@", row.DetailJson ?? string.Empty);
+        }
+
+        [Fact]
+        public async Task AuditEventsList_WritesOneReadAuditRow_ForAdmin()
+        {
+            var admin = await SeedStaffAsync("Admin");
+
+            using var request = Authorized(
+                "/api/admin/audit-events?action=trial.approve&take=5",
+                admin.Jwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var rows = await ReadRowsForActorAsync(
+                AdminAuditActions.AdminAuditEventsRead,
+                admin.Email
+            );
+            var row = Assert.Single(rows);
+            Assert.Equal(AdminAuditTargetTypes.AdminAuditEvent, row.TargetType);
+            Assert.Equal("list", row.TargetId);
+            Assert.Equal(admin.Id, row.ActorAdminUserId);
+            Assert.Contains("\"action\":\"trial.approve\"", row.DetailJson);
+        }
+
+        [Fact]
+        public async Task ShopOrdersList_WritesOneReadAuditRow_WithoutSearchText_ForAdmin()
+        {
+            var admin = await SeedStaffAsync("Admin");
+
+            using var request = Authorized(
+                "/api/admin/shop-orders?q=Jane%20Customer&restaurantId=999999",
+                admin.Jwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var rows = await ReadRowsForActorAsync(
+                AdminAuditActions.ShopOrdersRead,
+                admin.Email
+            );
+            var row = Assert.Single(rows);
+            Assert.Equal(AdminAuditTargetTypes.ShopOrder, row.TargetType);
+            Assert.Equal("list", row.TargetId);
+            Assert.Equal(admin.Id, row.ActorAdminUserId);
+            Assert.Contains("\"hasSearch\":true", row.DetailJson);
+            Assert.Contains("\"restaurantId\":999999", row.DetailJson);
+            Assert.DoesNotContain("Jane", row.DetailJson ?? string.Empty);
+            Assert.DoesNotContain("Customer", row.DetailJson ?? string.Empty);
+        }
+
+        [Theory]
+        [InlineData("/api/admin/trial-requests")]
+        [InlineData("/api/admin/pilot-accounts")]
+        [InlineData("/api/admin/audit-events")]
+        [InlineData("/api/admin/shop-orders")]
+        public async Task AdminReadList_ForSupport_Returns403_AndWritesNoReadAuditRow(
+            string path
+        )
+        {
+            var support = await SeedStaffAsync("Support");
+
+            using var request = Authorized(path, support.Jwt);
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var rows = await ReadRowsForActorAsync(
+                ReadActionFor(path),
+                support.Email
+            );
+            Assert.Empty(rows);
+        }
+
         private static HttpRequestMessage Authorized(string url, string jwt)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -271,6 +389,62 @@ namespace TummlyBackend.Tests.Integration
             context.Admins.Add(admin);
             await context.SaveChangesAsync();
             return admin;
+        }
+
+        private async Task<List<AdminAuditEvent>> ReadRowsForActorAsync(
+            string action,
+            string actorIdentity
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            return await context.AdminAuditEvents
+                .AsNoTracking()
+                .Where(e => e.Action == action && e.ActorIdentity == actorIdentity)
+                .ToListAsync();
+        }
+
+        private static string ReadActionFor(string path)
+        {
+            return path switch
+            {
+                "/api/admin/trial-requests" => AdminAuditActions.TrialRequestsRead,
+                "/api/admin/pilot-accounts" => AdminAuditActions.OperatorPilotAccountsRead,
+                "/api/admin/audit-events" => AdminAuditActions.AdminAuditEventsRead,
+                "/api/admin/shop-orders" => AdminAuditActions.ShopOrdersRead,
+                _ => throw new ArgumentOutOfRangeException(nameof(path), path, null),
+            };
+        }
+
+        private async Task SeedTrialRequestAsync(string fullName, string email)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            context.TrialRequests.Add(new TrialRequest
+            {
+                BusinessName = "Read Audit Cafe",
+                BusinessCategory = "cafe",
+                Locations = "1",
+                FullName = fullName,
+                Email = email,
+                Mobile = "07700900160",
+                MainLocation = "1 High Street",
+                TownCity = "Leeds",
+                Postcode = "LS1 1AA",
+                Role = "Owner",
+                Goal = "Grow",
+                TermsAccepted = true,
+                IsEmailVerified = true,
+                IsApproved = false,
+                Status = TrialRequestStatus.EmailVerified,
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+            });
+            await context.SaveChangesAsync();
         }
 
         private async Task<int> SeedHelpCentreQueryAsync()

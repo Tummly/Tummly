@@ -543,6 +543,24 @@ describe("createOperatorPrivacyConsentPageModule", () => {
       expect(snap.archivedActivityItems.map((item) => item.id)).toEqual(["9"])
     })
 
+    it("shows the access restricted state, not a toast, when the server refuses archived history", async () => {
+      const api = adapters({
+        debounceMs: 0,
+        getPage: vi.fn(async () => pageData({ actorIsWorkspaceOwner: true })),
+        getArchivedActivity: vi.fn(async () => ({
+          items: [],
+          accessRestricted: true,
+        })),
+      })
+      const pageModule = createOperatorPrivacyConsentPageModule(api)
+      await pageModule.load()
+      const snap = pageModule.getSnapshot()
+
+      expect(snap.archivedActivityAccessRestricted).toBe(true)
+      expect(snap.archivedActivityItems).toEqual([])
+      expect(snap.toast).toBeNull()
+    })
+
     it("shows an error toast when archived history fails to load", async () => {
       const api = adapters({
         debounceMs: 0,

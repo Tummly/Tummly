@@ -46,6 +46,27 @@ namespace TummlyBackend.Controllers
                     BuildListQuery(page, pageSize, q, restaurantId, fulfilmentStatus),
                     cancellationToken
                 );
+                // hasSearch only: the search text can name a customer.
+                await _adminAudit.AppendAndSaveAsync(
+                    StaffReadAudit.Build(
+                        User,
+                        AdminAuditActions.ShopOrdersRead,
+                        AdminAuditTargetTypes.ShopOrder,
+                        "list",
+                        StaffReadAudit.Detail(
+                            User,
+                            new
+                            {
+                                page,
+                                pageSize,
+                                restaurantId,
+                                fulfilmentStatus,
+                                hasSearch = !string.IsNullOrWhiteSpace(q),
+                            }
+                        )
+                    ),
+                    cancellationToken
+                );
                 return Ok(result);
             }
             catch (ArgumentException ex)

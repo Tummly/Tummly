@@ -5,12 +5,30 @@ import {
   GUEST_PERMISSION_SWITCH_CLASS,
   PERMISSION_RECORDS_DEMO_ROWS,
   PRIVACY_ACTIVITY_DEMO_ITEMS,
+  PRIVACY_CONSENT_PAGE_COPY,
   PRIVACY_CONSENT_TAB_IDS,
   PRIVACY_CONSENT_TAB_LABELS,
   PRIVACY_SETUP_STATUS_DEMO_ROWS,
   guestPermissionStatusLabel,
   resolvePrivacyConsentTabId,
 } from "@/lib/operatorPrivacyConsent/privacyConsentPresentation"
+
+describe("archived Locations copy", () => {
+  it("uses the approved section description", () => {
+    expect(PRIVACY_CONSENT_PAGE_COPY.archivedLocationsSubtitle).toBe(
+      "Archived Locations are no longer active. Their historical records, including Feedback and permission evidence, are retained according to applicable retention rules. Authorised Workspace Owners can review permitted historical records in read-only mode. Archived records do not create current messaging eligibility."
+    )
+  })
+
+  it("uses the approved access restricted title and body", () => {
+    expect(PRIVACY_CONSENT_PAGE_COPY.archivedLocationsAccessRestrictedTitle).toBe(
+      "Access restricted"
+    )
+    expect(PRIVACY_CONSENT_PAGE_COPY.archivedLocationsAccessRestrictedBody).toBe(
+      "You do not have permission to view this archived information. Access requires the appropriate Workspace permissions. Contact your Workspace Owner if you believe you need access."
+    )
+  })
+})
 
 describe("resolvePrivacyConsentTabId", () => {
   it("accepts known tab ids", () => {
