@@ -1623,6 +1623,15 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+            catch (ServiceReplyRefusedException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = ex.Code,
+                    message = ex.Message,
+                });
+            }
             catch (ArgumentException ex)
             {
                 return BadRequest(new
@@ -2210,6 +2219,15 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+            catch (ServiceReplyRefusedException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = ex.Code,
+                    message = ex.Message,
+                });
+            }
             catch (ArgumentException ex)
             {
                 return BadRequest(new
@@ -2480,6 +2498,15 @@ namespace TummlyBackend.Controllers
                 return Unauthorized(new
                 {
                     success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ServiceReplyRefusedException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = ex.Code,
                     message = ex.Message,
                 });
             }

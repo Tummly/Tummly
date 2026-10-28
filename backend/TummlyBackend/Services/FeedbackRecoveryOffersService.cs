@@ -116,9 +116,7 @@ namespace TummlyBackend.Services
             );
             if (decision != ServiceReplyDecision.Allowed)
             {
-                throw new ArgumentException(
-                    ServiceReplyEligibility.RefusalMessage(decision)
-                );
+                throw new ServiceReplyRefusedException(decision);
             }
 
             if (feedback.RecoveryOfferId is not int catalogOfferId)

@@ -166,3 +166,73 @@ describe("mapRecoveryComposerSendFailure refusals", () => {
     })
   })
 })
+
+describe("mapRecoveryComposerSendFailure refusal codes", () => {
+  const SMS_STOP_MESSAGE =
+    "SMS not sent. This number has opted out of SMS from this sender, and delivery is currently blocked. This does not change the guest's Feedback follow-up permission."
+
+  function refusal(status: number, code: string, message: string) {
+    return new AxiosError(
+      `Request failed with status code ${status}`,
+      AxiosError.ERR_BAD_REQUEST,
+      undefined,
+      undefined,
+      {
+        status,
+        statusText: "Bad Request",
+        headers: {},
+        config: {} as never,
+        data: { success: false, code, message },
+      }
+    )
+  }
+
+  it("400 sms_provider_restriction shows the SMS STOP copy, not the permission copy", () => {
+    expect(
+      mapRecoveryComposerSendFailure(
+        refusal(400, "sms_provider_restriction", SMS_STOP_MESSAGE)
+      )
+    ).toEqual({
+      kind: "refused",
+      message: SMS_STOP_MESSAGE,
+    })
+    expect(RECOVERY_COMPOSER_COPY.smsProviderRestriction).toBe(SMS_STOP_MESSAGE)
+  })
+
+  it("400 feedback_follow_up_not_granted keeps the permission copy", () => {
+    expect(
+      mapRecoveryComposerSendFailure(
+        refusal(
+          400,
+          "feedback_follow_up_not_granted",
+          "Guest has not granted feedback follow-up permission."
+        )
+      )
+    ).toEqual({
+      kind: "no_permission",
+      message: RECOVERY_COMPOSER_COPY.noPermission,
+    })
+  })
+
+  it("400 email_delivery_unavailable keeps the Email delivery copy", () => {
+    expect(
+      mapRecoveryComposerSendFailure(
+        refusal(
+          400,
+          "email_delivery_unavailable",
+          "Email delivery unavailable. Use a verified alternative contact method."
+        )
+      )
+    ).toEqual({
+      kind: "refused",
+      message: RECOVERY_COMPOSER_COPY.emailDeliveryUnavailable,
+    })
+  })
+
+  it("SMS STOP message without a code is not read as a permission refusal", () => {
+    expect(mapRecoveryComposerSendFailure(new Error(SMS_STOP_MESSAGE))).toEqual({
+      kind: "refused",
+      message: SMS_STOP_MESSAGE,
+    })
+  })
+})

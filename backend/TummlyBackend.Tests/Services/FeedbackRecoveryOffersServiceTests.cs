@@ -201,10 +201,11 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            Assert.IsType<ArgumentException>(exception);
+            var refused = Assert.IsType<ServiceReplyRefusedException>(exception);
+            Assert.Equal("feedback_follow_up_not_granted", refused.Code);
             Assert.Equal(
                 ServiceReplyEligibility.NotAllowedMessage,
-                exception!.Message
+                refused.Message
             );
             Assert.Equal(0, await _context.OfferIssues.CountAsync());
             Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());

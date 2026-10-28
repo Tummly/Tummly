@@ -1,6 +1,8 @@
+import { AxiosError } from "axios"
 import { describe, expect, it, vi } from "vitest"
 
 import type { FeedbackDetailsResponse } from "@/types/dashboard"
+import { RECOVERY_COMPOSER_COPY } from "@/lib/operatorFeedback/recoveryComposerPresentation"
 import {
   createRespondAndRecordInternalActionModule,
   type CompleteRecoveryResult,
@@ -475,6 +477,38 @@ describe("createRespondAndRecordInternalActionModule", () => {
       "respond_and_record_internal_action"
     )
     expect(okModule.getSnapshot().isOpen).toBe(false)
+  })
+
+  it("SMS STOP refusal on send shows the coded SMS copy, not the permission copy", async () => {
+    const adapters = createAdapters({
+      sendAndRecord: vi.fn(async () => {
+        throw new AxiosError(
+          "Request failed with status code 400",
+          AxiosError.ERR_BAD_REQUEST,
+          undefined,
+          undefined,
+          {
+            status: 400,
+            statusText: "Bad Request",
+            headers: {},
+            config: {} as never,
+            data: {
+              success: false,
+              code: "sms_provider_restriction",
+              message: RECOVERY_COMPOSER_COPY.smsProviderRestriction,
+            },
+          }
+        )
+      }),
+    })
+    const module = createRespondAndRecordInternalActionModule(adapters)
+    await openAtReview(module)
+    module.openSendConfirm()
+    await module.confirmSend()
+
+    expect(module.getSnapshot().sendError).toBe(
+      RECOVERY_COMPOSER_COPY.smsProviderRestriction
+    )
   })
 
   it("exposes location chrome and Delivery channel; meters successful AI only", async () => {

@@ -541,6 +541,10 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal(
+                "feedback_follow_up_not_granted",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(
                 ServiceReplyEligibility.NotAllowedMessage,
                 body.GetProperty("message").GetString()
             );
@@ -694,7 +698,53 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal(
+                "email_delivery_unavailable",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(
                 ServiceReplyEligibility.EmailDeliveryUnavailableMessage,
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Returns400_WhenSmsStopped_WithProviderRestrictionCode()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-sms-stopped-tok",
+                ContactType.Phone,
+                "+447911123999",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-stopped-owner@example.com",
+                smsCredits: 20
+            );
+            await StageEmailSuppressionAsync(
+                seeded.LocationId,
+                "phone:+447911123999",
+                LocationGuestPermissionKind.SmsMarketing,
+                GuestContactSuppressionSources.SmsStop
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body = "Thanks for your message.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("sms_provider_restriction", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "SMS not sent. This number has opted out of SMS from this sender, and delivery is currently blocked. This does not change the guest's Feedback follow-up permission.",
                 body.GetProperty("message").GetString()
             );
         }

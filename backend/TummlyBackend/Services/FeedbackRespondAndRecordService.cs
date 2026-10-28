@@ -168,19 +168,16 @@ namespace TummlyBackend.Services
             const FeedbackGuestResponseChannel channel = FeedbackGuestResponseChannel.Sms;
             var intent = FeedbackRecoveryIntent.RespondAndRecordInternalAction;
 
-            if (
-                !await ServiceReplyEligibility.IsAllowedAsync(
-                    _context,
-                    _suppressions,
-                    feedback,
-                    channel,
-                    cancellationToken
-                )
-            )
+            var decision = await ServiceReplyEligibility.EvaluateAsync(
+                _context,
+                _suppressions,
+                feedback,
+                channel,
+                cancellationToken
+            );
+            if (decision != ServiceReplyDecision.Allowed)
             {
-                throw new ArgumentException(
-                    ServiceReplyEligibility.NotAllowedMessage
-                );
+                throw new ServiceReplyRefusedException(decision);
             }
 
             _smsSend.EnsureBillingLive();
