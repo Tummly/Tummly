@@ -1,3 +1,4 @@
+import { buildGuestFormPreviewUrl } from "@/lib/guestFeedback/guestFormPreview"
 import {
   createFeedbackDetailsModule,
   type FeedbackDetailsAdapters,
@@ -1792,7 +1793,9 @@ export function createOperatorHomePageModule(
         return
       }
 
-      adapters.openSmartGuestLink(viewModel.smartGuestLink)
+      adapters.openSmartGuestLink(
+        buildGuestFormPreviewUrl(viewModel.smartGuestLink)
+      )
       acks.acknowledge("guestFormPreviewed")
     },
     acknowledgeQrPlacementGuide: () => {

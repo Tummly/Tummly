@@ -4,7 +4,43 @@ import MockAdapter from "axios-mock-adapter"
 
 import { API_BASE_URL } from "@/config/api"
 
-import { submitGuestFeedback } from "./scanApi"
+import { fetchScanLocationMetadata, submitGuestFeedback } from "./scanApi"
+
+describe("fetchScanLocationMetadata", () => {
+  let mock: MockAdapter
+
+  beforeEach(() => {
+    mock = new MockAdapter(axios)
+  })
+
+  afterEach(() => {
+    mock.restore()
+  })
+
+  it("sends preview=true for an operator Preview visit", async () => {
+    mock
+      .onGet(`${API_BASE_URL}/scan/guest-token`, {
+        params: { preview: true },
+      })
+      .reply(200, { success: true, restaurantName: "Harbour" })
+
+    await expect(
+      fetchScanLocationMetadata("guest-token", { preview: true })
+    ).resolves.toMatchObject({ restaurantName: "Harbour" })
+  })
+
+  it("sends no preview param for a guest visit", async () => {
+    mock.onGet(`${API_BASE_URL}/scan/guest-token`).reply(200, {
+      success: true,
+      restaurantName: "Harbour",
+    })
+
+    await expect(
+      fetchScanLocationMetadata("guest-token")
+    ).resolves.toMatchObject({ restaurantName: "Harbour" })
+    expect(mock.history.get[0]?.params).toBeUndefined()
+  })
+})
 
 describe("submitGuestFeedback", () => {
   let mock: MockAdapter

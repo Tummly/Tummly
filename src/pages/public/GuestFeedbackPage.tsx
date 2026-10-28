@@ -19,6 +19,10 @@ import { PRODUCT_DEMO } from "@/content/marketing/productDemoPage"
 import { executeGuestFeedbackRecaptcha } from "@/lib/guestFeedback/executeGuestFeedbackRecaptcha"
 import { guestFeedbackMajorStateTransition } from "@/lib/guestFeedback/guestFeedbackMotionTokens"
 import {
+  GUEST_FORM_PREVIEW_PARAM,
+  isGuestFormPreviewParam,
+} from "@/lib/guestFeedback/guestFormPreview"
+import {
   startDemoTourSession,
   writeGuestSubmission,
 } from "@/lib/productDemo/demoTourSession"
@@ -47,6 +51,9 @@ export default function GuestFeedbackPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const isProductDemo = searchParams.get("productDemo") === "1"
+  const isOperatorPreview = isGuestFormPreviewParam(
+    searchParams.get(GUEST_FORM_PREVIEW_PARAM)
+  )
   const shouldReduceMotion = useReducedMotion()
   const [phase, setPhase] = useState<PagePhase>("loading")
   const [metadata, setMetadata] = useState<ScanLocationMetadata | null>(null)
@@ -72,7 +79,9 @@ export default function GuestFeedbackPage() {
       }
 
       try {
-        const result = await fetchScanLocationMetadata(token)
+        const result = await fetchScanLocationMetadata(token, {
+          preview: isOperatorPreview,
+        })
         if (cancelled) {
           return
         }
@@ -100,7 +109,7 @@ export default function GuestFeedbackPage() {
     return () => {
       cancelled = true
     }
-  }, [token])
+  }, [token, isOperatorPreview])
 
   const enterRestaurantFromGuest = useCallback(async () => {
     setDemoTransitionError(null)
