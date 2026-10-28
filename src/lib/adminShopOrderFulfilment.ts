@@ -127,13 +127,13 @@ export function nextAdminShopFulfilmentAction(
   if (order.fulfilmentStatus !== "processing") {
     return null
   }
+  if (hasEvidence(order.productionStartedAtUtc)) {
+    return action("dispatch")
+  }
   if (!hasEvidence(order.preparationStartedAtUtc)) {
     return action("preparation")
   }
-  if (!hasEvidence(order.productionStartedAtUtc)) {
-    return action("production")
-  }
-  return action("dispatch")
+  return action("production")
 }
 
 export type AdminShopDispatchFields = {

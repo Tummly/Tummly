@@ -148,6 +148,14 @@ describe("adminShopOrderFulfilment", () => {
     })
   })
 
+  it("skips preparation for an order whose production was stamped before preparation existed", () => {
+    expect(
+      nextAdminShopFulfilmentAction(
+        order({ productionStartedAtUtc: EVIDENCE.productionStartedAtUtc })
+      )
+    ).toMatchObject({ kind: "dispatch" })
+  })
+
   it("offers no action once delivered or cancelled", () => {
     expect(
       nextAdminShopFulfilmentAction(
