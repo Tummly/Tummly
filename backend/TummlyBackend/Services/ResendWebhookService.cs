@@ -32,6 +32,7 @@ namespace TummlyBackend.Services
         private readonly EmailSettings _emailSettings;
         private readonly ILogger<ResendWebhookService> _logger;
         private readonly IGuestInitiatedMarketingWithdrawService _withdraw;
+        private readonly IGuestContactSuppressionService _suppressions;
         private readonly Func<DateTime> _utcNow;
 
         public ResendWebhookService(
@@ -39,6 +40,7 @@ namespace TummlyBackend.Services
             IOptions<EmailSettings> emailSettings,
             ILogger<ResendWebhookService> logger,
             IGuestInitiatedMarketingWithdrawService withdraw,
+            IGuestContactSuppressionService suppressions,
             Func<DateTime>? utcNow = null
         )
         {
@@ -46,6 +48,7 @@ namespace TummlyBackend.Services
             _emailSettings = emailSettings.Value;
             _logger = logger;
             _withdraw = withdraw;
+            _suppressions = suppressions;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
@@ -171,9 +174,11 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Hard bounce and complaint withdraw EmailMarketing for the recipient at
-        /// the restaurant that sent the email, and stage the restaurant-scoped
-        /// suppression so later sends and re-submits stay withdrawn.
+        /// Complaint withdraws EmailMarketing for the recipient at the restaurant
+        /// that sent the email (consent withdrawal, ledger row).
+        /// A permanent hard bounce is a delivery failure, not a consent change:
+        /// it stages an <c>EmailDelivery</c> suppression for the destination and
+        /// writes no ledger row. That blocks marketing and service email.
         /// </summary>
         private async Task ApplyEmailSuppressionAsync(
             string type,
@@ -202,25 +207,46 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            var source = string.Equals(
-                type,
-                EmailComplainedType,
-                StringComparison.Ordinal
+            if (
+                string.Equals(type, EmailComplainedType, StringComparison.Ordinal)
             )
-                ? GuestContactSuppressionSources.EmailComplaint
-                : GuestContactSuppressionSources.EmailBounce;
+            {
+                await _withdraw.WithdrawForRestaurantContactAsync(
+                    restaurantId.Value,
+                    recipient,
+                    isEmail: true,
+                    LocationGuestPermissionKind.EmailMarketing,
+                    LocationGuestPermissionLedgerSources.EmailComplaint,
+                    cancellationToken,
+                    suppressionSource: GuestContactSuppressionSources.EmailComplaint
+                );
+                return;
+            }
 
-            await _withdraw.WithdrawForRestaurantContactAsync(
+            if (
+                !GuestContactKey.TryCreate(
+                    recipient,
+                    ContactType.Email,
+                    out var contactKey
+                )
+            )
+            {
+                _logger.LogWarning(
+                    "Skipped email delivery suppression: recipient is not keyable (email_id={EmailId}).",
+                    emailId
+                );
+                return;
+            }
+
+            await _suppressions.StageAsync(
                 restaurantId.Value,
-                recipient,
-                isEmail: true,
-                LocationGuestPermissionKind.EmailMarketing,
-                source == GuestContactSuppressionSources.EmailComplaint
-                    ? LocationGuestPermissionLedgerSources.EmailComplaint
-                    : LocationGuestPermissionLedgerSources.EmailBounce,
-                cancellationToken,
-                suppressionSource: source
+                contactKey,
+                LocationGuestPermissionKind.EmailDelivery,
+                _utcNow(),
+                GuestContactSuppressionSources.EmailBounce,
+                cancellationToken
             );
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         private static string? ReadFirstRecipient(JsonElement data)
