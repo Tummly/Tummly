@@ -21,16 +21,22 @@ namespace TummlyBackend.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IWeeklyBriefGenerateService _generate;
+        private readonly IWeeklyBriefReadyNotifier _notifier;
+        private readonly ILogger<HomeWeeklyBriefController> _logger;
 
         public HomeWeeklyBriefController(
             ApplicationDbContext context,
             IRestaurantPermissionHelper permissions,
-            IWeeklyBriefGenerateService generate
+            IWeeklyBriefGenerateService generate,
+            IWeeklyBriefReadyNotifier notifier,
+            ILogger<HomeWeeklyBriefController> logger
         )
         {
             _context = context;
             _permissions = permissions;
             _generate = generate;
+            _notifier = notifier;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -132,8 +138,9 @@ namespace TummlyBackend.Controllers
         /// <c>from</c>/<c>to</c> (closed prior). Reports may pass a KPI window;
         /// the API snaps to the most recent closed week overlapping that range.
         /// Available any day; <see cref="WeeklyBriefWeekKey.IsGenerateDay"/>
-        /// gates only the scheduled job. Does not produce
-        /// <c>weekly-brief-ready</c>; notify stays on the Monday job seam.
+        /// gates only the scheduled job. On success, calls
+        /// <see cref="IWeeklyBriefReadyNotifier"/>; its location + week dedupe
+        /// stops a brief that was already notified from notifying again.
         /// </summary>
         [HttpPost("generate")]
         public async Task<IActionResult> GenerateWeeklyBrief(
@@ -220,8 +227,8 @@ namespace TummlyBackend.Controllers
 
             // Soft not-ready: missing location, created at/after closed-week end,
             // or Pilot. Day-of-week is not a gate here (manual Generate any day).
-            // Does not notify — weekly-brief-ready stays on the Monday job seam.
-            // `reason` lets Reports show a soft empty helper (e.g. location too new).
+            // Does not notify (no brief written). `reason` lets Reports show a soft
+            // empty helper (e.g. location too new).
             if (locationMeta is null)
             {
                 return Ok(
@@ -302,6 +309,26 @@ namespace TummlyBackend.Controllers
                             "Could not generate a weekly brief. Please try again.",
                         retryable = true,
                     }
+                );
+            }
+
+            // The brief is already stored, so a notify failure must not fail the
+            // response. Cancellation still propagates.
+            try
+            {
+                await _notifier.NotifyGeneratedAsync(
+                    locationId,
+                    closedWeek,
+                    cancellationToken
+                );
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(
+                    ex,
+                    "Weekly brief ready notify failed for location {LocationId} week {WeekKey}",
+                    locationId,
+                    closedWeek.WeekKey
                 );
             }
 

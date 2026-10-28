@@ -1110,14 +1110,19 @@ namespace TummlyBackend.Tests.Integration
 
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            // Lazy / manual POST generate must not notify; Monday job first-write
-            // owns weekly-brief-ready + system email (IWeeklyBriefReadyNotifier).
+            // Manual POST generate notifies the owner (IWeeklyBriefReadyNotifier),
+            // keyed by location + week.
+            var notice = Assert.Single(
+                await context.Notifications
+                    .Where(n =>
+                        n.UserId == seeded.UserId
+                        && n.Type == WeeklyBriefReadyNotifier.NotificationType
+                    )
+                    .ToListAsync()
+            );
             Assert.Equal(
-                0,
-                await context.Notifications.CountAsync(n =>
-                    n.UserId == seeded.UserId
-                    && n.Type == WeeklyBriefReadyNotifier.NotificationType
-                )
+                $"{seeded.LocationId}:{seeded.ClosedWeek.WeekKey}",
+                notice.DedupeKey
             );
 
             using var getRequest = AuthorizedGet(
@@ -1283,9 +1288,9 @@ namespace TummlyBackend.Tests.Integration
                     && row.Status == WeeklyBriefStatus.Succeeded
                 )
             );
-            // Lazy generate still does not produce weekly-brief-ready.
+            // Manual generate notifies mid-week creates too (partial week OK).
             Assert.Equal(
-                0,
+                1,
                 await context.Notifications.CountAsync(n =>
                     n.UserId == seeded.UserId
                     && n.Type == WeeklyBriefReadyNotifier.NotificationType
@@ -1372,6 +1377,155 @@ namespace TummlyBackend.Tests.Integration
             var json = await ReadJsonAsync(secondResponse);
             Assert.True(json.GetProperty("ready").GetBoolean());
             Assert.Equal(1, fake.CallCount);
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_RepeatCall_DoesNotNotifyAgain()
+        {
+            var seeded = await SeedEligibleForGenerateAsync("wb-gen-notify-repeat");
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+
+            for (var call = 0; call < 2; call++)
+            {
+                using var request = AuthorizedPost(
+                    $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                    seeded.Jwt
+                );
+                var response = await _client.SendAsync(request);
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            }
+
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Single(
+                await context.Notifications
+                    .Where(n =>
+                        n.UserId == seeded.UserId
+                        && n.Type == WeeklyBriefReadyNotifier.NotificationType
+                    )
+                    .ToListAsync()
+            );
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_BriefAlreadyNotifiedByMondayJob_DoesNotNotifyAgain()
+        {
+            var seeded = await SeedEligibleForGenerateAsync("wb-gen-notify-monday");
+            var metrics = EmptyMetrics();
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                seeded.ClosedWeek.WeekKey,
+                FakeWeeklyBriefProvider.FixtureFor(metrics),
+                metrics,
+                DateTime.UtcNow
+            );
+
+            using (var seedScope = _factory.Services.CreateScope())
+            {
+                var notifier = seedScope.ServiceProvider
+                    .GetRequiredService<IWeeklyBriefReadyNotifier>();
+                await notifier.NotifyGeneratedAsync(
+                    seeded.LocationId,
+                    seeded.ClosedWeek
+                );
+            }
+
+            using var scope = _factory.Services.CreateScope();
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Single(
+                await context.Notifications
+                    .Where(n =>
+                        n.UserId == seeded.UserId
+                        && n.Type == WeeklyBriefReadyNotifier.NotificationType
+                    )
+                    .ToListAsync()
+            );
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_ExistingRowWithoutNotice_NotifiesOwner()
+        {
+            var seeded = await SeedEligibleForGenerateAsync("wb-gen-notify-backfill");
+            var metrics = EmptyMetrics();
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                seeded.ClosedWeek.WeekKey,
+                FakeWeeklyBriefProvider.FixtureFor(metrics),
+                metrics,
+                DateTime.UtcNow
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var notice = Assert.Single(
+                await context.Notifications
+                    .Where(n =>
+                        n.UserId == seeded.UserId
+                        && n.Type == WeeklyBriefReadyNotifier.NotificationType
+                    )
+                    .ToListAsync()
+            );
+            Assert.Equal(
+                $"{seeded.LocationId}:{seeded.ClosedWeek.WeekKey}",
+                notice.DedupeKey
+            );
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_PilotPlan_DoesNotNotify()
+        {
+            var utcNow = DateTime.UtcNow;
+            var weekStartsOn = CurrentLondonGenerateWeekStartsOn();
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                utcNow,
+                weekStartsOn
+            );
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-gen-notify-pilot",
+                weekStartsOn: weekStartsOn,
+                locationCreatedAtUtc: closed.CoverageStartUtc.AddDays(-7),
+                subscriptionPlan: BillingSubscriptionPlans.Pilot
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Empty(
+                await context.Notifications
+                    .Where(n =>
+                        n.UserId == seeded.UserId
+                        && n.Type == WeeklyBriefReadyNotifier.NotificationType
+                    )
+                    .ToListAsync()
+            );
         }
 
         [Fact]
