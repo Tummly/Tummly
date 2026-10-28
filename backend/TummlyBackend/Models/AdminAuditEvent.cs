@@ -43,6 +43,7 @@
         public const string RetentionGuestPurge = "retention.guest_purge";
         public const string GuestDelete = "guest.delete";
         public const string GuestDataExport = "guest.data_export";
+        public const string GuestIdentityCorrection = "guest.identity_correction";
         public const string CommercialCatalogPublish = "commercial_catalog.publish";
         public const string CommercialCatalogDraftSave = "commercial_catalog.draft_save";
         public const string BillingScheduledChangeGateFailed =

@@ -577,6 +577,105 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PatchGuestIdentity_WritesCorrectionAudit_WithoutRawContact()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "identity-audit-write-tokenx",
+                guestName: "Notes Guest",
+                email: "audit-before@example.com"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Patch,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(
+                new
+                {
+                    firstName = "Amelia",
+                    lastName = "Hart",
+                    email = "audit-after@example.com",
+                    phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var audits = await context.AdminAuditEvents
+                .AsNoTracking()
+                .Where(e =>
+                    e.Action == AdminAuditActions.GuestIdentityCorrection
+                    && e.TargetId == seeded.LocationGuestId.ToString()
+                )
+                .ToListAsync();
+
+            var audit = Assert.Single(audits);
+            Assert.Equal(AdminAuditTargetTypes.LocationGuest, audit.TargetType);
+            Assert.Equal(seeded.RestaurantId, audit.RestaurantId);
+            Assert.Matches(@"^user:\d+$", audit.ActorIdentity);
+            Assert.NotNull(audit.DetailJson);
+            Assert.Contains("email", audit.DetailJson);
+            Assert.Contains("name", audit.DetailJson);
+            Assert.DoesNotContain("audit-before@example.com", audit.DetailJson);
+            Assert.DoesNotContain("audit-after@example.com", audit.DetailJson);
+        }
+
+        [Fact]
+        public async Task PatchGuestIdentity_NoopSave_WritesNoCorrectionAudit()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "identity-audit-noop-tokenxx",
+                guestName: "Amelia Hart",
+                email: "audit-noop@example.com"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Patch,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(
+                new
+                {
+                    firstName = "Amelia",
+                    lastName = "Hart",
+                    email = "audit-noop@example.com",
+                    phone = (string?)null,
+                    replaceEmail = true,
+                    replacePhone = true,
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var count = await context.AdminAuditEvents
+                .AsNoTracking()
+                .CountAsync(e =>
+                    e.Action == AdminAuditActions.GuestIdentityCorrection
+                    && e.TargetId == seeded.LocationGuestId.ToString()
+                );
+
+            Assert.Equal(0, count);
+        }
+
+        [Fact]
         public async Task PatchIdentity_NameOnly_KeepsEmailAndPhone()
         {
             var seeded = await SeedOwnerWithGuestAsync(
