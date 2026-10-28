@@ -108,6 +108,34 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task OneClick_MultipartBody_200AndWithdraws()
+        {
+            // RFC 8058 receivers may POST multipart/form-data. The action reads only the query token.
+            var seeded = await SeedGrantedEmailGuestAsync(
+                "one-click-multipart@example.com",
+                "One Click Multipart Venue"
+            );
+            var token = CreateToken(seeded.LocationGuestId, seeded.RestaurantId);
+            var multipart = new MultipartFormDataContent
+            {
+                { new StringContent("One-Click"), "List-Unsubscribe" },
+            };
+
+            var response = await PostOneClickAsync(token, multipart);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var permissions = scope.ServiceProvider
+                .GetRequiredService<ILocationGuestPermissionLedgerService>();
+            var states = await permissions.GetCurrentStatesAsync(seeded.LocationGuestId);
+            Assert.Equal(
+                LocationGuestPermissionState.Withdrawn,
+                states[LocationGuestPermissionKind.EmailMarketing]
+            );
+        }
+
+        [Fact]
         public async Task OneClick_IsNotRateLimited_WhenMailProviderRetriesFromOneIp()
         {
             // Mailbox providers POST from shared sending IPs. A 429 here would break the

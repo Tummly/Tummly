@@ -340,12 +340,11 @@ namespace TummlyBackend.Controllers
         /// RFC 8058 one-click unsubscribe, POSTed by mailbox providers from the
         /// <c>List-Unsubscribe</c> header. The signed <c>t</c> token is the only proof. There is no
         /// session. It withdraws Email marketing at the token's location only, and always returns
-        /// 200 (a bad or missing token changes nothing). The body is ignored, so an RFC body or an
-        /// empty one both work. It is exempt from the per-IP limit: providers share sending IPs,
-        /// and a 429 here would break the always-200 contract.
+        /// 200 (a bad or missing token changes nothing). The body is ignored, so a form-urlencoded,
+        /// multipart or empty body all work. It is exempt from the per-IP limit: providers share
+        /// sending IPs, and a 429 here would break the always-200 contract.
         /// </summary>
         [HttpPost("one-click")]
-        [Consumes("application/x-www-form-urlencoded")]
         [DisableRateLimiting]
         public async Task<IActionResult> OneClick(
             [FromQuery] string? t,
