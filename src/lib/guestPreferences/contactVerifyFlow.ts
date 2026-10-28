@@ -123,16 +123,16 @@ export type ContactFlowEnv = {
   onSessionExpired: () => void
 }
 
+/** Clears busy first, then routes a 401 to the entry view. */
 function failRequest(
   env: ContactFlowEnv,
   error: unknown,
   message: string
 ): void {
+  env.dispatch({ type: "failed", message })
   if (error instanceof GuestPreferencesSessionExpiredError) {
     env.onSessionExpired()
-    return
   }
-  env.dispatch({ type: "failed", message })
 }
 
 async function sendContact(

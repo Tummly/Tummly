@@ -23,16 +23,43 @@ function openingTagWithId(html: string, id: string): string {
   return match[0]
 }
 
+const noop = () => undefined
+
+function renderOverview(addingContact: boolean) {
+  return renderToStaticMarkup(
+    <GuestPreferencesOverview
+      overview={overview}
+      addingContact={addingContact}
+      onSessionExpired={noop}
+      onAddContact={noop}
+      onContactAdded={noop}
+      onManageRestaurants={noop}
+    />
+  )
+}
+
 describe("GuestPreferencesOverview", () => {
-  it("renders name, masked contact and channel state from overview", () => {
-    const html = renderToStaticMarkup(
-      <GuestPreferencesOverview
-        overview={overview}
-        onSessionExpired={() => undefined}
-        onAddContact={() => undefined}
-        onManageRestaurants={() => undefined}
-      />
+  it("shows the add-contact link while not adding a contact", () => {
+    const html = renderOverview(false)
+
+    expect(html).toContain(GUEST_PREFERENCES_COPY.addContactLabel)
+    expect(html).not.toContain(GUEST_PREFERENCES_COPY.contactInputLabel)
+  })
+
+  it("replaces the add-contact link with the input and Continue while adding", () => {
+    const html = renderOverview(true)
+
+    expect(html).not.toContain(GUEST_PREFERENCES_COPY.addContactLabel)
+    expect(html).toContain(GUEST_PREFERENCES_COPY.contactInputLabel)
+    expect(html).toContain(GUEST_PREFERENCES_COPY.continueLabel)
+    // The input sits in the Your details card, next to the verified contact.
+    expect(html.indexOf(GUEST_PREFERENCES_COPY.verifiedContactLabel)).toBeLessThan(
+      html.indexOf(GUEST_PREFERENCES_COPY.contactInputLabel)
     )
+  })
+
+  it("renders name, masked contact and channel state from overview", () => {
+    const html = renderOverview(false)
 
     expect(html).toContain(GUEST_PREFERENCES_COPY.title)
     expect(html).toContain("Sophie")

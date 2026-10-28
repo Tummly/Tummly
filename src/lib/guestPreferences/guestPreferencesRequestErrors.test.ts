@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { GuestPreferencesSessionExpiredError } from "@/api/publicGuestPreferencesApi"
 import {
+  classifyLinkFailure,
   guestPreferencesErrorMessage,
   routeGuestPreferencesRequestError,
 } from "@/lib/guestPreferences/guestPreferencesRequestErrors"
@@ -36,6 +37,22 @@ describe("guestPreferencesErrorMessage", () => {
     expect(
       guestPreferencesErrorMessage(axiosErrorWithBody({ error: "  " }), FALLBACK)
     ).toBe(FALLBACK)
+  })
+})
+
+describe("classifyLinkFailure", () => {
+  it("a 400 means the link is invalid, used or expired", () => {
+    expect(classifyLinkFailure(axiosErrorWithBody({ error: "expired" }, 400))).toBe(
+      "invalid"
+    )
+  })
+
+  it("a 5xx is unavailable, so the link may still be valid", () => {
+    expect(classifyLinkFailure(axiosErrorWithBody({}, 500))).toBe("unavailable")
+  })
+
+  it("a network failure is unavailable", () => {
+    expect(classifyLinkFailure(new Error("network"))).toBe("unavailable")
   })
 })
 

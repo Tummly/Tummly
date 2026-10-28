@@ -228,6 +228,19 @@ describe("verifyCode", () => {
 
     expect(h.expiredCount()).toBe(1)
     expect(h.verifiedCount()).toBe(0)
+    expect(h.state().busy).toBe(false)
+  })
+
+  it("a session expiry on send clears busy before routing to entry", async () => {
+    const h = harness({
+      initial: { inputValue: "sophie@example.com" },
+      startError: new GuestPreferencesSessionExpiredError(),
+    })
+
+    await submitContact(h.env)
+
+    expect(h.expiredCount()).toBe(1)
+    expect(h.state().busy).toBe(false)
   })
 })
 

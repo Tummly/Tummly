@@ -7,6 +7,7 @@ import {
   updateFirstName,
   type GuestPreferencesOverview as GuestPreferencesOverviewData,
 } from "@/api/publicGuestPreferencesApi"
+import { GuestPreferencesAddContactForm } from "@/components/guest-preferences/GuestPreferencesAddContactForm"
 import { GuestPreferencesChannels } from "@/components/guest-preferences/GuestPreferencesChannels"
 import { GuestPreferencesHeader } from "@/components/guest-preferences/GuestPreferencesHeader"
 import { GuestPreferencesNameRow } from "@/components/guest-preferences/GuestPreferencesNameRow"
@@ -37,9 +38,13 @@ import { cn } from "@/lib/utils"
 
 type GuestPreferencesOverviewProps = {
   overview: GuestPreferencesOverviewData
+  /** True while the add-contact input replaces the "Add another contact method" link. */
+  addingContact: boolean
   /** Called when a request returns 401; the page falls back to the entry view. */
   onSessionExpired: () => void
   onAddContact: () => void
+  /** Called once a new contact is confirmed. The page refreshes the overview. */
+  onContactAdded: () => void
   onManageRestaurants: () => void
 }
 
@@ -49,8 +54,10 @@ type GuestPreferencesOverviewProps = {
  */
 export function GuestPreferencesOverview({
   overview,
+  addingContact,
   onSessionExpired,
   onAddContact,
+  onContactAdded,
   onManageRestaurants,
 }: GuestPreferencesOverviewProps) {
   const [state, dispatch] = useReducer(
@@ -157,15 +164,23 @@ export function GuestPreferencesOverview({
                 </span>
               ))}
             </div>
-            <Button
-              type="button"
-              variant="link"
-              size="link-sm"
-              onClick={onAddContact}
-              className={cn(GUEST_PREFERENCES_LINK_CLASS, "self-start")}
-            >
-              {GUEST_PREFERENCES_COPY.addContactLabel}
-            </Button>
+            {addingContact ? (
+              <GuestPreferencesAddContactForm
+                baselineContactCount={overview.contacts.length}
+                onVerified={onContactAdded}
+                onSessionExpired={onSessionExpired}
+              />
+            ) : (
+              <Button
+                type="button"
+                variant="link"
+                size="link-sm"
+                onClick={onAddContact}
+                className={cn(GUEST_PREFERENCES_LINK_CLASS, "self-start")}
+              >
+                {GUEST_PREFERENCES_COPY.addContactLabel}
+              </Button>
+            )}
           </div>
         </section>
 
