@@ -52,7 +52,6 @@ export function DemoWelcomeModal({
         <MarketingButton
           type="button"
           variant="primary"
-          showArrow={false}
           className="h-[50px] w-full max-w-[376px] rounded-[4px]"
           onClick={onStartTour}
           autoFocus

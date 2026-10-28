@@ -91,7 +91,11 @@ export function DemoTourActionBridge({
           openAiAssistant({ prompt: DEMO_TOUR_AI_PROMPT, send: true })
           return
         case "resetTourUi":
+          // The Feedback module lives above the routes, so its drawers stay
+          // open across navigation unless closed here.
           closeAiAssistant()
+          feedbackPage.closeStartRecovery()
+          feedbackPage.closeFeedbackDetails()
           return
         default:
           return

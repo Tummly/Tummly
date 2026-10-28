@@ -9,11 +9,13 @@ export const PRODUCT_DEMO = {
   venueLine: "Mavero Kitchen — Camden High Street",
   entry: {
     headline: "Experience Tummly from both sides.",
-    body: "Start as a guest at Mavero Kitchen - Camden High Street. Leave sample feedback, then see how it appears inside Tummly and what the restaurant can do next.",
+    body: "Start as a guest at Mavero Kitchen — Camden High Street. Leave sample feedback, then see exactly how it appears to the restaurant in Tummly.",
     qrLabel: "Scan to try on your phone",
+    qrCaption: "Best for experiencing the real guest journey.",
+    browserFormLabel: "Try the guest form on your browser",
     openGuestFormLabel: "Open Guest Form",
     restaurantSkipLabel: "See how guest feedback appears in Tummly",
-    reassurance: "No account needed. Demo only. No messages are sent.",
+    reassuranceLines: ["No account needed · Demo only", "No messages are sent"],
     unavailableTitle: "Demo is temporarily unavailable",
     unavailableBody:
       "You can still start a 30-day Pilot or see pricing while we restore the demo.",
@@ -30,13 +32,13 @@ export const PRODUCT_DEMO = {
     secondaryLabel: "Start 30-day Pilot",
   },
   welcome: {
-    eyebrow: "RESTAURANT VIEW - DEMO",
+    eyebrow: "RESTAURANT VIEW · DEMO",
     title: "Welcome to Tummly",
-    body: "See how Tummly helps a restaurant turn guest feedback into the right next action - from receiving feedback and recovering a guest to building engagement and understanding performance.",
+    body: "See how Tummly helps a restaurant turn guest feedback into the right next action, from receiving feedback and recovering a guest to building engagement and understanding performance.",
     bodyWithSubmission:
       "See how your feedback appears in Tummly and what the restaurant can do next - from recovery to engagement and performance.",
     primaryLabel: "Start tour",
-    safetyLine: "Demo only - nothing will be sent or changed outside this demo.",
+    safetyLine: "No account needed",
   },
   tour: {
     fabLabel: "Tour guide",
@@ -44,21 +46,22 @@ export const PRODUCT_DEMO = {
     exploreTitle: "Explore the Guest Loop",
     exploreBody:
       "See how Tummly turns guest feedback into action and repeat engagement.",
-    continueLabel: "Continue tour",
     completeBody:
       "You have seen how Tummly connects Feedback, recovery, guest context, engagement and insight.",
     chapters: [
       {
         id: "feedback",
         label: "Feedback & recovery",
+        description:
+          "See where feedback arrives, understand the issue and recover the guest.",
         // Step 1 points at the Feedback nav item, so the chapter starts on Home.
         route: "home" as const,
         steps: [
           {
             id: "ch1-s1",
             title: "Feedback arrives here",
-            body: "Guest feedback collected through Tummly appears here, where the restaurant can review it, manage follow-up and take the right next action.",
-            ctaLabel: "Open Feedback",
+            body: "Guest feedback collected through Tummly appears in the Feedback section, where the restaurant can review, manage and follow up on it.",
+            ctaLabel: "Continue",
             target: "nav-feedback",
             action: "navigateFeedback" as const,
           },
@@ -66,7 +69,7 @@ export const PRODUCT_DEMO = {
             id: "ch1-s2",
             title: "Find the feedback that needs attention",
             body: "Tummly brings each guest submission into the Feedback inbox with its source, issue tags and workflow status.",
-            ctaLabel: "View feedback",
+            ctaLabel: "Continue",
             target: "feedback-needs-attention-row",
             action: "openFeedbackDetails" as const,
           },
@@ -74,7 +77,7 @@ export const PRODUCT_DEMO = {
             id: "ch1-s3",
             title: "Understand what happened",
             body: "See the guest's original feedback together with the Location, source, issue and guest context needed to decide what to do next.",
-            ctaLabel: "See recovery options",
+            ctaLabel: "Continue",
             target: "feedback-detail-panel",
             action: "none" as const,
           },
@@ -82,7 +85,7 @@ export const PRODUCT_DEMO = {
             id: "ch1-s4",
             title: "Start a recovery",
             body: "When feedback needs a response, the restaurant can begin a recovery directly from the Feedback record.",
-            ctaLabel: "Start recovery",
+            ctaLabel: "Continue",
             target: "feedback-start-recovery",
             action: "openRecovery" as const,
           },
@@ -90,7 +93,7 @@ export const PRODUCT_DEMO = {
             id: "ch1-s5",
             title: "Prepare the right response",
             body: "Tummly can help prepare a personalised recovery response and, where appropriate, include a controlled recovery Offer.",
-            ctaLabel: "Review recovery",
+            ctaLabel: "Continue",
             target: "feedback-recovery-drawer",
             action: "none" as const,
           },
@@ -107,13 +110,15 @@ export const PRODUCT_DEMO = {
       {
         id: "guests",
         label: "Guest context",
+        description:
+          "See how Tummly keeps guest information, permissions and interaction history together.",
         route: "guests" as const,
         steps: [
           {
             id: "ch2-s1",
             title: "Guest context builds over time",
             body: "Tummly brings guest interactions together so the restaurant can understand the relationship beyond one response.",
-            ctaLabel: "Open guest",
+            ctaLabel: "Continue",
             target: "guest-high-engagement",
             action: "openGuestProfile" as const,
           },
@@ -121,7 +126,7 @@ export const PRODUCT_DEMO = {
             id: "ch2-s2",
             title: "See the relationship, not just one response",
             body: "See how feedback, visits and engagement build a useful guest history over time.",
-            ctaLabel: "See permissions",
+            ctaLabel: "Continue",
             target: "guest-profile-panel",
             action: "none" as const,
           },
@@ -138,13 +143,15 @@ export const PRODUCT_DEMO = {
       {
         id: "offers",
         label: "Offers & Campaigns",
+        description:
+          "See how eligible guest relationships can continue through targeted Offers and Campaigns.",
         route: "offers" as const,
         steps: [
           {
             id: "ch3-s1",
             title: "Create a governed Offer",
             body: "Offers can be configured with value, validity, claim frequency and redemption rules before they are used with guests.",
-            ctaLabel: "View Offer",
+            ctaLabel: "Continue",
             target: "offer-primary-row",
             action: "openOffer" as const,
           },
@@ -152,7 +159,7 @@ export const PRODUCT_DEMO = {
             id: "ch3-s2",
             title: "Track claims and redemptions",
             body: "Tummly tracks what was claimed and what was actually redeemed so the restaurant can understand real usage.",
-            ctaLabel: "Open Campaigns",
+            ctaLabel: "Continue",
             target: "offer-metrics",
             action: "navigateCampaigns" as const,
           },
@@ -160,7 +167,7 @@ export const PRODUCT_DEMO = {
             id: "ch3-s3",
             title: "Reach eligible guests",
             body: "Campaigns use eligible guest audiences and keep permission/suppression rules authoritative.",
-            ctaLabel: "View campaign",
+            ctaLabel: "Continue",
             target: "campaign-list",
             action: "openCampaign" as const,
           },
@@ -177,13 +184,15 @@ export const PRODUCT_DEMO = {
       {
         id: "reports",
         label: "Reports & AI",
+        description:
+          "See how Tummly turns activity into insight, recommendations and AI-assisted next actions.",
         route: "reports" as const,
         steps: [
           {
             id: "ch4-s1",
             title: "See the Guest Loop as a system",
             body: "Reports connect Capture, Feedback, Guests, Offers and Campaigns so the restaurant can understand what happened across the Guest Loop.",
-            ctaLabel: "Open Weekly Brief",
+            ctaLabel: "Continue",
             target: "reports-weekly-brief",
             action: "openWeeklyBrief" as const,
           },
@@ -191,7 +200,7 @@ export const PRODUCT_DEMO = {
             id: "ch4-s2",
             title: "Know what changed this week",
             body: "The Weekly Brief summarises what changed, what needs attention and what the restaurant should do next.",
-            ctaLabel: "Ask AI",
+            ctaLabel: "Continue",
             target: "weekly-brief-panel",
             action: "openAi" as const,
           },
@@ -199,7 +208,7 @@ export const PRODUCT_DEMO = {
             id: "ch4-s3",
             title: "Ask Tummly what to do next",
             body: 'Ask a real operational question such as: "Summarise feedback from the last 30 days and tell me what needs attention."',
-            ctaLabel: "Show answer",
+            ctaLabel: "Continue",
             target: "ai-assistant-panel",
             action: "showAiAnswer" as const,
           },
