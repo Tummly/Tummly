@@ -1729,19 +1729,47 @@ static async Task InitializeDatabaseAsync(
             services.GetRequiredService<DbPricebookCatalog>().InvalidateCache();
         }
 
+        var staffSeedIsDevelopment = services
+            .GetRequiredService<IHostEnvironment>()
+            .IsDevelopment();
+
         if (!await context.Admins.AnyAsync())
         {
-            var admin = new TummlyBackend.Models.Admin
-            {
-                FullName = "Tummly Admin",
-                Email = "admin@tummly.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                Role = "Admin",
-                IsActive = true
-            };
+            var adminSeed = StaffSeedPolicy.Decide(
+                staffSeedIsDevelopment,
+                configuration["StaffSeed:AdminEmail"],
+                configuration["StaffSeed:AdminPassword"],
+                StaffSeedPolicy.DevelopmentAdminEmail,
+                StaffSeedPolicy.DevelopmentAdminPassword
+            );
 
-            context.Admins.Add(admin);
-            await context.SaveChangesAsync();
+            if (!adminSeed.ShouldSeed)
+            {
+                logger.LogWarning(
+                    "Admin staff account not created: StaffSeed:AdminPassword is not configured."
+                );
+            }
+            else
+            {
+                if (adminSeed.PasswordSource == StaffSeedPasswordSource.DevelopmentDefault)
+                {
+                    logger.LogInformation(
+                        "Admin staff account created with the Development default password."
+                    );
+                }
+
+                var admin = new TummlyBackend.Models.Admin
+                {
+                    FullName = "Tummly Admin",
+                    Email = adminSeed.Email,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminSeed.Password),
+                    Role = "Admin",
+                    IsActive = true
+                };
+
+                context.Admins.Add(admin);
+                await context.SaveChangesAsync();
+            }
         }
 
         if (
@@ -1750,17 +1778,41 @@ static async Task InitializeDatabaseAsync(
             )
         )
         {
-            var support = new TummlyBackend.Models.Admin
-            {
-                FullName = "Tummly Support",
-                Email = "support@tummly.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Support@123"),
-                Role = "Support",
-                IsActive = true
-            };
+            var supportSeed = StaffSeedPolicy.Decide(
+                staffSeedIsDevelopment,
+                configuration["StaffSeed:SupportEmail"],
+                configuration["StaffSeed:SupportPassword"],
+                StaffSeedPolicy.DevelopmentSupportEmail,
+                StaffSeedPolicy.DevelopmentSupportPassword
+            );
 
-            context.Admins.Add(support);
-            await context.SaveChangesAsync();
+            if (!supportSeed.ShouldSeed)
+            {
+                logger.LogWarning(
+                    "Support staff account not created: StaffSeed:SupportPassword is not configured."
+                );
+            }
+            else
+            {
+                if (supportSeed.PasswordSource == StaffSeedPasswordSource.DevelopmentDefault)
+                {
+                    logger.LogInformation(
+                        "Support staff account created with the Development default password."
+                    );
+                }
+
+                var support = new TummlyBackend.Models.Admin
+                {
+                    FullName = "Tummly Support",
+                    Email = supportSeed.Email,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(supportSeed.Password),
+                    Role = "Support",
+                    IsActive = true
+                };
+
+                context.Admins.Add(support);
+                await context.SaveChangesAsync();
+            }
         }
     }
     catch (Exception ex)

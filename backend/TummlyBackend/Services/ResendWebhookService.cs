@@ -21,24 +21,31 @@ namespace TummlyBackend.Services
         public const string EmailDeliveredType = "email.delivered";
         public const string EmailBouncedType = "email.bounced";
         public const string EmailFailedType = "email.failed";
+        public const string EmailComplainedType = "email.complained";
 
         private static readonly TimeSpan MaxSkew = TimeSpan.FromMinutes(5);
 
         private readonly ApplicationDbContext _context;
         private readonly EmailSettings _emailSettings;
         private readonly ILogger<ResendWebhookService> _logger;
+        private readonly IGuestInitiatedMarketingWithdrawService _withdraw;
+        private readonly IGuestContactSuppressionService _suppressions;
         private readonly Func<DateTime> _utcNow;
 
         public ResendWebhookService(
             ApplicationDbContext context,
             IOptions<EmailSettings> emailSettings,
             ILogger<ResendWebhookService> logger,
+            IGuestInitiatedMarketingWithdrawService withdraw,
+            IGuestContactSuppressionService suppressions,
             Func<DateTime>? utcNow = null
         )
         {
             _context = context;
             _emailSettings = emailSettings.Value;
             _logger = logger;
+            _withdraw = withdraw;
+            _suppressions = suppressions;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
@@ -89,6 +96,18 @@ namespace TummlyBackend.Services
             var emailId = data.TryGetProperty("email_id", out var emailIdEl)
                 ? emailIdEl.GetString()?.Trim()
                 : null;
+
+            var suppressionSource = MarketingSuppressionSourceForEvent(type, data);
+            if (suppressionSource != null)
+            {
+                await SuppressEmailMarketingAsync(
+                    emailId,
+                    data,
+                    suppressionSource,
+                    ReadEventTime(root) ?? _utcNow(),
+                    cancellationToken
+                );
+            }
 
             var replyState = ReplyStateForEvent(type);
             if (replyState != null)
@@ -143,6 +162,123 @@ namespace TummlyBackend.Services
                 EmailFailedType => GuestReplyDeliveryState.Failed,
                 _ => null,
             };
+
+        /// <summary>
+        /// Hard bounces and complaints suppress Email marketing. A bounce with no
+        /// <c>bounce.type</c> counts as hard. Resend <c>Temporary</c> and
+        /// <c>Undetermined</c> bounces do not.
+        /// </summary>
+        private static string? MarketingSuppressionSourceForEvent(
+            string? type,
+            JsonElement data
+        ) =>
+            type switch
+            {
+                EmailBouncedType when IsHardBounce(data) =>
+                    GuestContactSuppressionSources.Bounce,
+                EmailComplainedType => GuestContactSuppressionSources.Complaint,
+                _ => null,
+            };
+
+        private static bool IsHardBounce(JsonElement data)
+        {
+            if (
+                !data.TryGetProperty("bounce", out var bounce)
+                || bounce.ValueKind != JsonValueKind.Object
+                || !bounce.TryGetProperty("type", out var typeEl)
+                || typeEl.ValueKind != JsonValueKind.String
+            )
+            {
+                return true;
+            }
+
+            return string.Equals(
+                typeEl.GetString()?.Trim(),
+                "Permanent",
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        /// <summary>
+        /// Suppresses Email marketing for the guest behind a Campaign delivery. The
+        /// restaurant-scoped contact suppression is the same one the unsubscribe form
+        /// writes. Events with no Campaign email recipient are logged and skipped.
+        /// </summary>
+        private async Task SuppressEmailMarketingAsync(
+            string? emailId,
+            JsonElement data,
+            string source,
+            DateTime atUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var delivery = await FindDeliveryAsync(emailId, data, cancellationToken);
+
+            LocationGuest? guest = null;
+            if (delivery?.LocationGuestId is int locationGuestId)
+            {
+                guest = await _context.LocationGuests
+                    .Include(lg => lg.RestaurantLocation)
+                    .Include(lg => lg.MasterGuest)
+                    .FirstOrDefaultAsync(
+                        lg => lg.Id == locationGuestId,
+                        cancellationToken
+                    );
+            }
+
+            var address = guest?.MasterGuest?.Email ?? guest?.MasterGuest?.NormalizedEmail;
+            if (
+                guest?.RestaurantLocation == null
+                || !GuestContactKey.TryCreate(
+                    address,
+                    ContactType.Email,
+                    out var contactKey
+                )
+            )
+            {
+                _logger.LogInformation(
+                    "Resend {Source} event has no Campaign email recipient; Email marketing not suppressed (email_id={EmailId}).",
+                    source,
+                    emailId
+                );
+                return;
+            }
+
+            var restaurantId = guest.RestaurantLocation.RestaurantId;
+
+            // Stage first. A repeat event finds the staged row and changes nothing.
+            await _suppressions.StageAsync(
+                restaurantId,
+                contactKey,
+                LocationGuestPermissionKind.EmailMarketing,
+                atUtc,
+                source,
+                cancellationToken
+            );
+            // Same scope as the unsubscribe form: every Location guest of this
+            // restaurant with this address, so a sister Location cannot send to it.
+            var widened = await _withdraw.WithdrawForRestaurantContactAsync(
+                restaurantId,
+                guest.MasterGuest!.NormalizedEmail ?? address!.Trim().ToLowerInvariant(),
+                isEmail: true,
+                LocationGuestPermissionKind.EmailMarketing,
+                source,
+                cancellationToken
+            );
+            if (widened.GuestsTouched == 0)
+            {
+                // Legacy row without NormalizedEmail: withdraw the recipient at least.
+                await _withdraw.WithdrawForLocationGuestAsync(
+                    guest.Id,
+                    restaurantId,
+                    LocationGuestPermissionKind.EmailMarketing,
+                    source,
+                    cancellationToken
+                );
+            }
+            // Saves the staged suppression even when the withdraw wrote nothing.
+            await _context.SaveChangesAsync(cancellationToken);
+        }
 
         /// <summary>
         /// Moves guest replies with this provider email id to <paramref name="next"/>.
