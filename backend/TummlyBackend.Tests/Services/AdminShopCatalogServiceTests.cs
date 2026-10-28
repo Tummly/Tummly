@@ -275,6 +275,42 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task DbCatalog_List_ShowsAvailableProductsBeforeComingSoon()
+        {
+            var catalog = new DbMaterialsCatalog(_context);
+            foreach (var item in catalog.BuildList())
+            {
+                await _service.SetAvailableInShopAsync(
+                    item.SkuId,
+                    availableInShop: true,
+                    actorAdminUserId: 1,
+                    actorIdentity: "admin@example.com"
+                );
+            }
+            var before = catalog.BuildList();
+            Assert.True(before.Count > 1);
+            var firstSkuId = before[0].SkuId;
+
+            var (_, error) = await _service.SetAvailableInShopAsync(
+                firstSkuId,
+                availableInShop: false,
+                actorAdminUserId: 1,
+                actorIdentity: "admin@example.com"
+            );
+            Assert.Null(error);
+
+            var list = catalog.BuildList();
+            var firstComingSoon = list.ToList().FindIndex(item => !item.AvailableInShop);
+            Assert.True(firstComingSoon > 0);
+            Assert.All(list.Take(firstComingSoon), item => Assert.True(item.AvailableInShop));
+            Assert.All(list.Skip(firstComingSoon), item => Assert.False(item.AvailableInShop));
+            Assert.Equal(
+                before.Where(item => item.SkuId != firstSkuId && item.AvailableInShop).Select(item => item.SkuId),
+                list.Where(item => item.AvailableInShop).Select(item => item.SkuId)
+            );
+        }
+
+        [Fact]
         public async Task SetAvailableInShop_Off_KeepsPublishedVisible_WithComingSoonBadge()
         {
             var (sku, error) = await _service.SetAvailableInShopAsync(

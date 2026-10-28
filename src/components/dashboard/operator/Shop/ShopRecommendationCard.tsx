@@ -69,7 +69,7 @@ export function ShopRecommendationCard({
         <img
           src={imageSrc}
           alt={title}
-          className="absolute inset-0 size-full object-contain transition-transform duration-200 group-hover:scale-[1.03]"
+          className="absolute inset-0 size-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
         />
       </div>
 

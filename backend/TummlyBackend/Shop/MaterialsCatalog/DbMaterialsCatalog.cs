@@ -56,7 +56,9 @@ namespace TummlyBackend.Shop.MaterialsCatalog
         public IReadOnlyList<ShopCatalogListItemDto> BuildList()
         {
             var skus = LoadPublishedSkus();
+            // Live products first, then Coming soon; Id order inside each group.
             return skus
+                .OrderByDescending(row => row.AvailableInShop)
                 .Select(ShopMaterialCatalogMapper.MapListItem)
                 .ToList();
         }

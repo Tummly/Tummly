@@ -171,11 +171,11 @@ export function ShopProductScreen({
         <div className="flex flex-col gap-8 lg:col-span-6">
           {/* Main Showcase Image */}
           <div className="flex flex-col gap-3">
-            <div className="flex h-[420px] w-full items-center justify-center overflow-hidden rounded-op-lg border border-op-border-default bg-op-color-gray-60 p-6 dark:bg-[var(--op-color-gray-990)] sm:h-[520px]">
+            <div className="flex h-[420px] w-full items-center justify-center overflow-hidden rounded-op-lg border border-op-border-default bg-op-color-gray-60 dark:bg-[var(--op-color-gray-990)] sm:h-[520px]">
               <img
                 src={thumbnails[activeImageIdx]}
                 alt={product.title}
-                className="size-full scale-[1.12] object-contain transition-all duration-300"
+                className="size-full object-cover transition-all duration-300"
               />
             </div>
 
@@ -187,7 +187,7 @@ export function ShopProductScreen({
                   type="button"
                   onClick={() => setActiveImageIdx(idx)}
                   className={cn(
-                    "flex h-24 items-center justify-center overflow-hidden rounded-op-lg border bg-op-color-gray-60 p-2 transition-colors dark:bg-[var(--op-color-gray-990)] sm:h-28",
+                    "flex h-24 items-center justify-center overflow-hidden rounded-op-lg border bg-op-color-gray-60 transition-colors dark:bg-[var(--op-color-gray-990)] sm:h-28",
                     activeImageIdx === idx
                       ? "border-op-action-primary ring-1 ring-op-action-primary"
                       : "border-op-border-default hover:border-op-action-tertiary"
@@ -196,7 +196,7 @@ export function ShopProductScreen({
                   <img
                     src={thumb}
                     alt={`${product.title} view ${idx + 1}`}
-                    className="size-full scale-[1.15] object-contain"
+                    className="size-full object-cover"
                   />
                 </button>
               ))}
