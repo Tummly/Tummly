@@ -16,8 +16,6 @@ export type DemoTourSessionState = {
   stepIndex: number
   completedChapterIds: string[]
   exploreOpen: boolean
-  /** When true, hide coachmarks — user is browsing the dashboard freely. */
-  freeExplore: boolean
   phase: DemoTourPhase
   entryPath: DemoTourEntryPath
   hasGuestSubmission: boolean
@@ -86,7 +84,6 @@ export function readDemoTourSession(): DemoTourSessionState | null {
         exploreOpen: Boolean(
           (parsed as { exploreOpen?: boolean }).exploreOpen
         ),
-        freeExplore: false,
         phase: phase === "exit" ? "exit" : "tour",
         entryPath: "skip",
         hasGuestSubmission: false,
@@ -108,7 +105,6 @@ export function readDemoTourSession(): DemoTourSessionState | null {
           )
         : [],
       exploreOpen: Boolean(parsed.exploreOpen),
-      freeExplore: Boolean(parsed.freeExplore),
       phase,
       entryPath: parsed.entryPath === "guest" ? "guest" : "skip",
       hasGuestSubmission: Boolean(parsed.hasGuestSubmission),
@@ -136,7 +132,6 @@ export function startDemoTourSession(options?: {
     stepIndex: 0,
     completedChapterIds: [],
     exploreOpen: false,
-    freeExplore: false,
     phase: options?.phase ?? "welcome",
     entryPath: options?.entryPath ?? "skip",
     hasGuestSubmission: Boolean(options?.hasGuestSubmission),

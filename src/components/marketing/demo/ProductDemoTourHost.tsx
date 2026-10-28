@@ -135,7 +135,6 @@ export function ProductDemoTourHost() {
   const showCoachmark =
     state.phase === "tour" &&
     !state.exploreOpen &&
-    !state.freeExplore &&
     chapter != null &&
     step != null
   const showFab = state.phase === "tour" || state.phase === "exit"
@@ -152,7 +151,6 @@ export function ProductDemoTourHost() {
       chapterIndex,
       stepIndex: clampedStep,
       exploreOpen: false,
-      freeExplore: false,
       phase: "tour",
     })
     // Drawers from an earlier step cannot be rebuilt, so a chapter always
@@ -346,7 +344,7 @@ export function ProductDemoTourHost() {
                   return
                 }
                 // Mid-chapter: the step's screen is still open; resume it.
-                persist({ ...state, exploreOpen: false, freeExplore: false })
+                persist({ ...state, exploreOpen: false })
               }}
             />
             <Link
@@ -365,17 +363,7 @@ export function ProductDemoTourHost() {
 
         {showExit ? (
           <div className="pointer-events-auto flex h-full items-center justify-center p-4 sm:p-6">
-            <DemoExitModal
-              onContinueExploring={() =>
-                persist({
-                  ...state,
-                  exploreOpen: false,
-                  freeExplore: true,
-                  phase: "tour",
-                })
-              }
-              onLeaveDemo={(to) => leaveDemo(to)}
-            />
+            <DemoExitModal onLeaveDemo={(to) => leaveDemo(to)} />
             <Link
               to="/"
               onClick={(event) => {
