@@ -105,7 +105,7 @@ namespace TummlyBackend.Services
                     .ToListAsync(cancellationToken)
             )
                 .Where(master =>
-                    GuestInitiatedMarketingWithdrawService.MasterGuestMatchesE164(
+                    GuestPhoneMatch.MasterGuestMatchesE164(
                         master,
                         fromE164
                     )

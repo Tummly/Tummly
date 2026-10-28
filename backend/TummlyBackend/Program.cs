@@ -689,6 +689,10 @@ builder.Services.AddScoped<
     IGuestInitiatedMarketingWithdrawService,
     GuestInitiatedMarketingWithdrawService
 >();
+builder.Services.AddScoped<
+    ITummlyGuestIdentityService,
+    TummlyGuestIdentityService
+>();
 builder.Services.AddScoped<TwilioSmsInboundService>();
 builder.Services.AddScoped<TwilioSmsStatusService>();
 builder.Services.AddScoped<
