@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react"
 import axios from "axios"
-import { Trash2Icon, UploadIcon } from "lucide-react"
+import { DownloadIcon, Trash2Icon, UploadIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
   demoteAdminShopInterestProduct,
+  downloadAdminShopInterestCountsCsv,
   fetchAdminShopInterest,
   fetchAdminShopInterestProducts,
   promoteAdminShopInterestProduct,
+  removeAdminShopInterestRegistration,
   updateAdminShopInterestProduct,
   uploadAdminShopInterestImage,
   deleteAdminShopInterestImage,
@@ -21,6 +23,16 @@ import {
   type AdminPlacementRecipe,
   type AdminShopCatalogTag,
 } from "@/api/adminShopCatalogApi"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
@@ -60,6 +72,7 @@ import {
 } from "@/lib/operatorGuests/guestsPresentation"
 import { OPERATOR_RIGHT_DRAWER_CONTENT_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { resolveShopCatalogImageSrc } from "@/lib/operatorShop/resolveShopCatalogImageSrc"
+import { triggerBlobDownload } from "@/lib/triggerBlobDownload"
 import { cn } from "@/lib/utils"
 
 const DRAWER_SELECT_CONTENT_CLASS = "z-[150]"
@@ -146,6 +159,10 @@ export function AdminShopInterestPanel() {
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [promote, setPromote] = useState<PromoteState | null>(null)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [removeTarget, setRemoveTarget] =
+    useState<AdminShopInterestRegistration | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   const availableRecipes = recipes.filter((recipe) => recipe.isAvailable)
 
@@ -181,6 +198,36 @@ export function AdminShopInterestPanel() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  const confirmRemove = async () => {
+    if (!removeTarget) return
+    setRemoving(true)
+    try {
+      await removeAdminShopInterestRegistration(removeTarget.id)
+      toast.success("Interest registration removed.")
+      setRemoveTarget(null)
+      await reload()
+    } catch (error) {
+      toast.error(
+        apiErrorMessage(error, "Could not remove interest registration.")
+      )
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  const handleCountsExport = async () => {
+    setExporting(true)
+    try {
+      const { blob, fileName } = await downloadAdminShopInterestCountsCsv()
+      triggerBlobDownload(blob, fileName)
+      toast.success("Shop interest counts CSV downloaded")
+    } catch {
+      toast.error("Could not export shop interest counts.")
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const saveEditor = async () => {
     if (!editor) return
@@ -458,11 +505,23 @@ export function AdminShopInterestPanel() {
       </section>
 
       <section className={GUESTS_SECTION_CLASS}>
-        <div className="mb-4">
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>Counts by product</h2>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
-            How many people registered interest per product.
-          </p>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className={GUESTS_SECTION_TITLE_CLASS}>Counts by product</h2>
+            <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+              How many people registered interest per product.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="op-secondary"
+            className="rounded-[2px]"
+            disabled={exporting || loading}
+            onClick={() => void handleCountsExport()}
+          >
+            <DownloadIcon />
+            Export CSV
+          </Button>
         </div>
         <div className={GUESTS_TABLE_FRAME_CLASS}>
           <Table className={GUESTS_TABLE_CLASS}>
@@ -544,6 +603,9 @@ export function AdminShopInterestPanel() {
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   When (UTC)
                 </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Action
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -551,7 +613,7 @@ export function AdminShopInterestPanel() {
                 Array.from({ length: 3 }).map((_, index) => (
                   <TableRow key={index} className={GUESTS_TABLE_BODY_ROW_CLASS}>
                     <TableCell
-                      colSpan={6}
+                      colSpan={7}
                       className={GUESTS_TABLE_BODY_CELL_CLASS}
                     >
                       <Skeleton className="h-8 w-full" />
@@ -561,7 +623,7 @@ export function AdminShopInterestPanel() {
               ) : items.length === 0 ? (
                 <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className={GUESTS_TABLE_BODY_CELL_CLASS}
                   >
                     {loadError
@@ -593,6 +655,16 @@ export function AdminShopInterestPanel() {
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       {formatUtc(row.createdAtUtc)}
                     </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="op-secondary"
+                        onClick={() => setRemoveTarget(row)}
+                      >
+                        Remove
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -600,6 +672,36 @@ export function AdminShopInterestPanel() {
           </Table>
         </div>
       </section>
+
+      <AlertDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !removing) setRemoveTarget(null)
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this interest?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeTarget
+                ? `${removeTarget.userEmail} is removed from ${removeTarget.productTitle}.`
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removing}
+              onClick={(event) => {
+                event.preventDefault()
+                void confirmRemove()
+              }}
+            >
+              {removing ? "Removing…" : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Drawer
         open={editor != null}

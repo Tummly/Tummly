@@ -2915,6 +2915,18 @@ namespace TummlyBackend.Data
             {
                 e.HasIndex(row => row.ProductKey);
                 e.HasIndex(row => row.CreatedAtUtc);
+                // One registration per user, product and Location. No filter, so
+                // a NULL LocationId is one value too: a user registers once per
+                // product without a Location.
+                e.HasIndex(row => new
+                    {
+                        row.UserId,
+                        row.ShopInterestProductId,
+                        row.LocationId,
+                    })
+                    .IsUnique()
+                    .HasFilter(null)
+                    .HasDatabaseName("IX_ShopInterestRegistrations_User_Product_Location");
                 e.Property(row => row.ProductKey).HasMaxLength(80).IsRequired();
                 e.Property(row => row.ProductTitleSnapshot)
                     .HasMaxLength(200)

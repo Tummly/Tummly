@@ -4551,6 +4551,10 @@ namespace TummlyBackend.Migrations
 
                     b.HasIndex("ShopInterestProductId");
 
+                    b.HasIndex("UserId", "ShopInterestProductId", "LocationId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ShopInterestRegistrations_User_Product_Location");
+
                     b.ToTable("ShopInterestRegistrations");
                 });
 

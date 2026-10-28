@@ -95,6 +95,7 @@ import {
   OPERATOR_SHELL_MENU_ITEM_CLASS,
   OPERATOR_SHELL_MENU_PANEL_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
+import { triggerBlobDownload } from "@/lib/triggerBlobDownload"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 25
@@ -106,15 +107,6 @@ type PendingFulfilment = {
   order: AdminShopOrderListItem
   status: "in_transit" | "delivered"
   label: string
-}
-
-function triggerFileDownload(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement("a")
-  anchor.href = url
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(url)
 }
 
 function fulfilmentErrorMessage(error: unknown): string {
@@ -223,7 +215,7 @@ export function AdminShopOrdersPanel() {
         q: debouncedSearch || undefined,
         fulfilmentStatus: fulfilmentStatusesForFilter(statusFilter),
       })
-      triggerFileDownload(blob, fileName)
+      triggerBlobDownload(blob, fileName)
       toast.success("Shop orders CSV downloaded")
     } catch {
       toast.error("Could not export shop orders")
@@ -268,7 +260,7 @@ export function AdminShopOrdersPanel() {
         for (const qrType of downloadQrTypes) {
           const asset = order.printAssets.find((item) => item.qrType === qrType)
           const blob = await downloadAdminShopOrderPrintAsset(order.id, qrType)
-          triggerFileDownload(
+          triggerBlobDownload(
             blob,
             defaultDownloadName(order.id, qrType, asset?.fileName ?? null)
           )

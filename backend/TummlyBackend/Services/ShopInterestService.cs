@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Shop;
@@ -13,10 +16,15 @@ namespace TummlyBackend.Services
             "Thanks — we have noted your interest.";
 
         private readonly ApplicationDbContext _context;
+        private readonly IAdminAuditService _audit;
 
-        public ShopInterestService(ApplicationDbContext context)
+        public ShopInterestService(
+            ApplicationDbContext context,
+            IAdminAuditService audit
+        )
         {
             _context = context;
+            _audit = audit;
         }
 
         public async Task<IReadOnlyList<ShopInterestProductDto>> ListActiveProductsAsync(
@@ -134,9 +142,26 @@ namespace TummlyBackend.Services
                     CreatedAtUtc = DateTime.UtcNow,
                 }
             );
-            await _context.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+            {
+                // A concurrent request registered the same user, product and
+                // Location first (IX_ShopInterestRegistrations_User_Product_Location).
+                return (true, null, ThanksMessage);
+            }
 
             return (true, null, ThanksMessage);
+        }
+
+        private static bool IsUniqueConstraintViolation(DbUpdateException exception)
+        {
+            return exception.InnerException is SqlException
+            {
+                Number: 2601 or 2627,
+            };
         }
 
         public async Task<(bool Ok, string? Error)> UnregisterAsync(
@@ -194,6 +219,84 @@ namespace TummlyBackend.Services
                 })
                 .ToListAsync(cancellationToken);
 
+            var counts = await ListCountsByProductAsync(cancellationToken);
+
+            return new AdminShopInterestListDto
+            {
+                Items = items,
+                CountsByProduct = counts,
+            };
+        }
+
+        public async Task<(bool Ok, string? Error)> RemoveRegistrationAsync(
+            int registrationId,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var row = await _context.ShopInterestRegistrations
+                .FirstOrDefaultAsync(
+                    registration => registration.Id == registrationId,
+                    cancellationToken
+                );
+            if (row == null)
+            {
+                return (false, "Interest registration was not found.");
+            }
+
+            _context.ShopInterestRegistrations.Remove(row);
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopInterestRegistrationRemoved,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopInterestRegistration,
+                    row.Id.ToString(CultureInfo.InvariantCulture),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: row.RestaurantId,
+                    DetailJson: JsonSerializer.Serialize(
+                        new
+                        {
+                            productKey = row.ProductKey,
+                            userId = row.UserId,
+                            locationId = row.LocationId,
+                        }
+                    )
+                )
+            );
+
+            await _context.SaveChangesAsync(cancellationToken);
+            return (true, null);
+        }
+
+        public async Task<(string FileName, byte[] Content)> ExportCountsCsvAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var counts = await ListCountsByProductAsync(cancellationToken);
+            var rows = counts
+                .Select(row => (IReadOnlyList<string>)
+                [
+                    row.ProductKey,
+                    row.Title,
+                    row.Count.ToString(CultureInfo.InvariantCulture),
+                ])
+                .ToList();
+
+            var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+            return (
+                $"tummly-shop-interest-counts-{stamp}Z.csv",
+                Rfc4180Csv.WriteUtf8(
+                    ["Product key", "Product", "Interest count"],
+                    rows
+                )
+            );
+        }
+
+        private async Task<List<AdminShopInterestProductCountDto>> ListCountsByProductAsync(
+            CancellationToken cancellationToken
+        )
+        {
             // Every active product shows, even with no interest yet. A product
             // that left the active list keeps its row while it still has
             // registrations.
@@ -242,16 +345,10 @@ namespace TummlyBackend.Services
                 };
             }
 
-            var counts = countsByKey.Values
+            return countsByKey.Values
                 .OrderByDescending(row => row.Count)
                 .ThenBy(row => row.Title, StringComparer.Ordinal)
                 .ToList();
-
-            return new AdminShopInterestListDto
-            {
-                Items = items,
-                CountsByProduct = counts,
-            };
         }
     }
 }
