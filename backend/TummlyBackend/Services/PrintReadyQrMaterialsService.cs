@@ -722,29 +722,12 @@ namespace TummlyBackend.Services
             }
 
             var printRoute = ResolvePrintRoute(qrType, shopOrderId);
-            var productTitle = order.Lines
-                .Where(line =>
-                {
-                    var catalog = _materialsCatalog.GetRequired(
-                        _materialsCatalog.CurrentCatalogId
-                    );
-                    var sku = catalog.Skus.FirstOrDefault(row =>
-                        string.Equals(
-                            row.SkuId,
-                            line.CatalogSkuId,
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                    );
-                    return sku != null
-                        && string.Equals(
-                            sku.QrType,
-                            qrType.ToString(),
-                            StringComparison.Ordinal
-                        );
-                })
-                .Select(line => line.TitleSnapshot)
-                .FirstOrDefault()
-                ?? qrType.ToString();
+            // Same snapshot rule as readiness, retry and approve.
+            var snapshotTitle = ResolveOrderedProductTitles(order.Lines, _materialsCatalog)
+                .GetValueOrDefault(qrType);
+            var productTitle = string.IsNullOrWhiteSpace(snapshotTitle)
+                ? qrType.ToString()
+                : snapshotTitle;
 
             string? offerHeadline = null;
             if (
@@ -1636,7 +1619,7 @@ namespace TummlyBackend.Services
             out string title
         )
         {
-            title = line.TitleSnapshot;
+            title = line.TitleSnapshot?.Trim() ?? string.Empty;
             // Prefer recipe-backed catalog QrType (denormalized PlacementKey).
             // Fall back to legacy sku-id map for older complimentary orders.
             if (

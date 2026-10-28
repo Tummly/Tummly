@@ -275,12 +275,12 @@ namespace TummlyBackend.Services
         /// </summary>
         private async Task<bool> HasPausedStarterCodeWithoutActiveAsync(
             int locationId,
-            IReadOnlyList<ShopMaterialSku> starterSkus,
+            IReadOnlyList<ShopMaterialSku> counterSkus,
             CancellationToken cancellationToken
         )
         {
             var starterTypes = new HashSet<QrType>();
-            foreach (var sku in starterSkus)
+            foreach (var sku in counterSkus)
             {
                 if (
                     sku.PlacementRecipe != null

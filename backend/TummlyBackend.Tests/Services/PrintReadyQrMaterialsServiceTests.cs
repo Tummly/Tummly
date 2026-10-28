@@ -511,6 +511,26 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task GetShopOrderPreviewAsync_UsesOrderTitleSnapshotNotLiveCatalogTitle()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            var service = CreateService(
+                new RecordingStorage(),
+                new NoOpPrintReadyQrMaterialsWork()
+            );
+            var orderId = await SeedPaidOrderAsync(location, quantity: 25);
+            await service.EnsureShopOrderMaterialsAsync(orderId);
+            var line = await _context.ShopOrderLines.SingleAsync(row => row.ShopOrderId == orderId);
+            line.TitleSnapshot = "  Table Tent (title at purchase)  ";
+            await _context.SaveChangesAsync();
+
+            var preview = await service.GetShopOrderPreviewAsync(orderId, QrType.TableTent);
+
+            Assert.NotNull(preview);
+            Assert.Equal("Table Tent (title at purchase)", preview.ProductTitle);
+        }
+
+        [Fact]
         public void ResolveOrderedQrTypes_UsesStableSkuSnapshotWhenCurrentCatalogRemovedSku()
         {
             var types = PrintReadyQrMaterialsService.ResolveOrderedQrTypes(
