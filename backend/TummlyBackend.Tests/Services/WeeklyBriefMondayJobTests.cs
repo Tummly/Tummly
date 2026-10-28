@@ -133,8 +133,10 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProcessAsync_JustBeforeMonday_SkipsWhenNotGenerateDay()
+        public async Task ProcessAsync_SundayBeforeLondonMonday_StillProcessesPriorClosedWeek()
         {
+            // Still inside the week that closes at this Monday, so the closed week
+            // is the one before it (2026-08-03 – 2026-08-09).
             var locationId = await SeedLocationAsync("Harbour Kitchen");
             var justBeforeMonday = new DateTime(
                 2026,
@@ -148,20 +150,146 @@ namespace TummlyBackend.Tests.Services
 
             var batch = await _job.ProcessAsync(justBeforeMonday);
 
+            Assert.Equal(1, batch.Generated);
+            Assert.Equal(0, batch.Skipped);
+            Assert.Equal(1, _provider.CallCount);
+            Assert.Equal(
+                1,
+                await _context.WeeklyBriefs.CountAsync(row =>
+                    row.LocationId == locationId
+                    && row.WeekKey == "monday:2026-08-03"
+                    && row.Status == WeeklyBriefStatus.Succeeded
+                )
+            );
+            Assert.Single(_notifier.Calls);
+            Assert.Equal("monday:2026-08-03", _notifier.Calls[0].WeekKey);
+        }
+
+        [Fact]
+        public async Task ProcessAsync_TuesdayAfterFailedMonday_RetriesSameClosedWeek()
+        {
+            var locationId = await SeedLocationAsync("Harbour Kitchen");
+            var failingJob = new WeeklyBriefMondayJob(
+                _context,
+                new MixedGenerateService(_generate, locationId),
+                _notifier,
+                NullLogger<WeeklyBriefMondayJob>.Instance
+            );
+
+            var monday = await failingJob.ProcessAsync(LondonMondayMidnightUtc);
+
+            Assert.Equal(0, monday.Generated);
+            Assert.Equal(1, monday.Failed);
+            Assert.Empty(_notifier.Calls);
+
+            var tuesday = new DateTime(2026, 8, 18, 12, 0, 0, DateTimeKind.Utc);
+            var batch = await _job.ProcessAsync(tuesday);
+
+            Assert.Equal(1, batch.Generated);
+            Assert.Equal(0, batch.Failed);
+            Assert.Equal(1, _provider.CallCount);
+            Assert.Equal(
+                1,
+                await _context.WeeklyBriefs.CountAsync(row =>
+                    row.LocationId == locationId
+                    && row.WeekKey == "monday:2026-08-10"
+                    && row.Status == WeeklyBriefStatus.Succeeded
+                )
+            );
+            Assert.Single(_notifier.Calls);
+            Assert.Equal("monday:2026-08-10", _notifier.Calls[0].WeekKey);
+        }
+
+        [Fact]
+        public async Task ProcessAsync_LaterDayInWeek_RetriesStoredFailedRow()
+        {
+            var locationId = await SeedLocationAsync("Harbour Kitchen");
+            _context.WeeklyBriefs.Add(
+                new WeeklyBrief
+                {
+                    LocationId = locationId,
+                    WeekKey = "monday:2026-08-10",
+                    Status = WeeklyBriefStatus.Failed,
+                    GeneratedAtUtc = LondonMondayMidnightUtc,
+                    BodyJson = "{}",
+                    MetricsJson = "{}",
+                }
+            );
+            await _context.SaveChangesAsync();
+            var wednesday = new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc);
+
+            var batch = await _job.ProcessAsync(wednesday);
+
+            Assert.Equal(1, batch.Generated);
+            Assert.Equal(1, _provider.CallCount);
+            var row = Assert.Single(
+                await _context.WeeklyBriefs
+                    .Where(brief =>
+                        brief.LocationId == locationId
+                        && brief.WeekKey == "monday:2026-08-10"
+                    )
+                    .ToListAsync()
+            );
+            Assert.Equal(WeeklyBriefStatus.Succeeded, row.Status);
+            Assert.Single(_notifier.Calls);
+        }
+
+        [Fact]
+        public async Task ProcessAsync_LaterDayInWeek_SkipsExistingSucceededRow_WithoutOverwrite()
+        {
+            var locationId = await SeedLocationAsync("Harbour Kitchen");
+            const string sentinelBody = "{\"headline\":\"keep-wednesday\"}";
+            await SeedSucceededBriefAsync(
+                locationId,
+                weekKey: "monday:2026-08-10",
+                bodyJson: sentinelBody
+            );
+            var wednesday = new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc);
+
+            var batch = await _job.ProcessAsync(wednesday);
+
             Assert.Equal(0, batch.Generated);
             Assert.Equal(1, batch.Skipped);
             Assert.Equal(0, _provider.CallCount);
             Assert.Empty(_notifier.Calls);
-            Assert.Equal(
-                0,
-                await _context.WeeklyBriefs.CountAsync(row =>
-                    row.LocationId == locationId
+            var row = await _context.WeeklyBriefs.SingleAsync(brief =>
+                brief.LocationId == locationId && brief.WeekKey == "monday:2026-08-10"
+            );
+            Assert.Equal(sentinelBody, row.BodyJson);
+        }
+
+        [Fact]
+        public async Task ProcessAsync_LaterDayInWeek_SkipsPilotPlan()
+        {
+            var pilot = await SeedLocationAsync(
+                "Pilot Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Pilot
+            );
+            var paid = await SeedLocationAsync(
+                "Paid Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Growth
+            );
+            var wednesday = new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc);
+
+            var batch = await _job.ProcessAsync(wednesday);
+
+            Assert.Equal(1, batch.Generated);
+            Assert.Equal(1, batch.Skipped);
+            Assert.Equal(0, batch.Failed);
+            Assert.False(
+                await _context.WeeklyBriefs.AnyAsync(row => row.LocationId == pilot)
+            );
+            Assert.True(
+                await _context.WeeklyBriefs.AnyAsync(row =>
+                    row.LocationId == paid
+                    && row.WeekKey == "monday:2026-08-10"
+                    && row.Status == WeeklyBriefStatus.Succeeded
                 )
             );
         }
 
         [Fact]
-        public async Task ProcessAsync_FridayStart_GeneratesOnFriday_NotMonday()
+        public async Task ProcessAsync_FridayStart_GeneratesFridayVenue_AndCatchesUpMondayVenue()
         {
             var mondayOnly = await SeedLocationAsync(
                 "Monday Venue",
@@ -183,12 +311,16 @@ namespace TummlyBackend.Tests.Services
 
             var batch = await _job.ProcessAsync(fridayMidnight);
 
-            Assert.Equal(1, batch.Generated);
-            Assert.Equal(1, batch.Skipped);
+            // Monday venue has no Monday run in this test, so Friday catches up
+            // its closed week (monday:2026-08-10).
+            Assert.Equal(2, batch.Generated);
+            Assert.Equal(0, batch.Skipped);
             Assert.Equal(
-                0,
+                1,
                 await _context.WeeklyBriefs.CountAsync(row =>
                     row.LocationId == mondayOnly
+                    && row.WeekKey == "monday:2026-08-10"
+                    && row.Status == WeeklyBriefStatus.Succeeded
                 )
             );
             Assert.Equal(

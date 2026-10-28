@@ -107,6 +107,38 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task GenerateAsync_StoredFailedRow_IsReplacedBySucceededRow()
+        {
+            var locationId = await SeedLocationAsync();
+            _context.WeeklyBriefs.Add(
+                new WeeklyBrief
+                {
+                    LocationId = locationId,
+                    WeekKey = "2026-W33",
+                    Status = WeeklyBriefStatus.Failed,
+                    GeneratedAtUtc = DateTime.UtcNow,
+                    BodyJson = "{}",
+                    MetricsJson = "{}",
+                }
+            );
+            await _context.SaveChangesAsync();
+            _provider.UseDefaultFixtures();
+
+            var result = await _service.GenerateAsync(locationId, ClosedWeek);
+
+            var ok = Assert.IsType<WeeklyBriefGenerateResult.Succeeded>(result);
+            Assert.True(ok.Created);
+            Assert.Equal(1, _provider.CallCount);
+            var rows = await _context.WeeklyBriefs
+                .Where(row => row.LocationId == locationId && row.WeekKey == "2026-W33")
+                .ToListAsync();
+            var row = Assert.Single(rows);
+            Assert.Equal(WeeklyBriefStatus.Succeeded, row.Status);
+            Assert.Equal(ok.Brief.Id, row.Id);
+            Assert.False(string.IsNullOrWhiteSpace(row.BodyJson));
+        }
+
+        [Fact]
         public async Task GenerateAsync_ProviderFail_LeavesNoReadyRow()
         {
             var locationId = await SeedLocationAsync();

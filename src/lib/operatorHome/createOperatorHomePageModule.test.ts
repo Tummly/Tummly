@@ -1086,7 +1086,9 @@ describe("createOperatorHomePageModule", () => {
 
     home.previewGuestForm()
 
-    expect(openSmartGuestLink).toHaveBeenCalledWith("https://guest.example/1")
+    expect(openSmartGuestLink).toHaveBeenCalledWith(
+      "https://guest.example/1?preview=true"
+    )
     expect(
       home
         .getSnapshot()
