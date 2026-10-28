@@ -5,6 +5,7 @@ import { AdminPilotsPanel } from "@/components/dashboard/admin/AdminPilotsPanel"
 import { AdminShopCatalogPanel } from "@/components/dashboard/admin/AdminShopCatalogPanel"
 import { AdminShopInterestPanel } from "@/components/dashboard/admin/AdminShopInterestPanel"
 import { AdminShopOrdersPanel } from "@/components/dashboard/admin/AdminShopOrdersPanel"
+import { AdminTrustIndicatorsPanel } from "@/components/dashboard/admin/AdminTrustIndicatorsPanel"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function AdminDashboard() {
@@ -19,6 +20,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="interest">Shop interest</TabsTrigger>
           <TabsTrigger value="billing">Billing catalog</TabsTrigger>
           <TabsTrigger value="pilots">Pilots</TabsTrigger>
+          <TabsTrigger value="trust">Trust</TabsTrigger>
         </TabsList>
         <TabsContent value="orders" className="mt-0">
           <AdminShopOrdersPanel />
@@ -34,6 +36,9 @@ export default function AdminDashboard() {
         </TabsContent>
         <TabsContent value="pilots" className="mt-0">
           <AdminPilotsPanel />
+        </TabsContent>
+        <TabsContent value="trust" className="mt-0">
+          <AdminTrustIndicatorsPanel />
         </TabsContent>
       </Tabs>
     </div>
