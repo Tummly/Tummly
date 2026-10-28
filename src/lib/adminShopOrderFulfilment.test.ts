@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  adminShopDispatchedAtToIso,
   adminShopFulfilmentLabel,
   adminShopOrderFulfilmentLabel,
   adminShopOrderReviewNotice,
+  ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
+  canSubmitAdminShopDispatchEvidence,
   canSubmitAdminShopFulfilmentAction,
+  canSubmitAdminShopStatusCorrection,
+  hasAdminShopDispatchEvidence,
+  isAdminShopDispatchEvidenceMissing,
   nextAdminShopFulfilmentAction,
 } from "@/lib/adminShopOrderFulfilment"
 
@@ -19,12 +25,24 @@ const EVIDENCE = {
   deliveredAtUtc: "2026-10-28T10:00:00Z",
 }
 
+/** Full carrier evidence, as written by Admin dispatch or a legacy backfill. */
+const CARRIER_EVIDENCE = {
+  dispatchCarrierName: "DPD",
+  dispatchCarrierReference: "DPD-123",
+  dispatchSource: "admin_manual",
+  dispatchedByAdminUserId: 7,
+}
+
 function order(overrides: Partial<FulfilmentFields>): FulfilmentFields {
   return {
     fulfilmentStatus: "processing",
     preparationStartedAtUtc: null,
     productionStartedAtUtc: null,
     dispatchedAtUtc: null,
+    dispatchCarrierName: null,
+    dispatchCarrierReference: null,
+    dispatchSource: null,
+    dispatchedByAdminUserId: null,
     deliveredAtUtc: null,
     ...overrides,
   }
@@ -76,29 +94,99 @@ describe("adminShopOrderFulfilment", () => {
           fulfilmentStatus: "in_transit",
           productionStartedAtUtc: EVIDENCE.productionStartedAtUtc,
           dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
+          ...CARRIER_EVIDENCE,
         })
       )
     ).toBe("Dispatched")
   })
 
-  it("reads Delivered only with delivery evidence", () => {
+  it("reads a legacy dispatch without carrier evidence as its last substantiated state", () => {
+    const legacy = order({
+      fulfilmentStatus: "in_transit",
+      preparationStartedAtUtc: EVIDENCE.preparationStartedAtUtc,
+      productionStartedAtUtc: EVIDENCE.productionStartedAtUtc,
+      dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
+      dispatchCarrierName: "DPD",
+    })
+    expect(adminShopOrderFulfilmentLabel(legacy)).toBe("In production")
+    expect(
+      adminShopOrderFulfilmentLabel({ ...legacy, productionStartedAtUtc: null })
+    ).toBe("Preparing")
+  })
+
+  it("reads Delivered only with delivery and dispatch evidence", () => {
     expect(
       adminShopOrderFulfilmentLabel(
         order({
           fulfilmentStatus: "delivered",
           dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
+          ...CARRIER_EVIDENCE,
         })
       )
     ).toBe("Dispatched")
+    expect(
+      adminShopOrderFulfilmentLabel(
+        order({
+          fulfilmentStatus: "delivered",
+          productionStartedAtUtc: EVIDENCE.productionStartedAtUtc,
+          dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
+          deliveredAtUtc: EVIDENCE.deliveredAtUtc,
+        })
+      )
+    ).toBe("In production")
     expect(
       adminShopOrderFulfilmentLabel(
         order({
           fulfilmentStatus: "delivered",
           dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
           deliveredAtUtc: EVIDENCE.deliveredAtUtc,
+          ...CARRIER_EVIDENCE,
         })
       )
     ).toBe("Delivered")
+  })
+
+  it("flags a Dispatched or Delivered order that lacks carrier evidence", () => {
+    const legacyInTransit = order({
+      fulfilmentStatus: "in_transit",
+      dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
+    })
+    expect(isAdminShopDispatchEvidenceMissing(legacyInTransit)).toBe(true)
+    expect(
+      isAdminShopDispatchEvidenceMissing({
+        ...legacyInTransit,
+        fulfilmentStatus: "delivered",
+        deliveredAtUtc: EVIDENCE.deliveredAtUtc,
+      })
+    ).toBe(true)
+    expect(
+      isAdminShopDispatchEvidenceMissing({
+        ...legacyInTransit,
+        ...CARRIER_EVIDENCE,
+      })
+    ).toBe(false)
+    expect(
+      isAdminShopDispatchEvidenceMissing(
+        order({ productionStartedAtUtc: EVIDENCE.productionStartedAtUtc })
+      )
+    ).toBe(false)
+    expect(ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL).toBe(
+      "Dispatch evidence missing"
+    )
+  })
+
+  it("needs every evidence field, including the Admin actor, before a dispatch counts", () => {
+    const base = order({
+      fulfilmentStatus: "in_transit",
+      dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
+      ...CARRIER_EVIDENCE,
+    })
+    expect(hasAdminShopDispatchEvidence(base)).toBe(true)
+    expect(hasAdminShopDispatchEvidence({ ...base, dispatchCarrierName: " " })).toBe(false)
+    expect(hasAdminShopDispatchEvidence({ ...base, dispatchCarrierReference: null })).toBe(false)
+    expect(hasAdminShopDispatchEvidence({ ...base, dispatchSource: null })).toBe(false)
+    expect(hasAdminShopDispatchEvidence({ ...base, dispatchedByAdminUserId: null })).toBe(false)
+    expect(hasAdminShopDispatchEvidence({ ...base, dispatchedAtUtc: null })).toBe(false)
   })
 
   it("reads Cancelled for a cancelled order", () => {
@@ -139,6 +227,7 @@ describe("adminShopOrderFulfilment", () => {
         order({
           fulfilmentStatus: "in_transit",
           dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
+          ...CARRIER_EVIDENCE,
         })
       )
     ).toEqual({
@@ -156,10 +245,34 @@ describe("adminShopOrderFulfilment", () => {
     ).toMatchObject({ kind: "dispatch" })
   })
 
+  it("offers no action for a legacy dispatch until its evidence is recorded", () => {
+    expect(
+      nextAdminShopFulfilmentAction(
+        order({
+          fulfilmentStatus: "in_transit",
+          dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
+        })
+      )
+    ).toBeNull()
+    expect(
+      nextAdminShopFulfilmentAction(
+        order({
+          fulfilmentStatus: "in_transit",
+          dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
+          ...CARRIER_EVIDENCE,
+        })
+      )
+    ).toMatchObject({ kind: "delivery" })
+  })
+
   it("offers no action once delivered or cancelled", () => {
     expect(
       nextAdminShopFulfilmentAction(
-        order({ fulfilmentStatus: "delivered", dispatchedAtUtc: EVIDENCE.dispatchedAtUtc })
+        order({
+          fulfilmentStatus: "delivered",
+          dispatchedAtUtc: EVIDENCE.dispatchedAtUtc,
+          ...CARRIER_EVIDENCE,
+        })
       )
     ).toBeNull()
     expect(
@@ -261,3 +374,33 @@ describe("adminShopOrderReviewNotice", () => {
     })
   })
 })
+
+describe("admin dispatch evidence and status correction", () => {
+  it("converts a datetime-local value to ISO UTC and rejects an empty or invalid one", () => {
+    expect(adminShopDispatchedAtToIso("")).toBeNull()
+    expect(adminShopDispatchedAtToIso("not a date")).toBeNull()
+    const iso = adminShopDispatchedAtToIso("2026-10-27T10:30")
+    expect(iso).not.toBeNull()
+    expect(iso).toMatch(/Z$/)
+    expect(new Date(iso as string).getTime()).toBe(new Date("2026-10-27T10:30").getTime())
+  })
+
+  it("needs a carrier name, reference and dispatch time to record evidence", () => {
+    const complete = {
+      carrierName: "DPD",
+      carrierReference: "DPD-123",
+      dispatchedAt: "2026-10-27T10:30",
+    }
+    expect(canSubmitAdminShopDispatchEvidence(complete)).toBe(true)
+    expect(canSubmitAdminShopDispatchEvidence({ ...complete, carrierName: " " })).toBe(false)
+    expect(canSubmitAdminShopDispatchEvidence({ ...complete, carrierReference: "" })).toBe(false)
+    expect(canSubmitAdminShopDispatchEvidence({ ...complete, dispatchedAt: "" })).toBe(false)
+  })
+
+  it("needs a reason of at most 500 characters to correct the status", () => {
+    expect(canSubmitAdminShopStatusCorrection("   ")).toBe(false)
+    expect(canSubmitAdminShopStatusCorrection("No carrier reference.")).toBe(true)
+    expect(canSubmitAdminShopStatusCorrection("x".repeat(501))).toBe(false)
+  })
+})
+

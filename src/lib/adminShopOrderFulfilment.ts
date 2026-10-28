@@ -41,6 +41,15 @@ export function adminShopFulfilmentLabel(status: string): string {
   return status
 }
 
+/** Admin-only marker for a Dispatched or Delivered order without carrier evidence. */
+export const ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL =
+  "Dispatch evidence missing"
+
+export const ADMIN_SHOP_RECORD_DISPATCH_EVIDENCE_LABEL =
+  "Record dispatch evidence"
+
+export const ADMIN_SHOP_CORRECT_STATUS_LABEL = "Correct status"
+
 /** Fields that decide the customer fulfilment label and the next action. */
 export type AdminShopFulfilmentEvidence = Pick<
   AdminShopOrderListItem,
@@ -48,6 +57,10 @@ export type AdminShopFulfilmentEvidence = Pick<
   | "preparationStartedAtUtc"
   | "productionStartedAtUtc"
   | "dispatchedAtUtc"
+  | "dispatchCarrierName"
+  | "dispatchCarrierReference"
+  | "dispatchSource"
+  | "dispatchedByAdminUserId"
   | "deliveredAtUtc"
 >
 
@@ -80,9 +93,37 @@ function hasEvidence(value: string | null | undefined): boolean {
 }
 
 /**
- * Customer label for a paid order. Each stage needs its own evidence
- * timestamp, so the label mirrors the backend: a tracking URL alone never
- * reads "Dispatched".
+ * Carrier evidence for a dispatch: the dispatch time, the carrier or supplier
+ * name and reference, and the source and Admin actor that recorded them.
+ * Mirrors `ShopOrderDispatchEvidence.IsComplete` on the backend.
+ */
+export function hasAdminShopDispatchEvidence(
+  order: AdminShopFulfilmentEvidence
+): boolean {
+  return (
+    hasEvidence(order.dispatchedAtUtc) &&
+    hasEvidence(order.dispatchCarrierName) &&
+    hasEvidence(order.dispatchCarrierReference) &&
+    hasEvidence(order.dispatchSource) &&
+    order.dispatchedByAdminUserId != null
+  )
+}
+
+/** Stored as Dispatched or Delivered, but the carrier evidence is missing. */
+export function isAdminShopDispatchEvidenceMissing(
+  order: AdminShopFulfilmentEvidence
+): boolean {
+  return (
+    (order.fulfilmentStatus === "in_transit" ||
+      order.fulfilmentStatus === "delivered") &&
+    !hasAdminShopDispatchEvidence(order)
+  )
+}
+
+/**
+ * Customer label for a paid order. Each stage needs its own evidence, so the
+ * label mirrors the backend: a tracking URL or dispatch time alone never reads
+ * "Dispatched", and a delivery time alone never reads "Delivered".
  */
 export function adminShopOrderFulfilmentLabel(
   order: AdminShopFulfilmentEvidence
@@ -90,16 +131,18 @@ export function adminShopOrderFulfilmentLabel(
   if (order.fulfilmentStatus === "cancelled") {
     return "Cancelled"
   }
+  const dispatchEvidence = hasAdminShopDispatchEvidence(order)
   if (
     order.fulfilmentStatus === "delivered" &&
-    hasEvidence(order.deliveredAtUtc)
+    hasEvidence(order.deliveredAtUtc) &&
+    dispatchEvidence
   ) {
     return "Delivered"
   }
   if (
     (order.fulfilmentStatus === "in_transit" ||
       order.fulfilmentStatus === "delivered") &&
-    hasEvidence(order.dispatchedAtUtc)
+    dispatchEvidence
   ) {
     return "Dispatched"
   }
@@ -122,7 +165,7 @@ export function nextAdminShopFulfilmentAction(
   })
 
   if (order.fulfilmentStatus === "in_transit") {
-    return hasEvidence(order.dispatchedAtUtc) ? action("delivery") : null
+    return hasAdminShopDispatchEvidence(order) ? action("delivery") : null
   }
   if (order.fulfilmentStatus !== "processing") {
     return null
@@ -153,6 +196,41 @@ export function canSubmitAdminShopFulfilmentAction(
     dispatch.carrierName.trim().length > 0 &&
     dispatch.carrierReference.trim().length > 0
   )
+}
+
+export type AdminShopDispatchEvidenceFields = AdminShopDispatchFields & {
+  /** Value of a `datetime-local` input: the actual dispatch time in local time. */
+  dispatchedAt: string
+}
+
+/**
+ * Converts a `datetime-local` value to an ISO UTC string. Returns null when the
+ * value is empty or not a date.
+ */
+export function adminShopDispatchedAtToIso(localValue: string): string | null {
+  const trimmed = localValue.trim()
+  if (trimmed.length === 0) {
+    return null
+  }
+  const date = new Date(trimmed)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+/** Record evidence needs a carrier name, a reference and the actual dispatch time. */
+export function canSubmitAdminShopDispatchEvidence(
+  fields: AdminShopDispatchEvidenceFields
+): boolean {
+  return (
+    fields.carrierName.trim().length > 0 &&
+    fields.carrierReference.trim().length > 0 &&
+    adminShopDispatchedAtToIso(fields.dispatchedAt) !== null
+  )
+}
+
+/** Correction needs a short reason, up to the backend limit of 500 characters. */
+export function canSubmitAdminShopStatusCorrection(reason: string): boolean {
+  const trimmed = reason.trim()
+  return trimmed.length > 0 && trimmed.length <= 500
 }
 
 export function canEditAdminShopTrackingUrl(status: string): boolean {

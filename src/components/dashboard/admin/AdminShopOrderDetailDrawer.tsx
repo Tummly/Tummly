@@ -10,7 +10,9 @@ import {
   type AdminShopOrderListItem,
   type AdminShopPrintAssetPreview,
 } from "@/api/adminShopOrdersApi"
+import { AdminShopDispatchEvidenceDialog } from "@/components/dashboard/admin/AdminShopDispatchEvidenceDialog"
 import { AdminShopFulfilmentActionDialog } from "@/components/dashboard/admin/AdminShopFulfilmentActionDialog"
+import { AdminShopStatusCorrectionDialog } from "@/components/dashboard/admin/AdminShopStatusCorrectionDialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,12 +39,16 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  ADMIN_SHOP_CORRECT_STATUS_LABEL,
+  ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL,
+  ADMIN_SHOP_RECORD_DISPATCH_EVIDENCE_LABEL,
   adminShopOrderFulfilmentLabel,
   adminShopOrderReviewNotice,
   type AdminShopFulfilmentAction,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
   formatAdminShopGbpFromPence,
+  isAdminShopDispatchEvidenceMissing,
   nextAdminShopFulfilmentAction,
 } from "@/lib/adminShopOrderFulfilment"
 import {
@@ -123,6 +129,8 @@ export function AdminShopOrderDetailDrawer({
   )
   const [pendingAction, setPendingAction] =
     useState<AdminShopFulfilmentAction | null>(null)
+  const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false)
+  const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false)
   const [forceCancelConfirmOpen, setForceCancelConfirmOpen] = useState(false)
   const [forceCancelling, setForceCancelling] = useState(false)
   const [forceCancelReason, setForceCancelReason] = useState("")
@@ -157,6 +165,8 @@ export function AdminShopOrderDetailDrawer({
     setRefundConfirmOpen(false)
     setRefundIdempotencyKey(crypto.randomUUID())
     setPendingAction(null)
+    setEvidenceDialogOpen(false)
+    setCorrectionDialogOpen(false)
     setForceCancelConfirmOpen(false)
     setForceCancelReason("")
     setSkipRefund(false)
@@ -215,6 +225,7 @@ export function AdminShopOrderDetailDrawer({
     order.productionStartedAtUtc.trim().length > 0
   const canForceCancel = isProcessing
   const anyBusy = saving || refunding || forceCancelling
+  const evidenceMissing = isAdminShopDispatchEvidenceMissing(order)
 
   const savePatch = async (input: {
     includeTracking?: boolean
@@ -438,6 +449,11 @@ export function AdminShopOrderDetailDrawer({
                   <Badge variant="soft">
                     {adminShopOrderFulfilmentLabel(order)}
                   </Badge>
+                  {evidenceMissing ? (
+                    <Badge variant="soft">
+                      {ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL}
+                    </Badge>
+                  ) : null}
                   <Badge variant="soft">
                     {adminShopOrderPaymentLabel(order)}
                   </Badge>
@@ -516,6 +532,11 @@ export function AdminShopOrderDetailDrawer({
                   Dispatched
                 </p>
                 <p>{formatEvidenceTime(order.dispatchedAtUtc)}</p>
+                {evidenceMissing ? (
+                  <p className="text-xs text-op-text-muted">
+                    {ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL}
+                  </p>
+                ) : null}
                 {order.dispatchCarrierName || order.dispatchCarrierReference ? (
                   <p className="text-xs break-all">
                     {[order.dispatchCarrierName, order.dispatchCarrierReference]
@@ -826,6 +847,29 @@ export function AdminShopOrderDetailDrawer({
                   </Button>
                 )}
 
+                {evidenceMissing && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="op-primary"
+                      className="rounded-[2px]"
+                      disabled={anyBusy}
+                      onClick={() => setEvidenceDialogOpen(true)}
+                    >
+                      {ADMIN_SHOP_RECORD_DISPATCH_EVIDENCE_LABEL}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="op-tertiary"
+                      className="rounded-[2px]"
+                      disabled={anyBusy}
+                      onClick={() => setCorrectionDialogOpen(true)}
+                    >
+                      {ADMIN_SHOP_CORRECT_STATUS_LABEL}
+                    </Button>
+                  </>
+                )}
+
                 {canForceCancel && (
                   <Button
                     type="button"
@@ -886,6 +930,24 @@ export function AdminShopOrderDetailDrawer({
         onClose={() => setPendingAction(null)}
         onCompleted={(updated) => {
           setPendingAction(null)
+          onOrderUpdated(updated)
+        }}
+      />
+
+      <AdminShopDispatchEvidenceDialog
+        order={evidenceDialogOpen ? order : null}
+        onClose={() => setEvidenceDialogOpen(false)}
+        onCompleted={(updated) => {
+          setEvidenceDialogOpen(false)
+          onOrderUpdated(updated)
+        }}
+      />
+
+      <AdminShopStatusCorrectionDialog
+        order={correctionDialogOpen ? order : null}
+        onClose={() => setCorrectionDialogOpen(false)}
+        onCompleted={(updated) => {
+          setCorrectionDialogOpen(false)
           onOrderUpdated(updated)
         }}
       />
