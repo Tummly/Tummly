@@ -141,6 +141,14 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
+            // Session tokens (GuestPreferencesSessionToken) carry a "typ" marker
+            // and share this secret; they must never pass as unsubscribe tokens.
+            if (payload.Typ != null)
+            {
+                error = "type";
+                return false;
+            }
+
             var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             if (payload.Exp < now)
             {
@@ -197,6 +205,13 @@ namespace TummlyBackend.Helpers
 
             [JsonPropertyName("exp")]
             public long Exp { get; set; }
+
+            /// <summary>
+            /// Never written by <see cref="Create"/>; present only on session tokens.
+            /// </summary>
+            [JsonPropertyName("typ")]
+            [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+            public string? Typ { get; set; }
         }
     }
 }

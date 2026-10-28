@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using TummlyBackend.Helpers;
 
@@ -73,19 +75,67 @@ public class GuestPreferencesSessionTokenTests
             secret: Secret
         );
 
-        // Changing the first base64url character changes the first payload byte,
-        // so the HMAC over the payload no longer matches.
-        var flipped = (token[0] == 'e' ? 'f' : 'e') + token[1..];
+        // Keep the payload valid JSON with a changed tg, reuse the original
+        // signature, so only the HMAC check can reject it.
+        var parts = token.Split('.');
+        var json = JsonNode.Parse(Base64UrlDecode(parts[0]))!.AsObject();
+        json["tg"] = 99;
+        var tamperedPayload = Base64UrlEncode(
+            Encoding.UTF8.GetBytes(json.ToJsonString())
+        );
+        var tampered = tamperedPayload + "." + parts[1];
 
         var ok = GuestPreferencesSessionToken.TryVerify(
-            flipped,
+            tampered,
             Secret,
+            IssuedAtUtc,
+            out var tummlyGuestId,
+            out var contactId
+        );
+
+        Assert.False(ok);
+        Assert.Equal(0, tummlyGuestId);
+        Assert.Equal(0, contactId);
+    }
+
+    [Fact]
+    public void WrongSecret_False()
+    {
+        var token = GuestPreferencesSessionToken.Create(
+            tummlyGuestId: 42,
+            contactId: 7,
+            issuedAtUtc: IssuedAtUtc,
+            secret: Secret
+        );
+
+        var ok = GuestPreferencesSessionToken.TryVerify(
+            token,
+            "a-different-secret",
             IssuedAtUtc,
             out _,
             out _
         );
 
         Assert.False(ok);
+    }
+
+    private static string Base64UrlEncode(byte[] data) =>
+        Convert.ToBase64String(data).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    private static byte[] Base64UrlDecode(string input)
+    {
+        var padded = input.Replace('-', '+').Replace('_', '/');
+        switch (padded.Length % 4)
+        {
+            case 2:
+                padded += "==";
+                break;
+            case 3:
+                padded += "=";
+                break;
+        }
+
+        return Convert.FromBase64String(padded);
     }
 
     [Fact]

@@ -83,7 +83,8 @@ namespace TummlyBackend.Helpers
             }
 
             var local = email[..at];
-            var visible = local[..Math.Min(2, local.Length)];
+            var visibleCount = Math.Max(0, Math.Min(2, local.Length - 1));
+            var visible = local[..visibleCount];
             return visible + MaskedLocalSuffix + email[at..];
         }
 

@@ -138,6 +138,30 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void TryVerify_RejectsSessionToken()
+        {
+            var issuedAt = DateTime.UtcNow;
+
+            var sessionToken = GuestPreferencesSessionToken.Create(
+                tummlyGuestId: 42,
+                contactId: 7,
+                issuedAtUtc: issuedAt,
+                secret: Secret
+            );
+
+            Assert.False(
+                UnsubscribeToken.TryVerify(
+                    sessionToken,
+                    Secret,
+                    out _,
+                    out _,
+                    out var error
+                )
+            );
+            Assert.Equal("type", error);
+        }
+
+        [Fact]
         public void Create_UsesNinetyDayDefaultTtl()
         {
             var issuedAt = new DateTime(

@@ -82,6 +82,28 @@ public class GuestPreferenceContactTests
     }
 
     [Fact]
+    public void Mask_Email_TwoCharLocal_ShowsOne()
+    {
+        var result = GuestPreferenceContact.Mask(
+            TummlyGuestContactTypes.Email,
+            "ab@example.com"
+        );
+
+        Assert.Equal("a•••••@example.com", result);
+    }
+
+    [Fact]
+    public void Mask_Email_OneCharLocal_ShowsNone()
+    {
+        var result = GuestPreferenceContact.Mask(
+            TummlyGuestContactTypes.Email,
+            "a@example.com"
+        );
+
+        Assert.Equal("•••••@example.com", result);
+    }
+
+    [Fact]
     public void Mask_Phone()
     {
         var result = GuestPreferenceContact.Mask(
