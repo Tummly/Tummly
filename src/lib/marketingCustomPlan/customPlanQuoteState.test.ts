@@ -4,7 +4,10 @@ import type { CustomPlanQuoteResult } from "@/api/adminCommercialCatalogApi"
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import {
   checkLocationInput,
+  checkPackCount,
   formatPenceGbp,
+  packCountMessage,
+  parseTypedCount,
   quoteHashChanged,
   quoteReducer,
   quoteView,
@@ -54,6 +57,46 @@ describe("checkLocationInput", () => {
     expect(checkLocationInput(501)).toBe("over_limit")
     expect(checkLocationInput(500)).toBe("ok")
     expect(checkLocationInput(1)).toBe("ok")
+  })
+})
+
+describe("parseTypedCount", () => {
+  it("reads the typed text as typed, keeping a decimal point", () => {
+    expect(parseTypedCount("2.5")).toBe(2.5)
+    expect(parseTypedCount(" 12 ")).toBe(12)
+    expect(parseTypedCount("0")).toBe(0)
+    expect(parseTypedCount("007")).toBe(7)
+  })
+
+  it("reads anything that is not a plain number as no number", () => {
+    expect(parseTypedCount("")).toBeNull()
+    expect(parseTypedCount("   ")).toBeNull()
+    expect(parseTypedCount("abc")).toBeNull()
+    expect(parseTypedCount("-3")).toBeNull()
+    expect(parseTypedCount("0x1F")).toBeNull()
+    expect(parseTypedCount("1e3")).toBeNull()
+  })
+})
+
+describe("checkPackCount", () => {
+  it("classifies a pack count without clamping it", () => {
+    expect(checkPackCount(null)).toBe("empty")
+    expect(checkPackCount(2.5)).toBe("not_integer")
+    expect(checkPackCount(-1)).toBe("not_integer")
+    expect(checkPackCount(100)).toBe("over_limit")
+    expect(checkPackCount(99)).toBe("ok")
+    expect(checkPackCount(0)).toBe("ok")
+  })
+
+  it("maps each invalid pack count to its copy and no copy when valid", () => {
+    expect(packCountMessage("empty")).toBe(
+      "Enter a number of packs. Use 0 for none.",
+    )
+    expect(packCountMessage("not_integer")).toBe(
+      "Enter a whole number of packs.",
+    )
+    expect(packCountMessage("over_limit")).toBe("Maximum 99 packs per option.")
+    expect(packCountMessage("ok")).toBeNull()
   })
 })
 
@@ -134,7 +177,7 @@ describe("quoteView", () => {
     expect(view.message).toBeNull()
   })
 
-  it("shows the changed copy and enables Continue on a fresh ready quote", () => {
+  it("shows the changed copy and blocks Continue until the new price is confirmed", () => {
     const view = quoteView({
       check: "ok",
       state: { status: "ready", quote: quote() },
@@ -143,6 +186,29 @@ describe("quoteView", () => {
     expect(view.message).toBe(
       "Your quote has changed. Review the updated total before continuing.",
     )
+    expect(view.continueEnabled).toBe(false)
+  })
+
+  it("enables Continue on a changed quote once the customer confirms it", () => {
+    const view = quoteView({
+      check: "ok",
+      state: { status: "ready", quote: quote() },
+      changed: true,
+      priceConfirmed: true,
+    })
+    expect(view.message).toBe(
+      "Your quote has changed. Review the updated total before continuing.",
+    )
+    expect(view.continueEnabled).toBe(true)
+  })
+
+  it("does not block Continue on confirmation when the price did not change", () => {
+    const view = quoteView({
+      check: "ok",
+      state: { status: "ready", quote: quote() },
+      changed: false,
+      priceConfirmed: false,
+    })
     expect(view.continueEnabled).toBe(true)
   })
 

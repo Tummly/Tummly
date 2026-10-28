@@ -7,6 +7,7 @@ import {
   CustomPlanSummaryCard,
 } from "@/components/marketing/custom-plan/CustomPlanSummaryCard"
 import { Button } from "@/components/ui/button"
+import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import {
   chosenPlanToBasePlan,
@@ -112,6 +113,7 @@ export function SignupReviewPlanStep({
   // The first ready quote can differ from the hash saved earlier. Show the changed state then.
   const firstReadyChecked = useRef(false)
   const [restoredHashChanged, setRestoredHashChanged] = useState(false)
+  const [confirmedHash, setConfirmedHash] = useState<string | null>(null)
 
   // Every ready quote becomes the saved config, with its hash, so Continue sends the hash on screen.
   useEffect(() => {
@@ -135,6 +137,11 @@ export function SignupReviewPlanStep({
     })
   }, [state])
 
+  // A changed price needs its own confirmation: the hash of the ready quote the customer confirmed.
+  const readyHash = state.status === "ready" ? state.quote.quoteHash : null
+  const priceChanged = quoteChanged || restoredHashChanged
+  const priceConfirmed = readyHash != null && confirmedHash === readyHash
+
   const quote = lastQuote(state)
   const waitingForCatalogue = selectable && config == null && plainLocations == null
   const view = waitingForCatalogue
@@ -142,7 +149,8 @@ export function SignupReviewPlanStep({
     : quoteView({
         check,
         state,
-        changed: quoteChanged || restoredHashChanged,
+        changed: priceChanged,
+        priceConfirmed,
       })
   const continueEnabled = selectable && view?.continueEnabled === true
 
@@ -207,6 +215,17 @@ export function SignupReviewPlanStep({
           planDescription={`You are checking out with ${quotePlanName(quote)}.`}
           className="max-w-[581px] pt-0"
         />
+      ) : null}
+
+      {selectable && priceChanged && readyHash != null ? (
+        <CheckboxLabel
+          checked={priceConfirmed}
+          onCheckedChange={(checked) =>
+            setConfirmedHash(checked ? readyHash : null)
+          }
+        >
+          {CUSTOM_PLAN_QUOTE_COPY.changedConfirm}
+        </CheckboxLabel>
       ) : null}
 
       {selectable && quote == null ? (

@@ -3,12 +3,26 @@ import { describe, expect, it } from "vitest"
 import {
   buildCreditTopUpCards,
   buildCreditTopUpConfirmCopy,
-  grossTopUpPounds,
   isSms5000TopUpAllowed,
   isTopUpPackVisible,
   visibleTopUpPacksForChannel,
+  type CreditTopUpPack,
 } from "@/lib/operatorBillingCredits/creditTopUpPresentation"
 import type { CreditChannelUsageRecord } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
+
+/** Server catalogue packs as the Billing page returns them (pence). */
+const SERVER_TOP_UP_PACKS: CreditTopUpPack[] = [
+  { channel: "sms", quantity: 100, netPence: 1200 },
+  { channel: "sms", quantity: 500, netPence: 5500 },
+  { channel: "sms", quantity: 1000, netPence: 10000 },
+  { channel: "sms", quantity: 5000, netPence: 45000 },
+  { channel: "ai", quantity: 100, netPence: 500 },
+  { channel: "ai", quantity: 500, netPence: 1500 },
+  { channel: "ai", quantity: 2000, netPence: 3900 },
+  { channel: "email", quantity: 5000, netPence: 1000 },
+  { channel: "email", quantity: 20000, netPence: 3000 },
+  { channel: "email", quantity: 50000, netPence: 6000 },
+]
 
 const sampleChannels: CreditChannelUsageRecord[] = [
   {
@@ -41,12 +55,12 @@ describe("creditTopUpPresentation", () => {
   it("hides 5,000 SMS without Group or approval flag", () => {
     expect(
       isTopUpPackVisible(
-        { channel: "sms", quantity: 5000, netPounds: 450 },
+        { channel: "sms", quantity: 5000, netPence: 45000 },
         { subscriptionPlan: "Starter", allowSms5000TopUp: false }
       )
     ).toBe(false)
     expect(
-      visibleTopUpPacksForChannel("sms", {
+      visibleTopUpPacksForChannel("sms", SERVER_TOP_UP_PACKS, {
         subscriptionPlan: "Growth",
         allowSms5000TopUp: false,
       }).map((pack) => pack.quantity)
@@ -68,18 +82,45 @@ describe("creditTopUpPresentation", () => {
     ).toBe(true)
   })
 
-  it("computes VAT gross from net", () => {
-    expect(grossTopUpPounds(12, 2000)).toBe(14.4)
-    expect(grossTopUpPounds(450, 2000)).toBe(540)
+  it("offers no chips and no Buy when the catalogue has no packs", () => {
+    const cards = buildCreditTopUpCards({
+      channels: sampleChannels,
+      subscriptionPlan: "Growth",
+      allowSms5000TopUp: false,
+      isPilot: false,
+      canBuy: true,
+      selectedPackByChannel: { sms: 500 },
+      focusedChannel: "sms",
+      topUpPacks: [],
+      vatRateBps: 2000,
+    })
+
+    expect(cards.every((card) => card.packs.length === 0)).toBe(true)
+    expect(cards.every((card) => card.buyDisabled)).toBe(true)
+    expect(cards.every((card) => card.selectedNetLabel == null)).toBe(true)
   })
 
-  it("returns net as gross when vatRateBps is 0", () => {
-    expect(grossTopUpPounds(12, 0)).toBe(12)
-    expect(grossTopUpPounds(450)).toBe(450)
+  it("prices the selected chip from the catalogue netPence", () => {
+    const cards = buildCreditTopUpCards({
+      channels: sampleChannels,
+      subscriptionPlan: "Growth",
+      allowSms5000TopUp: false,
+      isPilot: false,
+      canBuy: true,
+      selectedPackByChannel: { sms: 500 },
+      focusedChannel: "sms",
+      topUpPacks: [{ channel: "sms", quantity: 500, netPence: 5550 }],
+      vatRateBps: 2000,
+    })
+
+    expect(cards.find((card) => card.channel === "sms")?.selectedNetLabel).toBe(
+      "£55.50 + VAT"
+    )
   })
 
   it("shows operator-triggered detail on the AI top-up card", () => {
     const cards = buildCreditTopUpCards({
+      topUpPacks: SERVER_TOP_UP_PACKS,
       channels: sampleChannels,
       subscriptionPlan: "Growth",
       allowSms5000TopUp: false,
@@ -98,6 +139,7 @@ describe("creditTopUpPresentation", () => {
 
   it("disables Buy until a chip is selected", () => {
     const cards = buildCreditTopUpCards({
+      topUpPacks: SERVER_TOP_UP_PACKS,
       channels: sampleChannels,
       subscriptionPlan: "Growth",
       allowSms5000TopUp: false,
@@ -114,6 +156,7 @@ describe("creditTopUpPresentation", () => {
 
   it("enables Buy when a chip is selected on a paid plan", () => {
     const cards = buildCreditTopUpCards({
+      topUpPacks: SERVER_TOP_UP_PACKS,
       channels: sampleChannels,
       subscriptionPlan: "Growth",
       allowSms5000TopUp: false,
@@ -131,6 +174,7 @@ describe("creditTopUpPresentation", () => {
 
   it("omits + VAT from selectedNetLabel when vatRateBps is 0", () => {
     const cards = buildCreditTopUpCards({
+      topUpPacks: SERVER_TOP_UP_PACKS,
       channels: sampleChannels,
       subscriptionPlan: "Growth",
       allowSms5000TopUp: false,
@@ -171,6 +215,7 @@ describe("creditTopUpPresentation", () => {
 
   it("hides purchase cards on Pilot", () => {
     const cards = buildCreditTopUpCards({
+      topUpPacks: SERVER_TOP_UP_PACKS,
       channels: sampleChannels,
       subscriptionPlan: "Pilot",
       allowSms5000TopUp: false,

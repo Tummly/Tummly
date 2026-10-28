@@ -100,6 +100,10 @@ namespace TummlyBackend.Billing.Pricebook
                             key == "group"
                                 ? book.ExtraGroupLocationMonthlyNetPence
                                 : null,
+                        ExtraLocationAnnualNetPence =
+                            key == "group"
+                                ? book.ExtraGroupLocationAnnualNetPence
+                                : null,
                     }
                 );
             }

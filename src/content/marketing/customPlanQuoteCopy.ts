@@ -6,6 +6,7 @@ export const CUSTOM_PLAN_QUOTE_COPY = {
   retry: "Try again",
   changed:
     "Your quote has changed. Review the updated total before continuing.",
+  changedConfirm: "I have reviewed the updated total.",
   restoreFailed:
     "We could not restore your selected plan. Review your choices before continuing.",
   noSelection: "Choose a Pilot or paid plan to continue.",
@@ -16,6 +17,9 @@ export const CUSTOM_PLAN_QUOTE_COPY = {
   contactUs: "Contact us",
   contactUsHref: "/help-center/contact?topic=plans-and-pricing",
   locationEmpty: "Add at least 1 Location to customise your estimate.",
+  packEmpty: "Enter a number of packs. Use 0 for none.",
+  packNotWhole: "Enter a whole number of packs.",
+  packOverLimit: "Maximum 99 packs per option.",
   noPaymentTaken:
     "No payment is taken until you confirm your subscription and payment details at checkout.",
   /** Temporary until Director D7; shown only when vatRateBps > 0. */

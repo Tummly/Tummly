@@ -1714,7 +1714,10 @@ export function ManagePlanPage() {
             <CreditTopUpsSection snap={snap} pageModule={pageModule} />
           </section>
 
-          <ManagePlanFaqSection vatRateBps={snap.vatRateBps} />
+          <ManagePlanFaqSection
+            vatRateBps={snap.vatRateBps}
+            groupExtraLocation={snap.groupExtraLocation}
+          />
         </div>
       )}
     </div>

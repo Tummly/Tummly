@@ -13,6 +13,28 @@ import {
 } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 import type { CreditsUsageSnapshot } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 
+/** Server catalogue as the Billing page returns it (pence). */
+const SERVER_CATALOG = {
+  plans: [
+    { id: "Pilot", monthlyNetPence: 0, annualNetPence: 0, extraLocationMonthlyNetPence: null, extraLocationAnnualNetPence: null },
+    { id: "Starter", monthlyNetPence: 3900, annualNetPence: 39800, extraLocationMonthlyNetPence: null, extraLocationAnnualNetPence: null },
+    { id: "Growth", monthlyNetPence: 9900, annualNetPence: 101000, extraLocationMonthlyNetPence: null, extraLocationAnnualNetPence: null },
+    { id: "Group", monthlyNetPence: 19900, annualNetPence: 203000, extraLocationMonthlyNetPence: 3900, extraLocationAnnualNetPence: 39800 },
+  ],
+  topUpPacks: [
+    { channel: "sms" as const, quantity: 100, netPence: 1200 },
+    { channel: "sms" as const, quantity: 500, netPence: 5500 },
+    { channel: "sms" as const, quantity: 1000, netPence: 10000 },
+    { channel: "sms" as const, quantity: 5000, netPence: 45000 },
+    { channel: "ai" as const, quantity: 100, netPence: 500 },
+    { channel: "ai" as const, quantity: 500, netPence: 1500 },
+    { channel: "ai" as const, quantity: 2000, netPence: 3900 },
+    { channel: "email" as const, quantity: 5000, netPence: 1000 },
+    { channel: "email" as const, quantity: 20000, netPence: 3000 },
+    { channel: "email" as const, quantity: 50000, netPence: 6000 },
+  ],
+}
+
 function sampleUsage(
   overrides: Partial<CreditsUsageSnapshot> = {}
 ): CreditsUsageSnapshot {
@@ -103,7 +125,7 @@ function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCre
     },
     billingContacts: sampleBillingContacts(),
     vatModeActive: true,
-    currentCatalog: { vatRateBps: 2000 },
+    currentCatalog: { vatRateBps: 2000, ...SERVER_CATALOG },
     ...overrides,
   }
 }
@@ -501,7 +523,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   it("omits + VAT on manage plan cards when catalog vatRateBps is 0", async () => {
     const module = createTestModule({
       vatModeActive: false,
-      currentCatalog: { vatRateBps: 0 },
+      currentCatalog: { vatRateBps: 0, ...SERVER_CATALOG },
       planSubscription: {
         ...samplePage().planSubscription,
         subscriptionPlan: "Starter",
@@ -799,7 +821,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
     const module = createTestModule(
       {
         vatModeActive: false,
-        currentCatalog: { vatRateBps: 0 },
+        currentCatalog: { vatRateBps: 0, ...SERVER_CATALOG },
         planSubscription: {
           ...samplePage().planSubscription,
           isPilot: false,

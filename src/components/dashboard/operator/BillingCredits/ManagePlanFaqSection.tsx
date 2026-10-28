@@ -11,16 +11,20 @@ import {
   MANAGE_PLAN_FAQ_TRIGGER_CLASS,
   MANAGE_PLAN_SECTION_HEADING_CLASS,
   buildManagePlanFaqItems,
+  type ManagePlanCatalogPrice,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { cn } from "@/lib/utils"
 
 export function ManagePlanFaqSection({
   vatRateBps = 0,
+  groupExtraLocation = null,
 }: {
   /** Catalog / API rate in basis points; 0 omits “+ VAT” FAQ copy. */
   vatRateBps?: number
+  /** Server catalogue price for one extra Group Location. */
+  groupExtraLocation?: ManagePlanCatalogPrice | null
 }) {
-  const faqItems = buildManagePlanFaqItems({ vatRateBps })
+  const faqItems = buildManagePlanFaqItems({ vatRateBps, groupExtraLocation })
 
   return (
     <section className="flex flex-col gap-10 pb-17.5 lg:flex-row lg:items-start lg:gap-15">
