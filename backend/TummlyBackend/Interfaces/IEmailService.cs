@@ -213,6 +213,9 @@ namespace TummlyBackend.Interfaces
 
         Task SendGuestPreferencesConfirmEmailAsync(string toEmail, string confirmUrl);
 
+        /// <summary>Confirm link for adding an email to a guest's preferences. Warns that someone else may have asked.</summary>
+        Task SendGuestPreferencesAddContactConfirmEmailAsync(string toEmail, string confirmUrl);
+
         Task SendPilotStartedEmailAsync(
             string toEmail,
             string firstName,

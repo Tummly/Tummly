@@ -154,6 +154,11 @@ namespace TummlyBackend.Tests.Helpers
             string confirmUrl
         ) => Task.CompletedTask;
 
+        public virtual Task SendGuestPreferencesAddContactConfirmEmailAsync(
+            string toEmail,
+            string confirmUrl
+        ) => Task.CompletedTask;
+
         public virtual Task SendPilotStartedEmailAsync(
             string toEmail,
             string firstName,

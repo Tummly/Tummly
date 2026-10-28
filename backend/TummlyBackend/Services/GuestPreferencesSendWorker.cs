@@ -94,6 +94,15 @@ namespace TummlyBackend.Services
                     }
 
                     var email = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                    if (item.IsAddContact)
+                    {
+                        await email.SendGuestPreferencesAddContactConfirmEmailAsync(
+                            item.Destination,
+                            item.ConfirmUrl
+                        );
+                        return;
+                    }
+
                     await email.SendGuestPreferencesConfirmEmailAsync(
                         item.Destination,
                         item.ConfirmUrl

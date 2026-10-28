@@ -340,7 +340,8 @@ namespace TummlyBackend.Services
                 new GuestPreferencesSendItem(
                     TummlyGuestContactTypes.Email,
                     email,
-                    confirmUrl
+                    confirmUrl,
+                    IsAddContact: linkToTummlyGuestId is not null
                 )
             );
         }

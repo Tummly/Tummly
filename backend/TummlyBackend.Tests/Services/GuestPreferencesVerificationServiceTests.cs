@@ -77,6 +77,7 @@ namespace TummlyBackend.Tests.Services
             await DrainAsync();
 
             var sent = Assert.Single(_email.Sent);
+            Assert.False(sent.IsAddContact);
             Assert.Equal(KnownEmail, sent.ToEmail);
             Assert.StartsWith($"{FrontendBaseUrl}/preferences?v=", sent.ConfirmUrl);
             Assert.DoesNotContain(KnownEmail, sent.ConfirmUrl);
@@ -136,6 +137,7 @@ namespace TummlyBackend.Tests.Services
             await DrainAsync();
 
             var sent = Assert.Single(_email.Sent);
+            Assert.True(sent.IsAddContact);
             Assert.StartsWith($"{FrontendBaseUrl}/preferences?link=", sent.ConfirmUrl);
         }
 
@@ -501,7 +503,7 @@ namespace TummlyBackend.Tests.Services
         private sealed class CapturingEmailService : EmailServiceStubBase
         {
             private readonly object _lock = new();
-            private readonly List<(string ToEmail, string ConfirmUrl)> _sent = new();
+            private readonly List<(string ToEmail, string ConfirmUrl, bool IsAddContact)> _sent = new();
 
             /// <summary>When set, the send waits here before it records anything.</summary>
             public TaskCompletionSource? Gate { get; set; }
@@ -515,7 +517,7 @@ namespace TummlyBackend.Tests.Services
             /// <summary>When set, the next send throws a non-shutdown TaskCanceledException once.</summary>
             public bool CancelNextSend { get; set; }
 
-            public IReadOnlyList<(string ToEmail, string ConfirmUrl)> Sent
+            public IReadOnlyList<(string ToEmail, string ConfirmUrl, bool IsAddContact)> Sent
             {
                 get
                 {
@@ -524,6 +526,19 @@ namespace TummlyBackend.Tests.Services
                         return _sent.ToList();
                     }
                 }
+            }
+
+            public override Task SendGuestPreferencesAddContactConfirmEmailAsync(
+                string toEmail,
+                string confirmUrl
+            )
+            {
+                lock (_lock)
+                {
+                    _sent.Add((toEmail, confirmUrl, true));
+                }
+
+                return Task.CompletedTask;
             }
 
             public override async Task SendGuestPreferencesConfirmEmailAsync(
@@ -550,7 +565,7 @@ namespace TummlyBackend.Tests.Services
 
                 lock (_lock)
                 {
-                    _sent.Add((toEmail, confirmUrl));
+                    _sent.Add((toEmail, confirmUrl, false));
                 }
             }
         }

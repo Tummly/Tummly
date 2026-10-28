@@ -477,6 +477,53 @@ namespace TummlyBackend.Tests.Helpers
             Assert.DoesNotContain("{{what_changed}}", html);
         }
 
+        [Fact]
+        public void GuestPreferencesConfirm_Entry_KeepsEntryCopy()
+        {
+            Assert.Equal("Confirm your email for Tummly", GuestPreferencesConfirmEmailTemplate.Subject);
+
+            var html = GuestPreferencesConfirmEmailTemplate.Generate(
+                Env(),
+                confirmUrl: "https://tummly.example/preferences?v=1.123456",
+                helpCentreUrl: "https://app.tummly.test/help-center",
+                logoUrl: "https://app.tummly.test/email/tummly-logo-dark.png"
+            );
+
+            Assert.Contains("<title>Confirm your email for Tummly</title>", html);
+            Assert.Contains(
+                "Open this link to confirm your email address and manage your Tummly marketing preferences. The link expires in 10 minutes.",
+                html
+            );
+            Assert.Contains("Confirm email", html);
+            Assert.Contains("preferences?v=1.123456", html);
+            Assert.DoesNotContain("Someone asked", html);
+            Assert.DoesNotContain("{{", html);
+        }
+
+        [Fact]
+        public void GuestPreferencesConfirm_AddContact_UsesAddContactCopy()
+        {
+            Assert.Equal("Confirm this email for Tummly", GuestPreferencesConfirmEmailTemplate.AddContactSubject);
+
+            var html = GuestPreferencesConfirmEmailTemplate.GenerateAddContact(
+                Env(),
+                confirmUrl: "https://tummly.example/preferences?link=7.123456",
+                helpCentreUrl: "https://app.tummly.test/help-center",
+                logoUrl: "https://app.tummly.test/email/tummly-logo-dark.png"
+            );
+
+            Assert.Contains("<title>Confirm this email for Tummly</title>", html);
+            Assert.Contains(
+                "Someone asked to add this email address to their Tummly marketing preferences. If this was you, open the link to confirm. If not, ignore this email. The link expires in 10 minutes.",
+                html
+            );
+            Assert.Contains("Confirm email", html);
+            Assert.Contains("preferences?link=7.123456", html);
+            Assert.DoesNotContain("Open this link to confirm your email address", html);
+            Assert.DoesNotContain("Confirm your email for Tummly", html);
+            Assert.DoesNotContain("{{", html);
+        }
+
         private static StubWebHostEnvironment Env()
         {
             var contentRoot = FindBackendContentRoot();

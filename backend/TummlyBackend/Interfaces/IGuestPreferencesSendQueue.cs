@@ -4,10 +4,12 @@ namespace TummlyBackend.Interfaces
     /// One provider send for the guest preference centre. <c>ContactType</c> is
     /// the <c>TummlyGuestContactTypes</c> value. <c>ConfirmUrl</c> is set for email only.
     /// </summary>
+    /// <param name="IsAddContact">True for an add-contact email link, false for an entry link.</param>
     public sealed record GuestPreferencesSendItem(
         string ContactType,
         string Destination,
-        string? ConfirmUrl
+        string? ConfirmUrl,
+        bool IsAddContact = false
     );
 
     /// <summary>

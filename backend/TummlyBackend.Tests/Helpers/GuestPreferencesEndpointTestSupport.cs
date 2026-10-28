@@ -107,15 +107,16 @@ namespace TummlyBackend.Tests.Helpers
         );
 
         /// <summary>
-        /// Captures confirm emails (entry and add-contact links). Provider sends run on the
-        /// background worker, so a start returns before the email exists.
+        /// Captures confirm emails (entry and add-contact links), with <c>IsAddContact</c> set for
+        /// the add-contact template. Provider sends run on the background worker, so a start
+        /// returns before the email exists.
         /// </summary>
         public sealed class CapturingGuestPreferencesEmailService : EmailServiceStubBase
         {
             private readonly object _lock = new();
-            private readonly List<(string ToEmail, string ConfirmUrl)> _sent = new();
+            private readonly List<(string ToEmail, string ConfirmUrl, bool IsAddContact)> _sent = new();
 
-            public IReadOnlyList<(string ToEmail, string ConfirmUrl)> Sent
+            public IReadOnlyList<(string ToEmail, string ConfirmUrl, bool IsAddContact)> Sent
             {
                 get
                 {
@@ -127,7 +128,7 @@ namespace TummlyBackend.Tests.Helpers
             }
 
             /// <summary>Waits up to 5 seconds for exactly one email.</summary>
-            public async Task<(string ToEmail, string ConfirmUrl)> WaitForSingleAsync()
+            public async Task<(string ToEmail, string ConfirmUrl, bool IsAddContact)> WaitForSingleAsync()
             {
                 var deadline = DateTime.UtcNow.AddSeconds(5);
                 while (Sent.Count == 0 && DateTime.UtcNow < deadline)
@@ -145,7 +146,20 @@ namespace TummlyBackend.Tests.Helpers
             {
                 lock (_lock)
                 {
-                    _sent.Add((toEmail, confirmUrl));
+                    _sent.Add((toEmail, confirmUrl, false));
+                }
+
+                return Task.CompletedTask;
+            }
+
+            public override Task SendGuestPreferencesAddContactConfirmEmailAsync(
+                string toEmail,
+                string confirmUrl
+            )
+            {
+                lock (_lock)
+                {
+                    _sent.Add((toEmail, confirmUrl, true));
                 }
 
                 return Task.CompletedTask;

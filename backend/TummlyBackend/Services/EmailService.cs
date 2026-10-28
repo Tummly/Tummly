@@ -1137,6 +1137,26 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task SendGuestPreferencesAddContactConfirmEmailAsync(
+            string toEmail,
+            string confirmUrl
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = GuestPreferencesConfirmEmailTemplate.GenerateAddContact(
+                _environment,
+                confirmUrl,
+                EmailFrontendUrls.HelpCentre(frontendBaseUrl),
+                GetDarkLogoUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                GuestPreferencesConfirmEmailTemplate.AddContactSubject,
+                htmlBody
+            );
+        }
+
         public async Task SendPilotStartedEmailAsync(
             string toEmail,
             string firstName,

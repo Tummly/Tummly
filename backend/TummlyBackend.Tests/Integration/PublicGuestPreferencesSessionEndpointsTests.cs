@@ -239,7 +239,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(ownerId, result.Proven!.TummlyGuestId);
         }
 
-        private Task<(string ToEmail, string ConfirmUrl)> WaitForSingleEmailAsync() =>
+        private Task<(string ToEmail, string ConfirmUrl, bool IsAddContact)> WaitForSingleEmailAsync() =>
             _email.WaitForSingleAsync();
 
         private string UnsubscribeSecret() =>
