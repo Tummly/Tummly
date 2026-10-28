@@ -2334,6 +2334,15 @@ namespace TummlyBackend.Data
                 .Property(c => c.RowVersion)
                 .IsRowVersion();
 
+            // One open Draft per Location and Home recommendation source (draft reuse).
+            // Submitted, sent, failed or cancelled Campaigns drop out of the index.
+            modelBuilder.Entity<Campaign>()
+                .HasIndex(c => new { c.RestaurantLocationId, c.RecommendationSourceKey })
+                .IsUnique()
+                .HasFilter(
+                    "[Status] = N'draft' AND [RecommendationSourceKey] IS NOT NULL"
+                );
+
             // Drafts list: filter location + status, sort UpdatedAt desc (audit 13 / DB-04).
             modelBuilder.Entity<Campaign>()
                 .HasIndex(c => new

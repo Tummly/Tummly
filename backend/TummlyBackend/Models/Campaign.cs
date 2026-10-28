@@ -66,6 +66,23 @@ namespace TummlyBackend.Models
         [MaxLength(64)]
         public string? ScheduleTimeZone { get; set; }
 
+        /// <summary>
+        /// Recent redeemers look-back in calendar days (Campaign audience period).
+        /// Set on Draft when the audience is recent-redeemers; null means the default period.
+        /// </summary>
+        public int? AudienceLookbackDays { get; set; }
+
+        /// <summary>IANA timezone that anchors the recent-redeemers look-back start.</summary>
+        [MaxLength(64)]
+        public string? AudienceLookbackTimeZone { get; set; }
+
+        /// <summary>
+        /// Stable identity of the Home recommendation that created this Draft.
+        /// Null for Drafts created by hand. Unique across open Drafts per Location.
+        /// </summary>
+        [MaxLength(128)]
+        public string? RecommendationSourceKey { get; set; }
+
         /// <summary>Billing reservation reference from live Reserve.</summary>
         [MaxLength(128)]
         public string? BillingReservationRef { get; set; }
