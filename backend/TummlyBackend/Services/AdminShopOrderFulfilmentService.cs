@@ -15,6 +15,7 @@ namespace TummlyBackend.Services
         private const int MaxOpsNotesLength = 2000;
         private const int MaxForceCancelReasonLength = 500;
         private const int MaxCarrierFieldLength = 200;
+        private const int MaxCorrectionReasonLength = 500;
 
         private static readonly HashSet<string> ValidFulfilmentFilters =
             new(StringComparer.OrdinalIgnoreCase)
@@ -428,6 +429,13 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (!ShopOrderDispatchEvidence.IsComplete(order))
+            {
+                return IllegalTransition(
+                    "Record dispatch evidence before marking the order as delivered."
+                );
+            }
+
             var now = _clock.GetUtcNow().UtcDateTime;
             order.FulfilmentStatus = ShopFulfilmentStatuses.Delivered;
             order.DeliveredAtUtc = now;
@@ -443,6 +451,217 @@ namespace TummlyBackend.Services
                     ActorAdminUserId: actorAdminUserId,
                     RestaurantId: order.RestaurantId,
                     DetailJson: null
+                )
+            );
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return AdminShopOrderFulfilmentResult.Ok(
+                await MapWithPrintAssetsAsync(order, cancellationToken)
+            );
+        }
+
+        /// <summary>
+        /// Backfills carrier evidence for a legacy dispatch (a dispatch stamped
+        /// with only a tracking URL). Admin supplies the carrier name, the
+        /// reference and the actual dispatch time. The status and tracking URL
+        /// stay as they are. The previous values go into the audit row.
+        /// </summary>
+        public async Task<AdminShopOrderFulfilmentResult> RecordDispatchEvidenceAsync(
+            Guid orderId,
+            AdminShopDispatchEvidenceRequest request,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var order = await FindOrderAsync(orderId, cancellationToken);
+            if (order == null)
+            {
+                return OrderNotFound();
+            }
+
+            if (!ShopOrderDispatchEvidence.IsMissing(order))
+            {
+                return IllegalTransition(
+                    "Dispatch evidence can only be recorded for a dispatched or delivered order that has no evidence."
+                );
+            }
+
+            var carrierName = request.CarrierName?.Trim() ?? string.Empty;
+            if (carrierName.Length == 0)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "carrier_name_required",
+                    "A carrier or supplier name is required to record dispatch evidence."
+                );
+            }
+
+            if (carrierName.Length > MaxCarrierFieldLength)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "invalid_carrier_name",
+                    $"carrierName must be at most {MaxCarrierFieldLength} characters."
+                );
+            }
+
+            var carrierReference = request.CarrierReference?.Trim() ?? string.Empty;
+            if (carrierReference.Length == 0)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "carrier_reference_required",
+                    "A carrier or supplier reference is required to record dispatch evidence."
+                );
+            }
+
+            if (carrierReference.Length > MaxCarrierFieldLength)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "invalid_carrier_reference",
+                    $"carrierReference must be at most {MaxCarrierFieldLength} characters."
+                );
+            }
+
+            if (request.DispatchedAtUtc == null)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "dispatched_at_required",
+                    "The actual dispatch time is required to record dispatch evidence."
+                );
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var dispatchedAt = request.DispatchedAtUtc.Value.UtcDateTime;
+            if (
+                dispatchedAt > now
+                || dispatchedAt < order.CreatedAtUtc
+                || (order.DeliveredAtUtc is DateTime deliveredAt && dispatchedAt > deliveredAt)
+            )
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "invalid_dispatched_at",
+                    "The dispatch time must be after the order was placed, before delivery, and not in the future."
+                );
+            }
+
+            var previous = DispatchEvidenceSnapshot(order);
+            order.DispatchedAtUtc = dispatchedAt;
+            order.DispatchedByAdminUserId = actorAdminUserId;
+            order.DispatchSource = ShopFulfilmentEvidenceSources.LegacyBackfill;
+            order.DispatchCarrierName = carrierName;
+            order.DispatchCarrierReference = carrierReference;
+            order.UpdatedAtUtc = now;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopDispatchEvidenceRecorded,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopOrder,
+                    orderId.ToString("D"),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: order.RestaurantId,
+                    DetailJson: System.Text.Json.JsonSerializer.Serialize(
+                        new
+                        {
+                            previous,
+                            next = DispatchEvidenceSnapshot(order),
+                        }
+                    )
+                )
+            );
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return AdminShopOrderFulfilmentResult.Ok(
+                await MapWithPrintAssetsAsync(order, cancellationToken)
+            );
+        }
+
+        /// <summary>
+        /// Returns an order with unsupported dispatch or delivery evidence to its
+        /// last substantiated state (processing; the label then reads from the
+        /// preparation and production stamps). Clears the dispatch, delivery and
+        /// tracking fields. The audit row keeps every original value and the reason.
+        /// </summary>
+        public async Task<AdminShopOrderFulfilmentResult> CorrectStatusAsync(
+            Guid orderId,
+            AdminShopStatusCorrectionRequest request,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var order = await FindOrderAsync(orderId, cancellationToken);
+            if (order == null)
+            {
+                return OrderNotFound();
+            }
+
+            if (!ShopOrderDispatchEvidence.IsMissing(order))
+            {
+                return IllegalTransition(
+                    "Only a dispatched or delivered order with no dispatch evidence can be corrected."
+                );
+            }
+
+            var reason = request.Reason?.Trim() ?? string.Empty;
+            if (reason.Length == 0)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "invalid_correction_reason",
+                    "A reason is required to correct the status."
+                );
+            }
+
+            if (reason.Length > MaxCorrectionReasonLength)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "invalid_correction_reason",
+                    $"reason must be at most {MaxCorrectionReasonLength} characters."
+                );
+            }
+
+            var previous = new
+            {
+                fulfilmentStatus = order.FulfilmentStatus,
+                dispatchedAtUtc = order.DispatchedAtUtc,
+                dispatchedByAdminUserId = order.DispatchedByAdminUserId,
+                dispatchSource = order.DispatchSource,
+                dispatchCarrierName = order.DispatchCarrierName,
+                dispatchCarrierReference = order.DispatchCarrierReference,
+                deliveredAtUtc = order.DeliveredAtUtc,
+                deliverySource = order.DeliverySource,
+                trackingUrl = order.TrackingUrl,
+            };
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            order.FulfilmentStatus = ShopFulfilmentStatuses.Processing;
+            order.DispatchedAtUtc = null;
+            order.DispatchedByAdminUserId = null;
+            order.DispatchSource = null;
+            order.DispatchCarrierName = null;
+            order.DispatchCarrierReference = null;
+            order.DeliveredAtUtc = null;
+            order.DeliverySource = null;
+            order.TrackingUrl = null;
+            order.UpdatedAtUtc = now;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopStatusCorrected,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopOrder,
+                    orderId.ToString("D"),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: order.RestaurantId,
+                    DetailJson: System.Text.Json.JsonSerializer.Serialize(
+                        new
+                        {
+                            reason,
+                            previous,
+                            next = new { fulfilmentStatus = order.FulfilmentStatus },
+                        }
+                    )
                 )
             );
 
@@ -685,6 +904,11 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (listQuery.DispatchEvidenceMissing)
+            {
+                query = query.Where(ShopOrderDispatchEvidence.MissingExpression);
+            }
+
             if (listQuery.RestaurantId is int restaurantId)
             {
                 query = query.Where(row => row.RestaurantId == restaurantId);
@@ -897,6 +1121,20 @@ namespace TummlyBackend.Services
                 : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc);
         }
 
+        /// <summary>Dispatch evidence fields, for the audit trail of a change.</summary>
+        private static object DispatchEvidenceSnapshot(ShopOrder order)
+        {
+            return new
+            {
+                fulfilmentStatus = order.FulfilmentStatus,
+                dispatchedAtUtc = order.DispatchedAtUtc,
+                dispatchedByAdminUserId = order.DispatchedByAdminUserId,
+                dispatchSource = order.DispatchSource,
+                dispatchCarrierName = order.DispatchCarrierName,
+                dispatchCarrierReference = order.DispatchCarrierReference,
+            };
+        }
+
         private static AdminShopOrderListItemDto MapListItem(ShopOrder order)
         {
             return new AdminShopOrderListItemDto
@@ -922,6 +1160,8 @@ namespace TummlyBackend.Services
                 DispatchedAtUtc = AsUtc(order.DispatchedAtUtc),
                 DispatchCarrierName = order.DispatchCarrierName,
                 DispatchCarrierReference = order.DispatchCarrierReference,
+                DispatchSource = order.DispatchSource,
+                DispatchedByAdminUserId = order.DispatchedByAdminUserId,
                 DeliveredAtUtc = AsUtc(order.DeliveredAtUtc),
                 GrossPence = order.GrossPence,
                 ReviewReason = order.ReviewReason,

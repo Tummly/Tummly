@@ -37,16 +37,22 @@ namespace TummlyBackend.Helpers
                 return "Cancelled";
             }
 
+            // Dispatched and Delivered need carrier evidence. A dispatch time,
+            // tracking URL or delivery time alone falls back to the stage
+            // before it. Admin sees the missing evidence marker separately.
+            var hasDispatchEvidence = ShopOrderDispatchEvidence.IsComplete(order);
+
             if (
                 order.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
                 && order.DeliveredAtUtc != null
+                && hasDispatchEvidence
             )
             {
                 return "Delivered";
             }
 
             if (
-                order.DispatchedAtUtc != null
+                hasDispatchEvidence
                 && (
                     order.FulfilmentStatus == ShopFulfilmentStatuses.InTransit
                     || order.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
@@ -94,15 +100,22 @@ namespace TummlyBackend.Helpers
         public static string? ToOrderKindLabel(bool isComplimentary) =>
             isComplimentary ? ComplimentaryStarterKitLabel : null;
 
-        public static bool IsTrackingVisible(string? storedStatus, string? trackingUrl)
+        /// <summary>
+        /// The tracking link shows only once carrier evidence exists. A link
+        /// without evidence is supporting information for Admin, not proof.
+        /// </summary>
+        public static bool IsTrackingVisible(ShopOrder order)
         {
-            if (string.IsNullOrWhiteSpace(trackingUrl))
+            if (string.IsNullOrWhiteSpace(order.TrackingUrl))
             {
                 return false;
             }
 
-            return storedStatus is ShopFulfilmentStatuses.InTransit
-                or ShopFulfilmentStatuses.Delivered;
+            return (
+                    order.FulfilmentStatus is ShopFulfilmentStatuses.InTransit
+                        or ShopFulfilmentStatuses.Delivered
+                )
+                && ShopOrderDispatchEvidence.IsComplete(order);
         }
     }
 }

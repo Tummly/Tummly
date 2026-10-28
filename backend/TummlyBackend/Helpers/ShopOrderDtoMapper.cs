@@ -52,10 +52,9 @@ namespace TummlyBackend.Helpers
             string? invoiceDocumentNumber = null
         )
         {
-            var trackingVisible = ShopOrderFulfilmentLabels.IsTrackingVisible(
-                order.FulfilmentStatus,
-                order.TrackingUrl
-            );
+            var trackingVisible = ShopOrderFulfilmentLabels.IsTrackingVisible(order);
+            // Operators see dispatch and delivery times only with carrier evidence.
+            var hasDispatchEvidence = ShopOrderDispatchEvidence.IsComplete(order);
 
             return new ShopOrderOperatorDetailDto
             {
@@ -98,8 +97,8 @@ namespace TummlyBackend.Helpers
                 {
                     OrderReceivedAtUtc = order.PaidAtUtc,
                     ProcessingStartedAtUtc = order.ProcessingStartedAtUtc,
-                    DispatchedAtUtc = order.DispatchedAtUtc,
-                    DeliveredAtUtc = order.DeliveredAtUtc,
+                    DispatchedAtUtc = hasDispatchEvidence ? order.DispatchedAtUtc : null,
+                    DeliveredAtUtc = hasDispatchEvidence ? order.DeliveredAtUtc : null,
                     TrackingUrl = trackingVisible ? order.TrackingUrl : null,
                 },
                 UpdatedAtUtc = order.UpdatedAtUtc,

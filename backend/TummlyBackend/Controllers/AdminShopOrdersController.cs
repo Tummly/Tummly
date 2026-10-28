@@ -37,13 +37,21 @@ namespace TummlyBackend.Controllers
             [FromQuery] string? q = null,
             [FromQuery] int? restaurantId = null,
             [FromQuery] string[]? fulfilmentStatus = null,
+            [FromQuery] bool dispatchEvidenceMissing = false,
             CancellationToken cancellationToken = default
         )
         {
             try
             {
                 var result = await _fulfilment.GetListAsync(
-                    BuildListQuery(page, pageSize, q, restaurantId, fulfilmentStatus),
+                    BuildListQuery(
+                        page,
+                        pageSize,
+                        q,
+                        restaurantId,
+                        fulfilmentStatus,
+                        dispatchEvidenceMissing
+                    ),
                     cancellationToken
                 );
                 // hasSearch only: the search text can name a customer.
@@ -82,6 +90,7 @@ namespace TummlyBackend.Controllers
             [FromQuery] string? q = null,
             [FromQuery] int? restaurantId = null,
             [FromQuery] string[]? fulfilmentStatus = null,
+            [FromQuery] bool dispatchEvidenceMissing = false,
             CancellationToken cancellationToken = default
         )
         {
@@ -90,7 +99,14 @@ namespace TummlyBackend.Controllers
                 // page/pageSize accepted on the wire (Guests export pattern) but
                 // ignored for warehouse dump — ExportCsvAsync returns all matches.
                 var result = await _fulfilment.ExportCsvAsync(
-                    BuildListQuery(page, pageSize, q, restaurantId, fulfilmentStatus),
+                    BuildListQuery(
+                        page,
+                        pageSize,
+                        q,
+                        restaurantId,
+                        fulfilmentStatus,
+                        dispatchEvidenceMissing
+                    ),
                     cancellationToken
                 );
                 await _adminAudit.AppendAndSaveAsync(
@@ -100,7 +116,7 @@ namespace TummlyBackend.Controllers
                         AdminAuditTargetTypes.ShopOrder,
                         "export",
                         System.Text.Json.JsonSerializer.Serialize(
-                            new { restaurantId, fulfilmentStatus }
+                            new { restaurantId, fulfilmentStatus, dispatchEvidenceMissing }
                         )
                     ),
                     cancellationToken
@@ -207,6 +223,52 @@ namespace TummlyBackend.Controllers
 
             var result = await _fulfilment.MarkDeliveredAsync(
                 id,
+                actorId,
+                actorIdentity,
+                cancellationToken
+            );
+            return FulfilmentResult(result);
+        }
+
+        [HttpPost("{id:guid}/dispatch-evidence")]
+        public async Task<IActionResult> RecordDispatchEvidence(
+            Guid id,
+            [FromBody] AdminShopDispatchEvidenceRequest? body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var denied = ResolveAdminActor(out var actorId, out var actorIdentity);
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _fulfilment.RecordDispatchEvidenceAsync(
+                id,
+                body ?? new AdminShopDispatchEvidenceRequest(),
+                actorId,
+                actorIdentity,
+                cancellationToken
+            );
+            return FulfilmentResult(result);
+        }
+
+        [HttpPost("{id:guid}/status-correction")]
+        public async Task<IActionResult> CorrectStatus(
+            Guid id,
+            [FromBody] AdminShopStatusCorrectionRequest? body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var denied = ResolveAdminActor(out var actorId, out var actorIdentity);
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _fulfilment.CorrectStatusAsync(
+                id,
+                body ?? new AdminShopStatusCorrectionRequest(),
                 actorId,
                 actorIdentity,
                 cancellationToken
@@ -525,7 +587,8 @@ namespace TummlyBackend.Controllers
             int pageSize,
             string? q,
             int? restaurantId,
-            string[]? fulfilmentStatus
+            string[]? fulfilmentStatus,
+            bool dispatchEvidenceMissing
         )
         {
             return new AdminShopOrdersListQuery
@@ -535,6 +598,7 @@ namespace TummlyBackend.Controllers
                 Q = q,
                 RestaurantId = restaurantId,
                 FulfilmentStatus = fulfilmentStatus ?? Array.Empty<string>(),
+                DispatchEvidenceMissing = dispatchEvidenceMissing,
             };
         }
 

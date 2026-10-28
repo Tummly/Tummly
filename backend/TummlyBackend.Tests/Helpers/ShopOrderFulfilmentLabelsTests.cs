@@ -70,9 +70,7 @@ namespace TummlyBackend.Tests.Helpers
         {
             var order = PaidOrder(ShopFulfilmentStatuses.InTransit);
             order.ProductionStartedAtUtc = Stamp;
-            order.DispatchedAtUtc = Stamp.AddHours(2);
-            order.DispatchCarrierName = "DPD";
-            order.DispatchCarrierReference = "DPD-123";
+            SetDispatchEvidence(order);
 
             Assert.Equal("Dispatched", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
         }
@@ -87,22 +85,151 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void ToDisplayLabel_LegacyDispatchTimeWithoutCarrierReference_ReadsLastSubstantiatedState()
+        {
+            // Round 1 stamped DispatchedAtUtc with only a tracking URL.
+            var order = PaidOrder(ShopFulfilmentStatuses.InTransit);
+            order.PreparationStartedAtUtc = Stamp;
+            order.ProductionStartedAtUtc = Stamp.AddHours(1);
+            order.DispatchedAtUtc = Stamp.AddHours(2);
+            order.DispatchCarrierName = "DPD";
+            order.TrackingUrl = "https://track.example/legacy";
+
+            Assert.Equal("In production", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_LegacyDispatchWithoutProduction_ReadsPreparing()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.InTransit);
+            order.PreparationStartedAtUtc = Stamp;
+            order.DispatchedAtUtc = Stamp.AddHours(2);
+
+            Assert.Equal("Preparing", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_DispatchWithoutSourceOrActor_DoesNotReadDispatched()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.InTransit);
+            order.ProductionStartedAtUtc = Stamp;
+            SetDispatchEvidence(order);
+            order.DispatchSource = null;
+            order.DispatchedByAdminUserId = null;
+
+            Assert.Equal("In production", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
         public void ToDisplayLabel_DeliveryEvidence_ReadsDelivered()
         {
             var order = PaidOrder(ShopFulfilmentStatuses.Delivered);
-            order.DispatchedAtUtc = Stamp;
+            order.ProductionStartedAtUtc = Stamp;
+            SetDispatchEvidence(order);
             order.DeliveredAtUtc = Stamp.AddDays(2);
 
             Assert.Equal("Delivered", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
         }
 
         [Fact]
-        public void ToDisplayLabel_DeliveredWithoutDeliveryEvidence_DoesNotReadDelivered()
+        public void ToDisplayLabel_DeliveredWithoutDispatchEvidence_DoesNotReadDelivered()
         {
             var order = PaidOrder(ShopFulfilmentStatuses.Delivered);
+            order.ProductionStartedAtUtc = Stamp;
             order.DispatchedAtUtc = Stamp;
+            order.DeliveredAtUtc = Stamp.AddDays(2);
+
+            Assert.Equal("In production", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_DispatchEvidenceWithoutDeliveryTime_ReadsDispatched()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.Delivered);
+            order.ProductionStartedAtUtc = Stamp;
+            SetDispatchEvidence(order);
 
             Assert.Equal("Dispatched", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void IsDispatchEvidenceMissing_DispatchedOrDeliveredWithoutEvidence_IsTrue()
+        {
+            var inTransit = PaidOrder(ShopFulfilmentStatuses.InTransit);
+            inTransit.DispatchedAtUtc = Stamp;
+            var delivered = PaidOrder(ShopFulfilmentStatuses.Delivered);
+            delivered.DispatchedAtUtc = Stamp;
+            delivered.DeliveredAtUtc = Stamp.AddDays(1);
+
+            Assert.True(ShopOrderDispatchEvidence.IsMissing(inTransit));
+            Assert.True(ShopOrderDispatchEvidence.IsMissing(delivered));
+        }
+
+        [Fact]
+        public void IsDispatchEvidenceMissing_CompleteEvidenceOrOtherStatus_IsFalse()
+        {
+            var complete = PaidOrder(ShopFulfilmentStatuses.InTransit);
+            SetDispatchEvidence(complete);
+            var processing = PaidOrder(ShopFulfilmentStatuses.Processing);
+            processing.ProductionStartedAtUtc = Stamp;
+
+            Assert.False(ShopOrderDispatchEvidence.IsMissing(complete));
+            Assert.False(ShopOrderDispatchEvidence.IsMissing(processing));
+        }
+
+        [Theory]
+        [InlineData(null, null, null, null)]
+        [InlineData("", "DPD", "DPD-123", 7)]
+        [InlineData("admin_manual", null, "DPD-123", 7)]
+        [InlineData("admin_manual", "DPD", null, 7)]
+        [InlineData("admin_manual", "DPD", "", 7)]
+        [InlineData("admin_manual", "DPD", "DPD-123", null)]
+        public void CompleteEvidenceExpression_AgreesWithIsComplete(
+            string? source,
+            string? carrierName,
+            string? carrierReference,
+            int? actorId
+        )
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.InTransit);
+            order.DispatchedAtUtc = Stamp;
+            order.DispatchSource = source;
+            order.DispatchCarrierName = carrierName;
+            order.DispatchCarrierReference = carrierReference;
+            order.DispatchedByAdminUserId = actorId;
+            var rows = new[] { order }.AsQueryable();
+
+            var fromExpression = rows.Where(ShopOrderDispatchEvidence.CompleteExpression).Any();
+
+            Assert.Equal(ShopOrderDispatchEvidence.IsComplete(order), fromExpression);
+        }
+
+        [Theory]
+        [InlineData(ShopFulfilmentStatuses.InTransit)]
+        [InlineData(ShopFulfilmentStatuses.Delivered)]
+        [InlineData(ShopFulfilmentStatuses.Processing)]
+        public void MissingExpression_AgreesWithIsMissing(string fulfilment)
+        {
+            var order = PaidOrder(fulfilment);
+            order.DispatchedAtUtc = Stamp;
+            var rows = new[] { order }.AsQueryable();
+
+            var fromExpression = rows.Where(ShopOrderDispatchEvidence.MissingExpression).Any();
+
+            Assert.Equal(ShopOrderDispatchEvidence.IsMissing(order), fromExpression);
+        }
+
+        [Fact]
+        public void IsTrackingVisible_TrackingUrlWithoutDispatchEvidence_IsHidden()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.InTransit);
+            order.DispatchedAtUtc = Stamp;
+            order.TrackingUrl = "https://track.example/legacy";
+
+            Assert.False(ShopOrderFulfilmentLabels.IsTrackingVisible(order));
+
+            SetDispatchEvidence(order);
+            Assert.True(ShopOrderFulfilmentLabels.IsTrackingVisible(order));
         }
 
         [Fact]
@@ -121,6 +248,15 @@ namespace TummlyBackend.Tests.Helpers
             order.PreparationStartedAtUtc = Stamp;
 
             Assert.Equal("Awaiting payment", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        private static void SetDispatchEvidence(ShopOrder order)
+        {
+            order.DispatchedAtUtc = Stamp.AddHours(2);
+            order.DispatchSource = ShopFulfilmentEvidenceSources.AdminManual;
+            order.DispatchedByAdminUserId = 7;
+            order.DispatchCarrierName = "DPD";
+            order.DispatchCarrierReference = "DPD-123";
         }
 
         private static ShopOrder PaidOrder(string fulfilmentStatus)

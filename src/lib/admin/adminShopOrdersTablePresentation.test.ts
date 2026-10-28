@@ -37,6 +37,10 @@ function order(
   | "preparationStartedAtUtc"
   | "productionStartedAtUtc"
   | "dispatchedAtUtc"
+  | "dispatchCarrierName"
+  | "dispatchCarrierReference"
+  | "dispatchSource"
+  | "dispatchedByAdminUserId"
   | "deliveredAtUtc"
 > {
   return {
@@ -47,6 +51,10 @@ function order(
     preparationStartedAtUtc: null,
     productionStartedAtUtc: null,
     dispatchedAtUtc: null,
+    dispatchCarrierName: null,
+    dispatchCarrierReference: null,
+    dispatchSource: null,
+    dispatchedByAdminUserId: null,
     deliveredAtUtc: null,
     ...overrides,
   }
@@ -130,9 +138,21 @@ describe("adminShopOrderRowActions", () => {
         order({
           fulfilmentStatus: "in_transit",
           dispatchedAtUtc: "2026-10-27T10:00:00Z",
+          dispatchCarrierName: "DPD",
+          dispatchCarrierReference: "DPD-123",
+          dispatchSource: "admin_manual",
+          dispatchedByAdminUserId: 7,
         })
       ).nextFulfilmentAction
     ).toMatchObject({ kind: "delivery", label: "Mark as Delivered" })
+    expect(
+      adminShopOrderRowActions(
+        order({
+          fulfilmentStatus: "in_transit",
+          dispatchedAtUtc: "2026-10-27T10:00:00Z",
+        })
+      ).nextFulfilmentAction
+    ).toBeNull()
     expect(
       adminShopOrderRowActions(order({ fulfilmentStatus: "delivered" }))
         .nextFulfilmentAction

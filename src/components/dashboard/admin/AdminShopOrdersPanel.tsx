@@ -11,9 +11,11 @@ import {
   type AdminShopOrderListItem,
   type AdminShopPrintAsset,
 } from "@/api/adminShopOrdersApi"
+import { AdminShopDispatchEvidenceDialog } from "@/components/dashboard/admin/AdminShopDispatchEvidenceDialog"
 import { AdminShopFulfilmentActionDialog } from "@/components/dashboard/admin/AdminShopFulfilmentActionDialog"
 import { AdminShopOrderDetailDrawer } from "@/components/dashboard/admin/AdminShopOrderDetailDrawer"
 import { AdminShopOrderRowActionsMenu } from "@/components/dashboard/admin/AdminShopOrderRowActionsMenu"
+import { AdminShopStatusCorrectionDialog } from "@/components/dashboard/admin/AdminShopStatusCorrectionDialog"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -44,11 +46,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL,
   ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS,
   ALL_ADMIN_SHOP_FULFILMENT_STATUSES,
   adminShopOrderFulfilmentLabel,
   type AdminShopFulfilmentAction,
   formatAdminShopGbpFromPence,
+  isAdminShopDispatchEvidenceMissing,
 } from "@/lib/adminShopOrderFulfilment"
 import { defaultDownloadName } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
 import { withRowBusy } from "@/lib/admin/adminShopOrderRowBusy"
@@ -95,6 +99,9 @@ type PendingFulfilment = {
   action: AdminShopFulfilmentAction
 }
 
+/** Evidence filter: every order, or only those missing carrier evidence. */
+type EvidenceFilter = "all" | "missing"
+
 function buildPageNumbers(current: number, total: number) {
   if (total <= 7) {
     return Array.from({ length: total }, (_, index) => index + 1)
@@ -137,6 +144,11 @@ export function AdminShopOrdersPanel() {
   )
   const [pendingFulfilment, setPendingFulfilment] =
     useState<PendingFulfilment | null>(null)
+  const [evidenceFilter, setEvidenceFilter] = useState<EvidenceFilter>("all")
+  const [pendingEvidenceOrder, setPendingEvidenceOrder] =
+    useState<AdminShopOrderListItem | null>(null)
+  const [pendingCorrectionOrder, setPendingCorrectionOrder] =
+    useState<AdminShopOrderListItem | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -146,14 +158,17 @@ export function AdminShopOrdersPanel() {
     return () => window.clearTimeout(timer)
   }, [search])
 
+  const dispatchEvidenceMissing = evidenceFilter === "missing" || undefined
+
   const listParams = useMemo(
     () => ({
       page,
       pageSize: PAGE_SIZE,
       q: debouncedSearch || undefined,
       fulfilmentStatus: fulfilmentStatusesForFilter(statusFilter),
+      dispatchEvidenceMissing,
     }),
-    [debouncedSearch, page, statusFilter]
+    [debouncedSearch, dispatchEvidenceMissing, page, statusFilter]
   )
 
   const loadOrders = useCallback(async () => {
@@ -190,6 +205,7 @@ export function AdminShopOrdersPanel() {
       const { blob, fileName } = await downloadAdminShopOrdersCsv({
         q: debouncedSearch || undefined,
         fulfilmentStatus: fulfilmentStatusesForFilter(statusFilter),
+        dispatchEvidenceMissing,
       })
       triggerBlobDownload(blob, fileName)
       toast.success("Shop orders CSV downloaded")
@@ -202,7 +218,8 @@ export function AdminShopOrdersPanel() {
 
   const applyOrderUpdate = (updated: AdminShopOrderListItem) => {
     const stillMatchesFilter =
-      statusFilter === "all" || updated.fulfilmentStatus === statusFilter
+      (statusFilter === "all" || updated.fulfilmentStatus === statusFilter) &&
+      (evidenceFilter === "all" || isAdminShopDispatchEvidenceMissing(updated))
 
     if (!stillMatchesFilter) {
       setOrders((current) => current.filter((item) => item.id !== updated.id))
@@ -326,6 +343,38 @@ export function AdminShopOrdersPanel() {
                     {option.label}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={evidenceFilter}
+              onValueChange={(value) => {
+                setEvidenceFilter(value as EvidenceFilter)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger
+                aria-label="Dispatch evidence"
+                className={cn(
+                  OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+                  "w-full min-w-40 data-[size=default]:h-auto sm:w-56"
+                )}
+              >
+                <SelectValue placeholder="Evidence" />
+              </SelectTrigger>
+              <SelectContent className={OPERATOR_SHELL_MENU_PANEL_CLASS}>
+                <SelectItem
+                  value="all"
+                  className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                >
+                  All orders
+                </SelectItem>
+                <SelectItem
+                  value="missing"
+                  className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                >
+                  {ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL}
+                </SelectItem>
               </SelectContent>
             </Select>
 
@@ -494,9 +543,16 @@ export function AdminShopOrdersPanel() {
                         </span>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <Badge variant="soft">
-                          {adminShopOrderFulfilmentLabel(order)}
-                        </Badge>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge variant="soft">
+                            {adminShopOrderFulfilmentLabel(order)}
+                          </Badge>
+                          {isAdminShopDispatchEvidenceMissing(order) ? (
+                            <Badge variant="soft">
+                              {ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL}
+                            </Badge>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell
                         className={cn(
@@ -517,6 +573,12 @@ export function AdminShopOrdersPanel() {
                           }
                           onRequestFulfilment={(action) =>
                             setPendingFulfilment({ order, action })
+                          }
+                          onRecordDispatchEvidence={() =>
+                            setPendingEvidenceOrder(order)
+                          }
+                          onCorrectStatus={() =>
+                            setPendingCorrectionOrder(order)
                           }
                         />
                       </TableCell>
@@ -613,6 +675,24 @@ export function AdminShopOrdersPanel() {
         onClose={() => setPendingFulfilment(null)}
         onCompleted={(updated) => {
           setPendingFulfilment(null)
+          applyOrderUpdate(updated)
+        }}
+      />
+
+      <AdminShopDispatchEvidenceDialog
+        order={pendingEvidenceOrder}
+        onClose={() => setPendingEvidenceOrder(null)}
+        onCompleted={(updated) => {
+          setPendingEvidenceOrder(null)
+          applyOrderUpdate(updated)
+        }}
+      />
+
+      <AdminShopStatusCorrectionDialog
+        order={pendingCorrectionOrder}
+        onClose={() => setPendingCorrectionOrder(null)}
+        onCompleted={(updated) => {
+          setPendingCorrectionOrder(null)
           applyOrderUpdate(updated)
         }}
       />

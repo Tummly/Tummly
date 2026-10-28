@@ -10,7 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { AdminShopFulfilmentAction } from "@/lib/adminShopOrderFulfilment"
+import {
+  ADMIN_SHOP_CORRECT_STATUS_LABEL,
+  ADMIN_SHOP_RECORD_DISPATCH_EVIDENCE_LABEL,
+  type AdminShopFulfilmentAction,
+  isAdminShopDispatchEvidenceMissing,
+} from "@/lib/adminShopOrderFulfilment"
 import { adminShopOrderRowActions } from "@/lib/admin/adminShopOrdersTablePresentation"
 import {
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
@@ -26,6 +31,8 @@ type AdminShopOrderRowActionsMenuProps = {
   onDownloadMaterials: () => void
   onApproveMaterials: () => void
   onRequestFulfilment: (action: AdminShopFulfilmentAction) => void
+  onRecordDispatchEvidence: () => void
+  onCorrectStatus: () => void
 }
 
 /** Admin Shop orders row ⋮ menu. Parent cell must stop click propagation. */
@@ -36,11 +43,14 @@ export function AdminShopOrderRowActionsMenu({
   onDownloadMaterials,
   onApproveMaterials,
   onRequestFulfilment,
+  onRecordDispatchEvidence,
+  onCorrectStatus,
 }: AdminShopOrderRowActionsMenuProps) {
   const actions = adminShopOrderRowActions(order)
   const canDownload = actions.downloadQrTypes.length > 0
   const canApprove = actions.approveQrTypes.length > 0
   const next = actions.nextFulfilmentAction
+  const evidenceMissing = isAdminShopDispatchEvidenceMissing(order)
 
   return (
     <DropdownMenu modal={false}>
@@ -94,6 +104,27 @@ export function AdminShopOrderRowActionsMenu({
               onSelect={() => onRequestFulfilment(next)}
             >
               {next.label}
+            </DropdownMenuItem>
+          </Fragment>
+        ) : null}
+        {evidenceMissing ? (
+          <Fragment>
+            <DropdownMenuSeparator
+              className={GUESTS_ROW_ACTIONS_SEPARATOR_CLASS}
+            />
+            <DropdownMenuItem
+              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+              disabled={busy}
+              onSelect={onRecordDispatchEvidence}
+            >
+              {ADMIN_SHOP_RECORD_DISPATCH_EVIDENCE_LABEL}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+              disabled={busy}
+              onSelect={onCorrectStatus}
+            >
+              {ADMIN_SHOP_CORRECT_STATUS_LABEL}
             </DropdownMenuItem>
           </Fragment>
         ) : null}

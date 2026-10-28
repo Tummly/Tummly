@@ -25,6 +25,13 @@ namespace TummlyBackend.Models
     public static class ShopFulfilmentEvidenceSources
     {
         public const string AdminManual = "admin_manual";
+
+        /// <summary>
+        /// Dispatch evidence an Admin recorded for an order dispatched before
+        /// carrier evidence was required. The actual dispatch time is supplied
+        /// by Admin, and the order keeps its original event history in audit.
+        /// </summary>
+        public const string LegacyBackfill = "legacy_backfill";
     }
 
     public static class ShopOrderReviewReasons
