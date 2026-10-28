@@ -164,6 +164,7 @@ export type DetailedShopOrder = {
   fulfilmentStatus:
     | "Confirmed"
     | "Preparing"
+    | "In production"
     | "Dispatched"
     | "Delivered"
     | "Cancelled"
@@ -186,6 +187,7 @@ export function normalizeFulfilmentStatusToId(
   switch (status) {
     case "Confirmed":
     case "Preparing":
+    case "In production":
       return "processing"
     case "Dispatched":
       return "in_transit"
