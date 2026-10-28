@@ -2996,6 +2996,7 @@ namespace TummlyBackend.Data
             EnsureRestaurantKeyContactDefaults();
             DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
+            EnsureAdminAuditIsAppendOnly();
             return base.SaveChanges();
         }
 
@@ -3004,6 +3005,7 @@ namespace TummlyBackend.Data
             EnsureRestaurantKeyContactDefaults();
             DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
+            EnsureAdminAuditIsAppendOnly();
             return base.SaveChanges(acceptAllChangesOnSuccess);
         }
 
@@ -3014,6 +3016,7 @@ namespace TummlyBackend.Data
             EnsureRestaurantKeyContactDefaults();
             DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
+            EnsureAdminAuditIsAppendOnly();
             return base.SaveChangesAsync(cancellationToken);
         }
 
@@ -3025,10 +3028,28 @@ namespace TummlyBackend.Data
             EnsureRestaurantKeyContactDefaults();
             DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
+            EnsureAdminAuditIsAppendOnly();
             return base.SaveChangesAsync(
                 acceptAllChangesOnSuccess,
                 cancellationToken
             );
+        }
+
+        /// <summary>
+        /// Admin audit rows are append-only. A row that is changed or removed fails the save,
+        /// so no code path can rewrite the trail.
+        /// </summary>
+        private void EnsureAdminAuditIsAppendOnly()
+        {
+            foreach (var entry in ChangeTracker.Entries<AdminAuditEvent>())
+            {
+                if (entry.State is EntityState.Modified or EntityState.Deleted)
+                {
+                    throw new InvalidOperationException(
+                        "Admin audit events are append-only."
+                    );
+                }
+            }
         }
 
         /// <summary>

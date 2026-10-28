@@ -206,6 +206,19 @@ namespace TummlyBackend.Controllers
             [FromBody] ExtendActivationDto dto
         )
         {
+            // Every extension needs a key: a retry with the same key must replay, not extend again.
+            if (string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = BillingAccountLifecycleService.PilotExtensionIdempotencyKeyRequiredCode,
+                    message = BillingAccountLifecycleService.PilotExtensionRefusalMessage(
+                        BillingAccountLifecycleService.PilotExtensionIdempotencyKeyRequiredCode
+                    ),
+                });
+            }
+
             try
             {
                 var staffId = GetStaffId();

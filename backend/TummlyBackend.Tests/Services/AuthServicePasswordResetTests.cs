@@ -209,7 +209,18 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ForgotPasswordAsync_SocialOnlyUser_ThrowsWithProviderMessage()
+        public async Task ForgotPasswordAsync_UnknownEmail_ReturnsWithoutSendingOrThrowing()
+        {
+            await _service.ForgotPasswordAsync(
+                new ForgotPasswordDto { Email = "nobody@tummly.test" }
+            );
+
+            Assert.Empty(_context.PasswordResets);
+            Assert.Empty(_emailService.ResetEmails);
+        }
+
+        [Fact]
+        public async Task ForgotPasswordAsync_SocialOnlyUser_ReturnsWithoutSendingOrThrowing()
         {
             var user = new User
             {
@@ -222,14 +233,28 @@ namespace TummlyBackend.Tests.Services
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            var ex = await Assert.ThrowsAsync<Exception>(() =>
-                _service.ForgotPasswordAsync(
-                    new ForgotPasswordDto { Email = "social@tummly.test" }
-                )
+            await _service.ForgotPasswordAsync(
+                new ForgotPasswordDto { Email = "social@tummly.test" }
             );
 
-            Assert.Contains("Google or Microsoft", ex.Message);
             Assert.Empty(_context.PasswordResets);
+            Assert.Empty(_emailService.ResetEmails);
+        }
+
+        [Fact]
+        public async Task ForgotPasswordAsync_KnownPasswordUser_StoresTokenAndSendsReset()
+        {
+            var user = await SeedUserAsync("Reset Owner", "reset@tummly.test");
+
+            await _service.ForgotPasswordAsync(
+                new ForgotPasswordDto { Email = "RESET@tummly.test" }
+            );
+
+            var reset = Assert.Single(_context.PasswordResets);
+            Assert.Equal(user.Id, reset.UserId);
+            var sent = Assert.Single(_emailService.ResetEmails);
+            Assert.Equal("reset@tummly.test", sent.Email);
+            Assert.Contains(reset.ResetToken, sent.ResetLink, StringComparison.Ordinal);
         }
 
         private async Task<User> SeedUserAsync(string fullName, string email)
@@ -256,6 +281,14 @@ namespace TummlyBackend.Tests.Services
         private sealed class TrackingEmailService : EmailServiceStubBase
         {
             public List<(string Email, string FirstName)> PasswordChangedEmails { get; } = [];
+
+            public List<(string Email, string ResetLink)> ResetEmails { get; } = [];
+
+            public override Task SendResetPasswordEmailAsync(string toEmail, string resetLink)
+            {
+                ResetEmails.Add((toEmail, resetLink));
+                return Task.CompletedTask;
+            }
 
             public override Task SendPasswordChangedEmailAsync(string toEmail, string firstName)
             {

@@ -514,7 +514,11 @@
                         TargetId: userId.ToString(),
                         ActorAdminUserId: actorAdminUserId,
                         RestaurantId: restaurantId.Value,
-                        DetailJson: PilotExtensionAuditDetail(dto.Days, result)
+                        DetailJson: PilotExtensionAuditDetail(
+                            dto.Days,
+                            dto.IdempotencyKey?.Trim(),
+                            result
+                        )
                     )
                 );
                 await _context.SaveChangesAsync();
@@ -618,12 +622,15 @@
 
         private static string PilotExtensionAuditDetail(
             int days,
+            string? idempotencyKey,
             PilotExtensionResult result
         ) =>
             System.Text.Json.JsonSerializer.Serialize(
                 new
                 {
                     days,
+                    // Read back by BillingAccountLifecycleService.PilotExtensionAuditKey.
+                    idempotencyKey,
                     countAfter = result.CountAfter,
                     totalAfter = result.DaysTotalAfter,
                     oldEnd = result.OldEndUtc?.ToUniversalTime().ToString("O"),

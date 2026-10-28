@@ -394,6 +394,32 @@ namespace TummlyBackend.Services
                 OnboardingJson = pending.OnboardingJson,
                 PasswordHash = null,
                 AuthProvider = pending.AuthProvider,
+                ChosenPlan = pending.ChosenPlan,
+                ChosenCadence = pending.ChosenCadence,
+                PlanConfig = ResolveResumePlanConfig(pending.CustomPlanConfigJson),
+            };
+        }
+
+        /// <summary>
+        /// The saved Custom config (base plan, Locations, extras). Null for a catalogue plan
+        /// or when the stored JSON has no v2 base plan.
+        /// </summary>
+        private static SignupResumePlanConfig? ResolveResumePlanConfig(string? json)
+        {
+            var parsed = CustomPlanConfig.TryParse(json);
+            if (parsed == null || !parsed.IsV2 || string.IsNullOrWhiteSpace(parsed.BasePlan))
+            {
+                return null;
+            }
+
+            return new SignupResumePlanConfig
+            {
+                BasePlan = parsed.BasePlan,
+                Locations = parsed.Locations ?? parsed.Quantities.Locations,
+                Packs = parsed.Packs == null
+                    ? []
+                    : new Dictionary<string, int>(parsed.Packs, StringComparer.Ordinal),
+                QuoteHash = parsed.QuoteHash,
             };
         }
 
