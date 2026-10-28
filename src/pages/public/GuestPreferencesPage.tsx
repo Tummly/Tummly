@@ -11,6 +11,7 @@ import {
 import { GuestPreferencesEntry } from "@/components/guest-preferences/GuestPreferencesEntry"
 import { GuestPreferencesHeader } from "@/components/guest-preferences/GuestPreferencesHeader"
 import { GuestPreferencesOverview } from "@/components/guest-preferences/GuestPreferencesOverview"
+import { GuestPreferencesRestaurants } from "@/components/guest-preferences/GuestPreferencesRestaurants"
 import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShell"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -35,6 +36,8 @@ type PageView =
   /** Text only, with no form. Used after an add-contact link is confirmed. */
   | { kind: "notice"; message: string }
   | { kind: "overview"; overview: GuestPreferencesOverviewData }
+  /** Manage restaurants sub-view. Back refetches the overview. */
+  | { kind: "restaurants" }
   /** `retry` repeats the step that failed, so Try again does not skip it. */
   | { kind: "error"; message: string; retry: () => Promise<PageView> }
 
@@ -190,6 +193,8 @@ export default function GuestPreferencesPage() {
         onEntryVerified: () => loadView(loadOverviewView),
         onAddContact: () => setAddingContact(true),
         onContactAdded: handleContactAdded,
+        onManageRestaurants: () => setView({ kind: "restaurants" }),
+        onBackFromRestaurants: () => loadView(loadOverviewView),
       })}
 
       <nav
@@ -217,6 +222,8 @@ type PageViewHandlers = {
   onEntryVerified: () => void
   onAddContact: () => void
   onContactAdded: () => void
+  onManageRestaurants: () => void
+  onBackFromRestaurants: () => void
 }
 
 function renderView(view: PageView, handlers: PageViewHandlers) {
@@ -244,8 +251,14 @@ function renderView(view: PageView, handlers: PageViewHandlers) {
           onSessionExpired={handlers.onSessionExpired}
           onAddContact={handlers.onAddContact}
           onContactAdded={handlers.onContactAdded}
-          // Task 12 (restaurants) wires this.
-          onManageRestaurants={() => undefined}
+          onManageRestaurants={handlers.onManageRestaurants}
+        />
+      )
+    case "restaurants":
+      return (
+        <GuestPreferencesRestaurants
+          onBack={handlers.onBackFromRestaurants}
+          onSessionExpired={handlers.onSessionExpired}
         />
       )
     case "error":

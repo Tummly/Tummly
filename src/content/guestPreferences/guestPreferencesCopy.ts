@@ -42,6 +42,20 @@ export const GUEST_PREFERENCES_COPY = {
   restaurantsDescription:
     "Choose which restaurants you’d prefer not to hear about.",
   manageRestaurantsLabel: "Manage restaurants",
+  backLabel: "Back",
+  restaurantsLead:
+    "Choose which restaurants or Locations may feature in the Tummly marketing messages you receive.",
+  restaurantSearchPlaceholder: "Search by restaurant name or location",
+  restaurantsEmptyLabel: "No restaurants yet.",
+  /** `count` is the number of Locations under one brand. */
+  brandLocationCount: (count: number) =>
+    count === 1 ? "1 Location" : `${count} Locations`,
+  locationMuted: "Muted",
+  locationNotMuted: "Not muted",
+  muteLabel: "Mute",
+  unmuteLabel: "Unmute",
+  muteAllBrandLocationsLabel: "Mute all brand locations",
+  unmuteAllBrandLocationsLabel: "Unmute all brand locations",
 
   savePreferencesLabel: "Save preferences",
   stopAllLabel: "Stop all Tummly marketing",

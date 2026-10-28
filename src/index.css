@@ -74,6 +74,7 @@
   --color-guest-feedback-submit-fg: var(--guest-feedback-submit-fg);
   --color-guest-feedback-secondary: var(--guest-feedback-secondary);
   --color-guest-feedback-secondary-fg: var(--guest-feedback-secondary-fg);
+  --color-guest-feedback-destructive: var(--guest-feedback-destructive);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -357,6 +358,9 @@
   --guest-feedback-submit-fg: #141414;
   --guest-feedback-secondary: #232323;
   --guest-feedback-secondary-fg: #777777;
+  /* Mute / Unmute action red — Figma 7191:748 (#fa4e4e). The root --destructive
+     (oklch 0.577) is #e7000b, too far from it for this dark surface. */
+  --guest-feedback-destructive: #fa4e4e;
 }
 
 .dark {
