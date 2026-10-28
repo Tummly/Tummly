@@ -546,6 +546,82 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Theory]
+        [InlineData("include_a_recovery_offer")]
+        [InlineData("free_dessert_promotion")]
+        [InlineData("Acknowledge_Feedback")]
+        public async Task SendGuestResponse_Returns400_WhenPurposeNotAllowed(string purpose)
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                $"guest-response-purpose-refused-{purpose.ToLowerInvariant().Replace('_', '-')}-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: $"purpose-refused-{purpose.ToLowerInvariant().Replace('_', '-')}-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+                purpose,
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                FeedbackGuestResponsePurposes.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Theory]
+        [InlineData("acknowledge_feedback")]
+        [InlineData("apologise_and_confirm_follow_up")]
+        [InlineData("ask_for_more_information")]
+        [InlineData("confirm_operational_action")]
+        [InlineData("create_custom_response")]
+        public async Task SendGuestResponse_AllowsEveryServicePurpose(string purpose)
+        {
+            var label = purpose.Replace('_', '-');
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                $"guest-response-purpose-ok-{label}-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: $"purpose-ok-{label}-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+                purpose,
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
         [Fact]
         public async Task SendGuestResponse_Email_WritesNoLedgerRow()
         {
