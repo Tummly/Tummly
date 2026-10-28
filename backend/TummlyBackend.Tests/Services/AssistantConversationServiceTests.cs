@@ -10191,10 +10191,27 @@ namespace TummlyBackend.Tests.Services
             )
                 => throw new InvalidOperationException("eligibility boom");
 
+            public Task<CampaignEligibilityDto> EvaluateAsync(
+                int locationId,
+                string audienceKey,
+                CampaignAudienceScope scope,
+                CancellationToken cancellationToken = default
+            )
+                => throw new InvalidOperationException("eligibility boom");
+
             public Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
                 int locationId,
                 string audienceKey,
                 string channel,
+                CancellationToken cancellationToken = default
+            )
+                => throw new InvalidOperationException("eligibility boom");
+
+            public Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
+                int locationId,
+                string audienceKey,
+                string channel,
+                CampaignAudienceScope scope,
                 CancellationToken cancellationToken = default
             )
                 => throw new InvalidOperationException("eligibility boom");

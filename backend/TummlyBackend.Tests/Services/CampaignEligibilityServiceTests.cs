@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 
@@ -172,8 +173,6 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Theory]
-        [InlineData("offer-not-redeemed")]
-        [InlineData("recent-redeemers")]
         [InlineData("no-recent-tummly-activity")]
         [InlineData("saved-group")]
         public async Task EvaluateAsync_UnevaluableAudiences_ReturnHonestUnavailable(
@@ -490,6 +489,247 @@ namespace TummlyBackend.Tests.Services
             var fields = await CampaignAudienceStore.BindAsync(_context, location.LocationId, bound.Fields, default);
             Assert.Equal(new[] { mary.LocationGuestId },
                 await _eligibility.ListChannelEligibleLocationGuestIdsAsync(location.LocationId, fields.AudienceKey, "email"));
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_OfferNotRedeemed_IncludesClaimedNotRedeemedOnly()
+        {
+            var seeded = await SeedLocationAsync();
+            var offerId = await AddOfferAsync(seeded.LocationId);
+            var otherOfferId = await AddOfferAsync(seeded.LocationId, "Other offer");
+
+            var claimed = await AddGuestAsync(seeded, "Claimed", "c@example.com", null, false);
+            var redeemed = await AddGuestAsync(seeded, "Redeemed", "r@example.com", null, false);
+            var neverReceived = await AddGuestAsync(seeded, "Never", "n@example.com", null, false);
+            var otherOffer = await AddGuestAsync(seeded, "Other Offer", "o@example.com", null, false);
+            var expired = await AddGuestAsync(seeded, "Expired", "e@example.com", null, false);
+            var cancelled = await AddGuestAsync(seeded, "Cancelled", "x@example.com", null, false);
+
+            await AddOfferIssueAsync(offerId, claimed.LocationGuestId);
+            await AddOfferIssueAsync(offerId, redeemed.LocationGuestId, redeemedAtUtc: DateTime.UtcNow.AddDays(-2));
+            await AddOfferIssueAsync(otherOfferId, otherOffer.LocationGuestId);
+            await AddOfferIssueAsync(offerId, expired.LocationGuestId, expiryAtUtc: DateTime.UtcNow.AddDays(-1));
+            await AddOfferIssueAsync(offerId, cancelled.LocationGuestId, cancelledAtUtc: DateTime.UtcNow.AddDays(-1));
+
+            var result = await _eligibility.EvaluateAsync(
+                seeded.LocationId,
+                "offer-not-redeemed",
+                new CampaignAudienceScope(OfferId: offerId)
+            );
+
+            Assert.True(result.Evaluable);
+            Assert.Equal(1, result.Matched);
+            Assert.Equal(1, result.CurrentlyEligible);
+            Assert.Null(result.UnavailableReason);
+            var ids = await _eligibility.ListChannelEligibleLocationGuestIdsAsync(
+                seeded.LocationId,
+                "offer-not-redeemed",
+                "email",
+                new CampaignAudienceScope(OfferId: offerId)
+            );
+            Assert.Equal(new[] { claimed.LocationGuestId }, ids);
+            // neverReceived is only meaningful as a non-match above.
+            Assert.DoesNotContain(neverReceived.LocationGuestId, ids);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_OfferNotRedeemed_ExcludesGuestWhoRedeemedTheOfferAgain()
+        {
+            var seeded = await SeedLocationAsync();
+            var offerId = await AddOfferAsync(seeded.LocationId);
+            var guest = await AddGuestAsync(seeded, "Two Passes", "two@example.com", null, false);
+
+            await AddOfferIssueAsync(offerId, guest.LocationGuestId, redeemedAtUtc: DateTime.UtcNow.AddDays(-1));
+            await AddOfferIssueAsync(offerId, guest.LocationGuestId);
+
+            var result = await _eligibility.EvaluateAsync(
+                seeded.LocationId,
+                "offer-not-redeemed",
+                new CampaignAudienceScope(OfferId: offerId)
+            );
+
+            Assert.Equal(0, result.Matched);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_OfferNotRedeemed_NoConsentIsMatchedButNotEligible()
+        {
+            var seeded = await SeedLocationAsync();
+            var offerId = await AddOfferAsync(seeded.LocationId);
+            var guest = await AddGuestAsync(seeded, "Opted Out", "out@example.com", null, offersOptOut: true);
+            await AddOfferIssueAsync(offerId, guest.LocationGuestId);
+
+            var result = await _eligibility.EvaluateAsync(
+                seeded.LocationId,
+                "offer-not-redeemed",
+                new CampaignAudienceScope(OfferId: offerId)
+            );
+
+            Assert.Equal(1, result.Matched);
+            Assert.Equal(0, result.CurrentlyEligible);
+            Assert.Equal(1, result.Excluded);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_OfferNotRedeemed_WithoutOfferIsUnavailableWithReason()
+        {
+            var seeded = await SeedLocationAsync();
+
+            var result = await _eligibility.EvaluateAsync(seeded.LocationId, "offer-not-redeemed");
+
+            Assert.False(result.Evaluable);
+            Assert.Null(result.Matched);
+            Assert.Equal(CampaignEligibilityService.NoOfferAttachedReason, result.UnavailableReason);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_OfferNotRedeemed_OtherLocationsOfferDoesNotCount()
+        {
+            var seeded = await SeedLocationAsync();
+            var other = await SeedLocationAsync();
+            var otherLocationOffer = await AddOfferAsync(other.LocationId);
+            var guest = await AddGuestAsync(seeded, "Here", "here@example.com", null, false);
+            await AddOfferIssueAsync(otherLocationOffer, guest.LocationGuestId);
+
+            var result = await _eligibility.EvaluateAsync(
+                seeded.LocationId,
+                "offer-not-redeemed",
+                new CampaignAudienceScope(OfferId: otherLocationOffer)
+            );
+
+            Assert.Equal(0, result.Matched);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_RecentRedeemers_DefaultsToLast30DaysAndLabelsIt()
+        {
+            var seeded = await SeedLocationAsync();
+            var offerId = await AddOfferAsync(seeded.LocationId);
+            var recent = await AddGuestAsync(seeded, "Recent", "recent@example.com", null, false);
+            var old = await AddGuestAsync(seeded, "Old", "old@example.com", null, false);
+            await AddOfferIssueAsync(offerId, recent.LocationGuestId, redeemedAtUtc: DateTime.UtcNow.AddDays(-10));
+            await AddOfferIssueAsync(offerId, old.LocationGuestId, redeemedAtUtc: DateTime.UtcNow.AddDays(-45));
+
+            var result = await _eligibility.EvaluateAsync(seeded.LocationId, "recent-redeemers");
+
+            Assert.True(result.Evaluable);
+            Assert.Equal(1, result.Matched);
+            Assert.Equal(CampaignEligibilityService.DefaultRecentRedeemerLookbackDays, result.LookbackDays);
+            Assert.Equal(CampaignEligibilityService.DefaultRecentRedeemerTimeZone, result.LookbackTimeZone);
+            Assert.Equal(30, result.LookbackDays);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_RecentRedeemers_UsesStoredPeriodWithoutSubstitution()
+        {
+            var seeded = await SeedLocationAsync();
+            var offerId = await AddOfferAsync(seeded.LocationId);
+            var threeDays = await AddGuestAsync(seeded, "Three", "three@example.com", null, false);
+            var tenDays = await AddGuestAsync(seeded, "Ten", "ten@example.com", null, false);
+            await AddOfferIssueAsync(offerId, threeDays.LocationGuestId, redeemedAtUtc: DateTime.UtcNow.AddDays(-3));
+            await AddOfferIssueAsync(offerId, tenDays.LocationGuestId, redeemedAtUtc: DateTime.UtcNow.AddDays(-10));
+
+            var result = await _eligibility.EvaluateAsync(
+                seeded.LocationId,
+                "recent-redeemers",
+                new CampaignAudienceScope(RecentRedeemerLookbackDays: 7)
+            );
+
+            Assert.Equal(1, result.Matched);
+            Assert.Equal(7, result.LookbackDays);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_RecentRedeemers_ExcludesOtherLocationVoidedAndUnredeemed()
+        {
+            var seeded = await SeedLocationAsync();
+            var other = await SeedLocationAsync();
+            var offerId = await AddOfferAsync(seeded.LocationId);
+            var otherOfferId = await AddOfferAsync(other.LocationId);
+
+            var voided = await AddGuestAsync(seeded, "Voided", "v@example.com", null, false);
+            var unredeemed = await AddGuestAsync(seeded, "Claimed Only", "u@example.com", null, false);
+            var elsewhere = await AddGuestAsync(other, "Elsewhere", "e@example.com", null, false);
+            await AddOfferIssueAsync(offerId, voided.LocationGuestId,
+                redeemedAtUtc: DateTime.UtcNow.AddDays(-2), voidedAtUtc: DateTime.UtcNow.AddDays(-1));
+            await AddOfferIssueAsync(offerId, unredeemed.LocationGuestId);
+            await AddOfferIssueAsync(otherOfferId, elsewhere.LocationGuestId,
+                redeemedAtUtc: DateTime.UtcNow.AddDays(-2));
+
+            var result = await _eligibility.EvaluateAsync(seeded.LocationId, "recent-redeemers");
+
+            Assert.Equal(0, result.Matched);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_RecentRedeemers_NoConsentIsMatchedButNotEligible()
+        {
+            var seeded = await SeedLocationAsync();
+            var offerId = await AddOfferAsync(seeded.LocationId);
+            var guest = await AddGuestAsync(seeded, "Opted Out", "out@example.com", null, offersOptOut: true);
+            await AddOfferIssueAsync(offerId, guest.LocationGuestId, redeemedAtUtc: DateTime.UtcNow.AddDays(-1));
+
+            var result = await _eligibility.EvaluateAsync(seeded.LocationId, "recent-redeemers");
+
+            Assert.Equal(1, result.Matched);
+            Assert.Equal(0, result.CurrentlyEligible);
+        }
+
+        [Fact]
+        public void RecentRedeemerWindowStart_AnchorsToLocalCalendarDay()
+        {
+            // 23:30 UTC on 10 Jul 2026 is 00:30 on 11 Jul in London (BST).
+            var nowUtc = new DateTime(2026, 7, 10, 23, 30, 0, DateTimeKind.Utc);
+
+            var fromUtc = CampaignEligibilityService.RecentRedeemerWindowStartUtc(2, "Europe/London", nowUtc);
+
+            // Two local days: 11 Jul and 10 Jul. Start is local midnight of 10 Jul.
+            Assert.Equal(new DateTime(2026, 7, 9, 23, 0, 0, DateTimeKind.Utc), fromUtc);
+        }
+
+        private async Task<int> AddOfferAsync(int locationId, string title = "Free dessert")
+        {
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = locationId,
+                Title = title,
+                Description = "Test offer",
+                Status = "active",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            _context.CatalogOffers.Add(offer);
+            await _context.SaveChangesAsync();
+            return offer.Id;
+        }
+
+        private async Task AddOfferIssueAsync(
+            int catalogOfferId,
+            int locationGuestId,
+            DateTime? redeemedAtUtc = null,
+            DateTime? voidedAtUtc = null,
+            DateTime? cancelledAtUtc = null,
+            DateTime? expiryAtUtc = null
+        )
+        {
+            _context.OfferIssues.Add(new OfferIssue
+            {
+                CatalogOfferId = catalogOfferId,
+                LocationGuestId = locationGuestId,
+                ClaimCode = $"TUM-{Guid.NewGuid():N}"[..12],
+                IssuedAtUtc = DateTime.UtcNow.AddDays(-14),
+                ClaimedAtUtc = DateTime.UtcNow.AddDays(-14),
+                RedeemedAtUtc = redeemedAtUtc,
+                RedemptionVoidedAtUtc = voidedAtUtc,
+                CancelledAtUtc = cancelledAtUtc,
+                ExpiryAtUtc = expiryAtUtc ?? DateTime.UtcNow.AddDays(30),
+                Source = OfferIssueSources.Campaign,
+                OfferType = CatalogOfferType.PercentageDiscount,
+                Title = "Free dessert",
+                Description = "Test offer",
+                Validity = CatalogOfferValidity.Days30AfterIssue,
+            });
+            await _context.SaveChangesAsync();
         }
 
         private async Task<SeededLocation> SeedLocationAsync()

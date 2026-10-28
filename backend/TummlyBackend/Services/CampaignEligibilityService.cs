@@ -23,11 +23,28 @@ namespace TummlyBackend.Services
 
         public const int DormantDays = 90;
 
+        /// <summary>Recent redeemers period when the Campaign has none stored ("Last 30 days").</summary>
+        public const int DefaultRecentRedeemerLookbackDays = 30;
+
+        /// <summary>
+        /// Recent redeemers timezone when the Campaign has none stored. Locations have
+        /// no timezone field yet, so this matches the other Campaign schedule helpers.
+        /// </summary>
+        public const string DefaultRecentRedeemerTimeZone = WeeklyBriefWeekKey.DefaultLocationTimeZoneId;
+
+        /// <summary>Upper bound for a stored look-back (same bound as the joined-date rule).</summary>
+        public const int MaxRecentRedeemerLookbackDays = 36500;
+
+        /// <summary>offer-not-redeemed needs the Campaign's attached Offer.</summary>
+        public const string NoOfferAttachedReason = "no-offer-attached";
+
+        public const string OfferNotRedeemedAudienceKey = "offer-not-redeemed";
+
+        public const string RecentRedeemersAudienceKey = "recent-redeemers";
+
         private static readonly HashSet<string> UnevaluableAudienceKeys =
             new(StringComparer.Ordinal)
             {
-                "offer-not-redeemed",
-                "recent-redeemers",
                 "no-recent-tummly-activity",
                 "saved-group",
             };
@@ -45,9 +62,16 @@ namespace TummlyBackend.Services
                 permissions ?? new LocationGuestPermissionLedgerService(context);
         }
 
+        public Task<CampaignEligibilityDto> EvaluateAsync(
+            int locationId,
+            string audienceKey,
+            CancellationToken cancellationToken = default
+        ) => EvaluateAsync(locationId, audienceKey, CampaignAudienceScope.None, cancellationToken);
+
         public async Task<CampaignEligibilityDto> EvaluateAsync(
             int locationId,
             string audienceKey,
+            CampaignAudienceScope scope,
             CancellationToken cancellationToken = default
         )
         {
@@ -58,10 +82,9 @@ namespace TummlyBackend.Services
             }
 
             var evaluatedAt = DateTime.UtcNow;
+            var baseKey = ResolveBaseAudienceKey(locationId, key);
 
-            if (UnevaluableAudienceKeys.Contains(key)
-                || (CampaignAudienceStore.IsKey(key)
-                    && UnevaluableAudienceKeys.Contains(CampaignAudienceStore.Load(_context, locationId, key).BaseAudienceKey)))
+            if (UnevaluableAudienceKeys.Contains(baseKey))
             {
                 return Unavailable(key, evaluatedAt);
             }
@@ -73,6 +96,15 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (baseKey == OfferNotRedeemedAudienceKey && scope.OfferId is null)
+            {
+                return Unavailable(key, evaluatedAt, NoOfferAttachedReason);
+            }
+
+            var lookback = baseKey == RecentRedeemersAudienceKey
+                ? ResolveLookback(scope, evaluatedAt)
+                : null;
+
             var restaurant = await LoadRestaurantForLocationAsync(
                 locationId,
                 cancellationToken
@@ -83,7 +115,7 @@ namespace TummlyBackend.Services
                 [locationId]
             );
 
-            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt, locationId);
+            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt, locationId, scope);
             var matchedRows = await matchedQuery
                 .Select(lg => new GuestEligibilityRow(
                     lg.Id,
@@ -105,14 +137,29 @@ namespace TummlyBackend.Services
                 restaurant,
                 permissionStates,
                 evaluatedAt,
-                CampaignAudienceStore.IsKey(key) ? CampaignAudienceStore.Load(_context, locationId, key).Limit : null
+                CampaignAudienceStore.IsKey(key) ? CampaignAudienceStore.Load(_context, locationId, key).Limit : null,
+                lookback
             );
         }
+
+        public Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
+            int locationId,
+            string audienceKey,
+            string channel,
+            CancellationToken cancellationToken = default
+        ) => ListChannelEligibleLocationGuestIdsAsync(
+            locationId,
+            audienceKey,
+            channel,
+            CampaignAudienceScope.None,
+            cancellationToken
+        );
 
         public async Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
             int locationId,
             string audienceKey,
             string channel,
+            CampaignAudienceScope scope,
             CancellationToken cancellationToken = default
         )
         {
@@ -128,9 +175,10 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("channel must be email or sms.");
             }
 
-            if (UnevaluableAudienceKeys.Contains(key)
-                || (CampaignAudienceStore.IsKey(key)
-                    && UnevaluableAudienceKeys.Contains(CampaignAudienceStore.Load(_context, locationId, key).BaseAudienceKey)))
+            var evaluatedAt = DateTime.UtcNow;
+            var baseKey = ResolveBaseAudienceKey(locationId, key);
+
+            if (UnevaluableAudienceKeys.Contains(baseKey))
             {
                 return Array.Empty<int>();
             }
@@ -142,7 +190,12 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var evaluatedAt = DateTime.UtcNow;
+            // No attached Offer: nobody can be in this audience, so the send has no recipients.
+            if (baseKey == OfferNotRedeemedAudienceKey && scope.OfferId is null)
+            {
+                return Array.Empty<int>();
+            }
+
             var restaurant = await LoadRestaurantForLocationAsync(
                 locationId,
                 cancellationToken
@@ -153,7 +206,7 @@ namespace TummlyBackend.Services
                 [locationId]
             );
 
-            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt, locationId);
+            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt, locationId, scope);
             var matchedRows = await matchedQuery
                 .Select(lg => new GuestEligibilityRow(
                     lg.Id,
@@ -219,17 +272,85 @@ namespace TummlyBackend.Services
                 : ids;
         }
 
+        /// <summary>
+        /// Start of a recent-redeemers look-back: local midnight of the first of
+        /// <paramref name="days"/> calendar days, counting today as the last.
+        /// </summary>
+        public static DateTime RecentRedeemerWindowStartUtc(
+            int days,
+            string timeZoneId,
+            DateTime nowUtc
+        )
+        {
+            var zone = ResolveTimeZone(timeZoneId);
+            var localToday = DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTimeFromUtc(nowUtc, zone)
+            );
+            var localStart = localToday
+                .AddDays(-(days - 1))
+                .ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+            return TimeZoneInfo.ConvertTimeToUtc(localStart, zone);
+        }
+
+        private string ResolveBaseAudienceKey(int locationId, string key)
+        {
+            return CampaignAudienceStore.IsKey(key)
+                ? CampaignAudienceStore.Load(_context, locationId, key).BaseAudienceKey
+                : key;
+        }
+
+        private static RecentRedeemerLookback ResolveLookback(
+            CampaignAudienceScope scope,
+            DateTime nowUtc
+        )
+        {
+            var days = scope.RecentRedeemerLookbackDays ?? DefaultRecentRedeemerLookbackDays;
+            if (days < 1 || days > MaxRecentRedeemerLookbackDays)
+            {
+                throw new ArgumentException(
+                    $"Recent redeemers period must be between 1 and {MaxRecentRedeemerLookbackDays} days."
+                );
+            }
+
+            var timeZone = scope.RecentRedeemerTimeZone ?? DefaultRecentRedeemerTimeZone;
+            var fromUtc = RecentRedeemerWindowStartUtc(days, timeZone, nowUtc);
+            return new RecentRedeemerLookback(days, timeZone, fromUtc);
+        }
+
+        private static TimeZoneInfo ResolveTimeZone(string timeZoneId)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            }
+            catch (TimeZoneNotFoundException) when (
+                string.Equals(
+                    timeZoneId,
+                    DefaultRecentRedeemerTimeZone,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("GMT Standard Time");
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                throw new ArgumentException($"timeZone '{timeZoneId}' is not a known IANA timezone.");
+            }
+        }
+
         private IQueryable<LocationGuest> ApplyAudienceMatch(
             IQueryable<LocationGuest> scoped,
             string audienceKey,
             DateTime nowUtc,
-            int locationId
+            int locationId,
+            CampaignAudienceScope scope
         )
         {
             if (CampaignAudienceStore.IsKey(audienceKey))
             {
                 var rule = CampaignAudienceStore.Load(_context, locationId, audienceKey);
-                var query = ApplyAudienceMatch(scoped, rule.BaseAudienceKey, nowUtc, locationId);
+                var query = ApplyAudienceMatch(scoped, rule.BaseAudienceKey, nowUtc, locationId, scope);
                 var includedIds = rule.GuestIds.ToList();
                 var excludedIds = rule.ExcludedGuestIds.ToList();
                 if (includedIds.Count > 0) query = query.Where(g => includedIds.Contains(g.Id));
@@ -264,6 +385,18 @@ namespace TummlyBackend.Services
                     dormantCutoff
                 ),
                 "completed-recovery-follow-up" => WhereCompletedRecovery(scoped),
+                OfferNotRedeemedAudienceKey => WhereOfferNotRedeemed(
+                    scoped,
+                    scope.OfferId ?? 0,
+                    locationId,
+                    nowUtc
+                ),
+                RecentRedeemersAudienceKey => WhereRecentRedeemers(
+                    scoped,
+                    locationId,
+                    ResolveLookback(scope, nowUtc).FromUtc,
+                    nowUtc
+                ),
                 _ => GuestsListQueryComposer.WhereEmpty(scoped),
             };
         }
@@ -275,6 +408,57 @@ namespace TummlyBackend.Services
             return query.Where(lg =>
                 _context.FeedbackRecoveryCompletions.Any(c =>
                     c.Feedback != null && c.Feedback.LocationGuestId == lg.Id
+                )
+            );
+        }
+
+        /// <summary>
+        /// Guests with a valid Offer Claim or issue for this Offer (at this Location)
+        /// who have not redeemed it. Voided redemptions do not count as redeemed.
+        /// </summary>
+        private IQueryable<LocationGuest> WhereOfferNotRedeemed(
+            IQueryable<LocationGuest> query,
+            int offerId,
+            int locationId,
+            DateTime nowUtc
+        )
+        {
+            return query.Where(lg =>
+                _context.OfferIssues.Any(o =>
+                    o.LocationGuestId == lg.Id
+                    && o.CatalogOfferId == offerId
+                    && o.CatalogOffer!.RestaurantLocationId == locationId
+                    && o.CancelledAtUtc == null
+                    && o.ExpiryAtUtc > nowUtc
+                )
+                && !_context.OfferIssues.Any(o =>
+                    o.LocationGuestId == lg.Id
+                    && o.CatalogOfferId == offerId
+                    && o.RedeemedAtUtc != null
+                    && o.RedemptionVoidedAtUtc == null
+                )
+            );
+        }
+
+        /// <summary>
+        /// Guests with a successful, staff-confirmed redemption at this Location
+        /// inside the look-back window. Voided redemptions do not count.
+        /// </summary>
+        private IQueryable<LocationGuest> WhereRecentRedeemers(
+            IQueryable<LocationGuest> query,
+            int locationId,
+            DateTime fromUtc,
+            DateTime nowUtc
+        )
+        {
+            return query.Where(lg =>
+                _context.OfferIssues.Any(o =>
+                    o.LocationGuestId == lg.Id
+                    && o.RedeemedAtUtc != null
+                    && o.RedeemedAtUtc >= fromUtc
+                    && o.RedeemedAtUtc <= nowUtc
+                    && o.RedemptionVoidedAtUtc == null
+                    && o.CatalogOffer!.RestaurantLocationId == locationId
                 )
             );
         }
@@ -291,7 +475,8 @@ namespace TummlyBackend.Services
                 >
             > permissionStates,
             DateTime evaluatedAt,
-            int? limit = null
+            int? limit = null,
+            RecentRedeemerLookback? lookback = null
         )
         {
             var matchedCount = matched.Count;
@@ -372,6 +557,8 @@ namespace TummlyBackend.Services
                 ExcludedReasons = excludedReasons,
                 CheckSetVersion = CheckSetVersion,
                 EvaluatedAt = evaluatedAt,
+                LookbackDays = lookback?.Days,
+                LookbackTimeZone = lookback?.TimeZone,
             };
         }
 
@@ -477,7 +664,8 @@ namespace TummlyBackend.Services
 
         private static CampaignEligibilityDto Unavailable(
             string audienceKey,
-            DateTime evaluatedAt
+            DateTime evaluatedAt,
+            string? unavailableReason = null
         )
         {
             return new CampaignEligibilityDto
@@ -492,6 +680,7 @@ namespace TummlyBackend.Services
                 ExcludedReasons = Array.Empty<CampaignExcludedReasonCountDto>(),
                 CheckSetVersion = CheckSetVersion,
                 EvaluatedAt = evaluatedAt,
+                UnavailableReason = unavailableReason,
             };
         }
 
@@ -529,6 +718,8 @@ namespace TummlyBackend.Services
                     LocationGuestPermissionState.Withdrawn,
             };
         }
+
+        private sealed record RecentRedeemerLookback(int Days, string TimeZone, DateTime FromUtc);
 
         private readonly record struct GuestEligibilityRow(
             int LocationGuestId,

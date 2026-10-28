@@ -248,7 +248,10 @@ namespace TummlyBackend.Controllers
         [HttpGet("eligibility")]
         public async Task<IActionResult> GetCampaignEligibility(
             [FromQuery] int locationId,
-            [FromQuery] string audienceKey
+            [FromQuery] string audienceKey,
+            [FromQuery] int? offerId = null,
+            [FromQuery] int? lookbackDays = null,
+            [FromQuery] string? timeZone = null
         )
         {
             var unauthorized =
@@ -272,7 +275,8 @@ namespace TummlyBackend.Controllers
             {
                 var eligibility = await _campaignEligibility.EvaluateAsync(
                     locationId,
-                    audienceKey
+                    audienceKey,
+                    new CampaignAudienceScope(offerId, lookbackDays, timeZone)
                 );
 
                 return Ok(new
