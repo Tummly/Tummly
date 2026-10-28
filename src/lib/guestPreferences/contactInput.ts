@@ -2,8 +2,8 @@ export type ContactKind = "email" | "uk-mobile"
 
 /** Same shape as the backend email check (GuestPreferenceContact.TryParse). */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-/** UK only: +44 then ten digits, or 0 then ten digits. Spaces are ignored. */
-const UK_MOBILE_PATTERN = /^(?:\+44\d{10}|0\d{10})$/
+/** UK mobiles only: 07 or +447, then nine digits. Spaces are ignored. Landlines fail. */
+const UK_MOBILE_PATTERN = /^(?:\+447\d{9}|07\d{9})$/
 const MASK_SUFFIX = "•••••"
 
 /**

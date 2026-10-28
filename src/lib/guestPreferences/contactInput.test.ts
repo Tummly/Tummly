@@ -14,6 +14,12 @@ describe("classifyContact", () => {
     ["   ", null],
     ["not an email@", null],
     ["0770090012", null],
+    ["07911 123456", "uk-mobile"],
+    ["+447911123456", "uk-mobile"],
+    ["+44 7911 123 456", "uk-mobile"],
+    ["020 7946 0000", null],
+    ["+442079460000", null],
+    ["01632 960123", null],
   ])("classifies %j as %j", (raw, expected) => {
     expect(classifyContact(raw)).toBe(expected)
   })
