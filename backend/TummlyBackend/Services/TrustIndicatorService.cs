@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
@@ -140,6 +141,19 @@ namespace TummlyBackend.Services
         )
         {
             var state = await LoadOrCreateStateAsync(cancellationToken);
+            if (
+                state.SubmittedByAdminUserId is { } existingSubmitter
+                && existingSubmitter != actorAdminUserId
+            )
+            {
+                // Overwriting the submitter would let the first submitter publish
+                // their own submission (four-eyes). An edit clears the submission.
+                return TrustIndicatorOutcome<TrustIndicatorReviewDto>.Fail(
+                    "already_submitted",
+                    "Another admin has already submitted this draft. Publish it or edit it first."
+                );
+            }
+
             var now = _clock.GetUtcNow().UtcDateTime;
             state.SubmittedByAdminUserId = actorAdminUserId;
             state.SubmittedAtUtc = now;
@@ -333,7 +347,9 @@ namespace TummlyBackend.Services
             {
                 await _context.SaveChangesAsync(cancellationToken);
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException { Number: 2601 or 2627 }
+            )
             {
                 // Another publish took the version or key first. Nothing from this attempt was saved.
                 _context.ChangeTracker.Clear();

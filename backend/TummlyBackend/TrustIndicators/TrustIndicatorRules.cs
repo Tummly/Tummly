@@ -185,7 +185,11 @@ namespace TummlyBackend.TrustIndicators
                         errors.Add($"{label}: {item.EvidenceClass} items cannot have a CTA.");
                     }
 
-                    if (VerifiedWording.IsMatch($"{item.Title} {item.AltText} {item.Tooltip}"))
+                    if (
+                        VerifiedWording.IsMatch(
+                            $"{item.Title} {item.AltText} {item.Tooltip} {item.Issuer} {item.Scope}"
+                        )
+                    )
                     {
                         errors.Add(
                             $"{label}: {item.EvidenceClass} items cannot use verified or certified wording."

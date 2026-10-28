@@ -208,6 +208,20 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SecondSubmit_ByAnotherAdmin_IsRefused_SoFirstSubmitterCannotPublish()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(PublisherId));
+
+            var second = await _sut.SubmitDraftAsync(ThirdAdminId);
+            var denied = await PublishAsync(PublisherId, "key-first-submitter");
+
+            Assert.Equal("already_submitted", second.Code);
+            Assert.Equal("self_approval_denied", denied.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
         public async Task Publish_ByLastDraftEditor_IsDenied_EvenWhenSomeoneElseSubmitted()
         {
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
