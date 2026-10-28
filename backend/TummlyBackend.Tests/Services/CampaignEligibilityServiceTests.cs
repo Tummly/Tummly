@@ -225,7 +225,40 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task EvaluateAsync_EmailHardBounceAndNoOtherChannel_IsSuppressed()
+        public async Task EvaluateAsync_EmailHardBounceWithEmailRestaurantOff_StaysSuppressed()
+        {
+            var seeded = await SeedLocationAsync();
+            var restaurant = await _context.Restaurants.SingleAsync(r => r.Id == seeded.RestaurantId);
+            restaurant.EmailMarketingPermissionEnabled = false;
+            await _context.SaveChangesAsync();
+            await AddGuestAsync(
+                seeded,
+                "Bounced Restaurant Off",
+                email: "bounced-off@example.com",
+                mobile: null,
+                offersOptOut: false
+            );
+
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
+            await suppressions.StageAsync(
+                seeded.RestaurantId,
+                "email:bounced-off@example.com",
+                LocationGuestPermissionKind.EmailDelivery,
+                DateTime.UtcNow,
+                GuestContactSuppressionSources.EmailBounce
+            );
+            await _context.SaveChangesAsync();
+
+            var result = await _eligibility.EvaluateAsync(seeded.LocationId, "all-eligible-guests");
+
+            Assert.Equal("suppressed", result.ExcludedReasons.Single().Reason);
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_EmailHardBounceAndNoOtherChannel_IsPreviousHardBounce()
         {
             var seeded = await SeedLocationAsync();
             var restaurant = await _context.Restaurants.SingleAsync(r => r.Id == seeded.RestaurantId);
@@ -255,7 +288,8 @@ namespace TummlyBackend.Tests.Services
             var result = await _eligibility.EvaluateAsync(seeded.LocationId, "all-eligible-guests");
 
             Assert.Equal(0, result.CurrentlyEligible);
-            Assert.Equal("suppressed", result.ExcludedReasons.Single().Reason);
+            Assert.Equal(1, result.Excluded);
+            Assert.Equal("previous_hard_bounce", result.ExcludedReasons.Single().Reason);
         }
 
         [Theory]

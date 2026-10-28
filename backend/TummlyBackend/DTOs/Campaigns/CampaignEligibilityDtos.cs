@@ -79,8 +79,8 @@ namespace TummlyBackend.DTOs.Campaigns
     public sealed class CampaignExcludedReasonCountDto
     {
         /// <summary>
-        /// Primary reason code: account, soft-lock, opt-out, suppression,
-        /// invalid-contact, channel.
+        /// Primary reason code: account, soft-lock, not-granted, withdrawn, suppressed,
+        /// previous_hard_bounce, invalid-contact.
         /// </summary>
         public required string Reason { get; init; }
 

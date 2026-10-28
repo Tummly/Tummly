@@ -16,6 +16,12 @@ describe("formatExcludedReasonLabel", () => {
     expect(formatExcludedReasonLabel("invalid-contact")).toBe("Invalid contact")
   })
 
+  it("labels an email hard bounce as Previous hard bounce, not Suppressed", () => {
+    expect(formatExcludedReasonLabel("previous_hard_bounce")).toBe(
+      "Previous hard bounce"
+    )
+  })
+
   it("maps legacy wire codes to the same handoff labels", () => {
     expect(formatExcludedReasonLabel("opt-out")).toBe("Not granted")
     expect(formatExcludedReasonLabel("suppression")).toBe("Suppressed")
