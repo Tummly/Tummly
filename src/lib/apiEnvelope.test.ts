@@ -125,4 +125,21 @@ describe("getFetchErrorMessage", () => {
   it("falls back when message is missing", () => {
     expect(getFetchErrorMessage({}, "Fallback")).toBe("Fallback")
   })
+
+  it("falls back when the response body is undefined", () => {
+    expect(getFetchErrorMessage(undefined, "Fallback")).toBe("Fallback")
+  })
+
+  it("falls back when the response body is null", () => {
+    expect(getFetchErrorMessage(null, "Fallback")).toBe("Fallback")
+  })
+
+  it("falls back when the response body is a string", () => {
+    expect(getFetchErrorMessage("Network Error", "Fallback")).toBe("Fallback")
+  })
+
+  it("falls back when message is not a string or is blank", () => {
+    expect(getFetchErrorMessage({ message: 42 }, "Fallback")).toBe("Fallback")
+    expect(getFetchErrorMessage({ message: "   " }, "Fallback")).toBe("Fallback")
+  })
 })
