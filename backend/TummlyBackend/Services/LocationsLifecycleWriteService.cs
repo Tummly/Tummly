@@ -63,6 +63,14 @@ namespace TummlyBackend.Services
                 return missing;
             }
 
+            // Duplicate-premises review: wait for an Admin to clear it.
+            if (PremisesReviewGate.Blocks(location))
+            {
+                return new LocationLifecycleWriteResult.Conflict(
+                    PremisesReviewGate.BlockedMessage
+                );
+            }
+
             var capDeny = await PendingPlanLimits.DenyActivationAsync(
                 _context,
                 _pricebook,
