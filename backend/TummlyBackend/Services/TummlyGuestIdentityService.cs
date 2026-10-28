@@ -21,10 +21,7 @@ namespace TummlyBackend.Services
             CancellationToken ct
         )
         {
-            var existing = await _context.TummlyGuestContacts.FirstOrDefaultAsync(
-                c => c.ContactType == contactType && c.NormalizedValue == normalizedValue,
-                ct
-            );
+            var existing = await FindContactAsync(contactType, normalizedValue, ct);
             if (existing != null)
             {
                 return new ProvenContact(existing.TummlyGuestId, existing.Id);
@@ -44,11 +41,10 @@ namespace TummlyBackend.Services
                 UpdatedAt = now,
             };
             guest.Contacts.Add(contact);
-
             _context.TummlyGuests.Add(guest);
-            await _context.SaveChangesAsync(ct);
 
-            return new ProvenContact(guest.Id, contact.Id);
+            var saved = await SaveNewContactAsync(contact, ct);
+            return new ProvenContact(saved.TummlyGuestId, saved.Id);
         }
 
         public async Task<int> LinkContactAsync(
@@ -58,22 +54,9 @@ namespace TummlyBackend.Services
             CancellationToken ct
         )
         {
-            var target = await _context.TummlyGuests.FirstOrDefaultAsync(
-                g => g.Id == tummlyGuestId,
-                ct
-            );
-            if (target == null)
-            {
-                throw new InvalidOperationException(
-                    "Tummly Guest does not exist."
-                );
-            }
-
+            var target = await LoadTargetAsync(tummlyGuestId, ct);
             var now = DateTime.UtcNow;
-            var contact = await _context.TummlyGuestContacts.FirstOrDefaultAsync(
-                c => c.ContactType == contactType && c.NormalizedValue == normalizedValue,
-                ct
-            );
+            var contact = await FindContactAsync(contactType, normalizedValue, ct);
 
             if (contact == null)
             {
@@ -87,11 +70,18 @@ namespace TummlyBackend.Services
                 };
                 _context.TummlyGuestContacts.Add(contact);
                 target.UpdatedAt = now;
-                await _context.SaveChangesAsync(ct);
-                return contact.Id;
-            }
 
-            if (contact.TummlyGuestId == target.Id)
+                contact = await SaveNewContactAsync(contact, ct);
+                if (contact.TummlyGuestId == target.Id)
+                {
+                    return contact.Id;
+                }
+
+                // Another request inserted this contact first. The tracker was
+                // cleared, so reload the target before merging into it.
+                target = await LoadTargetAsync(tummlyGuestId, ct);
+            }
+            else if (contact.TummlyGuestId == target.Id)
             {
                 return contact.Id;
             }
@@ -191,6 +181,61 @@ namespace TummlyBackend.Services
                 .Values.Where(lg => everGrantedIds.Contains(lg.Id))
                 .OrderBy(lg => lg.Id)
                 .ToList();
+        }
+
+        private async Task<TummlyGuest> LoadTargetAsync(
+            int tummlyGuestId,
+            CancellationToken ct
+        )
+        {
+            var target = await _context.TummlyGuests.FirstOrDefaultAsync(
+                g => g.Id == tummlyGuestId,
+                ct
+            );
+            return target
+                ?? throw new InvalidOperationException("Tummly Guest does not exist.");
+        }
+
+        private Task<TummlyGuestContact?> FindContactAsync(
+            string contactType,
+            string normalizedValue,
+            CancellationToken ct
+        ) =>
+            _context.TummlyGuestContacts.FirstOrDefaultAsync(
+                c => c.ContactType == contactType && c.NormalizedValue == normalizedValue,
+                ct
+            );
+
+        /// <summary>
+        /// Saves a new contact row. If a concurrent request inserted the same
+        /// (ContactType, NormalizedValue) first, the unique index throws. Clear the
+        /// tracker and return that competing row. Rethrow when no row is found.
+        /// </summary>
+        private async Task<TummlyGuestContact> SaveNewContactAsync(
+            TummlyGuestContact contact,
+            CancellationToken ct
+        )
+        {
+            try
+            {
+                await _context.SaveChangesAsync(ct);
+                return contact;
+            }
+            catch (DbUpdateException)
+            {
+                _context.ChangeTracker.Clear();
+                var competing = await FindContactAsync(
+                    contact.ContactType,
+                    contact.NormalizedValue,
+                    ct
+                );
+                if (competing == null)
+                {
+                    throw;
+                }
+
+                return competing;
+            }
         }
 
         private IQueryable<LocationGuest> LocationGuestMatchQuery() =>

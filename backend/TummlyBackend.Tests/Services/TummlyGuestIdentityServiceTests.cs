@@ -14,22 +14,123 @@ namespace TummlyBackend.Tests.Services
     /// </summary>
     public class TummlyGuestIdentityServiceTests : IDisposable
     {
+        private readonly DbContextOptions<ApplicationDbContext> _options;
         private readonly ApplicationDbContext _context;
         private readonly ILocationGuestPermissionLedgerService _permissions;
         private readonly ITummlyGuestIdentityService _sut;
 
         public TummlyGuestIdentityServiceTests()
         {
-            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            _options = new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            _context = new ApplicationDbContext(options);
+            _context = new ApplicationDbContext(_options);
             _permissions = new LocationGuestPermissionLedgerService(_context);
             _sut = new TummlyGuestIdentityService(_context);
         }
 
         public void Dispose() => _context.Dispose();
+
+        [Fact]
+        public async Task FindOrCreate_RaceOnSameContact_ReturnsCompetingOwner()
+        {
+            // Another request inserts sophie@ between this request's lookup and
+            // its SaveChanges, so the unique index rejects this insert.
+            var competingOwnerId = 0;
+            var competingContactId = 0;
+            using var racing = new RaceOnFirstSaveContext(
+                _options,
+                async other =>
+                {
+                    var owner = await SeedCompetingGuestAsync(
+                        other,
+                        TummlyGuestContactTypes.Email,
+                        "sophie@example.com"
+                    );
+                    competingOwnerId = owner.Id;
+                    competingContactId = owner.Contacts.Single().Id;
+                }
+            );
+            var sut = new TummlyGuestIdentityService(racing);
+
+            var result = await sut.FindOrCreateByContactAsync(
+                TummlyGuestContactTypes.Email,
+                "sophie@example.com",
+                CancellationToken.None
+            );
+
+            Assert.Equal(competingOwnerId, result.TummlyGuestId);
+            Assert.Equal(competingContactId, result.ContactId);
+            Assert.Equal(1, await _context.TummlyGuests.CountAsync());
+            Assert.Equal(1, await _context.TummlyGuestContacts.CountAsync());
+        }
+
+        [Fact]
+        public async Task FindOrCreate_DuplicateWithoutCompetingRow_Rethrows()
+        {
+            using var racing = new RaceOnFirstSaveContext(
+                _options,
+                _ => Task.CompletedTask
+            );
+            var sut = new TummlyGuestIdentityService(racing);
+
+            await Assert.ThrowsAsync<DbUpdateException>(() =>
+                sut.FindOrCreateByContactAsync(
+                    TummlyGuestContactTypes.Email,
+                    "sophie@example.com",
+                    CancellationToken.None
+                )
+            );
+        }
+
+        [Fact]
+        public async Task LinkContact_RaceOnSameContact_MergesCompetingOwner()
+        {
+            var guestA = await _sut.FindOrCreateByContactAsync(
+                TummlyGuestContactTypes.Email,
+                "sophie@example.com",
+                CancellationToken.None
+            );
+
+            // Another guest links the same phone first, during this request's SaveChanges.
+            var competingGuestId = 0;
+            var competingContactId = 0;
+            using var racing = new RaceOnFirstSaveContext(
+                _options,
+                async other =>
+                {
+                    var owner = await SeedCompetingGuestAsync(
+                        other,
+                        TummlyGuestContactTypes.Phone,
+                        "+447911123456"
+                    );
+                    competingGuestId = owner.Id;
+                    competingContactId = owner.Contacts.Single().Id;
+                }
+            );
+            var sut = new TummlyGuestIdentityService(racing);
+
+            var contactId = await sut.LinkContactAsync(
+                guestA.TummlyGuestId,
+                TummlyGuestContactTypes.Phone,
+                "+447911123456",
+                CancellationToken.None
+            );
+
+            Assert.Equal(competingContactId, contactId);
+            _context.ChangeTracker.Clear();
+            Assert.Null(await _context.TummlyGuests.FindAsync(competingGuestId));
+            Assert.Equal(1, await _context.TummlyGuests.CountAsync());
+            var owned = await _context
+                .TummlyGuestContacts.Where(c =>
+                    c.TummlyGuestId == guestA.TummlyGuestId
+                )
+                .Select(c => c.Id)
+                .ToListAsync();
+            Assert.Equal(2, owned.Count);
+            Assert.Contains(contactId, owned);
+        }
 
         [Fact]
         public async Task FindOrCreate_CreatesOnce_ThenReturnsSame()
@@ -262,6 +363,7 @@ namespace TummlyBackend.Tests.Services
                 grantedKind: LocationGuestPermissionKind.EmailMarketing
             );
 
+            // Case folding happens in GuestPreferenceContact.TryParse; stored NormalizedEmail is lower-case.
             Assert.True(
                 GuestPreferenceContact.TryParse(
                     "  Sophie@Example.com ",
@@ -293,14 +395,14 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task FindLocationGuests_MatchesPhone_NationalFormat()
         {
-            await SeedLocationGuestAsync(
+            var seeded = await SeedLocationGuestAsync(
                 "Phone Venue",
                 normalizedEmail: null,
                 normalizedPhone: "+447911123456",
                 grantedKind: LocationGuestPermissionKind.SmsMarketing
             );
 
-            // 07700 900xxx is rejected by PhoneNumberHelper (R5), so use 07911.
+            // The shared phone helper rejects the fictional 07700 900xxx range, so this test uses 07911.
             Assert.True(
                 GuestPreferenceContact.TryParse(
                     "07911 123456",
@@ -319,7 +421,8 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken.None
             );
 
-            Assert.Single(results);
+            var match = Assert.Single(results);
+            Assert.Equal(seeded.Id, match.Id);
         }
 
         [Fact]
@@ -343,6 +446,68 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.Empty(results);
+        }
+
+        private static async Task<TummlyGuest> SeedCompetingGuestAsync(
+            ApplicationDbContext context,
+            string contactType,
+            string normalizedValue
+        )
+        {
+            var now = new DateTime(2026, 10, 28, 9, 0, 0, DateTimeKind.Utc);
+            var guest = new TummlyGuest { CreatedAt = now, UpdatedAt = now };
+            guest.Contacts.Add(
+                new TummlyGuestContact
+                {
+                    ContactType = contactType,
+                    NormalizedValue = normalizedValue,
+                    VerifiedAt = now,
+                    CreatedAt = now,
+                }
+            );
+            context.TummlyGuests.Add(guest);
+            await context.SaveChangesAsync();
+            return guest;
+        }
+
+        /// <summary>
+        /// Seam for a concurrent first-time insert. On the first SaveChanges it
+        /// runs <c>competingWrite</c> on a second context over the same InMemory
+        /// store (the competing request), then throws the unique-index
+        /// <see cref="DbUpdateException"/> that the database would raise.
+        /// </summary>
+        private sealed class RaceOnFirstSaveContext : ApplicationDbContext
+        {
+            private readonly DbContextOptions<ApplicationDbContext> _options;
+            private readonly Func<ApplicationDbContext, Task> _competingWrite;
+            private bool _raced;
+
+            public RaceOnFirstSaveContext(
+                DbContextOptions<ApplicationDbContext> options,
+                Func<ApplicationDbContext, Task> competingWrite
+            )
+                : base(options)
+            {
+                _options = options;
+                _competingWrite = competingWrite;
+            }
+
+            public override async Task<int> SaveChangesAsync(
+                CancellationToken cancellationToken = default
+            )
+            {
+                if (!_raced)
+                {
+                    _raced = true;
+                    await using var other = new ApplicationDbContext(_options);
+                    await _competingWrite(other);
+                    throw new DbUpdateException(
+                        "Simulated unique-index violation on concurrent insert."
+                    );
+                }
+
+                return await base.SaveChangesAsync(cancellationToken);
+            }
         }
 
         private async Task<LocationGuest> SeedLocationGuestAsync(
