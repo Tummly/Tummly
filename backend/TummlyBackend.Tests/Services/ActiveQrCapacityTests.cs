@@ -264,7 +264,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Theory]
-        // Group base, 40 Locations, 2 qr_10 packs: 50 + 10 x (40 - 5) + 20.
+        // Group base, 40 Locations, 20 qr_placement units: 50 + 10 x (40 - 5) + 20.
         [InlineData("group", 40, 50, 20, 420)]
         [InlineData("group", 5, 50, 0, 50)]
         [InlineData("group", 3, 50, 0, 50)]

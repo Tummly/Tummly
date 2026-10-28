@@ -3,6 +3,8 @@ import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import {
   CUSTOM_PLAN_MAX_LOCATIONS,
   CUSTOM_PLAN_MAX_PACK_COUNT,
+  packMaxCount,
+  type CustomPlanPackKey,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 
 export type LocationInputCheck = "empty" | "not_integer" | "over_limit" | "ok"
@@ -22,14 +24,18 @@ export function parseTypedCount(raw: string): number | null {
 export type PackCountCheck = "empty" | "not_integer" | "over_limit" | "ok"
 
 /** Classifies a typed pack count before any quote request. 0 is a valid count. */
-export function checkPackCount(value: number | null | undefined): PackCountCheck {
+export function checkPackCount(
+  value: number | null | undefined,
+  packKey?: CustomPlanPackKey,
+): PackCountCheck {
   if (value == null || Number.isNaN(value)) {
     return "empty"
   }
   if (!Number.isInteger(value) || value < 0) {
     return "not_integer"
   }
-  if (value > CUSTOM_PLAN_MAX_PACK_COUNT) {
+  const max = packKey == null ? CUSTOM_PLAN_MAX_PACK_COUNT : packMaxCount(packKey)
+  if (value > max) {
     return "over_limit"
   }
   return "ok"
@@ -116,14 +122,26 @@ export type QuoteView = {
 }
 
 /** Copy under a pack stepper while its typed count is invalid. */
-export function packCountMessage(check: PackCountCheck): string | null {
+export function packCountMessage(
+  check: PackCountCheck,
+  packKey?: CustomPlanPackKey,
+): string | null {
+  const unit =
+    packKey != null &&
+    packMaxCount(packKey) !== CUSTOM_PLAN_MAX_PACK_COUNT
   switch (check) {
     case "empty":
-      return CUSTOM_PLAN_QUOTE_COPY.packEmpty
+      return unit
+        ? CUSTOM_PLAN_QUOTE_COPY.unitEmpty
+        : CUSTOM_PLAN_QUOTE_COPY.packEmpty
     case "not_integer":
-      return CUSTOM_PLAN_QUOTE_COPY.packNotWhole
+      return unit
+        ? CUSTOM_PLAN_QUOTE_COPY.unitNotWhole
+        : CUSTOM_PLAN_QUOTE_COPY.packNotWhole
     case "over_limit":
-      return CUSTOM_PLAN_QUOTE_COPY.packOverLimit
+      return unit
+        ? CUSTOM_PLAN_QUOTE_COPY.unitOverLimit
+        : CUSTOM_PLAN_QUOTE_COPY.packOverLimit
     case "ok":
       return null
   }

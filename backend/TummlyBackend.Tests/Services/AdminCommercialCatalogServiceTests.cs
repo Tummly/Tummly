@@ -71,7 +71,7 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(item.ExtraLocation);
             Assert.Equal(2, item.ExtraLocation!.UsersAdded);
             Assert.Equal(CustomPlanPacks.All.Count, item.Packs.Count);
-            Assert.Contains(item.Packs, p => p.PackKey == "team_users_5");
+            Assert.Contains(item.Packs, p => p.PackKey == "team_user");
         }
 
         [Fact]

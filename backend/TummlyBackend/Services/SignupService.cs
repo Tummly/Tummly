@@ -955,6 +955,30 @@ namespace TummlyBackend.Services
 
             if (
                 !string.IsNullOrWhiteSpace(dto.CustomPlanConfigJson)
+                && string.Equals(
+                    chosen,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.Ordinal
+                )
+                && CustomPlanConfig
+                    .TryParse(DecodeCustomPlanConfigJson(dto.CustomPlanConfigJson))
+                    ?.Packs?.Any(kv =>
+                        kv.Value > 0
+                        && (
+                            CustomPlanPacks.IsCapacityPackKey(kv.Key)
+                            || CustomPlanPacks.LegacyCapacityPackKeys.ContainsKey(kv.Key)
+                        )
+                    ) == true
+            )
+            {
+                throw new CustomPlanQuoteException(
+                    "pilot_no_capacity_addons",
+                    "Pilot has no paid capacity add-ons."
+                );
+            }
+
+            if (
+                !string.IsNullOrWhiteSpace(dto.CustomPlanConfigJson)
                 && IsPaidOrCustomPlan(chosen)
             )
             {

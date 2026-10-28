@@ -1504,6 +1504,90 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Apply_CustomPlanCycle_ReplayAfterApply_DoesNotGrantTwice()
+        {
+            await using var context = CreateContext();
+            var (account, _) = await SeedPilotAccountAsync(context);
+            account.SubscriptionPlan = BillingSubscriptionPlans.Custom;
+            account.BillingStatus = BillingStatuses.Active;
+            account.BillingCycle = BillingCycles.Monthly;
+            account.RenewalDateUtc = null;
+            account.CustomPlanConfigJson = new CustomPlanConfig
+            {
+                CatalogPublicId = "cat",
+                Cadence = "monthly",
+                PeriodNetPence = 8_000,
+                MonthlyNetPence = 8_000,
+                Quantities = new CustomPlanQuantities
+                {
+                    Locations = 1,
+                    TeamUsers = 2,
+                    QrPlacements = 5,
+                    Offers = 1,
+                    EmailCredits = 500,
+                    SmsCredits = 20,
+                    AiCredits = 20,
+                },
+            }.ToJson();
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_custom_replay",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.CustomPlanCycle,
+                    TargetPlan = BillingSubscriptionPlans.Custom,
+                    TargetCadence = "monthly",
+                    CheckoutUrl = "https://checkout.test/custom",
+                    IdempotencyKey = "custom-cycle-replay",
+                    IsOpen = true,
+                    NetAmountMinor = 8_000,
+                    VatAmountMinor = 0,
+                    GrossAmountMinor = 8_000,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+
+            var request = new RevolutOrderCompletedApplyRequest(
+                OrderId: "ord_custom_replay",
+                OrderState: "completed",
+                BillingReason: null,
+                SubscriptionId: null,
+                RawWebhookBody: "{}",
+                RawOrderBody: "{}"
+            );
+            await applier.ApplyAsync(request);
+            var renewal = (
+                await context.BillingAccounts.AsNoTracking().SingleAsync(row =>
+                    row.RestaurantId == account.RestaurantId
+                )
+            ).RenewalDateUtc;
+            var grantsAfterFirst = await context.CreditLedgerEntries.CountAsync();
+            await applier.ApplyAsync(request);
+
+            var kinds = await context.RestaurantBillingActivities
+                .Where(row => row.RestaurantId == account.RestaurantId)
+                .Select(row => row.Kind)
+                .ToListAsync();
+            Assert.Single(kinds, BillingActivityKinds.SubscriptionCreated);
+            Assert.DoesNotContain(BillingActivityKinds.SubscriptionRenewed, kinds);
+            Assert.Equal(grantsAfterFirst, await context.CreditLedgerEntries.CountAsync());
+            Assert.Equal(
+                renewal,
+                (
+                    await context.BillingAccounts.AsNoTracking().SingleAsync(row =>
+                        row.RestaurantId == account.RestaurantId
+                    )
+                ).RenewalDateUtc
+            );
+        }
+
+        [Fact]
         public async Task Apply_SetupFromPilot_KeepsPilotStartAndEnd()
         {
             await using var context = CreateContext();

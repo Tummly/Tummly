@@ -42,6 +42,21 @@ namespace TummlyBackend.Services
             var locations = ValidateLocations(request.Locations);
             var packs = NormalizePacks(request.Packs);
 
+            if (
+                string.Equals(
+                    request.BasePlan?.Trim(),
+                    "pilot",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && packs.Any(kv => kv.Value > 0 && CustomPlanPacks.IsCapacityPackKey(kv.Key))
+            )
+            {
+                throw new CustomPlanQuoteException(
+                    "pilot_no_capacity_addons",
+                    "Pilot has no paid capacity add-ons."
+                );
+            }
+
             var version = await LoadPublishedAsync(cancellationToken)
                 ?? throw new CustomPlanQuoteException(
                     "catalog_not_ready",
@@ -111,9 +126,9 @@ namespace TummlyBackend.Services
             var extraEmail = extra?.CreditsMonthlyEmail ?? 0;
             var extraSms = extra?.CreditsMonthlySms ?? 0;
 
-            var teamFromPacks = packs.GetValueOrDefault("team_users_5") * 5;
-            var offersFromPacks = packs.GetValueOrDefault("offers_5") * 5;
-            var qrAccountExtra = packs.GetValueOrDefault("qr_10") * 10;
+            var teamFromPacks = packs.GetValueOrDefault(CustomPlanPacks.TeamUser);
+            var offersFromPacks = packs.GetValueOrDefault(CustomPlanPacks.Offer);
+            var qrAccountExtra = packs.GetValueOrDefault(CustomPlanPacks.QrPlacement);
             var emailFromPacks =
                 packs.GetValueOrDefault("email_20k") * 20_000
                 + packs.GetValueOrDefault("email_50k") * 50_000;
@@ -331,6 +346,18 @@ namespace TummlyBackend.Services
                 return next;
             }
 
+            // Legacy capacity packs are never converted: the guest picks single units again.
+            foreach (var key in packs.Keys)
+            {
+                if (CustomPlanPacks.LegacyCapacityPackKeys.TryGetValue(key, out var unitKey))
+                {
+                    throw new CustomPlanQuoteException(
+                        "legacy_pack_key",
+                        $"Pack {key} is no longer sold. Choose single units ({unitKey}) instead."
+                    );
+                }
+            }
+
             // Unknown keys first (across all entries), then quantities.
             foreach (var key in packs.Keys)
             {
@@ -345,15 +372,12 @@ namespace TummlyBackend.Services
 
             foreach (var (key, raw) in packs)
             {
-                if (
-                    raw < 0
-                    || raw > CustomPlanPacks.MaxPackCount
-                    || raw != decimal.Truncate(raw)
-                )
+                var max = CustomPlanPacks.ByKey[key].MaxCount;
+                if (raw < 0 || raw > max || raw != decimal.Truncate(raw))
                 {
                     throw new CustomPlanQuoteException(
                         "invalid_pack_quantity",
-                        $"Pack {key} must be a whole number from 0 to {CustomPlanPacks.MaxPackCount}."
+                        $"Pack {key} must be a whole number from 0 to {max}."
                     );
                 }
 
@@ -471,9 +495,9 @@ namespace TummlyBackend.Services
         private static string PackTitle(string packKey) =>
             packKey switch
             {
-                "team_users_5" => "Additional team users",
-                "offers_5" => "Additional active Offers",
-                "qr_10" => "Extra QR placements",
+                CustomPlanPacks.TeamUser => "Additional team users",
+                CustomPlanPacks.Offer => "Additional active Offers",
+                CustomPlanPacks.QrPlacement => "Extra QR placements",
                 "email_20k" => "+20,000 Email/month",
                 "email_50k" => "+50,000 Email/month",
                 "sms_500" => "+500 SMS/month",

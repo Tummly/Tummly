@@ -5,25 +5,51 @@ import {
   decodeCustomPlanIntentV2,
   encodeCustomPlanIntentV2,
   minBasePlanForLocations,
+  CUSTOM_PLAN_MAX_CAPACITY_UNITS,
+  CUSTOM_PLAN_PACKS,
+  hasLegacyCapacityPack,
   normalizePackCounts,
+  packMaxCount,
   quotePackLineAmount,
   type PublicCatalogPlanSummary,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 
+describe("single-unit capacity packs", () => {
+  it("sells team users, Offers and QR placements one unit at a time", () => {
+    for (const key of ["team_user", "offer", "qr_placement"] as const) {
+      const def = CUSTOM_PLAN_PACKS.find((p) => p.packKey === key)
+      expect(def?.packSize).toBe(1)
+      expect(def?.maxCount).toBe(CUSTOM_PLAN_MAX_CAPACITY_UNITS)
+    }
+    expect(CUSTOM_PLAN_PACKS.map((p) => p.packKey)).not.toContain("team_users_5")
+  })
+
+  it("keeps the credit pack bound", () => {
+    expect(packMaxCount("email_20k")).toBe(99)
+    expect(packMaxCount("team_user")).toBe(500)
+  })
+
+  it("flags a replaced capacity pack key", () => {
+    expect(hasLegacyCapacityPack({ qr_10: 0 })).toBe(true)
+    expect(hasLegacyCapacityPack({ qr_placement: 3 })).toBe(false)
+    expect(hasLegacyCapacityPack(null)).toBe(false)
+  })
+})
+
 describe("normalizePackCounts", () => {
   it("keeps a typed count as typed, so an invalid count stays visible", () => {
-    const packs = normalizePackCounts({ offers_5: 150, qr_10: 2.5 })
-    expect(packs.offers_5).toBe(150)
-    expect(packs.qr_10).toBe(2.5)
+    const packs = normalizePackCounts({ offer: 150, qr_placement: 2.5 })
+    expect(packs.offer).toBe(150)
+    expect(packs.qr_placement).toBe(2.5)
   })
 
   it("drops non-numeric values and fills missing packs with zero", () => {
     const packs = normalizePackCounts({
-      offers_5: Number.NaN,
-      team_users_5: 3,
+      offer: Number.NaN,
+      team_user: 3,
     } as Record<string, number>)
-    expect(packs.offers_5).toBe(0)
-    expect(packs.team_users_5).toBe(3)
+    expect(packs.offer).toBe(0)
+    expect(packs.team_user).toBe(3)
     expect(packs.sms_500).toBe(0)
   })
 })
@@ -87,15 +113,29 @@ describe("encode/decode CustomPlanIntentV2", () => {
       cadence: "annual",
       basePlan: "growth",
       locations: 3,
-      packs: { offers_5: 2, email_20k: 0 },
+      packs: { offer: 2, email_20k: 0 },
     })
     expect(decodeCustomPlanIntentV2(encoded)).toEqual({
       version: 2,
       cadence: "annual",
       basePlan: "growth",
       locations: 3,
-      packs: normalizePackCounts({ offers_5: 2 }),
+      packs: normalizePackCounts({ offer: 2 }),
     })
+  })
+
+  it("drops a saved selection that names a replaced capacity pack", () => {
+    for (const legacyKey of ["team_users_5", "offers_5", "qr_10"]) {
+      const json = JSON.stringify({
+        version: 2,
+        cadence: "monthly",
+        basePlan: "starter",
+        locations: 1,
+        packs: { [legacyKey]: 1 },
+      })
+      expect(decodeCustomPlanIntentV2(json)).toBeNull()
+      expect(decodeCustomPlanIntentV2(btoa(json))).toBeNull()
+    }
   })
 
   it("parses raw JSON without base64", () => {
@@ -104,9 +144,9 @@ describe("encode/decode CustomPlanIntentV2", () => {
       cadence: "monthly",
       basePlan: "starter",
       locations: 1,
-      packs: { team_users_5: 1 },
+      packs: { team_user: 1 },
     })
-    expect(decodeCustomPlanIntentV2(json)?.packs.team_users_5).toBe(1)
+    expect(decodeCustomPlanIntentV2(json)?.packs.team_user).toBe(1)
   })
 })
 
@@ -156,14 +196,14 @@ function quoteFixture(
 }
 
 describe("quotePackLineAmount", () => {
-  const qrLine = { key: "pack:qr_10", label: "Extra QR placements × 1", quantity: 1 }
+  const qrLine = { key: "pack:qr_placement", label: "Extra QR placements × 1", quantity: 1 }
 
   it("takes the QR amount and monthly suffix from the server line", () => {
     const quote = quoteFixture({
       cadence: "monthly",
       lines: [{ ...qrLine, netPence: 600 }],
     })
-    expect(quotePackLineAmount(quote, "qr_10")).toEqual({
+    expect(quotePackLineAmount(quote, "qr_placement")).toEqual({
       netPence: 600,
       suffix: "/mo",
     })
@@ -174,17 +214,17 @@ describe("quotePackLineAmount", () => {
       cadence: "annual",
       lines: [{ ...qrLine, netPence: 6000 }],
     })
-    expect(quotePackLineAmount(quote, "qr_10")).toEqual({
+    expect(quotePackLineAmount(quote, "qr_placement")).toEqual({
       netPence: 6000,
       suffix: "/ per year",
     })
   })
 
   it("is null without a QR line", () => {
-    expect(quotePackLineAmount(quoteFixture({ lines: [] }), "qr_10")).toBeNull()
+    expect(quotePackLineAmount(quoteFixture({ lines: [] }), "qr_placement")).toBeNull()
   })
 
   it("is null without a quote", () => {
-    expect(quotePackLineAmount(null, "qr_10")).toBeNull()
+    expect(quotePackLineAmount(null, "qr_placement")).toBeNull()
   })
 })

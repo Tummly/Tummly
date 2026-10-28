@@ -134,7 +134,7 @@ namespace TummlyBackend.Tests.Services
                 "monthly",
                 "growth",
                 2,
-                new Dictionary<string, int> { ["offers_5"] = 1 }
+                new Dictionary<string, int> { ["offer"] = 1 }
             );
             dto.CustomPlanConfigJson = JsonSerializer.Serialize(
                 new
@@ -143,7 +143,7 @@ namespace TummlyBackend.Tests.Services
                     cadence = "monthly",
                     basePlan = "growth",
                     locations = 2,
-                    packs = new Dictionary<string, int> { ["offers_5"] = 1 },
+                    packs = new Dictionary<string, int> { ["offer"] = 1 },
                     quoteHash = quote.QuoteHash,
                 }
             );
@@ -463,6 +463,57 @@ namespace TummlyBackend.Tests.Services
                 _signup.SaveOnboardingAsync(_sessionToken, dto)
             );
             Assert.Equal("invalid_location_count", ex.Code);
+        }
+
+        [Fact]
+        public async Task SaveOnboarding_PilotWithCapacityUnits_IsRejected()
+        {
+            await SeedVerifiedPendingAsync();
+            var dto = BuildValidOnboardingDto();
+            dto.ChosenPlan = BillingSubscriptionPlans.Pilot;
+            dto.CustomPlanConfigJson = JsonSerializer.Serialize(
+                new
+                {
+                    version = 2,
+                    cadence = "monthly",
+                    basePlan = "starter",
+                    locations = 1,
+                    packs = new Dictionary<string, int> { ["team_user"] = 2 },
+                }
+            );
+
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.SaveOnboardingAsync(_sessionToken, dto)
+            );
+            Assert.Equal("pilot_no_capacity_addons", ex.Code);
+            Assert.False(await _db.BillingAccounts.AnyAsync());
+        }
+
+        [Fact]
+        public async Task SaveOnboarding_LegacyCapacityPack_IsRejectedNotConverted()
+        {
+            await SeedVerifiedPendingAsync();
+            var dto = BuildValidOnboardingDto();
+            dto.ChosenPlan = BillingSubscriptionPlans.Custom;
+            dto.ChosenCadence = "monthly";
+            dto.CustomPlanConfigJson = JsonSerializer.Serialize(
+                new
+                {
+                    version = 2,
+                    cadence = "monthly",
+                    basePlan = "starter",
+                    locations = 1,
+                    packs = new Dictionary<string, int> { ["team_users_5"] = 1 },
+                    quoteHash = "0123456789abcdef0123456789abcdef",
+                }
+            );
+
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.SaveOnboardingAsync(_sessionToken, dto)
+            );
+            Assert.Equal("legacy_pack_key", ex.Code);
+            await _db.Entry(_pending).ReloadAsync();
+            Assert.Null(_pending.CustomPlanConfigJson);
         }
 
         [Fact]

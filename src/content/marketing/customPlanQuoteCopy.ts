@@ -20,6 +20,9 @@ export const CUSTOM_PLAN_QUOTE_COPY = {
   packEmpty: "Enter a number of packs. Use 0 for none.",
   packNotWhole: "Enter a whole number of packs.",
   packOverLimit: "Maximum 99 packs per option.",
+  unitEmpty: "Enter a number. Use 0 for none.",
+  unitNotWhole: "Enter a whole number.",
+  unitOverLimit: "Maximum 500 per option.",
   noPaymentTaken:
     "No payment is taken until you confirm your subscription and payment details at checkout.",
   /** Temporary until Director D7; shown only when vatRateBps > 0. */

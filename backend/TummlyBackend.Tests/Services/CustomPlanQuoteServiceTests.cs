@@ -107,8 +107,8 @@ namespace TummlyBackend.Tests.Services
                     Locations = 1,
                     Packs = new Dictionary<string, decimal>
                     {
-                        ["offers_5"] = 1,
-                        ["team_users_5"] = 1,
+                        ["offer"] = 1,
+                        ["team_user"] = 1,
                     },
                 }
             );
@@ -149,11 +149,11 @@ namespace TummlyBackend.Tests.Services
                     Cadence = "monthly",
                     BasePlan = "starter",
                     Locations = 1,
-                    Packs = new Dictionary<string, decimal> { ["offers_5"] = 2 },
+                    Packs = new Dictionary<string, decimal> { ["offer"] = 10 },
                 }
             );
 
-            // offer rate: 5 units = 1200 pence → 10 units = 2400
+            // offer rate: £2.40 per unit → 10 units = 2400
             Assert.Equal(BillingSubscriptionPlans.Custom, monthly.StoredAsPlan);
             Assert.Equal(3900 + 2400, monthly.MonthlyNetPence);
             Assert.Equal(3900 + 2400, monthly.PeriodNetPence);
@@ -165,11 +165,11 @@ namespace TummlyBackend.Tests.Services
                     Cadence = "annual",
                     BasePlan = "starter",
                     Locations = 1,
-                    Packs = new Dictionary<string, decimal> { ["offers_5"] = 1 },
+                    Packs = new Dictionary<string, decimal> { ["offer"] = 5 },
                 }
             );
 
-            // pack annual fallback: round(1200 × 12 × 0.85) = 12240
+            // annual fallback: round(1200 × 12 × 0.85) = 12240 for 5 units
             var packAnnual = (int)Math.Round(1200 * 12 * 0.85);
             Assert.Equal(annual.Lines[0].NetPence + packAnnual, annual.PeriodNetPence);
             Assert.True(annual.PeriodNetPence > annual.MonthlyNetPence);
@@ -184,7 +184,7 @@ namespace TummlyBackend.Tests.Services
                     Cadence = "monthly",
                     BasePlan = "starter",
                     Locations = 1,
-                    Packs = new Dictionary<string, decimal> { ["qr_10"] = 2 },
+                    Packs = new Dictionary<string, decimal> { ["qr_placement"] = 20 },
                 }
             );
 
@@ -195,6 +195,172 @@ namespace TummlyBackend.Tests.Services
                 result.Quantities.QrPlacements
             );
         }
+
+        [Theory]
+        [InlineData("team_user", 1, 300, 3060)]
+        [InlineData("team_user", 2, 600, 6120)]
+        [InlineData("team_user", 7, 2100, 21420)]
+        [InlineData("team_user", 13, 3900, 39780)]
+        [InlineData("offer", 1, 240, 2448)]
+        [InlineData("offer", 2, 480, 4896)]
+        [InlineData("offer", 7, 1680, 17136)]
+        [InlineData("offer", 13, 3120, 31824)]
+        [InlineData("qr_placement", 1, 60, 612)]
+        [InlineData("qr_placement", 2, 120, 1224)]
+        [InlineData("qr_placement", 7, 420, 4284)]
+        [InlineData("qr_placement", 13, 780, 7956)]
+        public async Task Quote_SingleUnits_ChargeUnitRateTimesQuantity(
+            string packKey,
+            int units,
+            int expectedMonthlyPence,
+            int expectedAnnualPence
+        )
+        {
+            var monthly = await QuoteWithAsync("monthly", packKey, units);
+            var annual = await QuoteWithAsync("annual", packKey, units);
+
+            var monthlyLine = Assert.Single(monthly.Lines, l => l.Key == $"pack:{packKey}");
+            var annualLine = Assert.Single(annual.Lines, l => l.Key == $"pack:{packKey}");
+            Assert.Equal(units, monthlyLine.Quantity);
+            Assert.Equal(expectedMonthlyPence, monthlyLine.NetPence);
+            Assert.Equal(expectedAnnualPence, annualLine.NetPence);
+            Assert.Equal(3900 + expectedMonthlyPence, monthly.PeriodNetPence);
+        }
+
+        [Fact]
+        public async Task Quote_SingleUnits_AddExactQuantitiesToEntitlements()
+        {
+            var quote = await _sut.QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = "monthly",
+                    BasePlan = "starter",
+                    Locations = 1,
+                    Packs = new Dictionary<string, decimal>
+                    {
+                        ["team_user"] = 7,
+                        ["offer"] = 13,
+                        ["qr_placement"] = 2,
+                    },
+                }
+            );
+
+            var baseline = await QuoteWithAsync("monthly", "offer", 0);
+            Assert.Equal(baseline.Quantities.TeamUsers + 7, quote.Quantities.TeamUsers);
+            Assert.Equal(baseline.Quantities.Offers + 13, quote.Quantities.Offers);
+            Assert.Equal(2, quote.Quantities.QrPlacementsAccountExtra);
+        }
+
+        [Theory]
+        [InlineData("team_users_5", "team_user")]
+        [InlineData("offers_5", "offer")]
+        [InlineData("qr_10", "qr_placement")]
+        public async Task Quote_LegacyCapacityPack_IsRejectedNotConverted(
+            string legacyKey,
+            string replacement
+        )
+        {
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _sut.QuoteAsync(
+                    new CustomPlanQuoteRequest
+                    {
+                        Cadence = "monthly",
+                        BasePlan = "starter",
+                        Locations = 1,
+                        Packs = new Dictionary<string, decimal> { [legacyKey] = 1 },
+                    }
+                )
+            );
+
+            Assert.Equal("legacy_pack_key", ex.Code);
+            Assert.Contains(replacement, ex.Message);
+        }
+
+        [Fact]
+        public async Task Quote_LegacyPackWithZeroCount_IsStillRejected()
+        {
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _sut.QuoteAsync(
+                    new CustomPlanQuoteRequest
+                    {
+                        Cadence = "monthly",
+                        BasePlan = "starter",
+                        Locations = 1,
+                        Packs = new Dictionary<string, decimal> { ["qr_10"] = 0 },
+                    }
+                )
+            );
+
+            Assert.Equal("legacy_pack_key", ex.Code);
+        }
+
+        [Fact]
+        public async Task Quote_MaxCapacityUnits_AcceptedAndOneMoreRejected()
+        {
+            var atMax = await QuoteWithAsync(
+                "monthly",
+                "team_user",
+                CustomPlanPacks.MaxCapacityUnits
+            );
+            Assert.Equal(
+                CustomPlanPacks.MaxCapacityUnits * 300,
+                atMax.Lines.Single(l => l.Key == "pack:team_user").NetPence
+            );
+
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                QuoteWithAsync("monthly", "team_user", CustomPlanPacks.MaxCapacityUnits + 1)
+            );
+            Assert.Equal("invalid_pack_quantity", ex.Code);
+        }
+
+        [Theory]
+        [InlineData("team_user")]
+        [InlineData("offer")]
+        [InlineData("qr_placement")]
+        public async Task Quote_PilotBasePlan_RejectsPaidCapacityUnits(string packKey)
+        {
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _sut.QuoteAsync(
+                    new CustomPlanQuoteRequest
+                    {
+                        Cadence = "monthly",
+                        BasePlan = "pilot",
+                        Locations = 1,
+                        Packs = new Dictionary<string, decimal> { [packKey] = 1 },
+                    }
+                )
+            );
+
+            Assert.Equal("pilot_no_capacity_addons", ex.Code);
+        }
+
+        [Fact]
+        public void CapacityPacks_AreSingleUnits()
+        {
+            foreach (var key in new[] { "team_user", "offer", "qr_placement" })
+            {
+                Assert.Equal(1, CustomPlanPacks.ByKey[key].PackSize);
+            }
+
+            Assert.False(CustomPlanPacks.IsKnownPackKey("team_users_5"));
+            Assert.False(CustomPlanPacks.IsKnownPackKey("offers_5"));
+            Assert.False(CustomPlanPacks.IsKnownPackKey("qr_10"));
+        }
+
+        private Task<CustomPlanQuoteResult> QuoteWithAsync(
+            string cadence,
+            string packKey,
+            int units
+        ) =>
+            _sut.QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = cadence,
+                    BasePlan = "starter",
+                    Locations = 1,
+                    Packs = new Dictionary<string, decimal> { [packKey] = units },
+                }
+            );
 
         [Fact]
         public async Task Quote_Over500_ThrowsContactSales()
@@ -351,7 +517,7 @@ namespace TummlyBackend.Tests.Services
         [Theory]
         [InlineData(-1)]
         [InlineData(1.5)]
-        [InlineData(100)]
+        [InlineData(501)]
         public async Task Quote_InvalidPackQuantity_ReturnsInvalidPackQuantity(double quantity)
         {
             var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
@@ -363,7 +529,7 @@ namespace TummlyBackend.Tests.Services
                         Locations = 1,
                         Packs = new Dictionary<string, decimal>
                         {
-                            ["offers_5"] = (decimal)quantity,
+                            ["offer"] = (decimal)quantity,
                         },
                     }
                 )
@@ -383,7 +549,7 @@ namespace TummlyBackend.Tests.Services
                         Locations = 1,
                         Packs = new Dictionary<string, decimal>
                         {
-                            ["offers_5"] = -1,
+                            ["offer"] = -1,
                             ["nope"] = 1,
                         },
                     }

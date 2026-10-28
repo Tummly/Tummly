@@ -86,7 +86,7 @@ describe("toSignupOnboardingPayload", () => {
       cadence: "monthly" as const,
       basePlan: "starter" as const,
       locations: 1,
-      packs: { offers_5: 1 },
+      packs: { offer: 1 },
     }
     saveSignupPlanIntent({ plan: "Growth", cadence: "monthly", config })
     expect(toSignupOnboardingPayload(filledValues).customPlanConfigJson).toBeUndefined()

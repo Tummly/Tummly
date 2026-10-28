@@ -47,7 +47,7 @@ describe("buildSignupPath", () => {
         cadence: "monthly",
         basePlan: "growth",
         locations: 3,
-        packs: { offers_5: 1 },
+        packs: { offer: 1 },
       },
     })
     expect(path).toContain("plan=Custom")
@@ -78,7 +78,7 @@ describe("parseSignupPlanIntent", () => {
       cadence: "monthly",
       basePlan: "growth",
       locations: 3,
-      packs: { offers_5: 1 },
+      packs: { offer: 1 },
     })
     const parsed = parseSignupPlanIntent(
       new URLSearchParams(
@@ -88,7 +88,7 @@ describe("parseSignupPlanIntent", () => {
     expect(parsed?.plan).toBe("Custom")
     expect(parsed?.config?.basePlan).toBe("growth")
     expect(parsed?.config?.locations).toBe(3)
-    expect(parsed?.config?.packs.offers_5).toBe(1)
+    expect(parsed?.config?.packs.offer).toBe(1)
   })
 })
 
@@ -129,7 +129,7 @@ describe("signupPlanIntent session", () => {
       cadence: "monthly" as const,
       basePlan: "starter" as const,
       locations: 1,
-      packs: { offers_5: 1 },
+      packs: { offer: 1 },
     }
     saveSignupPlanIntent({ plan: "Custom", cadence: "monthly", config })
     expect(
@@ -268,7 +268,7 @@ describe("signupStepAfterLocation", () => {
     cadence: "monthly" as const,
     basePlan: "group" as const,
     locations: 8,
-    packs: { team_users_5: 2 },
+    packs: { team_user: 2 },
   }
 
   it("goes to review when the plan was built on the Custom plan page", () => {
