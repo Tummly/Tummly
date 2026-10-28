@@ -318,9 +318,10 @@ namespace TummlyBackend.Tests.Integration
             var created = Assert.Single(body.GetProperty("created").EnumerateArray());
             var warning = created.GetProperty("warning");
             Assert.Equal("possible_duplicate_premises", warning.GetProperty("code").GetString());
-            Assert.Equal("same_workspace", warning.GetProperty("scope").GetString());
-            Assert.Equal(existingId, warning.GetProperty("matchedLocationId").GetInt32());
-            Assert.Equal("Existing Venue", warning.GetProperty("matchedLocationName").GetString());
+            AssertGenericWarningShape(warning);
+            Assert.DoesNotContain("Existing Venue", await RawAsync(body), StringComparison.Ordinal);
+            Assert.DoesNotContain("same_workspace", await RawAsync(body), StringComparison.Ordinal);
+            Assert.True(existingId > 0);
 
             var locationId = created.GetProperty("locationId").GetInt32();
             using var scope = _factory.Services.CreateScope();
@@ -381,9 +382,156 @@ namespace TummlyBackend.Tests.Integration
             var created = Assert.Single(body.GetProperty("created").EnumerateArray());
             var warning = created.GetProperty("warning");
             Assert.Equal("possible_duplicate_premises", warning.GetProperty("code").GetString());
-            Assert.Equal("other_workspace", warning.GetProperty("scope").GetString());
-            Assert.Equal(JsonValueKind.Null, warning.GetProperty("matchedLocationId").ValueKind);
-            Assert.Equal(JsonValueKind.Null, warning.GetProperty("matchedLocationName").ValueKind);
+            AssertGenericWarningShape(warning);
+            Assert.DoesNotContain("other_workspace", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain(other.RestaurantId.ToString() + ",", raw, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task AddSingle_PossibleDuplicatePremises_OtherWorkspace_SavesDraft_WithGenericWarning()
+        {
+            var other = await SeedWithRoomAsync(
+                restaurantName: "Single Other Tenant Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Group
+            );
+            var theirId = await AddLocationAsync(
+                other.RestaurantId,
+                "Rival Cafe Ltd",
+                "8 Dock Road",
+                "L3 4AB"
+            );
+            var seeded = await SeedWithRoomAsync(
+                restaurantName: "Single Add Duplicate Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Group
+            );
+
+            using var request = AuthorizedPost(
+                "/api/locations",
+                seeded.OwnerJwt,
+                new
+                {
+                    locationName = "Our Cafe",
+                    address = "8 Dock Road",
+                    city = "Liverpool",
+                    postcode = "L3 4AB",
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var raw = await response.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("Rival Cafe", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("other_workspace", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("matchedLocationId", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain($"\"{theirId}\"", raw, StringComparison.Ordinal);
+            var body = JsonDocument.Parse(raw).RootElement;
+            AssertGenericWarningShape(body.GetProperty("warning"));
+
+            var locationId = body.GetProperty("locationId").GetInt32();
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var location = await context.RestaurantLocations
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == locationId);
+            Assert.Equal(LocationLifecycleStatus.Draft, location.LifecycleStatus);
+            Assert.Equal(PremisesReviewStatus.PendingReview, location.PremisesReviewStatus);
+        }
+
+        [Fact]
+        public async Task AddSingle_NoMatch_ReturnsNullWarning()
+        {
+            var seeded = await SeedWithRoomAsync(
+                restaurantName: "Single Add Clean Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Group
+            );
+
+            using var request = AuthorizedPost(
+                "/api/locations",
+                seeded.OwnerJwt,
+                new
+                {
+                    locationName = "Clean Cafe",
+                    address = "77 Unique Lane",
+                    city = "York",
+                    postcode = "YO1 7HH",
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(JsonValueKind.Null, body.GetProperty("warning").ValueKind);
+        }
+
+        [Fact]
+        public async Task Import_FsaEstablishmentIdColumn_FlagsMatchAtADifferentAddress()
+        {
+            var other = await SeedWithRoomAsync(
+                restaurantName: "Fsa Other Tenant Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Group
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                context.RestaurantLocations.Add(
+                    new RestaurantLocation
+                    {
+                        RestaurantId = other.RestaurantId,
+                        LocationName = "Fsa Venue",
+                        Address = "1 Fsa Street",
+                        City = "Leeds",
+                        Postcode = "LS1 1AA",
+                        LifecycleStatus = LocationLifecycleStatus.Active,
+                        FsaEstablishmentId = "FSA-9001",
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            var seeded = await SeedWithRoomAsync(
+                restaurantName: "Fsa Import Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Group
+            );
+            using var request = AuthorizedPost(
+                "/api/locations/import",
+                seeded.OwnerJwt,
+                new
+                {
+                    rows = new object[]
+                    {
+                        new
+                        {
+                            locationName = "Moved Venue",
+                            address = "50 Elsewhere Road",
+                            city = "Leeds",
+                            postcode = "LS2 9ZZ",
+                            fsaEstablishmentId = "fsa-9001",
+                        },
+                    },
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            var body = await ReadJsonAsync(response);
+            var created = Assert.Single(body.GetProperty("created").EnumerateArray());
+            AssertGenericWarningShape(created.GetProperty("warning"));
+        }
+
+        private static Task<string> RawAsync(JsonElement element) =>
+            Task.FromResult(element.GetRawText());
+
+        /// <summary>
+        /// The only members an operator may see on a premises warning.
+        /// </summary>
+        private static void AssertGenericWarningShape(JsonElement warning)
+        {
+            Assert.Equal("possible_duplicate_premises", warning.GetProperty("code").GetString());
+            Assert.Equal(
+                "Possible duplicate premises. Saved as Draft for review.",
+                warning.GetProperty("message").GetString()
+            );
+            var names = warning.EnumerateObject().Select(p => p.Name).OrderBy(n => n).ToArray();
+            Assert.Equal(new[] { "code", "matchedRowIndex", "message" }, names);
         }
 
         [Fact]

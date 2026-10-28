@@ -9,6 +9,16 @@ namespace TummlyBackend.Helpers
     /// </summary>
     public static class PremisesKey
     {
+        /// <summary>Column width of <c>RestaurantLocation.PremisesKey</c>.</summary>
+        public const int MaxStoredLength = 450;
+
+        /// <summary>
+        /// Key as persisted and compared in SQL. Cut to the column width, so a
+        /// very long address still matches itself.
+        /// </summary>
+        public static string? ForStorage(string? key) =>
+            key is { Length: > MaxStoredLength } ? key[..MaxStoredLength] : key;
+
         private static readonly IReadOnlyDictionary<string, string> TokenAliases =
             new Dictionary<string, string>(StringComparer.Ordinal)
             {

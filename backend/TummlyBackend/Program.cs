@@ -1246,6 +1246,7 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
+builder.Services.AddScoped<IPremisesReviewService, PremisesReviewService>();
 builder.Services.AddScoped<IGuestRetentionPurgeService, GuestRetentionPurgeService>();
 
 builder.Services.AddScoped<IHelpCentreService, HelpCentreService>();

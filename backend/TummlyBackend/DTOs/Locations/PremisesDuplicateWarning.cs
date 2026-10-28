@@ -1,15 +1,14 @@
 namespace TummlyBackend.DTOs.Locations
 {
     /// <summary>
-    /// Warning on a row that was created as Draft because its premises match
-    /// another row. Matched id and name are set only for a same-Workspace
-    /// match; other-Workspace matches stay generic so no tenant data leaks.
+    /// Warning on a Location that was saved as Draft for premises review.
+    /// Every match looks the same to the operator: no scope, id, name or
+    /// other-Workspace signal. <see cref="MatchedRowIndex"/> is set only when
+    /// the match is an earlier row of the caller's own import file.
     /// </summary>
     public sealed record PremisesDuplicateWarning(
         string Code,
-        string Scope,
-        int? MatchedLocationId = null,
-        string? MatchedLocationName = null,
+        string Message,
         int? MatchedRowIndex = null
     );
 
@@ -17,13 +16,10 @@ namespace TummlyBackend.DTOs.Locations
     {
         public const string Code = "possible_duplicate_premises";
 
-        /// <summary>Matches an earlier row in the same import file.</summary>
-        public const string ScopeSameFile = "same_file";
+        public const string Message =
+            "Possible duplicate premises. Saved as Draft for review.";
 
-        /// <summary>Matches an existing Location in the same Workspace.</summary>
-        public const string ScopeSameWorkspace = "same_workspace";
-
-        /// <summary>Matches a Location in a different Workspace.</summary>
-        public const string ScopeOtherWorkspace = "other_workspace";
+        public static PremisesDuplicateWarning Warning(int? matchedRowIndex = null) =>
+            new(Code, Message, matchedRowIndex);
     }
 }
