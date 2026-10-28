@@ -21,24 +21,31 @@ namespace TummlyBackend.Services
         public const string EmailDeliveredType = "email.delivered";
         public const string EmailBouncedType = "email.bounced";
         public const string EmailFailedType = "email.failed";
+        public const string EmailComplainedType = "email.complained";
+
+        /// <summary>Resend bounce.type for a hard (permanent) bounce.</summary>
+        public const string PermanentBounceType = "Permanent";
 
         private static readonly TimeSpan MaxSkew = TimeSpan.FromMinutes(5);
 
         private readonly ApplicationDbContext _context;
         private readonly EmailSettings _emailSettings;
         private readonly ILogger<ResendWebhookService> _logger;
+        private readonly IGuestInitiatedMarketingWithdrawService _withdraw;
         private readonly Func<DateTime> _utcNow;
 
         public ResendWebhookService(
             ApplicationDbContext context,
             IOptions<EmailSettings> emailSettings,
             ILogger<ResendWebhookService> logger,
+            IGuestInitiatedMarketingWithdrawService withdraw,
             Func<DateTime>? utcNow = null
         )
         {
             _context = context;
             _emailSettings = emailSettings.Value;
             _logger = logger;
+            _withdraw = withdraw;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
@@ -90,6 +97,16 @@ namespace TummlyBackend.Services
                 ? emailIdEl.GetString()?.Trim()
                 : null;
 
+            if (IsSuppressingEvent(type, data))
+            {
+                await ApplyEmailSuppressionAsync(
+                    type!,
+                    emailId,
+                    data,
+                    cancellationToken
+                );
+            }
+
             var replyState = ReplyStateForEvent(type);
             if (replyState != null)
             {
@@ -133,6 +150,134 @@ namespace TummlyBackend.Services
             delivery.UpdatedAtUtc = _utcNow();
             await _context.SaveChangesAsync(cancellationToken);
             return ResendWebhookHandleStatus.Accepted;
+        }
+
+        private static bool IsSuppressingEvent(string? type, JsonElement data)
+        {
+            if (string.Equals(type, EmailComplainedType, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return string.Equals(type, EmailBouncedType, StringComparison.Ordinal)
+                && data.TryGetProperty("bounce", out var bounce)
+                && bounce.ValueKind == JsonValueKind.Object
+                && bounce.TryGetProperty("type", out var bounceType)
+                && string.Equals(
+                    bounceType.GetString(),
+                    PermanentBounceType,
+                    StringComparison.Ordinal
+                );
+        }
+
+        /// <summary>
+        /// Hard bounce and complaint withdraw EmailMarketing for the recipient at
+        /// the restaurant that sent the email, and stage the restaurant-scoped
+        /// suppression so later sends and re-submits stay withdrawn.
+        /// </summary>
+        private async Task ApplyEmailSuppressionAsync(
+            string type,
+            string? emailId,
+            JsonElement data,
+            CancellationToken cancellationToken
+        )
+        {
+            var recipient = ReadFirstRecipient(data);
+            if (string.IsNullOrWhiteSpace(emailId) || recipient == null)
+            {
+                return;
+            }
+
+            var restaurantId = await ResolveRestaurantIdAsync(
+                emailId,
+                cancellationToken
+            );
+            if (restaurantId == null)
+            {
+                _logger.LogInformation(
+                    "Resend {EventType} with no matching sent email (email_id={EmailId}).",
+                    type,
+                    emailId
+                );
+                return;
+            }
+
+            var source = string.Equals(
+                type,
+                EmailComplainedType,
+                StringComparison.Ordinal
+            )
+                ? GuestContactSuppressionSources.EmailComplaint
+                : GuestContactSuppressionSources.EmailBounce;
+
+            await _withdraw.WithdrawForRestaurantContactAsync(
+                restaurantId.Value,
+                recipient,
+                isEmail: true,
+                LocationGuestPermissionKind.EmailMarketing,
+                source == GuestContactSuppressionSources.EmailComplaint
+                    ? LocationGuestPermissionLedgerSources.EmailComplaint
+                    : LocationGuestPermissionLedgerSources.EmailBounce,
+                cancellationToken,
+                suppressionSource: source
+            );
+        }
+
+        private static string? ReadFirstRecipient(JsonElement data)
+        {
+            if (
+                !data.TryGetProperty("to", out var to)
+                || to.ValueKind != JsonValueKind.Array
+            )
+            {
+                return null;
+            }
+
+            foreach (var item in to.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                var address = item.GetString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(address))
+                {
+                    return address;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Restaurant that sent the email: Campaign delivery (guest location)
+        /// first, then Feedback guest reply.
+        /// </summary>
+        private async Task<int?> ResolveRestaurantIdAsync(
+            string emailId,
+            CancellationToken cancellationToken
+        )
+        {
+            var campaignRestaurantId = await _context.CampaignRecipientDeliveries
+                .Where(row => row.ProviderMessageId == emailId)
+                .Select(row => row.LocationGuest!.RestaurantLocation!.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (campaignRestaurantId > 0)
+            {
+                return campaignRestaurantId;
+            }
+
+            var replyRestaurantId = await _context.FeedbackGuestResponses
+                .Where(row => row.ProviderMessageId == emailId)
+                .Select(row => row.Feedback!.RestaurantLocation!.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (replyRestaurantId > 0)
+            {
+                return replyRestaurantId;
+            }
+
+            return null;
         }
 
         private static GuestReplyDeliveryState? ReplyStateForEvent(string? type) =>
