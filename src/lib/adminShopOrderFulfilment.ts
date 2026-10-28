@@ -47,6 +47,31 @@ export function formatAdminShopGbpFromPence(pence: number): string {
   }).format(pence / 100)
 }
 
+export function formatAdminShopGbpOrDash(pence: number | null | undefined): string {
+  return pence == null ? "—" : formatAdminShopGbpFromPence(pence)
+}
+
+export const ADMIN_SHOP_TRANSITION_NOTE_MAX_LENGTH = 500
+
+/** Trimmed audit note for a status change; null when blank. */
+export function normaliseAdminShopTransitionNote(note: string): string | null {
+  const trimmed = note.trim()
+  return trimmed.length === 0 ? null : trimmed
+}
+
+export function adminShopPaymentSourceLabel(
+  source: string | null | undefined
+): string {
+  switch (source) {
+    case "revolut":
+      return "Revolut"
+    case "complimentary":
+      return "Complimentary (£0)"
+    default:
+      return "—"
+  }
+}
+
 export function nextAdminShopFulfilmentAction(
   status: string
 ): { status: "in_transit" | "delivered"; label: string } | null {

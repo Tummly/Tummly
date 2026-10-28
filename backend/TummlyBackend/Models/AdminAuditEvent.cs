@@ -40,6 +40,9 @@
         public const string ShopCatalogAvailableInShop =
             "shop.catalog_available_in_shop";
         public const string ShopPrintAssetApproved = "shop.print_asset_approved";
+        public const string ShopPrintAssetRetried = "shop.print_asset_retried";
+        public const string ShopFulfilmentStatusChanged =
+            "shop.fulfilment_status_changed";
         public const string RetentionGuestPurge = "retention.guest_purge";
         public const string GuestDelete = "guest.delete";
         public const string GuestDataExport = "guest.data_export";

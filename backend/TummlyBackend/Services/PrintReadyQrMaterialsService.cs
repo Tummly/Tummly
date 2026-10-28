@@ -575,6 +575,8 @@ namespace TummlyBackend.Services
         public async Task<ShopPrintAssetReadinessDto?> RetryShopOrderAsync(
             Guid shopOrderId,
             QrType qrType,
+            int actorAdminUserId,
+            string actorIdentity,
             CancellationToken cancellationToken = default
         )
         {
@@ -624,7 +626,29 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var statusBefore = asset.Status;
             await GenerateAndStoreAsync(order.Location, asset, cancellationToken);
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopPrintAssetRetried,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopOrder,
+                    shopOrderId.ToString("D"),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: order.RestaurantId,
+                    DetailJson: System.Text.Json.JsonSerializer.Serialize(
+                        new
+                        {
+                            qrType = qrType.ToString(),
+                            from = statusBefore.ToString(),
+                            to = asset.Status.ToString(),
+                        }
+                    )
+                )
+            );
+            await _context.SaveChangesAsync(cancellationToken);
+
             return MapShopReadiness(
                 qrType,
                 quantity,
@@ -741,6 +765,7 @@ namespace TummlyBackend.Services
             return new ShopPrintAssetPreviewDto
             {
                 ProductTitle = productTitle,
+                JobId = ShopPrintJobId(shopOrderId, qrType),
                 LocationId = order.LocationId,
                 LocationName =
                     order.LocationNameSnapshot
@@ -1374,6 +1399,13 @@ namespace TummlyBackend.Services
             );
         }
 
+        /// <summary>
+        /// Job id for one placement of a Shop order. The CSV <c>JobId</c> column and
+        /// the admin print preview both use it.
+        /// </summary>
+        private static string ShopPrintJobId(Guid shopOrderId, QrType qrType) =>
+            $"{shopOrderId:N}-{qrType}";
+
         private static PrintReadyPlacementCsvRow BuildCsvRow(
             PrintReadyQrAsset asset,
             RestaurantLocation location,
@@ -1385,7 +1417,7 @@ namespace TummlyBackend.Services
         {
             var orderId = asset.ShopOrderId?.ToString("D") ?? "starter";
             var jobId = asset.ShopOrderId is Guid shopOrderId
-                ? $"{shopOrderId:N}-{asset.QrType}"
+                ? ShopPrintJobId(shopOrderId, asset.QrType)
                 : $"starter-{location.Id}-{asset.QrType}";
 
             return new PrintReadyPlacementCsvRow(
@@ -1553,8 +1585,9 @@ namespace TummlyBackend.Services
         /// <summary>
         /// The ordered product title for each physical QR type on the order
         /// (for example <c>QR Counter Display</c> for <c>OfferCard</c>). The
-        /// catalog title is used; a line whose SKU left the catalog keeps the
-        /// title it was ordered under. The first line of a type wins.
+        /// title the line was ordered under is used, so a later catalogue edit
+        /// does not change a settled order. The live catalogue title only fills a
+        /// blank snapshot. The first line of a type wins.
         /// </summary>
         public static IReadOnlyDictionary<QrType, string> ResolveOrderedProductTitles(
             IEnumerable<ShopOrderLine> lines,
@@ -1615,7 +1648,7 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                if (!string.IsNullOrWhiteSpace(sku.Title))
+                if (string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(sku.Title))
                 {
                     title = sku.Title;
                 }

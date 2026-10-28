@@ -83,9 +83,39 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken = default
         )
         {
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(
+                    new
+                    {
+                        success = false,
+                        message = "Invalid token.",
+                    }
+                );
+            }
+
+            var adminIdentity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+
+            if (string.IsNullOrWhiteSpace(adminIdentity))
+            {
+                return BadRequest(
+                    new
+                    {
+                        success = false,
+                        message =
+                            "Admin identity could not be resolved from the current session.",
+                    }
+                );
+            }
+
             var result = await _fulfilment.UpdateFulfilmentAsync(
                 id,
                 body,
+                staffId.Value,
+                adminIdentity,
                 cancellationToken
             );
 
@@ -400,12 +430,42 @@ namespace TummlyBackend.Controllers
                 return NotFound();
             }
 
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(
+                    new
+                    {
+                        success = false,
+                        message = "Invalid token.",
+                    }
+                );
+            }
+
+            var adminIdentity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+
+            if (string.IsNullOrWhiteSpace(adminIdentity))
+            {
+                return BadRequest(
+                    new
+                    {
+                        success = false,
+                        message =
+                            "Admin identity could not be resolved from the current session.",
+                    }
+                );
+            }
+
             try
             {
                 var asset =
                     await _printReadyQrMaterials.RetryShopOrderAsync(
                         id,
                         parsed,
+                        staffId.Value,
+                        adminIdentity,
                         cancellationToken
                     );
                 return asset == null ? NotFound() : Ok(asset);
