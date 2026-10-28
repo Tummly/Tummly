@@ -6,11 +6,11 @@ import { toast } from "sonner"
 import { postAdminPaymentRefund } from "@/api/adminApi"
 import {
   forceCancelShopOrder,
-  markShopOrderProductionStarted,
   patchAdminShopOrderFulfilment,
   type AdminShopOrderListItem,
   type AdminShopPrintAssetPreview,
 } from "@/api/adminShopOrdersApi"
+import { AdminShopFulfilmentActionDialog } from "@/components/dashboard/admin/AdminShopFulfilmentActionDialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,12 +37,11 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  adminShopFulfilmentLabel,
   adminShopOrderFulfilmentLabel,
   adminShopOrderReviewNotice,
+  type AdminShopFulfilmentAction,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
-  canSubmitAdminShopFulfilment,
   formatAdminShopGbpFromPence,
   nextAdminShopFulfilmentAction,
 } from "@/lib/adminShopOrderFulfilment"
@@ -56,6 +55,11 @@ import {
   OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
+
+/** Evidence timestamp for the drawer; a dash until the event exists. */
+function formatEvidenceTime(value: string | null | undefined): string {
+  return value ? new Date(value).toLocaleString() : "—"
+}
 
 type AdminShopOrderDetailDrawerProps = {
   order: AdminShopOrderListItem | null
@@ -117,8 +121,8 @@ export function AdminShopOrderDetailDrawer({
   const [refundIdempotencyKey, setRefundIdempotencyKey] = useState(() =>
     crypto.randomUUID()
   )
-  const [markStartedConfirmOpen, setMarkStartedConfirmOpen] = useState(false)
-  const [markingStarted, setMarkingStarted] = useState(false)
+  const [pendingAction, setPendingAction] =
+    useState<AdminShopFulfilmentAction | null>(null)
   const [forceCancelConfirmOpen, setForceCancelConfirmOpen] = useState(false)
   const [forceCancelling, setForceCancelling] = useState(false)
   const [forceCancelReason, setForceCancelReason] = useState("")
@@ -152,7 +156,7 @@ export function AdminShopOrderDetailDrawer({
     setPartialAmountPounds("")
     setRefundConfirmOpen(false)
     setRefundIdempotencyKey(crypto.randomUUID())
-    setMarkStartedConfirmOpen(false)
+    setPendingAction(null)
     setForceCancelConfirmOpen(false)
     setForceCancelReason("")
     setSkipRefund(false)
@@ -199,7 +203,7 @@ export function AdminShopOrderDetailDrawer({
   }
 
   const reviewNotice = adminShopOrderReviewNotice(order)
-  const nextAction = nextAdminShopFulfilmentAction(order.fulfilmentStatus)
+  const nextAction = nextAdminShopFulfilmentAction(order)
   const trackingEditable = canEditAdminShopTrackingUrl(order.fulfilmentStatus)
   const notesEditable = canEditAdminShopOpsNotes(order.fulfilmentStatus)
   const canRefund =
@@ -209,21 +213,16 @@ export function AdminShopOrderDetailDrawer({
   const productionStarted =
     order.productionStartedAtUtc != null &&
     order.productionStartedAtUtc.trim().length > 0
-  const canMarkProductionStarted = isProcessing && !productionStarted
   const canForceCancel = isProcessing
-  const anyBusy = saving || refunding || markingStarted || forceCancelling
+  const anyBusy = saving || refunding || forceCancelling
 
   const savePatch = async (input: {
-    fulfilmentStatus?: "in_transit" | "delivered"
     includeTracking?: boolean
     includeNotes?: boolean
   }) => {
     setSaving(true)
     try {
       const patch: Parameters<typeof patchAdminShopOrderFulfilment>[1] = {}
-      if (input.fulfilmentStatus) {
-        patch.fulfilmentStatus = input.fulfilmentStatus
-      }
       if (input.includeTracking) {
         const trimmed = trackingUrl.trim()
         patch.trackingUrl = trimmed.length === 0 ? null : trimmed
@@ -233,21 +232,9 @@ export function AdminShopOrderDetailDrawer({
         patch.opsNotes = trimmed.length === 0 ? null : trimmed
       }
 
-      if (
-        input.fulfilmentStatus === "in_transit" &&
-        trackingEditable &&
-        trackingUrl.trim().length > 0
-      ) {
-        patch.trackingUrl = trackingUrl.trim()
-      }
-
       const updated = await patchAdminShopOrderFulfilment(order.id, patch)
       onOrderUpdated(updated)
-      toast.success(
-        input.fulfilmentStatus
-          ? `Order marked as ${adminShopFulfilmentLabel(input.fulfilmentStatus)}`
-          : "Order fulfilment updated"
-      )
+      toast.success("Order updated")
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 409) {
         const message =
@@ -318,29 +305,6 @@ export function AdminShopOrderDetailDrawer({
       toast.error("Could not start refund.")
     } finally {
       setRefunding(false)
-    }
-  }
-
-  const handleConfirmMarkStarted = async () => {
-    setMarkingStarted(true)
-    try {
-      const updated = await markShopOrderProductionStarted(order.id)
-      onOrderUpdated(updated)
-      setMarkStartedConfirmOpen(false)
-      toast.success(
-        "Production marked as started. Operator cancel is now blocked."
-      )
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const message =
-          (error.response?.data as { message?: string } | undefined)?.message ??
-          "Could not mark production started."
-        toast.error(message)
-        return
-      }
-      toast.error("Could not mark production started.")
-    } finally {
-      setMarkingStarted(false)
     }
   }
 
@@ -537,13 +501,34 @@ export function AdminShopOrderDetailDrawer({
               </div>
               <div>
                 <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
+                  Preparation started
+                </p>
+                <p>{formatEvidenceTime(order.preparationStartedAtUtc)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
                   Production started
                 </p>
-                <p>
-                  {productionStarted
-                    ? new Date(order.productionStartedAtUtc!).toLocaleString()
-                    : "—"}
+                <p>{formatEvidenceTime(order.productionStartedAtUtc)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
+                  Dispatched
                 </p>
+                <p>{formatEvidenceTime(order.dispatchedAtUtc)}</p>
+                {order.dispatchCarrierName || order.dispatchCarrierReference ? (
+                  <p className="text-xs break-all">
+                    {[order.dispatchCarrierName, order.dispatchCarrierReference]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
+                  Delivered
+                </p>
+                <p>{formatEvidenceTime(order.deliveredAtUtc)}</p>
               </div>
               <div className="sm:col-span-2">
                 <p className="text-xs font-medium tracking-wide text-op-text-muted uppercase">
@@ -783,24 +768,18 @@ export function AdminShopOrderDetailDrawer({
 
             <section className="flex flex-col gap-3 py-6">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="admin-shop-tracking-url">
-                  {isProcessing
-                    ? "Tracking URL (required to dispatch)"
-                    : "Tracking URL"}
-                </Label>
+                <Label htmlFor="admin-shop-tracking-url">Tracking URL</Label>
                 <Input
                   id="admin-shop-tracking-url"
                   value={trackingUrl}
                   onChange={(event) => setTrackingUrl(event.target.value)}
                   placeholder="https://…"
-                  required={isProcessing}
-                  aria-required={isProcessing}
                   disabled={!trackingEditable || saving}
                   className="rounded-[2px]"
                 />
                 {!trackingEditable && (
                   <p className="text-xs text-op-text-muted">
-                    Tracking is read-only for this status.
+                    Tracking can be added once the order is dispatched.
                   </p>
                 )}
               </div>
@@ -818,63 +797,32 @@ export function AdminShopOrderDetailDrawer({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {(order.fulfilmentStatus === "in_transit" ||
-                  order.fulfilmentStatus === "delivered") &&
-                  notesEditable && (
-                    <Button
-                      type="button"
-                      variant="op-tertiary"
-                      className="rounded-[2px]"
-                      disabled={anyBusy}
-                      onClick={() =>
-                        void savePatch({
-                          includeNotes: true,
-                          includeTracking:
-                            order.fulfilmentStatus === "in_transit" &&
-                            trackingEditable,
-                        })
-                      }
-                    >
-                      Save notes
-                      {order.fulfilmentStatus === "in_transit" &&
-                      trackingEditable
-                        ? " & tracking"
-                        : ""}
-                    </Button>
-                  )}
+                {notesEditable && (
+                  <Button
+                    type="button"
+                    variant="op-tertiary"
+                    className="rounded-[2px]"
+                    disabled={anyBusy}
+                    onClick={() =>
+                      void savePatch({
+                        includeNotes: true,
+                        includeTracking: trackingEditable,
+                      })
+                    }
+                  >
+                    {trackingEditable ? "Save notes & tracking" : "Save notes"}
+                  </Button>
+                )}
 
                 {nextAction && (
                   <Button
                     type="button"
                     variant="op-primary"
                     className="rounded-[2px]"
-                    disabled={
-                      anyBusy ||
-                      !canSubmitAdminShopFulfilment({
-                        targetStatus: nextAction.status,
-                        trackingUrl,
-                      })
-                    }
-                    onClick={() =>
-                      void savePatch({
-                        fulfilmentStatus: nextAction.status,
-                        includeNotes: notesEditable,
-                      })
-                    }
+                    disabled={anyBusy}
+                    onClick={() => setPendingAction(nextAction)}
                   >
                     {nextAction.label}
-                  </Button>
-                )}
-
-                {canMarkProductionStarted && (
-                  <Button
-                    type="button"
-                    variant="op-secondary"
-                    className="rounded-[2px]"
-                    disabled={anyBusy}
-                    onClick={() => setMarkStartedConfirmOpen(true)}
-                  >
-                    Mark production started
                   </Button>
                 )}
 
@@ -888,16 +836,6 @@ export function AdminShopOrderDetailDrawer({
                   >
                     Force cancel
                   </Button>
-                )}
-
-                {isProcessing && (
-                  <p className="w-full text-xs text-op-text-muted">
-                    Notes and tracking are saved when you mark the order as
-                    Dispatched.
-                    {productionStarted
-                      ? " Production has started — operator cancel is blocked."
-                      : " Mark production started to block operator cancel."}
-                  </p>
                 )}
               </div>
             </section>
@@ -942,39 +880,15 @@ export function AdminShopOrderDetailDrawer({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog
-        open={markStartedConfirmOpen}
-        onOpenChange={(nextOpen) => {
-          if (markingStarted) {
-            return
-          }
-          setMarkStartedConfirmOpen(nextOpen)
+      <AdminShopFulfilmentActionDialog
+        order={pendingAction ? order : null}
+        action={pendingAction}
+        onClose={() => setPendingAction(null)}
+        onCompleted={(updated) => {
+          setPendingAction(null)
+          onOrderUpdated(updated)
         }}
-      >
-        <AlertDialogContent className="rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark production started?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This stamps {order.orderNumber} so the operator cannot cancel it.
-              You can still force-cancel from Admin if needed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={markingStarted}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              disabled={markingStarted}
-              onClick={(event) => {
-                event.preventDefault()
-                void handleConfirmMarkStarted()
-              }}
-            >
-              {markingStarted ? "Marking…" : "Mark started"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      />
 
       <AlertDialog
         open={forceCancelConfirmOpen}

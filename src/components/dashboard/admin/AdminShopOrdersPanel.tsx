@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import axios from "axios"
 import { DownloadIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -8,28 +7,17 @@ import {
   downloadAdminShopOrderPrintAsset,
   downloadAdminShopOrdersCsv,
   fetchAdminShopOrders,
-  patchAdminShopOrderFulfilment,
   type AdminShopFulfilmentStatus,
   type AdminShopOrderListItem,
   type AdminShopPrintAsset,
 } from "@/api/adminShopOrdersApi"
+import { AdminShopFulfilmentActionDialog } from "@/components/dashboard/admin/AdminShopFulfilmentActionDialog"
 import { AdminShopOrderDetailDrawer } from "@/components/dashboard/admin/AdminShopOrderDetailDrawer"
 import { AdminShopOrderRowActionsMenu } from "@/components/dashboard/admin/AdminShopOrderRowActionsMenu"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Pagination,
   PaginationContent,
@@ -58,9 +46,8 @@ import {
 import {
   ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS,
   ALL_ADMIN_SHOP_FULFILMENT_STATUSES,
-  adminShopFulfilmentLabel,
   adminShopOrderFulfilmentLabel,
-  canSubmitAdminShopFulfilment,
+  type AdminShopFulfilmentAction,
   formatAdminShopGbpFromPence,
 } from "@/lib/adminShopOrderFulfilment"
 import { defaultDownloadName } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
@@ -105,17 +92,7 @@ const ORDER_TABLE_TEXT_CLASS = "text-sm font-normal leading-[19px] text-op-text-
 
 type PendingFulfilment = {
   order: AdminShopOrderListItem
-  status: "in_transit" | "delivered"
-  label: string
-}
-
-function fulfilmentErrorMessage(error: unknown): string {
-  if (axios.isAxiosError(error)) {
-    const message = (error.response?.data as { message?: string } | undefined)
-      ?.message
-    if (message) return message
-  }
-  return "Could not update fulfilment."
+  action: AdminShopFulfilmentAction
 }
 
 function buildPageNumbers(current: number, total: number) {
@@ -160,7 +137,6 @@ export function AdminShopOrdersPanel() {
   )
   const [pendingFulfilment, setPendingFulfilment] =
     useState<PendingFulfilment | null>(null)
-  const [pendingTrackingUrl, setPendingTrackingUrl] = useState("")
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -292,44 +268,13 @@ export function AdminShopOrdersPanel() {
       }
     })
 
-  const confirmFulfilment = async () => {
-    const pending = pendingFulfilment
-    if (!pending) return
-    await runRowBusy(pending.order.id, async () => {
-      try {
-        const trackingUrl = pendingTrackingUrl.trim()
-        const updated = await patchAdminShopOrderFulfilment(pending.order.id, {
-          fulfilmentStatus: pending.status,
-          ...(pending.status === "in_transit" ? { trackingUrl } : {}),
-        })
-        setPendingFulfilment(null)
-        applyOrderUpdate(updated)
-        toast.success(
-          `Order marked as ${adminShopFulfilmentLabel(pending.status)}`
-        )
-      } catch (error) {
-        toast.error(fulfilmentErrorMessage(error))
-      }
-    })
-  }
-
-  const pendingBusy =
-    pendingFulfilment !== null &&
-    rowBusyOrderIds.has(pendingFulfilment.order.id)
-  const pendingCanSubmit =
-    pendingFulfilment !== null &&
-    canSubmitAdminShopFulfilment({
-      targetStatus: pendingFulfilment.status,
-      trackingUrl: pendingTrackingUrl,
-    })
-
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
       <header className="flex flex-col gap-3.5 leading-[0]">
         <h1 className={GUESTS_PAGE_TITLE_CLASS}>Shop orders</h1>
         <p className={GUESTS_PAGE_SUBTITLE_CLASS}>
-          Review paid materials orders, advance fulfilment, set tracking URLs,
-          and export the warehouse CSV.
+          Review paid materials orders, advance fulfilment with carrier
+          details, and export the warehouse CSV.
         </p>
       </header>
 
@@ -570,10 +515,9 @@ export function AdminShopOrdersPanel() {
                           onApproveMaterials={() =>
                             void approveRowMaterials(order)
                           }
-                          onRequestFulfilment={(status, label) => {
-                            setPendingTrackingUrl("")
-                            setPendingFulfilment({ order, status, label })
-                          }}
+                          onRequestFulfilment={(action) =>
+                            setPendingFulfilment({ order, action })
+                          }
                         />
                       </TableCell>
                     </TableRow>
@@ -663,59 +607,15 @@ export function AdminShopOrdersPanel() {
         onOrderUpdated={applyOrderUpdate}
       />
 
-      <AlertDialog
-        open={pendingFulfilment !== null}
-        onOpenChange={(nextOpen) => {
-          if (pendingBusy) return
-          if (!nextOpen) setPendingFulfilment(null)
+      <AdminShopFulfilmentActionDialog
+        order={pendingFulfilment?.order ?? null}
+        action={pendingFulfilment?.action ?? null}
+        onClose={() => setPendingFulfilment(null)}
+        onCompleted={(updated) => {
+          setPendingFulfilment(null)
+          applyOrderUpdate(updated)
         }}
-      >
-        <AlertDialogContent className="rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingFulfilment
-                ? `${pendingFulfilment.label}?`
-                : "Update fulfilment?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingFulfilment
-                ? `This updates ${pendingFulfilment.order.orderNumber} to ${adminShopFulfilmentLabel(pendingFulfilment.status)}.`
-                : null}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {pendingFulfilment?.status === "in_transit" && (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="admin-shop-dispatch-tracking-url">
-                Tracking URL (required)
-              </Label>
-              <Input
-                id="admin-shop-dispatch-tracking-url"
-                value={pendingTrackingUrl}
-                onChange={(event) => setPendingTrackingUrl(event.target.value)}
-                placeholder="https://…"
-                required
-                aria-required="true"
-                disabled={pendingBusy}
-                className="rounded-[2px]"
-              />
-            </div>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={pendingBusy}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              disabled={pendingBusy || !pendingCanSubmit}
-              onClick={(event) => {
-                event.preventDefault()
-                void confirmFulfilment()
-              }}
-            >
-              {pendingBusy ? "Saving…" : "Confirm"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      />
     </div>
   )
 }

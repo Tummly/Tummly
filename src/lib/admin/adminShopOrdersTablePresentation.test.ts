@@ -30,13 +30,24 @@ function order(
   overrides: Partial<AdminShopOrderListItem> = {}
 ): Pick<
   AdminShopOrderListItem,
-  "fulfilmentStatus" | "paymentStatus" | "isComplimentary" | "printAssets"
+  | "fulfilmentStatus"
+  | "paymentStatus"
+  | "isComplimentary"
+  | "printAssets"
+  | "preparationStartedAtUtc"
+  | "productionStartedAtUtc"
+  | "dispatchedAtUtc"
+  | "deliveredAtUtc"
 > {
   return {
     fulfilmentStatus: "processing",
     paymentStatus: "paid",
     isComplimentary: false,
     printAssets: [],
+    preparationStartedAtUtc: null,
+    productionStartedAtUtc: null,
+    dispatchedAtUtc: null,
+    deliveredAtUtc: null,
     ...overrides,
   }
 }
@@ -91,15 +102,37 @@ describe("adminShopOrderPaymentLabel", () => {
 })
 
 describe("adminShopOrderRowActions", () => {
-  it("offers Mark as dispatched only while processing", () => {
+  it("offers the next fulfilment action from the order's evidence", () => {
     expect(adminShopOrderRowActions(order()).nextFulfilmentAction).toEqual({
-      status: "in_transit",
-      label: "Mark as dispatched",
+      kind: "preparation",
+      label: "Start preparing",
+      resultLabel: "Preparing",
     })
     expect(
-      adminShopOrderRowActions(order({ fulfilmentStatus: "in_transit" }))
-        .nextFulfilmentAction
-    ).toEqual({ status: "delivered", label: "Mark as delivered" })
+      adminShopOrderRowActions(
+        order({ preparationStartedAtUtc: "2026-10-27T08:00:00Z" })
+      ).nextFulfilmentAction
+    ).toEqual({
+      kind: "production",
+      label: "Start production",
+      resultLabel: "In production",
+    })
+    expect(
+      adminShopOrderRowActions(
+        order({
+          preparationStartedAtUtc: "2026-10-27T08:00:00Z",
+          productionStartedAtUtc: "2026-10-27T09:00:00Z",
+        })
+      ).nextFulfilmentAction
+    ).toMatchObject({ kind: "dispatch", label: "Mark as Dispatched" })
+    expect(
+      adminShopOrderRowActions(
+        order({
+          fulfilmentStatus: "in_transit",
+          dispatchedAtUtc: "2026-10-27T10:00:00Z",
+        })
+      ).nextFulfilmentAction
+    ).toMatchObject({ kind: "delivery", label: "Mark as Delivered" })
     expect(
       adminShopOrderRowActions(order({ fulfilmentStatus: "delivered" }))
         .nextFulfilmentAction

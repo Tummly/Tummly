@@ -31,6 +31,7 @@ export const ALL_ADMIN_SHOP_FULFILMENT_STATUSES: AdminShopFulfilmentStatus[] = [
   "cancelled",
 ]
 
+/** Stored status label for filters. Row and drawer labels use the evidence. */
 export function adminShopFulfilmentLabel(status: string): string {
   if (status in ADMIN_SHOP_FULFILMENT_STATUS_LABELS) {
     return ADMIN_SHOP_FULFILMENT_STATUS_LABELS[
@@ -40,54 +41,122 @@ export function adminShopFulfilmentLabel(status: string): string {
   return status
 }
 
+/** Fields that decide the customer fulfilment label and the next action. */
+export type AdminShopFulfilmentEvidence = Pick<
+  AdminShopOrderListItem,
+  | "fulfilmentStatus"
+  | "preparationStartedAtUtc"
+  | "productionStartedAtUtc"
+  | "dispatchedAtUtc"
+  | "deliveredAtUtc"
+>
+
+export type AdminShopFulfilmentActionKind =
+  | "preparation"
+  | "production"
+  | "dispatch"
+  | "delivery"
+
+export type AdminShopFulfilmentAction = {
+  kind: AdminShopFulfilmentActionKind
+  /** Button and menu text. */
+  label: string
+  /** Customer label the action records once it succeeds. */
+  resultLabel: string
+}
+
+const FULFILMENT_ACTIONS: Record<
+  AdminShopFulfilmentActionKind,
+  Omit<AdminShopFulfilmentAction, "kind">
+> = {
+  preparation: { label: "Start preparing", resultLabel: "Preparing" },
+  production: { label: "Start production", resultLabel: "In production" },
+  dispatch: { label: "Mark as Dispatched", resultLabel: "Dispatched" },
+  delivery: { label: "Mark as Delivered", resultLabel: "Delivered" },
+}
+
+function hasEvidence(value: string | null | undefined): boolean {
+  return value != null && value.trim().length > 0
+}
+
 /**
- * Admin label for an order row. A paid order still in processing reads
- * "Preparing" once production has started; the stored status is unchanged.
+ * Customer label for a paid order. Each stage needs its own evidence
+ * timestamp, so the label mirrors the backend: a tracking URL alone never
+ * reads "Dispatched".
  */
 export function adminShopOrderFulfilmentLabel(
-  order: Pick<AdminShopOrderListItem, "fulfilmentStatus" | "productionStartedAtUtc">
+  order: AdminShopFulfilmentEvidence
 ): string {
-  if (order.fulfilmentStatus === "processing" && order.productionStartedAtUtc) {
+  if (order.fulfilmentStatus === "cancelled") {
+    return "Cancelled"
+  }
+  if (
+    order.fulfilmentStatus === "delivered" &&
+    hasEvidence(order.deliveredAtUtc)
+  ) {
+    return "Delivered"
+  }
+  if (
+    (order.fulfilmentStatus === "in_transit" ||
+      order.fulfilmentStatus === "delivered") &&
+    hasEvidence(order.dispatchedAtUtc)
+  ) {
+    return "Dispatched"
+  }
+  if (hasEvidence(order.productionStartedAtUtc)) {
+    return "In production"
+  }
+  if (hasEvidence(order.preparationStartedAtUtc)) {
     return "Preparing"
   }
-  return adminShopFulfilmentLabel(order.fulfilmentStatus)
+  return "Confirmed"
 }
 
-export function formatAdminShopGbpFromPence(pence: number): string {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-  }).format(pence / 100)
-}
-
+/** The one fulfilment action an order can take next, in customer-status order. */
 export function nextAdminShopFulfilmentAction(
-  status: string
-): { status: "in_transit" | "delivered"; label: string } | null {
-  if (status === "processing") {
-    return { status: "in_transit", label: "Mark as Dispatched" }
+  order: AdminShopFulfilmentEvidence
+): AdminShopFulfilmentAction | null {
+  const action = (kind: AdminShopFulfilmentActionKind) => ({
+    kind,
+    ...FULFILMENT_ACTIONS[kind],
+  })
+
+  if (order.fulfilmentStatus === "in_transit") {
+    return hasEvidence(order.dispatchedAtUtc) ? action("delivery") : null
   }
-  if (status === "in_transit") {
-    return { status: "delivered", label: "Mark as Delivered" }
+  if (order.fulfilmentStatus !== "processing") {
+    return null
   }
-  return null
+  if (!hasEvidence(order.preparationStartedAtUtc)) {
+    return action("preparation")
+  }
+  if (!hasEvidence(order.productionStartedAtUtc)) {
+    return action("production")
+  }
+  return action("dispatch")
 }
 
-/**
- * Dispatch needs a tracking reference (trackingUrl). Other transitions do not.
- * The API rejects a dispatch without one, so Admin UI blocks it first.
- */
-export function canSubmitAdminShopFulfilment(input: {
-  targetStatus: string
-  trackingUrl: string
-}): boolean {
-  if (input.targetStatus !== "in_transit") {
+export type AdminShopDispatchFields = {
+  carrierName: string
+  carrierReference: string
+}
+
+/** Dispatch needs a carrier or supplier name and reference. Other actions need no fields. */
+export function canSubmitAdminShopFulfilmentAction(
+  action: Pick<AdminShopFulfilmentAction, "kind">,
+  dispatch: AdminShopDispatchFields
+): boolean {
+  if (action.kind !== "dispatch") {
     return true
   }
-  return input.trackingUrl.trim().length > 0
+  return (
+    dispatch.carrierName.trim().length > 0 &&
+    dispatch.carrierReference.trim().length > 0
+  )
 }
 
 export function canEditAdminShopTrackingUrl(status: string): boolean {
-  return status === "processing" || status === "in_transit"
+  return status === "in_transit"
 }
 
 export function canEditAdminShopOpsNotes(status: string): boolean {
@@ -97,6 +166,14 @@ export function canEditAdminShopOpsNotes(status: string): boolean {
     status === "delivered"
   )
 }
+
+export function formatAdminShopGbpFromPence(pence: number): string {
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+  }).format(pence / 100)
+}
+
 
 export type AdminShopOrderReviewNotice = {
   title: string

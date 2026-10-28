@@ -2,7 +2,11 @@ import type {
   AdminShopOrderListItem,
   AdminShopPrintAssetQrType,
 } from "@/api/adminShopOrdersApi"
-import { nextAdminShopFulfilmentAction } from "@/lib/adminShopOrderFulfilment"
+import {
+  type AdminShopFulfilmentAction,
+  type AdminShopFulfilmentEvidence,
+  nextAdminShopFulfilmentAction,
+} from "@/lib/adminShopOrderFulfilment"
 
 const LONDON_DATE_TIME_FORMAT = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/London",
@@ -55,24 +59,18 @@ export function adminShopOrderPaymentLabel(
   return "Unpaid"
 }
 
-const ROW_FULFILMENT_LABELS: Record<"in_transit" | "delivered", string> = {
-  in_transit: "Mark as dispatched",
-  delivered: "Mark as delivered",
-}
 
 export type AdminShopOrderRowActions = {
   /** Assets that are Ready and approved; download is enabled when non-empty. */
   downloadQrTypes: AdminShopPrintAssetQrType[]
   /** Assets that are Ready and not yet approved. */
   approveQrTypes: AdminShopPrintAssetQrType[]
-  nextFulfilmentAction: {
-    status: "in_transit" | "delivered"
-    label: string
-  } | null
+  nextFulfilmentAction: AdminShopFulfilmentAction | null
 }
 
 export function adminShopOrderRowActions(
-  order: Pick<AdminShopOrderListItem, "fulfilmentStatus" | "printAssets">
+  order: AdminShopFulfilmentEvidence &
+    Pick<AdminShopOrderListItem, "printAssets">
 ): AdminShopOrderRowActions {
   const downloadQrTypes: AdminShopPrintAssetQrType[] = []
   const approveQrTypes: AdminShopPrintAssetQrType[] = []
@@ -87,13 +85,7 @@ export function adminShopOrderRowActions(
     }
   }
 
-  const next = nextAdminShopFulfilmentAction(order.fulfilmentStatus)
-  const nextFulfilmentAction = next
-    ? {
-        status: next.status,
-        label: ROW_FULFILMENT_LABELS[next.status],
-      }
-    : null
+  const nextFulfilmentAction = nextAdminShopFulfilmentAction(order)
 
   return { downloadQrTypes, approveQrTypes, nextFulfilmentAction }
 }
