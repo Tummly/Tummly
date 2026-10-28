@@ -25,18 +25,21 @@ namespace TummlyBackend.Controllers
         private readonly IGuestPreferencesVerificationService _verification;
         private readonly ITummlyGuestIdentityService _identity;
         private readonly IConfiguration _configuration;
+        private readonly TimeProvider _timeProvider;
 
         public PublicGuestPreferencesController(
             ApplicationDbContext context,
             IGuestPreferencesVerificationService verification,
             ITummlyGuestIdentityService identity,
-            IConfiguration configuration
+            IConfiguration configuration,
+            TimeProvider timeProvider
         )
         {
             _context = context;
             _verification = verification;
             _identity = identity;
             _configuration = configuration;
+            _timeProvider = timeProvider;
         }
 
         /// <summary>Signed link from a marketing email (<c>UnsubscribeToken</c>).</summary>
@@ -164,7 +167,7 @@ namespace TummlyBackend.Controllers
             return GuestPreferencesSessionToken.Create(
                 proven.TummlyGuestId,
                 proven.ContactId,
-                DateTime.UtcNow,
+                _timeProvider.GetUtcNow().UtcDateTime,
                 secret
             );
         }

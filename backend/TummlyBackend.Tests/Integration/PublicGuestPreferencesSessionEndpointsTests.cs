@@ -132,7 +132,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(unknownBody, knownBody);
             Assert.True(JsonDocument.Parse(knownBody).RootElement.GetProperty("sent").GetBoolean());
 
-            var sent = Assert.Single(_email.Sent);
+            var sent = (await WaitForSingleEmailAsync());
             Assert.Equal(known, sent.ToEmail);
         }
 
@@ -146,7 +146,7 @@ namespace TummlyBackend.Tests.Integration
                 new { contact = email }
             );
             Assert.Equal(HttpStatusCode.Accepted, started.StatusCode);
-            var link = Assert.Single(_email.Sent).ConfirmUrl;
+            var link = (await WaitForSingleEmailAsync()).ConfirmUrl;
             var v = link[(link.IndexOf("?v=", StringComparison.Ordinal) + 3)..];
             var now = DateTime.UtcNow;
 
@@ -175,7 +175,7 @@ namespace TummlyBackend.Tests.Integration
             const string email = "session-verify-reuse@example.com";
             await SeedGuestAsync(email);
             await _client.PostAsJsonAsync($"{SessionPath}/start", new { contact = email });
-            var link = Assert.Single(_email.Sent).ConfirmUrl;
+            var link = (await WaitForSingleEmailAsync()).ConfirmUrl;
             var v = link[(link.IndexOf("?v=", StringComparison.Ordinal) + 3)..];
             await _client.PostAsJsonAsync($"{SessionPath}/verify-email", new { v });
 
@@ -224,7 +224,7 @@ namespace TummlyBackend.Tests.Integration
                 await verification.StartAsync(newEmail, ownerId, CancellationToken.None);
             }
 
-            var link = Assert.Single(_email.Sent).ConfirmUrl;
+            var link = (await WaitForSingleEmailAsync()).ConfirmUrl;
             Assert.Contains("?link=", link, StringComparison.Ordinal);
             var v = link[(link.IndexOf("?link=", StringComparison.Ordinal) + 6)..];
 
@@ -244,6 +244,21 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal(GuestVerifyOutcome.Ok, result.Outcome);
             Assert.Equal(ownerId, result.Proven!.TummlyGuestId);
+        }
+
+        /// <summary>
+        /// Provider sends run on the background worker, so a start returns before the email exists.
+        /// Waits up to 5 seconds for exactly one email.
+        /// </summary>
+        private async Task<(string ToEmail, string ConfirmUrl)> WaitForSingleEmailAsync()
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (_email.Sent.Count == 0 && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(10);
+            }
+
+            return Assert.Single(_email.Sent);
         }
 
         private string UnsubscribeSecret()
@@ -327,14 +342,30 @@ namespace TummlyBackend.Tests.Integration
 
         private sealed class CapturingEmailService : EmailServiceStubBase
         {
-            public List<(string ToEmail, string ConfirmUrl)> Sent { get; } = new();
+            private readonly object _lock = new();
+            private readonly List<(string ToEmail, string ConfirmUrl)> _sent = new();
+
+            public IReadOnlyList<(string ToEmail, string ConfirmUrl)> Sent
+            {
+                get
+                {
+                    lock (_lock)
+                    {
+                        return _sent.ToList();
+                    }
+                }
+            }
 
             public override Task SendGuestPreferencesConfirmEmailAsync(
                 string toEmail,
                 string confirmUrl
             )
             {
-                Sent.Add((toEmail, confirmUrl));
+                lock (_lock)
+                {
+                    _sent.Add((toEmail, confirmUrl));
+                }
+
                 return Task.CompletedTask;
             }
         }

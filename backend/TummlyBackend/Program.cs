@@ -701,6 +701,11 @@ builder.Services.AddScoped<
     IGuestPreferencesVerificationService,
     GuestPreferencesVerificationService
 >();
+builder.Services.AddSingleton<GuestPreferencesSendWorker>();
+builder.Services.AddSingleton<IGuestPreferencesSendQueue>(sp =>
+    sp.GetRequiredService<GuestPreferencesSendWorker>()
+);
+builder.Services.AddHostedService<GuestPreferencesSendBackgroundService>();
 builder.Services.AddScoped<TwilioSmsInboundService>();
 builder.Services.AddScoped<TwilioSmsStatusService>();
 builder.Services.AddScoped<

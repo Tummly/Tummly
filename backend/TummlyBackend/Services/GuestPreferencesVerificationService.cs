@@ -13,6 +13,8 @@ namespace TummlyBackend.Services
     /// Proves a contact for the guest preference centre (spec §6). Email proof is a
     /// single-use confirm link. UK mobile proof is a Twilio Verify code. Both count starts
     /// per contact in <see cref="OtpVerification"/> rows.
+    /// The request does the DB work and enqueues the provider send. A background worker
+    /// sends it, so a known contact and an unknown contact take the same time to answer.
     /// </summary>
     public sealed class GuestPreferencesVerificationService : IGuestPreferencesVerificationService
     {
@@ -31,7 +33,7 @@ namespace TummlyBackend.Services
         private readonly IOtpChallengeService _otp;
         private readonly IOtpCodeHasher _hasher;
         private readonly ISmsService _sms;
-        private readonly IEmailService _email;
+        private readonly IGuestPreferencesSendQueue _sendQueue;
         private readonly ITummlyGuestIdentityService _identity;
         private readonly IConfiguration _configuration;
         private readonly TimeProvider _timeProvider;
@@ -42,7 +44,7 @@ namespace TummlyBackend.Services
             IOtpChallengeService otp,
             IOtpCodeHasher hasher,
             ISmsService sms,
-            IEmailService email,
+            IGuestPreferencesSendQueue sendQueue,
             ITummlyGuestIdentityService identity,
             IConfiguration configuration,
             TimeProvider timeProvider,
@@ -53,7 +55,7 @@ namespace TummlyBackend.Services
             _otp = otp;
             _hasher = hasher;
             _sms = sms;
-            _email = email;
+            _sendQueue = sendQueue;
             _identity = identity;
             _configuration = configuration;
             _timeProvider = timeProvider;
@@ -66,6 +68,15 @@ namespace TummlyBackend.Services
             CancellationToken ct
         )
         {
+            // Checked before any write, so a missing setting behaves the same for every contact.
+            if (!TryFrontendBaseUrl(out var frontendBaseUrl))
+            {
+                _logger.LogError(
+                    "Guest preferences start skipped: Frontend:BaseUrl is not configured."
+                );
+                return;
+            }
+
             if (
                 !GuestPreferenceContact.TryParse(
                     rawContact,
@@ -100,11 +111,11 @@ namespace TummlyBackend.Services
 
             if (contactType == TummlyGuestContactTypes.Email)
             {
-                await SendEmailLinkAsync(value, subjectId, linkToTummlyGuestId, now, ct);
+                await StartEmailAsync(value, subjectId, linkToTummlyGuestId, frontendBaseUrl, now, ct);
             }
             else
             {
-                await SendSmsCodeAsync(value, subjectId, now, ct);
+                await StartSmsAsync(value, subjectId, now, ct);
             }
         }
 
@@ -193,19 +204,23 @@ namespace TummlyBackend.Services
                 return Invalid();
             }
 
-            // For add-contact the subject is the owner id. Check it before the code is consumed.
+            // Add-contact rows name the owner. Check the owner before the code is consumed,
+            // so a link whose owner is gone is not spent.
             var ownerId = 0;
-            if (
-                !isEntry
-                && !int.TryParse(
-                    challenge.SubjectId,
-                    NumberStyles.None,
-                    CultureInfo.InvariantCulture,
-                    out ownerId
-                )
-            )
+            if (!isEntry)
             {
-                return Invalid();
+                if (
+                    !int.TryParse(
+                        challenge.SubjectId,
+                        NumberStyles.None,
+                        CultureInfo.InvariantCulture,
+                        out ownerId
+                    )
+                    || !await OwnerExistsAsync(ownerId, ct)
+                )
+                {
+                    return Invalid();
+                }
             }
 
             var now = _timeProvider.GetUtcNow().UtcDateTime;
@@ -256,11 +271,7 @@ namespace TummlyBackend.Services
             }
 
             // LinkContactAsync throws when the owner is gone, so check first and report Invalid.
-            var ownerExists = await _context.TummlyGuests.AnyAsync(
-                guest => guest.Id == ownerId,
-                ct
-            );
-            if (!ownerExists)
+            if (!await OwnerExistsAsync(ownerId, ct))
             {
                 return Invalid();
             }
@@ -276,8 +287,9 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// Runs the OTP check for an email challenge. The OTP service compares the newest
-        /// unused challenge for this address, which is this row, because older rows were
-        /// marked used. A successful check is single-use and wrong guesses are counted.
+        /// unused challenge for this address and subject. That is this row, because older
+        /// rows for the same subject were marked used. A successful check is single-use and
+        /// wrong guesses are counted.
         /// </summary>
         private async Task<GuestVerifyOutcome> VerifyEmailChallengeAsync(
             OtpVerification challenge,
@@ -304,10 +316,11 @@ namespace TummlyBackend.Services
             };
         }
 
-        private async Task SendEmailLinkAsync(
+        private async Task StartEmailAsync(
             string email,
             string subjectId,
             int? linkToTummlyGuestId,
+            string frontendBaseUrl,
             DateTime now,
             CancellationToken ct
         )
@@ -319,24 +332,18 @@ namespace TummlyBackend.Services
                 ? EntryLinkParameter
                 : AddContactLinkParameter;
             var confirmUrl =
-                $"{FrontendBaseUrl()}/preferences?{parameter}={challenge.Id}.{code}";
+                $"{frontendBaseUrl}/preferences?{parameter}={challenge.Id}.{code}";
 
-            try
-            {
-                await _email.SendGuestPreferencesConfirmEmailAsync(email, confirmUrl);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // Same response either way, so a provider failure never shows whether the contact is on file.
-                _logger.LogProviderSendFailure(
-                    ex,
-                    "Guest preferences confirm email failed for {MaskedEmail}",
-                    LogContactMask.Email(email)
-                );
-            }
+            _sendQueue.TryEnqueue(
+                new GuestPreferencesSendItem(
+                    TummlyGuestContactTypes.Email,
+                    email,
+                    confirmUrl
+                )
+            );
         }
 
-        private async Task SendSmsCodeAsync(
+        private async Task StartSmsAsync(
             string phone,
             string subjectId,
             DateTime now,
@@ -361,24 +368,16 @@ namespace TummlyBackend.Services
             );
             await _context.SaveChangesAsync(ct);
 
-            try
-            {
-                await _sms.SendOtpSmsAsync(phone);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogProviderSendFailure(
-                    ex,
-                    "Guest preferences SMS code failed for {MaskedPhone}",
-                    LogContactMask.Phone(phone)
-                );
-            }
+            _sendQueue.TryEnqueue(
+                new GuestPreferencesSendItem(TummlyGuestContactTypes.Phone, phone, null)
+            );
         }
 
         /// <summary>
-        /// Adds a new email challenge and marks older unused challenges for the same
-        /// address as used. Rows are kept, unlike <see cref="OtpChallengeService.IssueAsync"/>,
-        /// which deletes them. The start count reads these rows.
+        /// Adds a new email challenge and marks older unused challenges for the same address
+        /// and subject as used. Rows are kept, unlike <see cref="OtpChallengeService.IssueAsync"/>,
+        /// which deletes them. The start count reads these rows. The subject filter means an
+        /// add-contact start does not invalidate a pending entry link, and the reverse.
         /// </summary>
         private async Task<OtpVerification> IssueEmailChallengeAsync(
             string email,
@@ -393,6 +392,7 @@ namespace TummlyBackend.Services
                     row.Email == email
                     && row.Purpose == OtpPurposes.GuestPreferences
                     && row.Channel == OtpVerification.ChannelEmail
+                    && row.SubjectId == subjectId
                     && !row.IsUsed
                 )
                 .ToListAsync(ct);
@@ -444,6 +444,9 @@ namespace TummlyBackend.Services
             );
         }
 
+        private Task<bool> OwnerExistsAsync(int ownerId, CancellationToken ct) =>
+            _context.TummlyGuests.AnyAsync(guest => guest.Id == ownerId, ct);
+
         /// <summary>
         /// Entry starts send only when a Master Guest holds the contact, across all restaurants.
         /// </summary>
@@ -476,15 +479,10 @@ namespace TummlyBackend.Services
             );
         }
 
-        private string FrontendBaseUrl()
+        private bool TryFrontendBaseUrl(out string baseUrl)
         {
-            var baseUrl = _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/');
-            if (string.IsNullOrWhiteSpace(baseUrl))
-            {
-                throw new InvalidOperationException("Frontend:BaseUrl is not configured.");
-            }
-
-            return baseUrl;
+            baseUrl = _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/') ?? string.Empty;
+            return baseUrl.Length > 0;
         }
 
         private static bool TryParseEmailLink(
