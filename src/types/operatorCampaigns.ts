@@ -232,6 +232,9 @@ export type CampaignDraftDetail = {
   offerId: number | null
   /** Catalog Offer title when attached. */
   offerTitle?: string | null
+  /** Recent redeemers period in days; null when the audience does not use it. */
+  audienceLookbackDays?: number | null
+  audienceLookbackTimeZone?: string | null
   messageSubject: string | null
   messageBody: string | null
   rowVersion: string
@@ -251,6 +254,18 @@ export type CreateCampaignDraftRequest = {
   offerId?: number | null
   messageSubject?: string | null
   messageBody?: string | null
+}
+
+/** Home recommendation click — server returns the open Draft for this recommendation. */
+export type CreateRecommendationCampaignDraftRequest = {
+  recommendationType: string
+  draft: CreateCampaignDraftRequest
+}
+
+export type CampaignRecommendationDraftResponse = {
+  success: boolean
+  campaign: CampaignDraftDetail
+  reused: boolean
 }
 
 export type PatchCampaignDraftRequest = {
@@ -289,6 +304,11 @@ export type CampaignEligibilityDetail = {
   excludedReasons: CampaignEligibilityExcludedReason[]
   checkSetVersion: string
   evaluatedAt: string
+  /** Why the audience is unavailable for this Campaign (for example no Offer attached). */
+  unavailableReason?: string | null
+  /** Recent redeemers period in days (30 when the Campaign has none stored). */
+  lookbackDays?: number | null
+  lookbackTimeZone?: string | null
 }
 
 export type CampaignEligibilityResponse = {

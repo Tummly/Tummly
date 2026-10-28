@@ -10,9 +10,11 @@ import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraft
 import {
   CAMPAIGN_AUDIENCE_COPY,
   CAMPAIGN_AUDIENCE_OPTIONS,
+  CAMPAIGN_RECENT_REDEEMERS_DEFAULT_LOOKBACK_DAYS,
   errorCampaignAudienceEligibilityBreakdown,
   evaluableCampaignAudienceIds,
   formatAudienceMatchedEligibleLabel,
+  formatRecentRedeemersPeriodLabel,
   isCampaignAudienceUnevaluable,
   resolveAudienceCardCounts,
   unavailableCampaignAudienceEligibilityBreakdown,
@@ -164,6 +166,7 @@ import type {
   CatalogOffersListResponse,
   CommitCampaignScheduleRequest,
   CreateCampaignDraftRequest,
+  CreateRecommendationCampaignDraftRequest,
   PatchCampaignDraftRequest,
 } from "@/types/operatorCampaigns"
 
@@ -198,6 +201,8 @@ export type CampaignWizardOpenFromRecommendationInput = {
   locationId: number
   locationName: string
   locationAddress?: string | null
+  /** Home campaign recommendation type — part of the Draft reuse key. */
+  recommendationType: string
   draftPrefill: CampaignRecommendationDraftPrefill
 }
 
@@ -239,10 +244,22 @@ export type CampaignWizardAdapters = {
   loadAudienceEligibility?: (input: {
     locationId: number
     audienceKey: CampaignAudienceId
+    /** Campaign's attached Offer — offer-not-redeemed needs it. */
+    offerId?: number | null
+    /** Stored recent-redeemers period; the server default applies when null. */
+    lookbackDays?: number | null
+    lookbackTimeZone?: string | null
   }) => Promise<CampaignAudienceEligibilityBreakdown>
   /** Persist Draft on Save / Save and exit (ticket 29). */
   createDraft?: (
     body: CreateCampaignDraftRequest
+  ) => Promise<CampaignDraftDetail>
+  /**
+   * Home recommendation click: server create-or-get. Returns the open Draft for
+   * this recommendation at the Location, or creates it.
+   */
+  createRecommendationDraft?: (
+    body: CreateRecommendationCampaignDraftRequest
   ) => Promise<CampaignDraftDetail>
   updateDraft?: (
     id: number,
@@ -323,6 +340,8 @@ export type CampaignAudienceViewModel = {
   selectedAudienceId: CampaignAudienceId
   options: CampaignAudienceOptionViewModel[]
   eligibilityBreakdown: CampaignAudienceEligibilityBreakdown
+  /** "Last 30 days" for recent redeemers; null for other audiences. */
+  periodLabel: string | null
 }
 
 export type CampaignChannelOptionViewModel = {
@@ -677,6 +696,8 @@ export type CampaignWizardModule = {
   back: () => void
 }
 
+type CampaignAudienceLookback = { days: number; timeZone: string }
+
 type WizardState = {
   isOpen: boolean
   locationId: number | null
@@ -701,6 +722,8 @@ type WizardState = {
   channelId: CampaignChannelId
   offerStanceId: CampaignOfferStanceId
   attachedOfferId: number | null
+  /** Stored recent-redeemers period from the Draft; null uses the server default. */
+  audienceLookback: CampaignAudienceLookback | null
   attachedOfferTitle: string | null
   createOfferPanelOpen: boolean
   createOfferDrawerMode: CreateEditOfferDrawerMode
@@ -794,6 +817,7 @@ function emptyState(
     channelId: defaultCampaignChannelId(),
     offerStanceId: defaultCampaignOfferStanceId(),
     attachedOfferId: null,
+    audienceLookback: null,
     attachedOfferTitle: null,
     createOfferPanelOpen: false,
     createOfferDrawerMode: "create",
@@ -886,6 +910,28 @@ function clearSendTestDialog(state: WizardState): WizardState {
     sendTestEmail: "",
     sendTestStatus: "idle",
     sendTestError: null,
+  }
+}
+
+function createDraftRequestBody(
+  locationId: number,
+  draftName: string | null,
+  fields: ReturnType<typeof buildDraftFields>
+): CreateCampaignDraftRequest {
+  return {
+    locationId,
+    ...(draftName != null && draftName.trim().length > 0
+      ? { name: draftName.trim() }
+      : {}),
+    goalId: fields.goalId,
+    templateId: fields.templateId,
+    templateVersion: fields.templateVersion,
+    audienceKey: fields.audienceKey,
+    channel: fields.channel,
+    offerStance: fields.offerStance,
+    offerId: fields.offerId,
+    messageSubject: fields.messageSubject,
+    messageBody: fields.messageBody,
   }
 }
 
@@ -991,11 +1037,20 @@ function buildAudienceViewModel(
         : unavailableCampaignAudienceEligibilityBreakdown())
   }
 
+  const periodLabel =
+    state.audienceId === "recent-redeemers"
+      ? formatRecentRedeemersPeriodLabel(
+          eligibilityBreakdown.lookbackDays
+            ?? CAMPAIGN_RECENT_REDEEMERS_DEFAULT_LOOKBACK_DAYS
+        )
+      : null
+
   return {
     loadStatus: state.audienceLoadStatus,
     selectedAudienceId: state.audienceId,
     options,
     eligibilityBreakdown,
+    periodLabel,
   }
 }
 
@@ -2373,21 +2428,9 @@ export function createCampaignWizardModule(
 
     try {
       const saved = isCreate
-        ? await adapters.createDraft!({
-            locationId,
-            ...(state.draftName != null && state.draftName.trim().length > 0
-              ? { name: state.draftName.trim() }
-              : {}),
-            goalId: fields.goalId,
-            templateId: fields.templateId,
-            templateVersion: fields.templateVersion,
-            audienceKey: fields.audienceKey,
-            channel: fields.channel,
-            offerStance: fields.offerStance,
-            offerId: fields.offerId,
-            messageSubject: fields.messageSubject,
-            messageBody: fields.messageBody,
-          })
+        ? await adapters.createDraft!(
+            createDraftRequestBody(locationId, state.draftName, fields)
+          )
         : await adapters.updateDraft!(draftId, {
             rowVersion: draftRowVersion ?? "",
             goalId: fields.goalId,
@@ -2471,7 +2514,13 @@ export function createCampaignWizardModule(
             )
           : Promise.allSettled(
               evaluableIds.map((audienceKey) =>
-                loadAudienceEligibility({ locationId, audienceKey })
+                loadAudienceEligibility({
+                  locationId,
+                  audienceKey,
+                  offerId: state.attachedOfferId,
+                  lookbackDays: state.audienceLookback?.days ?? null,
+                  lookbackTimeZone: state.audienceLookback?.timeZone ?? null,
+                })
               )
             )
 
@@ -2693,6 +2742,185 @@ export function createCampaignWizardModule(
     }
   }
 
+  const openFromDraft = async (
+    input: CampaignWizardOpenFromDraftInput
+  ): Promise<void> => {
+    audienceLoadGeneration += 1
+    const draft = input.draft
+    const resolved = mapCampaignTemplateSuggestions({
+      goalId: draft.goalId ?? "custom-campaign",
+      audienceKey: draft.audienceKey ?? "all-eligible-guests",
+      channel: draft.channel ?? defaultCampaignChannelId(),
+      offerStance: draft.offerStance ?? defaultCampaignOfferStanceId(),
+    })
+    const goalId =
+      draft.goalId == null ? null : resolved.goalId
+    const hasMessageContent =
+      (draft.messageBody?.trim().length ?? 0) > 0
+      || (draft.messageSubject?.trim().length ?? 0) > 0
+    // Resume at first incomplete step from persisted fields (schedule is not stored).
+    // Assistant Change audience / Add Offer may force Audience or Offer.
+    const forceNoOfferLand =
+      input.startStep === "offer" && draft.offerId == null
+    const stepId: CampaignWizardStepId =
+      input.startStep === "audience"
+        ? "audience"
+        : input.startStep === "offer"
+          ? "offer"
+          : input.startStep === "schedule"
+            ? "schedule"
+            : input.startStep === "review"
+              ? "review"
+              : goalId == null
+                ? "goal"
+                : hasMessageContent
+                  ? "schedule"
+                  : "audience"
+
+    const offerStanceId = forceNoOfferLand
+      ? "no-offer"
+      : resolved.offerStanceId
+    const attachedOfferId = forceNoOfferLand ? null : draft.offerId
+
+    state = {
+      ...emptyState(defaultChromeAccess),
+      isOpen: true,
+      locationId: draft.locationId,
+      locationName: input.locationName,
+      locationAddress: normalizeLocationAddress(input.locationAddress),
+      templateId: draft.templateId,
+      templateVersion: draft.templateVersion,
+      draftId: draft.id,
+      draftRowVersion: draft.rowVersion,
+      stepId,
+      goalId,
+      openedAt: getNow(),
+      audienceId: resolved.audienceId,
+      channelId: resolved.channelId,
+      offerStanceId,
+      attachedOfferId,
+      attachedOfferTitle: null,
+      audienceLookback:
+        draft.audienceLookbackDays != null
+        && draft.audienceLookbackTimeZone != null
+          ? {
+              days: draft.audienceLookbackDays,
+              timeZone: draft.audienceLookbackTimeZone,
+            }
+          : null,
+      createOfferPanelOpen: false,
+      messageWriteEntry: hasMessageContent ? "editor" : "chooser",
+      messageSubject: draft.messageSubject ?? "",
+      messageBody: draft.messageBody ?? "",
+      scheduleModeId: input.scheduleMode
+        ?? (input.startStep === "schedule"
+          ? "schedule-later"
+          : defaultCampaignScheduleModeId()),
+      scheduleDateLocal: input.dateLocal ?? "",
+      scheduleTimeLocal: input.timeLocal ?? "",
+      lastSavedAt: getNow(),
+      saveStatus: "saved",
+    }
+    publish()
+    if (!forceNoOfferLand && draft.offerId != null) {
+      await hydrateAttachedOffer(draft.offerId)
+    }
+    // Always load eligibility — AI / message-resume lands on Schedule and
+    // still needs channel meters + Review send gates (not "Counts unavailable").
+    await Promise.all([
+      loadAudienceCounts(),
+      refreshMessagingBalances(),
+      refreshOperatorSenderEmail(),
+    ])
+  }
+
+  const openRecommendation = async (
+    input: CampaignWizardOpenFromRecommendationInput
+  ): Promise<void> => {
+    audienceLoadGeneration += 1
+    const prefill = input.draftPrefill
+    const resolved = mapCampaignTemplateSuggestions({
+      goalId: prefill.goalId,
+      audienceKey: prefill.audienceKey,
+      channel: prefill.channel,
+      offerStance: prefill.offerStance,
+    })
+    const hasMessageContent =
+      prefill.messageBody.trim().length > 0
+      || (prefill.messageSubject?.trim().length ?? 0) > 0
+    const draftName = prefill.campaignName.trim()
+
+    state = {
+      ...emptyState(defaultChromeAccess),
+      isOpen: true,
+      locationId: input.locationId,
+      locationName: input.locationName,
+      locationAddress: normalizeLocationAddress(input.locationAddress),
+      stepId: "audience",
+      goalId: resolved.goalId,
+      openedAt: getNow(),
+      audienceId: resolved.audienceId,
+      channelId: resolved.channelId,
+      offerStanceId: resolved.offerStanceId,
+      messageWriteEntry: hasMessageContent ? "editor" : "chooser",
+      messageSubject: prefill.messageSubject ?? "",
+      messageBody: prefill.messageBody,
+      draftName: draftName.length > 0 ? draftName : null,
+    }
+    publish()
+
+    if (adapters.createRecommendationDraft == null) {
+      // No create-or-get adapter: the prefill stays in the wizard without a server Draft.
+      await Promise.all([
+        loadAudienceCounts(),
+        refreshMessagingBalances(),
+        refreshOperatorSenderEmail(),
+      ])
+      return
+    }
+
+    state = { ...state, saveStatus: "saving", saveError: null }
+    publish()
+    try {
+      // The server returns the open Draft for this recommendation when one exists,
+      // with the operator's saved edits. Open that Draft, not the prefill.
+      const draft = await adapters.createRecommendationDraft({
+        recommendationType: input.recommendationType,
+        draft: createDraftRequestBody(
+          input.locationId,
+          state.draftName,
+          buildDraftFields(state)
+        ),
+      })
+      await openFromDraft({
+        locationName: input.locationName,
+        locationAddress: input.locationAddress,
+        draft,
+        startStep: "audience",
+      })
+      return
+    } catch (error) {
+      const saveError =
+        error instanceof CampaignDraftHttp409Error
+          ? error.message
+          : CAMPAIGN_DRAFT_SAVE_ERROR_MESSAGE
+      state = {
+        ...state,
+        saveStatus: "error",
+        saveError,
+      }
+      publish()
+    }
+
+    await Promise.all([
+      loadAudienceCounts(),
+      refreshMessagingBalances(),
+      refreshOperatorSenderEmail(),
+    ])
+  }
+
+  let openRecommendationInFlight: Promise<void> | null = null
+
   return {
     getSnapshot() {
       return snapshot
@@ -2745,128 +2973,15 @@ export function createCampaignWizardModule(
         refreshOperatorSenderEmail(),
       ])
     },
-    async openFromDraft(input) {
-      audienceLoadGeneration += 1
-      const draft = input.draft
-      const resolved = mapCampaignTemplateSuggestions({
-        goalId: draft.goalId ?? "custom-campaign",
-        audienceKey: draft.audienceKey ?? "all-eligible-guests",
-        channel: draft.channel ?? defaultCampaignChannelId(),
-        offerStance: draft.offerStance ?? defaultCampaignOfferStanceId(),
-      })
-      const goalId =
-        draft.goalId == null ? null : resolved.goalId
-      const hasMessageContent =
-        (draft.messageBody?.trim().length ?? 0) > 0
-        || (draft.messageSubject?.trim().length ?? 0) > 0
-      // Resume at first incomplete step from persisted fields (schedule is not stored).
-      // Assistant Change audience / Add Offer may force Audience or Offer.
-      const forceNoOfferLand =
-        input.startStep === "offer" && draft.offerId == null
-      const stepId: CampaignWizardStepId =
-        input.startStep === "audience"
-          ? "audience"
-          : input.startStep === "offer"
-            ? "offer"
-            : input.startStep === "schedule"
-              ? "schedule"
-              : input.startStep === "review"
-                ? "review"
-                : goalId == null
-                  ? "goal"
-                  : hasMessageContent
-                    ? "schedule"
-                    : "audience"
-
-      const offerStanceId = forceNoOfferLand
-        ? "no-offer"
-        : resolved.offerStanceId
-      const attachedOfferId = forceNoOfferLand ? null : draft.offerId
-
-      state = {
-        ...emptyState(defaultChromeAccess),
-        isOpen: true,
-        locationId: draft.locationId,
-        locationName: input.locationName,
-        locationAddress: normalizeLocationAddress(input.locationAddress),
-        templateId: draft.templateId,
-        templateVersion: draft.templateVersion,
-        draftId: draft.id,
-        draftRowVersion: draft.rowVersion,
-        stepId,
-        goalId,
-        openedAt: getNow(),
-        audienceId: resolved.audienceId,
-        channelId: resolved.channelId,
-        offerStanceId,
-        attachedOfferId,
-        attachedOfferTitle: null,
-        createOfferPanelOpen: false,
-        messageWriteEntry: hasMessageContent ? "editor" : "chooser",
-        messageSubject: draft.messageSubject ?? "",
-        messageBody: draft.messageBody ?? "",
-        scheduleModeId: input.scheduleMode
-          ?? (input.startStep === "schedule"
-            ? "schedule-later"
-            : defaultCampaignScheduleModeId()),
-        scheduleDateLocal: input.dateLocal ?? "",
-        scheduleTimeLocal: input.timeLocal ?? "",
-        lastSavedAt: getNow(),
-        saveStatus: "saved",
-      }
-      publish()
-      if (!forceNoOfferLand && draft.offerId != null) {
-        await hydrateAttachedOffer(draft.offerId)
-      }
-      // Always load eligibility — AI / message-resume lands on Schedule and
-      // still needs channel meters + Review send gates (not "Counts unavailable").
-      await Promise.all([
-        loadAudienceCounts(),
-        refreshMessagingBalances(),
-        refreshOperatorSenderEmail(),
-      ])
-    },
+    openFromDraft,
     async openFromRecommendation(input) {
-      audienceLoadGeneration += 1
-      const prefill = input.draftPrefill
-      const resolved = mapCampaignTemplateSuggestions({
-        goalId: prefill.goalId,
-        audienceKey: prefill.audienceKey,
-        channel: prefill.channel,
-        offerStance: prefill.offerStance,
-      })
-      const hasMessageContent =
-        prefill.messageBody.trim().length > 0
-        || (prefill.messageSubject?.trim().length ?? 0) > 0
-      const draftName = prefill.campaignName.trim()
-
-      state = {
-        ...emptyState(defaultChromeAccess),
-        isOpen: true,
-        locationId: input.locationId,
-        locationName: input.locationName,
-        locationAddress: normalizeLocationAddress(input.locationAddress),
-        stepId: "audience",
-        goalId: resolved.goalId,
-        openedAt: getNow(),
-        audienceId: resolved.audienceId,
-        channelId: resolved.channelId,
-        offerStanceId: resolved.offerStanceId,
-        messageWriteEntry: hasMessageContent ? "editor" : "chooser",
-        messageSubject: prefill.messageSubject ?? "",
-        messageBody: prefill.messageBody,
-        draftName: draftName.length > 0 ? draftName : null,
+      // A second click while the first open is in flight shares its result.
+      if (openRecommendationInFlight == null) {
+        openRecommendationInFlight = openRecommendation(input).finally(() => {
+          openRecommendationInFlight = null
+        })
       }
-      publish()
-      // Persist now so the Draft ID survives reopen. No Offer data comes with
-      // the recommendation, so the Offer stays empty. A failed create leaves
-      // the wizard open with a save error.
-      await persistDraft()
-      await Promise.all([
-        loadAudienceCounts(),
-        refreshMessagingBalances(),
-        refreshOperatorSenderEmail(),
-      ])
+      return openRecommendationInFlight
     },
     close() {
       closeWithoutPersist()
@@ -3638,10 +3753,8 @@ export function createCampaignWizardModule(
       const nextStep = NUMBERED_STEP_ORDER[index - 1]!
       state = { ...state, stepId: nextStep }
       publish()
-      if (
-        nextStep === "audience"
-        && state.audienceLoadStatus !== "loaded"
-      ) {
+      // Reload on every entry: the attached Offer may have changed since the last load.
+      if (nextStep === "audience") {
         void loadAudienceCounts()
       }
     },
