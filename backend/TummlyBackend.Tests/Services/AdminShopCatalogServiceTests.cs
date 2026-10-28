@@ -733,6 +733,23 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Unpublish_TurnsAvailableInShopOff()
+        {
+            var sku = await _context.ShopMaterialSkus.SingleAsync(row => row.SkuId == "table-tents");
+            sku.AvailableInShop = true;
+            await _context.SaveChangesAsync();
+
+            var (result, error) = await _service.UnpublishAsync("table-tents", Actor);
+
+            Assert.Null(error);
+            Assert.False(result!.AvailableInShop);
+            _context.ChangeTracker.Clear();
+            Assert.False(
+                (await _context.ShopMaterialSkus.SingleAsync(row => row.SkuId == "table-tents")).AvailableInShop
+            );
+        }
+
+        [Fact]
         public async Task Unpublish_Publish_Delete_EachWriteStatusAudit()
         {
             await _service.UnpublishAsync("table-tents", Actor);

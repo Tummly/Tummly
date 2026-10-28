@@ -637,6 +637,8 @@ namespace TummlyBackend.Services
 
             var before = CatalogSnapshot(sku);
             sku.Status = ShopMaterialSkuStatuses.Draft;
+            // A Draft is never buyable; turning it on again goes through the readiness gate.
+            sku.AvailableInShop = false;
             sku.UpdatedAtUtc = DateTime.UtcNow;
             AppendCatalogAudit(
                 AdminAuditActions.ShopCatalogUnpublish,

@@ -332,7 +332,8 @@ namespace TummlyBackend.Services
                     Material = material,
                     Dimensions = product.Dimensions.Trim(),
                     Packs = request.Packs,
-                    DeliveryNetPence = request.DeliveryNetPence ?? 0,
+                    // Null keeps the stored delivery price on re-promote.
+                    DeliveryNetPence = request.DeliveryNetPence,
                     SupplierName = request.SupplierName,
                     InternalCostNetPence = request.InternalCostNetPence,
                     MintOnShopFulfilment = request.MintOnShopFulfilment,

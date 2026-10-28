@@ -61,10 +61,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (sku, error) = await _catalog.CreateSkuAsync(
@@ -87,10 +86,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (sku, error) = await _catalog.UpdateSkuAsync(
@@ -130,10 +128,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (sku, error) = await _catalog.PublishAsync(skuId, actor, cancellationToken);
@@ -232,10 +229,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (sku, error) = await _catalog.UnpublishAsync(
@@ -257,10 +253,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (sku, error) = await _catalog.DeleteAsync(skuId, actor, cancellationToken);
@@ -285,10 +280,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (tag, error) = await _catalog.CreateTagAsync(
@@ -310,10 +304,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (ok, error) = await _catalog.DeleteTagAsync(
@@ -343,10 +336,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (image, error) = await _catalog.UploadImageAsync(
@@ -375,10 +367,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (sku, error) = await _catalog.ReorderImagesAsync(
@@ -407,10 +398,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (ok, error) = await _catalog.DeleteImageAsync(
@@ -448,5 +438,8 @@ namespace TummlyBackend.Controllers
 
             return staffId;
         }
+
+        private UnauthorizedObjectResult InvalidToken() =>
+            Unauthorized(new { success = false, message = "Invalid token." });
     }
 }

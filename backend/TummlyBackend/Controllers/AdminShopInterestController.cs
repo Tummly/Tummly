@@ -116,10 +116,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (product, error) = await _products.PromoteAsync(
@@ -142,10 +141,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (product, error) = await _products.DemoteByProductKeyAsync(
@@ -167,10 +165,9 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var actor = AdminShopActor.FromPrincipal(User);
-            if (actor == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
+                return InvalidToken();
             }
 
             var (product, error) = await _products.DemoteBySkuIdAsync(
@@ -207,5 +204,8 @@ namespace TummlyBackend.Controllers
 
             return BadRequest(new { success = false, message = error });
         }
+
+        private UnauthorizedObjectResult InvalidToken() =>
+            Unauthorized(new { success = false, message = "Invalid token." });
     }
 }
