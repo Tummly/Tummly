@@ -40,6 +40,8 @@ namespace TummlyBackend.Interfaces
             int days,
             string? idempotencyKey,
             DateTime now,
+            string? reason,
+            int? expectedExtensionCount,
             CancellationToken cancellationToken = default
         );
 
