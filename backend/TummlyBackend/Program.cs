@@ -327,6 +327,37 @@ builder.Services
                 );
 
                 return Task.CompletedTask;
+            },
+
+            // Staff tokens are signed for their whole lifetime, so a disabled or
+            // locked Admin/Support row must be checked on every request. Operator
+            // tokens (any other role claim) are not looked up here.
+            OnTokenValidated = async context =>
+            {
+                var role = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+                if (role is not ("Admin" or "Support"))
+                {
+                    return;
+                }
+
+                var staffIdClaim = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (!int.TryParse(staffIdClaim, out var staffId))
+                {
+                    context.Fail("Staff token has no valid account id.");
+                    return;
+                }
+
+                var db = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                var staff = await db.Admins
+                    .AsNoTracking()
+                    .Where(row => row.Id == staffId)
+                    .Select(row => new { row.IsActive, row.IsLocked })
+                    .FirstOrDefaultAsync(context.HttpContext.RequestAborted);
+
+                if (staff == null || !staff.IsActive || staff.IsLocked)
+                {
+                    context.Fail("Staff account is not active.");
+                }
             }
         };
     });
@@ -1241,6 +1272,8 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
+builder.Services.AddScoped<IAdminStaffService, AdminStaffService>();
+builder.Services.AddScoped<IStaffAccountService, StaffAccountService>();
 builder.Services.AddScoped<IAdminAccountDirectoryService, AdminAccountDirectoryService>();
 builder.Services.AddScoped<IAdminOverviewService, AdminOverviewService>();
 builder.Services.AddSingleton(new ApiStartedAtUtc(DateTime.UtcNow));

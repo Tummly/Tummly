@@ -75,6 +75,12 @@
         public const string TrustIndicatorSubmit = "trust_indicator.submit";
         public const string TrustIndicatorPublish = "trust_indicator.publish";
         public const string TrustIndicatorRefused = "trust_indicator.refused";
+        public const string StaffPasswordChange = "staff.password_change";
+        public const string StaffCreate = "staff.create";
+        public const string StaffDisable = "staff.disable";
+        public const string StaffEnable = "staff.enable";
+        public const string StaffUnlock = "staff.unlock";
+        public const string StaffPasswordReset = "staff.password_reset";
     }
 
     public static class AdminAuditTargetTypes
@@ -92,5 +98,6 @@
         public const string TrustIndicatorItem = "trust_indicator_item";
         public const string TrustIndicatorDraft = "trust_indicator_draft";
         public const string TrustIndicatorPublication = "trust_indicator_publication";
+        public const string StaffAccount = "staff_account";
     }
 }

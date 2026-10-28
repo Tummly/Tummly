@@ -1,12 +1,15 @@
+import { useState } from "react"
 import { Link, NavLink, useNavigate } from "react-router-dom"
 import { useTheme } from "next-themes"
-import { MoonIcon, SunIcon } from "lucide-react"
+import { KeyRoundIcon, MoonIcon, SunIcon } from "lucide-react"
 
 import { MarketingLogo } from "@/components/marketing/MarketingLogo"
+import { ChangeOwnPasswordDialog } from "@/components/dashboard/staff/ChangeOwnPasswordDialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -43,6 +46,7 @@ export function StaffDashboardHeader() {
   const { theme, setTheme, resolvedTheme } = useTheme()
   const role = useAuthStore((state) => state.role)
   const canOpenAdmin = role === "ADMIN"
+  const [passwordOpen, setPasswordOpen] = useState(false)
 
   const handleLogout = () => {
     clearAuthSession()
@@ -93,6 +97,30 @@ export function StaffDashboardHeader() {
                 type="button"
                 variant="ghost"
                 size="icon"
+                aria-label="Account"
+              >
+                <KeyRoundIcon className="size-4" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className={cn("w-44", OPERATOR_SHELL_MENU_PANEL_CLASS)}
+            >
+              <DropdownMenuItem
+                className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                onSelect={() => setPasswordOpen(true)}
+              >
+                Change password
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
                 aria-label="Theme"
               >
                 {resolvedTheme === "dark" ? (
@@ -128,6 +156,8 @@ export function StaffDashboardHeader() {
           </Button>
         </div>
       </div>
+
+      <ChangeOwnPasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
     </header>
   )
 }
