@@ -7,8 +7,16 @@ namespace TummlyBackend.Interfaces
         Task<PrivacyConsentGetResult> GetAsync(
             int restaurantId,
             bool actorCanManage,
-            bool canViewGuests
+            bool canViewGuests,
+            bool actorIsWorkspaceOwner
         );
+
+        /// <summary>
+        /// Workspace Owner: active membership with the Owner role, or no
+        /// membership on a restaurant the user owns. Mirrors how
+        /// RestaurantPermissionHelper resolves the Owner role.
+        /// </summary>
+        Task<bool> IsWorkspaceOwnerAsync(int restaurantId, int userId);
 
         Task<PrivacyConsentPatchResult> PatchTogglesAsync(
             int restaurantId,
@@ -18,12 +26,19 @@ namespace TummlyBackend.Interfaces
 
         /// <param name="accessibleLocationIds">
         /// Location rows outside this set are hidden. Restaurant-wide rows
-        /// (LocationId null) always show.
+        /// (LocationId null) always show. Archived Locations are always
+        /// hidden here; see GetArchivedActivityAsync.
         /// </param>
         Task<object> GetActivityAsync(
             int restaurantId,
             IReadOnlyCollection<int> accessibleLocationIds
         );
+
+        /// <summary>
+        /// Historical view: privacy activity for archived Locations only.
+        /// Caller must already be authorised as the Workspace Owner.
+        /// </summary>
+        Task<object> GetArchivedActivityAsync(int restaurantId);
     }
 
     public abstract record PrivacyConsentGetResult

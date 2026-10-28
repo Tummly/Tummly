@@ -297,6 +297,297 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task Get_ReturnsActorIsWorkspaceOwner_TrueForOwner_FalseForNamedListManager()
+        {
+            var seeded = await SeedWorkspaceWithArchivedHistoryAsync();
+
+            var ownerBody = await GetJsonAsync(
+                "/api/privacy-consent",
+                seeded.OwnerJwt
+            );
+            Assert.True(
+                ownerBody.GetProperty("actorIsWorkspaceOwner").GetBoolean()
+            );
+
+            var managerBody = await GetJsonAsync(
+                "/api/privacy-consent",
+                seeded.ManagerJwt
+            );
+            Assert.False(
+                managerBody.GetProperty("actorIsWorkspaceOwner").GetBoolean()
+            );
+        }
+
+        [Fact]
+        public async Task GetActivity_Default_ExcludesArchivedLocationRows_ForOwner()
+        {
+            var seeded = await SeedWorkspaceWithArchivedHistoryAsync();
+
+            var descriptions = await GetActivityDescriptionsAsync(
+                "/api/privacy-consent/activity",
+                seeded.OwnerJwt
+            );
+
+            Assert.Contains("Live Location withdrawal.", descriptions);
+            Assert.Contains("Restaurant-wide toggle.", descriptions);
+            Assert.DoesNotContain("Archived Location withdrawal.", descriptions);
+        }
+
+        [Fact]
+        public async Task GetActivity_IncludeArchived_ReturnsOnlyArchivedLocationRows_ForOwner()
+        {
+            var seeded = await SeedWorkspaceWithArchivedHistoryAsync();
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/privacy-consent/activity?includeArchived=true",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var items = body.GetProperty("items").EnumerateArray().ToList();
+            Assert.Single(items);
+            Assert.Equal(
+                "Archived Location withdrawal.",
+                items[0].GetProperty("description").GetString()
+            );
+            Assert.True(items[0].GetProperty("locationArchived").GetBoolean());
+            Assert.Equal(
+                "Old Site",
+                items[0].GetProperty("locationName").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetActivity_IncludeArchived_Returns403_ForNamedListManager()
+        {
+            var seeded = await SeedWorkspaceWithArchivedHistoryAsync();
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/privacy-consent/activity?includeArchived=true",
+                seeded.ManagerJwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetActivity_NamedListManager_KeepsLiveRowsOnly_EvenWhenArchivedLocationIsAssigned()
+        {
+            var seeded = await SeedWorkspaceWithArchivedHistoryAsync();
+
+            var descriptions = await GetActivityDescriptionsAsync(
+                "/api/privacy-consent/activity",
+                seeded.ManagerJwt
+            );
+
+            Assert.Contains("Live Location withdrawal.", descriptions);
+            Assert.Contains("Restaurant-wide toggle.", descriptions);
+            Assert.DoesNotContain("Archived Location withdrawal.", descriptions);
+        }
+
+        [Fact]
+        public async Task GetActivity_IncludeArchived_NeverReturnsOtherTenantRows()
+        {
+            var seeded = await SeedWorkspaceWithArchivedHistoryAsync();
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/privacy-consent/activity?includeArchived=true",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var descriptions = body.GetProperty("items").EnumerateArray()
+                .Select(item => item.GetProperty("description").GetString())
+                .ToList();
+            Assert.Contains("Archived Location withdrawal.", descriptions);
+            Assert.DoesNotContain(
+                "Other tenant archived withdrawal.",
+                descriptions
+            );
+        }
+
+        private async Task<JsonElement> GetJsonAsync(string path, string jwt)
+        {
+            using var request = Authorized(HttpMethod.Get, path, jwt);
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return await ReadJsonAsync(response);
+        }
+
+        private async Task<List<string?>> GetActivityDescriptionsAsync(
+            string path,
+            string jwt
+        )
+        {
+            var body = await GetJsonAsync(path, jwt);
+            return body.GetProperty("items").EnumerateArray()
+                .Select(item => item.GetProperty("description").GetString())
+                .ToList();
+        }
+
+        private async Task<ArchivedHistorySeed> SeedWorkspaceWithArchivedHistoryAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = NewActivatedUser("Archived History Owner", "priv-archived-owner");
+            var otherOwner = NewActivatedUser("Other Tenant Owner", "priv-archived-other");
+            var manager = NewActivatedUser("Archived History Manager", "priv-archived-manager");
+            context.Users.AddRange(owner, otherOwner, manager);
+            await context.SaveChangesAsync();
+
+            var restaurant = NewRestaurant("Archived History Venue", owner.Id);
+            var otherRestaurant = NewRestaurant("Other Tenant Venue", otherOwner.Id);
+            context.Restaurants.AddRange(restaurant, otherRestaurant);
+            await context.SaveChangesAsync();
+
+            owner.SelectedRestaurantId = restaurant.Id;
+            manager.SelectedRestaurantId = restaurant.Id;
+            context.RestaurantMemberships.AddRange(
+                new RestaurantMembership
+                {
+                    UserId = owner.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.Owner,
+                    LocationScope = LocationScopeKind.AllLocations,
+                    NamedLocationIdsJson = "[]",
+                    Status = MembershipStatus.Active,
+                }
+            );
+
+            var live = NewLocation(restaurant.Id, "Live Site", LocationLifecycleStatus.Active);
+            var archived = NewLocation(restaurant.Id, "Old Site", LocationLifecycleStatus.Archived);
+            var otherArchived = NewLocation(
+                otherRestaurant.Id,
+                "Other Tenant Old Site",
+                LocationLifecycleStatus.Archived
+            );
+            context.RestaurantLocations.AddRange(live, archived, otherArchived);
+            await context.SaveChangesAsync();
+
+            context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = manager.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.LocationManager,
+                    LocationScope = LocationScopeKind.NamedList,
+                    NamedLocationIdsJson = MembershipLocationScope
+                        .SerializeNamedIds(new[] { live.Id, archived.Id }),
+                    Status = MembershipStatus.Active,
+                }
+            );
+
+            var now = DateTime.UtcNow;
+            context.LocationActivities.AddRange(
+                NewPrivacyActivity(restaurant.Id, live.Id, owner.Id, "Live Location withdrawal.", now.AddHours(-3)),
+                NewPrivacyActivity(restaurant.Id, archived.Id, owner.Id, "Archived Location withdrawal.", now.AddHours(-2)),
+                NewPrivacyActivity(restaurant.Id, null, owner.Id, "Restaurant-wide toggle.", now.AddHours(-1)),
+                NewPrivacyActivity(
+                    otherRestaurant.Id,
+                    otherArchived.Id,
+                    otherOwner.Id,
+                    "Other tenant archived withdrawal.",
+                    now
+                )
+            );
+            await context.SaveChangesAsync();
+
+            return new ArchivedHistorySeed(
+                jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
+                jwtService.GenerateToken(manager.Id.ToString(), manager.Email, manager.Role),
+                restaurant.Id
+            );
+        }
+
+        private static User NewActivatedUser(string fullName, string emailPrefix)
+        {
+            return new User
+            {
+                FullName = fullName,
+                Email = $"{emailPrefix}-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900111",
+                Role = "Owner",
+                AccountType = "Multi",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+        }
+
+        private static Restaurant NewRestaurant(string name, int ownerUserId)
+        {
+            return new Restaurant
+            {
+                Name = name,
+                AccountType = "Multi",
+                OwnerUserId = ownerUserId,
+                BillingContactUserId = ownerUserId,
+                PrivacyContactUserId = ownerUserId,
+                SupportContactUserId = ownerUserId,
+                CreatedAt = DateTime.UtcNow,
+            };
+        }
+
+        private static RestaurantLocation NewLocation(
+            int restaurantId,
+            string name,
+            LocationLifecycleStatus lifecycle
+        )
+        {
+            return new RestaurantLocation
+            {
+                RestaurantId = restaurantId,
+                LocationName = name,
+                Address = "1 High Street",
+                City = "London",
+                Postcode = "W1A 1AA",
+                LifecycleStatus = lifecycle,
+                CreatedAt = DateTime.UtcNow,
+            };
+        }
+
+        private static LocationActivity NewPrivacyActivity(
+            int restaurantId,
+            int? locationId,
+            int actorUserId,
+            string description,
+            DateTime occurredAt
+        )
+        {
+            return new LocationActivity
+            {
+                RestaurantId = restaurantId,
+                LocationId = locationId,
+                ActorUserId = actorUserId,
+                ActorDisplayName = "Privacy Actor",
+                Kind = LocationActivityKinds.GuestPermissionToggleChanged,
+                Description = description,
+                OccurredAt = occurredAt,
+            };
+        }
+
+        private sealed record ArchivedHistorySeed(
+            string OwnerJwt,
+            string ManagerJwt,
+            int RestaurantId
+        );
+
         private async Task<(
             string AdminJwt,
             int RestaurantId
