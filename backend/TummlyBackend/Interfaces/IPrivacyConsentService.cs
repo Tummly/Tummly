@@ -16,7 +16,14 @@ namespace TummlyBackend.Interfaces
             PatchPrivacyConsentTogglesRequest request
         );
 
-        Task<object> GetActivityAsync(int restaurantId);
+        /// <param name="accessibleLocationIds">
+        /// Location rows outside this set are hidden. Restaurant-wide rows
+        /// (LocationId null) always show.
+        /// </param>
+        Task<object> GetActivityAsync(
+            int restaurantId,
+            IReadOnlyCollection<int> accessibleLocationIds
+        );
     }
 
     public abstract record PrivacyConsentGetResult

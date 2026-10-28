@@ -43,6 +43,16 @@
         public const string RetentionGuestPurge = "retention.guest_purge";
         public const string GuestDelete = "guest.delete";
         public const string GuestDataExport = "guest.data_export";
+        public const string GuestIdentityCorrection = "guest.identity_correction";
+        public const string OperatorActivationAssetRead =
+            "operator.activation_asset_read";
+        public const string OperatorPrintMaterialsRead =
+            "operator.print_materials_read";
+        public const string OperatorPrintMaterialDownload =
+            "operator.print_material_download";
+        public const string ShopOrdersExport = "shop.orders_export";
+        public const string SupportQueriesRead = "support.queries_read";
+        public const string SupportQueryRead = "support.query_read";
         public const string CommercialCatalogPublish = "commercial_catalog.publish";
         public const string CommercialCatalogDraftSave = "commercial_catalog.draft_save";
         public const string BillingScheduledChangeGateFailed =
@@ -65,5 +75,6 @@
         public const string ShopOrder = "shop_order";
         public const string ShopMaterialSku = "shop_material_sku";
         public const string CommercialCatalogVersion = "commercial_catalog_version";
+        public const string HelpCentreQuery = "help_centre_query";
     }
 }

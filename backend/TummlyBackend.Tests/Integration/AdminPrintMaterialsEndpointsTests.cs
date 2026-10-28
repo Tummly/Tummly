@@ -131,6 +131,69 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ListReadiness_WritesOneReadAuditRow_PerRequest()
+        {
+            var seeded = await SeedOperatorWithDefaultQrCodesAsync();
+            var targetId = seeded.OwnerUserId.ToString();
+            var before = await CountAuditAsync(
+                AdminAuditActions.OperatorPrintMaterialsRead,
+                targetId
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/admin/operators/{seeded.OwnerUserId}/print-materials",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                before + 1,
+                await CountAuditAsync(AdminAuditActions.OperatorPrintMaterialsRead, targetId)
+            );
+        }
+
+        [Fact]
+        public async Task Download_WritesDownloadAuditRow_WithLocationAndQrType()
+        {
+            var seeded = await SeedOperatorWithDefaultQrCodesAsync();
+            await AttachOfferCardOfferAsync(seeded.LocationId, seeded.RestaurantId);
+            await EnsureAsync(seeded);
+            var targetId = seeded.OwnerUserId.ToString();
+            var before = await CountAuditAsync(
+                AdminAuditActions.OperatorPrintMaterialDownload,
+                targetId
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/OfferCard/download",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                before + 1,
+                await CountAuditAsync(AdminAuditActions.OperatorPrintMaterialDownload, targetId)
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var audit = await context.AdminAuditEvents
+                .AsNoTracking()
+                .Where(e =>
+                    e.Action == AdminAuditActions.OperatorPrintMaterialDownload
+                    && e.TargetId == targetId
+                )
+                .OrderByDescending(e => e.OccurredAtUtc)
+                .FirstAsync();
+            Assert.Equal(AdminAuditTargetTypes.OperatorUser, audit.TargetType);
+            Assert.NotNull(audit.ActorAdminUserId);
+            Assert.Contains($"\"locationId\":{seeded.LocationId}", audit.DetailJson);
+            Assert.Contains("\"qrType\":\"OfferCard\"", audit.DetailJson);
+        }
+
+        [Fact]
         public async Task Download_Returns403_ForOperatorJwt()
         {
             var seeded = await SeedOperatorWithDefaultQrCodesAsync();
@@ -414,6 +477,16 @@ namespace TummlyBackend.Tests.Integration
                 jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
                 jwtService.GenerateAdminToken(tummlyAdmin)
             );
+        }
+
+        private async Task<int> CountAuditAsync(string action, string targetId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            return await context.AdminAuditEvents
+                .AsNoTracking()
+                .CountAsync(e => e.Action == action && e.TargetId == targetId);
         }
 
         private static HttpRequestMessage AuthorizedGet(string url, string jwt)

@@ -797,6 +797,38 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ExportCsv_WritesOneReadAuditRow_PerRequest()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            await InsertOrderAsync(seeded, ShopFulfilmentStatuses.Processing);
+            await InsertOrderAsync(seeded, ShopFulfilmentStatuses.Processing);
+            var before = await CountAuditAsync(AdminAuditActions.ShopOrdersExport, "export");
+
+            using var request = AuthorizedGet(
+                "/api/admin/shop-orders/export.csv",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                before + 1,
+                await CountAuditAsync(AdminAuditActions.ShopOrdersExport, "export")
+            );
+        }
+
+        private async Task<int> CountAuditAsync(string action, string targetId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            return await context.AdminAuditEvents
+                .AsNoTracking()
+                .CountAsync(e => e.Action == action && e.TargetId == targetId);
+        }
+
+        [Fact]
         public async Task OperatorDetail_StillOmitsOpsNotes_AfterAdminWritesNotes()
         {
             var seeded = await SeedWorkspaceAsync();

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using TummlyBackend.DTOs.Admin;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -325,6 +326,15 @@ namespace TummlyBackend.Controllers
                     });
                 }
 
+                await _adminAudit.AppendAndSaveAsync(
+                    StaffReadAudit.Build(
+                        User,
+                        AdminAuditActions.OperatorActivationAssetRead,
+                        AdminAuditTargetTypes.OperatorUser,
+                        userId.ToString()
+                    )
+                );
+
                 return File(
                     result.Value.Content,
                     result.Value.ContentType,
@@ -345,6 +355,14 @@ namespace TummlyBackend.Controllers
         public async Task<IActionResult> ListPrintMaterials(int userId)
         {
             var data = await _printReadyQrMaterials.ListReadinessAsync(userId);
+            await _adminAudit.AppendAndSaveAsync(
+                StaffReadAudit.Build(
+                    User,
+                    AdminAuditActions.OperatorPrintMaterialsRead,
+                    AdminAuditTargetTypes.OperatorUser,
+                    userId.ToString()
+                )
+            );
             return Ok(new { success = true, data });
         }
 
@@ -415,6 +433,18 @@ namespace TummlyBackend.Controllers
                         message = "Print-ready QR asset not found.",
                     });
                 }
+
+                await _adminAudit.AppendAndSaveAsync(
+                    StaffReadAudit.Build(
+                        User,
+                        AdminAuditActions.OperatorPrintMaterialDownload,
+                        AdminAuditTargetTypes.OperatorUser,
+                        userId.ToString(),
+                        System.Text.Json.JsonSerializer.Serialize(
+                            new { locationId, qrType }
+                        )
+                    )
+                );
 
                 return File(result.Content, result.ContentType, result.FileName);
             }
