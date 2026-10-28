@@ -11,18 +11,21 @@ namespace TummlyBackend.Services
         : IFeedbackRespondAndRecordService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IGuestContactSuppressionService _suppressions;
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
         private readonly IGuestReplyLock _replyLock;
         private readonly IGuestReplySmsSendStep _smsSend;
 
         public FeedbackRespondAndRecordService(
             ApplicationDbContext context,
+            IGuestContactSuppressionService suppressions,
             IGuestResponseEmailDeliveryWork emailDelivery,
             IGuestReplyLock replyLock,
             IGuestReplySmsSendStep smsSend
         )
         {
             _context = context;
+            _suppressions = suppressions;
             _emailDelivery = emailDelivery;
             _replyLock = replyLock;
             _smsSend = smsSend;
@@ -168,6 +171,7 @@ namespace TummlyBackend.Services
             if (
                 !await ServiceReplyEligibility.IsAllowedAsync(
                     _context,
+                    _suppressions,
                     feedback,
                     channel,
                     cancellationToken

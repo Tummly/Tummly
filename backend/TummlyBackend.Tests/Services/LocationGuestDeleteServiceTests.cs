@@ -442,6 +442,7 @@ namespace TummlyBackend.Tests.Services
             Assert.False(
                 await ServiceReplyEligibility.IsAllowedAsync(
                     _context,
+                    new GuestContactSuppressionService(_context, _hasher),
                     feedback,
                     FeedbackGuestResponseChannel.Email,
                     CancellationToken.None
@@ -450,6 +451,7 @@ namespace TummlyBackend.Tests.Services
             Assert.False(
                 await ServiceReplyEligibility.IsAllowedAsync(
                     _context,
+                    new GuestContactSuppressionService(_context, _hasher),
                     feedback,
                     FeedbackGuestResponseChannel.Sms,
                     CancellationToken.None

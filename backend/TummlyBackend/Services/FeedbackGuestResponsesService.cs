@@ -14,6 +14,7 @@ namespace TummlyBackend.Services
         private static readonly TimeSpan CompletedIdempotencyWindow = TimeSpan.FromHours(24);
 
         private readonly ApplicationDbContext _context;
+        private readonly IGuestContactSuppressionService _suppressions;
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
         private readonly IGuestReplySmsSendStep _smsSend;
         private readonly TimeProvider _clock;
@@ -21,6 +22,7 @@ namespace TummlyBackend.Services
 
         public FeedbackGuestResponsesService(
             ApplicationDbContext context,
+            IGuestContactSuppressionService suppressions,
             IGuestResponseEmailDeliveryWork emailDelivery,
             IGuestReplySmsSendStep smsSend,
             TimeProvider clock,
@@ -28,6 +30,7 @@ namespace TummlyBackend.Services
         )
         {
             _context = context;
+            _suppressions = suppressions;
             _emailDelivery = emailDelivery;
             _smsSend = smsSend;
             _clock = clock;
@@ -91,6 +94,7 @@ namespace TummlyBackend.Services
             if (
                 !await ServiceReplyEligibility.IsAllowedAsync(
                     _context,
+                    _suppressions,
                     feedback,
                     channel,
                     cancellationToken

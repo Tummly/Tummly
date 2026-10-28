@@ -15,6 +15,7 @@ namespace TummlyBackend.Services
         private static readonly string TrackingKeyAnonymousPrefix = "anon:";
 
         private readonly ApplicationDbContext _context;
+        private readonly IGuestContactSuppressionService _suppressions;
         private readonly IRecoverySmsBillingReserve _smsBilling;
         private readonly IRecoveryGuestSmsDelivery _smsDelivery;
         private readonly TimeProvider _clock;
@@ -22,6 +23,7 @@ namespace TummlyBackend.Services
 
         public GuestReplySmsSendStep(
             ApplicationDbContext context,
+            IGuestContactSuppressionService suppressions,
             IRecoverySmsBillingReserve smsBilling,
             IRecoveryGuestSmsDelivery smsDelivery,
             TimeProvider clock,
@@ -29,6 +31,7 @@ namespace TummlyBackend.Services
         )
         {
             _context = context;
+            _suppressions = suppressions;
             _smsBilling = smsBilling;
             _smsDelivery = smsDelivery;
             _clock = clock;
@@ -81,7 +84,8 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// Every guest-reply SMS path calls this before any credit reserve or row save.
-        /// A guest who sent STOP to the restaurant is refused (R4.5).
+        /// A guest who sent STOP to the restaurant is refused (R4.5). The service
+        /// reply gate is rechecked here at send time, including suppression.
         /// </summary>
         public async Task<GuestReplySmsReservation> ReserveAsync(
             Feedback feedback,
@@ -91,6 +95,7 @@ namespace TummlyBackend.Services
         )
         {
             await EnsureGuestNotSmsStoppedAsync(feedback, cancellationToken);
+            await EnsureServiceReplyAllowedAsync(feedback, cancellationToken);
 
             var location = await _context.RestaurantLocations
                 .AsNoTracking()
@@ -172,6 +177,27 @@ namespace TummlyBackend.Services
                 reservationRef,
                 smsText
             );
+        }
+
+        private async Task EnsureServiceReplyAllowedAsync(
+            Feedback feedback,
+            CancellationToken cancellationToken
+        )
+        {
+            if (
+                !await ServiceReplyEligibility.IsAllowedAsync(
+                    _context,
+                    _suppressions,
+                    feedback,
+                    FeedbackGuestResponseChannel.Sms,
+                    cancellationToken
+                )
+            )
+            {
+                throw new ArgumentException(
+                    ServiceReplyEligibility.NotAllowedMessage
+                );
+            }
         }
 
         private async Task EnsureGuestNotSmsStoppedAsync(

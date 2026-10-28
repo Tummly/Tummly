@@ -12,6 +12,7 @@ namespace TummlyBackend.Services
         public const int MaxListLimit = 100;
 
         private readonly ApplicationDbContext _context;
+        private readonly IGuestContactSuppressionService _suppressions;
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
         private readonly IOfferIssueService _offerIssues;
         private readonly IGuestReplyLock _replyLock;
@@ -19,6 +20,7 @@ namespace TummlyBackend.Services
 
         public FeedbackRecoveryOffersService(
             ApplicationDbContext context,
+            IGuestContactSuppressionService suppressions,
             IGuestResponseEmailDeliveryWork emailDelivery,
             IOfferIssueService offerIssues,
             IGuestReplyLock replyLock,
@@ -26,6 +28,7 @@ namespace TummlyBackend.Services
         )
         {
             _context = context;
+            _suppressions = suppressions;
             _emailDelivery = emailDelivery;
             _offerIssues = offerIssues;
             _replyLock = replyLock;
@@ -107,6 +110,7 @@ namespace TummlyBackend.Services
             if (
                 !await ServiceReplyEligibility.IsAllowedAsync(
                     _context,
+                    _suppressions,
                     feedback,
                     channel,
                     cancellationToken

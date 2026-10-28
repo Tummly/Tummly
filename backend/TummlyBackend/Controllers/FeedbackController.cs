@@ -1512,6 +1512,16 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (!FeedbackGuestResponsePurposes.IsAllowed(dto.Purpose))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = FeedbackGuestResponsePurposes.ErrorCode,
+                    message = FeedbackGuestResponsePurposes.Message,
+                });
+            }
+
             var feedback = await _context.Feedbacks
                 .AsNoTracking()
                 .FirstOrDefaultAsync(f => f.Id == feedbackId);
@@ -1797,6 +1807,17 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (!FeedbackGuestResponsePurposes.IsAllowed(dto.Purpose))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = FeedbackGuestResponsePurposes.ErrorCode,
+                    message = FeedbackGuestResponsePurposes.Message,
+                    retryable = false,
+                });
+            }
+
             var feedback = await _context.Feedbacks
                 .AsNoTracking()
                 .FirstOrDefaultAsync(f => f.Id == feedbackId);
@@ -2072,6 +2093,16 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message =
                         "Intent must be respond_and_record_internal_action.",
+                });
+            }
+
+            if (!FeedbackGuestResponsePurposes.IsAllowed(dto.Purpose))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = FeedbackGuestResponsePurposes.ErrorCode,
+                    message = FeedbackGuestResponsePurposes.Message,
                 });
             }
 
