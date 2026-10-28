@@ -105,3 +105,20 @@ export async function getPrivacyConsentActivity(): Promise<{
     rethrow(error, "Could not load privacy activity.")
   }
 }
+
+/** Owner-only historical view. The API returns 403 for every other role. */
+export async function getPrivacyConsentArchivedActivity(): Promise<{
+  items: PrivacyConsentActivityApiItem[]
+}> {
+  try {
+    const { data } = await axiosInstance.get<{
+      success?: boolean
+      items?: PrivacyConsentActivityApiItem[]
+    }>("/privacy-consent/activity", { params: { includeArchived: true } })
+    return {
+      items: data.items ?? [],
+    }
+  } catch (error) {
+    rethrow(error, "Could not load archived Location history.")
+  }
+}
