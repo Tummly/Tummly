@@ -3,6 +3,7 @@ using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -231,6 +232,13 @@ namespace TummlyBackend.Services
             var key = billingAccount.SubscriptionPlan.Trim().ToLowerInvariant();
             if (key == "custom")
             {
+                // An unpaid Custom signup holds plan Custom and the quote, but status
+                // Free, until the server verifies payment. No paid capacity before that.
+                if (!OperatorPlanGate.HasPlan(billingAccount))
+                {
+                    return null;
+                }
+
                 return await ResolveCustomAllowanceAsync(billingAccount, ct);
             }
 

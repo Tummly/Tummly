@@ -335,6 +335,37 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task GetAllowance_CustomPlanBeforeSettlement_IsUnavailable_EvenWithPurchasedUnits()
+        {
+            // Signup writes plan Custom and the quote before checkout; status stays Free
+            // until the verified payment. Paid units must not count before that.
+            await UseCustomPlanAsync(basePlan: "starter", locations: 1, qrPlacements: 10, accountExtra: 5);
+            var billing = await _context.BillingAccounts.SingleAsync(row => row.RestaurantId == _restaurantId);
+            billing.BillingStatus = BillingStatuses.Free;
+            await _context.SaveChangesAsync();
+
+            var allowance = await _capacity.GetAllowanceAsync(billing, CancellationToken.None);
+            var decision = await _capacity.EvaluateAsync(_restaurantId, _locationId, 1, ct: CancellationToken.None);
+
+            Assert.Null(allowance);
+            Assert.False(decision.EntitlementsAvailable);
+            Assert.False(decision.Fits);
+        }
+
+        [Fact]
+        public async Task GetAllowance_CustomPlanAfterSettlement_CountsPurchasedUnits()
+        {
+            await UseCustomPlanAsync(basePlan: "starter", locations: 1, qrPlacements: 10, accountExtra: 5);
+            var billing = await _context.BillingAccounts.SingleAsync(row => row.RestaurantId == _restaurantId);
+            billing.BillingStatus = BillingStatuses.Active;
+            await _context.SaveChangesAsync();
+
+            var allowance = await _capacity.GetAllowanceAsync(billing, CancellationToken.None);
+
+            Assert.Equal(15, allowance!.WorkspacePool);
+        }
+
+        [Fact]
         public async Task GetAllowance_CustomV1_NoBasePlan_IsPlacementsPlusExtra()
         {
             await UseCustomPlanAsync(basePlan: null, locations: 40, qrPlacements: 7, accountExtra: 3);

@@ -204,6 +204,12 @@ namespace TummlyBackend.Services
             var key = billingAccount.SubscriptionPlan.Trim().ToLowerInvariant();
             if (key == "custom")
             {
+                // Unpaid Custom signup (status Free): fail closed until payment settles.
+                if (!OperatorPlanGate.HasPlan(billingAccount))
+                {
+                    return false;
+                }
+
                 var custom = CustomPlanConfig.TryParse(
                     billingAccount.CustomPlanConfigJson
                 );

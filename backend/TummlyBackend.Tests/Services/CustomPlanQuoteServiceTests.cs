@@ -253,6 +253,8 @@ namespace TummlyBackend.Tests.Services
             var account = new BillingAccount
             {
                 SubscriptionPlan = BillingSubscriptionPlans.Custom,
+                // Paid and settled: paid capacity counts only for a plan that has a status.
+                BillingStatus = BillingStatuses.Active,
                 ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
                 CustomPlanConfigJson = quote.ToConfig().ToJson(),
             };
