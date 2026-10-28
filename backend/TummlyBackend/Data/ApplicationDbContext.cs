@@ -130,6 +130,10 @@ namespace TummlyBackend.Data
 
         public DbSet<ShopInterestRegistration> ShopInterestRegistrations { get; set; }
 
+        public DbSet<TrustIndicator> TrustIndicators { get; set; }
+        public DbSet<TrustIndicatorDraftState> TrustIndicatorDraftStates { get; set; }
+        public DbSet<TrustIndicatorPublication> TrustIndicatorPublications { get; set; }
+
         public DbSet<RevolutPendingPaySession> RevolutPendingPaySessions
         {
             get;
@@ -2907,6 +2911,36 @@ namespace TummlyBackend.Data
                     .WithMany(row => row.Images)
                     .HasForeignKey(row => row.SkuId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            /*
+             =========================================
+             TRUST INDICATORS (Admin draft + publications)
+             =========================================
+             */
+
+            modelBuilder.Entity<TrustIndicator>(e =>
+            {
+                e.HasIndex(row => row.ItemNumber).IsUnique();
+                e.Property(row => row.EvidenceClass).HasConversion<string>().HasMaxLength(40).IsRequired();
+                e.Property(row => row.CtaType).HasConversion<string>().HasMaxLength(32).IsRequired();
+                e.Property(row => row.Title).HasMaxLength(200).IsRequired();
+                e.Property(row => row.AltText).HasMaxLength(300).IsRequired();
+                e.Property(row => row.Tooltip).HasMaxLength(300).IsRequired();
+            });
+
+            modelBuilder.Entity<TrustIndicatorDraftState>(e =>
+            {
+                e.Property(row => row.Id).ValueGeneratedNever();
+            });
+
+            modelBuilder.Entity<TrustIndicatorPublication>(e =>
+            {
+                e.HasIndex(row => row.Version).IsUnique();
+                e.HasIndex(row => row.IdempotencyKey).IsUnique();
+                e.Property(row => row.Reason).HasMaxLength(500).IsRequired();
+                e.Property(row => row.IdempotencyKey).HasMaxLength(128).IsRequired();
+                e.Property(row => row.SnapshotJson).IsRequired();
             });
 
             modelBuilder.Entity<ShopInterestProduct>(e =>

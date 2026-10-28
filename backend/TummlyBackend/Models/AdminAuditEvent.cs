@@ -71,6 +71,10 @@
             "billing.paid_signup_checkout_failed";
         public const string BillingPendingPaymentRetryFailed =
             "billing.pending_payment_retry_failed";
+        public const string TrustIndicatorDraftEdit = "trust_indicator.draft_edit";
+        public const string TrustIndicatorSubmit = "trust_indicator.submit";
+        public const string TrustIndicatorPublish = "trust_indicator.publish";
+        public const string TrustIndicatorRefused = "trust_indicator.refused";
     }
 
     public static class AdminAuditTargetTypes
@@ -85,5 +89,8 @@
         public const string ShopMaterialTag = "shop_material_tag";
         public const string ShopInterestProduct = "shop_interest_product";
         public const string CommercialCatalogVersion = "commercial_catalog_version";
+        public const string TrustIndicatorItem = "trust_indicator_item";
+        public const string TrustIndicatorDraft = "trust_indicator_draft";
+        public const string TrustIndicatorPublication = "trust_indicator_publication";
     }
 }
