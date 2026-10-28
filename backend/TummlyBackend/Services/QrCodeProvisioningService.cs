@@ -58,11 +58,7 @@ namespace TummlyBackend.Services
                 var token = await _smartGuestLink.GenerateTokenAsync();
 
                 var status = QrCodeStatus.Paused;
-                if (headroom is null)
-                {
-                    status = QrCodeStatus.Active;
-                }
-                else if (headroom > 0)
+                if (headroom > 0)
                 {
                     status = QrCodeStatus.Active;
                     headroom--;
@@ -86,18 +82,17 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Active codes this mint may still create. Null means no limit applies
-        /// (no billing account to check). Zero means every code mints Paused: no
-        /// plan, or the plan cannot be resolved (fail closed).
+        /// Active codes this mint may still create. Zero means every code mints Paused: no
+        /// billing account, no plan, or a plan that cannot be resolved (fail closed).
         /// </summary>
-        private async Task<int?> ActiveHeadroomAsync(
+        private async Task<int> ActiveHeadroomAsync(
             BillingAccount? account,
             RestaurantLocation location
         )
         {
             if (account == null)
             {
-                return null;
+                return 0;
             }
 
             if (!OperatorPlanGate.HasPlan(account))
