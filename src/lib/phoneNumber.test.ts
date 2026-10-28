@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   formatPhoneForDisplay,
@@ -7,6 +7,10 @@ import {
 } from "@/lib/phoneNumber"
 
 const ukMobileE164 = "+447911123456"
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 describe("tryNormalizePhoneToE164", () => {
   it("normalizes common UK formats", () => {
@@ -39,6 +43,21 @@ describe("tryNormalizeUkMobileToE164", () => {
     expect(tryNormalizeUkMobileToE164("07700 900123")).toBe("+447700900123")
     expect(tryNormalizeUkMobileToE164("+44 7700 900123")).toBe("+447700900123")
     expect(tryNormalizePhoneToE164("07700 900123")).toBeNull()
+  })
+
+  it("rejects the Ofcom range outside DEV and QA builds", () => {
+    vi.stubEnv("DEV", false)
+    vi.stubEnv("VITE_APP_ENV", "production")
+
+    expect(tryNormalizeUkMobileToE164("07700 900123")).toBeNull()
+    expect(tryNormalizeUkMobileToE164("+44 7700 900123")).toBeNull()
+  })
+
+  it("accepts the Ofcom range on QA builds", () => {
+    vi.stubEnv("DEV", false)
+    vi.stubEnv("VITE_APP_ENV", "qa")
+
+    expect(tryNormalizeUkMobileToE164("07700 900123")).toBe("+447700900123")
   })
 
   it("rejects UK landline numbers that the shared check accepts", () => {

@@ -4,6 +4,8 @@ import {
   type PhoneNumber,
 } from "libphonenumber-js"
 
+import { isReservedTestNumberAllowed } from "@/lib/env"
+
 export const DEFAULT_PHONE_REGION: CountryCode = "GB"
 
 const UK_CALLING_CODE = "44"
@@ -27,8 +29,9 @@ export function tryNormalizePhoneToE164(value: string): string | null {
 }
 
 /**
- * Ofcom drama range 07700 900000–900999. libphonenumber rejects it, but the
- * guest contact accepts it (lane expectation). Shared check stays unchanged.
+ * Ofcom drama range 07700 900000–900999. libphonenumber rejects it. Guest
+ * contact accepts it only when isReservedTestNumberAllowed() (DEV or QA).
+ * The shared check never accepts it.
  */
 function isOfcomDramaRange(parsed: PhoneNumber): boolean {
   return (
@@ -37,7 +40,7 @@ function isOfcomDramaRange(parsed: PhoneNumber): boolean {
   )
 }
 
-/** Guest contact only: UK mobile (libphonenumber MOBILE, plus the drama range). */
+/** Guest contact only: UK mobile (libphonenumber MOBILE, plus the drama range when allowed). */
 export function tryNormalizeUkMobileToE164(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed) {
@@ -51,7 +54,7 @@ export function tryNormalizeUkMobileToE164(value: string): string | null {
 
   const isMobile = parsed.isValid()
     ? parsed.getType() === "MOBILE"
-    : isOfcomDramaRange(parsed)
+    : isReservedTestNumberAllowed() && isOfcomDramaRange(parsed)
   if (!isMobile) {
     return null
   }
