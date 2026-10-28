@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   CONTACT_POLL_INTERVAL_MS,
+  CONTACT_POLL_TIMEOUT_MS,
+  overviewConfirmsContact,
   startContactPolling,
   type PollScheduler,
 } from "./contactPolling"
@@ -196,5 +198,95 @@ describe("startContactPolling", () => {
 
     expect(errors).toEqual([failure, failure])
     expect(checks).toBe(2)
+  })
+})
+
+describe("startContactPolling timeout", () => {
+  it("stops checking once the 10-minute link lifetime has passed", async () => {
+    const timer = manualScheduler()
+    let clock = 1_000_000
+    let checks = 0
+
+    startContactPolling({
+      check: async () => {
+        checks += 1
+        return false
+      },
+      onFound: () => undefined,
+      onError: () => undefined,
+      scheduler: timer.scheduler,
+      now: () => clock,
+    })
+
+    timer.tick()
+    await flush()
+    expect(checks).toBe(1)
+
+    clock += CONTACT_POLL_TIMEOUT_MS
+    timer.tick()
+    await flush()
+
+    expect(checks).toBe(1)
+    expect(timer.clearedCount()).toBe(1)
+  })
+
+  it("keeps polling just before the timeout", async () => {
+    const timer = manualScheduler()
+    let clock = 1_000_000
+    let checks = 0
+
+    startContactPolling({
+      check: async () => {
+        checks += 1
+        return false
+      },
+      onFound: () => undefined,
+      onError: () => undefined,
+      scheduler: timer.scheduler,
+      now: () => clock,
+    })
+
+    clock += CONTACT_POLL_TIMEOUT_MS - 1
+    timer.tick()
+    await flush()
+
+    expect(checks).toBe(1)
+    expect(timer.clearedCount()).toBe(0)
+  })
+
+  it("the timeout is ten minutes, the same as the link lifetime", () => {
+    expect(CONTACT_POLL_TIMEOUT_MS).toBe(10 * 60 * 1000)
+  })
+})
+
+describe("overviewConfirmsContact", () => {
+  it("confirms when the contact count grows past the baseline", () => {
+    expect(
+      overviewConfirmsContact({
+        contacts: [{ masked: "so•••••@example.com" }, { masked: "•••• ••• 789" }],
+        baselineCount: 1,
+        maskedTyped: "xx•••••@example.com",
+      })
+    ).toBe(true)
+  })
+
+  it("confirms when the typed address is already on the overview, so the count never grows", () => {
+    expect(
+      overviewConfirmsContact({
+        contacts: [{ masked: "so•••••@example.com" }],
+        baselineCount: 1,
+        maskedTyped: "so•••••@example.com",
+      })
+    ).toBe(true)
+  })
+
+  it("does not confirm while the typed address is still missing", () => {
+    expect(
+      overviewConfirmsContact({
+        contacts: [{ masked: "so•••••@example.com" }],
+        baselineCount: 1,
+        maskedTyped: "ne•••••@example.com",
+      })
+    ).toBe(false)
   })
 })

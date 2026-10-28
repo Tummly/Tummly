@@ -8,7 +8,11 @@ import {
   verifyContactCode,
   verifySessionCode,
 } from "@/api/publicGuestPreferencesApi"
-import { startContactPolling } from "@/lib/guestPreferences/contactPolling"
+import {
+  overviewConfirmsContact,
+  startContactPolling,
+} from "@/lib/guestPreferences/contactPolling"
+import { maskEmailAddress } from "@/lib/guestPreferences/contactInput"
 import {
   contactFlowReducer,
   initialContactFlowState,
@@ -96,9 +100,16 @@ export function useGuestPreferencesContactFlow({
     if (variant !== "add-contact" || state.step !== "email-sent") {
       return undefined
     }
+    const maskedTyped = maskEmailAddress(state.contact)
     return startContactPolling({
-      check: async () =>
-        (await fetchOverview()).contacts.length > baselineContactCount,
+      check: async () => {
+        const overview = await fetchOverview()
+        return overviewConfirmsContact({
+          contacts: overview.contacts,
+          baselineCount: baselineContactCount,
+          maskedTyped,
+        })
+      },
       onFound: () => {
         dispatch({ type: "verified" })
         latestRef.current.onVerified()
@@ -109,7 +120,7 @@ export function useGuestPreferencesContactFlow({
         }
       },
     })
-  }, [variant, state.step, baselineContactCount])
+  }, [variant, state.step, state.contact, baselineContactCount])
 
   function env(): ContactFlowEnv {
     return {
