@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -645,6 +646,51 @@ namespace TummlyBackend.Services
             billingAccount.PendingPaymentFailureCode = null;
         }
 
+        /// <summary>
+        /// A paid retry of a pending Custom payment: the quote the customer paid lives
+        /// only in <c>PendingPaymentCustomConfigJson</c> (the account stayed on Free with
+        /// no Custom config). Save it as the account's plan config so capacity,
+        /// entitlements, the included-credit mint and renewal read it. Only when it
+        /// is the quote that was charged (same period amount and cadence as the
+        /// settled order); otherwise nothing is saved from it. Saving the same value
+        /// twice changes nothing.
+        /// </summary>
+        private static void SavePaidPendingCustomConfig(
+            BillingAccount billingAccount,
+            RevolutOrderIntent intent
+        )
+        {
+            if (
+                !string.Equals(
+                    billingAccount.PendingPaymentPlan,
+                    BillingSubscriptionPlans.Custom,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return;
+            }
+
+            var pending = CustomPlanConfig.TryParse(
+                billingAccount.PendingPaymentCustomConfigJson
+            );
+            if (
+                pending == null
+                || pending.PeriodNetPence != intent.NetAmountMinor
+                || !string.Equals(
+                    pending.Cadence,
+                    intent.TargetCadence,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return;
+            }
+
+            billingAccount.CustomPlanConfigJson =
+                billingAccount.PendingPaymentCustomConfigJson;
+        }
+
         private async Task ApplyCustomPlanCycleAsync(
             RevolutOrderIntent intent,
             CancellationToken cancellationToken
@@ -672,6 +718,7 @@ namespace TummlyBackend.Services
             var isFirstPaid = billingAccount.RenewalDateUtc == null;
             var wasFree = IsFreeAccount(billingAccount);
 
+            SavePaidPendingCustomConfig(billingAccount, intent);
             billingAccount.SubscriptionPlan = BillingSubscriptionPlans.Custom;
             billingAccount.BillingStatus = BillingStatuses.Active;
             ClearPendingPayment(billingAccount);
