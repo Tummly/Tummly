@@ -26,6 +26,8 @@ namespace TummlyBackend.Helpers
                 LocationGuestPermissionLedgerSources.SmsStop => "SMS STOP",
                 LocationGuestPermissionLedgerSources.Suppression =>
                     "Earlier withdrawal",
+                LocationGuestPermissionLedgerSources.PreferenceCentre =>
+                    "Preference centre",
                 _ => source,
             };
     }
