@@ -166,25 +166,14 @@ namespace TummlyBackend.Tests.SqlServer
 
             await using var context = _fixture.CreateContext();
             await using var tx = await context.Database.BeginTransactionAsync();
-            var product = new ShopInterestProduct
-            {
-                ProductKey = "standard-package-label",
-                Title = "Standard Package Label",
-                Description = "Concept",
-                Material = string.Empty,
-                Dimensions = string.Empty,
-                IsActive = true,
-            };
-            var edited = new ShopInterestProduct
-            {
-                ProductKey = "drink-cup-seal",
-                Title = "Admin edited title",
-                Description = "Concept",
-                Material = string.Empty,
-                Dimensions = string.Empty,
-                IsActive = true,
-            };
-            context.ShopInterestProducts.AddRange(product, edited);
+            // The shared database may already hold the seeded concepts: reuse those rows
+            // (ProductKey is unique) and give them the titles this test needs.
+            var product = await UpsertConceptAsync(
+                context,
+                "standard-package-label",
+                "Standard Package Label"
+            );
+            var edited = await UpsertConceptAsync(context, "drink-cup-seal", "Admin edited title");
             await context.SaveChangesAsync();
             var registration = Row(product.Id);
             registration.ProductKey = "standard-package-label";
@@ -230,6 +219,32 @@ namespace TummlyBackend.Tests.SqlServer
             context.ShopInterestProducts.Add(product);
             await context.SaveChangesAsync();
             return product.Id;
+        }
+
+        private static async Task<ShopInterestProduct> UpsertConceptAsync(
+            ApplicationDbContext context,
+            string productKey,
+            string title
+        )
+        {
+            var row = await context.ShopInterestProducts.SingleOrDefaultAsync(
+                product => product.ProductKey == productKey
+            );
+            if (row == null)
+            {
+                row = new ShopInterestProduct
+                {
+                    ProductKey = productKey,
+                    Description = "Concept",
+                    Material = string.Empty,
+                    Dimensions = string.Empty,
+                    IsActive = true,
+                };
+                context.ShopInterestProducts.Add(row);
+            }
+
+            row.Title = title;
+            return row;
         }
 
         private static ShopInterestRegistration Row(
