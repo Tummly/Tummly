@@ -99,6 +99,23 @@ export function locationStatusBadgeVariant(
   }
 }
 
+const LONDON_DATE_TIME_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/London",
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+})
+
+/** Date and time in Europe/London, for "as of" labels. */
+export function formatAccountDateTime(iso: string | null): string {
+  if (iso == null) return "—"
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return LONDON_DATE_TIME_FORMAT.format(date)
+}
+
 export function formatAccountDate(iso: string | null): string {
   if (iso == null) return "—"
   const date = new Date(iso)

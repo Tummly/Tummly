@@ -6,6 +6,7 @@ import {
   buildAccountListParams,
   capacityLabel,
   formatAccountDate,
+  formatAccountDateTime,
   hasNextPage,
   hasPreviousPage,
   locationStatusBadgeVariant,
@@ -157,5 +158,12 @@ describe("scheduledChangeLabel", () => {
         effectiveAtUtc: "2026-11-30T00:00:00Z",
       })
     ).toBe("Changes to Starter Annual on 30 Nov 2026")
+  })
+})
+
+describe("formatAccountDateTime", () => {
+  it("formats in Europe/London with time and keeps null as a dash", () => {
+    expect(formatAccountDateTime("2026-07-01T11:05:00Z")).toBe("01 Jul 2026, 12:05")
+    expect(formatAccountDateTime(null)).toBe("—")
   })
 })

@@ -57,6 +57,8 @@ export type AdminAccountProfile = {
     pilotPeriodEndUtc: string | null
     currentPeriodStartUtc: string | null
     currentPeriodEndUtc: string | null
+    storedAtUtc: string
+    pilotEndPassedNotAdvanced: boolean
     scheduledChange: {
       hasScheduledChange: boolean
       targetSubscriptionPlan: string | null

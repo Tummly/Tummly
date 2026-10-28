@@ -191,17 +191,16 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .Where(row => row.RestaurantId == restaurantId && row.ExpiresAt > now)
                 .OrderByDescending(row => row.SentAt)
+                .Select(row => new { row.Email, row.SentAt, row.ExpiresAt })
+                .ToListAsync(cancellationToken);
+            var maskedInvites = pendingInvites
                 .Select(row => new AdminAccountPendingInviteDto
                 {
-                    MaskedEmail = row.Email,
+                    MaskedEmail = GuestContactMask.MaskEmail(row.Email) ?? string.Empty,
                     SentAtUtc = row.SentAt,
                     ExpiresAtUtc = row.ExpiresAt,
                 })
-                .ToListAsync(cancellationToken);
-            foreach (var invite in pendingInvites)
-            {
-                invite.MaskedEmail = GuestContactMask.MaskEmail(invite.MaskedEmail) ?? string.Empty;
-            }
+                .ToList();
 
             var creditSnapshot = await _creditBalance.GetAccountAsync(restaurantId, cancellationToken);
             var currentPeriodStart = await _context.CreditLedgerEntries
@@ -305,6 +304,11 @@ namespace TummlyBackend.Services
                     },
                     SoftLockEnteredAtUtc = billing.SoftLockEnteredAt,
                     DormantEnteredAtUtc = billing.DormantEnteredAt,
+                    StoredAtUtc = now,
+                    PilotEndPassedNotAdvanced =
+                        billing.BillingStatus == BillingStatuses.Pilot
+                        && billing.PilotPeriodEnd is { } pilotEnd
+                        && pilotEnd <= now,
                 },
                 Locations = new AdminAccountLocationsDto
                 {
@@ -328,7 +332,7 @@ namespace TummlyBackend.Services
                             Current = qrUsed,
                         }),
                     Offers = ToLimit(planSnapshot.ActiveOffers),
-                    PendingInvites = pendingInvites,
+                    PendingInvites = maskedInvites,
                 },
                 Credits = creditSnapshot == null
                     ? []

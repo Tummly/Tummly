@@ -87,6 +87,34 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Profile_PilotPastEndStillStoredPilot_FlagsNotAdvanced()
+        {
+            var id = SeedWorkspace(
+                "Expired Pilot Venue",
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                pilotStart: DateTime.UtcNow.AddDays(-40),
+                pilotEnd: DateTime.UtcNow.AddDays(-10)
+            );
+            var activeId = SeedWorkspace(
+                "Active Pilot Venue",
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                pilotStart: DateTime.UtcNow.AddDays(-5),
+                pilotEnd: DateTime.UtcNow.AddDays(25)
+            );
+            await _context.SaveChangesAsync();
+
+            var expired = (await _service.GetProfileAsync(id))!.Lifecycle;
+            var active = (await _service.GetProfileAsync(activeId))!.Lifecycle;
+
+            Assert.True(expired.PilotEndPassedNotAdvanced);
+            Assert.Equal(BillingStatuses.Pilot, expired.BillingStatus);
+            Assert.False(active.PilotEndPassedNotAdvanced);
+            Assert.True(expired.StoredAtUtc > DateTime.UtcNow.AddMinutes(-1));
+        }
+
+        [Fact]
         public async Task Profile_ScheduledCancel_ShowsCancelAtRenewal()
         {
             var renewal = DateTime.UtcNow.AddDays(14);

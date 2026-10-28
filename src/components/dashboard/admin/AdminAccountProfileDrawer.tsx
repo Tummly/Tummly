@@ -31,6 +31,7 @@ import {
   billingStatusBadgeVariant,
   capacityLabel,
   formatAccountDate,
+  formatAccountDateTime,
   locationStatusBadgeVariant,
   scheduledChangeLabel,
 } from "@/lib/admin/adminAccountsPresentation"
@@ -49,6 +50,7 @@ type AdminAccountProfileDrawerProps = {
 type LoadOutcome =
   | { kind: "ready"; profile: AdminAccountProfile }
   | { kind: "forbidden" }
+  | { kind: "notFound" }
   | { kind: "failed" }
 
 /** A finished load, tagged with the Workspace and attempt it answers. */
@@ -57,6 +59,9 @@ type LoadResult = LoadOutcome & { restaurantId: number; attempt: number }
 function loadOutcomeFromError(error: unknown): LoadOutcome {
   if (axios.isAxiosError(error) && error.response?.status === 403) {
     return { kind: "forbidden" }
+  }
+  if (axios.isAxiosError(error) && error.response?.status === 404) {
+    return { kind: "notFound" }
   }
   return { kind: "failed" }
 }
@@ -173,6 +178,13 @@ export function AdminAccountProfileDrawer({
                 </Alert>
               ) : null}
 
+              {current?.kind === "notFound" ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Account not found</AlertTitle>
+                  <AlertDescription>No Workspace has this ID.</AlertDescription>
+                </Alert>
+              ) : null}
+
               {current?.kind === "failed" ? (
                 <Alert variant="destructive">
                   <AlertTitle>Profile unavailable</AlertTitle>
@@ -229,6 +241,19 @@ function ProfileBody({ profile }: { profile: AdminAccountProfile }) {
             {lifecycle.billingCycle ? ` · ${lifecycle.billingCycle}` : ""}
           </span>
         </div>
+        <p className="text-xs text-op-text-primary">
+          Stored status as of {formatAccountDateTime(lifecycle.storedAtUtc)}. It advances on the
+          customer&apos;s next sign-in or Billing visit.
+        </p>
+        {lifecycle.pilotEndPassedNotAdvanced ? (
+          <Alert>
+            <AlertTitle>Pilot end has passed</AlertTitle>
+            <AlertDescription>
+              The stored status is still Pilot. It changes on the customer&apos;s next sign-in or
+              Billing visit.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <dl className="flex flex-col gap-2">
           <Field label="Pilot started" value={formatAccountDate(lifecycle.pilotStartedAtUtc)} />
           <Field label="Pilot ends" value={formatAccountDate(lifecycle.pilotPeriodEndUtc)} />

@@ -97,6 +97,15 @@ namespace TummlyBackend.DTOs.Admin
         public DateTime? SoftLockEnteredAtUtc { get; set; }
 
         public DateTime? DormantEnteredAtUtc { get; set; }
+
+        /// <summary>
+        /// When this profile was read. Status is the stored value: the lifecycle
+        /// advances on the customer's next sign-in or Billing visit, not on this read.
+        /// </summary>
+        public DateTime StoredAtUtc { get; set; }
+
+        /// <summary>Stored status is still Pilot but the Pilot end has passed.</summary>
+        public bool PilotEndPassedNotAdvanced { get; set; }
     }
 
     public sealed class AdminAccountScheduledChangeDto
