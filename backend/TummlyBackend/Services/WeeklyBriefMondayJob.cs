@@ -7,10 +7,12 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Hourly job: for each Owned location on its Week-starts-on day, if the
-    /// closed prior week in the location timezone has no succeeded brief, call
-    /// generate. Notify on first-write success via <see cref="IWeeklyBriefReadyNotifier"/>.
-    /// Per-location failures are logged; the batch continues.
+    /// Hourly job: for each Owned location, if the closed prior week in the
+    /// location timezone has no succeeded brief, call generate. The closed week
+    /// stays the same until the next Week-starts-on day, so a missing or failed
+    /// brief is retried on later days of that week. Notify on first-write success
+    /// via <see cref="IWeeklyBriefReadyNotifier"/>. Per-location failures are
+    /// logged; the batch continues.
     /// </summary>
     public sealed class WeeklyBriefMondayJob : IWeeklyBriefMondayJob
     {
@@ -63,18 +65,6 @@ namespace TummlyBackend.Services
 
                 try
                 {
-                    if (
-                        !WeeklyBriefWeekKey.IsGenerateDay(
-                            WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                            utcNow,
-                            location.WeekStartsOn
-                        )
-                    )
-                    {
-                        skipped++;
-                        continue;
-                    }
-
                     var closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
                         WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
                         utcNow,

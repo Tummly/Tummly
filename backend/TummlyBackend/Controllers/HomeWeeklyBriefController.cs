@@ -137,8 +137,8 @@ namespace TummlyBackend.Controllers
         /// Manual / lazy generate for a closed workspace week. Home omits
         /// <c>from</c>/<c>to</c> (closed prior). Reports may pass a KPI window;
         /// the API snaps to the most recent closed week overlapping that range.
-        /// Available any day; <see cref="WeeklyBriefWeekKey.IsGenerateDay"/>
-        /// gates only the scheduled job. On success, calls
+        /// Available any day, as is the scheduled job's catch-up on later days of
+        /// the week. On success, calls
         /// <see cref="IWeeklyBriefReadyNotifier"/>; its location + week dedupe
         /// stops a brief that was already notified from notifying again.
         /// </summary>
