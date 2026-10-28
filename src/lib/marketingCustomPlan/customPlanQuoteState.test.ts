@@ -107,6 +107,34 @@ describe("checkPackCount", () => {
     expect(packCountMessage("over_limit")).toBe("Maximum 99 packs per option.")
     expect(packCountMessage("ok")).toBeNull()
   })
+
+  it("maps capacity unit fields to the approved invalid and limit copy", () => {
+    const invalid = "Enter a whole number of units, starting from 1."
+    const overLimit =
+      "This quantity exceeds the available limit. Reduce the quantity or review your capacity options."
+    for (const key of ["team_user", "offer", "qr_placement"] as const) {
+      expect(packCountMessage("empty", key)).toBe(invalid)
+      expect(packCountMessage("not_integer", key)).toBe(invalid)
+      expect(packCountMessage("over_limit", key)).toBe(overLimit)
+      expect(packCountMessage("ok", key)).toBeNull()
+    }
+  })
+
+  it("keeps 0 valid for a unit field and rejects negative and fractional input", () => {
+    expect(checkPackCount(0, "qr_placement")).toBe("ok")
+    expect(checkPackCount(-1, "qr_placement")).toBe("not_integer")
+    expect(checkPackCount(1.5, "offer")).toBe("not_integer")
+    expect(checkPackCount(null, "team_user")).toBe("empty")
+  })
+
+  it("leaves credit pack messages unchanged", () => {
+    expect(packCountMessage("empty", "email_20k")).toBe(
+      "Enter a number of packs. Use 0 for none.",
+    )
+    expect(packCountMessage("over_limit", "ai_500")).toBe(
+      "Maximum 99 packs per option.",
+    )
+  })
 })
 
 describe("quoteReducer", () => {
@@ -148,6 +176,30 @@ describe("quoteReducer", () => {
     state = quoteReducer(state, { type: "success", requestId: 1, quote: q1 })
     state = quoteReducer(state, { type: "request", requestId: 2 })
     expect(state).toEqual({ status: "loading", requestId: 2, last: q1 })
+  })
+})
+
+describe("quoteView failure copy", () => {
+  const failed: QuoteState = { status: "failed", last: null, code: null }
+
+  it("keeps the generic failure copy by default (marketing calculator)", () => {
+    const view = quoteView({ check: "ok", state: failed, changed: false })
+    expect(view.message).toBe(CUSTOM_PLAN_QUOTE_COPY.failed)
+    expect(view.showRetry).toBe(true)
+  })
+
+  it("uses the unverified-total copy when the caller asks (signup review)", () => {
+    const view = quoteView({
+      check: "ok",
+      state: failed,
+      changed: false,
+      failedMessage: CUSTOM_PLAN_QUOTE_COPY.quoteUnverified,
+    })
+    expect(view.message).toBe(
+      "We couldn't confirm your updated total. Refresh your quote and try again. No payment has been taken.",
+    )
+    expect(view.showRetry).toBe(true)
+    expect(view.continueEnabled).toBe(false)
   })
 })
 

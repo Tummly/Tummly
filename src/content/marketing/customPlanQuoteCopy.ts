@@ -22,9 +22,13 @@ export const CUSTOM_PLAN_QUOTE_COPY = {
   packEmpty: "Enter a number of packs. Use 0 for none.",
   packNotWhole: "Enter a whole number of packs.",
   packOverLimit: "Maximum 99 packs per option.",
-  unitEmpty: "Enter a number. Use 0 for none.",
-  unitNotWhole: "Enter a whole number.",
-  unitOverLimit: "Maximum 500 per option.",
+  unitEmpty: "Enter a whole number of units, starting from 1.",
+  unitNotWhole: "Enter a whole number of units, starting from 1.",
+  unitOverLimit:
+    "This quantity exceeds the available limit. Reduce the quantity or review your capacity options.",
+  /** Signup review: the server quote could not be confirmed. Nothing is charged. */
+  quoteUnverified:
+    "We couldn't confirm your updated total. Refresh your quote and try again. No payment has been taken.",
   /** Short labels for the full quote shown beside the price confirmation. */
   breakdown: {
     billing: "Billing",

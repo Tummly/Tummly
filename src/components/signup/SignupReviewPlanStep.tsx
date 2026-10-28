@@ -152,6 +152,7 @@ export function SignupReviewPlanStep({
         state,
         changed: priceChanged,
         priceConfirmed,
+        failedMessage: CUSTOM_PLAN_QUOTE_COPY.quoteUnverified,
       })
   const continueEnabled = selectable && view?.continueEnabled === true
 
@@ -180,7 +181,7 @@ export function SignupReviewPlanStep({
   // Before the first quote, the placeholder shows the catalogue or quote status.
   const placeholderMessage = waitingForCatalogue
     ? plainFailed
-      ? CUSTOM_PLAN_QUOTE_COPY.failed
+      ? CUSTOM_PLAN_QUOTE_COPY.quoteUnverified
       : CUSTOM_PLAN_QUOTE_COPY.loading
     : (view?.message ?? null)
   const placeholderRetry = waitingForCatalogue ? retryPlainCatalogue : retry

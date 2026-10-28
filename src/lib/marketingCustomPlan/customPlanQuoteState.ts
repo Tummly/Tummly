@@ -170,8 +170,16 @@ export function quoteView(input: {
   changed: boolean
   /** The customer confirmed the ready quote's price. Ignored unless `changed`. */
   priceConfirmed?: boolean
+  /** Replaces the generic failure copy where the quote gates a payment (signup review). */
+  failedMessage?: string
 }): QuoteView {
-  const { check, state, changed, priceConfirmed = false } = input
+  const {
+    check,
+    state,
+    changed,
+    priceConfirmed = false,
+    failedMessage = CUSTOM_PLAN_QUOTE_COPY.failed,
+  } = input
   const shown = lastQuote(state)
   const taxText =
     shown != null && shown.vatRateBps > 0
@@ -222,7 +230,7 @@ export function quoteView(input: {
       }
       return {
         ...base,
-        message: CUSTOM_PLAN_QUOTE_COPY.failed,
+        message: failedMessage,
         showRetry: true,
         continueEnabled: false,
       }
