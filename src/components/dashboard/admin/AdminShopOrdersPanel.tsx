@@ -29,6 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Pagination,
   PaginationContent,
@@ -59,6 +60,7 @@ import {
   ALL_ADMIN_SHOP_FULFILMENT_STATUSES,
   adminShopFulfilmentLabel,
   adminShopOrderFulfilmentLabel,
+  canSubmitAdminShopFulfilment,
   formatAdminShopGbpFromPence,
 } from "@/lib/adminShopOrderFulfilment"
 import { defaultDownloadName } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
@@ -165,6 +167,7 @@ export function AdminShopOrdersPanel() {
   )
   const [pendingFulfilment, setPendingFulfilment] =
     useState<PendingFulfilment | null>(null)
+  const [pendingTrackingUrl, setPendingTrackingUrl] = useState("")
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -301,8 +304,10 @@ export function AdminShopOrdersPanel() {
     if (!pending) return
     await runRowBusy(pending.order.id, async () => {
       try {
+        const trackingUrl = pendingTrackingUrl.trim()
         const updated = await patchAdminShopOrderFulfilment(pending.order.id, {
           fulfilmentStatus: pending.status,
+          ...(pending.status === "in_transit" ? { trackingUrl } : {}),
         })
         setPendingFulfilment(null)
         applyOrderUpdate(updated)
@@ -318,6 +323,12 @@ export function AdminShopOrdersPanel() {
   const pendingBusy =
     pendingFulfilment !== null &&
     rowBusyOrderIds.has(pendingFulfilment.order.id)
+  const pendingCanSubmit =
+    pendingFulfilment !== null &&
+    canSubmitAdminShopFulfilment({
+      targetStatus: pendingFulfilment.status,
+      trackingUrl: pendingTrackingUrl,
+    })
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -542,9 +553,10 @@ export function AdminShopOrdersPanel() {
                           onApproveMaterials={() =>
                             void approveRowMaterials(order)
                           }
-                          onRequestFulfilment={(status, label) =>
+                          onRequestFulfilment={(status, label) => {
+                            setPendingTrackingUrl("")
                             setPendingFulfilment({ order, status, label })
-                          }
+                          }}
                         />
                       </TableCell>
                     </TableRow>
@@ -654,12 +666,29 @@ export function AdminShopOrdersPanel() {
                 : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {pendingFulfilment?.status === "in_transit" && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="admin-shop-dispatch-tracking-url">
+                Tracking URL (required)
+              </Label>
+              <Input
+                id="admin-shop-dispatch-tracking-url"
+                value={pendingTrackingUrl}
+                onChange={(event) => setPendingTrackingUrl(event.target.value)}
+                placeholder="https://…"
+                required
+                aria-required="true"
+                disabled={pendingBusy}
+                className="rounded-[2px]"
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pendingBusy}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={pendingBusy}
+              disabled={pendingBusy || !pendingCanSubmit}
               onClick={(event) => {
                 event.preventDefault()
                 void confirmFulfilment()

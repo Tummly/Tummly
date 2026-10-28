@@ -156,6 +156,20 @@ namespace TummlyBackend.Services
                 }
             }
 
+            var transitioningToInTransit =
+                currentStatus == ShopFulfilmentStatuses.Processing
+                && targetStatus == ShopFulfilmentStatuses.InTransit;
+            if (
+                transitioningToInTransit
+                && (!patch.TrackingUrlSet || string.IsNullOrWhiteSpace(patch.TrackingUrl))
+            )
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "tracking_reference_required",
+                    "A tracking reference is required to mark the order as dispatched."
+                );
+            }
+
             if (patch.TrackingUrlSet)
             {
                 var trackingError = ValidateTrackingUrlMutation(
@@ -170,9 +184,6 @@ namespace TummlyBackend.Services
             }
 
             var now = DateTime.UtcNow;
-            var transitioningToInTransit =
-                currentStatus == ShopFulfilmentStatuses.Processing
-                && targetStatus == ShopFulfilmentStatuses.InTransit;
             var transitioningToDelivered =
                 currentStatus == ShopFulfilmentStatuses.InTransit
                 && targetStatus == ShopFulfilmentStatuses.Delivered;

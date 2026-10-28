@@ -724,6 +724,51 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PatchFulfilment_DispatchWithoutTrackingReference_Returns400()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing
+            );
+
+            using var missingRequest = AuthorizedPatch(
+                $"/api/admin/shop-orders/{orderId}/fulfilment",
+                seeded.AdminJwt,
+                new { fulfilmentStatus = ShopFulfilmentStatuses.InTransit }
+            );
+            var missingResponse = await _client.SendAsync(missingRequest);
+            Assert.Equal(HttpStatusCode.BadRequest, missingResponse.StatusCode);
+            var missingBody = await ReadJsonAsync(missingResponse);
+            Assert.Equal(
+                "tracking_reference_required",
+                missingBody.GetProperty("code").GetString()
+            );
+
+            using var blankRequest = AuthorizedPatch(
+                $"/api/admin/shop-orders/{orderId}/fulfilment",
+                seeded.AdminJwt,
+                new
+                {
+                    fulfilmentStatus = ShopFulfilmentStatuses.InTransit,
+                    trackingUrl = "   ",
+                }
+            );
+            var blankResponse = await _client.SendAsync(blankRequest);
+            Assert.Equal(HttpStatusCode.BadRequest, blankResponse.StatusCode);
+            var blankBody = await ReadJsonAsync(blankResponse);
+            Assert.Equal(
+                "tracking_reference_required",
+                blankBody.GetProperty("code").GetString()
+            );
+
+            var stored = await ReadOrderAsync(orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Null(stored.DispatchedAtUtc);
+            Assert.Null(stored.TrackingUrl);
+        }
+
+        [Fact]
         public async Task PatchFulfilment_Delivered_DoesNotMintReceiptSticker()
         {
             var seeded = await SeedWorkspaceAsync();

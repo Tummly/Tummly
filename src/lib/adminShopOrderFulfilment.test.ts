@@ -6,6 +6,7 @@ import {
   adminShopOrderReviewNotice,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
+  canSubmitAdminShopFulfilment,
   nextAdminShopFulfilmentAction,
 } from "@/lib/adminShopOrderFulfilment"
 
@@ -48,6 +49,27 @@ describe("adminShopOrderFulfilment", () => {
     })
     expect(nextAdminShopFulfilmentAction("delivered")).toBeNull()
     expect(nextAdminShopFulfilmentAction("cancelled")).toBeNull()
+  })
+
+  it("requires a tracking reference only to dispatch", () => {
+    expect(
+      canSubmitAdminShopFulfilment({ targetStatus: "in_transit", trackingUrl: "" })
+    ).toBe(false)
+    expect(
+      canSubmitAdminShopFulfilment({
+        targetStatus: "in_transit",
+        trackingUrl: "   ",
+      })
+    ).toBe(false)
+    expect(
+      canSubmitAdminShopFulfilment({
+        targetStatus: "in_transit",
+        trackingUrl: "https://track.example/abc",
+      })
+    ).toBe(true)
+    expect(
+      canSubmitAdminShopFulfilment({ targetStatus: "delivered", trackingUrl: "" })
+    ).toBe(true)
   })
 
   it("limits tracking and notes edits by status", () => {

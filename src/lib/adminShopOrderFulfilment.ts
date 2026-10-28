@@ -72,6 +72,20 @@ export function nextAdminShopFulfilmentAction(
   return null
 }
 
+/**
+ * Dispatch needs a tracking reference (trackingUrl). Other transitions do not.
+ * The API rejects a dispatch without one, so Admin UI blocks it first.
+ */
+export function canSubmitAdminShopFulfilment(input: {
+  targetStatus: string
+  trackingUrl: string
+}): boolean {
+  if (input.targetStatus !== "in_transit") {
+    return true
+  }
+  return input.trackingUrl.trim().length > 0
+}
+
 export function canEditAdminShopTrackingUrl(status: string): boolean {
   return status === "processing" || status === "in_transit"
 }
