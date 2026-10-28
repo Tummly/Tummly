@@ -623,6 +623,62 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SendGuestResponse_Returns400_WhenEmailContactUnsubscribed()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-email-unsubscribed-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "email-unsubscribed-owner@example.com"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var suppressions = scope.ServiceProvider
+                    .GetRequiredService<IGuestContactSuppressionService>();
+                var restaurantId = await context.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row => row.Id == seeded.LocationId)
+                    .Select(row => row.RestaurantId)
+                    .SingleAsync();
+                await suppressions.StageAsync(
+                    restaurantId,
+                    "email:alex@example.com",
+                    LocationGuestPermissionKind.EmailMarketing,
+                    DateTime.UtcNow,
+                    GuestContactSuppressionSources.EmailUnsubscribe
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                ServiceReplyEligibility.NotAllowedMessage,
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
         public async Task SendGuestResponse_Email_WritesNoLedgerRow()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(

@@ -30,13 +30,19 @@ namespace TummlyBackend.Tests.Services
 
             _context = new ApplicationDbContext(options);
             _offerIssues = new OfferIssueService(_context);
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
             _service = new FeedbackRecoveryOffersService(
                 _context,
+                suppressions,
                 NoOpGuestResponseEmailDeliveryWork.Instance,
                 _offerIssues,
                 new GatedGuestReplyLock(),
                 new GuestReplySmsSendStep(
                     _context,
+                    suppressions,
                     new AcceptingRecoverySmsBilling(),
                     new RecordingRecoveryGuestSmsDelivery(),
                     TimeProvider.System,
@@ -247,13 +253,19 @@ namespace TummlyBackend.Tests.Services
                 .Options;
             await using var failingContext = new FailAtomicSaveDbContext(options);
             var offerIssues = new OfferIssueService(failingContext);
+            var suppressions = new GuestContactSuppressionService(
+                failingContext,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
             var service = new FeedbackRecoveryOffersService(
                 failingContext,
+                suppressions,
                 NoOpGuestResponseEmailDeliveryWork.Instance,
                 offerIssues,
                 new GatedGuestReplyLock(),
                 new GuestReplySmsSendStep(
                     failingContext,
+                    suppressions,
                     new AcceptingRecoverySmsBilling(),
                     new RecordingRecoveryGuestSmsDelivery(),
                     TimeProvider.System,

@@ -46,6 +46,12 @@ namespace TummlyBackend.Tests.Services
                     )
             );
             collection.AddSingleton<IEmailService>(_emailService);
+            collection.AddScoped<IGuestContactSuppressionService>(sp =>
+                new GuestContactSuppressionService(
+                    sp.GetRequiredService<ApplicationDbContext>(),
+                    new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+                )
+            );
             collection.AddSingleton<IConfiguration>(
                 new ConfigurationBuilder().Build()
             );
@@ -79,8 +85,13 @@ namespace TummlyBackend.Tests.Services
                     )
                     .Options
             );
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
             var smsSend = new GuestReplySmsSendStep(
                 _context,
+                suppressions,
                 new LiveRecoverySmsBillingReserve(
                     _context,
                     new CreditLedgerService(
@@ -97,6 +108,7 @@ namespace TummlyBackend.Tests.Services
             );
             _guestResponses = new FeedbackGuestResponsesService(
                 _context,
+                suppressions,
                 _deliveryWork,
                 smsSend,
                 TimeProvider.System,
@@ -104,12 +116,14 @@ namespace TummlyBackend.Tests.Services
             );
             _respondAndRecord = new FeedbackRespondAndRecordService(
                 _context,
+                suppressions,
                 _deliveryWork,
                 new GatedGuestReplyLock(),
                 smsSend
             );
             _recoveryOffers = new FeedbackRecoveryOffersService(
                 _context,
+                suppressions,
                 _deliveryWork,
                 new OfferIssueService(_context),
                 new GatedGuestReplyLock(),
@@ -350,6 +364,66 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(1, _emailService.CallCount);
             Assert.Equal("follow-up-only@example.com", _emailService.LastToEmail);
+        }
+
+        [Fact]
+        public async Task Delivery_SkipsWhenContactSuppressedAfterCompose()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "suppressed-after@example.com"
+            );
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Thanks",
+                body: "Will be skipped after unsubscribe.",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            var pending = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .SingleAsync(f => f.Id == seeded.FeedbackId);
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == feedback.RestaurantLocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
+            await suppressions.StageAsync(
+                restaurantId,
+                "email:suppressed-after@example.com",
+                LocationGuestPermissionKind.EmailMarketing,
+                new DateTime(2026, 10, 24, 14, 0, 0, DateTimeKind.Utc),
+                GuestContactSuppressionSources.EmailUnsubscribe
+            );
+            await _context.SaveChangesAsync();
+            _context.ChangeTracker.Clear();
+
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(0, _emailService.CallCount);
+
+            var skipped = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.Id == pending.Id);
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Abandoned,
+                skipped.EmailDeliveryStatus
+            );
+            Assert.Equal(GuestReplyDeliveryState.Failed, skipped.DeliveryState);
         }
 
         [Fact]
