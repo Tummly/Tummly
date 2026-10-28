@@ -2981,6 +2981,10 @@ namespace TummlyBackend.Data
                 .HasMaxLength(4000);
 
             modelBuilder.Entity<AdminAuditEvent>()
+                .Property(e => e.CorrelationId)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<AdminAuditEvent>()
                 .HasIndex(e => e.OccurredAtUtc);
 
             modelBuilder.Entity<AdminAuditEvent>()

@@ -28,7 +28,8 @@ namespace TummlyBackend.Interfaces
         DateTime? FromUtc = null,
         DateTime? ToUtc = null,
         int Skip = 0,
-        int Take = 50
+        int Take = 50,
+        string? TargetId = null
     );
 
     public sealed record AdminAuditListResult(

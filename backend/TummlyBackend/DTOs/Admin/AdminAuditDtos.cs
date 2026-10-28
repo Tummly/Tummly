@@ -21,5 +21,7 @@ namespace TummlyBackend.DTOs.Admin
         public string? DetailJson { get; set; }
 
         public bool Succeeded { get; set; }
+
+        public string? CorrelationId { get; set; }
     }
 }

@@ -117,6 +117,10 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("DetailJson")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
