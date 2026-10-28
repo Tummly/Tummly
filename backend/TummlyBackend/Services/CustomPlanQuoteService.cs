@@ -4,6 +4,7 @@ using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -42,6 +43,21 @@ namespace TummlyBackend.Services
             // Validate the request before any catalogue read or maths.
             var locations = ValidateLocations(request.Locations);
             var packs = NormalizePacks(request.Packs);
+
+            if (
+                string.Equals(
+                    request.BasePlan?.Trim(),
+                    "pilot",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && packs.Any(kv => kv.Value > 0 && CustomPlanPacks.IsCapacityPackKey(kv.Key))
+            )
+            {
+                throw new CustomPlanQuoteException(
+                    "pilot_no_capacity_addons",
+                    "Pilot has no paid capacity add-ons."
+                );
+            }
 
             var version = await LoadPublishedAsync(cancellationToken)
                 ?? throw new CustomPlanQuoteException(
@@ -112,9 +128,9 @@ namespace TummlyBackend.Services
             var extraEmail = extra?.CreditsMonthlyEmail ?? 0;
             var extraSms = extra?.CreditsMonthlySms ?? 0;
 
-            var teamFromPacks = packs.GetValueOrDefault("team_users_5") * 5;
-            var offersFromPacks = packs.GetValueOrDefault("offers_5") * 5;
-            var qrAccountExtra = packs.GetValueOrDefault("qr_10") * 10;
+            var teamFromPacks = packs.GetValueOrDefault(CustomPlanPacks.TeamUser);
+            var offersFromPacks = packs.GetValueOrDefault(CustomPlanPacks.Offer);
+            var qrAccountExtra = packs.GetValueOrDefault(CustomPlanPacks.QrPlacement);
             var emailFromPacks =
                 packs.GetValueOrDefault("email_20k") * 20_000
                 + packs.GetValueOrDefault("email_50k") * 50_000;
@@ -133,6 +149,7 @@ namespace TummlyBackend.Services
                     planRow.IncludedTeamMembers
                     + teamFromPacks
                     + additionalLocations * usersAdded,
+                // Base plan allowance as the Workspace base (not a per-Location limit).
                 QrPlacements = planRow.ActiveQrPlacementsPerLocation,
                 QrPlacementsAccountExtra = qrAccountExtra,
                 // Group base: +3 per Location beyond the five included (spec §6).
@@ -156,6 +173,15 @@ namespace TummlyBackend.Services
                     + additionalLocations * extraAi,
             };
 
+            // One Workspace pool, from the same code Capture and Shop read. Not per Location.
+            var workspaceQrPool = WorkspaceQrPool.ForCustomPlan(
+                basePlan,
+                planRow.ActiveQrPlacementsPerLocation,
+                locations,
+                includedLocations,
+                qrAccountExtra
+            );
+
             var lines = new List<CustomPlanLine>();
             var monthlyNetPence = 0;
             var periodNetPence = 0;
@@ -170,7 +196,9 @@ namespace TummlyBackend.Services
                     Key = $"base:{basePlan}",
                     Label =
                         $"{planRow.DisplayName} · {includedLocations} included Location{(includedLocations == 1 ? "" : "s")}",
+                    Name = planRow.DisplayName,
                     Quantity = 1,
+                    UnitNetPence = periodBase,
                     NetPence = periodBase,
                 }
             );
@@ -210,7 +238,15 @@ namespace TummlyBackend.Services
                         Key = $"extra:location:band_{slice.BandIndex}",
                         Label =
                             $"{slice.SlotCount} additional Location{(slice.SlotCount == 1 ? "" : "s")} ({slice.FirstSlot}–{slice.LastSlot})",
+                        Name = "Additional Locations",
                         Quantity = slice.SlotCount,
+                        UnitNetPence = CustomPlanLineNet.ForCadence(
+                            cadence,
+                            1,
+                            bandRate.MonthlyNetPence,
+                            bandRate.AnnualNetPence,
+                            1
+                        ),
                         NetPence = periodExtra,
                     }
                 );
@@ -224,24 +260,54 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
+                // A requested unit with no published rate must not be free: fail the quote.
                 if (!ratesByKey.TryGetValue(def.RateKey, out var rate))
                 {
-                    continue;
+                    throw new CustomPlanQuoteException(
+                        "catalog_incomplete",
+                        $"The price for {PackTitle(def.PackKey)} is missing from the catalogue."
+                    );
                 }
 
                 var naturalQty = count * def.PackSize;
-                var monthlyPack = CustomPlanLineNet.Monthly(
-                    naturalQty,
+                // One unit (capacity) or one pack (credits) at this cadence.
+                var unitMonthly = CustomPlanLineNet.Monthly(
+                    def.PackSize,
                     rate.MonthlyNetPence,
                     rate.UnitQuantity
                 );
-                var periodPack = CustomPlanLineNet.ForCadence(
+                var unitPeriod = CustomPlanLineNet.ForCadence(
                     cadence,
-                    naturalQty,
+                    def.PackSize,
                     rate.MonthlyNetPence,
                     rate.AnnualNetPence,
                     rate.UnitQuantity
                 );
+                int monthlyPack;
+                int periodPack;
+                if (CustomPlanPacks.IsCapacityPackKey(def.PackKey))
+                {
+                    // Single units: the charge is quantity x the displayed unit price,
+                    // with the unit price rounded once, so display and charge agree.
+                    monthlyPack = count * unitMonthly;
+                    periodPack = count * unitPeriod;
+                }
+                else
+                {
+                    monthlyPack = CustomPlanLineNet.Monthly(
+                        naturalQty,
+                        rate.MonthlyNetPence,
+                        rate.UnitQuantity
+                    );
+                    periodPack = CustomPlanLineNet.ForCadence(
+                        cadence,
+                        naturalQty,
+                        rate.MonthlyNetPence,
+                        rate.AnnualNetPence,
+                        rate.UnitQuantity
+                    );
+                }
+
                 monthlyNetPence += monthlyPack;
                 periodNetPence += periodPack;
                 lines.Add(
@@ -249,7 +315,9 @@ namespace TummlyBackend.Services
                     {
                         Key = $"pack:{def.PackKey}",
                         Label = $"{PackTitle(def.PackKey)} × {count}",
+                        Name = PackTitle(def.PackKey),
                         Quantity = count,
+                        UnitNetPence = unitPeriod,
                         NetPence = periodPack,
                     }
                 );
@@ -275,6 +343,7 @@ namespace TummlyBackend.Services
                 Locations = locations,
                 Packs = storedPacks,
                 Quantities = quantities,
+                WorkspaceQrPool = workspaceQrPool,
                 MonthlyNetPence = monthlyNetPence,
                 PeriodNetPence = periodNetPence,
                 Lines = lines,
@@ -285,6 +354,16 @@ namespace TummlyBackend.Services
                 // Checkout charges the seller VAT setting, not the catalogue row.
                 VatRateBps = _sellerVat.EffectiveVatRateBps,
             };
+            // Signup starts a new subscription: the first period is due in full and
+            // the plan starts on confirmed payment. Renewals charge the same amount.
+            quote.VatAmountPence = TummlyVatMath.VatPenceFromNetPence(
+                periodNetPence,
+                quote.VatRateBps
+            );
+            quote.GrossTotalPence = periodNetPence + quote.VatAmountPence;
+            quote.RecurringGrossPence = quote.GrossTotalPence;
+            quote.DueNowGrossPence = quote.GrossTotalPence;
+            quote.EffectiveTiming = CustomPlanEffectiveTimings.OnPaymentConfirmed;
             quote.QuoteHash = CustomPlanQuoteHash.Compute(quote);
             return quote;
         }
@@ -338,6 +417,18 @@ namespace TummlyBackend.Services
                 return next;
             }
 
+            // Legacy capacity packs are never converted: the guest picks single units again.
+            foreach (var key in packs.Keys)
+            {
+                if (CustomPlanPacks.LegacyCapacityPackKeys.TryGetValue(key, out var unitKey))
+                {
+                    throw new CustomPlanQuoteException(
+                        "legacy_pack_key",
+                        $"Pack {key} is no longer sold. Choose single units ({unitKey}) instead."
+                    );
+                }
+            }
+
             // Unknown keys first (across all entries), then quantities.
             foreach (var key in packs.Keys)
             {
@@ -352,15 +443,20 @@ namespace TummlyBackend.Services
 
             foreach (var (key, raw) in packs)
             {
-                if (
-                    raw < 0
-                    || raw > CustomPlanPacks.MaxPackCount
-                    || raw != decimal.Truncate(raw)
-                )
+                var max = CustomPlanPacks.ByKey[key].MaxCount;
+                if (raw < 0 || raw != decimal.Truncate(raw))
                 {
                     throw new CustomPlanQuoteException(
                         "invalid_pack_quantity",
-                        $"Pack {key} must be a whole number from 0 to {CustomPlanPacks.MaxPackCount}."
+                        $"Pack {key} must be a whole number from 0 to {max}."
+                    );
+                }
+
+                if (raw > max)
+                {
+                    throw new CustomPlanQuoteException(
+                        "pack_quantity_over_limit",
+                        $"Pack {key} must be a whole number from 0 to {max}."
                     );
                 }
 
@@ -478,9 +574,9 @@ namespace TummlyBackend.Services
         private static string PackTitle(string packKey) =>
             packKey switch
             {
-                "team_users_5" => "Additional team users",
-                "offers_5" => "Additional active Offers",
-                "qr_10" => "Extra QR placements",
+                CustomPlanPacks.TeamUser => "Additional team users",
+                CustomPlanPacks.Offer => "Additional active Offers",
+                CustomPlanPacks.QrPlacement => "Extra QR placements",
                 "email_20k" => "+20,000 Email/month",
                 "email_50k" => "+50,000 Email/month",
                 "sms_500" => "+500 SMS/month",

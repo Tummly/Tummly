@@ -264,7 +264,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Theory]
-        // Group base, 40 Locations, 2 qr_10 packs: 50 + 10 x (40 - 5) + 20.
+        // Group base, 40 Locations, 20 qr_placement units: 50 + 10 x (40 - 5) + 20.
         [InlineData("group", 40, 50, 20, 420)]
         [InlineData("group", 5, 50, 0, 50)]
         [InlineData("group", 3, 50, 0, 50)]
@@ -288,6 +288,81 @@ namespace TummlyBackend.Tests.Services
 
             Assert.NotNull(allowance);
             Assert.Equal(expectedPool, allowance!.WorkspacePool);
+        }
+
+        [Theory]
+        // Starter 10 + 2 purchased qr_placement units: the 13th active code is refused.
+        [InlineData(11, true)]
+        [InlineData(12, false)]
+        public async Task EvaluateAsync_PurchasedQrUnitsFromAQuote_RaiseTheWorkspacePool(
+            int alreadyActive,
+            bool expectedFits
+        )
+        {
+            var snapshot = PricebookCatalog
+                .LoadFromDirectory(TestPricebookPaths.PackDirectory());
+            _context.CommercialCatalogVersions.Add(
+                CommercialCatalogSeeder.FromSnapshot(
+                    snapshot.GetRequired(snapshot.CurrentPricebookId),
+                    DateTime.UtcNow
+                )
+            );
+            await _context.SaveChangesAsync();
+            var quote = await new CustomPlanQuoteService(
+                _context,
+                Microsoft.Extensions.Options.Options.Create(
+                    new TummlyBackend.Configurations.TummlySellerVatSettings()
+                )
+            ).QuoteAsync(
+                new TummlyBackend.DTOs.Admin.CustomPlanQuoteRequest
+                {
+                    Cadence = "monthly",
+                    BasePlan = "starter",
+                    Locations = 1,
+                    Packs = new Dictionary<string, decimal> { ["qr_placement"] = 2 },
+                }
+            );
+            var billing = await _context.BillingAccounts.SingleAsync(row => row.RestaurantId == _restaurantId);
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Custom;
+            billing.CustomPlanConfigJson = quote.ToConfig().ToJson();
+            await _context.SaveChangesAsync();
+            await SeedQrsAsync(_locationId, alreadyActive);
+
+            var decision = await _capacity.EvaluateAsync(_restaurantId, _locationId, 1, ct: CancellationToken.None);
+
+            Assert.Equal(12, decision.WorkspacePool);
+            Assert.Equal(expectedFits, decision.Fits);
+        }
+
+        [Fact]
+        public async Task GetAllowance_CustomPlanBeforeSettlement_IsUnavailable_EvenWithPurchasedUnits()
+        {
+            // Signup writes plan Custom and the quote before checkout; status stays Free
+            // until the verified payment. Paid units must not count before that.
+            await UseCustomPlanAsync(basePlan: "starter", locations: 1, qrPlacements: 10, accountExtra: 5);
+            var billing = await _context.BillingAccounts.SingleAsync(row => row.RestaurantId == _restaurantId);
+            billing.BillingStatus = BillingStatuses.Free;
+            await _context.SaveChangesAsync();
+
+            var allowance = await _capacity.GetAllowanceAsync(billing, CancellationToken.None);
+            var decision = await _capacity.EvaluateAsync(_restaurantId, _locationId, 1, ct: CancellationToken.None);
+
+            Assert.Null(allowance);
+            Assert.False(decision.EntitlementsAvailable);
+            Assert.False(decision.Fits);
+        }
+
+        [Fact]
+        public async Task GetAllowance_CustomPlanAfterSettlement_CountsPurchasedUnits()
+        {
+            await UseCustomPlanAsync(basePlan: "starter", locations: 1, qrPlacements: 10, accountExtra: 5);
+            var billing = await _context.BillingAccounts.SingleAsync(row => row.RestaurantId == _restaurantId);
+            billing.BillingStatus = BillingStatuses.Active;
+            await _context.SaveChangesAsync();
+
+            var allowance = await _capacity.GetAllowanceAsync(billing, CancellationToken.None);
+
+            Assert.Equal(15, allowance!.WorkspacePool);
         }
 
         [Fact]

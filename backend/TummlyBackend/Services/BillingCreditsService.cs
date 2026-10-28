@@ -219,12 +219,7 @@ namespace TummlyBackend.Services
                 OpenCustomCycleCheckoutUrl = openCustomCycleCheckoutUrl,
                 PendingPayment = billingAccount.PendingPaymentPlan == null
                     ? null
-                    : new PendingPaymentSnapshotDto
-                    {
-                        Plan = billingAccount.PendingPaymentPlan,
-                        Cadence = billingAccount.PendingPaymentCadence ?? "monthly",
-                        FailedAtUtc = billingAccount.PendingPaymentFailedAtUtc,
-                    },
+                    : BuildPendingPaymentSnapshot(billingAccount),
                 CustomPlan = customConfig == null
                     ? null
                     : new CustomPlanSnapshotDto
@@ -1300,6 +1295,32 @@ namespace TummlyBackend.Services
             );
         }
 
+        private static PendingPaymentSnapshotDto BuildPendingPaymentSnapshot(
+            BillingAccount billingAccount
+        )
+        {
+            var dto = new PendingPaymentSnapshotDto
+            {
+                Plan = billingAccount.PendingPaymentPlan ?? string.Empty,
+                Cadence = billingAccount.PendingPaymentCadence ?? "monthly",
+                FailedAtUtc = billingAccount.PendingPaymentFailedAtUtc,
+                FailureCode = billingAccount.PendingPaymentFailureCode,
+            };
+            // The saved choices let the page ask the server for a fresh quote; the
+            // saved hash and prices are not sent.
+            var saved = CustomPlanConfig.TryParse(
+                billingAccount.PendingPaymentCustomConfigJson
+            );
+            if (saved is { IsV2: true })
+            {
+                dto.BasePlan = saved.BasePlan;
+                dto.Locations = saved.Locations ?? saved.Quantities.Locations;
+                dto.Packs = saved.Packs;
+            }
+
+            return dto;
+        }
+
         /// <summary>
         /// Retry checkout for a paid plan that did not start at signup or on an
         /// earlier attempt. The account stays on Free until Revolut confirms payment.
@@ -1308,7 +1329,8 @@ namespace TummlyBackend.Services
             RetryPendingPaymentAsync(
                 int userId,
                 int restaurantId,
-                bool actorCanManage
+                bool actorCanManage,
+                string? reviewedCustomPlanConfigJson = null
             )
         {
             if (!actorCanManage)
@@ -1349,6 +1371,44 @@ namespace TummlyBackend.Services
                 return (null, StatusCodes.Status403Forbidden, paidDeny);
             }
 
+            // The owner reviewed a fresh server quote for the saved choices. It replaces
+            // the saved quote only when its hash is the current one; a stale or retired
+            // choice starts no order and keeps the saved quote.
+            if (!string.IsNullOrWhiteSpace(reviewedCustomPlanConfigJson))
+            {
+                TummlyBackend.DTOs.Admin.CustomPlanQuoteResult reviewed;
+                try
+                {
+                    reviewed = await _customPlanCycleBilling.VerifySavedConfigAsync(
+                        reviewedCustomPlanConfigJson
+                    );
+                }
+                catch (CustomPlanQuoteException ex)
+                {
+                    billingAccount.PendingPaymentFailedAtUtc = DateTime.UtcNow;
+                    billingAccount.PendingPaymentFailureCode = ex.Code;
+                    await _context.SaveChangesAsync();
+                    return (
+                        null,
+                        ex.Code is "quote_changed" or "legacy_pack_key"
+                            ? StatusCodes.Status409Conflict
+                            : StatusCodes.Status400BadRequest,
+                        ex.Code
+                    );
+                }
+
+                billingAccount.PendingPaymentPlan = reviewed.StoredAsPlan;
+                billingAccount.PendingPaymentCadence = reviewed.Cadence;
+                billingAccount.PendingPaymentCustomConfigJson = string.Equals(
+                    reviewed.StoredAsPlan,
+                    BillingSubscriptionPlans.Custom,
+                    StringComparison.Ordinal
+                )
+                    ? reviewed.ToConfig().ToJson()
+                    : null;
+                await _context.SaveChangesAsync();
+            }
+
             var pendingPlan = billingAccount.PendingPaymentPlan;
             var cadence = billingAccount.PendingPaymentCadence ?? "monthly";
             string code;
@@ -1368,6 +1428,22 @@ namespace TummlyBackend.Services
                     if (quote == null || quote.PeriodNetPence <= 0)
                     {
                         return (null, StatusCodes.Status400BadRequest, "custom_plan_config_invalid");
+                    }
+
+                    // The saved quote is not a fresh review. Re-quote it on the server:
+                    // an old pack key or a moved price starts no Revolut order.
+                    try
+                    {
+                        await _customPlanCycleBilling.VerifySavedConfigAsync(
+                            billingAccount.PendingPaymentCustomConfigJson
+                        );
+                    }
+                    catch (CustomPlanQuoteException ex)
+                    {
+                        billingAccount.PendingPaymentFailedAtUtc = DateTime.UtcNow;
+                        billingAccount.PendingPaymentFailureCode = ex.Code;
+                        await _context.SaveChangesAsync();
+                        return (null, StatusCodes.Status409Conflict, ex.Code);
                     }
 
                     var customLocationId = await ResolveFirstLocationIdAsync(restaurantId);

@@ -380,7 +380,11 @@ export type CustomPlanQuoteRequest = {
 export type CustomPlanQuoteLine = {
   key: string
   label: string
+  /** Line name without the quantity. */
+  name: string
   quantity: number
+  /** Net price of one unit (or one pack) at the quote cadence, from the server. */
+  unitNetPence: number
   netPence: number
 }
 
@@ -401,6 +405,11 @@ export type CustomPlanQuoteResult = {
     smsCredits: number
     aiCredits: number
   }
+  /**
+   * Workspace-wide active-QR pool from the server: base allowance + 10 per
+   * additional paid Group Location + purchased QR units. Not a per-Location limit.
+   */
+  workspaceQrPool: number
   monthlyNetPence: number
   periodNetPence: number
   lines: CustomPlanQuoteLine[]
@@ -410,6 +419,15 @@ export type CustomPlanQuoteResult = {
   /** 32 lower-hex characters. Sent back at signup to detect a changed quote. */
   quoteHash: string
   vatRateBps: number
+  /** VAT on the period net total, from the server. */
+  vatAmountPence: number
+  grossTotalPence: number
+  /** Gross amount charged at each later renewal. */
+  recurringGrossPence: number
+  /** Gross amount due at checkout (signup: the first period in full). */
+  dueNowGrossPence: number
+  /** When the plan starts; signup: "on_payment_confirmed". */
+  effectiveTiming: string
 }
 
 function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
@@ -440,13 +458,16 @@ function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
       smsCredits: Number(quantitiesRaw.smsCredits ?? 0),
       aiCredits: Number(quantitiesRaw.aiCredits ?? 0),
     },
+    workspaceQrPool: Number(raw.workspaceQrPool ?? 0),
     monthlyNetPence: Number(raw.monthlyNetPence ?? 0),
     periodNetPence: Number(raw.periodNetPence ?? 0),
     lines: Array.isArray(raw.lines)
       ? (raw.lines as Record<string, unknown>[]).map((line) => ({
           key: String(line.key ?? ""),
           label: String(line.label ?? ""),
+          name: String(line.name ?? line.label ?? ""),
           quantity: Number(line.quantity ?? 0),
+          unitNetPence: Number(line.unitNetPence ?? 0),
           netPence: Number(line.netPence ?? 0),
         }))
       : [],
@@ -456,6 +477,11 @@ function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
     storedAsPlan: String(raw.storedAsPlan ?? "Custom"),
     quoteHash: String(raw.quoteHash ?? ""),
     vatRateBps: Number(raw.vatRateBps ?? 0),
+    vatAmountPence: Number(raw.vatAmountPence ?? 0),
+    grossTotalPence: Number(raw.grossTotalPence ?? 0),
+    recurringGrossPence: Number(raw.recurringGrossPence ?? 0),
+    dueNowGrossPence: Number(raw.dueNowGrossPence ?? 0),
+    effectiveTiming: String(raw.effectiveTiming ?? "on_payment_confirmed"),
   }
 }
 

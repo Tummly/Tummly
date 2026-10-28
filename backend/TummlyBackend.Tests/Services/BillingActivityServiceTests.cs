@@ -139,7 +139,11 @@ namespace TummlyBackend.Tests.Services
                     context,
                     new NoOpRevolutMerchantForCustomPlan(),
                     TimeProvider.System,
-                    Options.Create(sellerVat)
+                    Options.Create(sellerVat),
+                    new TummlyBackend.Services.CustomPlanQuoteService(
+                        context,
+                        Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.TummlySellerVatSettings())
+                    )
                 ),
                 new ConfigurationBuilder()
                     .AddInMemoryCollection(

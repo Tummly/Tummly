@@ -71,4 +71,35 @@ describe("quotePublicCustomPlan", () => {
     expect(quote.quoteHash).toBe("b".repeat(32))
     expect(quote.vatRateBps).toBe(2000)
   })
+
+  it("maps the server VAT amount, gross, recurring, due now and timing", async () => {
+    mockedPost.mockResolvedValueOnce({
+      data: {
+        success: true,
+        item: {
+          vatAmountPence: 2000,
+          grossTotalPence: 12000,
+          recurringGrossPence: 12000,
+          dueNowGrossPence: 12000,
+          effectiveTiming: "on_payment_confirmed",
+        },
+      },
+    })
+
+    const quote = await quotePublicCustomPlan({ ...REQUEST, locations: 1 })
+    expect(quote.vatAmountPence).toBe(2000)
+    expect(quote.grossTotalPence).toBe(12000)
+    expect(quote.recurringGrossPence).toBe(12000)
+    expect(quote.dueNowGrossPence).toBe(12000)
+    expect(quote.effectiveTiming).toBe("on_payment_confirmed")
+  })
+
+  it("maps the server Workspace QR pool", async () => {
+    mockedPost.mockResolvedValueOnce({
+      data: { success: true, item: { workspaceQrPool: 62 } },
+    })
+
+    const quote = await quotePublicCustomPlan({ ...REQUEST, locations: 1 })
+    expect(quote.workspaceQrPool).toBe(62)
+  })
 })

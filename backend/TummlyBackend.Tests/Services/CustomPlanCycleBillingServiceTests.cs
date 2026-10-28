@@ -122,7 +122,11 @@ namespace TummlyBackend.Tests.Services
                 context,
                 merchant,
                 new FixedTimeProvider(_now),
-                Options.Create(sellerVat ?? new TummlySellerVatSettings { IsActive = false })
+                Options.Create(sellerVat ?? new TummlySellerVatSettings { IsActive = false }),
+                new TummlyBackend.Services.CustomPlanQuoteService(
+                    context,
+                    Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.TummlySellerVatSettings())
+                )
             );
         }
 

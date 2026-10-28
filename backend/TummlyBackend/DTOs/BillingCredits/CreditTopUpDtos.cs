@@ -40,6 +40,15 @@
         public string CheckoutUrl { get; set; } = string.Empty;
     }
 
+    /// <summary>
+    /// Optional body for a pending-payment retry: the config of the fresh quote the
+    /// owner reviewed (with its quote hash). Empty keeps the saved quote.
+    /// </summary>
+    public sealed class PendingPaymentRetryRequestDto
+    {
+        public string? CustomPlanConfigJson { get; set; }
+    }
+
     public sealed class PendingPaymentRetryDto
     {
         public bool Success { get; set; } = true;

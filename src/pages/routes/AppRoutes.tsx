@@ -35,6 +35,7 @@ import SignupVerifyPage from "../auth/SignupVerifyPage";
 import SignupOnboardingPage from "../auth/SignupOnboardingPage";
 import SignupChoosePlanRedirectPage from "../auth/SignupChoosePlanRedirectPage";
 import SignupProvisioningPage from "../auth/SignupProvisioningPage";
+import SignupReviewPaymentPage from "../auth/SignupReviewPaymentPage";
 import SignupCompletePage from "../auth/SignupCompletePage";
 import SignupLocationsPage from "../auth/SignupLocationsPage";
 import GuestFeedbackPage from "../public/GuestFeedbackPage";
@@ -232,6 +233,14 @@ function AppRoutes() {
           element={
             <ErrorBoundary>
               <SignupProvisioningPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/review-plan"
+          element={
+            <ErrorBoundary>
+              <SignupReviewPaymentPage />
             </ErrorBoundary>
           }
         />

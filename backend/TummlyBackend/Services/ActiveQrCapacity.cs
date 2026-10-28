@@ -238,6 +238,13 @@ namespace TummlyBackend.Services
             var key = billingAccount.SubscriptionPlan.Trim().ToLowerInvariant();
             if (key == "custom")
             {
+                // An unpaid Custom signup holds plan Custom and the quote, but status
+                // Free, until the server verifies payment. No paid capacity before that.
+                if (!OperatorPlanGate.HasPlan(billingAccount))
+                {
+                    return null;
+                }
+
                 return await ResolveCustomAllowanceAsync(billingAccount, ct);
             }
 
@@ -284,9 +291,9 @@ namespace TummlyBackend.Services
             }
 
             var quantities = custom.Quantities;
-            var additionalPaidLocations = 0;
-            // Only a Group base earns +10 per additional paid Location (ordinals
-            // 6-500). Starter and Growth bases add nothing for Locations.
+            var includedLocations = 0;
+            // Only a Group base reads the included Locations (for the +10 per
+            // additional paid Location part of the pool).
             if (
                 string.Equals(
                     custom.BasePlan?.Trim(),
@@ -295,30 +302,25 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                var includedLocations = await ResolveGroupIncludedLocationsAsync(
+                var resolved = await ResolveGroupIncludedLocationsAsync(
                     custom,
                     billingAccount,
                     ct
                 );
-                if (includedLocations == null)
+                if (resolved == null)
                 {
                     return null;
                 }
 
-                var configured = Math.Min(
-                    Math.Max(0, quantities.Locations),
-                    CustomPlanConfig.MaxLocations
-                );
-                additionalPaidLocations = Math.Max(
-                    0,
-                    configured - Math.Max(0, includedLocations.Value)
-                );
+                includedLocations = resolved.Value;
             }
 
             return new ActiveQrAllowance(
-                WorkspaceQrPool.Compute(
+                WorkspaceQrPool.ForCustomPlan(
+                    custom.BasePlan,
                     quantities.QrPlacements,
-                    additionalPaidLocations,
+                    quantities.Locations,
+                    includedLocations,
                     quantities.QrPlacementsAccountExtra
                 )
             );

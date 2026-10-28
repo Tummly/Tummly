@@ -67,9 +67,11 @@ namespace TummlyBackend.Tests.Integration
             var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
             var packs = body.RootElement.GetProperty("item").GetProperty("packs");
             var teamPack = packs.EnumerateArray().Single(p =>
-                p.GetProperty("packKey").GetString() == "team_users_5"
+                p.GetProperty("packKey").GetString() == "team_user"
             );
-            Assert.Equal(1500, teamPack.GetProperty("monthlyNetPence").GetInt32());
+            Assert.Equal(1, teamPack.GetProperty("packSize").GetInt32());
+            Assert.Equal(300, teamPack.GetProperty("monthlyNetPence").GetInt32());
+            Assert.Equal(3060, teamPack.GetProperty("annualNetPence").GetInt32());
         }
     }
 }

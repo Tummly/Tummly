@@ -18,7 +18,6 @@ import {
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import { CUSTOM_PLAN_STEPS } from "@/content/marketing/customPlanPage"
 import {
-  CUSTOM_PLAN_MAX_PACK_COUNT,
   CUSTOM_PLAN_PACKS,
   EMPTY_PACK_COUNTS,
   basePlanRank,
@@ -73,17 +72,12 @@ function countsForContact(packs: PackDraftCounts): CustomPlanPackCounts {
   return next
 }
 
-/** Pack size, plus the server pack price when the catalogue has one. */
-function packHint(
-  monthlyPackPence: number | null,
-  unitLabel: string,
-  packSize: number,
-): string {
-  const size = `${packSize.toLocaleString("en-GB")} ${unitLabel} per pack`
-  if (monthlyPackPence == null) {
-    return size
+/** Server price for one unit, when the catalogue has one. */
+function unitHint(monthlyUnitPence: number | null, unitLabel: string): string {
+  if (monthlyUnitPence == null) {
+    return ""
   }
-  return `${size} · ${formatPenceGbp(monthlyPackPence)}/month`
+  return `${formatPenceGbp(monthlyUnitPence)}/month per ${unitLabel}`
 }
 
 /** "Included in Starter: 3 · Your total: 8 users" under a pack row. */
@@ -287,7 +281,10 @@ export function CustomPlanCalculator({
   }
 
   function packError(packKey: CustomPlanPackKey): string | null {
-    return packCountMessage(checkPackCount(packCounts[packKey]))
+    return packCountMessage(
+      checkPackCount(packCounts[packKey], packKey),
+      packKey,
+    )
   }
 
   function handleLocationsChange(next: number | null) {
@@ -313,7 +310,8 @@ export function CustomPlanCalculator({
   const baseIncluded = {
     teamUsers: basePlanRow?.includedTeamMembers ?? 0,
     offers: basePlanRow?.activeOffersAccount ?? 0,
-    qrPerLocation: basePlanRow?.activeQrPlacementsPerLocation ?? 0,
+    // Pricebook field name says per Location; the value is the Workspace base allowance.
+    qrWorkspaceBase: basePlanRow?.activeQrPlacementsPerLocation ?? 0,
     email: basePlanRow?.creditsMonthlyEmail ?? 0,
     sms: basePlanRow?.creditsMonthlySms ?? 0,
     ai: basePlanRow?.creditsMonthlyAi ?? 0,
@@ -329,14 +327,14 @@ export function CustomPlanCalculator({
     return packMeta.find((meta) => meta.packKey === packKey)?.monthlyNetPence ?? null
   }
 
-  const teamPack = CUSTOM_PLAN_PACKS.find((p) => p.packKey === "team_users_5")!
-  const offerPack = CUSTOM_PLAN_PACKS.find((p) => p.packKey === "offers_5")!
-  const qrPack = CUSTOM_PLAN_PACKS.find((p) => p.packKey === "qr_10")!
-  const teamPrice = packMonthlyPrice("team_users_5")
-  const offerPrice = packMonthlyPrice("offers_5")
-  const qrPrice = packMonthlyPrice("qr_10")
+  const teamPack = CUSTOM_PLAN_PACKS.find((p) => p.packKey === "team_user")!
+  const offerPack = CUSTOM_PLAN_PACKS.find((p) => p.packKey === "offer")!
+  const qrPack = CUSTOM_PLAN_PACKS.find((p) => p.packKey === "qr_placement")!
+  const teamPrice = packMonthlyPrice("team_user")
+  const offerPrice = packMonthlyPrice("offer")
+  const qrPrice = packMonthlyPrice("qr_placement")
   // QR cost comes from the ready quote's pack line only; no browser arithmetic.
-  const qrExtraCost = quotePackLineAmount(readyQuote, "qr_10")
+  const qrExtraCost = quotePackLineAmount(readyQuote, "qr_placement")
 
   const continueHref =
     !contactSales && continuePayload != null && continueHrefFor != null
@@ -481,7 +479,7 @@ export function CustomPlanCalculator({
                         {teamPack.title}
                       </p>
                       <p className="m-0 font-sans text-sm font-normal text-[#676767]">
-                        {packHint(teamPrice, "users", teamPack.packSize)}
+                        {unitHint(teamPrice, "user")}
                       </p>
                       {basePlanRow != null ? (
                         <IncludedLine
@@ -493,12 +491,12 @@ export function CustomPlanCalculator({
                       ) : null}
                     </div>
                     <CustomPlanStepper
-                      value={packCounts.team_users_5}
-                      onChange={(n) => setPackCount("team_users_5", n)}
-                      label="Additional team user packs"
+                      value={packCounts.team_user}
+                      onChange={(n) => setPackCount("team_user", n)}
+                      label="Additional team users"
                       min={0}
-                      max={CUSTOM_PLAN_MAX_PACK_COUNT}
-                      error={packError("team_users_5")}
+                      max={teamPack.maxCount}
+                      error={packError("team_user")}
                     />
                   </div>
                   <div className="flex items-center justify-between gap-4 rounded-xl border border-[#cacaca] p-[18px]">
@@ -507,7 +505,7 @@ export function CustomPlanCalculator({
                         {offerPack.title}
                       </p>
                       <p className="m-0 font-sans text-sm font-normal text-[#676767]">
-                        {packHint(offerPrice, "Offers", offerPack.packSize)}
+                        {unitHint(offerPrice, "Offer")}
                       </p>
                       {basePlanRow != null ? (
                         <IncludedLine
@@ -519,12 +517,12 @@ export function CustomPlanCalculator({
                       ) : null}
                     </div>
                     <CustomPlanStepper
-                      value={packCounts.offers_5}
-                      onChange={(n) => setPackCount("offers_5", n)}
-                      error={packError("offers_5")}
-                      label="Additional active Offer packs"
+                      value={packCounts.offer}
+                      onChange={(n) => setPackCount("offer", n)}
+                      error={packError("offer")}
+                      label="Additional active Offers"
                       min={0}
-                      max={CUSTOM_PLAN_MAX_PACK_COUNT}
+                      max={offerPack.maxCount}
                     />
                   </div>
                   <div className="relative flex flex-col gap-[22px] overflow-hidden rounded-xl border border-[#cacaca] px-[18px] pt-[26px] pb-[18px]">
@@ -549,17 +547,13 @@ export function CustomPlanCalculator({
                       {basePlanRow != null ? (
                         <IncludedLine
                           planName={planDisplayName}
-                          included={`${formatCount(baseIncluded.qrPerLocation)} per Location`}
+                          included={formatCount(baseIncluded.qrWorkspaceBase)}
                           total={
-                            q != null
-                              ? `${formatCount(q.qrPlacements)} per Location${
-                                  q.qrPlacementsAccountExtra > 0
-                                    ? ` + ${formatCount(q.qrPlacementsAccountExtra)} shared`
-                                    : ""
-                                }`
+                            countedQuote != null
+                              ? formatCount(countedQuote.workspaceQrPool)
                               : "—"
                           }
-                          unit="placements"
+                          unit="placements in your Workspace"
                         />
                       ) : null}
                     </div>
@@ -571,16 +565,16 @@ export function CustomPlanCalculator({
                               {qrPack.title}
                             </p>
                             <p className="m-0 font-sans text-xs font-normal text-[#676767]">
-                              {packHint(qrPrice, "placements", qrPack.packSize)}
+                              {unitHint(qrPrice, "placement")}
                             </p>
                           </div>
                           <CustomPlanStepper
-                            value={packCounts.qr_10}
-                            onChange={(n) => setPackCount("qr_10", n)}
-                            error={packError("qr_10")}
-                            label="Extra QR placement packs"
+                            value={packCounts.qr_placement}
+                            onChange={(n) => setPackCount("qr_placement", n)}
+                            error={packError("qr_placement")}
+                            label="Extra QR placements"
                             min={0}
-                            max={CUSTOM_PLAN_MAX_PACK_COUNT}
+                            max={qrPack.maxCount}
                           />
                         </div>
                         <hr className="m-0 border-[#c9c9c9]" />
@@ -692,7 +686,7 @@ export function CustomPlanCalculator({
                                 error={packError(pack.packKey)}
                                 label={`${pack.title} packs`}
                                 min={0}
-                                max={CUSTOM_PLAN_MAX_PACK_COUNT}
+                                max={pack.maxCount}
                               />
                             </div>
                           )

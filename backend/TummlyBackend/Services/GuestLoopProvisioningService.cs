@@ -429,6 +429,28 @@ namespace TummlyBackend.Services
                 )
             )
             {
+                // A retry does not come from a fresh review. Re-quote the saved config
+                // first: an old pack key or a moved price starts no order, and the
+                // customer reviews again.
+                try
+                {
+                    await _customPlanCycleBilling.VerifySavedConfigAsync(
+                        customPlanConfigJson
+                    );
+                }
+                catch (CustomPlanQuoteException ex)
+                {
+                    await RecordPendingPaymentAsync(
+                        billing,
+                        BillingSubscriptionPlans.Custom,
+                        chosenCadence,
+                        customPlanConfigJson,
+                        ex.Code,
+                        AdminAuditActions.BillingCustomSignupCheckoutFailed
+                    );
+                    throw;
+                }
+
                 billing.SubscriptionPlan = BillingSubscriptionPlans.Custom;
                 billing.CustomPlanConfigJson = customPlanConfigJson;
                 billing.BillingCycle = string.Equals(

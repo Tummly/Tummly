@@ -379,15 +379,10 @@ namespace TummlyBackend.Tests.Services
         public async Task RetryPendingPayment_CustomPlan_CheckoutFails_KeepsSavedQuote()
         {
             await using var context = BillingActivityTestDb.Create();
-            var quote = new CustomPlanConfig
-            {
-                Cadence = "monthly",
-                MonthlyNetPence = 12120,
-                PeriodNetPence = 12120,
-                Quantities = new CustomPlanQuantities { Locations = 2, EmailCredits = 20000 },
-            }.ToJson();
-            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Custom, quote);
-            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context));
+            var quote = await SeedCatalogAndQuoteAsync(context, new() { ["offer"] = 2 });
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Custom, quote.ToConfig().ToJson());
+            var merchant = new CountingCustomCycleMerchant { FailCreateOrder = true };
+            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context), merchant);
 
             var (response, statusCode, error) = await service.RetryPendingPaymentAsync(
                 ownerIdOf(context, restaurantId),
@@ -398,9 +393,243 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(response);
             Assert.Equal(StatusCodes.Status502BadGateway, statusCode);
             Assert.NotNull(error);
+            Assert.Equal(1, merchant.CreateOrderCallCount);
             var billing = await context.BillingAccounts.SingleAsync();
             Assert.Equal(BillingSubscriptionPlans.Custom, billing.PendingPaymentPlan);
-            Assert.Equal(quote, billing.PendingPaymentCustomConfigJson);
+            Assert.Equal(quote.ToConfig().ToJson(), billing.PendingPaymentCustomConfigJson);
+        }
+
+        [Fact]
+        public async Task RetryPendingPayment_CustomPlan_UnchangedQuote_StartsTheOrderForTheQuotedTotal()
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var quote = await SeedCatalogAndQuoteAsync(context, new() { ["offer"] = 2 });
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Custom, quote.ToConfig().ToJson());
+            var merchant = new CountingCustomCycleMerchant();
+            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context), merchant);
+
+            var (response, statusCode, _) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true
+            );
+
+            Assert.Equal(StatusCodes.Status200OK, statusCode);
+            Assert.Equal(CountingCustomCycleMerchant.CheckoutUrl, response!.CheckoutUrl);
+            Assert.Equal(1, merchant.CreateOrderCallCount);
+            Assert.Equal(quote.PeriodNetPence, merchant.LastCreateOrderRequest!.LineItems![0].UnitPriceAmount);
+            // The order intent records the quote that was charged; settlement checks it.
+            var intent = await context.RevolutOrderIntents.SingleAsync();
+            Assert.Equal(quote.QuoteHash, intent.CustomPlanQuoteHash);
+        }
+
+        [Theory]
+        [InlineData("offers_5")]
+        [InlineData("qr_10")]
+        [InlineData("team_users_5")]
+        public async Task RetryPendingPayment_CustomPlan_SavedWithLegacyPack_StartsNoOrder(string legacyKey)
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var quote = await SeedCatalogAndQuoteAsync(context, new() { ["offer"] = 2 });
+            var saved = quote.ToConfig();
+            saved.Packs = new Dictionary<string, int> { [legacyKey] = 1 };
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Custom, saved.ToJson());
+            var merchant = new CountingCustomCycleMerchant();
+            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context), merchant);
+
+            var (response, statusCode, error) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true
+            );
+
+            Assert.Null(response);
+            Assert.Equal(StatusCodes.Status409Conflict, statusCode);
+            Assert.Equal("legacy_pack_key", error);
+            Assert.Equal(0, merchant.CreateOrderCallCount);
+            Assert.Empty(await context.RevolutOrderIntents.ToListAsync());
+        }
+
+        [Fact]
+        public async Task RetryPendingPayment_CustomPlan_PriceMovedSinceTheQuote_StartsNoOrder()
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var quote = await SeedCatalogAndQuoteAsync(context, new() { ["offer"] = 2 });
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Custom, quote.ToConfig().ToJson());
+            var offerRate = await context.CommercialCustomUnitRateRows.SingleAsync(r =>
+                r.RateKey == CommercialCustomUnitRateKeys.Offer
+            );
+            offerRate.MonthlyNetPence += 500;
+            await context.SaveChangesAsync();
+            var merchant = new CountingCustomCycleMerchant();
+            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context), merchant);
+
+            var (response, statusCode, error) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true
+            );
+
+            Assert.Null(response);
+            Assert.Equal(StatusCodes.Status409Conflict, statusCode);
+            Assert.Equal("quote_changed", error);
+            Assert.Equal(0, merchant.CreateOrderCallCount);
+        }
+
+        [Fact]
+        public async Task GetPage_PendingCustomPayment_ExposesTheFailureCodeAndTheSavedChoices()
+        {
+            await using var harness = await SeedAsync(new TummlySellerVatSettings());
+            var saved = new CustomPlanConfig
+            {
+                Version = 2,
+                Cadence = "annual",
+                BasePlan = "growth",
+                Locations = 3,
+                Packs = new Dictionary<string, int> { ["offer"] = 2 },
+            };
+            var account = await harness.Context.BillingAccounts.SingleAsync();
+            account.PendingPaymentPlan = BillingSubscriptionPlans.Custom;
+            account.PendingPaymentCadence = "annual";
+            account.PendingPaymentCustomConfigJson = saved.ToJson();
+            account.PendingPaymentFailureCode = "quote_changed";
+            account.PendingPaymentFailedAtUtc = DateTime.UtcNow;
+            await harness.Context.SaveChangesAsync();
+
+            var page = await harness.Service.GetPageAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                actorCanManage: true
+            );
+
+            var pending = page!.PlanSubscription.PendingPayment!;
+            Assert.Equal("quote_changed", pending.FailureCode);
+            Assert.Equal("growth", pending.BasePlan);
+            Assert.Equal(3, pending.Locations);
+            Assert.Equal(2, pending.Packs!["offer"]);
+        }
+
+        [Fact]
+        public async Task RetryPendingPayment_CustomPlan_ReviewedFreshQuote_AfterPriceMoved_SavesItAndStartsTheOrder()
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var quote = await SeedCatalogAndQuoteAsync(context, new() { ["offer"] = 2 });
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Custom, quote.ToConfig().ToJson());
+            var offerRate = await context.CommercialCustomUnitRateRows.SingleAsync(r =>
+                r.RateKey == CommercialCustomUnitRateKeys.Offer
+            );
+            offerRate.MonthlyNetPence += 500;
+            await context.SaveChangesAsync();
+            var fresh = await QuoteNowAsync(context, new() { ["offer"] = 2 });
+            var merchant = new CountingCustomCycleMerchant();
+            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context), merchant);
+
+            var (response, statusCode, error) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true,
+                reviewedCustomPlanConfigJson: fresh.ToConfig().ToJson()
+            );
+
+            Assert.Equal(StatusCodes.Status200OK, statusCode);
+            Assert.Null(error);
+            Assert.Equal(CountingCustomCycleMerchant.CheckoutUrl, response!.CheckoutUrl);
+            Assert.Equal(1, merchant.CreateOrderCallCount);
+            Assert.Equal(fresh.PeriodNetPence, merchant.LastCreateOrderRequest!.LineItems![0].UnitPriceAmount);
+            var billing = await context.BillingAccounts.SingleAsync();
+            Assert.Equal(
+                fresh.QuoteHash,
+                CustomPlanConfig.TryParse(billing.PendingPaymentCustomConfigJson)!.QuoteHash
+            );
+        }
+
+        [Fact]
+        public async Task RetryPendingPayment_CustomPlan_ReviewedQuoteIsStale_StartsNoOrderAndKeepsTheSavedQuote()
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var quote = await SeedCatalogAndQuoteAsync(context, new() { ["offer"] = 2 });
+            var savedJson = quote.ToConfig().ToJson();
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Custom, savedJson);
+            var offerRate = await context.CommercialCustomUnitRateRows.SingleAsync(r =>
+                r.RateKey == CommercialCustomUnitRateKeys.Offer
+            );
+            offerRate.MonthlyNetPence += 500;
+            await context.SaveChangesAsync();
+            var merchant = new CountingCustomCycleMerchant();
+            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context), merchant);
+
+            var (response, statusCode, error) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true,
+                reviewedCustomPlanConfigJson: savedJson
+            );
+
+            Assert.Null(response);
+            Assert.Equal(StatusCodes.Status409Conflict, statusCode);
+            Assert.Equal("quote_changed", error);
+            Assert.Equal(0, merchant.CreateOrderCallCount);
+            Assert.Equal(savedJson, (await context.BillingAccounts.SingleAsync()).PendingPaymentCustomConfigJson);
+        }
+
+        [Fact]
+        public async Task RetryPendingPayment_CustomPlan_ChoseAgainAfterARetiredPack_StartsTheOrderForTheNewQuote()
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var quote = await SeedCatalogAndQuoteAsync(context, new() { ["offer"] = 2 });
+            var saved = quote.ToConfig();
+            saved.Packs = new Dictionary<string, int> { ["offers_5"] = 1 };
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Custom, saved.ToJson());
+            var merchant = new CountingCustomCycleMerchant();
+            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context), merchant);
+
+            var (blocked, blockedStatus, blockedError) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true
+            );
+            Assert.Null(blocked);
+            Assert.Equal(StatusCodes.Status409Conflict, blockedStatus);
+            Assert.Equal("legacy_pack_key", blockedError);
+            Assert.Equal(
+                "legacy_pack_key",
+                (await context.BillingAccounts.SingleAsync()).PendingPaymentFailureCode
+            );
+
+            var (response, statusCode, _) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true,
+                reviewedCustomPlanConfigJson: quote.ToConfig().ToJson()
+            );
+
+            Assert.Equal(StatusCodes.Status200OK, statusCode);
+            Assert.Equal(CountingCustomCycleMerchant.CheckoutUrl, response!.CheckoutUrl);
+            Assert.Equal(1, merchant.CreateOrderCallCount);
+        }
+
+        [Fact]
+        public async Task RetryPendingPayment_CustomPlan_ReviewedQuoteStillNamesARetiredPack_StartsNoOrder()
+        {
+            await using var context = BillingActivityTestDb.Create();
+            var quote = await SeedCatalogAndQuoteAsync(context, new() { ["offer"] = 2 });
+            var restaurantId = await SeedPendingPaymentAsync(context, BillingSubscriptionPlans.Custom, quote.ToConfig().ToJson());
+            var reviewed = quote.ToConfig();
+            reviewed.Packs = new Dictionary<string, int> { ["qr_10"] = 1 };
+            var merchant = new CountingCustomCycleMerchant();
+            var service = BuildPendingRetryService(context, new RecordingFirstPaidConversionPaySession(context), merchant);
+
+            var (response, statusCode, error) = await service.RetryPendingPaymentAsync(
+                ownerIdOf(context, restaurantId),
+                restaurantId,
+                actorCanManage: true,
+                reviewedCustomPlanConfigJson: reviewed.ToJson()
+            );
+
+            Assert.Null(response);
+            Assert.Equal(StatusCodes.Status409Conflict, statusCode);
+            Assert.Equal("legacy_pack_key", error);
+            Assert.Equal(0, merchant.CreateOrderCallCount);
         }
 
         [Fact]
@@ -614,9 +843,54 @@ namespace TummlyBackend.Tests.Services
             return restaurant.Id;
         }
 
+        private static async Task<TummlyBackend.DTOs.Admin.CustomPlanQuoteResult> SeedCatalogAndQuoteAsync(
+            ApplicationDbContext context,
+            Dictionary<string, int> packs
+        )
+        {
+            var pricebook = TestPricebookPaths.LoadV3();
+            context.CommercialCatalogVersions.Add(
+                CommercialCatalogSeeder.FromSnapshot(
+                    pricebook.GetRequired(pricebook.CurrentPricebookId),
+                    DateTime.UtcNow
+                )
+            );
+            await context.SaveChangesAsync();
+            return await new CustomPlanQuoteService(
+                context,
+                Options.Create(new TummlySellerVatSettings())
+            ).QuoteAsync(
+                new TummlyBackend.DTOs.Admin.CustomPlanQuoteRequest
+                {
+                    Cadence = "monthly",
+                    BasePlan = "growth",
+                    Locations = 2,
+                    Packs = packs.ToDictionary(kv => kv.Key, kv => (decimal)kv.Value),
+                }
+            );
+        }
+
+        private static async Task<TummlyBackend.DTOs.Admin.CustomPlanQuoteResult> QuoteNowAsync(
+            ApplicationDbContext context,
+            Dictionary<string, int> packs
+        ) =>
+            await new CustomPlanQuoteService(
+                context,
+                Options.Create(new TummlySellerVatSettings())
+            ).QuoteAsync(
+                new TummlyBackend.DTOs.Admin.CustomPlanQuoteRequest
+                {
+                    Cadence = "monthly",
+                    BasePlan = "growth",
+                    Locations = 2,
+                    Packs = packs.ToDictionary(kv => kv.Key, kv => (decimal)kv.Value),
+                }
+            );
+
         private static BillingCreditsService BuildPendingRetryService(
             ApplicationDbContext context,
-            IFirstPaidConversionPaySession firstPaid
+            IFirstPaidConversionPaySession firstPaid,
+            IRevolutMerchantClient? merchant = null
         )
         {
             var sellerVat = new TummlySellerVatSettings();
@@ -636,9 +910,13 @@ namespace TummlyBackend.Tests.Services
                 Options.Create(sellerVat),
                 new CustomPlanCycleBillingService(
                     context,
-                    new NoOpRevolutMerchantForCustomPlan(),
+                    merchant ?? new NoOpRevolutMerchantForCustomPlan(),
                     TimeProvider.System,
-                    Options.Create(sellerVat)
+                    Options.Create(sellerVat),
+                    new TummlyBackend.Services.CustomPlanQuoteService(
+                        context,
+                        Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.TummlySellerVatSettings())
+                    )
                 ),
                 new ConfigurationBuilder()
                     .AddInMemoryCollection(
@@ -724,7 +1002,11 @@ namespace TummlyBackend.Tests.Services
                     context,
                     new NoOpRevolutMerchantForCustomPlan(),
                     TimeProvider.System,
-                    Options.Create(sellerVat)
+                    Options.Create(sellerVat),
+                    new TummlyBackend.Services.CustomPlanQuoteService(
+                        context,
+                        Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.TummlySellerVatSettings())
+                    )
                 ),
                 new ConfigurationBuilder()
                     .AddInMemoryCollection(

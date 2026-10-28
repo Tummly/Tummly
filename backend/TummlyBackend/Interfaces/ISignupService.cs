@@ -27,6 +27,16 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// A paid signup whose checkout did not open: save the quote the guest
+        /// reviewed again and open checkout for it. Throws
+        /// <see cref="CustomPlanQuoteException"/> when that quote is not current.
+        /// </summary>
+        Task UpdatePlanAfterFailedCheckoutAsync(
+            Guid sessionToken,
+            UpdateSignupPlanDto dto
+        );
+
+        /// <summary>
         /// One-time post-payment session issue (contract §6.5).
         /// Throws <see cref="SignupConflictException"/> for 409 cases.
         /// <paramref name="continueOnFree"/> also accepts a Free account whose

@@ -73,6 +73,19 @@ namespace TummlyBackend.Models
         [MaxLength(128)]
         public string? PackLookupKey { get; set; }
 
+        /// <summary>
+        /// Hash of the Custom quote an order was created for (<c>custom_plan_cycle</c>
+        /// intents). Stored in <see cref="PackLookupKey"/>, which only top-up intents
+        /// use, so no schema change is needed. Null on intents created before it was
+        /// recorded.
+        /// </summary>
+        [NotMapped]
+        public string? CustomPlanQuoteHash
+        {
+            get => PackLookupKey;
+            set => PackLookupKey = value;
+        }
+
         /// <summary>Shop materials order FK for <c>shop_materials_order</c> intents.</summary>
         public Guid? ShopOrderId { get; set; }
 

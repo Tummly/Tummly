@@ -138,12 +138,21 @@ export type SignupOnboardingPayload = {
   customPlanConfigJson?: string | null
 }
 
+/** The plan the guest saved, returned when its quote needs a new review. */
+export type SignupSavedPlan = {
+  chosenPlan: string | null
+  chosenCadence: string | null
+  customPlanConfigJson: string | null
+}
+
 export type SignupProvisioningStatus = {
   status: string
   ready: boolean
   paymentRedirectUrl?: string | null
   /** With status `PaymentFailed`: the paid checkout did not open. */
   paymentFailureCode?: string | null
+  /** With `quote_changed` or `legacy_pack_key`: the saved plan to review again. */
+  savedPlan?: SignupSavedPlan | null
 }
 
 function asSignupSession(data: Record<string, unknown>): SignupSession {
@@ -296,7 +305,38 @@ export async function getSignupProvisioningStatus(
       typeof payload.paymentFailureCode === "string"
         ? payload.paymentFailureCode
         : null,
+    savedPlan: asSavedPlan(payload.savedPlan),
   }
+}
+
+function asSavedPlan(value: unknown): SignupSavedPlan | null {
+  if (value == null || typeof value !== "object") {
+    return null
+  }
+  const row = value as Record<string, unknown>
+  const text = (field: unknown) => (typeof field === "string" ? field : null)
+  return {
+    chosenPlan: text(row.chosenPlan),
+    chosenCadence: text(row.chosenCadence),
+    customPlanConfigJson: text(row.customPlanConfigJson),
+  }
+}
+
+/** Saves the quote the guest reviewed again and opens checkout for it. */
+export async function updateSignupPlan(
+  sessionToken: string,
+  data: Pick<
+    SignupOnboardingPayload,
+    "chosenPlan" | "chosenCadence" | "customPlanConfigJson"
+  >
+): Promise<void> {
+  await withSignupErrorFields(
+    axiosInstance.post(
+      "/Signup/update-plan",
+      data,
+      signupSessionConfig(sessionToken)
+    )
+  )
 }
 
 function asSignupSessionLogin(

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -27,18 +28,71 @@ namespace TummlyBackend.Services
         private readonly IRevolutMerchantClient _revolut;
         private readonly TimeProvider _clock;
         private readonly TummlySellerVatSettings _sellerVat;
+        private readonly ICustomPlanQuoteService _quote;
 
         public CustomPlanCycleBillingService(
             ApplicationDbContext context,
             IRevolutMerchantClient revolut,
             TimeProvider clock,
-            IOptions<TummlySellerVatSettings> sellerVat
+            IOptions<TummlySellerVatSettings> sellerVat,
+            ICustomPlanQuoteService quote
         )
         {
             _context = context;
             _revolut = revolut;
             _clock = clock;
             _sellerVat = sellerVat.Value;
+            _quote = quote;
+        }
+
+        /// <summary>
+        /// Re-quote a saved Custom config on the server before any charge that does
+        /// not come from a fresh review (a retried signup or pending-payment checkout).
+        /// Throws <see cref="CustomPlanQuoteException"/>: <c>legacy_pack_key</c> for a
+        /// pack the catalogue no longer sells, <c>quote_changed</c> when the saved
+        /// quote hash is missing or no longer matches the current price. The customer
+        /// then reviews again; no Revolut order is started.
+        /// </summary>
+        public async Task<CustomPlanQuoteResult> VerifySavedConfigAsync(
+            string? savedConfigJson,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var saved = CustomPlanConfig.TryParse(savedConfigJson);
+            if (saved == null || !saved.IsV2)
+            {
+                throw new CustomPlanQuoteException(
+                    "custom_plan_config_invalid",
+                    "The saved plan could not be read."
+                );
+            }
+
+            var quote = await _quote.QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = saved.Cadence,
+                    BasePlan = saved.BasePlan,
+                    Locations = saved.Locations ?? saved.Quantities.Locations,
+                    Packs = saved.Packs?.ToDictionary(
+                        kv => kv.Key,
+                        kv => (decimal)kv.Value,
+                        StringComparer.Ordinal
+                    ),
+                },
+                cancellationToken
+            );
+            if (
+                string.IsNullOrWhiteSpace(saved.QuoteHash)
+                || !string.Equals(saved.QuoteHash, quote.QuoteHash, StringComparison.Ordinal)
+            )
+            {
+                throw new CustomPlanQuoteException(
+                    "quote_changed",
+                    "Your quote has changed. Review the updated total before continuing."
+                );
+            }
+
+            return quote;
         }
 
         public async Task<(string? CheckoutUrl, string? Error)> StartCyclePayAsync(
@@ -167,6 +221,7 @@ namespace TummlyBackend.Services
                     )
                         ? "annual"
                         : "monthly",
+                    CustomPlanQuoteHash = config.QuoteHash,
                     CheckoutUrl = checkoutUrl,
                     IdempotencyKey = key,
                     IsOpen = true,

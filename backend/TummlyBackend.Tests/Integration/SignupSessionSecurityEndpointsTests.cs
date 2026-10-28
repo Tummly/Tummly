@@ -162,11 +162,16 @@ namespace TummlyBackend.Tests.Integration
             {
                 (HttpMethod.Get, "/api/signup/session"),
                 (HttpMethod.Post, "/api/signup/retry-provision"),
+                (HttpMethod.Post, "/api/signup/update-plan"),
                 (HttpMethod.Get, "/api/signup/provisioning-status"),
             })
             {
                 var request = new HttpRequestMessage(method, $"{path}?sessionToken={token}");
                 request.Headers.Add(SessionHeader, token.ToString());
+                if (method == HttpMethod.Post)
+                {
+                    request.Content = JsonContent.Create(new { });
+                }
                 await AssertSessionExpiredAsync(await _client.SendAsync(request));
             }
 
@@ -313,7 +318,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(data.GetProperty("ready").GetBoolean());
             var names = data.EnumerateObject().Select(p => p.Name).Order().ToArray();
             Assert.Equal(
-                new[] { "paymentFailureCode", "paymentRedirectUrl", "ready", "status" },
+                new[] { "paymentFailureCode", "paymentRedirectUrl", "ready", "savedPlan", "status" },
                 names
             );
         }
@@ -571,6 +576,11 @@ namespace TummlyBackend.Tests.Integration
 
             public Task<SignupProvisioningStatusResponse> GetProvisioningStatusAsync(
                 Guid sessionToken
+            ) => throw Boom();
+
+            public Task UpdatePlanAfterFailedCheckoutAsync(
+                Guid sessionToken,
+                UpdateSignupPlanDto dto
             ) => throw Boom();
 
             public Task<object> SessionLoginAsync(Guid sessionToken, bool continueOnFree = false) =>

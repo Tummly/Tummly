@@ -24,6 +24,7 @@ function quote(
       smsCredits: 0,
       aiCredits: 0,
     },
+    workspaceQrPool: 50,
     monthlyNetPence: 100000,
     periodNetPence: 100000,
     lines: [],
@@ -32,6 +33,11 @@ function quote(
     storedAsPlan: "Custom",
     quoteHash: "b".repeat(32),
     vatRateBps: 0,
+    vatAmountPence: 0,
+    grossTotalPence: 3900,
+    recurringGrossPence: 3900,
+    dueNowGrossPence: 3900,
+    effectiveTiming: "on_payment_confirmed",
     ...partial,
   }
 }

@@ -95,6 +95,10 @@ namespace TummlyBackend.Tests.Services
                     TimeProvider.System,
                     Microsoft.Extensions.Options.Options.Create(
                         new TummlyBackend.Configurations.TummlySellerVatSettings()
+                    ),
+                    new TummlyBackend.Services.CustomPlanQuoteService(
+                        _context,
+                        Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.TummlySellerVatSettings())
                     )
                 ),
                 PilotStartTestFactory.Create(

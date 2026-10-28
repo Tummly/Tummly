@@ -3,6 +3,7 @@ import { ChevronDownIcon, CoinsIcon, MailIcon, MessageSquareIcon } from "lucide-
 
 import { Button } from "@/components/ui/button"
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
+import { PendingPaymentReviewDialog } from "@/components/dashboard/operator/BillingCredits/PendingPaymentReviewDialog"
 import { ManagePlanComparisonSection } from "@/components/dashboard/operator/BillingCredits/ManagePlanComparisonSection"
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import { ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
@@ -169,9 +170,10 @@ export function ManagePlanCardsSection({
               {MANAGE_PLAN_COPY.pendingPaymentHeading}
             </h2>
             <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
-              {MANAGE_PLAN_COPY.pendingPaymentBody(
-                snap.planSubscription?.pendingPayment?.plan ?? ""
-              )}
+              {snap.pendingPaymentReview?.message
+                ?? MANAGE_PLAN_COPY.pendingPaymentBody(
+                  snap.planSubscription?.pendingPayment?.plan ?? ""
+                )}
             </p>
             <div className="pt-2">
               <Button
@@ -183,11 +185,20 @@ export function ManagePlanCardsSection({
                   void pageModule.retryPendingPayment()
                 }}
               >
-                {MANAGE_PLAN_COPY.retryPendingPayment}
+                {snap.pendingPaymentReview != null
+                  ? MANAGE_PLAN_COPY.reviewPendingPayment
+                  : MANAGE_PLAN_COPY.retryPendingPayment}
               </Button>
             </div>
           </div>
         </section>
+      ) : null}
+      {snap.pendingPaymentReview != null ? (
+        <PendingPaymentReviewDialog
+          review={snap.pendingPaymentReview}
+          onClose={pageModule.closePendingPaymentReview}
+          onConfirm={pageModule.confirmPendingPaymentReview}
+        />
       ) : null}
       {snap.currentPlanSummary != null ? (
         <section className={MANAGE_PLAN_CURRENT_PLAN_CARD_CLASS}>

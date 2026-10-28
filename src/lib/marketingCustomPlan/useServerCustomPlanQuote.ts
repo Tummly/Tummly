@@ -65,8 +65,9 @@ export function useServerCustomPlanQuote(
 } {
   const debounceMs = options?.debounceMs ?? DEFAULT_DEBOUNCE_MS
   const check = checkLocationInput(input.locations)
-  const packsValid = Object.values(input.packs).every(
-    (count) => checkPackCount(count) === "ok",
+  const packsValid = Object.entries(input.packs).every(
+    ([packKey, count]) =>
+      checkPackCount(count, packKey as CustomPlanPackKey) === "ok",
   )
   const inputValid = check === "ok" && packsValid
   // A string key keeps an inline packs object from restarting the debounce on every render.

@@ -1,8 +1,10 @@
 import type { SignupResume } from "@/api/signupApi"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import {
+  customPlanIntentNamesRetiredPack,
   decodeCustomPlanIntentV2,
   encodeCustomPlanIntentV2,
+  hasLegacyCapacityPack,
   type CustomPlanBasePlanKey,
   type CustomPlanPackCounts,
   type CustomPlanV2ConfigInput,
@@ -18,6 +20,8 @@ export type SignupPlanIntent = {
   cadence?: BillingCadence
   /** v2 calculator config — survives Back, reload, and plan changes. */
   config?: SignupCustomPlanConfig
+  /** A saved selection named a capacity pack Commercial V4 replaced; it was dropped. */
+  capacityOptionRetired?: true
 }
 
 const SIGNUP_PLAN_INTENT_KEY = "tummly.signupPlanIntent"
@@ -77,8 +81,13 @@ function normalizeIntent(parsed: SignupPlanIntent): SignupPlanIntent | null {
   }
   const cadence: BillingCadence =
     parsed.cadence === "annual" ? "annual" : "monthly"
+  // A replaced capacity pack drops the config and is reported, never converted.
+  const retired =
+    parsed.capacityOptionRetired === true ||
+    hasLegacyCapacityPack(parsed.config?.packs)
   // An invalid count drops the whole config: the review shows the restore-failure copy.
   const config =
+    !retired &&
     parsed.config != null &&
     parsed.config.version === 2 &&
     isValidLocationCount(parsed.config.locations)
@@ -95,6 +104,7 @@ function normalizeIntent(parsed: SignupPlanIntent): SignupPlanIntent | null {
     plan: parsed.plan,
     cadence,
     ...(config != null ? { config } : {}),
+    ...(retired ? { capacityOptionRetired: true as const } : {}),
   }
 }
 
@@ -141,6 +151,9 @@ export function parseSignupPlanIntent(
   return {
     plan: plan as "Starter" | "Growth" | "Group" | "Custom",
     cadence,
+    ...(customPlanIntentNamesRetiredPack(customIntent)
+      ? { capacityOptionRetired: true as const }
+      : {}),
   }
 }
 

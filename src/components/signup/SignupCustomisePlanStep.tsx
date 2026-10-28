@@ -1,6 +1,7 @@
 import { GuestLoopShellFooter } from "@/components/guest-loop/GuestLoopShell"
 import { CustomPlanCalculator } from "@/components/marketing/custom-plan/CustomPlanCalculator"
 import { Button } from "@/components/ui/button"
+import { capacityRetiredNotice } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import {
   chosenPlanToBasePlan,
   storedPlanFromQuote,
@@ -31,9 +32,15 @@ export function SignupCustomisePlanStep({
     intent?.config?.cadence ?? intent?.cadence ?? "monthly"
   const locations = intent?.config?.locations ?? 1
   const packs = intent?.config?.packs
+  const retiredNotice = capacityRetiredNotice(intent)
 
   return (
     <div className="flex w-full flex-col gap-8">
+      {retiredNotice != null ? (
+        <p role="status" className="m-0 font-sans text-sm text-[#141414]">
+          {retiredNotice}
+        </p>
+      ) : null}
       <CustomPlanCalculator
         key={`${basePlan}-${locations}-${cadence}`}
         initialBasePlan={basePlan}

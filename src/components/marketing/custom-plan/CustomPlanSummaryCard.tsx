@@ -9,6 +9,7 @@ import { PRICING_CADENCE_COPY } from "@/content/marketing/pricingPage"
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import {
+  formatQrWorkspacePool,
   quoteCadenceSuffix,
   quotePlanName,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
@@ -63,6 +64,91 @@ export function CustomPlanQuoteStatus({
   )
 }
 
+/**
+ * Full server quote for the price confirmation: each line with its quantity and
+ * price per unit, the billing period, the updated total, tax (only when VAT
+ * applies), when it takes effect, the new recurring amount and what is due today.
+ * No browser arithmetic: every amount comes from the quote.
+ */
+export function CustomPlanQuoteBreakdown({
+  quote,
+}: {
+  quote: CustomPlanQuoteResult
+}) {
+  const copy = CUSTOM_PLAN_QUOTE_COPY.breakdown
+  const annual = quote.cadence === "annual"
+  const vatApplies = quote.vatRateBps > 0
+  const rows: { label: string; value: string }[] = [
+    {
+      label: copy.billingPeriod,
+      value: annual ? PRICING_CADENCE_COPY.annual : PRICING_CADENCE_COPY.monthly,
+    },
+    ...(vatApplies
+      ? [
+          { label: copy.net, value: formatPenceGbp(quote.periodNetPence) },
+          { label: copy.vat, value: formatPenceGbp(quote.vatAmountPence) },
+        ]
+      : []),
+    { label: copy.updatedTotal, value: formatPenceGbp(quote.grossTotalPence) },
+    {
+      label: copy.effectiveDate,
+      value:
+        quote.effectiveTiming === "on_payment_confirmed"
+          ? copy.effectiveOnPayment
+          : quote.effectiveTiming,
+    },
+    {
+      label: copy.newRecurring,
+      value: `${formatPenceGbp(quote.recurringGrossPence)} ${quoteCadenceSuffix(quote.cadence)}`,
+    },
+    { label: copy.dueToday, value: formatPenceGbp(quote.dueNowGrossPence) },
+  ]
+  return (
+    <div className="flex flex-col gap-6" aria-label="Quote breakdown" role="group">
+      <ul
+        aria-label={copy.linesHeading}
+        className="m-0 flex list-none flex-col gap-4 p-0 font-sans text-sm text-[#141414]"
+      >
+        {quote.lines.map((line) => (
+          <li key={line.key} className="flex flex-col gap-1.5">
+            <p className="m-0 font-medium">{line.name}</p>
+            <dl className="m-0 flex flex-col gap-1">
+              {[
+                { label: copy.quantity, value: formatCount(line.quantity) },
+                {
+                  label: copy.pricePerUnit,
+                  value: formatPenceGbp(line.unitNetPence),
+                },
+                { label: copy.lineTotal, value: formatPenceGbp(line.netPence) },
+              ].map((row) => (
+                <div
+                  key={row.label}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <dt className="m-0 font-normal">{row.label}</dt>
+                  <dd className="m-0 font-medium">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
+      <hr className="m-0 border-[#c9c9c9]" />
+      <dl className="m-0 flex flex-col gap-3 font-sans text-sm text-[#141414]">
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            className="flex items-center justify-between gap-3"
+          >
+            <dt className="m-0 font-normal">{row.label}</dt>
+            <dd className="m-0 font-medium">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
 export type CustomPlanSummaryCardProps = {
   quote: CustomPlanQuoteResult
   cadence: BillingCadence
@@ -77,6 +163,8 @@ export type CustomPlanSummaryCardProps = {
   contactHref?: string
   showCadenceToggle?: boolean
   showActions?: boolean
+  /** Show per-line quantity and unit price, tax, effective date, recurring amount and due today. For the price confirmation. */
+  showBreakdown?: boolean
   checkoutNote?: string
   /** Quote status under the total: loading, failed or changed (doc 08). */
   statusMessage?: string | null
@@ -107,6 +195,7 @@ export function CustomPlanSummaryCard({
   contactHref = HELP_CENTRE_CONTACT_URL,
   showCadenceToggle = true,
   showActions = true,
+  showBreakdown = false,
   checkoutNote = CUSTOM_PLAN_QUOTE_COPY.noPaymentTaken,
   statusMessage = null,
   showRetry = false,
@@ -220,10 +309,7 @@ export function CustomPlanSummaryCard({
                   <div className="flex flex-col gap-1.5">
                     <span className="text-[#707070]">Active QR</span>
                     <span className="text-black">
-                      {formatCount(q.qrPlacements)} per Location
-                      {q.qrPlacementsAccountExtra > 0
-                        ? ` + ${formatCount(q.qrPlacementsAccountExtra)} account`
-                        : ""}
+                      {formatQrWorkspacePool(quote.workspaceQrPool)}
                     </span>
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -257,7 +343,7 @@ export function CustomPlanSummaryCard({
               </div>
             </div>
 
-            {quote.lines.length > 0 ? (
+            {!showBreakdown && quote.lines.length > 0 ? (
               <div className="bg-[#efefef] p-7">
                 <ul className="m-0 flex list-none flex-col gap-[18px] p-0 font-sans text-base text-black">
                   {quote.lines.map((line) => (
@@ -277,17 +363,21 @@ export function CustomPlanSummaryCard({
           </div>
 
           <div className="flex shrink-0 flex-col gap-8 bg-[#e5e5e5] p-7">
-            <div className="flex items-center justify-between gap-4">
-              <p className="m-0 font-sans text-lg text-black">Estimated total</p>
-              <p className="m-0 text-[#141414]">
-                <span className="font-sans text-[36px] font-normal leading-none">
-                  {formatPenceGbp(quote.periodNetPence)}
-                </span>
-                <span className="font-sans text-sm font-normal">
-                  {totalSuffix}
-                </span>
-              </p>
-            </div>
+            {/* The breakdown carries its own totals (Total before VAT, Updated total); a second net "Estimated total" beside the gross one would conflict. */}
+            {showBreakdown ? null : (
+              <div className="flex items-center justify-between gap-4">
+                <p className="m-0 font-sans text-lg text-black">Estimated total</p>
+                <p className="m-0 text-[#141414]">
+                  <span className="font-sans text-[36px] font-normal leading-none">
+                    {formatPenceGbp(quote.periodNetPence)}
+                  </span>
+                  <span className="font-sans text-sm font-normal">
+                    {totalSuffix}
+                  </span>
+                </p>
+              </div>
+            )}
+            {showBreakdown ? <CustomPlanQuoteBreakdown quote={quote} /> : null}
             {statusMessage != null && statusMessage !== "" ? (
               <CustomPlanQuoteStatus
                 message={statusMessage}
