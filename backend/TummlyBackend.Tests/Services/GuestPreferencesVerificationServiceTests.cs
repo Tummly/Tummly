@@ -171,6 +171,30 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Run_ProviderTimesOut_LoopKeepsSendingNextItem()
+        {
+            using var cts = new CancellationTokenSource();
+            _email.CancelNextSend = true;
+            var loop = _worker.RunAsync(cts.Token);
+
+            await _sut.StartAsync(KnownEmail, null, CancellationToken.None);
+            await _sut.StartAsync(KnownEmail, null, CancellationToken.None);
+
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (_email.Sent.Count == 0 && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(10);
+            }
+
+            Assert.False(loop.IsCompleted);
+            Assert.Single(_email.Sent);
+
+            cts.Cancel();
+            await loop.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(loop.IsCompletedSuccessfully);
+        }
+
+        [Fact]
         public void TryEnqueue_WhenFull_ReturnsFalse()
         {
             var item = new GuestPreferencesSendItem(TummlyGuestContactTypes.Phone, KnownPhone, null);
@@ -488,6 +512,9 @@ namespace TummlyBackend.Tests.Services
 
             public bool Fail { get; set; }
 
+            /// <summary>When set, the next send throws a non-shutdown TaskCanceledException once.</summary>
+            public bool CancelNextSend { get; set; }
+
             public IReadOnlyList<(string ToEmail, string ConfirmUrl)> Sent
             {
                 get
@@ -508,6 +535,12 @@ namespace TummlyBackend.Tests.Services
                 if (Gate is not null)
                 {
                     await Gate.Task;
+                }
+
+                if (CancelNextSend)
+                {
+                    CancelNextSend = false;
+                    throw new TaskCanceledException("provider timeout");
                 }
 
                 if (Fail)

@@ -270,7 +270,9 @@ namespace TummlyBackend.Services
                 return (GuestVerifyOutcome.Ok, proven);
             }
 
-            // LinkContactAsync throws when the owner is gone, so check first and report Invalid.
+            // SMS add-contact has no earlier owner check. The email path checked the owner before
+            // consuming the code. This check covers the SMS path and an owner removed since the
+            // email check. LinkContactAsync throws for a missing owner, so it is not called then.
             if (!await OwnerExistsAsync(ownerId, ct))
             {
                 return Invalid();

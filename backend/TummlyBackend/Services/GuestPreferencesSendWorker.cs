@@ -104,7 +104,9 @@ namespace TummlyBackend.Services
                 var sms = scope.ServiceProvider.GetRequiredService<ISmsService>();
                 await sms.SendOtpSmsAsync(item.Destination);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            // A cancellation that is not host shutdown (for example an HttpClient timeout) is a
+            // failed send. Only a cancelled ct stops the loop.
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 _logger.LogProviderSendFailure(
                     ex,
