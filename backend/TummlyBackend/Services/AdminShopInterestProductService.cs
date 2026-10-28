@@ -39,6 +39,7 @@ namespace TummlyBackend.Services
 
             var counts = await _context.ShopInterestRegistrations
                 .AsNoTracking()
+                .Where(row => row.WithdrawnAtUtc == null)
                 .GroupBy(row => row.ShopInterestProductId)
                 .Select(group => new { ProductId = group.Key, Count = group.Count() })
                 .ToDictionaryAsync(
@@ -105,7 +106,9 @@ namespace TummlyBackend.Services
 
             var registrationCount = await _context.ShopInterestRegistrations
                 .CountAsync(
-                    row => row.ShopInterestProductId == product.Id,
+                    row =>
+                        row.ShopInterestProductId == product.Id
+                        && row.WithdrawnAtUtc == null,
                     cancellationToken
                 );
             return (MapProduct(product, registrationCount), null);
@@ -406,7 +409,9 @@ namespace TummlyBackend.Services
 
             var registrationCount = await _context.ShopInterestRegistrations
                 .CountAsync(
-                    row => row.ShopInterestProductId == product.Id,
+                    row =>
+                        row.ShopInterestProductId == product.Id
+                        && row.WithdrawnAtUtc == null,
                     cancellationToken
                 );
             return (MapProduct(product, registrationCount), null);
@@ -559,7 +564,9 @@ namespace TummlyBackend.Services
 
             var registrationCount = await _context.ShopInterestRegistrations
                 .CountAsync(
-                    row => row.ShopInterestProductId == product.Id,
+                    row =>
+                        row.ShopInterestProductId == product.Id
+                        && row.WithdrawnAtUtc == null,
                     cancellationToken
                 );
             _ = skuDto;

@@ -28,12 +28,12 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             ),
             (
                 "standard-package-label",
-                "Standard Package Label",
+                "Standard Packaging Label",
                 "Place a trackable QR label on standard packaging before it leaves the kitchen."
             ),
             (
                 "drink-cup-seal",
-                "Drink / Cup Seal",
+                "Drink Cup Seal",
                 "Add a compact QR seal to cups and drink lids for post-visit feedback."
             ),
             (
@@ -43,7 +43,7 @@ namespace TummlyBackend.Shop.MaterialsCatalog
             ),
             (
                 "poster-customer-club",
-                "Poster / Customer Club",
+                "Customer Club Poster",
                 "Display a poster QR that grows your customer club and private feedback."
             ),
             (

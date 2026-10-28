@@ -364,6 +364,70 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(2, body.GetProperty("items").GetArrayLength());
         }
 
+        [Fact]
+        public async Task Withdraw_SoftDeletes_AndAdminScopeControlsWhetherItShows()
+        {
+            await ClearInterestTablesAsync();
+            var seeded = await SeedOperatorAndAdminAsync();
+            await SeedInterestProductAsync("tray-liners", "Tray Liner", "A");
+
+            using (var post = AuthorizedPostJson(
+                "/api/shop/interest",
+                seeded.OwnerJwt,
+                new { productKey = "tray-liners", locationId = seeded.LocationId }
+            ))
+            {
+                Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(post)).StatusCode);
+            }
+
+            using (var withdraw = new HttpRequestMessage(HttpMethod.Delete, "/api/shop/interest")
+            {
+                Content = JsonContent.Create(
+                    new { productKey = "tray-liners", locationId = seeded.LocationId }
+                ),
+            })
+            {
+                withdraw.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+                Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(withdraw)).StatusCode);
+            }
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var row = Assert.Single(context.ShopInterestRegistrations.ToList());
+                Assert.NotNull(row.WithdrawnAtUtc);
+                Assert.Equal(seeded.OwnerUserId, row.WithdrawnByUserId);
+            }
+
+            var activeOnly = await ReadJsonAsync(await _client.SendAsync(
+                AuthorizedGet("/api/admin/shop-interest", seeded.AdminJwt)
+            ));
+            Assert.Empty(activeOnly.GetProperty("items").EnumerateArray());
+            Assert.Equal(0, activeOnly.GetProperty("countsByProduct").EnumerateArray().First().GetProperty("count").GetInt32());
+
+            var everything = await ReadJsonAsync(await _client.SendAsync(
+                AuthorizedGet("/api/admin/shop-interest?scope=all", seeded.AdminJwt)
+            ));
+            var withdrawn = Assert.Single(everything.GetProperty("items").EnumerateArray());
+            Assert.Equal("Withdrawn", withdrawn.GetProperty("state").GetString());
+            Assert.Equal(JsonValueKind.String, withdrawn.GetProperty("withdrawnAtUtc").ValueKind);
+            Assert.Equal(0, everything.GetProperty("countsByProduct").EnumerateArray().First().GetProperty("count").GetInt32());
+        }
+
+        [Fact]
+        public async Task AdminList_RejectsUnknownScope()
+        {
+            var seeded = await SeedOperatorAndAdminAsync();
+
+            var response = await _client.SendAsync(
+                AuthorizedGet("/api/admin/shop-interest?scope=bogus", seeded.AdminJwt)
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
         private async Task ClearInterestTablesAsync()
         {
             using var scope = _factory.Services.CreateScope();

@@ -43,9 +43,27 @@ namespace TummlyBackend.DTOs.Shop
 
         public string UserFullName { get; set; } = string.Empty;
 
-        public string UserEmail { get; set; } = string.Empty;
+        /// <summary>
+        /// Masked by default (for example <c>ja***@domain.com</c>). Never the raw address.
+        /// </summary>
+        public string UserEmailMasked { get; set; } = string.Empty;
+
+        /// <summary>
+        /// <see cref="ShopInterestRegistrationStates.Active"/> or
+        /// <see cref="ShopInterestRegistrationStates.Withdrawn"/>.
+        /// </summary>
+        public string State { get; set; } = ShopInterestRegistrationStates.Active;
 
         public DateTime CreatedAtUtc { get; set; }
+
+        public DateTime? WithdrawnAtUtc { get; set; }
+    }
+
+    public static class ShopInterestRegistrationStates
+    {
+        public const string Active = "Active";
+
+        public const string Withdrawn = "Withdrawn";
     }
 
     public sealed class AdminShopInterestProductCountDto
