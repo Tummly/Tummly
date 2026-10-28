@@ -2858,6 +2858,10 @@ export function createCampaignWizardModule(
         draftName: draftName.length > 0 ? draftName : null,
       }
       publish()
+      // Persist now so the Draft ID survives reopen. No Offer data comes with
+      // the recommendation, so the Offer stays empty. A failed create leaves
+      // the wizard open with a save error.
+      await persistDraft()
       await Promise.all([
         loadAudienceCounts(),
         refreshMessagingBalances(),

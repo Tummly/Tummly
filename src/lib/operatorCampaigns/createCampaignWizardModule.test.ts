@@ -3907,8 +3907,25 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.review!.sendAvailable).toBe(true)
   })
 
-  it("opens from recommendation draftPrefill without creating a server Draft", async () => {
-    const createDraft = vi.fn()
+  it("opens from recommendation draftPrefill and persists a Draft whose ID the wizard keeps", async () => {
+    const createDraft = vi.fn(async (body) => ({
+      id: 77,
+      locationId: body.locationId,
+      status: "draft" as const,
+      name: body.name ?? "Thank recent guests",
+      goalId: body.goalId ?? null,
+      templateId: body.templateId ?? null,
+      templateVersion: body.templateVersion ?? null,
+      audienceKey: body.audienceKey ?? null,
+      channel: body.channel ?? null,
+      offerStance: body.offerStance ?? null,
+      offerId: body.offerId ?? null,
+      messageSubject: body.messageSubject ?? null,
+      messageBody: body.messageBody ?? null,
+      rowVersion: "AAAAAAAAB9E=",
+      createdAt: "2026-08-08T12:00:00.000Z",
+      updatedAt: "2026-08-08T12:00:00.000Z",
+    }))
     const loadSmartGroupCounts = vi.fn(async () => ({
       smartGroupCounts: { "all-guests": 40, "new-guests": 5 },
     }))
@@ -3939,8 +3956,20 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.goalId).toBe("thank-recent-guests")
     expect(snapshot.audience?.selectedAudienceId).toBe("new-guests")
     expect(snapshot.templateId).toBeNull()
-    expect(snapshot.draftId).toBeNull()
-    expect(createDraft).not.toHaveBeenCalled()
+    expect(snapshot.draftId).toBe(77)
+    expect(snapshot.saveStatus).toBe("saved")
+    expect(createDraft).toHaveBeenCalledTimes(1)
+    expect(createDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 42,
+        name: "Thank you for joining",
+        goalId: "thank-recent-guests",
+        audienceKey: "new-guests",
+        channel: "email",
+        offerStance: "no-offer",
+        offerId: null,
+      })
+    )
     expect(loadSmartGroupCounts).toHaveBeenCalledWith({ locationId: 42 })
 
     await wizard.continue()
@@ -3959,10 +3988,41 @@ describe("createCampaignWizardModule", () => {
 
     wizard.close()
     expect(wizard.getSnapshot().isOpen).toBe(false)
-    expect(createDraft).not.toHaveBeenCalled()
+    expect(createDraft).toHaveBeenCalledTimes(1)
   })
 
-  it("Save after recommendation prefill creates a Draft without template id", async () => {
+  it("keeps the wizard open with a save error when the recommendation Draft cannot be created", async () => {
+    const createDraft = vi.fn(async () => {
+      throw new Error("create failed")
+    })
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      createDraft,
+    })
+
+    await wizard.openFromRecommendation({
+      locationId: 42,
+      locationName: "Camden",
+      draftPrefill: {
+        goalId: "thank-recent-guests",
+        audienceKey: "new-guests",
+        channel: "email",
+        offerStance: "no-offer",
+        campaignName: "Thank you for joining",
+        messageSubject: "Thanks for joining us",
+        messageBody: "Thank you for joining our guest list.",
+      },
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.isOpen).toBe(true)
+    expect(snapshot.draftId).toBeNull()
+    expect(snapshot.saveStatus).toBe("error")
+    expect(snapshot.saveError).not.toBeNull()
+    expect(createDraft).toHaveBeenCalledTimes(1)
+  })
+
+  it("recommendation prefill Draft created on open has no template id", async () => {
     const createDraft = vi.fn(async (body) => ({
       id: 77,
       locationId: body.locationId,
@@ -3996,10 +4056,6 @@ describe("createCampaignWizardModule", () => {
         messageBody: "Thank you for joining our guest list.",
       },
     })
-    expect(createDraft).not.toHaveBeenCalled()
-
-    await wizard.save()
-
     expect(createDraft).toHaveBeenCalledTimes(1)
     expect(createDraft).toHaveBeenCalledWith(
       expect.objectContaining({
