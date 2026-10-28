@@ -239,7 +239,7 @@ namespace TummlyBackend.Services
             }
 
             await ApplyMuteAsync(snapshot, new[] { locationId }, muted, ct);
-            await _context.SaveChangesAsync(ct);
+            await SaveMuteAsync(tummlyGuestId, new[] { locationId }, muted, ct);
         }
 
         public async Task SetRestaurantMuteAsync(
@@ -263,7 +263,44 @@ namespace TummlyBackend.Services
             }
 
             await ApplyMuteAsync(snapshot, locationIds, muted, ct);
-            await _context.SaveChangesAsync(ct);
+            await SaveMuteAsync(tummlyGuestId, locationIds, muted, ct);
+        }
+
+        /// <summary>
+        /// Saves a mute change. Two mute requests can both pass the in-memory check. The second
+        /// insert then fails on the unique (guest, location) index. When the other request has
+        /// muted every location, this request is done. Any other save error is rethrown.
+        /// </summary>
+        private async Task SaveMuteAsync(
+            int tummlyGuestId,
+            IReadOnlyCollection<int> locationIds,
+            bool muted,
+            CancellationToken ct
+        )
+        {
+            try
+            {
+                await _context.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException) when (muted)
+            {
+                _context.ChangeTracker.Clear();
+
+                var ids = locationIds.ToList();
+                var mutedNow = await _context.TummlyGuestLocationMutes
+                    .AsNoTracking()
+                    .Where(m =>
+                        m.TummlyGuestId == tummlyGuestId
+                        && ids.Contains(m.RestaurantLocationId)
+                    )
+                    .Select(m => m.RestaurantLocationId)
+                    .ToListAsync(ct);
+
+                if (ids.Any(id => !mutedNow.Contains(id)))
+                {
+                    throw;
+                }
+            }
         }
 
         /// <summary>

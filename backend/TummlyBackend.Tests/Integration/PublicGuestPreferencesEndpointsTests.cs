@@ -347,6 +347,7 @@ namespace TummlyBackend.Tests.Integration
         private static async Task AssertSessionRejectedAsync(HttpResponseMessage response)
         {
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.False(response.Headers.Contains(SessionHeader));
             var body = await GuestPreferencesEndpointTestSupport.ReadJsonAsync(response);
             Assert.Equal("session", body.GetProperty("error").GetString());
         }

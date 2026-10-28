@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Configuration;
 
 namespace TummlyBackend.Helpers
@@ -17,12 +18,16 @@ namespace TummlyBackend.Helpers
     /// Requires a valid <see cref="GuestPreferencesSessionToken"/> in the
     /// <see cref="GuestPreferencesSessionToken.HeaderName"/> request header. Missing, invalid or
     /// expired → 401 <c>{ error: "session" }</c>. On success, stores the session's Tummly Guest id in
-    /// <see cref="HttpContext.Items"/> under <see cref="TummlyGuestIdItemKey"/> and writes a renewed
-    /// token to the response header (30-minute sliding session).
+    /// <see cref="HttpContext.Items"/> under <see cref="TummlyGuestIdItemKey"/>. The renewed token
+    /// (30-minute sliding session) is written to the response header only when the action result
+    /// is not a 401, so a 401 from the action itself never carries a session.
+    /// A missing signing secret is a configuration error and throws.
     /// </summary>
-    public sealed class GuestPreferencesSessionFilter : IAsyncActionFilter
+    public sealed class GuestPreferencesSessionFilter : IAsyncActionFilter, IAsyncResultFilter
     {
         public const string TummlyGuestIdItemKey = "TummlyGuestId";
+
+        private const string RenewedTokenItemKey = "GuestPreferencesSessionRenewedToken";
 
         private readonly IConfiguration _configuration;
         private readonly TimeProvider _timeProvider;
@@ -40,12 +45,18 @@ namespace TummlyBackend.Helpers
         {
             var http = context.HttpContext;
             var secret = GuestPreferencesSessionToken.ResolveSecret(_configuration);
+            if (string.IsNullOrEmpty(secret))
+            {
+                throw new InvalidOperationException(
+                    "Guest preferences session signing secret is not configured."
+                );
+            }
+
             var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
             var token = http.Request.Headers[GuestPreferencesSessionToken.HeaderName].ToString();
 
             if (
-                string.IsNullOrEmpty(secret)
-                || !GuestPreferencesSessionToken.TryVerify(
+                !GuestPreferencesSessionToken.TryVerify(
                     token,
                     secret,
                     nowUtc,
@@ -59,8 +70,29 @@ namespace TummlyBackend.Helpers
             }
 
             http.Items[TummlyGuestIdItemKey] = tummlyGuestId;
-            http.Response.Headers[GuestPreferencesSessionToken.HeaderName] =
-                GuestPreferencesSessionToken.Create(tummlyGuestId, contactId, nowUtc, secret);
+            http.Items[RenewedTokenItemKey] = GuestPreferencesSessionToken.Create(
+                tummlyGuestId,
+                contactId,
+                nowUtc,
+                secret
+            );
+
+            await next();
+        }
+
+        public async Task OnResultExecutionAsync(
+            ResultExecutingContext context,
+            ResultExecutionDelegate next
+        )
+        {
+            var http = context.HttpContext;
+            if (
+                http.Items.TryGetValue(RenewedTokenItemKey, out var renewed)
+                && context.Result is not IStatusCodeActionResult { StatusCode: 401 }
+            )
+            {
+                http.Response.Headers[GuestPreferencesSessionToken.HeaderName] = (string)renewed!;
+            }
 
             await next();
         }

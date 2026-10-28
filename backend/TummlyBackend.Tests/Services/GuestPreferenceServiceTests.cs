@@ -25,17 +25,18 @@ namespace TummlyBackend.Tests.Services
 
         private static readonly DateTime Past = DateTime.UtcNow.AddDays(-30);
 
+        private readonly DbContextOptions<ApplicationDbContext> _options;
         private readonly ApplicationDbContext _context;
         private readonly ILocationGuestPermissionLedgerService _permissions;
         private readonly IGuestPreferenceService _sut;
 
         public GuestPreferenceServiceTests()
         {
-            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            _options = new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            _context = new ApplicationDbContext(options);
+            _context = new ApplicationDbContext(_options);
             _permissions = new LocationGuestPermissionLedgerService(_context);
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(
@@ -593,6 +594,111 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(GuestPreferenceService.WordingVersion, row.WordingVersion);
             Assert.Null(row.GuestFormVersion);
             Assert.Null(row.PrivacyNoticeVersion);
+        }
+
+        [Fact]
+        public async Task SetLocationMute_ConcurrentSameMute_ReturnsNormallyWithOneRow()
+        {
+            var tummlyGuestId = await SeedTummlyGuestAsync();
+            var venue = await SeedVenueGuestAsync("Venue A", "Main");
+            await GrantAsync(venue.Guest, LocationGuestPermissionKind.EmailMarketing, Past);
+            var locationId = venue.Location.Id;
+
+            // The competing request mutes the same location and commits before this save.
+            using var racing = new RaceOnFirstSaveContext(
+                _options,
+                other =>
+                    CreateSut(other).SetLocationMuteAsync(
+                        tummlyGuestId,
+                        locationId,
+                        true,
+                        CancellationToken.None
+                    )
+            );
+
+            await CreateSut(racing).SetLocationMuteAsync(
+                tummlyGuestId,
+                locationId,
+                true,
+                CancellationToken.None
+            );
+
+            Assert.Equal(
+                1,
+                await _context.TummlyGuestLocationMutes.CountAsync(m =>
+                    m.TummlyGuestId == tummlyGuestId && m.RestaurantLocationId == locationId
+                )
+            );
+            Assert.Equal(
+                LocationGuestPermissionState.Withdrawn,
+                await StateAsync(venue.Guest, LocationGuestPermissionKind.EmailMarketing)
+            );
+        }
+
+        [Fact]
+        public async Task SetLocationMute_SaveFailsWithoutCompetingMute_Rethrows()
+        {
+            var tummlyGuestId = await SeedTummlyGuestAsync();
+            var venue = await SeedVenueGuestAsync("Venue A", "Main");
+            await GrantAsync(venue.Guest, LocationGuestPermissionKind.EmailMarketing, Past);
+            using var racing = new RaceOnFirstSaveContext(_options, _ => Task.CompletedTask);
+
+            await Assert.ThrowsAsync<DbUpdateException>(() =>
+                CreateSut(racing).SetLocationMuteAsync(
+                    tummlyGuestId,
+                    venue.Location.Id,
+                    true,
+                    CancellationToken.None
+                )
+            );
+        }
+
+        private IGuestPreferenceService CreateSut(ApplicationDbContext context) =>
+            new GuestPreferenceService(
+                context,
+                new TummlyGuestIdentityService(context),
+                new LocationGuestPermissionLedgerService(context),
+                new ConfigurationBuilder().Build()
+            );
+
+        /// <summary>
+        /// Seam for a concurrent mute. On the first SaveChanges it runs <c>competingWrite</c> on a
+        /// second context over the same InMemory store (the competing request), then throws the
+        /// unique-index <see cref="DbUpdateException"/> the database would raise. Same idea as
+        /// <c>TummlyGuestIdentityServiceTests.RaceOnFirstSaveContext</c>.
+        /// </summary>
+        private sealed class RaceOnFirstSaveContext : ApplicationDbContext
+        {
+            private readonly DbContextOptions<ApplicationDbContext> _options;
+            private readonly Func<ApplicationDbContext, Task> _competingWrite;
+            private bool _raced;
+
+            public RaceOnFirstSaveContext(
+                DbContextOptions<ApplicationDbContext> options,
+                Func<ApplicationDbContext, Task> competingWrite
+            )
+                : base(options)
+            {
+                _options = options;
+                _competingWrite = competingWrite;
+            }
+
+            public override async Task<int> SaveChangesAsync(
+                CancellationToken cancellationToken = default
+            )
+            {
+                if (!_raced)
+                {
+                    _raced = true;
+                    await using var other = new ApplicationDbContext(_options);
+                    await _competingWrite(other);
+                    throw new DbUpdateException(
+                        "Simulated unique-index violation on concurrent mute."
+                    );
+                }
+
+                return await base.SaveChangesAsync(cancellationToken);
+            }
         }
 
         private async Task<int> SeedTummlyGuestAsync()
