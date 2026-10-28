@@ -203,6 +203,49 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("invalid", body.GetProperty("error").GetString());
         }
 
+        [Fact]
+        public async Task SessionVerifyEmail_AddContactLink_Invalid_NotConsumed()
+        {
+            const string ownerEmail = "addcontact-owner@example.com";
+            const string newEmail = "addcontact-new@example.com";
+            int ownerId;
+
+            using (var scope = _host.Services.CreateScope())
+            {
+                var identity = scope.ServiceProvider.GetRequiredService<ITummlyGuestIdentityService>();
+                var owner = await identity.FindOrCreateByContactAsync(
+                    TummlyGuestContactTypes.Email,
+                    ownerEmail,
+                    CancellationToken.None
+                );
+                ownerId = owner.TummlyGuestId;
+
+                var verification = scope.ServiceProvider.GetRequiredService<IGuestPreferencesVerificationService>();
+                await verification.StartAsync(newEmail, ownerId, CancellationToken.None);
+            }
+
+            var link = Assert.Single(_email.Sent).ConfirmUrl;
+            Assert.Contains("?link=", link, StringComparison.Ordinal);
+            var v = link[(link.IndexOf("?link=", StringComparison.Ordinal) + 6)..];
+
+            var response = await _client.PostAsJsonAsync(
+                $"{SessionPath}/verify-email",
+                new { v }
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("invalid", body.GetProperty("error").GetString());
+            Assert.False(body.TryGetProperty("sessionToken", out _));
+
+            using var check = _host.Services.CreateScope();
+            var add = check.ServiceProvider.GetRequiredService<IGuestPreferencesVerificationService>();
+            var result = await add.VerifyAddContactEmailLinkAsync(v, CancellationToken.None);
+
+            Assert.Equal(GuestVerifyOutcome.Ok, result.Outcome);
+            Assert.Equal(ownerId, result.Proven!.TummlyGuestId);
+        }
+
         private string UnsubscribeSecret()
         {
             using var scope = _host.Services.CreateScope();

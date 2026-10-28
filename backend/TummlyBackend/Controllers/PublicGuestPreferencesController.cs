@@ -119,7 +119,8 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
-        /// Accepts both entry and add-contact links. The link row decides the flow.
+        /// Entry links only. An add-contact link is rejected here, without consuming it. It is
+        /// checked by the add-contact method (<c>contacts/verify-email</c>, Task 7), which issues no session.
         /// </summary>
         [HttpPost("session/verify-email")]
         public async Task<IActionResult> SessionVerifyEmail(
@@ -127,7 +128,7 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var (outcome, proven) = await _verification.VerifyEmailLinkAsync(
+            var (outcome, proven) = await _verification.VerifyEntryEmailLinkAsync(
                 request?.V ?? string.Empty,
                 cancellationToken
             );

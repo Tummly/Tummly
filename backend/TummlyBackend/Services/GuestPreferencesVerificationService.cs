@@ -146,8 +146,23 @@ namespace TummlyBackend.Services
             );
         }
 
-        public async Task<(GuestVerifyOutcome Outcome, ProvenContact? Proven)> VerifyEmailLinkAsync(
+        public Task<(GuestVerifyOutcome Outcome, ProvenContact? Proven)> VerifyEntryEmailLinkAsync(
             string v,
+            CancellationToken ct
+        ) => VerifyEmailLinkAsync(v, expectEntry: true, ct);
+
+        public Task<(GuestVerifyOutcome Outcome, ProvenContact? Proven)> VerifyAddContactEmailLinkAsync(
+            string v,
+            CancellationToken ct
+        ) => VerifyEmailLinkAsync(v, expectEntry: false, ct);
+
+        /// <summary>
+        /// Shared email link check. A row of the other flow is Invalid before the code is
+        /// checked, so the wrong endpoint never consumes the link.
+        /// </summary>
+        private async Task<(GuestVerifyOutcome Outcome, ProvenContact? Proven)> VerifyEmailLinkAsync(
+            string v,
+            bool expectEntry,
             CancellationToken ct
         )
         {
@@ -172,6 +187,27 @@ namespace TummlyBackend.Services
                 return Invalid();
             }
 
+            var isEntry = challenge.SubjectId == EntrySubjectId;
+            if (isEntry != expectEntry)
+            {
+                return Invalid();
+            }
+
+            // For add-contact the subject is the owner id. Check it before the code is consumed.
+            var ownerId = 0;
+            if (
+                !isEntry
+                && !int.TryParse(
+                    challenge.SubjectId,
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out ownerId
+                )
+            )
+            {
+                return Invalid();
+            }
+
             var now = _timeProvider.GetUtcNow().UtcDateTime;
             if (challenge.ExpiresAt <= now)
             {
@@ -184,9 +220,7 @@ namespace TummlyBackend.Services
                 return (verified, null);
             }
 
-            // Entry proves the address for the guest found by that contact. Add-contact
-            // links the address to the owner, the Tummly Guest that issued the challenge.
-            if (challenge.SubjectId == EntrySubjectId)
+            if (isEntry)
             {
                 var proven = await _identity.FindOrCreateByContactAsync(
                     TummlyGuestContactTypes.Email,
@@ -194,18 +228,6 @@ namespace TummlyBackend.Services
                     ct
                 );
                 return (GuestVerifyOutcome.Ok, proven);
-            }
-
-            if (
-                !int.TryParse(
-                    challenge.SubjectId,
-                    NumberStyles.None,
-                    CultureInfo.InvariantCulture,
-                    out var ownerId
-                )
-            )
-            {
-                return Invalid();
             }
 
             return await ProveContactAsync(

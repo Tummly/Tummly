@@ -146,7 +146,7 @@ namespace TummlyBackend.Tests.Services
         {
             await _sut.StartAsync(KnownEmail, null, CancellationToken.None);
 
-            var result = await _sut.VerifyEmailLinkAsync(LinkParameter(), CancellationToken.None);
+            var result = await _sut.VerifyEntryEmailLinkAsync(LinkParameter(), CancellationToken.None);
 
             Assert.Equal(GuestVerifyOutcome.Ok, result.Outcome);
             Assert.NotNull(result.Proven);
@@ -163,10 +163,10 @@ namespace TummlyBackend.Tests.Services
         {
             await _sut.StartAsync(KnownEmail, null, CancellationToken.None);
             var link = LinkParameter();
-            var first = await _sut.VerifyEmailLinkAsync(link, CancellationToken.None);
+            var first = await _sut.VerifyEntryEmailLinkAsync(link, CancellationToken.None);
             Assert.Equal(GuestVerifyOutcome.Ok, first.Outcome);
 
-            var second = await _sut.VerifyEmailLinkAsync(link, CancellationToken.None);
+            var second = await _sut.VerifyEntryEmailLinkAsync(link, CancellationToken.None);
 
             Assert.Equal(GuestVerifyOutcome.Invalid, second.Outcome);
             Assert.Null(second.Proven);
@@ -181,7 +181,7 @@ namespace TummlyBackend.Tests.Services
             var code = link[(dot + 1)..];
             var wrong = link[..(dot + 1)] + (code == "000000" ? "111111" : "000000");
 
-            var result = await _sut.VerifyEmailLinkAsync(wrong, CancellationToken.None);
+            var result = await _sut.VerifyEntryEmailLinkAsync(wrong, CancellationToken.None);
 
             Assert.Equal(GuestVerifyOutcome.Invalid, result.Outcome);
             Assert.Empty(await _db.TummlyGuests.ToListAsync());
@@ -194,7 +194,7 @@ namespace TummlyBackend.Tests.Services
             var link = LinkParameter();
 
             _time.Advance(TimeSpan.FromMinutes(10));
-            var result = await _sut.VerifyEmailLinkAsync(link, CancellationToken.None);
+            var result = await _sut.VerifyEntryEmailLinkAsync(link, CancellationToken.None);
 
             Assert.Equal(GuestVerifyOutcome.Expired, result.Outcome);
         }
@@ -205,7 +205,7 @@ namespace TummlyBackend.Tests.Services
             var owner = await FindOrCreateOwnerAsync();
             await _sut.StartAsync("new-contact@example.com", owner.TummlyGuestId, CancellationToken.None);
 
-            var result = await _sut.VerifyEmailLinkAsync(LinkParameter(), CancellationToken.None);
+            var result = await _sut.VerifyAddContactEmailLinkAsync(LinkParameter(), CancellationToken.None);
 
             Assert.Equal(GuestVerifyOutcome.Ok, result.Outcome);
             Assert.Equal(owner.TummlyGuestId, result.Proven!.TummlyGuestId);
@@ -220,7 +220,7 @@ namespace TummlyBackend.Tests.Services
         {
             await _sut.StartAsync("orphan-owner@example.com", 987654, CancellationToken.None);
 
-            var result = await _sut.VerifyEmailLinkAsync(LinkParameter(), CancellationToken.None);
+            var result = await _sut.VerifyAddContactEmailLinkAsync(LinkParameter(), CancellationToken.None);
 
             Assert.Equal(GuestVerifyOutcome.Invalid, result.Outcome);
             Assert.Null(result.Proven);
@@ -280,6 +280,44 @@ namespace TummlyBackend.Tests.Services
                 GuestPreferencesVerificationService.MaxStartsPerContactPerHour,
                 _sms.SentPhones.Count
             );
+        }
+
+        [Fact]
+        public async Task VerifyEntry_AddContactRow_Invalid_NotConsumed()
+        {
+            var owner = await FindOrCreateOwnerAsync();
+            await _sut.StartAsync("wrong-flow@example.com", owner.TummlyGuestId, CancellationToken.None);
+            var link = LinkParameter();
+
+            var wrongFlow = await _sut.VerifyEntryEmailLinkAsync(link, CancellationToken.None);
+
+            Assert.Equal(GuestVerifyOutcome.Invalid, wrongFlow.Outcome);
+            Assert.Null(wrongFlow.Proven);
+            Assert.DoesNotContain(
+                await _db.TummlyGuestContacts.ToListAsync(),
+                c => c.NormalizedValue == "wrong-flow@example.com"
+            );
+
+            var linked = await _sut.VerifyAddContactEmailLinkAsync(link, CancellationToken.None);
+
+            Assert.Equal(GuestVerifyOutcome.Ok, linked.Outcome);
+            Assert.Equal(owner.TummlyGuestId, linked.Proven!.TummlyGuestId);
+        }
+
+        [Fact]
+        public async Task VerifyAddContact_EntryRow_Invalid_NotConsumed()
+        {
+            await _sut.StartAsync(KnownEmail, null, CancellationToken.None);
+            var link = LinkParameter();
+
+            var wrongFlow = await _sut.VerifyAddContactEmailLinkAsync(link, CancellationToken.None);
+
+            Assert.Equal(GuestVerifyOutcome.Invalid, wrongFlow.Outcome);
+            Assert.Null(wrongFlow.Proven);
+
+            var entry = await _sut.VerifyEntryEmailLinkAsync(link, CancellationToken.None);
+
+            Assert.Equal(GuestVerifyOutcome.Ok, entry.Outcome);
         }
 
         private string LinkParameter()

@@ -33,10 +33,19 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
-        /// Checks an emailed confirm link (<c>&lt;otpId&gt;.&lt;code&gt;</c>). The row decides the flow:
-        /// entry finds or creates the guest, add-contact links the contact to the row's owner.
+        /// Checks an emailed entry link (<c>&lt;otpId&gt;.&lt;code&gt;</c>) and finds or creates the
+        /// guest for that address. An add-contact row is Invalid here and is not consumed.
         /// </summary>
-        Task<(GuestVerifyOutcome Outcome, ProvenContact? Proven)> VerifyEmailLinkAsync(
+        Task<(GuestVerifyOutcome Outcome, ProvenContact? Proven)> VerifyEntryEmailLinkAsync(
+            string v,
+            CancellationToken ct
+        );
+
+        /// <summary>
+        /// Checks an emailed add-contact link and links the address to the row's owner. Returns
+        /// the ids only, with no session token. An entry row is Invalid here and is not consumed.
+        /// </summary>
+        Task<(GuestVerifyOutcome Outcome, ProvenContact? Proven)> VerifyAddContactEmailLinkAsync(
             string v,
             CancellationToken ct
         );
