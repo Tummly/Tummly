@@ -103,6 +103,51 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ListOrders_LegacyDispatchWithoutEvidence_FiltersAsInProgress()
+        {
+            var seeded = await SeedWorkspaceAsync(namedInScopeOnly: false);
+            var legacyId = await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.InTransit,
+                trackingUrl: "https://track.example/legacy"
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var order = await context.ShopOrders.SingleAsync(row => row.Id == legacyId);
+                order.DispatchSource = null;
+                order.DispatchedByAdminUserId = null;
+                order.DispatchCarrierName = null;
+                order.DispatchCarrierReference = null;
+                order.PreparationStartedAtUtc = DateTime.UtcNow.AddDays(-2);
+                order.ProductionStartedAtUtc = DateTime.UtcNow.AddDays(-1);
+                await context.SaveChangesAsync();
+            }
+
+            using var dispatchedRequest = AuthorizedGet(
+                $"/api/shop/orders?locationId={seeded.InScopeLocationId}&locationScope=all&fulfilmentStatus=in_transit",
+                seeded.MemberJwt
+            );
+            var dispatchedBody = await ReadJsonAsync(await _client.SendAsync(dispatchedRequest));
+            Assert.DoesNotContain(
+                legacyId.ToString("D"),
+                dispatchedBody.GetProperty("items").EnumerateArray()
+                    .Select(item => item.GetProperty("id").GetString())
+            );
+
+            using var progressRequest = AuthorizedGet(
+                $"/api/shop/orders?locationId={seeded.InScopeLocationId}&locationScope=all&fulfilmentStatus=processing",
+                seeded.MemberJwt
+            );
+            var progressBody = await ReadJsonAsync(await _client.SendAsync(progressRequest));
+            var progressItem = progressBody.GetProperty("items").EnumerateArray()
+                .Single(item => item.GetProperty("id").GetString() == legacyId.ToString("D"));
+            Assert.Equal("In production", progressItem.GetProperty("fulfilmentStatusLabel").GetString());
+        }
+
+        [Fact]
         public async Task ListOrders_ExcludesOutOfScopeLocations()
         {
             var seeded = await SeedWorkspaceAsync(namedInScopeOnly: true);

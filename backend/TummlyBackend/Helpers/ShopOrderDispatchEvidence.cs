@@ -46,6 +46,37 @@ namespace TummlyBackend.Helpers
                 && row.DispatchCarrierReference != ""
             );
 
+        /// <summary>
+        /// Operator "in progress" bucket: Confirmed, Preparing or In production.
+        /// Matches the labels in <see cref="ShopOrderFulfilmentLabels.ToDisplayLabel"/>.
+        /// </summary>
+        public static readonly Expression<Func<ShopOrder, bool>> OperatorInProgressExpression =
+            Or(
+                row => row.FulfilmentStatus == ShopFulfilmentStatuses.Processing,
+                MissingExpression
+            );
+
+        /// <summary>Operator "Dispatched" bucket: carrier evidence, not yet delivered.</summary>
+        public static readonly Expression<Func<ShopOrder, bool>> OperatorDispatchedExpression =
+            And(
+                CompleteExpression,
+                Or(
+                    row => row.FulfilmentStatus == ShopFulfilmentStatuses.InTransit,
+                    row =>
+                        row.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                        && row.DeliveredAtUtc == null
+                )
+            );
+
+        /// <summary>Operator "Delivered" bucket: carrier evidence and a delivery time.</summary>
+        public static readonly Expression<Func<ShopOrder, bool>> OperatorDeliveredExpression =
+            And(
+                CompleteExpression,
+                row =>
+                    row.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                    && row.DeliveredAtUtc != null
+            );
+
         private static readonly Func<ShopOrder, bool> CompleteFunc = CompleteExpression.Compile();
 
         private static readonly Func<ShopOrder, bool> MissingFunc = MissingExpression.Compile();
@@ -53,5 +84,45 @@ namespace TummlyBackend.Helpers
         public static bool IsComplete(ShopOrder order) => CompleteFunc(order);
 
         public static bool IsMissing(ShopOrder order) => MissingFunc(order);
+
+        public static Expression<Func<ShopOrder, bool>> Or(
+            Expression<Func<ShopOrder, bool>> left,
+            Expression<Func<ShopOrder, bool>> right
+        ) => Combine(left, right, Expression.OrElse);
+
+        public static Expression<Func<ShopOrder, bool>> And(
+            Expression<Func<ShopOrder, bool>> left,
+            Expression<Func<ShopOrder, bool>> right
+        ) => Combine(left, right, Expression.AndAlso);
+
+        private static Expression<Func<ShopOrder, bool>> Combine(
+            Expression<Func<ShopOrder, bool>> left,
+            Expression<Func<ShopOrder, bool>> right,
+            Func<Expression, Expression, BinaryExpression> join
+        )
+        {
+            var parameter = left.Parameters[0];
+            var rightBody = new ParameterRebinder(right.Parameters[0], parameter)
+                .Visit(right.Body);
+            return Expression.Lambda<Func<ShopOrder, bool>>(
+                join(left.Body, rightBody),
+                parameter
+            );
+        }
+
+        private sealed class ParameterRebinder : ExpressionVisitor
+        {
+            private readonly ParameterExpression _from;
+            private readonly ParameterExpression _to;
+
+            public ParameterRebinder(ParameterExpression from, ParameterExpression to)
+            {
+                _from = from;
+                _to = to;
+            }
+
+            protected override Expression VisitParameter(ParameterExpression node) =>
+                node == _from ? _to : base.VisitParameter(node);
+        }
     }
 }

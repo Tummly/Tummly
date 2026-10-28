@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Shop;
@@ -216,13 +217,21 @@ namespace TummlyBackend.Services
         {
             if (fulfilmentStatus.Count > 0)
             {
-                var allowed = fulfilmentStatus
-                    .Select(status => status.ToLowerInvariant())
-                    .ToList();
-                query = query.Where(row =>
-                    row.FulfilmentStatus != null
-                    && allowed.Contains(row.FulfilmentStatus)
-                );
+                // Filters follow the customer label, so a legacy dispatch without
+                // carrier evidence is filtered as the stage it reads.
+                Expression<Func<ShopOrder, bool>>? filter = null;
+                foreach (
+                    var bucket in fulfilmentStatus
+                        .Select(status => OperatorFulfilmentBucket(status.ToLowerInvariant()))
+                        .OfType<Expression<Func<ShopOrder, bool>>>()
+                )
+                {
+                    filter = filter == null
+                        ? bucket
+                        : ShopOrderDispatchEvidence.Or(filter, bucket);
+                }
+
+                query = filter == null ? query.Where(_ => false) : query.Where(filter);
             }
 
             if (paymentStatus.Count > 0)
@@ -343,6 +352,22 @@ namespace TummlyBackend.Services
             };
         }
 
+        private static Expression<Func<ShopOrder, bool>>? OperatorFulfilmentBucket(
+            string status
+        ) =>
+            status switch
+            {
+                ShopFulfilmentStatuses.Processing =>
+                    ShopOrderDispatchEvidence.OperatorInProgressExpression,
+                ShopFulfilmentStatuses.InTransit =>
+                    ShopOrderDispatchEvidence.OperatorDispatchedExpression,
+                ShopFulfilmentStatuses.Delivered =>
+                    ShopOrderDispatchEvidence.OperatorDeliveredExpression,
+                ShopFulfilmentStatuses.Cancelled => row =>
+                    row.FulfilmentStatus == ShopFulfilmentStatuses.Cancelled,
+                _ => null,
+            };
+
         private static async Task<ShopOrderListAggregatesDto> ComputeAggregatesAsync(
             IQueryable<ShopOrder> scoped,
             DateTime utcNow,
@@ -351,34 +376,20 @@ namespace TummlyBackend.Services
         {
             var deliveredCutoff = utcNow.AddDays(-90);
 
-            // Dispatched and delivered counts need carrier evidence, the same
-            // rule the labels use. A stored dispatch without evidence is still
-            // in progress: its label reads the stage before dispatch.
+            // Counts use the same buckets as the labels and filters, so a
+            // dispatch without carrier evidence counts as in progress.
             return new ShopOrderListAggregatesDto
             {
-                InProgress =
-                    await scoped.CountAsync(
-                        row =>
-                            row.FulfilmentStatus == ShopFulfilmentStatuses.Processing,
-                        cancellationToken
-                    )
-                    + await scoped
-                        .Where(ShopOrderDispatchEvidence.MissingExpression)
-                        .CountAsync(cancellationToken),
+                InProgress = await scoped
+                    .Where(ShopOrderDispatchEvidence.OperatorInProgressExpression)
+                    .CountAsync(cancellationToken),
                 Dispatched = await scoped
-                    .Where(ShopOrderDispatchEvidence.CompleteExpression)
-                    .CountAsync(
-                        row =>
-                            row.FulfilmentStatus == ShopFulfilmentStatuses.InTransit,
-                        cancellationToken
-                    ),
+                    .Where(ShopOrderDispatchEvidence.OperatorDispatchedExpression)
+                    .CountAsync(cancellationToken),
                 DeliveredLast90Days = await scoped
-                    .Where(ShopOrderDispatchEvidence.CompleteExpression)
+                    .Where(ShopOrderDispatchEvidence.OperatorDeliveredExpression)
                     .CountAsync(
-                        row =>
-                            row.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
-                            && row.DeliveredAtUtc != null
-                            && row.DeliveredAtUtc >= deliveredCutoff,
+                        row => row.DeliveredAtUtc >= deliveredCutoff,
                         cancellationToken
                     ),
             };
