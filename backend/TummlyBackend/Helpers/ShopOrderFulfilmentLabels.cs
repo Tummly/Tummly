@@ -10,25 +10,20 @@ namespace TummlyBackend.Helpers
             "Complimentary Starter Kit";
 
         /// <summary>
-        /// Fulfilment label. An order that is not paid yet has no fulfilment,
-        /// so it reads "Awaiting payment". A paid order still in processing
-        /// reads "Confirmed", or "Preparing" once Admin marks production
-        /// started. The stored status does not change.
+        /// Customer fulfilment label, read from the order's evidence. Each
+        /// stage needs its own evidence timestamp, so a status with no proof
+        /// falls back to the stage before it. The stored status does not change.
         /// </summary>
-        public static string ToDisplayLabel(
-            string? storedStatus,
-            string? paymentStatus = null,
-            bool productionStarted = false
-        )
+        public static string ToDisplayLabel(ShopOrder order)
         {
             if (
                 string.Equals(
-                    paymentStatus,
+                    order.PaymentStatus,
                     ShopPaymentStatuses.AwaitingPayment,
                     StringComparison.Ordinal
                 )
                 || string.Equals(
-                    paymentStatus,
+                    order.PaymentStatus,
                     ShopPaymentStatuses.PaymentFailed,
                     StringComparison.Ordinal
                 )
@@ -37,15 +32,36 @@ namespace TummlyBackend.Helpers
                 return AwaitingPaymentLabel;
             }
 
-            var processingLabel = productionStarted ? "Preparing" : "Confirmed";
-            return storedStatus switch
+            if (order.FulfilmentStatus == ShopFulfilmentStatuses.Cancelled)
             {
-                ShopFulfilmentStatuses.Processing => processingLabel,
-                ShopFulfilmentStatuses.InTransit => "Dispatched",
-                ShopFulfilmentStatuses.Delivered => "Delivered",
-                ShopFulfilmentStatuses.Cancelled => "Cancelled",
-                _ => processingLabel,
-            };
+                return "Cancelled";
+            }
+
+            if (
+                order.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                && order.DeliveredAtUtc != null
+            )
+            {
+                return "Delivered";
+            }
+
+            if (
+                order.DispatchedAtUtc != null
+                && (
+                    order.FulfilmentStatus == ShopFulfilmentStatuses.InTransit
+                    || order.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                )
+            )
+            {
+                return "Dispatched";
+            }
+
+            if (order.ProductionStartedAtUtc != null)
+            {
+                return "In production";
+            }
+
+            return order.PreparationStartedAtUtc != null ? "Preparing" : "Confirmed";
         }
 
         public static string ToPaymentDisplayLabel(
