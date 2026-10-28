@@ -537,6 +537,7 @@ namespace TummlyBackend.Services
                         entity.RestaurantLocationId,
                         audienceKey,
                         channel,
+                        CampaignAudienceScope.ForCampaign(entity),
                         cancellationToken
                     );
             }
@@ -746,6 +747,7 @@ namespace TummlyBackend.Services
                         entity.RestaurantLocationId,
                         audienceKey,
                         channel,
+                        CampaignAudienceScope.ForCampaign(entity),
                         cancellationToken
                     );
             }

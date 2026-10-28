@@ -710,6 +710,13 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<int?>("AudienceLookbackDays")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AudienceLookbackTimeZone")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("BillingReservationRef")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
@@ -747,6 +754,10 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("OfferStance")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("RecommendationSourceKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<int?>("ReservedEstimate")
                         .HasColumnType("int");
@@ -798,6 +809,10 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("OfferId");
+
+                    b.HasIndex("RestaurantLocationId", "RecommendationSourceKey")
+                        .IsUnique()
+                        .HasFilter("[Status] = N'draft' AND [RecommendationSourceKey] IS NOT NULL");
 
                     b.HasIndex("RestaurantLocationId", "Status", "UpdatedAt")
                         .IsDescending(false, false, true);

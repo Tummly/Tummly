@@ -69,6 +69,7 @@ export const CAMPAIGN_AUDIENCE_COPY = {
   emailEligibleLabel: "Email eligible",
   smsEligibleLabel: "SMS eligible",
   countsUnavailableLabel: "Counts unavailable",
+  periodLabel: "Period",
   excludedReasonsTitle: "Excluded reasons",
   excludedReasonLabels: {
     account: "Account",
@@ -84,11 +85,13 @@ export const CAMPAIGN_AUDIENCE_COPY = {
   } as const satisfies Record<CampaignExcludedReasonCode, string>,
 } as const
 
+/** Recent redeemers period when the Campaign has none stored. */
+export const CAMPAIGN_RECENT_REDEEMERS_DEFAULT_LOOKBACK_DAYS = 30
+
 /**
  * Figma audience order minus Saved group (out of MVP).
- * Live counts only for non-deferred Smart Group twins
- * (All / New guests / Positive feedback / Dormant).
- * Offer not redeemed / Recent redeemers / No recent Tummly activity stay
+ * Live counts for Smart Group twins and for Campaign-owned filters
+ * (Offer not redeemed / Recent redeemers). No recent Tummly activity stays
  * visible but unevaluable.
  */
 export const CAMPAIGN_AUDIENCE_OPTIONS: readonly CampaignAudienceOptionDef[] = [
@@ -131,9 +134,9 @@ export const CAMPAIGN_AUDIENCE_OPTIONS: readonly CampaignAudienceOptionDef[] = [
     id: "offer-not-redeemed",
     title: "Offer not redeemed",
     description:
-      "Guests who claimed a selected active offer but have not redeemed it.",
+      "Guests who claimed the Offer attached to this campaign but have not redeemed it.",
     liveSmartGroupId: "offer-not-redeemed",
-    unevaluable: true,
+    unevaluable: false,
     recommended: false,
   },
   {
@@ -142,7 +145,7 @@ export const CAMPAIGN_AUDIENCE_OPTIONS: readonly CampaignAudienceOptionDef[] = [
     description:
       "Guests with a validated Tummly offer redemption during the selected period.",
     liveSmartGroupId: "recent-redeemers",
-    unevaluable: true,
+    unevaluable: false,
     recommended: false,
   },
   {
@@ -182,6 +185,10 @@ export type CampaignAudienceEligibilityBreakdown = {
   excludedReasons: readonly CampaignExcludedReasonCount[]
   /** Live server Campaign eligibility; unavailable / error stay honest. */
   source: "live" | "unavailable" | "error"
+  /** Server reason the audience cannot be counted for this Campaign. */
+  unavailableReason?: string | null
+  /** Recent redeemers period in days from the server. */
+  lookbackDays?: number | null
 }
 
 export type CampaignAudienceSmartGroupCountsInput = {
@@ -227,6 +234,21 @@ export function formatAudienceMatchedEligibleLabel(
     return `${format(matched)} matched · — currently eligible`
   }
   return `${format(matched)} matched · ${format(currentlyEligible)} currently eligible`
+}
+
+/** "Last 30 days" for recent redeemers; the stored or default period is shown. */
+export function formatRecentRedeemersPeriodLabel(days: number): string {
+  return `Last ${days} days`
+}
+
+/** Neutral functional line for a server unavailable reason; null when there is none. */
+export function campaignAudienceUnavailableReasonLabel(
+  reason: string | null | undefined
+): string | null {
+  if (reason === "no-offer-attached") {
+    return "Attach an Offer to count this audience."
+  }
+  return null
 }
 
 export function formatExcludedReasonLabel(reason: string): string {

@@ -20,6 +20,17 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Same as <see cref="EvaluateAsync(int, string, CancellationToken)"/> with the
+        /// Campaign Offer and recent-redeemers period. Use for Campaign-owned audiences.
+        /// </summary>
+        Task<CampaignEligibilityDto> EvaluateAsync(
+            int locationId,
+            string audienceKey,
+            CampaignAudienceScope scope,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
         /// LocationGuest ids currently eligible on the selected channel
         /// (for recipient freeze at schedule commit).
         /// </summary>
@@ -27,6 +38,18 @@ namespace TummlyBackend.Interfaces
             int locationId,
             string audienceKey,
             string channel,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// Same as the channel overload above, with the Campaign Offer and period.
+        /// The fire-time recheck and schedule freeze use this overload.
+        /// </summary>
+        Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
+            int locationId,
+            string audienceKey,
+            string channel,
+            CampaignAudienceScope scope,
             CancellationToken cancellationToken = default
         );
     }

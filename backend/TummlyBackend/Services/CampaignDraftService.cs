@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
@@ -15,6 +16,9 @@ namespace TummlyBackend.Services
     public class CampaignDraftService : ICampaignDraftService
     {
         public const string DraftStatus = "draft";
+
+        private const string RecentRedeemersAudienceKey = "recent-redeemers";
+        private const string NoOfferStance = "no-offer";
 
         private static readonly IReadOnlyDictionary<string, string> GoalDefaultNames =
             new Dictionary<string, string>(StringComparer.Ordinal)
@@ -46,6 +50,92 @@ namespace TummlyBackend.Services
             CreateCampaignDraftRequest request,
             int createdByUserId,
             CancellationToken cancellationToken = default
+        )
+        {
+            var entity = await CreateDraftAsync(
+                request,
+                createdByUserId,
+                recommendationSourceKey: null,
+                cancellationToken
+            );
+            return ToDto(entity);
+        }
+
+        public async Task<CampaignRecommendationDraftResult> CreateOrGetFromRecommendationAsync(
+            CreateRecommendationCampaignDraftRequest request,
+            int createdByUserId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var draft = request.Draft;
+            var recommendationType = (request.RecommendationType ?? string.Empty).Trim();
+            if (!HomeRecommendationContract.CampaignTypes.Contains(recommendationType))
+            {
+                throw new ArgumentException(
+                    "recommendationType is not a Home campaign recommendation."
+                );
+            }
+
+            if (draft.LocationId < 1)
+            {
+                throw new ArgumentException("locationId is required.");
+            }
+
+            var offerStance = NormalizeOptional(draft.OfferStance);
+            var key = CampaignRecommendationDraftKey.Compute(
+                recommendationType,
+                NormalizeOptional(draft.GoalId),
+                NormalizeOptional(draft.AudienceKey),
+                NormalizeOptional(draft.Channel),
+                offerStance,
+                string.Equals(offerStance, NoOfferStance, StringComparison.Ordinal)
+                    ? null
+                    : draft.OfferId
+            );
+
+            var open = await FindOpenRecommendationDraftAsync(
+                draft.LocationId,
+                key,
+                cancellationToken
+            );
+            if (open != null)
+            {
+                return new CampaignRecommendationDraftResult(ToDto(open), Reused: true);
+            }
+
+            try
+            {
+                var created = await CreateDraftAsync(
+                    draft,
+                    createdByUserId,
+                    key,
+                    cancellationToken
+                );
+                return new CampaignRecommendationDraftResult(ToDto(created), Reused: false);
+            }
+            catch (DbUpdateException exception) when (IsRecommendationDraftUniqueViolation(exception))
+            {
+                // A concurrent click created the same open Draft after our read.
+                DetachAddedCampaigns();
+                var winner = await FindOpenRecommendationDraftAsync(
+                    draft.LocationId,
+                    key,
+                    cancellationToken
+                );
+                if (winner == null)
+                {
+                    throw;
+                }
+
+                return new CampaignRecommendationDraftResult(ToDto(winner), Reused: true);
+            }
+        }
+
+        private async Task<Campaign> CreateDraftAsync(
+            CreateCampaignDraftRequest request,
+            int createdByUserId,
+            string? recommendationSourceKey,
+            CancellationToken cancellationToken
         )
         {
             if (request.LocationId < 1)
@@ -103,6 +193,7 @@ namespace TummlyBackend.Services
                 Channel = channel,
                 OfferStance = offerStance,
                 OfferId = offerId,
+                RecommendationSourceKey = recommendationSourceKey,
                 MessageSubject = NormalizeOptional(request.MessageSubject),
                 MessageBody = NormalizeOptional(request.MessageBody),
                 CreatedByUserId = createdByUserId,
@@ -110,6 +201,7 @@ namespace TummlyBackend.Services
                 UpdatedAt = now,
             };
 
+            ApplyAudienceLookback(entity);
             _context.Campaigns.Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
             if (offerId is int attachedOfferId)
@@ -126,7 +218,61 @@ namespace TummlyBackend.Services
                     throw PlanEntitlementCapException.FromSync(sync);
                 }
             }
-            return ToDto(entity);
+            return entity;
+        }
+
+        private async Task<Campaign?> FindOpenRecommendationDraftAsync(
+            int locationId,
+            string recommendationSourceKey,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.Campaigns
+                .AsNoTracking()
+                .Include(campaign => campaign.Offer)
+                .FirstOrDefaultAsync(
+                    campaign =>
+                        campaign.RestaurantLocationId == locationId
+                        && campaign.RecommendationSourceKey == recommendationSourceKey
+                        && campaign.Status == DraftStatus,
+                    cancellationToken
+                );
+        }
+
+        private void DetachAddedCampaigns()
+        {
+            foreach (var entry in _context.ChangeTracker
+                .Entries<Campaign>()
+                .Where(entry => entry.State == EntityState.Added)
+                .ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
+        }
+
+        private static bool IsRecommendationDraftUniqueViolation(DbUpdateException exception)
+        {
+            return exception.InnerException is SqlException
+            {
+                Number: 2601 or 2627,
+            };
+        }
+
+        /// <summary>
+        /// Recent redeemers Campaigns store the period and timezone they were
+        /// evaluated with. Other audiences carry neither.
+        /// </summary>
+        private static void ApplyAudienceLookback(Campaign entity)
+        {
+            if (!string.Equals(entity.AudienceKey, RecentRedeemersAudienceKey, StringComparison.Ordinal))
+            {
+                entity.AudienceLookbackDays = null;
+                entity.AudienceLookbackTimeZone = null;
+                return;
+            }
+
+            entity.AudienceLookbackDays ??= CampaignEligibilityService.DefaultRecentRedeemerLookbackDays;
+            entity.AudienceLookbackTimeZone ??= CampaignEligibilityService.DefaultRecentRedeemerTimeZone;
         }
 
         public async Task<CampaignDraftDto?> GetByIdAsync(
@@ -214,6 +360,7 @@ namespace TummlyBackend.Services
             var previousOfferId = entity.OfferId;
 
             ApplyPatch(entity, request);
+            ApplyAudienceLookback(entity);
             await ApplyOfferAttachAsync(entity, request, cancellationToken);
             entity.Status = DraftStatus;
             entity.UpdatedAt = DateTime.UtcNow;
@@ -502,6 +649,8 @@ namespace TummlyBackend.Services
                     : entity.Offer!.Title.Trim(),
                 MessageSubject = entity.MessageSubject,
                 MessageBody = entity.MessageBody,
+                AudienceLookbackDays = entity.AudienceLookbackDays,
+                AudienceLookbackTimeZone = entity.AudienceLookbackTimeZone,
                 RowVersion = entity.RowVersion,
                 CreatedAt = entity.CreatedAt,
                 UpdatedAt = entity.UpdatedAt,
