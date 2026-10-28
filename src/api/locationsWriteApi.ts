@@ -101,8 +101,20 @@ export type ImportOwnedLocationRowInput = {
   localContact?: string
 }
 
+export type ImportOwnedLocationWarning = {
+  code: string
+  scope: string
+  matchedLocationId?: number | null
+  matchedLocationName?: string | null
+  matchedRowIndex?: number | null
+}
+
 export type ImportOwnedLocationsResult = {
-  created: Array<{ rowIndex: number; locationId: number }>
+  created: Array<{
+    rowIndex: number
+    locationId: number
+    warning?: ImportOwnedLocationWarning | null
+  }>
   errors: Array<{
     rowIndex: number
     message: string

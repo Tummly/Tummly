@@ -278,6 +278,171 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(0, count);
         }
 
+        [Fact]
+        public async Task Import_PossibleDuplicatePremises_SameWorkspace_ReturnsWarningWithMatch_AndKeepsDraft()
+        {
+            var seeded = await SeedWithRoomAsync(
+                restaurantName: "Import Duplicate Same Workspace Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Group
+            );
+            var existingId = await AddLocationAsync(
+                seeded.RestaurantId,
+                "Existing Venue",
+                "21 Borough High Street",
+                "SE1 1XP"
+            );
+
+            using var request = AuthorizedPost(
+                "/api/locations/import",
+                seeded.OwnerJwt,
+                new
+                {
+                    rows = new object[]
+                    {
+                        new
+                        {
+                            locationName = "Renamed Venue",
+                            address = "21 Borough High St",
+                            city = "London",
+                            postcode = "SE1 1XP",
+                        },
+                    },
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(0, body.GetProperty("errors").GetArrayLength());
+            var created = Assert.Single(body.GetProperty("created").EnumerateArray());
+            var warning = created.GetProperty("warning");
+            Assert.Equal("possible_duplicate_premises", warning.GetProperty("code").GetString());
+            Assert.Equal("same_workspace", warning.GetProperty("scope").GetString());
+            Assert.Equal(existingId, warning.GetProperty("matchedLocationId").GetInt32());
+            Assert.Equal("Existing Venue", warning.GetProperty("matchedLocationName").GetString());
+
+            var locationId = created.GetProperty("locationId").GetInt32();
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var location = await context.RestaurantLocations
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == locationId);
+            Assert.Equal(LocationLifecycleStatus.Draft, location.LifecycleStatus);
+            Assert.Equal(
+                0,
+                await context.ShopOrders.CountAsync(row => row.IsComplimentary)
+            );
+        }
+
+        [Fact]
+        public async Task Import_PossibleDuplicatePremises_OtherWorkspace_ReturnsGenericWarning_WithoutTenantData()
+        {
+            var other = await SeedWithRoomAsync(
+                restaurantName: "Import Other Tenant Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Group
+            );
+            await AddLocationAsync(
+                other.RestaurantId,
+                "Competitor Venue Ltd",
+                "3 Canal Walk",
+                "M1 4EN"
+            );
+
+            var seeded = await SeedWithRoomAsync(
+                restaurantName: "Import Duplicate Other Workspace Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Group
+            );
+            using var request = AuthorizedPost(
+                "/api/locations/import",
+                seeded.OwnerJwt,
+                new
+                {
+                    rows = new object[]
+                    {
+                        new
+                        {
+                            locationName = "Our Venue",
+                            address = "3 Canal Walk",
+                            city = "Manchester",
+                            postcode = "M1 4EN",
+                        },
+                    },
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var raw = await response.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("Competitor Venue", raw, StringComparison.Ordinal);
+
+            var body = JsonDocument.Parse(raw).RootElement;
+            var created = Assert.Single(body.GetProperty("created").EnumerateArray());
+            var warning = created.GetProperty("warning");
+            Assert.Equal("possible_duplicate_premises", warning.GetProperty("code").GetString());
+            Assert.Equal("other_workspace", warning.GetProperty("scope").GetString());
+            Assert.Equal(JsonValueKind.Null, warning.GetProperty("matchedLocationId").ValueKind);
+            Assert.Equal(JsonValueKind.Null, warning.GetProperty("matchedLocationName").ValueKind);
+        }
+
+        [Fact]
+        public async Task Import_NoPremisesMatch_ReturnsNullWarning()
+        {
+            var seeded = await SeedWithRoomAsync(
+                restaurantName: "Import No Match Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Group
+            );
+
+            using var request = AuthorizedPost(
+                "/api/locations/import",
+                seeded.OwnerJwt,
+                new
+                {
+                    rows = new object[]
+                    {
+                        new
+                        {
+                            locationName = "Quiet Venue",
+                            address = "5 Quay Street",
+                            city = "Bristol",
+                            postcode = "BS1 4DJ",
+                        },
+                    },
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            var body = await ReadJsonAsync(response);
+            var created = Assert.Single(body.GetProperty("created").EnumerateArray());
+            Assert.Equal(JsonValueKind.Null, created.GetProperty("warning").ValueKind);
+        }
+
+        private async Task<int> AddLocationAsync(
+            int restaurantId,
+            string name,
+            string address,
+            string postcode
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurantId,
+                LocationName = name,
+                Address = address,
+                City = "London",
+                Postcode = postcode,
+                LifecycleStatus = LocationLifecycleStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+            return location.Id;
+        }
+
         private async Task<Seeded> SeedWithRoomAsync(
             string restaurantName,
             string subscriptionPlan

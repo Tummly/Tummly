@@ -280,6 +280,16 @@ namespace TummlyBackend.Controllers
                     {
                         rowIndex = row.RowIndex,
                         locationId = row.LocationId,
+                        warning = row.Warning == null
+                            ? null
+                            : new
+                            {
+                                code = row.Warning.Code,
+                                scope = row.Warning.Scope,
+                                matchedLocationId = row.Warning.MatchedLocationId,
+                                matchedLocationName = row.Warning.MatchedLocationName,
+                                matchedRowIndex = row.Warning.MatchedRowIndex,
+                            },
                     }),
                     errors = completed.Errors.Select(row => new
                     {
