@@ -375,6 +375,78 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task FireAsync_EmailHardBouncedAfterSchedule_IsSkippedNotFailed()
+        {
+            var seeded = await SeedScheduledCampaignAsync(
+                frozenEligibleCount: 2,
+                scheduledAtUtc: _now.AddMinutes(-5)
+            );
+            await StageEmailBounceAsync(seeded.FrozenGuestIds[0], "guest0@example.com");
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            var ok = Assert.IsType<CampaignFireResult.Ok>(result);
+            var call = Assert.Single(_outbound.Calls);
+            Assert.Equal(seeded.FrozenGuestIds[1], call.LocationGuestId);
+            Assert.Equal(1, ok.Campaign.SkippedIneligibleCount);
+
+            var skipped = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .SingleAsync(d =>
+                    d.CampaignId == seeded.CampaignId
+                    && d.LocationGuestId == seeded.FrozenGuestIds[0]
+                );
+            Assert.Equal(CampaignFireService.SkippedIneligibleOutcome, skipped.Outcome);
+            Assert.Null(skipped.AcceptedAtUtc);
+            Assert.DoesNotContain(
+                await _context.CampaignRecipientDeliveries.AsNoTracking().ToListAsync(),
+                d => d.Outcome == CampaignFireService.RejectedOutcome
+            );
+        }
+
+        [Fact]
+        public async Task FireAsync_EmailBouncedAfterEarlierAccept_KeepsAcceptedRowUnchanged()
+        {
+            var seeded = await SeedScheduledCampaignAsync(
+                frozenEligibleCount: 2,
+                scheduledAtUtc: _now.AddMinutes(-5)
+            );
+            var acceptedAt = _now.AddHours(-2);
+            _context.CampaignRecipientDeliveries.Add(
+                new CampaignRecipientDelivery
+                {
+                    CampaignId = seeded.CampaignId,
+                    LocationGuestId = seeded.FrozenGuestIds[0],
+                    Channel = "email",
+                    Outcome = CampaignFireService.AcceptedOutcome,
+                    AcceptedAtUtc = acceptedAt,
+                    AcceptedUnits = 1,
+                    ProviderMessageId = "msg-earlier",
+                    UpdatedAtUtc = acceptedAt,
+                }
+            );
+            await _context.SaveChangesAsync();
+            await StageEmailBounceAsync(seeded.FrozenGuestIds[0], "guest0@example.com");
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var call = Assert.Single(_outbound.Calls);
+            Assert.Equal(seeded.FrozenGuestIds[1], call.LocationGuestId);
+
+            var earlier = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .SingleAsync(d =>
+                    d.CampaignId == seeded.CampaignId
+                    && d.LocationGuestId == seeded.FrozenGuestIds[0]
+                );
+            Assert.Equal(CampaignFireService.AcceptedOutcome, earlier.Outcome);
+            Assert.Equal(acceptedAt, earlier.AcceptedAtUtc);
+            Assert.Equal(1, earlier.AcceptedUnits);
+            Assert.Equal("msg-earlier", earlier.ProviderMessageId);
+        }
+
+        [Fact]
         public async Task FireAsync_GuestWithdrawsViaUnsubscribeAfterSchedule_IsExcludedAtSend()
         {
             var seeded = await SeedScheduledCampaignAsync(
@@ -884,6 +956,26 @@ namespace TummlyBackend.Tests.Services
 
             await _context.SaveChangesAsync();
             return (campaign.Id, frozenIds, catalogOfferId);
+        }
+
+        private async Task StageEmailBounceAsync(int locationGuestId, string email)
+        {
+            var restaurantId = await _context.LocationGuests
+                .Where(lg => lg.Id == locationGuestId)
+                .Select(lg => lg.RestaurantLocation!.RestaurantId)
+                .SingleAsync();
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
+            await suppressions.StageAsync(
+                restaurantId,
+                "email:" + email,
+                LocationGuestPermissionKind.EmailDelivery,
+                _now,
+                GuestContactSuppressionSources.EmailBounce
+            );
+            await _context.SaveChangesAsync();
         }
 
         private CampaignFireService CreateFireService(ICampaignFireLock fireLock)

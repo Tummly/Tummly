@@ -184,19 +184,16 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (
-                !await ServiceReplyEligibility.IsAllowedAsync(
-                    _context,
-                    _suppressions,
-                    feedback,
-                    FeedbackGuestResponseChannel.Sms,
-                    cancellationToken
-                )
-            )
+            var decision = await ServiceReplyEligibility.EvaluateAsync(
+                _context,
+                _suppressions,
+                feedback,
+                FeedbackGuestResponseChannel.Sms,
+                cancellationToken
+            );
+            if (decision != ServiceReplyDecision.Allowed)
             {
-                throw new ArgumentException(
-                    ServiceReplyEligibility.NotAllowedMessage
-                );
+                throw new ServiceReplyRefusedException(decision);
             }
         }
 

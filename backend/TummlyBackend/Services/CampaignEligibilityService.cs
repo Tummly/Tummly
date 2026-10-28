@@ -645,7 +645,8 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// One primary reason per excluded guest.
-        /// Priority: invalid-contact → suppressed (restaurant off) →
+        /// Priority: invalid-contact → previous-hard-bounce (email bounce is the
+        /// only reason email is closed) → suppressed (restaurant off) →
         /// withdrawn → not-granted. Account / soft-lock remain omitted
         /// until Billing stores exist.
         /// </summary>
@@ -711,7 +712,11 @@ namespace TummlyBackend.Services
 
             if (!hasReachableRestaurantChannel)
             {
-                return "suppressed";
+                // The bounce is the reason only when the restaurant has email
+                // on: without the bounce this guest would be reachable by email.
+                return emailDeliveryBlocked && hasEmail && emailRestaurantOn
+                    ? "previous_hard_bounce"
+                    : "suppressed";
             }
 
             var emailState = states[LocationGuestPermissionKind.EmailMarketing];

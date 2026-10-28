@@ -45,6 +45,7 @@ export type CampaignExcludedReasonCode =
   | "not-granted"
   | "withdrawn"
   | "suppressed"
+  | "previous_hard_bounce"
   | "invalid-contact"
   /** Legacy wire codes kept for older responses. */
   | "opt-out"
@@ -77,6 +78,7 @@ export const CAMPAIGN_AUDIENCE_COPY = {
     "not-granted": "Not granted",
     withdrawn: "Withdrawn",
     suppressed: "Suppressed",
+    previous_hard_bounce: "Previous hard bounce",
     "invalid-contact": "Invalid contact",
     "opt-out": "Not granted",
     suppression: "Suppressed",

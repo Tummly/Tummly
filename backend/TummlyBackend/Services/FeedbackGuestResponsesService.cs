@@ -100,9 +100,7 @@ namespace TummlyBackend.Services
             );
             if (decision != ServiceReplyDecision.Allowed)
             {
-                throw new ArgumentException(
-                    ServiceReplyEligibility.RefusalMessage(decision)
-                );
+                throw new ServiceReplyRefusedException(decision);
             }
 
             await _smsSend.EnsureOperatorBillingAllowsSendAsync(

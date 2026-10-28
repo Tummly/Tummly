@@ -305,9 +305,45 @@ namespace TummlyBackend.Tests.Helpers
 
             Assert.Equal(ServiceReplyDecision.SmsProviderRestriction, decision);
             Assert.Equal(
-                ServiceReplyEligibility.NotAllowedMessage,
+                "SMS not sent. This number has opted out of SMS from this sender, and delivery is currently blocked. This does not change the guest's Feedback follow-up permission.",
                 ServiceReplyEligibility.RefusalMessage(decision)
             );
+            Assert.Equal(
+                "sms_provider_restriction",
+                ServiceReplyEligibility.RefusalCode(decision)
+            );
+        }
+
+        [Fact]
+        public async Task RefusalCode_IsDistinctPerRefusalReason()
+        {
+            var feedback = await SeedAsync(
+                "alex@example.com",
+                followUpGranted: false,
+                marketing: null
+            );
+            var notGranted = await ServiceReplyEligibility.EvaluateAsync(
+                _context,
+                _suppressions,
+                feedback,
+                FeedbackGuestResponseChannel.Email,
+                CancellationToken.None
+            );
+
+            Assert.Equal(ServiceReplyDecision.NotEligible, notGranted);
+            Assert.Equal(
+                "feedback_follow_up_not_granted",
+                ServiceReplyEligibility.RefusalCode(notGranted)
+            );
+            Assert.Equal(
+                ServiceReplyEligibility.NotAllowedMessage,
+                ServiceReplyEligibility.RefusalMessage(notGranted)
+            );
+            Assert.Equal(
+                "email_delivery_unavailable",
+                ServiceReplyEligibility.RefusalCode(ServiceReplyDecision.EmailDeliveryFailure)
+            );
+            Assert.Null(ServiceReplyEligibility.RefusalCode(ServiceReplyDecision.Allowed));
         }
 
         [Fact]
@@ -440,7 +476,7 @@ namespace TummlyBackend.Tests.Helpers
                 NullLogger<GuestReplySmsSendStep>.Instance
             );
 
-            var refused = await Assert.ThrowsAsync<ArgumentException>(() =>
+            var refused = await Assert.ThrowsAsync<ServiceReplyRefusedException>(() =>
                 step.ReserveAsync(
                     feedback,
                     "send-time-key",
@@ -448,7 +484,8 @@ namespace TummlyBackend.Tests.Helpers
                     CancellationToken.None
                 )
             );
-            Assert.Equal(ServiceReplyEligibility.NotAllowedMessage, refused.Message);
+            Assert.Equal("sms_provider_restriction", refused.Code);
+            Assert.Equal(ServiceReplyEligibility.SmsProviderRestrictionMessage, refused.Message);
             Assert.Equal(0, billing.ReserveCalls);
         }
 

@@ -34,8 +34,20 @@ namespace TummlyBackend.Helpers
     /// </summary>
     public static class ServiceReplyEligibility
     {
+        public const string NotAllowedCode = "feedback_follow_up_not_granted";
         public const string NotAllowedMessage =
             "Guest has not granted feedback follow-up permission.";
+
+        public const string SmsProviderRestrictionCode = "sms_provider_restriction";
+
+        /// <summary>
+        /// A STOP on this sender blocks SMS delivery. It is not a Feedback
+        /// follow-up refusal, so the message says the permission is unchanged.
+        /// </summary>
+        public const string SmsProviderRestrictionMessage =
+            "SMS not sent. This number has opted out of SMS from this sender, and delivery is currently blocked. This does not change the guest's Feedback follow-up permission.";
+
+        public const string EmailDeliveryUnavailableCode = "email_delivery_unavailable";
 
         /// <summary>
         /// Operator-facing status for a refused reply. It names no guest data.
@@ -70,7 +82,24 @@ namespace TummlyBackend.Helpers
                 ServiceReplyDecision.Allowed => null,
                 ServiceReplyDecision.EmailDeliveryFailure =>
                     EmailDeliveryUnavailableMessage,
+                ServiceReplyDecision.SmsProviderRestriction =>
+                    SmsProviderRestrictionMessage,
                 _ => NotAllowedMessage,
+            };
+
+        /// <summary>
+        /// Machine-readable reason for a refused reply, returned as <c>code</c>
+        /// so the operator UI can map each refusal. Null when allowed.
+        /// </summary>
+        public static string? RefusalCode(ServiceReplyDecision decision) =>
+            decision switch
+            {
+                ServiceReplyDecision.Allowed => null,
+                ServiceReplyDecision.EmailDeliveryFailure =>
+                    EmailDeliveryUnavailableCode,
+                ServiceReplyDecision.SmsProviderRestriction =>
+                    SmsProviderRestrictionCode,
+                _ => NotAllowedCode,
             };
 
         public static async Task<ServiceReplyDecision> EvaluateAsync(
