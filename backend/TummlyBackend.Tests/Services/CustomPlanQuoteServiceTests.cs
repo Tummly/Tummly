@@ -37,6 +37,33 @@ namespace TummlyBackend.Tests.Services
             _sut = new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings()));
         }
 
+        /// <summary>
+        /// ADM-04-03: a Group-based custom quote adds +3 Offers per Location
+        /// beyond the five the Group base includes.
+        /// </summary>
+        [Theory]
+        [InlineData(5, 25)]
+        [InlineData(6, 28)]
+        [InlineData(7, 31)]
+        public async Task Quote_GroupBase_OffersAddThreePerLocationBeyondFive(
+            int locations,
+            int expectedOffers
+        )
+        {
+            var result = await _sut.QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = "monthly",
+                    BasePlan = "group",
+                    Locations = locations,
+                    Packs = new Dictionary<string, decimal>(),
+                }
+            );
+
+            Assert.Equal("group", result.BasePlan);
+            Assert.Equal(expectedOffers, result.Quantities.Offers);
+        }
+
         [Fact]
         public async Task Quote_OneLocation_UsesStarter_AndCollapses()
         {

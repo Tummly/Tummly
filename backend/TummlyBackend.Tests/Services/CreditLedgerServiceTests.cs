@@ -304,6 +304,8 @@ namespace TummlyBackend.Tests.Services
                     Quantity = 25,
                     Reason = "Goodwill credit for onboarding issue",
                     ActorStaffUserId = 1,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                 }
             );
 
@@ -341,6 +343,8 @@ namespace TummlyBackend.Tests.Services
                     Quantity = 11,
                     Reason = "Correct duplicate grant",
                     ActorStaffUserId = 1,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                 }
             );
 
@@ -386,6 +390,8 @@ namespace TummlyBackend.Tests.Services
                     Quantity = 1,
                     Reason = "Remove mistaken grant",
                     ActorStaffUserId = 1,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                     AllocationId = grantId,
                 }
             );
@@ -408,6 +414,8 @@ namespace TummlyBackend.Tests.Services
                     Quantity = 5,
                     Reason = "   ",
                     ActorStaffUserId = 1,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                 }
             );
 
@@ -451,6 +459,8 @@ namespace TummlyBackend.Tests.Services
                     Quantity = 1,
                     Reason = "Attempt over-debit on negative remaining",
                     ActorStaffUserId = 1,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                     AllocationId = grantId,
                 }
             );
@@ -481,6 +491,8 @@ namespace TummlyBackend.Tests.Services
                     Quantity = 5,
                     Reason = "Mistaken debit",
                     ActorStaffUserId = 1,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                     AllocationId = grantId,
                 }
             );
@@ -493,6 +505,8 @@ namespace TummlyBackend.Tests.Services
                     ReversedEntryId = debitId,
                     Reason = "Undo mistaken debit",
                     ActorStaffUserId = 1,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                 }
             );
 
@@ -547,6 +561,8 @@ namespace TummlyBackend.Tests.Services
                     Quantity = 25,
                     Reason = "Goodwill credit for onboarding issue",
                     ActorStaffUserId = adminId,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                 }
             );
 
@@ -579,6 +595,8 @@ namespace TummlyBackend.Tests.Services
                     Quantity = 5,
                     Reason = "Missing restaurant should not audit",
                     ActorStaffUserId = 1,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                 }
             );
 
@@ -608,6 +626,8 @@ namespace TummlyBackend.Tests.Services
                     Quantity = 5,
                     Reason = "Mistaken debit",
                     ActorStaffUserId = 1,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                     AllocationId = grantId,
                 }
             );
@@ -620,6 +640,8 @@ namespace TummlyBackend.Tests.Services
                     ReversedEntryId = debitId,
                     Reason = "Undo mistaken debit",
                     ActorStaffUserId = 1,
+                    IdempotencyKey = Guid.NewGuid().ToString("N"),
+                    EvidenceReference = "Ticket 1234",
                 }
             );
 
@@ -1388,6 +1410,297 @@ namespace TummlyBackend.Tests.Services
 
         public void Dispose()
         {
+        }
+
+        /// <summary>
+        /// ADM-07-07 / ADM-18-03: the same Idempotency-Key and body returns the first
+        /// result and writes no second ledger row.
+        /// </summary>
+        [Fact]
+        public async Task StaffManualAdjust_ReplaySameKeyAndBody_ReturnsFirstResult_WritesNoRow()
+        {
+            var harness = await SeedAsync();
+
+            var first = await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffGrant(harness.RestaurantId, 25, "adjust-replay-1")
+            );
+            var replay = await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffGrant(harness.RestaurantId, 25, "adjust-replay-1")
+            );
+
+            Assert.True(first.Succeeded);
+            Assert.False(first.Replayed);
+            Assert.True(replay.Succeeded);
+            Assert.True(replay.Replayed);
+            Assert.Equal(25, first.BalanceAfter);
+            Assert.Equal(first.BalanceAfter, replay.BalanceAfter);
+            Assert.Equal(
+                1,
+                await harness.Context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == harness.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.ManualAdjustment
+                )
+            );
+            Assert.Equal(
+                1,
+                await harness.Context.AdminAuditEvents.CountAsync(row =>
+                    row.Action == AdminAuditActions.CreditAdjust
+                )
+            );
+        }
+
+        [Fact]
+        public async Task StaffManualAdjust_SameKeyDifferentBody_ReturnsKeyReused_WritesNoRow()
+        {
+            var harness = await SeedAsync();
+            await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffGrant(harness.RestaurantId, 25, "adjust-conflict-1")
+            );
+
+            var conflict = await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffGrant(harness.RestaurantId, 30, "adjust-conflict-1")
+            );
+
+            Assert.False(conflict.Succeeded);
+            Assert.Equal("idempotency_key_reused", conflict.Code);
+            Assert.Equal(
+                1,
+                await harness.Context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == harness.RestaurantId
+                )
+            );
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("   ")]
+        public async Task StaffManualAdjust_MissingIdempotencyKey_Refused(string key)
+        {
+            var harness = await SeedAsync();
+
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffGrant(harness.RestaurantId, 5, key)
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("idempotency_key_required", result.Code);
+            Assert.Empty(harness.Context.CreditLedgerEntries);
+        }
+
+        [Fact]
+        public async Task StaffManualAdjust_IdempotencyKeyOver128_Refused()
+        {
+            var harness = await SeedAsync();
+
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffGrant(harness.RestaurantId, 5, new string('k', 129))
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("idempotency_key_too_long", result.Code);
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("   ")]
+        public async Task StaffManualAdjust_EvidenceRequired_Refused(string evidence)
+        {
+            var harness = await SeedAsync();
+
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffGrant(harness.RestaurantId, 5, "adjust-evidence-1", evidence)
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("evidence_required", result.Code);
+            Assert.Empty(harness.Context.CreditLedgerEntries);
+        }
+
+        [Fact]
+        public async Task StaffReverse_EvidenceRequired_Refused()
+        {
+            var harness = await SeedAsync();
+
+            var result = await harness.Ledger.StaffReverseAsync(
+                new StaffReverseRequest
+                {
+                    ReversedEntryId = Guid.NewGuid(),
+                    Reason = "Undo mistaken debit",
+                    ActorStaffUserId = 1,
+                    IdempotencyKey = "reverse-evidence-1",
+                    EvidenceReference = "  ",
+                }
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("evidence_required", result.Code);
+        }
+
+        [Fact]
+        public async Task StaffManualAdjust_EvidenceOver500_Refused()
+        {
+            var harness = await SeedAsync();
+
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffGrant(
+                    harness.RestaurantId,
+                    5,
+                    "adjust-evidence-long",
+                    new string('e', 501)
+                )
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("evidence_required", result.Code);
+        }
+
+        [Fact]
+        public async Task StaffManualAdjust_Audit_CarriesChannelDeltaBalances_ReasonAndEvidence()
+        {
+            var harness = await SeedAsync();
+
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffGrant(harness.RestaurantId, 25, "adjust-audit-1", "Zendesk #5521")
+            );
+
+            Assert.True(result.Succeeded);
+            var audit = Assert.Single(harness.Context.AdminAuditEvents);
+            Assert.NotNull(audit.DetailJson);
+            using var detail = System.Text.Json.JsonDocument.Parse(audit.DetailJson!);
+            var root = detail.RootElement;
+            Assert.Equal(CreditChannels.Email, root.GetProperty("channel").GetString());
+            Assert.Equal(25, root.GetProperty("delta").GetInt32());
+            Assert.Equal(0, root.GetProperty("balanceBefore").GetInt32());
+            Assert.Equal(25, root.GetProperty("balanceAfter").GetInt32());
+            Assert.Equal("Goodwill credit for onboarding issue", root.GetProperty("reason").GetString());
+            Assert.Equal("Zendesk #5521", root.GetProperty("evidence").GetString());
+        }
+
+        /// <summary>
+        /// A reversal replay returns the first reversal row. It is not reported as
+        /// <c>already_reversed</c>, and no second reversal row is written.
+        /// </summary>
+        [Fact]
+        public async Task StaffReverse_ReplaySameKey_ReturnsFirstInsertedRow_WritesNoRow()
+        {
+            var harness = await SeedAsync();
+            var grantId = await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                20,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddDays(20)
+            );
+            var debit = await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffDebit(harness.RestaurantId, 5, "debit-for-reverse-1", grantId)
+            );
+            var debitId = Assert.Single(debit.Inserted).Id;
+            var reverseRequest = new StaffReverseRequest
+            {
+                ReversedEntryId = debitId,
+                Reason = "Undo mistaken debit",
+                ActorStaffUserId = 1,
+                IdempotencyKey = "reverse-replay-1",
+                EvidenceReference = "Zendesk #5522",
+            };
+
+            var first = await harness.Ledger.StaffReverseAsync(reverseRequest);
+            var replay = await harness.Ledger.StaffReverseAsync(reverseRequest);
+
+            Assert.True(first.Succeeded);
+            Assert.True(replay.Succeeded);
+            Assert.True(replay.Replayed);
+            Assert.Equal(first.Inserted[0].Id, replay.Inserted[0].Id);
+            Assert.Equal(
+                1,
+                await harness.Context.CreditLedgerEntries.CountAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.Reversal
+                )
+            );
+        }
+
+        [Fact]
+        public async Task StaffReverse_SameKeyDifferentReason_ReturnsKeyReused()
+        {
+            var harness = await SeedAsync();
+            var grantId = await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                20,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddDays(20)
+            );
+            var debit = await harness.Ledger.StaffManualAdjustAsync(
+                NewStaffDebit(harness.RestaurantId, 5, "debit-for-reverse-2", grantId)
+            );
+            var debitId = Assert.Single(debit.Inserted).Id;
+            await harness.Ledger.StaffReverseAsync(
+                new StaffReverseRequest
+                {
+                    ReversedEntryId = debitId,
+                    Reason = "Undo mistaken debit",
+                    ActorStaffUserId = 1,
+                    IdempotencyKey = "reverse-conflict-1",
+                    EvidenceReference = "Zendesk #5523",
+                }
+            );
+
+            var conflict = await harness.Ledger.StaffReverseAsync(
+                new StaffReverseRequest
+                {
+                    ReversedEntryId = debitId,
+                    Reason = "A different reason",
+                    ActorStaffUserId = 1,
+                    IdempotencyKey = "reverse-conflict-1",
+                    EvidenceReference = "Zendesk #5523",
+                }
+            );
+
+            Assert.False(conflict.Succeeded);
+            Assert.Equal("idempotency_key_reused", conflict.Code);
+        }
+
+        private static StaffManualAdjustRequest NewStaffDebit(
+            int restaurantId,
+            int quantity,
+            string idempotencyKey,
+            Guid allocationId
+        )
+        {
+            return new StaffManualAdjustRequest
+            {
+                RestaurantId = restaurantId,
+                Channel = CreditChannels.Email,
+                Direction = StaffManualAdjustDirections.Debit,
+                Quantity = quantity,
+                Reason = "Mistaken debit",
+                ActorStaffUserId = 1,
+                AllocationId = allocationId,
+                IdempotencyKey = idempotencyKey,
+                EvidenceReference = "Ticket 1234",
+            };
+        }
+
+        private static StaffManualAdjustRequest NewStaffGrant(
+            int restaurantId,
+            int quantity,
+            string idempotencyKey,
+            string evidence = "Ticket 1234"
+        )
+        {
+            return new StaffManualAdjustRequest
+            {
+                RestaurantId = restaurantId,
+                Channel = CreditChannels.Email,
+                Direction = StaffManualAdjustDirections.Grant,
+                Quantity = quantity,
+                Reason = "Goodwill credit for onboarding issue",
+                ActorStaffUserId = 1,
+                IdempotencyKey = idempotencyKey,
+                EvidenceReference = evidence,
+            };
         }
 
         private async Task<Harness> SeedAsync()
