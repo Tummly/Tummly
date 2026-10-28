@@ -69,7 +69,7 @@ export function ShopCatalogItemCard({
         <img
           src={imageSrc}
           alt={title}
-          className="size-full object-contain transition-transform duration-200 group-hover:scale-[1.04]"
+          className="size-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
         />
       </div>
 

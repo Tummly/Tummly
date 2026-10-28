@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Shop.MaterialsCatalog
 {
     /// <summary>
-    /// Seeds the seven Register Interest Shop products (no price / cart).
-    /// Visuals optional until Design drops artwork.
+    /// Seeds the seven Register Interest Shop products (no price / cart),
+    /// each with its bundled artwork. Existing rows are not changed.
     /// </summary>
     public static class ShopInterestCatalogSeed
     {
@@ -84,6 +85,18 @@ namespace TummlyBackend.Shop.MaterialsCatalog
                         IsActive = true,
                         CreatedAtUtc = now,
                         UpdatedAtUtc = now,
+                        Images =
+                        [
+                            new ShopInterestProductImage
+                            {
+                                StorageKey = ShopCatalogImageRules.BuildLegacyStorageKey(
+                                    ShopProductArtworkPaths.PathFor(product.ProductKey)
+                                ),
+                                ContentType = ShopProductArtworkPaths.ContentType,
+                                SortOrder = 0,
+                                CreatedAtUtc = now,
+                            },
+                        ],
                     }
                 );
                 changed = true;
