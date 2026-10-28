@@ -93,7 +93,11 @@ namespace TummlyBackend.Tests.Services
                 context,
                 merchant,
                 new FixedTimeProvider(_now),
-                Options.Create(new TummlySellerVatSettings { IsActive = false })
+                Options.Create(new TummlySellerVatSettings { IsActive = false }),
+                new TummlyBackend.Services.CustomPlanQuoteService(
+                    context,
+                    Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.TummlySellerVatSettings())
+                )
             );
             var lifecycle = new BillingAccountLifecycleService(
                 context,

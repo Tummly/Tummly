@@ -27,6 +27,9 @@ namespace TummlyBackend.Tests.Services
         private readonly IConfiguration _configuration;
         private readonly CountingCreditLedger _mintLedger = new();
         private readonly RecordingFirstPaidConversionPaySession _firstPaid;
+        // Starts failing, as a checkout that did not open; a test sets FailCreateOrder = false to let it open.
+        private readonly CountingCustomCycleMerchant _merchant =
+            new() { FailCreateOrder = true };
         private readonly string _email = "pilot-owner@example.com";
         private Guid _sessionToken;
         private PendingSignup _pending = null!;
@@ -80,10 +83,14 @@ namespace TummlyBackend.Tests.Services
                 _firstPaid,
                 new CustomPlanCycleBillingService(
                     _db,
-                    new NoOpRevolutMerchantForCustomPlan(),
+                    _merchant,
                     TimeProvider.System,
                     Microsoft.Extensions.Options.Options.Create(
                         new TummlyBackend.Configurations.TummlySellerVatSettings()
+                    ),
+                    new TummlyBackend.Services.CustomPlanQuoteService(
+                        _db,
+                        Microsoft.Extensions.Options.Options.Create(new TummlyBackend.Configurations.TummlySellerVatSettings())
                     )
                 ),
                 PilotStartTestFactory.Create(
@@ -791,6 +798,130 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(billing.PilotStartedAtUtc);
             Assert.Null(billing.PilotPeriodEnd);
             Assert.Equal(0, _mintLedger.MintPilotCallCount);
+        }
+
+        [Fact]
+        public async Task RetryProvision_CompletedSignupSavedWithLegacyPack_StartsNoOrder()
+        {
+            await SaveCustomOnboardingWithFailedCheckoutAsync();
+            await ReplaceSavedPacksAsync(new Dictionary<string, int> { ["team_users_5"] = 1 });
+            _merchant.FailCreateOrder = false;
+            var ordersBefore = _merchant.CreateOrderCallCount;
+
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.RetryProvisionAsync(_sessionToken)
+            );
+
+            Assert.Equal("legacy_pack_key", ex.Code);
+            Assert.Equal(ordersBefore, _merchant.CreateOrderCallCount);
+            await AssertStillFreeWithNoCustomConfigAsync();
+        }
+
+        [Fact]
+        public async Task RetryProvision_CompletedSignupWithChangedPrice_StartsNoOrder()
+        {
+            await SaveCustomOnboardingWithFailedCheckoutAsync();
+            var offerRate = await _db.CommercialCustomUnitRateRows.SingleAsync(r =>
+                r.RateKey == CommercialCustomUnitRateKeys.Offer
+            );
+            offerRate.MonthlyNetPence += 100;
+            await _db.SaveChangesAsync();
+            _merchant.FailCreateOrder = false;
+            var ordersBefore = _merchant.CreateOrderCallCount;
+
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.RetryProvisionAsync(_sessionToken)
+            );
+
+            Assert.Equal("quote_changed", ex.Code);
+            Assert.Equal(ordersBefore, _merchant.CreateOrderCallCount);
+            await AssertStillFreeWithNoCustomConfigAsync();
+        }
+
+        [Fact]
+        public async Task RetryProvision_CompletedSignupWithUnchangedQuote_OpensCheckoutOnce()
+        {
+            await SaveCustomOnboardingWithFailedCheckoutAsync();
+            _merchant.FailCreateOrder = false;
+            var ordersBefore = _merchant.CreateOrderCallCount;
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            Assert.Equal(ordersBefore + 1, _merchant.CreateOrderCallCount);
+            var intent = await _db.RevolutOrderIntents.SingleAsync();
+            Assert.Equal(RevolutOrderIntentPurposes.CustomPlanCycle, intent.Purpose);
+        }
+
+        [Fact]
+        public async Task RetryProvision_FirstProvisionWithLegacyPackConfig_StartsNoOrderAndRecordsTheCode()
+        {
+            await SeedOnboardingCompletePendingWithPlanAsync(BillingSubscriptionPlans.Custom);
+            _pending.CustomPlanConfigJson = JsonSerializer.Serialize(
+                new
+                {
+                    version = 2,
+                    cadence = "monthly",
+                    basePlan = "starter",
+                    locations = 1,
+                    packs = new Dictionary<string, int> { ["qr_10"] = 1 },
+                    quoteHash = "0123456789abcdef0123456789abcdef",
+                }
+            );
+            await _db.SaveChangesAsync();
+            _merchant.FailCreateOrder = false;
+
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.RetryProvisionAsync(_sessionToken)
+            );
+
+            Assert.Equal("legacy_pack_key", ex.Code);
+            Assert.Equal(0, _merchant.CreateOrderCallCount);
+            await AssertStillFreeWithNoCustomConfigAsync();
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Equal("legacy_pack_key", billing.PendingPaymentFailureCode);
+        }
+
+        private async Task SaveCustomOnboardingWithFailedCheckoutAsync()
+        {
+            await SeedVerifiedPendingAsync();
+            var dto = BuildValidOnboardingDto();
+            dto.ChosenPlan = BillingSubscriptionPlans.Custom;
+            dto.ChosenCadence = "monthly";
+            var packs = new Dictionary<string, int> { ["offer"] = 2 };
+            var quote = await QuoteAsync("monthly", "growth", 2, packs);
+            dto.CustomPlanConfigJson = JsonSerializer.Serialize(
+                new
+                {
+                    version = 2,
+                    cadence = "monthly",
+                    basePlan = "growth",
+                    locations = 2,
+                    packs,
+                    quoteHash = quote.QuoteHash,
+                }
+            );
+            await _signup.SaveOnboardingAsync(_sessionToken, dto);
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Custom, billing.PendingPaymentPlan);
+            Assert.False(string.IsNullOrWhiteSpace(billing.PendingPaymentFailureCode));
+            await _db.Entry(_pending).ReloadAsync();
+        }
+
+        private async Task ReplaceSavedPacksAsync(Dictionary<string, int> packs)
+        {
+            var saved = CustomPlanConfig.TryParse(_pending.CustomPlanConfigJson)!;
+            saved.Packs = packs;
+            _pending.CustomPlanConfigJson = saved.ToJson();
+            await _db.SaveChangesAsync();
+        }
+
+        private async Task AssertStillFreeWithNoCustomConfigAsync()
+        {
+            _db.ChangeTracker.Clear();
+            var billing = await _db.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Free, billing.SubscriptionPlan);
+            Assert.Null(billing.CustomPlanConfigJson);
+            Assert.Empty(await _db.RevolutOrderIntents.ToListAsync());
         }
 
         private async Task SeedOnboardingCompletePendingWithPlanAsync(

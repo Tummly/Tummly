@@ -1370,6 +1370,22 @@ namespace TummlyBackend.Services
                         return (null, StatusCodes.Status400BadRequest, "custom_plan_config_invalid");
                     }
 
+                    // The saved quote is not a fresh review. Re-quote it on the server:
+                    // an old pack key or a moved price starts no Revolut order.
+                    try
+                    {
+                        await _customPlanCycleBilling.VerifySavedConfigAsync(
+                            billingAccount.PendingPaymentCustomConfigJson
+                        );
+                    }
+                    catch (CustomPlanQuoteException ex)
+                    {
+                        billingAccount.PendingPaymentFailedAtUtc = DateTime.UtcNow;
+                        billingAccount.PendingPaymentFailureCode = ex.Code;
+                        await _context.SaveChangesAsync();
+                        return (null, StatusCodes.Status409Conflict, ex.Code);
+                    }
+
                     var customLocationId = await ResolveFirstLocationIdAsync(restaurantId);
                     string customRedirectUrl;
                     try
