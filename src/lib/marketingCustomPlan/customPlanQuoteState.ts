@@ -1,8 +1,39 @@
 import type { CustomPlanQuoteResult } from "@/api/adminCommercialCatalogApi"
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
-import { CUSTOM_PLAN_MAX_LOCATIONS } from "@/lib/marketingCustomPlan/customPlanEstimate"
+import {
+  CUSTOM_PLAN_MAX_LOCATIONS,
+  CUSTOM_PLAN_MAX_PACK_COUNT,
+} from "@/lib/marketingCustomPlan/customPlanEstimate"
 
 export type LocationInputCheck = "empty" | "not_integer" | "over_limit" | "ok"
+
+/**
+ * Reads a typed count as typed: digits with an optional decimal point.
+ * Anything else is no number, so the caller reports it as empty.
+ */
+export function parseTypedCount(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) {
+    return null
+  }
+  return Number(trimmed)
+}
+
+export type PackCountCheck = "empty" | "not_integer" | "over_limit" | "ok"
+
+/** Classifies a typed pack count before any quote request. 0 is a valid count. */
+export function checkPackCount(value: number | null | undefined): PackCountCheck {
+  if (value == null || Number.isNaN(value)) {
+    return "empty"
+  }
+  if (!Number.isInteger(value) || value < 0) {
+    return "not_integer"
+  }
+  if (value > CUSTOM_PLAN_MAX_PACK_COUNT) {
+    return "over_limit"
+  }
+  return "ok"
+}
 
 /** Classifies the typed Location count before any quote request. */
 export function checkLocationInput(value: number | null): LocationInputCheck {
@@ -82,6 +113,20 @@ export type QuoteView = {
   showContact: boolean
   continueEnabled: boolean
   taxText: string | null
+}
+
+/** Copy under a pack stepper while its typed count is invalid. */
+export function packCountMessage(check: PackCountCheck): string | null {
+  switch (check) {
+    case "empty":
+      return CUSTOM_PLAN_QUOTE_COPY.packEmpty
+    case "not_integer":
+      return CUSTOM_PLAN_QUOTE_COPY.packNotWhole
+    case "over_limit":
+      return CUSTOM_PLAN_QUOTE_COPY.packOverLimit
+    case "ok":
+      return null
+  }
 }
 
 function checkMessage(check: LocationInputCheck): string | null {

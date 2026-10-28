@@ -153,10 +153,8 @@ export function normalizePackCounts(
     if (typeof raw !== "number" || !Number.isFinite(raw)) {
       continue
     }
-    next[def.packKey] = Math.max(
-      0,
-      Math.min(CUSTOM_PLAN_MAX_PACK_COUNT, Math.floor(raw)),
-    )
+    // No clamp or rounding: the calculator shows an invalid saved count instead.
+    next[def.packKey] = raw
   }
   return next
 }

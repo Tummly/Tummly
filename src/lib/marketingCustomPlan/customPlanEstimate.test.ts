@@ -10,6 +10,24 @@ import {
   type PublicCatalogPlanSummary,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 
+describe("normalizePackCounts", () => {
+  it("keeps a typed count as typed, so an invalid count stays visible", () => {
+    const packs = normalizePackCounts({ offers_5: 150, qr_10: 2.5 })
+    expect(packs.offers_5).toBe(150)
+    expect(packs.qr_10).toBe(2.5)
+  })
+
+  it("drops non-numeric values and fills missing packs with zero", () => {
+    const packs = normalizePackCounts({
+      offers_5: Number.NaN,
+      team_users_5: 3,
+    } as Record<string, number>)
+    expect(packs.offers_5).toBe(0)
+    expect(packs.team_users_5).toBe(3)
+    expect(packs.sms_500).toBe(0)
+  })
+})
+
 const PLANS: PublicCatalogPlanSummary[] = [
   {
     planKey: "starter",
