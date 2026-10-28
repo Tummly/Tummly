@@ -177,7 +177,7 @@ describe("quoteView", () => {
     expect(view.message).toBeNull()
   })
 
-  it("shows the changed copy and enables Continue on a fresh ready quote", () => {
+  it("shows the changed copy and blocks Continue until the new price is confirmed", () => {
     const view = quoteView({
       check: "ok",
       state: { status: "ready", quote: quote() },
@@ -186,6 +186,29 @@ describe("quoteView", () => {
     expect(view.message).toBe(
       "Your quote has changed. Review the updated total before continuing.",
     )
+    expect(view.continueEnabled).toBe(false)
+  })
+
+  it("enables Continue on a changed quote once the customer confirms it", () => {
+    const view = quoteView({
+      check: "ok",
+      state: { status: "ready", quote: quote() },
+      changed: true,
+      priceConfirmed: true,
+    })
+    expect(view.message).toBe(
+      "Your quote has changed. Review the updated total before continuing.",
+    )
+    expect(view.continueEnabled).toBe(true)
+  })
+
+  it("does not block Continue on confirmation when the price did not change", () => {
+    const view = quoteView({
+      check: "ok",
+      state: { status: "ready", quote: quote() },
+      changed: false,
+      priceConfirmed: false,
+    })
     expect(view.continueEnabled).toBe(true)
   })
 

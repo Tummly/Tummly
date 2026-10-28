@@ -6,6 +6,7 @@ export const CUSTOM_PLAN_QUOTE_COPY = {
   retry: "Try again",
   changed:
     "Your quote has changed. Review the updated total before continuing.",
+  changedConfirm: "I have reviewed the updated total.",
   restoreFailed:
     "We could not restore your selected plan. Review your choices before continuing.",
   noSelection: "Choose a Pilot or paid plan to continue.",

@@ -142,13 +142,18 @@ function checkMessage(check: LocationInputCheck): string | null {
   }
 }
 
-/** Copy and control state for the quote panel. Continue needs a ready quote. */
+/**
+ * Copy and control state for the quote panel. Continue needs a ready quote.
+ * A changed price also needs the customer's explicit confirmation.
+ */
 export function quoteView(input: {
   check: LocationInputCheck
   state: QuoteState
   changed: boolean
+  /** The customer confirmed the ready quote's price. Ignored unless `changed`. */
+  priceConfirmed?: boolean
 }): QuoteView {
-  const { check, state, changed } = input
+  const { check, state, changed, priceConfirmed = false } = input
   const shown = lastQuote(state)
   const taxText =
     shown != null && shown.vatRateBps > 0
@@ -200,7 +205,7 @@ export function quoteView(input: {
       return {
         ...base,
         message: changed ? CUSTOM_PLAN_QUOTE_COPY.changed : null,
-        continueEnabled: true,
+        continueEnabled: !changed || priceConfirmed,
       }
   }
 }
