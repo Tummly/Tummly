@@ -59,6 +59,28 @@ namespace TummlyBackend.Services
             await _db.SaveChangesAsync(cancellationToken);
         }
 
+        /// <summary>
+        /// Entity keys a demo session has recorded for one entity type. Expired rows are ignored.
+        /// </summary>
+        public async Task<HashSet<string>> GetEntityKeysAsync(
+            Guid sessionId,
+            string entityType,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var now = DateTime.UtcNow;
+            var keys = await _db.DemoSessionOverlays
+                .AsNoTracking()
+                .Where(row =>
+                    row.SessionId == sessionId
+                    && row.EntityType == entityType
+                    && row.ExpiresAtUtc >= now
+                )
+                .Select(row => row.EntityKey)
+                .ToListAsync(cancellationToken);
+            return keys.ToHashSet(StringComparer.Ordinal);
+        }
+
         public async Task<int> PurgeExpiredAsync(
             CancellationToken cancellationToken = default
         )
