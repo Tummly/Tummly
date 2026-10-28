@@ -110,6 +110,9 @@ curl https://api.qa.tummly.com/health/ready
 #   UPDATE Admins SET PasswordHash = '<hash>', FailedLoginAttempts = 0, IsLocked = 0
 #   WHERE Email = 'admin@tummly.com';   -- repeat for support@tummly.com
 # Disable an old row only after a second Admin account exists and has signed in.
+# After this release: sign in, use Account > Change password, and use Admin > Staff to
+# add named staff accounts; then disable the shared default logins from the Staff tab
+# (the server refuses to disable yourself or the last active Admin).
 # The API logs a startup warning outside Development while either login still
 # uses its default password.
 ```
