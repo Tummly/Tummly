@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Helpers
@@ -36,6 +37,20 @@ namespace TummlyBackend.Helpers
                 ActorAdminUserId: staffId,
                 DetailJson: detailJson
             );
+        }
+
+        /// <summary>
+        /// Detail for a staff read: the caller's role and the query scope
+        /// (filters and paging only). Never put search text or returned
+        /// records here.
+        /// </summary>
+        public static string Detail(ClaimsPrincipal user, object? scope = null)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                role = user.FindFirstValue(ClaimTypes.Role),
+                scope,
+            });
         }
     }
 }

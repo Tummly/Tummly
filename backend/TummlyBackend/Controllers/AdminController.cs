@@ -56,6 +56,16 @@ namespace TummlyBackend.Controllers
                 await _adminService
                     .GetAllTrialRequestsAsync();
 
+            await _adminAudit.AppendAndSaveAsync(
+                StaffReadAudit.Build(
+                    User,
+                    AdminAuditActions.TrialRequestsRead,
+                    AdminAuditTargetTypes.TrialRequest,
+                    "list",
+                    StaffReadAudit.Detail(User)
+                )
+            );
+
             return Ok(new
             {
                 success = true,
@@ -301,6 +311,16 @@ namespace TummlyBackend.Controllers
         public async Task<IActionResult> ListPilotAccounts()
         {
             var accounts = await _adminService.ListPilotAccountsAsync();
+
+            await _adminAudit.AppendAndSaveAsync(
+                StaffReadAudit.Build(
+                    User,
+                    AdminAuditActions.OperatorPilotAccountsRead,
+                    AdminAuditTargetTypes.OperatorUser,
+                    "list",
+                    StaffReadAudit.Detail(User)
+                )
+            );
 
             return Ok(new
             {
@@ -806,6 +826,19 @@ namespace TummlyBackend.Controllers
         {
             var result = await _adminAudit.ListAsync(
                 new AdminAuditListQuery(action, restaurantId, from, to, skip, take),
+                cancellationToken
+            );
+            await _adminAudit.AppendAndSaveAsync(
+                StaffReadAudit.Build(
+                    User,
+                    AdminAuditActions.AdminAuditEventsRead,
+                    AdminAuditTargetTypes.AdminAuditEvent,
+                    "list",
+                    StaffReadAudit.Detail(
+                        User,
+                        new { action, restaurantId, from, to, skip, take }
+                    )
+                ),
                 cancellationToken
             );
             return Ok(new { success = true, data = result.Items, totalCount = result.TotalCount });
