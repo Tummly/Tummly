@@ -30,6 +30,53 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SendAndIssue_Email_DebitsNoCampaignEmailCredits()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-email-no-credit-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                withCatalogAttach: true
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-offers"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "A recovery offer from us",
+                body = "Please enjoy 20% off your next visit.",
+                intent = "respond_with_recovery_offer",
+                purpose = "include_a_recovery_offer",
+                tone = "warm_and_apologetic",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            Assert.Equal(
+                0,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.Channel == CreditChannels.Email
+                )
+            );
+        }
+
+        [Fact]
         public async Task SendAndIssue_CreatesCatalogOfferIssue_KeepsInProgress_NoOneOffRow()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
