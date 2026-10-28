@@ -157,6 +157,20 @@ namespace TummlyBackend.Services
                 return StaffOutcome<AdminStaffMemberDto>.Ok(ToDto(target));
             }
 
+            // Two Admins disabling each other at once must not leave no active Admin:
+            // the guard and the write run in one transaction that holds an update
+            // lock on the Admin rows (SQL Server). In-memory tests run without it.
+            await using var transaction = _context.Database.IsSqlServer()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+            if (transaction != null)
+            {
+                await _context.Database.ExecuteSqlRawAsync(
+                    "SELECT [Id] FROM [Admins] WITH (UPDLOCK, HOLDLOCK) WHERE [Role] = 'Admin'",
+                    cancellationToken
+                );
+            }
+
             if (target.Role == AdminRole
                 && !await UsableAdminOtherThanAsync(target.Id, cancellationToken))
             {
@@ -174,6 +188,10 @@ namespace TummlyBackend.Services
                 before,
                 cancellationToken
             );
+            if (transaction != null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
 
             return StaffOutcome<AdminStaffMemberDto>.Ok(ToDto(target));
         }

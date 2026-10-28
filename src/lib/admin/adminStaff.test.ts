@@ -20,10 +20,11 @@ describe("validateStaffPassword", () => {
     )
   })
 
-  it("refuses more than 128 characters", () => {
-    expect(validateStaffPassword("a".repeat(129), email)).toBe(
-      "Use no more than 128 characters."
-    )
+  it("refuses more than 72 bytes, counting multi-byte characters", () => {
+    const tooLong = "Use no more than 72 bytes (about 72 plain characters)."
+    expect(validateStaffPassword("a".repeat(73), email)).toBe(tooLong)
+    expect(validateStaffPassword("é".repeat(40), email)).toBe(tooLong)
+    expect(validateStaffPassword("a".repeat(72), email)).toBeNull()
   })
 
   it("refuses the development default passwords regardless of case", () => {
@@ -80,7 +81,7 @@ describe("staffErrorMessage", () => {
 
   it("reports permission denial for a 403 whatever the code", () => {
     expect(staffErrorMessage(null, 403, "fallback")).toBe(
-      "You do not have permission to manage staff accounts."
+      "You do not have permission to do this."
     )
   })
 

@@ -27,7 +27,10 @@ namespace TummlyBackend.Tests.Services
             _clock = new AdjustableTimeProvider(new DateTimeOffset(2026, 10, 28, 9, 0, 0, TimeSpan.Zero));
             _sut = new StaffAccountService(
                 _context,
-                new AdminAuditService(_context, _clock)
+                new AdminAuditService(_context, _clock),
+                new Microsoft.Extensions.Caching.Memory.MemoryCache(
+                    new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()
+                )
             );
         }
 
@@ -79,13 +82,17 @@ namespace TummlyBackend.Tests.Services
             var staff = await AddStaffAsync("support-lock@example-staff.com", "Support");
             var before = (await _context.Admins.AsNoTracking().SingleAsync(a => a.Id == staff.Id)).PasswordHash;
 
-            for (var attempt = 0; attempt < 6; attempt++)
+            for (var attempt = 0; attempt < StaffAccountService.MaxWrongCurrentPasswords; attempt++)
             {
                 var outcome = await _sut.ChangeOwnPasswordAsync(staff.Id, "Wrong-Current-Password", NewPassword);
 
                 Assert.False(outcome.Succeeded);
                 Assert.Equal("current_password_invalid", outcome.Code);
             }
+
+            // Throttled now, even with the right current password; the login lock is untouched.
+            var throttled = await _sut.ChangeOwnPasswordAsync(staff.Id, CurrentPassword, NewPassword);
+            Assert.Equal("too_many_attempts", throttled.Code);
 
             var stored = await _context.Admins.AsNoTracking().SingleAsync(a => a.Id == staff.Id);
             Assert.Equal(before, stored.PasswordHash);

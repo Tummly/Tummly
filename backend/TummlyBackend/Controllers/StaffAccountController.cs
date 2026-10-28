@@ -50,7 +50,12 @@ namespace TummlyBackend.Controllers
                 message = outcome.Message,
             };
 
-            return outcome.Code == "staff_not_found" ? NotFound(body) : BadRequest(body);
+            return outcome.Code switch
+            {
+                "staff_not_found" => NotFound(body),
+                "too_many_attempts" => StatusCode(StatusCodes.Status429TooManyRequests, body),
+                _ => BadRequest(body),
+            };
         }
 
         private int? ResolveAdminId()

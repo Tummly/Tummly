@@ -5,7 +5,8 @@ import type { AdminStaffMember } from "@/api/adminStaffApi"
  * lets the dialogs show the rule before a request is sent.
  */
 export const STAFF_PASSWORD_MIN_LENGTH = 12
-export const STAFF_PASSWORD_MAX_LENGTH = 128
+/** BCrypt uses only the first 72 UTF-8 bytes; the server refuses longer passwords. */
+export const STAFF_PASSWORD_MAX_BYTES = 72
 
 const DEVELOPMENT_DEFAULT_PASSWORDS = ["admin@123", "support@123"]
 
@@ -30,8 +31,8 @@ export function validateStaffPassword(
   if (password.length < STAFF_PASSWORD_MIN_LENGTH) {
     return `Use at least ${STAFF_PASSWORD_MIN_LENGTH} characters.`
   }
-  if (password.length > STAFF_PASSWORD_MAX_LENGTH) {
-    return `Use no more than ${STAFF_PASSWORD_MAX_LENGTH} characters.`
+  if (new TextEncoder().encode(password).length > STAFF_PASSWORD_MAX_BYTES) {
+    return `Use no more than ${STAFF_PASSWORD_MAX_BYTES} bytes (about ${STAFF_PASSWORD_MAX_BYTES} plain characters).`
   }
   return null
 }
@@ -62,7 +63,7 @@ export function staffErrorMessage(
   fallback: string
 ): string {
   if (status === 403) {
-    return "You do not have permission to manage staff accounts."
+    return "You do not have permission to do this."
   }
   switch (code) {
     case "email_in_use":
@@ -84,7 +85,9 @@ export function staffErrorMessage(
     case "password_too_short":
       return `Use at least ${STAFF_PASSWORD_MIN_LENGTH} characters.`
     case "password_too_long":
-      return `Use no more than ${STAFF_PASSWORD_MAX_LENGTH} characters.`
+      return `Use no more than ${STAFF_PASSWORD_MAX_BYTES} bytes (about ${STAFF_PASSWORD_MAX_BYTES} plain characters).`
+    case "too_many_attempts":
+      return "Too many wrong current passwords. Try again in 15 minutes."
     case "password_development_default":
       return "Choose a password other than the Tummly development default."
     case "password_matches_email":

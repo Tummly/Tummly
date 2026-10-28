@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -9,16 +10,24 @@ namespace TummlyBackend.Services
 {
     public sealed class StaffAccountService : IStaffAccountService
     {
+        /// <summary>Wrong current passwords allowed per staff account in one window.</summary>
+        public const int MaxWrongCurrentPasswords = 5;
+
+        public static readonly TimeSpan WrongCurrentPasswordWindow = TimeSpan.FromMinutes(15);
+
         private readonly ApplicationDbContext _context;
         private readonly IAdminAuditService _audit;
+        private readonly IMemoryCache _attempts;
 
         public StaffAccountService(
             ApplicationDbContext context,
-            IAdminAuditService audit
+            IAdminAuditService audit,
+            IMemoryCache attempts
         )
         {
             _context = context;
             _audit = audit;
+            _attempts = attempts;
         }
 
         /// <summary>
@@ -44,11 +53,23 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Separate from the sign-in lock: a token holder cannot test passwords
+            // without limit, and a wrong current password never locks the account.
+            var attemptsKey = $"staff-password-change:{adminId}";
+            if (_attempts.TryGetValue(attemptsKey, out int wrong) && wrong >= MaxWrongCurrentPasswords)
+            {
+                return StaffOutcome<bool>.Fail(
+                    "too_many_attempts",
+                    "Too many wrong current passwords. Try again in 15 minutes."
+                );
+            }
+
             if (
                 string.IsNullOrEmpty(currentPassword)
                 || !BCrypt.Net.BCrypt.Verify(currentPassword, admin.PasswordHash)
             )
             {
+                _attempts.Set(attemptsKey, wrong + 1, WrongCurrentPasswordWindow);
                 return StaffOutcome<bool>.Fail(
                     "current_password_invalid",
                     "The current password is not correct."
@@ -70,6 +91,7 @@ namespace TummlyBackend.Services
             }
 
             admin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword!);
+            _attempts.Remove(attemptsKey);
 
             _audit.Append(
                 new AdminAuditAppendRequest(

@@ -7,7 +7,8 @@ namespace TummlyBackend.Helpers
     public static class StaffPasswordPolicy
     {
         public const int MinLength = 12;
-        public const int MaxLength = 128;
+        /// <summary>BCrypt uses only the first 72 UTF-8 bytes, so longer input is refused.</summary>
+        public const int MaxUtf8Bytes = 72;
 
         public const string TooShort = "password_too_short";
         public const string TooLong = "password_too_long";
@@ -43,7 +44,7 @@ namespace TummlyBackend.Helpers
                 return TooShort;
             }
 
-            if (password.Length > MaxLength)
+            if (System.Text.Encoding.UTF8.GetByteCount(password) > MaxUtf8Bytes)
             {
                 return TooLong;
             }
@@ -54,7 +55,7 @@ namespace TummlyBackend.Helpers
         public static string Message(string code) => code switch
         {
             TooShort => $"Use at least {MinLength} characters.",
-            TooLong => $"Use no more than {MaxLength} characters.",
+            TooLong => $"Use no more than {MaxUtf8Bytes} bytes (about {MaxUtf8Bytes} plain characters).",
             DevelopmentDefault => "Choose a password other than the Tummly development default.",
             MatchesEmail => "The password cannot be the same as the email address.",
             _ => "The password does not meet the staff password rule.",

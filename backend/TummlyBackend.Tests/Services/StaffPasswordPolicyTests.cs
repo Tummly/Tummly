@@ -23,17 +23,17 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public void Validate_OneHundredTwentyEightCharacters_IsAccepted()
+        public void Validate_SeventyTwoBytes_IsAccepted()
         {
-            var password = new string('a', 127) + "B";
+            var password = new string('a', 71) + "B";
 
             Assert.Null(StaffPasswordPolicy.Validate(password, Email));
         }
 
         [Fact]
-        public void Validate_OneHundredTwentyNineCharacters_IsTooLong()
+        public void Validate_SeventyThreeBytes_IsTooLong()
         {
-            var password = new string('a', 128) + "B";
+            var password = new string('a', 72) + "B";
 
             Assert.Equal(
                 StaffPasswordPolicy.TooLong,
@@ -65,6 +65,22 @@ namespace TummlyBackend.Tests.Services
         public void Validate_Null_IsTooShort()
         {
             Assert.Equal(StaffPasswordPolicy.TooShort, StaffPasswordPolicy.Validate(null, Email));
+        }
+    
+        [Fact]
+        public void Validate_RefusesPasswordsOverBcrypt72Bytes()
+        {
+            Assert.Null(StaffPasswordPolicy.Validate(new string('a', 72), "x@example.com"));
+            Assert.Equal(
+                StaffPasswordPolicy.TooLong,
+                StaffPasswordPolicy.Validate(new string('a', 73), "x@example.com")
+            );
+            // 30 two-byte characters = 60 bytes, allowed; 40 = 80 bytes, refused.
+            Assert.Null(StaffPasswordPolicy.Validate(new string('é', 30), "x@example.com"));
+            Assert.Equal(
+                StaffPasswordPolicy.TooLong,
+                StaffPasswordPolicy.Validate(new string('é', 40), "x@example.com")
+            );
         }
     }
 }
