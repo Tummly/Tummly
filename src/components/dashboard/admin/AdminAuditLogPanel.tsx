@@ -301,7 +301,6 @@ function AuditResults({
     return <p className="text-sm text-muted-foreground">No audit events match these filters.</p>
   }
 
-
   return (
     <div className="flex flex-col gap-3">
       <div className={GUESTS_TABLE_FRAME_CLASS}>

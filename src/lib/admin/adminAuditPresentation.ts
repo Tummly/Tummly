@@ -73,7 +73,6 @@ export function buildAdminAuditQuery(
   return { ok: true, params }
 }
 
-/** Pretty-printed detail for the expanded row. Non-JSON text is shown as it is. */
 /** "Showing 1–50 of 120"; a page past the end says so instead of "51–50". */
 export function auditPageRangeText(skip: number, rowCount: number, totalCount: number): string {
   if (rowCount === 0) {
@@ -82,6 +81,7 @@ export function auditPageRangeText(skip: number, rowCount: number, totalCount: n
   return `Showing ${skip + 1}–${skip + rowCount} of ${totalCount}`
 }
 
+/** Pretty-printed detail for the expanded row. Non-JSON text is shown as it is. */
 export function formatAuditDetail(detailJson: string | null): {
   text: string
   isJson: boolean

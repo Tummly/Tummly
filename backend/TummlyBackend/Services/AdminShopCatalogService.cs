@@ -495,6 +495,8 @@ namespace TummlyBackend.Services
             var newBlockers = ShopSkuReadiness.Blockers(sku).Except(blockersBefore).ToList();
             if (sku.AvailableInShop && newBlockers.Count > 0)
             {
+                // Drop the in-memory edits so no later save in this request writes them.
+                _context.ChangeTracker.Clear();
                 return (
                     null,
                     "This product is on sale, so this change is refused: "
