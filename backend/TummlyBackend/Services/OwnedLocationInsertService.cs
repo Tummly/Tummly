@@ -34,10 +34,29 @@ namespace TummlyBackend.Services
 
         public const int ImportMaxRows = 100;
 
+        /// <summary>
+        /// Import row context for the premises check. EarlierRowsByKey maps each
+        /// premises key already created earlier in this file to its row index.
+        /// </summary>
+        private sealed record ImportRowPremises(
+            string? Key,
+            IReadOnlyDictionary<string, int> EarlierRowsByKey
+        );
+
         public async Task<AddOwnedLocationResult> AddAsync(
             int restaurantId,
             int actorUserId,
             AddOwnedLocationRequest request
+        )
+        {
+            return await AddCoreAsync(restaurantId, actorUserId, request, importRow: null);
+        }
+
+        private async Task<AddOwnedLocationResult> AddCoreAsync(
+            int restaurantId,
+            int actorUserId,
+            AddOwnedLocationRequest request,
+            ImportRowPremises? importRow
         )
         {
             var invalid = ValidateDraftFields(request);
@@ -58,7 +77,8 @@ namespace TummlyBackend.Services
                     return await AddLockedAsync(
                         restaurantId,
                         actorUserId,
-                        request
+                        request,
+                        importRow
                     );
                 }
                 finally
@@ -67,7 +87,12 @@ namespace TummlyBackend.Services
                 }
             }
 
-            return await AddLockedAsync(restaurantId, actorUserId, request);
+            return await AddLockedAsync(
+                restaurantId,
+                actorUserId,
+                request,
+                importRow
+            );
         }
 
         public async Task<ImportOwnedLocationsResult> ImportAsync(
@@ -94,6 +119,7 @@ namespace TummlyBackend.Services
             var created = new List<ImportCreatedRow>();
             var errors = new List<ImportErrorRow>();
             ImportErrorRow? remainingRowTemplate = null;
+            var earlierRowsByKey = new Dictionary<string, int>(StringComparer.Ordinal);
 
             for (var index = 0; index < rows.Count; index++)
             {
@@ -105,16 +131,28 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
-                var result = await AddAsync(
+                var premisesKey = PremisesKey.Build(
+                    rows[index].Address,
+                    rows[index].City,
+                    rows[index].Postcode
+                );
+                var result = await AddCoreAsync(
                     restaurantId,
                     actorUserId,
-                    rows[index]
+                    rows[index],
+                    new ImportRowPremises(premisesKey, earlierRowsByKey)
                 );
 
                 switch (result)
                 {
                     case AddOwnedLocationResult.Created ok:
-                        created.Add(new ImportCreatedRow(index, ok.LocationId));
+                        created.Add(
+                            new ImportCreatedRow(index, ok.LocationId, ok.PremisesWarning)
+                        );
+                        if (premisesKey != null)
+                        {
+                            earlierRowsByKey.TryAdd(premisesKey, index);
+                        }
                         break;
                     case AddOwnedLocationResult.InvalidRequest invalid:
                         errors.Add(
@@ -161,7 +199,8 @@ namespace TummlyBackend.Services
         private async Task<AddOwnedLocationResult> AddLockedAsync(
             int restaurantId,
             int actorUserId,
-            AddOwnedLocationRequest request
+            AddOwnedLocationRequest request,
+            ImportRowPremises? importRow
         )
         {
             await using var transaction =
@@ -223,6 +262,12 @@ namespace TummlyBackend.Services
                 .Select(row => row.FullName)
                 .FirstOrDefaultAsync();
 
+            // Import only. A match never blocks the row: it is still created,
+            // as Draft like every insert here, and only carries the warning.
+            var premisesWarning = importRow == null
+                ? null
+                : await FindPremisesWarningAsync(restaurantId, request, importRow);
+
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurantId,
@@ -264,7 +309,83 @@ namespace TummlyBackend.Services
 
             await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
 
-            return new AddOwnedLocationResult.Created(location.Id);
+            return new AddOwnedLocationResult.Created(location.Id, premisesWarning);
+        }
+
+        /// <summary>
+        /// Checks one import row for an earlier row in the same file, then an
+        /// existing Location in this Workspace, then a Location in any other
+        /// Workspace. Other-Workspace matches return no id or name.
+        /// </summary>
+        private async Task<PremisesDuplicateWarning?> FindPremisesWarningAsync(
+            int restaurantId,
+            AddOwnedLocationRequest request,
+            ImportRowPremises importRow
+        )
+        {
+            if (importRow.Key == null)
+            {
+                return null;
+            }
+
+            if (importRow.EarlierRowsByKey.TryGetValue(importRow.Key, out var earlierRowIndex))
+            {
+                return new PremisesDuplicateWarning(
+                    PossibleDuplicatePremises.Code,
+                    PossibleDuplicatePremises.ScopeSameFile,
+                    MatchedRowIndex: earlierRowIndex
+                );
+            }
+
+            var postcodeKey = UkPostcode.NormalizeForLookup(request.Postcode!);
+            var candidates = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row =>
+                    row.Postcode != null
+                    && row.Postcode.ToUpper().Replace(" ", "") == postcodeKey
+                )
+                .OrderBy(row => row.Id)
+                .Select(row => new
+                {
+                    row.Id,
+                    row.RestaurantId,
+                    row.LocationName,
+                    row.Address,
+                    row.City,
+                    row.Postcode,
+                })
+                .ToListAsync();
+
+            var otherWorkspaceMatch = false;
+            foreach (var candidate in candidates)
+            {
+                if (
+                    PremisesKey.Build(candidate.Address, candidate.City, candidate.Postcode)
+                    != importRow.Key
+                )
+                {
+                    continue;
+                }
+
+                if (candidate.RestaurantId == restaurantId)
+                {
+                    return new PremisesDuplicateWarning(
+                        PossibleDuplicatePremises.Code,
+                        PossibleDuplicatePremises.ScopeSameWorkspace,
+                        MatchedLocationId: candidate.Id,
+                        MatchedLocationName: candidate.LocationName
+                    );
+                }
+
+                otherWorkspaceMatch = true;
+            }
+
+            return otherWorkspaceMatch
+                ? new PremisesDuplicateWarning(
+                    PossibleDuplicatePremises.Code,
+                    PossibleDuplicatePremises.ScopeOtherWorkspace
+                )
+                : null;
         }
 
         private static AddOwnedLocationResult.InvalidRequest? ValidateDraftFields(
