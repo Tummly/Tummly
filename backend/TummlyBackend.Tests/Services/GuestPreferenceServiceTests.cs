@@ -196,6 +196,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(3, restored.Count);
             Assert.Equal(LocationGuestPermissionLedgerEventKinds.Grant, restored.Last().EventKind);
             Assert.Equal(LocationGuestPermissionLedgerSources.PreferenceCentre, restored.Last().Source);
+            AssertRestoredEvidence(restored.Last(), EmailWording);
             Assert.Equal(
                 LocationGuestPermissionState.Granted,
                 await StateAsync(a.Guest, LocationGuestPermissionKind.EmailMarketing)
@@ -213,6 +214,31 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(TummlyGuestChannels.Email, tummlyEvent.Channel);
             Assert.Equal(LocationGuestPermissionLedgerEventKinds.Grant, tummlyEvent.EventKind);
             Assert.Equal(EmailWording, tummlyEvent.WordingSnapshot);
+        }
+
+        [Fact]
+        public async Task SetChannels_SmsOn_RestoredRowCarriesSmsWording()
+        {
+            var tummlyGuestId = await SeedTummlyGuestAsync();
+            var a = await SeedVenueGuestAsync("Venue A", "Main");
+            await GrantAsync(a.Guest, LocationGuestPermissionKind.SmsMarketing, Past);
+            await RecordAsync(
+                a.Guest,
+                LocationGuestPermissionKind.SmsMarketing,
+                LocationGuestPermissionLedgerEventKinds.Withdraw,
+                LocationGuestPermissionLedgerSources.PreferenceCentre,
+                Past.AddMinutes(1)
+            );
+
+            await _sut.SetChannelsAsync(
+                tummlyGuestId,
+                new GuestPreferenceChannelsRequest(Email: null, Sms: true),
+                CancellationToken.None
+            );
+
+            var restored = (await LedgerAsync(a.Guest, LocationGuestPermissionKind.SmsMarketing)).Last();
+            Assert.Equal(LocationGuestPermissionLedgerEventKinds.Grant, restored.EventKind);
+            AssertRestoredEvidence(restored, SmsWording);
         }
 
         [Fact]
@@ -448,6 +474,30 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task GetOverview_UnknownTummlyGuest_Throws()
+        {
+            await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+                _sut.GetOverviewAsync(999_999, CancellationToken.None)
+            );
+        }
+
+        [Fact]
+        public async Task ListRestaurants_UnknownTummlyGuest_Throws()
+        {
+            await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+                _sut.ListRestaurantsAsync(999_999, null, CancellationToken.None)
+            );
+        }
+
+        [Fact]
+        public async Task SetRestaurantMute_UnknownTummlyGuest_Throws()
+        {
+            await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+                _sut.SetRestaurantMuteAsync(999_999, 1, muted: true, CancellationToken.None)
+            );
+        }
+
+        [Fact]
         public async Task SetChannels_UnknownTummlyGuest_Throws()
         {
             await Assert.ThrowsAsync<KeyNotFoundException>(() =>
@@ -526,6 +576,23 @@ namespace TummlyBackend.Tests.Services
             await Assert.ThrowsAsync<KeyNotFoundException>(() =>
                 _sut.SetFirstNameAsync(999_999, "Sophie", CancellationToken.None)
             );
+        }
+
+        /// <summary>
+        /// A restored grant proves the consent terms: basis consent, the channel's
+        /// checkbox text, and the preference-centre wording version. No guest form
+        /// or privacy notice applies to this path.
+        /// </summary>
+        private static void AssertRestoredEvidence(
+            LocationGuestPermissionLedgerEntry row,
+            string expectedWording
+        )
+        {
+            Assert.Equal(LocationGuestPermissionBases.Consent, row.Basis);
+            Assert.Equal(expectedWording, row.WordingSnapshot);
+            Assert.Equal(GuestPreferenceService.WordingVersion, row.WordingVersion);
+            Assert.Null(row.GuestFormVersion);
+            Assert.Null(row.PrivacyNoticeVersion);
         }
 
         private async Task<int> SeedTummlyGuestAsync()

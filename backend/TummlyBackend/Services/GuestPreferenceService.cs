@@ -16,6 +16,12 @@ namespace TummlyBackend.Services
     /// </summary>
     public class GuestPreferenceService : IGuestPreferenceService
     {
+        /// <summary>
+        /// Wording version stamped on restaurant grant rows written by a
+        /// preference-centre tick (the checkbox text in <see cref="ChannelSpec"/>).
+        /// </summary>
+        public const string WordingVersion = "preference-centre-v1";
+
         private const int FirstNameMaxLength = 100;
         private const string ActivityActor = "Guest";
         private const string ActivityDescription =
@@ -451,13 +457,22 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
+                // The row must prove the consent terms: the guest's tick on the
+                // preference centre shows the same checkbox text as the Tummly grant.
                 _permissions.RecordEvent(
                     lg,
                     lg.RestaurantLocationId,
                     channel.Kind,
                     LocationGuestPermissionLedgerEventKinds.Grant,
                     LocationGuestPermissionLedgerSources.PreferenceCentre,
-                    now
+                    now,
+                    new PermissionLedgerEvidence(
+                        Basis: LocationGuestPermissionBases.Consent,
+                        GuestFormVersion: null,
+                        WordingVersion: WordingVersion,
+                        PrivacyNoticeVersion: null,
+                        WordingSnapshot: channel.WordingSnapshot
+                    )
                 );
                 await _permissions.SyncMarketingPreferenceRollupAsync(lg, ct);
             }
@@ -510,8 +525,9 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync(g => g.Id == tummlyGuestId, ct)
                 ?? throw new KeyNotFoundException("Tummly Guest not found.");
 
-            // Identity first: its race path clears the change tracker, so no
-            // changes may be staged before this call.
+            // FindLocationGuestsAsync is read-only. Its change-tracker reset is
+            // only in the identity service's find-or-create and link paths. Read
+            // state before any change is staged anyway.
             var matched = await _identity.FindLocationGuestsAsync(tummlyGuestId, ct);
             var muted = await LoadMutedLocationIdsAsync(tummlyGuestId, ct);
             var states = await _permissions.GetCurrentStatesBatchAsync(
