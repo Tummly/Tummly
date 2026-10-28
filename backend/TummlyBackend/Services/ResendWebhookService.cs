@@ -246,8 +246,7 @@ namespace TummlyBackend.Services
 
             var restaurantId = guest.RestaurantLocation.RestaurantId;
 
-            // Stage first. WithdrawForLocationGuestAsync saves the staged row with the
-            // ledger rows. A repeat event finds the staged row and changes nothing.
+            // Stage first. A repeat event finds the staged row and changes nothing.
             await _suppressions.StageAsync(
                 restaurantId,
                 contactKey,
@@ -256,13 +255,29 @@ namespace TummlyBackend.Services
                 source,
                 cancellationToken
             );
-            await _withdraw.WithdrawForLocationGuestAsync(
-                guest.Id,
+            // Same scope as the unsubscribe form: every Location guest of this
+            // restaurant with this address, so a sister Location cannot send to it.
+            var widened = await _withdraw.WithdrawForRestaurantContactAsync(
                 restaurantId,
+                guest.MasterGuest!.NormalizedEmail ?? address!.Trim().ToLowerInvariant(),
+                isEmail: true,
                 LocationGuestPermissionKind.EmailMarketing,
                 source,
                 cancellationToken
             );
+            if (widened.GuestsTouched == 0)
+            {
+                // Legacy row without NormalizedEmail: withdraw the recipient at least.
+                await _withdraw.WithdrawForLocationGuestAsync(
+                    guest.Id,
+                    restaurantId,
+                    LocationGuestPermissionKind.EmailMarketing,
+                    source,
+                    cancellationToken
+                );
+            }
+            // Saves the staged suppression even when the withdraw wrote nothing.
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         /// <summary>

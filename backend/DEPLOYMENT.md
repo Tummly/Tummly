@@ -98,9 +98,10 @@ curl https://qa.tummly.com
 curl https://api.qa.tummly.com/health
 curl https://api.qa.tummly.com/health/ready
 
-# Seeded admin (if seed ran on fresh Azure SQL)
-# Email: admin@tummly.com  Password: Admin@123
-# Email: support@tummly.com  Password: Support@123
+# Staff seed (only when the Admins table is empty / no Support row exists)
+# Outside Development, set StaffSeed__AdminEmail / StaffSeed__AdminPassword and
+# StaffSeed__SupportEmail / StaffSeed__SupportPassword; with no password no account is created.
+# Development only falls back to admin@tummly.com / support@tummly.com with the old dev passwords.
 ```
 
 Change default admin passwords after first login.

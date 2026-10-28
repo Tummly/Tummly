@@ -322,6 +322,52 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Resend_PermanentBounce_WithdrawsSisterLocationGuestOfSameRestaurant()
+        {
+            var delivery = await SeedDeliveryAsync(providerMessageId: "camp-sister");
+            var first = await _context.LocationGuests
+                .Include(row => row.RestaurantLocation)
+                .SingleAsync(row => row.Id == delivery.LocationGuestId);
+            var sisterLocation = new RestaurantLocation
+            {
+                RestaurantId = first.RestaurantLocation!.RestaurantId,
+                LocationName = "Second",
+                Address = "2 High St",
+                CreatedAt = _now,
+            };
+            _context.RestaurantLocations.Add(sisterLocation);
+            await _context.SaveChangesAsync();
+            var sisterGuest = new LocationGuest
+            {
+                RestaurantLocationId = sisterLocation.Id,
+                MasterGuestId = first.MasterGuestId,
+                Name = "Guest",
+                CreatedAt = _now,
+            };
+            _context.LocationGuests.Add(sisterGuest);
+            await _context.SaveChangesAsync();
+
+            await PostAsync(
+                MailEventBody("email.bounced", "camp-sister", bounceType: "Permanent"),
+                "msg_sister"
+            );
+
+            var withdrawnGuestIds = await _context.LocationGuestPermissionLedgerEntries
+                .Where(row =>
+                    row.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+                    && row.EventKind == LocationGuestPermissionLedgerEventKinds.Withdraw
+                )
+                .Select(row => row.LocationGuestId)
+                .ToListAsync();
+            Assert.Contains(first.Id, withdrawnGuestIds);
+            Assert.Contains(sisterGuest.Id, withdrawnGuestIds);
+            Assert.All(
+                await _context.LocationActivities.ToListAsync(),
+                activity => Assert.Equal("System", activity.ActorDisplayName)
+            );
+        }
+
+        [Fact]
         public async Task Resend_TemporaryBounce_DoesNotSuppress()
         {
             await SeedDeliveryAsync(providerMessageId: "camp-temp");
@@ -501,6 +547,7 @@ namespace TummlyBackend.Tests.Services
             {
                 RestaurantId = restaurant.Id,
                 Email = "guest@example.com",
+                NormalizedEmail = "guest@example.com",
                 CreatedAt = _now,
             };
             _context.MasterGuests.Add(master);

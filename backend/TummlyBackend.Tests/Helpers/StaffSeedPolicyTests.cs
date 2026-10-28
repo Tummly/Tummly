@@ -92,6 +92,7 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.False(decision.ShouldSeed);
+            Assert.Equal(StaffSeedPasswordSource.None, decision.PasswordSource);
             Assert.NotEqual(DevPassword, decision.Password);
         }
 
