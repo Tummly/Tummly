@@ -225,7 +225,13 @@ function quoteFixture(
 }
 
 describe("quotePackLineAmount", () => {
-  const qrLine = { key: "pack:qr_placement", label: "Extra QR placements × 1", quantity: 1 }
+  const qrLine = {
+    key: "pack:qr_placement",
+    label: "Extra QR placements × 1",
+    name: "Extra QR placements",
+    quantity: 1,
+    unitNetPence: 600,
+  }
 
   it("takes the QR amount and monthly suffix from the server line", () => {
     const quote = quoteFixture({

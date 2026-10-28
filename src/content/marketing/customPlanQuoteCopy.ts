@@ -29,17 +29,20 @@ export const CUSTOM_PLAN_QUOTE_COPY = {
   /** Signup review: the server quote could not be confirmed. Nothing is charged. */
   quoteUnverified:
     "We couldn't confirm your updated total. Refresh your quote and try again. No payment has been taken.",
-  /** Short labels for the full quote shown beside the price confirmation. */
+  /** Labels for the full server quote shown beside the price confirmation. */
   breakdown: {
-    billing: "Billing",
+    linesHeading: "Plan and selected extras",
+    quantity: "Quantity",
+    pricePerUnit: "Price per unit",
+    lineTotal: "Line total",
+    billingPeriod: "Billing period",
     net: "Total before VAT",
     vat: "VAT",
-    gross: "Total including VAT",
-    dueNow: "Due now",
-    recurringMonthly: "Each month after",
-    recurringAnnual: "Each year after",
-    effective: "Starts",
+    updatedTotal: "Updated total",
+    effectiveDate: "Effective date",
     effectiveOnPayment: "When payment is confirmed",
+    newRecurring: "New recurring amount",
+    dueToday: "Amount due today",
   },
   noPaymentTaken:
     "No payment is taken until you confirm your subscription and payment details at checkout.",

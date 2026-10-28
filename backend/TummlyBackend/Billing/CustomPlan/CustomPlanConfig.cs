@@ -121,8 +121,16 @@ namespace TummlyBackend.Billing.CustomPlan
         [JsonPropertyName("label")]
         public string Label { get; set; } = string.Empty;
 
+        /// <summary>Line name without the quantity, e.g. "Additional active Offers".</summary>
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
         [JsonPropertyName("quantity")]
         public int Quantity { get; set; }
+
+        /// <summary>Net price of one unit for the quote cadence, from the catalogue rate.</summary>
+        [JsonPropertyName("unitNetPence")]
+        public int UnitNetPence { get; set; }
 
         [JsonPropertyName("netPence")]
         public int NetPence { get; set; }

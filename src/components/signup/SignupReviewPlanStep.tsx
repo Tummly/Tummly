@@ -19,6 +19,7 @@ import {
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import {
   isPriceConfirmed,
+  keepConfirmedHash,
   lastQuote,
   quoteHashChanged,
   quoteView,
@@ -142,6 +143,12 @@ export function SignupReviewPlanStep({
   const readyHash = state.status === "ready" ? state.quote.quoteHash : null
   const priceChanged = quoteChanged || restoredHashChanged
   const priceConfirmed = isPriceConfirmed(confirmedHash, readyHash)
+  // A new ready quote ends the old acknowledgement for good: going back to an
+  // earlier total does not bring the tick back.
+  const keptHash = keepConfirmedHash(confirmedHash, readyHash)
+  if (keptHash !== confirmedHash) {
+    setConfirmedHash(keptHash)
+  }
 
   const quote = lastQuote(state)
   const waitingForCatalogue = selectable && config == null && plainLocations == null

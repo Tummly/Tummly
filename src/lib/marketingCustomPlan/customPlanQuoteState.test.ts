@@ -6,6 +6,7 @@ import {
   checkLocationInput,
   checkPackCount,
   isPriceConfirmed,
+  keepConfirmedHash,
   formatPenceGbp,
   packCountMessage,
   parseTypedCount,
@@ -406,5 +407,22 @@ describe("isPriceConfirmed", () => {
 
   it("is not confirmed without a ready quote", () => {
     expect(isPriceConfirmed("a".repeat(32), null)).toBe(false)
+  })
+})
+
+describe("keepConfirmedHash", () => {
+  const a = "a".repeat(32)
+  const b = "b".repeat(32)
+
+  it("keeps the tick for the same ready quote and while no quote is ready", () => {
+    expect(keepConfirmedHash(a, a)).toBe(a)
+    expect(keepConfirmedHash(a, null)).toBe(a)
+    expect(keepConfirmedHash(null, a)).toBeNull()
+  })
+
+  it("drops the tick when the ready quote changes, so going back does not revive it", () => {
+    const afterChange = keepConfirmedHash(a, b)
+    expect(afterChange).toBeNull()
+    expect(isPriceConfirmed(afterChange, a)).toBe(false)
   })
 })

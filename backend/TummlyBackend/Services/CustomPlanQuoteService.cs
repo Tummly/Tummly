@@ -190,7 +190,9 @@ namespace TummlyBackend.Services
                     Key = $"base:{basePlan}",
                     Label =
                         $"{planRow.DisplayName} · {includedLocations} included Location{(includedLocations == 1 ? "" : "s")}",
+                    Name = planRow.DisplayName,
                     Quantity = 1,
+                    UnitNetPence = periodBase,
                     NetPence = periodBase,
                 }
             );
@@ -230,7 +232,15 @@ namespace TummlyBackend.Services
                         Key = $"extra:location:band_{slice.BandIndex}",
                         Label =
                             $"{slice.SlotCount} additional Location{(slice.SlotCount == 1 ? "" : "s")} ({slice.FirstSlot}–{slice.LastSlot})",
+                        Name = "Additional Locations",
                         Quantity = slice.SlotCount,
+                        UnitNetPence = CustomPlanLineNet.ForCadence(
+                            cadence,
+                            1,
+                            bandRate.MonthlyNetPence,
+                            bandRate.AnnualNetPence,
+                            1
+                        ),
                         NetPence = periodExtra,
                     }
                 );
@@ -269,7 +279,16 @@ namespace TummlyBackend.Services
                     {
                         Key = $"pack:{def.PackKey}",
                         Label = $"{PackTitle(def.PackKey)} × {count}",
+                        Name = PackTitle(def.PackKey),
                         Quantity = count,
+                        // One unit (capacity) or one pack (credits) at this cadence.
+                        UnitNetPence = CustomPlanLineNet.ForCadence(
+                            cadence,
+                            def.PackSize,
+                            rate.MonthlyNetPence,
+                            rate.AnnualNetPence,
+                            rate.UnitQuantity
+                        ),
                         NetPence = periodPack,
                     }
                 );

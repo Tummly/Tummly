@@ -273,3 +273,16 @@ export function isPriceConfirmed(
 ): boolean {
   return readyHash != null && confirmedHash === readyHash
 }
+
+/**
+ * The acknowledgement to keep once a ready quote is known: null when the quote
+ * is another one than the one confirmed, so an earlier total never becomes valid again.
+ */
+export function keepConfirmedHash(
+  confirmedHash: string | null,
+  readyHash: string | null,
+): string | null {
+  return confirmedHash != null && readyHash != null && confirmedHash !== readyHash
+    ? null
+    : confirmedHash
+}

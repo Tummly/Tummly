@@ -380,7 +380,11 @@ export type CustomPlanQuoteRequest = {
 export type CustomPlanQuoteLine = {
   key: string
   label: string
+  /** Line name without the quantity. */
+  name: string
   quantity: number
+  /** Net price of one unit (or one pack) at the quote cadence, from the server. */
+  unitNetPence: number
   netPence: number
 }
 
@@ -461,7 +465,9 @@ function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
       ? (raw.lines as Record<string, unknown>[]).map((line) => ({
           key: String(line.key ?? ""),
           label: String(line.label ?? ""),
+          name: String(line.name ?? line.label ?? ""),
           quantity: Number(line.quantity ?? 0),
+          unitNetPence: Number(line.unitNetPence ?? 0),
           netPence: Number(line.netPence ?? 0),
         }))
       : [],

@@ -268,6 +268,73 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Theory]
+        [InlineData("team_user", 1)]
+        [InlineData("team_user", 13)]
+        [InlineData("offer", 2)]
+        [InlineData("offer", 7)]
+        [InlineData("qr_placement", 1)]
+        [InlineData("qr_placement", 13)]
+        public async Task Quote_CapacityLine_CarriesNameQuantityAndUnitPrice(
+            string packKey,
+            int units
+        )
+        {
+            foreach (var cadence in new[] { "monthly", "annual" })
+            {
+                var quote = await QuoteWithAsync(cadence, packKey, units);
+                var line = Assert.Single(quote.Lines, l => l.Key == $"pack:{packKey}");
+
+                Assert.Equal(units, line.Quantity);
+                Assert.True(line.UnitNetPence > 0);
+                Assert.Equal(line.NetPence, units * line.UnitNetPence);
+                Assert.False(string.IsNullOrWhiteSpace(line.Name));
+                Assert.DoesNotContain("×", line.Name);
+            }
+        }
+
+        [Theory]
+        [InlineData("team_user", 300, 3060)]
+        [InlineData("offer", 240, 2448)]
+        [InlineData("qr_placement", 60, 612)]
+        public async Task Quote_CapacityLine_UnitPriceIsTheV4SingleUnitPrice(
+            string packKey,
+            int monthlyUnitPence,
+            int annualUnitPence
+        )
+        {
+            var monthly = await QuoteWithAsync("monthly", packKey, 3);
+            var annual = await QuoteWithAsync("annual", packKey, 3);
+
+            Assert.Equal(
+                monthlyUnitPence,
+                Assert.Single(monthly.Lines, l => l.Key == $"pack:{packKey}").UnitNetPence
+            );
+            Assert.Equal(
+                annualUnitPence,
+                Assert.Single(annual.Lines, l => l.Key == $"pack:{packKey}").UnitNetPence
+            );
+        }
+
+        [Fact]
+        public async Task Quote_BaseAndLocationLines_CarryUnitPrice()
+        {
+            var quote = await _sut.QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = "annual",
+                    BasePlan = "group",
+                    Locations = 31,
+                }
+            );
+
+            Assert.All(quote.Lines, line =>
+            {
+                Assert.True(line.UnitNetPence > 0);
+                Assert.Equal(line.NetPence, line.Quantity * line.UnitNetPence);
+            });
+        }
+
+        [Theory]
         [InlineData("team_user", 1, 300, 3060)]
         [InlineData("team_user", 2, 600, 6120)]
         [InlineData("team_user", 7, 2100, 21420)]
@@ -450,6 +517,31 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(a.QuoteHash, sameAgain.QuoteHash);
             Assert.NotEqual(a.QuoteHash, moreUnits.QuoteHash);
             Assert.NotEqual(a.QuoteHash, annual.QuoteHash);
+        }
+
+        [Fact]
+        public async Task Quote_HashCoversEveryShownPriceAndAmount()
+        {
+            var quote = await QuoteWithAsync("monthly", "team_user", 7);
+            var original = quote.QuoteHash;
+
+            void AssertChangesHash(Action<CustomPlanQuoteResult> change)
+            {
+                var copy = System.Text.Json.JsonSerializer.Deserialize<CustomPlanQuoteResult>(
+                    System.Text.Json.JsonSerializer.Serialize(quote)
+                )!;
+                change(copy);
+                Assert.NotEqual(original, CustomPlanQuoteHash.Compute(copy));
+            }
+
+            // Same period total, different line price: the customer saw other prices.
+            AssertChangesHash(q => q.Lines[1].UnitNetPence += 1);
+            AssertChangesHash(q => q.Lines[1].Quantity += 1);
+            AssertChangesHash(q => q.VatAmountPence += 1);
+            AssertChangesHash(q => q.GrossTotalPence += 1);
+            AssertChangesHash(q => q.RecurringGrossPence += 1);
+            AssertChangesHash(q => q.DueNowGrossPence += 1);
+            AssertChangesHash(q => q.EffectiveTiming = "next_renewal");
         }
 
         [Fact]

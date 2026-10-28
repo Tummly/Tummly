@@ -26,7 +26,16 @@ const MONTHLY_QUOTE: CustomPlanQuoteResult = {
   workspaceQrPool: 10,
   monthlyNetPence: 3900,
   periodNetPence: 3900,
-  lines: [{ key: "base:starter", label: "Starter", quantity: 1, netPence: 3900 }],
+  lines: [
+    {
+      key: "base:starter",
+      label: "Starter · 1 included Location",
+      name: "Starter",
+      quantity: 1,
+      unitNetPence: 3900,
+      netPence: 3900,
+    },
+  ],
   basePlanChanged: false,
   requestedBasePlan: null,
   storedAsPlan: "Starter",
@@ -93,9 +102,21 @@ describe("CustomPlanSummaryCard Active QR", () => {
 })
 
 describe("CustomPlanSummaryCard breakdown", () => {
+  const UNIT_LINES: CustomPlanQuoteResult["lines"] = [
+    ...MONTHLY_QUOTE.lines,
+    {
+      key: "pack:team_user",
+      label: "Additional team users × 7",
+      name: "Additional team users",
+      quantity: 7,
+      unitNetPence: 300,
+      netPence: 2100,
+    },
+  ]
   const VAT_QUOTE: CustomPlanQuoteResult = {
     ...MONTHLY_QUOTE,
     cadence: "annual",
+    lines: UNIT_LINES,
     periodNetPence: 10000,
     vatRateBps: 2000,
     vatAmountPence: 2000,
@@ -103,36 +124,71 @@ describe("CustomPlanSummaryCard breakdown", () => {
     recurringGrossPence: 12000,
     dueNowGrossPence: 12000,
   }
+  const NO_VAT_QUOTE: CustomPlanQuoteResult = {
+    ...MONTHLY_QUOTE,
+    lines: UNIT_LINES,
+    periodNetPence: 6000,
+    grossTotalPence: 6000,
+    recurringGrossPence: 6000,
+    dueNowGrossPence: 6000,
+  }
 
-  function renderWith(showBreakdown: boolean) {
+  function renderWith(quote: CustomPlanQuoteResult, showBreakdown: boolean) {
     return renderToStaticMarkup(
       createElement(
         MemoryRouter,
         null,
         createElement(CustomPlanSummaryCard, {
-          quote: VAT_QUOTE,
-          cadence: "annual",
+          quote,
+          cadence: quote.cadence === "annual" ? "annual" : "monthly",
           showBreakdown,
         }),
       ),
     )
   }
 
-  it("shows the server VAT, gross, due now, recurring amount and start", () => {
-    const html = renderWith(true)
+  it("labels every row the review needs, all from the server quote", () => {
+    const html = renderWith(VAT_QUOTE, true)
     expect(html).toContain("Quote breakdown")
+    expect(html).toContain("Billing period")
     expect(html).toContain("Annual")
+    expect(html).toContain("Updated total")
+    expect(html).toContain("£120")
+    expect(html).toContain("Effective date")
+    expect(html).toContain("When payment is confirmed")
+    expect(html).toContain("New recurring amount")
+    expect(html).toContain("Amount due today")
+    expect(html).not.toContain("Due now")
+    expect(html).not.toContain("Each year after")
+  })
+
+  it("shows name, quantity, price per unit and line total for each line", () => {
+    const html = renderWith(NO_VAT_QUOTE, true)
+    expect(html).toContain("Additional team users")
+    expect(html).toContain("Quantity")
+    expect(html).toContain("Price per unit")
+    expect(html).toContain("£3")
+    expect(html).toContain("£21")
+    expect(html).toContain(">7<")
+  })
+
+  it("shows VAT, the net total and the gross total only when VAT applies", () => {
+    const html = renderWith(VAT_QUOTE, true)
+    expect(html).toContain("VAT")
+    expect(html).toContain("£20")
     expect(html).toContain("Total before VAT")
     expect(html).toContain("£100")
-    expect(html).toContain("£20")
-    expect(html).toContain("Total including VAT")
-    expect(html).toContain("£120")
-    expect(html).toContain("Due now")
-    expect(html).toContain("Each year after")
-    expect(html).toContain("When payment is confirmed")
+  })
+
+  it("leaves out the VAT row and all VAT wording when VAT is off", () => {
+    const html = renderWith(NO_VAT_QUOTE, true)
+    expect(html).not.toContain("VAT")
+    expect(html).not.toContain("Total before")
+    expect(html).toContain("Updated total")
+    expect(html).toContain("£60")
   })
 
   it("is off unless asked for", () => {
-    expect(renderWith(false)).not.toContain("Quote breakdown")
+    expect(renderWith(VAT_QUOTE, false)).not.toContain("Quote breakdown")
   })
 })
