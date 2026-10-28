@@ -10,6 +10,7 @@ import { DemoTourChrome } from "@/components/marketing/demo/DemoTourChrome"
 import { DemoWelcomeModal } from "@/components/marketing/demo/DemoWelcomeModal"
 import { SpotlightCoachmark } from "@/components/marketing/demo/SpotlightCoachmark"
 import { PRODUCT_DEMO } from "@/content/marketing/productDemoPage"
+import { isProductDemoEnabled } from "@/lib/env"
 import {
   clearDemoTourSession,
   clearGuestSubmission,
@@ -45,6 +46,8 @@ function leaveDemo(to = "/") {
  */
 export function ProductDemoTourHost() {
   const navigate = useNavigate()
+  // Gated like /product-demo: no tour chrome and no demo API call while off.
+  const demoEnabled = isProductDemoEnabled()
   const [state, setState] = useState<DemoTourSessionState | null>(() =>
     readDemoTourSession()
   )
@@ -71,7 +74,7 @@ export function ProductDemoTourHost() {
   }, [])
 
   const showEntry = state?.phase === "entry"
-  const demoActive = state != null
+  const demoActive = state != null && demoEnabled
 
   // The demo is a guided tour: only the tour chrome takes visitor input.
   useEffect(() => {
@@ -80,7 +83,7 @@ export function ProductDemoTourHost() {
   }, [demoActive])
 
   useEffect(() => {
-    if (!showEntry) return
+    if (!showEntry || !demoEnabled) return
     const existing = readDemoGuestScanPath()
     if (existing) {
       setScanPath(existing)
@@ -109,7 +112,7 @@ export function ProductDemoTourHost() {
     return () => {
       cancelled = true
     }
-  }, [showEntry])
+  }, [showEntry, demoEnabled])
 
   const scanAbsoluteUrl = useMemo(() => {
     if (!scanPath) return null
@@ -117,7 +120,7 @@ export function ProductDemoTourHost() {
     return new URL(scanPath, window.location.origin).toString()
   }, [scanPath])
 
-  if (state == null || !isDemoTourActive()) {
+  if (!demoEnabled || state == null || !isDemoTourActive()) {
     return null
   }
 
