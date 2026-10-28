@@ -4,9 +4,12 @@ import { Link, useSearchParams } from "react-router-dom"
 import {
   fetchOverview,
   openSessionFromLink,
+  verifyContactEmail,
+  verifySessionEmail,
   type GuestPreferencesOverview as GuestPreferencesOverviewData,
 } from "@/api/publicGuestPreferencesApi"
-import { GuestPreferencesEntryPlaceholder } from "@/components/guest-preferences/GuestPreferencesEntryPlaceholder"
+import { GuestPreferencesAddContactDialog } from "@/components/guest-preferences/GuestPreferencesAddContactDialog"
+import { GuestPreferencesEntry } from "@/components/guest-preferences/GuestPreferencesEntry"
 import { GuestPreferencesHeader } from "@/components/guest-preferences/GuestPreferencesHeader"
 import { GuestPreferencesOverview } from "@/components/guest-preferences/GuestPreferencesOverview"
 import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShell"
@@ -21,9 +24,15 @@ import { readGuestPreferencesSession } from "@/lib/guestPreferences/guestPrefere
 
 type PageView =
   | { kind: "loading" }
-  | { kind: "entry" }
+  /** `linkExpired` is set when the link that brought the guest here failed. */
+  | { kind: "entry"; linkExpired: boolean }
+  /** Text only, with no form. Used after an add-contact link is confirmed. */
+  | { kind: "notice"; message: string }
   | { kind: "overview"; overview: GuestPreferencesOverviewData }
   | { kind: "error"; message: string }
+
+const ENTRY_VIEW: PageView = { kind: "entry", linkExpired: false }
+const EXPIRED_ENTRY_VIEW: PageView = { kind: "entry", linkExpired: true }
 
 async function loadOverviewView(): Promise<PageView> {
   try {
@@ -34,12 +43,21 @@ async function loadOverviewView(): Promise<PageView> {
       GUEST_PREFERENCES_COPY.loadFailed
     )
     return route.view === "entry"
-      ? { kind: "entry" }
+      ? ENTRY_VIEW
       : { kind: "error", message: route.message }
   }
 }
 
-/** Any failure to open the link (bad, used or expired token) counts as invalid. */
+/** Any failure (bad, used or expired token) counts as invalid. */
+async function succeeds(action: () => Promise<unknown>): Promise<boolean> {
+  try {
+    await action()
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function openLinkSession(token: string): Promise<boolean> {
   try {
     const { valid } = await openSessionFromLink(token)
@@ -58,52 +76,102 @@ export default function GuestPreferencesPage() {
     )
   )
   const [view, setView] = useState<PageView>(() =>
-    initialMode.kind === "link" || initialMode.kind === "session"
-      ? { kind: "loading" }
-      : { kind: "entry" }
+    initialMode.kind === "entry" ? ENTRY_VIEW : { kind: "loading" }
   )
+  const [addContactOpen, setAddContactOpen] = useState(false)
   const startedRef = useRef(false)
 
   useEffect(() => {
-    // Once per mount. StrictMode re-runs effects, and a link token is single use.
+    // Once per mount. StrictMode re-runs effects, and link tokens are single use.
     if (startedRef.current) {
       return
     }
     startedRef.current = true
 
+    /** Drops a one-time param so a refresh does not replay the link. */
+    function dropParam(name: string) {
+      const next = new URLSearchParams(searchParams)
+      next.delete(name)
+      setSearchParams(next, { replace: true })
+    }
+
     async function start() {
-      if (initialMode.kind === "link") {
-        const valid = await openLinkSession(initialMode.token)
-        if (!valid) {
-          setView({ kind: "entry" })
+      switch (initialMode.kind) {
+        case "link": {
+          const valid = await openLinkSession(initialMode.token)
+          if (!valid) {
+            setView(EXPIRED_ENTRY_VIEW)
+            return
+          }
+          // Drop the one-time token so a refresh uses the stored session.
+          dropParam("t")
+          setView(await loadOverviewView())
           return
         }
-        // Drop the one-time token so a refresh uses the stored session.
-        const next = new URLSearchParams(searchParams)
-        next.delete("t")
-        setSearchParams(next, { replace: true })
-        setView(await loadOverviewView())
-        return
-      }
-      if (initialMode.kind === "session") {
-        setView(await loadOverviewView())
+        case "verify-email": {
+          const valid = await succeeds(() => verifySessionEmail(initialMode.v))
+          dropParam("v")
+          setView(valid ? await loadOverviewView() : EXPIRED_ENTRY_VIEW)
+          return
+        }
+        case "link-contact": {
+          // No session is written here. The link may be opened in another browser.
+          const valid = await succeeds(() => verifyContactEmail(initialMode.v))
+          dropParam("link")
+          setView(
+            valid
+              ? { kind: "notice", message: GUEST_PREFERENCES_COPY.contactLinked }
+              : EXPIRED_ENTRY_VIEW
+          )
+          return
+        }
+        case "session":
+          setView(await loadOverviewView())
+          return
+        case "entry":
+          return
       }
     }
 
     void start()
   }, [initialMode, searchParams, setSearchParams])
 
-  function retryLoad() {
+  function reloadOverview() {
     setView({ kind: "loading" })
     void loadOverviewView().then(setView)
+  }
+
+  function refreshOverview() {
+    void loadOverviewView().then(setView)
+  }
+
+  function handleSessionExpired() {
+    setAddContactOpen(false)
+    setView(ENTRY_VIEW)
+  }
+
+  function handleContactAdded() {
+    setAddContactOpen(false)
+    refreshOverview()
   }
 
   return (
     <GuestFeedbackShell showPoweredBy={false} contentClassName="gap-[29px]">
       {renderView(view, {
-        onSessionExpired: () => setView({ kind: "entry" }),
-        onRetry: retryLoad,
+        onSessionExpired: handleSessionExpired,
+        onRetry: reloadOverview,
+        onEntryVerified: reloadOverview,
+        onAddContact: () => setAddContactOpen(true),
       })}
+
+      {view.kind === "overview" && addContactOpen ? (
+        <GuestPreferencesAddContactDialog
+          baselineContactCount={view.overview.contacts.length}
+          onClose={() => setAddContactOpen(false)}
+          onVerified={handleContactAdded}
+          onSessionExpired={handleSessionExpired}
+        />
+      ) : null}
 
       <nav
         aria-label={GUEST_PREFERENCES_COPY.legalNavLabel}
@@ -123,10 +191,14 @@ export default function GuestPreferencesPage() {
   )
 }
 
-function renderView(
-  view: PageView,
-  handlers: { onSessionExpired: () => void; onRetry: () => void }
-) {
+type PageViewHandlers = {
+  onSessionExpired: () => void
+  onRetry: () => void
+  onEntryVerified: () => void
+  onAddContact: () => void
+}
+
+function renderView(view: PageView, handlers: PageViewHandlers) {
   switch (view.kind) {
     case "loading":
       return (
@@ -135,14 +207,21 @@ function renderView(
         </div>
       )
     case "entry":
-      return <GuestPreferencesEntryPlaceholder />
+      return (
+        <GuestPreferencesEntry
+          linkExpired={view.linkExpired}
+          onVerified={handlers.onEntryVerified}
+        />
+      )
+    case "notice":
+      return <GuestPreferencesHeader lead={view.message} />
     case "overview":
       return (
         <GuestPreferencesOverview
           overview={view.overview}
           onSessionExpired={handlers.onSessionExpired}
-          // Task 11 (add contact) and Task 12 (restaurants) wire these.
-          onAddContact={() => undefined}
+          onAddContact={handlers.onAddContact}
+          // Task 12 (restaurants) wires this.
           onManageRestaurants={() => undefined}
         />
       )

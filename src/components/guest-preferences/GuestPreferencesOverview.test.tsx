@@ -1,7 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
-import { GuestPreferencesEntryPlaceholder } from "@/components/guest-preferences/GuestPreferencesEntryPlaceholder"
 import { GuestPreferencesNameRow } from "@/components/guest-preferences/GuestPreferencesNameRow"
 import { GuestPreferencesOverview } from "@/components/guest-preferences/GuestPreferencesOverview"
 import { GUEST_PREFERENCES_COPY } from "@/content/guestPreferences/guestPreferencesCopy"
@@ -67,12 +66,5 @@ describe("GuestPreferencesOverview", () => {
     expect(html).toContain(GUEST_PREFERENCES_COPY.firstNameLabel)
     expect(html).toContain(GUEST_PREFERENCES_COPY.saveNameLabel)
     expect(html).not.toContain(GUEST_PREFERENCES_COPY.editLabel)
-  })
-
-  it("session expired shows entry form", () => {
-    const html = renderToStaticMarkup(<GuestPreferencesEntryPlaceholder />)
-
-    expect(html).toContain(GUEST_PREFERENCES_COPY.title)
-    expect(html).toContain(GUEST_PREFERENCES_COPY.entryLine)
   })
 })

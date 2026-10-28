@@ -32,6 +32,21 @@ export const GUEST_PREFERENCES_LINK_CLASS =
 export const GUEST_PREFERENCES_PILL_BUTTON_CLASS =
   "h-auto min-h-0 w-full rounded-[45px] border-transparent bg-guest-feedback-secondary px-4 py-3 font-sans text-sm font-medium text-guest-feedback-text shadow-none hover:bg-guest-feedback-secondary/90"
 
+/**
+ * Verify dialog surface, shared by the email and mobile dialogs. Figma 7196:1226
+ * and 7198:1284: 353px wide, 20px radius, 40px top padding.
+ */
+export const GUEST_PREFERENCES_DIALOG_CLASS =
+  "w-full max-w-[calc(100%-2rem)] gap-[38px] rounded-[20px] bg-guest-feedback-card p-5 pt-10 text-guest-feedback-text sm:max-w-[353px]"
+
+/** Dialog title — *headline*, centred. */
+export const GUEST_PREFERENCES_DIALOG_TITLE_CLASS =
+  "pr-0 text-center font-heading text-[20px] leading-6 font-bold tracking-normal text-guest-feedback-text"
+
+/** Dialog body copy — *functional*, centred. */
+export const GUEST_PREFERENCES_DIALOG_DESCRIPTION_CLASS =
+  "max-w-none text-center font-sans text-sm leading-5 text-guest-feedback-muted-soft tracking-normal"
+
 /** Plain bottom action (Stop all Tummly marketing). */
 export const GUEST_PREFERENCES_TEXT_ACTION_CLASS =
   "font-sans text-sm font-medium text-guest-feedback-text hover:text-guest-feedback-text"
