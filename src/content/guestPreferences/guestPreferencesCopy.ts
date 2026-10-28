@@ -6,6 +6,10 @@ export const GUEST_PREFERENCES_COPY = {
   linkExpired:
     "This link has expired. Enter your email address or UK mobile number to continue.",
   contactLinked: "Email confirmed. Go back to your preferences tab.",
+  confirmContactTitle: "Confirm this email",
+  confirmContactBody:
+    "Confirm that you want to add this email address to your Tummly marketing preferences.",
+  confirmContactLabel: "Confirm email",
   contactInputLabel: "Email address or UK mobile number",
   continueLabel: "Continue",
   contactInvalid: "Enter a valid email address or UK mobile number.",

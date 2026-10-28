@@ -19,6 +19,35 @@ export function classifyLinkFailure(error: unknown): LinkFailure {
     : "unavailable"
 }
 
+/** Runs a link action. `ok` on success, else the link failure class. */
+export async function confirmLink(
+  action: () => Promise<unknown>
+): Promise<"ok" | LinkFailure> {
+  try {
+    await action()
+    return "ok"
+  } catch (error) {
+    return classifyLinkFailure(error)
+  }
+}
+
+/** What a `?t=` session link resolved to. */
+export type LinkSessionOutcome = "valid" | LinkFailure
+
+/**
+ * Runs the `?t=` session call. A reply with `valid: false` and a 400 both mean
+ * the link is dead. Any other failure leaves the link possibly valid.
+ */
+export async function resolveLinkSession(
+  open: () => Promise<{ valid: boolean }>
+): Promise<LinkSessionOutcome> {
+  try {
+    return (await open()).valid ? "valid" : "invalid"
+  } catch (error) {
+    return classifyLinkFailure(error)
+  }
+}
+
 /** Reads `error.response.data.error` from an Axios error, else the fallback. */
 export function guestPreferencesErrorMessage(
   error: unknown,

@@ -4,12 +4,12 @@ import { Link, useSearchParams } from "react-router-dom"
 import {
   fetchOverview,
   openSessionFromLink,
-  verifyContactEmail,
   verifySessionEmail,
   type GuestPreferencesOverview as GuestPreferencesOverviewData,
 } from "@/api/publicGuestPreferencesApi"
 import { GuestPreferencesEntry } from "@/components/guest-preferences/GuestPreferencesEntry"
 import { GuestPreferencesHeader } from "@/components/guest-preferences/GuestPreferencesHeader"
+import { GuestPreferencesLinkConfirm } from "@/components/guest-preferences/GuestPreferencesLinkConfirm"
 import { GuestPreferencesOverview } from "@/components/guest-preferences/GuestPreferencesOverview"
 import { GuestPreferencesRestaurants } from "@/components/guest-preferences/GuestPreferencesRestaurants"
 import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShell"
@@ -18,9 +18,9 @@ import { Spinner } from "@/components/ui/spinner"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { GUEST_PREFERENCES_COPY } from "@/content/guestPreferences/guestPreferencesCopy"
 import {
-  classifyLinkFailure,
+  confirmLink,
+  resolveLinkSession,
   routeGuestPreferencesRequestError,
-  type LinkFailure,
 } from "@/lib/guestPreferences/guestPreferencesRequestErrors"
 import {
   resolveGuestPreferencesPageMode,
@@ -35,6 +35,8 @@ type PageView =
   | { kind: "entry"; linkExpired: boolean }
   /** Text only, with no form. Used after an add-contact link is confirmed. */
   | { kind: "notice"; message: string }
+  /** Add-contact link. Confirms only when the guest presses the button. */
+  | { kind: "link-confirm"; v: string }
   | { kind: "overview"; overview: GuestPreferencesOverviewData }
   /** Manage restaurants sub-view. Back refetches the overview. */
   | { kind: "restaurants" }
@@ -63,26 +65,6 @@ async function loadOverviewView(): Promise<PageView> {
   }
 }
 
-async function openLinkSession(token: string): Promise<boolean> {
-  try {
-    const { valid } = await openSessionFromLink(token)
-    return valid
-  } catch {
-    return false
-  }
-}
-
-async function confirmLink(
-  action: () => Promise<unknown>
-): Promise<"ok" | LinkFailure> {
-  try {
-    await action()
-    return "ok"
-  } catch (error) {
-    return classifyLinkFailure(error)
-  }
-}
-
 /**
  * Resolves a link on the URL into the next view. The one-time param is
  * dropped once the link is answered. A failure that is not a 400 keeps the
@@ -95,10 +77,14 @@ async function resolveLinkMode(
   const retry = () => resolveLinkMode(mode, dropParam)
   switch (mode.kind) {
     case "link": {
-      const valid = await openLinkSession(mode.token)
+      const outcome = await resolveLinkSession(() => openSessionFromLink(mode.token))
+      if (outcome === "unavailable") {
+        // The link may still be valid. `t` stays in the URL so Try again can check it.
+        return { kind: "error", message: GUEST_PREFERENCES_COPY.loadFailed, retry }
+      }
       // Strip the token before the branch, so a refresh never replays it.
       dropParam("t")
-      return valid ? loadOverviewView() : EXPIRED_ENTRY_VIEW
+      return outcome === "valid" ? loadOverviewView() : EXPIRED_ENTRY_VIEW
     }
     case "verify-email": {
       const outcome = await confirmLink(() => verifySessionEmail(mode.v))
@@ -108,17 +94,10 @@ async function resolveLinkMode(
       dropParam("v")
       return outcome === "ok" ? loadOverviewView() : EXPIRED_ENTRY_VIEW
     }
-    case "link-contact": {
-      // No session is written here. The link may be opened in another browser.
-      const outcome = await confirmLink(() => verifyContactEmail(mode.v))
-      if (outcome === "unavailable") {
-        return { kind: "error", message: GUEST_PREFERENCES_COPY.loadFailed, retry }
-      }
-      dropParam("link")
-      return outcome === "ok"
-        ? { kind: "notice", message: GUEST_PREFERENCES_COPY.contactLinked }
-        : EXPIRED_ENTRY_VIEW
-    }
+    case "link-contact":
+      // Nothing is sent on load. The guest presses Confirm, so a link preview or scanner
+      // cannot add the address. The view drops `link` once the link is answered.
+      return { kind: "link-confirm", v: mode.v }
   }
 }
 
@@ -184,6 +163,23 @@ export default function GuestPreferencesPage() {
     refreshOverview()
   }
 
+  /** Drops a one-time URL param. Used after the add-contact link is answered. */
+  function dropUrlParam(name: string) {
+    const next = new URLSearchParams(searchParams)
+    next.delete(name)
+    setSearchParams(next, { replace: true })
+  }
+
+  function handleContactLinkConfirmed() {
+    dropUrlParam("link")
+    setView({ kind: "notice", message: GUEST_PREFERENCES_COPY.contactLinked })
+  }
+
+  function handleContactLinkExpired() {
+    dropUrlParam("link")
+    setView(EXPIRED_ENTRY_VIEW)
+  }
+
   return (
     <GuestFeedbackShell showPoweredBy={false} contentClassName="gap-[29px]">
       {renderView(view, {
@@ -195,6 +191,8 @@ export default function GuestPreferencesPage() {
         onContactAdded: handleContactAdded,
         onManageRestaurants: () => setView({ kind: "restaurants" }),
         onBackFromRestaurants: () => loadView(loadOverviewView),
+        onContactLinkConfirmed: handleContactLinkConfirmed,
+        onContactLinkExpired: handleContactLinkExpired,
       })}
 
       <nav
@@ -224,6 +222,8 @@ type PageViewHandlers = {
   onContactAdded: () => void
   onManageRestaurants: () => void
   onBackFromRestaurants: () => void
+  onContactLinkConfirmed: () => void
+  onContactLinkExpired: () => void
 }
 
 function renderView(view: PageView, handlers: PageViewHandlers) {
@@ -243,6 +243,14 @@ function renderView(view: PageView, handlers: PageViewHandlers) {
       )
     case "notice":
       return <GuestPreferencesHeader lead={view.message} />
+    case "link-confirm":
+      return (
+        <GuestPreferencesLinkConfirm
+          v={view.v}
+          onConfirmed={handlers.onContactLinkConfirmed}
+          onExpired={handlers.onContactLinkExpired}
+        />
+      )
     case "overview":
       return (
         <GuestPreferencesOverview

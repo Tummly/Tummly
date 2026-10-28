@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest"
 import { GuestPreferencesSessionExpiredError } from "@/api/publicGuestPreferencesApi"
 import {
   classifyLinkFailure,
+  confirmLink,
   guestPreferencesErrorMessage,
+  resolveLinkSession,
   routeGuestPreferencesRequestError,
 } from "@/lib/guestPreferences/guestPreferencesRequestErrors"
 
@@ -79,5 +81,66 @@ describe("routeGuestPreferencesRequestError", () => {
     expect(
       routeGuestPreferencesRequestError(new Error("network"), FALLBACK)
     ).toEqual({ view: "error", message: FALLBACK })
+  })
+})
+
+describe("resolveLinkSession", () => {
+  it("a session reply is valid", async () => {
+    await expect(resolveLinkSession(async () => ({ valid: true }))).resolves.toBe("valid")
+  })
+
+  it("a reply without a session is a dead link, not a failure", async () => {
+    await expect(resolveLinkSession(async () => ({ valid: false }))).resolves.toBe("invalid")
+  })
+
+  it("a 400 is a dead link", async () => {
+    await expect(
+      resolveLinkSession(async () => {
+        throw axiosErrorWithBody({ error: "invalid" }, 400)
+      })
+    ).resolves.toBe("invalid")
+  })
+
+  it("a 429 is unavailable, so the link is kept for Try again", async () => {
+    await expect(
+      resolveLinkSession(async () => {
+        throw axiosErrorWithBody({}, 429)
+      })
+    ).resolves.toBe("unavailable")
+  })
+
+  it("a 5xx is unavailable", async () => {
+    await expect(
+      resolveLinkSession(async () => {
+        throw axiosErrorWithBody({}, 503)
+      })
+    ).resolves.toBe("unavailable")
+  })
+
+  it("a network failure is unavailable", async () => {
+    await expect(
+      resolveLinkSession(async () => {
+        throw new Error("network")
+      })
+    ).resolves.toBe("unavailable")
+  })
+})
+
+describe("confirmLink", () => {
+  it("resolves ok when the action succeeds", async () => {
+    await expect(confirmLink(async () => undefined)).resolves.toBe("ok")
+  })
+
+  it("classifies a failed action the same way as a failed link", async () => {
+    await expect(
+      confirmLink(async () => {
+        throw axiosErrorWithBody({ error: "expired" }, 400)
+      })
+    ).resolves.toBe("invalid")
+    await expect(
+      confirmLink(async () => {
+        throw axiosErrorWithBody({}, 500)
+      })
+    ).resolves.toBe("unavailable")
   })
 })
