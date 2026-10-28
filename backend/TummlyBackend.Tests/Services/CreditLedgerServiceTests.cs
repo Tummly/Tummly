@@ -1517,6 +1517,26 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task StaffReverse_EvidenceRequired_Refused()
+        {
+            var harness = await SeedAsync();
+
+            var result = await harness.Ledger.StaffReverseAsync(
+                new StaffReverseRequest
+                {
+                    ReversedEntryId = Guid.NewGuid(),
+                    Reason = "Undo mistaken debit",
+                    ActorStaffUserId = 1,
+                    IdempotencyKey = "reverse-evidence-1",
+                    EvidenceReference = "  ",
+                }
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("evidence_required", result.Code);
+        }
+
+        [Fact]
         public async Task StaffManualAdjust_EvidenceOver500_Refused()
         {
             var harness = await SeedAsync();

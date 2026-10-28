@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TummlyBackend.Billing;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -94,6 +95,39 @@ namespace TummlyBackend.Tests.Services
             var decision = await _gate.DenyIncrementAsync(restaurantId);
 
             Assert.Equal(3, decision.Cap);
+        }
+
+        [Fact]
+        public async Task CustomCap_UsesQuotedCustomOfferQuantity()
+        {
+            var restaurantId = await SeedWorkspaceAsync(BillingSubscriptionPlans.Custom, 0);
+            var billing = await _context.BillingAccounts.SingleAsync(row => row.RestaurantId == restaurantId);
+            billing.CustomPlanConfigJson = new CustomPlanConfig
+            {
+                Version = 2,
+                BasePlan = "growth",
+                Cadence = "monthly",
+                Locations = 3,
+                Quantities = new CustomPlanQuantities { Locations = 3, Offers = 12 },
+                MonthlyNetPence = 9900,
+                PeriodNetPence = 9900,
+            }.ToJson();
+            await _context.SaveChangesAsync();
+
+            var decision = await _gate.DenyIncrementAsync(restaurantId);
+
+            Assert.True(decision.AllowIncrement);
+            Assert.Equal(12, decision.Cap);
+        }
+
+        [Fact]
+        public async Task CustomCap_WithoutConfig_IsUnavailable()
+        {
+            var restaurantId = await SeedWorkspaceAsync(BillingSubscriptionPlans.Custom, 0);
+
+            var decision = await _gate.DenyIncrementAsync(restaurantId);
+
+            Assert.False(decision.AllowIncrement);
         }
 
         private async Task<int> SeedGroupWorkspaceAsync(int paidExtraLocations)

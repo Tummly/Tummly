@@ -3,6 +3,7 @@ using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using TummlyBackend.Billing.Pricebook;
@@ -586,13 +587,22 @@ namespace TummlyBackend.Services
                 )
             );
 
-            await SaveCommitAndNotifyThresholdAsync(
-                transaction,
-                liveTarget.RestaurantId,
-                liveTarget.Channel,
-                [.. entries, reversal],
-                cancellationToken
-            );
+            try
+            {
+                await SaveCommitAndNotifyThresholdAsync(
+                    transaction,
+                    liveTarget.RestaurantId,
+                    liveTarget.Channel,
+                    [.. entries, reversal],
+                    cancellationToken
+                );
+            }
+            catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+            {
+                // A concurrent staff write with the same Idempotency-Key won the
+                // unique index (e.g. sent for another restaurant). Nothing was saved.
+                return CreditLedgerWriteResult.Fail("idempotency_key_reused");
+            }
 
             return CreditLedgerWriteResult.Ok(
                 [
@@ -832,13 +842,22 @@ namespace TummlyBackend.Services
                 )
             );
 
-            await SaveCommitAndNotifyThresholdAsync(
-                transaction,
-                request.RestaurantId,
-                request.Channel,
-                [.. entries, .. inserted],
-                cancellationToken
-            );
+            try
+            {
+                await SaveCommitAndNotifyThresholdAsync(
+                    transaction,
+                    request.RestaurantId,
+                    request.Channel,
+                    [.. entries, .. inserted],
+                    cancellationToken
+                );
+            }
+            catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+            {
+                // A concurrent staff write with the same Idempotency-Key won the
+                // unique index (e.g. sent for another restaurant). Nothing was saved.
+                return CreditLedgerWriteResult.Fail("idempotency_key_reused");
+            }
 
             return CreditLedgerWriteResult.Ok(
                 inserted.Select(row => new CreditLedgerInsertedRow
@@ -2389,6 +2408,9 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
         }
+
+        private static bool IsUniqueViolation(DbUpdateException exception) =>
+            exception.InnerException is SqlException { Number: 2601 or 2627 };
 
         private async Task SaveCommitAndNotifyThresholdAsync(
             IDbContextTransaction transaction,

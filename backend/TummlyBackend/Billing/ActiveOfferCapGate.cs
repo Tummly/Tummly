@@ -89,6 +89,17 @@ namespace TummlyBackend.Billing
             }
 
             var key = account.SubscriptionPlan.Trim().ToLowerInvariant();
+            if (key == "custom")
+            {
+                // Same source as the entitlements snapshot: the account's quoted
+                // Custom quantities (the pricebook has no "custom" plan row).
+                var custom = CustomPlan.CustomPlanConfig.TryParse(
+                    account.CustomPlanConfigJson
+                );
+                cap = Math.Max(0, custom?.Quantities.Offers ?? 0);
+                return cap >= 1;
+            }
+
             if (!book.Plans.TryGetValue(key, out var plan))
             {
                 return false;
