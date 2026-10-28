@@ -228,6 +228,32 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PutLocationMute_OwnLocation_CampaignEligibilityExcludesWithdrawn()
+        {
+            // Spec §12: a guest who mutes a location is excluded there as "withdrawn".
+            const string email = "prefs-mute-eligibility@example.com";
+            var session = await SeedSessionGuestAsync(email);
+            var locationId = session.Venue.Location.Id;
+            var before = await EvaluateAllEligibleAsync(locationId);
+            Assert.Equal(1, before.EmailEligible);
+
+            var response = await SendAsync(
+                HttpMethod.Put,
+                $"{PreferencesPath}/locations/{locationId}/mute",
+                SessionTokenFor(session, DateTime.UtcNow),
+                new { muted = true }
+            );
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            var after = await EvaluateAllEligibleAsync(locationId);
+            Assert.Equal(0, after.EmailEligible);
+            Assert.Contains(
+                after.ExcludedReasons,
+                reason => reason.Reason == "withdrawn" && reason.Count == 1
+            );
+        }
+
+        [Fact]
         public async Task PutRestaurantMute_OtherGuestsRestaurant_404()
         {
             var session = await SeedSessionGuestAsync("prefs-brand-mute-own@example.com");
