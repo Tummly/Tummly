@@ -448,7 +448,7 @@ namespace TummlyBackend.Tests.Services
             var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
                 QuoteWithAsync("monthly", "team_user", CustomPlanPacks.MaxCapacityUnits + 1)
             );
-            Assert.Equal("invalid_pack_quantity", ex.Code);
+            Assert.Equal("pack_quantity_over_limit", ex.Code);
         }
 
         [Theory]
@@ -555,6 +555,96 @@ namespace TummlyBackend.Tests.Services
             Assert.False(CustomPlanPacks.IsKnownPackKey("team_users_5"));
             Assert.False(CustomPlanPacks.IsKnownPackKey("offers_5"));
             Assert.False(CustomPlanPacks.IsKnownPackKey("qr_10"));
+        }
+
+        [Theory]
+        [InlineData("offer", "monthly")]
+        [InlineData("team_user", "annual")]
+        [InlineData("qr_placement", "monthly")]
+        [InlineData("email_20k", "monthly")]
+        public async Task Quote_RequestedUnitWithNoPublishedRate_FailsAndGrantsNothing(
+            string packKey,
+            string cadence
+        )
+        {
+            var rateKey = CustomPlanPacks.ByKey[packKey].RateKey;
+            var rate = await _db.CommercialCustomUnitRateRows.SingleAsync(r =>
+                r.RateKey == rateKey
+            );
+            _db.CommercialCustomUnitRateRows.Remove(rate);
+            await _db.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                QuoteWithAsync(cadence, packKey, 2)
+            );
+
+            Assert.Equal("catalog_incomplete", ex.Code);
+        }
+
+        [Fact]
+        public async Task Quote_MissingRateForUnrequestedPack_StillQuotes()
+        {
+            var rate = await _db.CommercialCustomUnitRateRows.SingleAsync(r =>
+                r.RateKey == CommercialCustomUnitRateKeys.Offer
+            );
+            _db.CommercialCustomUnitRateRows.Remove(rate);
+            await _db.SaveChangesAsync();
+
+            var quote = await QuoteWithAsync("monthly", "team_user", 2);
+
+            Assert.Equal(600, quote.Lines.Single(l => l.Key == "pack:team_user").NetPence);
+        }
+
+        [Theory]
+        // Rate row: 1666p per 5 units = 333.2p per unit, shown as 334p (rounded up once).
+        [InlineData("monthly", 3, 1_666, 1_002, 334)]
+        [InlineData("annual", 3, 1_666, 10_221, 3_407)]
+        [InlineData("annual", 7, 1_666, 23_849, 3_407)]
+        public async Task Quote_CapacityLine_IsQuantityTimesDisplayedUnitPrice_WhenRateDoesNotDivide(
+            string cadence,
+            int units,
+            int monthlyRatePerFive,
+            int expectedLineNet,
+            int expectedUnitNet
+        )
+        {
+            var rate = await _db.CommercialCustomUnitRateRows.SingleAsync(r =>
+                r.RateKey == CommercialCustomUnitRateKeys.Offer
+            );
+            rate.MonthlyNetPence = monthlyRatePerFive;
+            rate.AnnualNetPence = null;
+            await _db.SaveChangesAsync();
+
+            var quote = await QuoteWithAsync(cadence, "offer", units);
+
+            var line = quote.Lines.Single(l => l.Key == "pack:offer");
+            Assert.Equal(expectedUnitNet, line.UnitNetPence);
+            Assert.Equal(expectedLineNet, line.NetPence);
+            Assert.Equal(line.Quantity * line.UnitNetPence, line.NetPence);
+            Assert.Equal(
+                quote.Lines.Sum(l => l.NetPence),
+                quote.PeriodNetPence
+            );
+        }
+
+        [Theory]
+        [InlineData("monthly", "qr_placement", 60)]
+        [InlineData("monthly", "offer", 240)]
+        [InlineData("monthly", "team_user", 300)]
+        [InlineData("annual", "qr_placement", 612)]
+        [InlineData("annual", "offer", 2_448)]
+        [InlineData("annual", "team_user", 3_060)]
+        public async Task Quote_ApprovedSingleUnitPrices_AreUnchanged(
+            string cadence,
+            string packKey,
+            int expectedUnitNet
+        )
+        {
+            var quote = await QuoteWithAsync(cadence, packKey, 5);
+
+            var line = quote.Lines.Single(l => l.Key == $"pack:{packKey}");
+            Assert.Equal(expectedUnitNet, line.UnitNetPence);
+            Assert.Equal(5 * expectedUnitNet, line.NetPence);
         }
 
         private Task<CustomPlanQuoteResult> QuoteWithAsync(
@@ -725,10 +815,13 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Theory]
-        [InlineData(-1)]
-        [InlineData(1.5)]
-        [InlineData(501)]
-        public async Task Quote_InvalidPackQuantity_ReturnsInvalidPackQuantity(double quantity)
+        [InlineData(-1, "invalid_pack_quantity")]
+        [InlineData(1.5, "invalid_pack_quantity")]
+        [InlineData(501, "pack_quantity_over_limit")]
+        public async Task Quote_InvalidPackQuantity_SplitsNotWholeFromOverLimit(
+            double quantity,
+            string expectedCode
+        )
         {
             var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
                 _sut.QuoteAsync(
@@ -744,7 +837,7 @@ namespace TummlyBackend.Tests.Services
                     }
                 )
             );
-            Assert.Equal("invalid_pack_quantity", ex.Code);
+            Assert.Equal(expectedCode, ex.Code);
         }
 
         [Fact]

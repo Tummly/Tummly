@@ -254,24 +254,54 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
+                // A requested unit with no published rate must not be free: fail the quote.
                 if (!ratesByKey.TryGetValue(def.RateKey, out var rate))
                 {
-                    continue;
+                    throw new CustomPlanQuoteException(
+                        "catalog_incomplete",
+                        $"The price for {PackTitle(def.PackKey)} is missing from the catalogue."
+                    );
                 }
 
                 var naturalQty = count * def.PackSize;
-                var monthlyPack = CustomPlanLineNet.Monthly(
-                    naturalQty,
+                // One unit (capacity) or one pack (credits) at this cadence.
+                var unitMonthly = CustomPlanLineNet.Monthly(
+                    def.PackSize,
                     rate.MonthlyNetPence,
                     rate.UnitQuantity
                 );
-                var periodPack = CustomPlanLineNet.ForCadence(
+                var unitPeriod = CustomPlanLineNet.ForCadence(
                     cadence,
-                    naturalQty,
+                    def.PackSize,
                     rate.MonthlyNetPence,
                     rate.AnnualNetPence,
                     rate.UnitQuantity
                 );
+                int monthlyPack;
+                int periodPack;
+                if (CustomPlanPacks.IsCapacityPackKey(def.PackKey))
+                {
+                    // Single units: the charge is quantity x the displayed unit price,
+                    // with the unit price rounded once, so display and charge agree.
+                    monthlyPack = count * unitMonthly;
+                    periodPack = count * unitPeriod;
+                }
+                else
+                {
+                    monthlyPack = CustomPlanLineNet.Monthly(
+                        naturalQty,
+                        rate.MonthlyNetPence,
+                        rate.UnitQuantity
+                    );
+                    periodPack = CustomPlanLineNet.ForCadence(
+                        cadence,
+                        naturalQty,
+                        rate.MonthlyNetPence,
+                        rate.AnnualNetPence,
+                        rate.UnitQuantity
+                    );
+                }
+
                 monthlyNetPence += monthlyPack;
                 periodNetPence += periodPack;
                 lines.Add(
@@ -281,14 +311,7 @@ namespace TummlyBackend.Services
                         Label = $"{PackTitle(def.PackKey)} × {count}",
                         Name = PackTitle(def.PackKey),
                         Quantity = count,
-                        // One unit (capacity) or one pack (credits) at this cadence.
-                        UnitNetPence = CustomPlanLineNet.ForCadence(
-                            cadence,
-                            def.PackSize,
-                            rate.MonthlyNetPence,
-                            rate.AnnualNetPence,
-                            rate.UnitQuantity
-                        ),
+                        UnitNetPence = unitPeriod,
                         NetPence = periodPack,
                     }
                 );
@@ -415,10 +438,18 @@ namespace TummlyBackend.Services
             foreach (var (key, raw) in packs)
             {
                 var max = CustomPlanPacks.ByKey[key].MaxCount;
-                if (raw < 0 || raw > max || raw != decimal.Truncate(raw))
+                if (raw < 0 || raw != decimal.Truncate(raw))
                 {
                     throw new CustomPlanQuoteException(
                         "invalid_pack_quantity",
+                        $"Pack {key} must be a whole number from 0 to {max}."
+                    );
+                }
+
+                if (raw > max)
+                {
+                    throw new CustomPlanQuoteException(
+                        "pack_quantity_over_limit",
                         $"Pack {key} must be a whole number from 0 to {max}."
                     );
                 }
