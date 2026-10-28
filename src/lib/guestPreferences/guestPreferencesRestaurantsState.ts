@@ -22,6 +22,7 @@ export type GuestPreferencesMuteChange =
   | { kind: "brand"; restaurantId: number; muted: boolean }
 
 type PendingMute = {
+  change: GuestPreferencesMuteChange
   /** Each affected Location and its muted value before the optimistic change. */
   previous: { locationId: number; muted: boolean }[]
 }
@@ -148,11 +149,17 @@ export function guestPreferencesRestaurantsReducer(
       if (action.requestId !== state.latestRequestId) {
         return state
       }
+      // A search response can be read before the PUT applies. Re-apply the
+      // pending change so the row keeps the guest's choice until it settles.
+      const restaurants =
+        state.pendingMute === null
+          ? action.restaurants
+          : applyMuteChange(action.restaurants, state.pendingMute.change)
       return {
         ...state,
         status: "ready",
-        restaurants: action.restaurants,
-        openBrandIds: firstBrandIds(action.restaurants),
+        restaurants,
+        openBrandIds: keptOrFirstBrandIds(state.openBrandIds, action.restaurants),
       }
     }
     case "load-failed":
@@ -167,6 +174,7 @@ export function guestPreferencesRestaurantsReducer(
         ...state,
         restaurants: applyMuteChange(state.restaurants, action.change),
         pendingMute: {
+          change: action.change,
           previous: snapshotMuteStates(state.restaurants, action.change),
         },
       }
@@ -201,6 +209,37 @@ export function isBrandAllMuted(restaurant: GuestPreferenceRestaurant): boolean 
 /** Only the first brand starts open. */
 export function firstBrandIds(restaurants: GuestPreferenceRestaurant[]): number[] {
   return restaurants.length > 0 ? [restaurants[0].restaurantId] : []
+}
+
+/**
+ * Keeps the brands the guest had open that are still in the list. Falls back
+ * to the first brand only when none of them is present.
+ */
+export function keptOrFirstBrandIds(
+  openBrandIds: number[],
+  restaurants: GuestPreferenceRestaurant[]
+): number[] {
+  const kept = openBrandIds.filter((id) =>
+    restaurants.some((restaurant) => restaurant.restaurantId === id)
+  )
+  return kept.length > 0 ? kept : firstBrandIds(restaurants)
+}
+
+export type BrandLogoSource =
+  | { kind: "image"; src: string }
+  | { kind: "fallback" }
+
+/**
+ * The logo to show. A URL that already failed to load is not retried, so the
+ * letter tile shows instead of a broken image.
+ */
+export function resolveBrandLogo(
+  logoUrl: string | null,
+  failedLogoUrl: string | null
+): BrandLogoSource {
+  return logoUrl && logoUrl !== failedLogoUrl
+    ? { kind: "image", src: logoUrl }
+    : { kind: "fallback" }
 }
 
 /** Blank or whitespace-only search means no `q`, which loads every restaurant. */
@@ -253,58 +292,71 @@ export async function loadRestaurants(
   }
 }
 
+/** The reducer's dispatch plus a read of its latest state. */
+export type GuestPreferencesRestaurantsStore = {
+  dispatch: GuestPreferencesRestaurantsDispatch
+  getState: () => GuestPreferencesRestaurantsState
+}
+
 /**
  * Applies the change optimistically, then sends it. A failure rolls the
- * change back and rethrows. A success confirms it.
+ * change back and rethrows. A success confirms it. While another mute is in
+ * flight, this does nothing: the reducer would ignore the change anyway.
  */
 async function runMuteChange(
-  dispatch: GuestPreferencesRestaurantsDispatch,
+  store: GuestPreferencesRestaurantsStore,
   change: GuestPreferencesMuteChange,
   send: () => Promise<void>
 ): Promise<void> {
-  dispatch({ type: "mute-started", change })
+  if (store.getState().pendingMute !== null) {
+    return
+  }
+  store.dispatch({ type: "mute-started", change })
   try {
     await send()
-    dispatch({ type: "mute-succeeded" })
+    store.dispatch({ type: "mute-succeeded" })
   } catch (error) {
-    dispatch({ type: "mute-failed" })
+    store.dispatch({ type: "mute-failed" })
     throw error
   }
 }
 
 export function commitLocationMute(
   setLocationMuted: (locationId: number, muted: boolean) => Promise<void>,
-  dispatch: GuestPreferencesRestaurantsDispatch,
+  store: GuestPreferencesRestaurantsStore,
   locationId: number,
   muted: boolean
 ): Promise<void> {
-  return runMuteChange(dispatch, { kind: "location", locationId, muted }, () =>
+  return runMuteChange(store, { kind: "location", locationId, muted }, () =>
     setLocationMuted(locationId, muted)
   )
 }
 
 export function commitBrandMute(
   setRestaurantMuted: (restaurantId: number, muted: boolean) => Promise<void>,
-  dispatch: GuestPreferencesRestaurantsDispatch,
+  store: GuestPreferencesRestaurantsStore,
   restaurantId: number,
   muted: boolean
 ): Promise<void> {
-  return runMuteChange(dispatch, { kind: "brand", restaurantId, muted }, () =>
+  return runMuteChange(store, { kind: "brand", restaurantId, muted }, () =>
     setRestaurantMuted(restaurantId, muted)
   )
 }
 
 export type GuestPreferencesRestaurantsLoader = {
-  /** Loads now. Never rejects: a 401 sets `sessionExpired`, other failures set `failed`. */
+  /** Loads `query` now. Never rejects: a 401 sets `sessionExpired`, other failures set `failed`. */
   load: (query: string | undefined) => Promise<void>
-  /** Loads once the search input has been idle for the debounce delay. */
+  /** Loads the latest query that was typed or loaded. Used for Try again and the 404 refetch. */
+  reload: () => Promise<void>
+  /** Records the query now and loads it once the input is idle for the debounce delay. */
   search: (query: string) => void
   cancelSearch: () => void
 }
 
 /**
- * Owns the request sequence and the debounced search. Each `load` takes a new
- * id, so a slow response to an older query cannot overwrite a newer list.
+ * Owns the request sequence, the latest query and the debounced search. Each
+ * `load` takes a new id, so a slow response to an older query cannot
+ * overwrite a newer list.
  */
 export function createRestaurantsLoader(
   dispatch: GuestPreferencesRestaurantsDispatch,
@@ -313,8 +365,10 @@ export function createRestaurantsLoader(
   scheduler: TimerScheduler = browserTimerScheduler
 ): GuestPreferencesRestaurantsLoader {
   let latestRequestId = 0
+  let latestQuery: string | undefined
 
   async function load(query: string | undefined): Promise<void> {
+    latestQuery = query
     latestRequestId += 1
     try {
       await loadRestaurants(fetchList, query, latestRequestId, dispatch)
@@ -333,7 +387,11 @@ export function createRestaurantsLoader(
 
   return {
     load,
-    search: (query) => debounced.call(query),
+    reload: () => load(latestQuery),
+    search: (query) => {
+      latestQuery = query
+      debounced.call(query)
+    },
     cancelSearch: () => debounced.cancel(),
   }
 }

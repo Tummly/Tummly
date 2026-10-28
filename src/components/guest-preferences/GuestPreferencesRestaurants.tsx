@@ -1,6 +1,7 @@
 import {
   useEffect,
   useReducer,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -35,7 +36,9 @@ import {
   guestPreferencesRestaurantsReducer,
   isBrandAllMuted,
   isNotFoundError,
+  resolveBrandLogo,
   type GuestPreferencesRestaurantsState,
+  type GuestPreferencesRestaurantsStore,
 } from "@/lib/guestPreferences/guestPreferencesRestaurantsState"
 import { cn } from "@/lib/utils"
 
@@ -60,9 +63,19 @@ export function GuestPreferencesRestaurants({
     createGuestPreferencesRestaurantsState
   )
   const [loader] = useState(() => createRestaurantsLoader(dispatch))
+  // Mute handlers read the latest committed state, so a second click before
+  // the re-render sees the mute that is already in flight.
+  const stateRef = useRef(state)
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+  const store: GuestPreferencesRestaurantsStore = {
+    dispatch,
+    getState: () => stateRef.current,
+  }
 
   useEffect(() => {
-    void loader.load(undefined)
+    void loader.reload()
     return () => loader.cancelSearch()
   }, [loader])
 
@@ -82,8 +95,8 @@ export function GuestPreferencesRestaurants({
       return
     }
     if (isNotFoundError(error)) {
-      // The change was already rolled back. Refetch so the list shows the server state.
-      void loader.load(state.query)
+      // The change was already rolled back. Refetch the latest query so the list shows the server state.
+      void loader.reload()
       return
     }
     toast.error(route.message)
@@ -97,14 +110,14 @@ export function GuestPreferencesRestaurants({
         dispatch({ type: "query-changed", query })
         loader.search(query)
       }}
-      onRetry={() => void loader.load(state.query)}
+      onRetry={() => void loader.reload()}
       onOpenBrandsChange={(openBrandIds) =>
         dispatch({ type: "brands-open-changed", openBrandIds })
       }
       onMuteLocation={(locationId, muted) =>
         void commitLocationMute(
           setLocationMuted,
-          dispatch,
+          store,
           locationId,
           muted
         ).catch(handleMuteFailure)
@@ -112,7 +125,7 @@ export function GuestPreferencesRestaurants({
       onMuteBrand={(restaurantId, muted) =>
         void commitBrandMute(
           setRestaurantMuted,
-          dispatch,
+          store,
           restaurantId,
           muted
         ).catch(handleMuteFailure)
@@ -236,7 +249,9 @@ function RestaurantList({
       </div>
     ) : (
       <p className="m-0 py-8 text-center font-sans text-sm text-guest-feedback-muted-soft">
-        {GUEST_PREFERENCES_COPY.restaurantsEmptyLabel}
+        {state.query.trim() === ""
+          ? GUEST_PREFERENCES_COPY.restaurantsEmptyLabel
+          : GUEST_PREFERENCES_COPY.restaurantsNoMatchLabel}
       </p>
     )
   }
@@ -370,13 +385,19 @@ function LocationRow({ location, busy, onToggle }: LocationRowProps) {
   )
 }
 
-/** The brand logo, or a neutral tile with the brand's first letter when there is none. */
+/**
+ * The brand logo, or a neutral tile with the brand's first letter when there is
+ * none or it fails to load.
+ */
 function BrandLogo({ name, logoUrl }: { name: string; logoUrl: string | null }) {
-  if (logoUrl) {
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null)
+  const logo = resolveBrandLogo(logoUrl, failedLogoUrl)
+  if (logo.kind === "image") {
     return (
       <img
-        src={logoUrl}
+        src={logo.src}
         alt=""
+        onError={() => setFailedLogoUrl(logo.src)}
         className="size-[42px] shrink-0 rounded-[6px] object-cover"
       />
     )

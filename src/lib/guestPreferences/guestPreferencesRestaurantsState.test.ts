@@ -18,6 +18,7 @@ import {
   isNotFoundError,
   loadRestaurants,
   normalizeSearchQuery,
+  resolveBrandLogo,
   type GuestPreferencesRestaurantsAction,
   type GuestPreferencesRestaurantsState,
 } from "@/lib/guestPreferences/guestPreferencesRestaurantsState"
@@ -73,6 +74,7 @@ function recordingStore(initial: GuestPreferencesRestaurantsState) {
     dispatch: (action: GuestPreferencesRestaurantsAction) => {
       state = guestPreferencesRestaurantsReducer(state, action)
     },
+    getState: () => state,
     get state() {
       return state
     },
@@ -212,7 +214,7 @@ describe("commit helpers", () => {
     })
 
     await expect(
-      commitLocationMute(setLocationMuted, store.dispatch, 11, true)
+      commitLocationMute(setLocationMuted, store, 11, true)
     ).rejects.toBe(failure)
     expect(store.state.restaurants[0].locations[0].muted).toBe(false)
     expect(store.state.pendingMute).toBeNull()
@@ -227,7 +229,7 @@ describe("commit helpers", () => {
         async () => {
           throw failure
         },
-        store.dispatch,
+        store,
         1,
         true
       )
@@ -293,6 +295,106 @@ describe("createRestaurantsLoader", () => {
     await first
 
     expect(store.state.restaurants.map((r) => r.name)).toEqual(["Burger King"])
+  })
+})
+
+describe("fix round 1: pending mute and reloads", () => {
+  it("keeps a pending mute when a search response lands before the PUT settles", () => {
+    const midFlight = reduceAll(
+      [
+        { type: "mute-started", change: { kind: "location", locationId: 11, muted: true } },
+        { type: "load-started", requestId: 2 },
+        // The server answered the search before the PUT applied, so it shows the old value.
+        { type: "load-succeeded", requestId: 2, restaurants },
+      ],
+      loadedState()
+    )
+    expect(midFlight.restaurants[0].locations[0].muted).toBe(true)
+
+    const settled = reduceAll([{ type: "mute-succeeded" }], midFlight)
+    expect(settled.restaurants[0].locations[0].muted).toBe(true)
+  })
+
+  it("keeps the brands the guest opened when a reload returns them", () => {
+    const state = reduceAll([
+      { type: "load-started", requestId: 1 },
+      { type: "load-succeeded", requestId: 1, restaurants },
+      { type: "brands-open-changed", openBrandIds: [2] },
+      { type: "load-started", requestId: 2 },
+      { type: "load-succeeded", requestId: 2, restaurants },
+    ])
+
+    expect(state.openBrandIds).toEqual([2])
+  })
+
+  it("opens the first brand when none of the open brands is in the new list", () => {
+    const state = reduceAll([
+      { type: "load-started", requestId: 1 },
+      { type: "load-succeeded", requestId: 1, restaurants },
+      { type: "brands-open-changed", openBrandIds: [2] },
+      { type: "load-started", requestId: 2 },
+      { type: "load-succeeded", requestId: 2, restaurants: [restaurants[0]] },
+    ])
+
+    expect(state.openBrandIds).toEqual([1])
+  })
+
+  it("sends nothing for a second mute while one is in flight", async () => {
+    const store = recordingStore(loadedState())
+    let finishFirst: () => void = () => undefined
+    const firstSend = commitLocationMute(
+      () =>
+        new Promise<void>((resolve) => {
+          finishFirst = resolve
+        }),
+      store,
+      11,
+      true
+    )
+    const secondLocation = vi.fn(async () => undefined)
+    const secondBrand = vi.fn(async () => undefined)
+
+    await commitLocationMute(secondLocation, store, 12, true)
+    await commitBrandMute(secondBrand, store, 2, true)
+
+    expect(secondLocation).not.toHaveBeenCalled()
+    expect(secondBrand).not.toHaveBeenCalled()
+    finishFirst()
+    await firstSend
+  })
+
+  it("reload refetches the latest typed query, not the one from the last load", async () => {
+    const store = recordingStore(createGuestPreferencesRestaurantsState())
+    const fetchList = vi.fn(async () => restaurants)
+    const loader = createRestaurantsLoader(store.dispatch, fetchList)
+
+    await loader.load(undefined)
+    loader.search("KFC")
+    await loader.reload()
+    loader.cancelSearch()
+
+    expect(fetchList).toHaveBeenLastCalledWith("KFC")
+  })
+
+  it("reload with nothing typed fetches the full list", async () => {
+    const store = recordingStore(createGuestPreferencesRestaurantsState())
+    const fetchList = vi.fn(async () => restaurants)
+    const loader = createRestaurantsLoader(store.dispatch, fetchList)
+
+    await loader.reload()
+
+    expect(fetchList).toHaveBeenLastCalledWith(undefined)
+  })
+
+  it("picks the logo image, or the letter tile when there is no usable logo", () => {
+    const url = "https://cdn.example.com/kfc.png"
+    const next = "https://cdn.example.com/kfc-2.png"
+
+    expect(resolveBrandLogo(url, null)).toEqual({ kind: "image", src: url })
+    expect(resolveBrandLogo(null, null)).toEqual({ kind: "fallback" })
+    expect(resolveBrandLogo("", null)).toEqual({ kind: "fallback" })
+    expect(resolveBrandLogo(url, url)).toEqual({ kind: "fallback" })
+    expect(resolveBrandLogo(next, url)).toEqual({ kind: "image", src: next })
   })
 })
 

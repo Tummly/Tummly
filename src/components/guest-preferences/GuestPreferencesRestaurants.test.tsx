@@ -59,6 +59,7 @@ function recordingStore(initial: GuestPreferencesRestaurantsState) {
     dispatch: (action: GuestPreferencesRestaurantsAction) => {
       state = guestPreferencesRestaurantsReducer(state, action)
     },
+    getState: () => state,
     get state() {
       return state
     },
@@ -137,7 +138,7 @@ describe("GuestPreferencesRestaurants", () => {
     const store = recordingStore(loadedState())
     const setLocationMuted = vi.fn(async () => undefined)
 
-    await commitLocationMute(setLocationMuted, store.dispatch, 11, true)
+    await commitLocationMute(setLocationMuted, store, 11, true)
     const row = locationRowHtml(render(store.state), "Camden")
 
     expect(setLocationMuted).toHaveBeenCalledWith(11, true)
@@ -155,7 +156,7 @@ describe("GuestPreferencesRestaurants", () => {
 
     await commitBrandMute(
       setRestaurantMuted,
-      store.dispatch,
+      store,
       kfc.restaurantId,
       !isBrandAllMuted(kfc)
     )
@@ -215,6 +216,29 @@ describe("GuestPreferencesRestaurants", () => {
     )
 
     expect(html).toContain(GUEST_PREFERENCES_COPY.restaurantsEmptyLabel)
+  })
+
+  it("says no restaurants match when a search finds none", () => {
+    const state = reduceAll([
+      { type: "query-changed", query: "zzz" },
+      { type: "load-started", requestId: 1 },
+      { type: "load-succeeded", requestId: 1, restaurants: [] },
+    ])
+    const html = render(state)
+
+    expect(html).toContain(GUEST_PREFERENCES_COPY.restaurantsNoMatchLabel)
+    expect(html).not.toContain(GUEST_PREFERENCES_COPY.restaurantsEmptyLabel)
+  })
+
+  it("keeps the empty copy for an empty list with no query", () => {
+    const state = reduceAll([
+      { type: "load-started", requestId: 1 },
+      { type: "load-succeeded", requestId: 1, restaurants: [] },
+    ])
+    const html = render(state)
+
+    expect(html).toContain(GUEST_PREFERENCES_COPY.restaurantsEmptyLabel)
+    expect(html).not.toContain(GUEST_PREFERENCES_COPY.restaurantsNoMatchLabel)
   })
 
   it("shows a neutral tile with the first letter when the brand has no logo", () => {
