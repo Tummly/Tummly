@@ -29,4 +29,12 @@ namespace TummlyBackend.DTOs.GuestPreferences
     );
 
     public sealed record GuestPreferenceLocationDto(int LocationId, string Name, bool Muted);
+
+    public sealed record GuestPreferencesSessionLinkRequest(string? Token);
+
+    public sealed record GuestPreferencesSessionStartRequest(string? Contact);
+
+    public sealed record GuestPreferencesSessionVerifyCodeRequest(string? Contact, string? Code);
+
+    public sealed record GuestPreferencesSessionVerifyEmailRequest(string? V);
 }

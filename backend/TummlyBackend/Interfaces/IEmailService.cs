@@ -207,6 +207,8 @@ namespace TummlyBackend.Interfaces
             string? ctaHref
         );
 
+        Task SendGuestPreferencesConfirmEmailAsync(string toEmail, string confirmUrl);
+
         Task SendPilotStartedEmailAsync(
             string toEmail,
             string firstName,

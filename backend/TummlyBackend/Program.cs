@@ -697,6 +697,10 @@ builder.Services.AddScoped<
     IGuestPreferenceService,
     GuestPreferenceService
 >();
+builder.Services.AddScoped<
+    IGuestPreferencesVerificationService,
+    GuestPreferencesVerificationService
+>();
 builder.Services.AddScoped<TwilioSmsInboundService>();
 builder.Services.AddScoped<TwilioSmsStatusService>();
 builder.Services.AddScoped<
@@ -1401,7 +1405,7 @@ builder.Services.AddRateLimiter(options =>
     // Token policy ("signup-token": polled pages): its own per-endpoint limit, not combined.
     options.GlobalLimiter = PartitionedRateLimiter.CreateChained(
         PartitionedRateLimiter.Create<HttpContext, string>(context =>
-            SignupPolicyOf(context) switch
+            RateLimitPolicyOf(context) switch
             {
                 SignupRateLimitSettings.PolicyName => RateLimitPartition.GetFixedWindowLimiter(
                     $"{SignupClientIpOf(context)}|{SignupEndpointKey(context)}",
@@ -1415,10 +1419,27 @@ builder.Services.AddRateLimiter(options =>
             }
         ),
         PartitionedRateLimiter.Create<HttpContext, string>(context =>
-            SignupPolicyOf(context) == SignupRateLimitSettings.PolicyName
+            RateLimitPolicyOf(context) == SignupRateLimitSettings.PolicyName
                 ? RateLimitPartition.GetFixedWindowLimiter(
                     SignupClientIpOf(context),
                     _ => SignupWindow(signupRateLimit.CombinedPerMinute)
+                )
+                : RateLimitPartition.GetNoLimiter<string>("none")
+        ),
+        // Guest preference centre: one client IP gets a fixed number of requests per hour
+        // across all its public endpoints.
+        PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            RateLimitPolicyOf(context) == GuestPreferencesRateLimit.PolicyName
+                ? RateLimitPartition.GetFixedWindowLimiter(
+                    $"{GuestPreferencesRateLimit.PolicyName}|{SignupClientIpOf(context)}",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = GuestPreferencesRateLimit.PermitLimitPerIpPerHour,
+                        Window = GuestPreferencesRateLimit.Window,
+                        QueueLimit = 0,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        AutoReplenishment = true,
+                    }
                 )
                 : RateLimitPartition.GetNoLimiter<string>("none")
         )
@@ -1433,6 +1454,10 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy<string>(
         SignupRateLimitSettings.TokenPolicyName,
         _ => RateLimitPartition.GetNoLimiter("signup-token")
+    );
+    options.AddPolicy<string>(
+        GuestPreferencesRateLimit.PolicyName,
+        _ => RateLimitPartition.GetNoLimiter("guest-preferences")
     );
 
     options.OnRejected = async (context, token) =>
@@ -1463,7 +1488,7 @@ builder.Services.AddRateLimiter(options =>
         );
     };
 
-    static string? SignupPolicyOf(HttpContext context) =>
+    static string? RateLimitPolicyOf(HttpContext context) =>
         context.GetEndpoint()?.Metadata
             .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
 
