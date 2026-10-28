@@ -21,6 +21,12 @@
         public string? DetailJson { get; set; }
 
         public bool Succeeded { get; set; } = true;
+
+        /// <summary>
+        /// Request trace id (HttpContext.TraceIdentifier) when the event was
+        /// written during an HTTP request. Null for background jobs.
+        /// </summary>
+        public string? CorrelationId { get; set; }
     }
 
     public static class AdminAuditActions
@@ -45,9 +51,19 @@
         public const string ShopForceCancel = "shop.force_cancel";
         public const string ShopCatalogAvailableInShop =
             "shop.catalog_available_in_shop";
+        public const string ShopCatalogCreate = "shop.catalog_create";
+        public const string ShopCatalogUpdate = "shop.catalog_update";
+        public const string ShopCatalogPublish = "shop.catalog_publish";
+        public const string ShopCatalogUnpublish = "shop.catalog_unpublish";
+        public const string ShopCatalogDelete = "shop.catalog_delete";
+        public const string ShopCatalogImageChange = "shop.catalog_image_change";
+        public const string ShopCatalogTagChange = "shop.catalog_tag_change";
+        public const string ShopInterestPromote = "shop.interest_promote";
+        public const string ShopInterestDemote = "shop.interest_demote";
         public const string ShopPrintAssetApproved = "shop.print_asset_approved";
         public const string ShopInterestRegistrationRemoved =
             "shop.interest_registration_removed";
+        public const string ShopPrintAssetRetried = "shop.print_asset_retried";
         public const string RetentionGuestPurge = "retention.guest_purge";
         public const string GuestDelete = "guest.delete";
         public const string GuestDataExport = "guest.data_export";
@@ -80,6 +96,16 @@
         public const string LocationPremisesFlagged = "location.premises_flagged";
         public const string LocationPremisesCleared = "location.premises_cleared";
         public const string LocationPremisesRejected = "location.premises_rejected";
+        public const string TrustIndicatorDraftEdit = "trust_indicator.draft_edit";
+        public const string TrustIndicatorSubmit = "trust_indicator.submit";
+        public const string TrustIndicatorPublish = "trust_indicator.publish";
+        public const string TrustIndicatorRefused = "trust_indicator.refused";
+        public const string StaffPasswordChange = "staff.password_change";
+        public const string StaffCreate = "staff.create";
+        public const string StaffDisable = "staff.disable";
+        public const string StaffEnable = "staff.enable";
+        public const string StaffUnlock = "staff.unlock";
+        public const string StaffPasswordReset = "staff.password_reset";
     }
 
     public static class AdminAuditTargetTypes
@@ -96,5 +122,11 @@
         public const string HelpCentreQuery = "help_centre_query";
         public const string AdminAuditEvent = "admin_audit_event";
         public const string RestaurantLocation = "restaurant_location";
+        public const string ShopMaterialTag = "shop_material_tag";
+        public const string ShopInterestProduct = "shop_interest_product";
+        public const string TrustIndicatorItem = "trust_indicator_item";
+        public const string TrustIndicatorDraft = "trust_indicator_draft";
+        public const string TrustIndicatorPublication = "trust_indicator_publication";
+        public const string StaffAccount = "staff_account";
     }
 }

@@ -20,5 +20,17 @@ namespace TummlyBackend.DTOs.Admin
         /// When omitted, the operator's lowest-Id Pilot restaurant is extended.
         /// </summary>
         public int? RestaurantId { get; set; }
+
+        /// <summary>
+        /// Required. Trimmed on the server and stored in the audit detail.
+        /// Must be 5 to 500 characters after trimming.
+        /// </summary>
+        public string? Reason { get; set; }
+
+        /// <summary>
+        /// Required. The extension count the operator saw. A different stored count
+        /// is refused as <c>stale_pilot_version</c>. A missing value is also refused.
+        /// </summary>
+        public int? ExpectedExtensionCount { get; set; }
     }
 }

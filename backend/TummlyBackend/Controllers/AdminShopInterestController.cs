@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Admin;
@@ -24,10 +23,27 @@ namespace TummlyBackend.Controllers
             _products = products;
         }
 
+        /// <param name="scope">"active" (default) lists active rows only; "all" adds withdrawn rows.</param>
         [HttpGet]
-        public async Task<IActionResult> List(CancellationToken cancellationToken)
+        public async Task<IActionResult> List(
+            [FromQuery] string? scope,
+            CancellationToken cancellationToken
+        )
         {
-            var result = await _interest.ListForAdminAsync(cancellationToken);
+            var normalized = (scope ?? "active").Trim().ToLowerInvariant();
+            if (normalized is not ("active" or "all"))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "scope must be active or all.",
+                });
+            }
+
+            var result = await _interest.ListForAdminAsync(
+                includeWithdrawn: normalized == "all",
+                cancellationToken: cancellationToken
+            );
             return Ok(
                 new
                 {
@@ -55,30 +71,15 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var staffId = GetStaffId();
-            if (staffId == null)
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
             {
-                return Unauthorized(new { success = false, message = "Invalid token." });
-            }
-
-            var adminIdentity =
-                User.FindFirst(ClaimTypes.Email)?.Value
-                ?? User.Identity?.Name;
-            if (string.IsNullOrWhiteSpace(adminIdentity))
-            {
-                return BadRequest(
-                    new
-                    {
-                        success = false,
-                        message = "Admin identity could not be resolved from the current session.",
-                    }
-                );
+                return InvalidToken();
             }
 
             var (ok, error) = await _interest.RemoveRegistrationAsync(
                 id,
-                staffId.Value,
-                adminIdentity,
+                actor.AdminUserId,
+                actor.Identity,
                 cancellationToken
             );
             if (!ok)
@@ -166,9 +167,15 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (product, error) = await _products.PromoteAsync(
                 productKey,
                 request,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -185,8 +192,14 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (product, error) = await _products.DemoteByProductKeyAsync(
                 productKey,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -203,8 +216,14 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (product, error) = await _products.DemoteBySkuIdAsync(
                 skuId,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -213,20 +232,6 @@ namespace TummlyBackend.Controllers
             }
 
             return Ok(new { success = true, item = product });
-        }
-
-        private int? GetStaffId()
-        {
-            var staffIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (
-                string.IsNullOrEmpty(staffIdClaim)
-                || !int.TryParse(staffIdClaim, out var staffId)
-            )
-            {
-                return null;
-            }
-
-            return staffId;
         }
 
         private IActionResult MapError(string error)
@@ -250,5 +255,8 @@ namespace TummlyBackend.Controllers
 
             return BadRequest(new { success = false, message = error });
         }
+
+        private UnauthorizedObjectResult InvalidToken() =>
+            Unauthorized(new { success = false, message = "Invalid token." });
     }
 }

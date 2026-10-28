@@ -12,11 +12,14 @@ namespace TummlyBackend.Interfaces
         Task<AdminShopOrderFulfilmentResult> UpdateFulfilmentAsync(
             Guid orderId,
             AdminShopOrderFulfilmentPatchDto patch,
+            int actorAdminUserId,
+            string actorIdentity,
             CancellationToken cancellationToken = default
         );
 
         Task<AdminShopOrderFulfilmentResult> MarkPreparationStartedAsync(
             Guid orderId,
+            AdminShopFulfilmentActionRequest request,
             int actorAdminUserId,
             string actorIdentity,
             CancellationToken cancellationToken = default
@@ -24,6 +27,7 @@ namespace TummlyBackend.Interfaces
 
         Task<AdminShopOrderFulfilmentResult> MarkProductionStartedAsync(
             Guid orderId,
+            AdminShopFulfilmentActionRequest request,
             int actorAdminUserId,
             string actorIdentity,
             CancellationToken cancellationToken = default
@@ -39,6 +43,7 @@ namespace TummlyBackend.Interfaces
 
         Task<AdminShopOrderFulfilmentResult> MarkDeliveredAsync(
             Guid orderId,
+            AdminShopFulfilmentActionRequest request,
             int actorAdminUserId,
             string actorIdentity,
             CancellationToken cancellationToken = default

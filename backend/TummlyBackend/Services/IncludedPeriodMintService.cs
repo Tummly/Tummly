@@ -880,6 +880,8 @@ namespace TummlyBackend.Services
             int days,
             string? idempotencyKey,
             DateTime now,
+            string? reason,
+            int? expectedExtensionCount,
             CancellationToken cancellationToken = default
         ) => Task.FromResult(new PilotExtensionResult("refused", "pilot_extension_not_allowed", null, null, 0, 0));
 

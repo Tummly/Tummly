@@ -204,7 +204,7 @@ namespace TummlyBackend.Tests.Services
                 "email:bounced@example.com",
                 LocationGuestPermissionKind.EmailDelivery,
                 DateTime.UtcNow,
-                GuestContactSuppressionSources.EmailBounce
+                GuestContactSuppressionSources.Bounce
             );
             await _context.SaveChangesAsync();
 
@@ -248,7 +248,7 @@ namespace TummlyBackend.Tests.Services
                 "email:bounced-off@example.com",
                 LocationGuestPermissionKind.EmailDelivery,
                 DateTime.UtcNow,
-                GuestContactSuppressionSources.EmailBounce
+                GuestContactSuppressionSources.Bounce
             );
             await _context.SaveChangesAsync();
 
@@ -281,7 +281,7 @@ namespace TummlyBackend.Tests.Services
                 "email:bounced-only@example.com",
                 LocationGuestPermissionKind.EmailDelivery,
                 DateTime.UtcNow,
-                GuestContactSuppressionSources.EmailBounce
+                GuestContactSuppressionSources.Bounce
             );
             await _context.SaveChangesAsync();
 

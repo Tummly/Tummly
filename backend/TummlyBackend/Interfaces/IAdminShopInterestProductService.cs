@@ -29,16 +29,19 @@ namespace TummlyBackend.Interfaces
         Task<(AdminShopInterestProductDto? Product, string? Error)> PromoteAsync(
             string productKey,
             AdminShopInterestPromoteRequest request,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         );
 
         Task<(AdminShopInterestProductDto? Product, string? Error)> DemoteByProductKeyAsync(
             string productKey,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         );
 
         Task<(AdminShopInterestProductDto? Product, string? Error)> DemoteBySkuIdAsync(
             string skuId,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         );
     }

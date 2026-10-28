@@ -428,7 +428,7 @@ namespace TummlyBackend.Tests.Services
                 seeded.FeedbackId,
                 "email:suppressed-after@example.com",
                 LocationGuestPermissionKind.EmailDelivery,
-                GuestContactSuppressionSources.EmailBounce
+                GuestContactSuppressionSources.Bounce
             );
 
             await _deliveryWork.DrainAsync();

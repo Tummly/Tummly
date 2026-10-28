@@ -152,7 +152,13 @@ namespace TummlyBackend.Services
                 // Base plan allowance as the Workspace base (not a per-Location limit).
                 QrPlacements = planRow.ActiveQrPlacementsPerLocation,
                 QrPlacementsAccountExtra = qrAccountExtra,
-                Offers = planRow.ActiveOffersAccount + offersFromPacks,
+                // Group base: +3 per Location beyond the five included (spec §6).
+                Offers = WorkspaceOfferPool.Compute(
+                    planRow.ActiveOffersAccount + offersFromPacks,
+                    string.Equals(basePlan, "group", StringComparison.Ordinal)
+                        ? additionalLocations
+                        : 0
+                ),
                 EmailCredits =
                     planRow.CreditsMonthlyEmail
                     + emailFromPacks

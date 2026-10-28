@@ -94,7 +94,7 @@ namespace TummlyBackend.Tests.Integration
                 seeded,
                 ShopFulfilmentStatuses.Processing,
                 catalogSkuId: ShopMaterialsCatalogSeed.CounterDisplaySkuId,
-                titleSnapshot: "Offer Card",
+                titleSnapshot: "QR Counter Display",
                 quantity: 10
             );
             using (var scope = _factory.Services.CreateScope())

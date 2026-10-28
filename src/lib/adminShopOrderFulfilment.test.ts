@@ -13,7 +13,10 @@ import {
   canSubmitAdminShopStatusCorrection,
   hasAdminShopDispatchEvidence,
   isAdminShopDispatchEvidenceMissing,
+  adminShopPaymentSourceLabel,
+  formatAdminShopGbpOrDash,
   nextAdminShopFulfilmentAction,
+  normaliseAdminShopTransitionNote,
 } from "@/lib/adminShopOrderFulfilment"
 
 type FulfilmentFields = Parameters<typeof adminShopOrderFulfilmentLabel>[0]
@@ -372,6 +375,29 @@ describe("adminShopOrderReviewNotice", () => {
         "TableTalker held since 2026-09-20 10:00 UTC (no error recorded)",
       ],
     })
+  })
+
+  it("trims a transition note and sends null when it is blank", () => {
+    expect(normaliseAdminShopTransitionNote("  Courier collected  ")).toBe(
+      "Courier collected"
+    )
+    expect(normaliseAdminShopTransitionNote("   ")).toBeNull()
+    expect(normaliseAdminShopTransitionNote("")).toBeNull()
+  })
+
+  it("labels the payment source and shows a dash when it is unknown", () => {
+    expect(adminShopPaymentSourceLabel("revolut")).toBe("Revolut")
+    expect(adminShopPaymentSourceLabel("complimentary")).toBe(
+      "Complimentary (£0)"
+    )
+    expect(adminShopPaymentSourceLabel(undefined)).toBe("—")
+  })
+
+  it("formats pence as pounds and shows a dash for a missing amount", () => {
+    expect(formatAdminShopGbpOrDash(2880)).toBe("£28.80")
+    expect(formatAdminShopGbpOrDash(0)).toBe("£0.00")
+    expect(formatAdminShopGbpOrDash(undefined)).toBe("—")
+    expect(formatAdminShopGbpOrDash(null)).toBe("—")
   })
 })
 

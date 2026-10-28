@@ -34,6 +34,8 @@ export type AdminShopPrintAsset = {
 
 export type AdminShopPrintAssetPreview = {
   productTitle: string
+  /** Same value as the CSV JobId column for this print job. */
+  jobId: string
   locationId: number
   locationName: string
   placement: string
@@ -81,7 +83,19 @@ export type AdminShopOrderListItem = {
   dispatchedByAdminUserId?: number | null
   /** ISO UTC of the delivery confirmation; null until delivered. */
   deliveredAtUtc: string | null
+  materialsNetPence?: number
+  vatPence?: number
+  deliveryNetPence?: number
   grossPence: number
+  /** `revolut` or `complimentary` (£0 starter order, no payment). */
+  paymentSource?: string
+  /** Last 6 characters of the Revolut order id, prefixed with an ellipsis. */
+  revolutOrderRefRedacted?: string | null
+  shipToContactName?: string
+  shipToAddressLine1?: string
+  shipToAddressLine2?: string | null
+  shipToPostcode?: string
+  shipToCountry?: string
   lines: AdminShopOrderLineSummary[]
   printAssets: AdminShopPrintAsset[]
   /** Set when a paid order needs Admin attention (for example no QR room). */
@@ -111,6 +125,11 @@ export type AdminShopOrdersListParams = {
 export type AdminShopOrderFulfilmentPatch = {
   trackingUrl?: string | null
   opsNotes?: string | null
+}
+
+/** Optional audit note for a fulfilment action (max 500 characters). */
+export type AdminShopFulfilmentActionBody = {
+  note?: string | null
 }
 
 const arrayParamsSerializer = {
@@ -156,24 +175,28 @@ export async function patchAdminShopOrderFulfilment(
 }
 
 export async function markShopOrderPreparationStarted(
-  orderId: string
+  orderId: string,
+  body: AdminShopFulfilmentActionBody = {}
 ): Promise<AdminShopOrderListItem> {
   const response = await axiosInstance.post<AdminShopOrderListItem>(
-    `/admin/shop-orders/${orderId}/preparation-started`
+    `/admin/shop-orders/${orderId}/preparation-started`,
+    { note: body.note ?? null }
   )
   return response.data
 }
 
 export async function markShopOrderProductionStarted(
-  orderId: string
+  orderId: string,
+  body: AdminShopFulfilmentActionBody = {}
 ): Promise<AdminShopOrderListItem> {
   const response = await axiosInstance.post<AdminShopOrderListItem>(
-    `/admin/shop-orders/${orderId}/production-started`
+    `/admin/shop-orders/${orderId}/production-started`,
+    { note: body.note ?? null }
   )
   return response.data
 }
 
-export type AdminShopDispatchBody = {
+export type AdminShopDispatchBody = AdminShopFulfilmentActionBody & {
   carrierName: string
   carrierReference: string
   /** Optional supporting link; a dispatch never needs one. */
@@ -190,16 +213,19 @@ export async function markShopOrderDispatched(
       carrierName: body.carrierName.trim(),
       carrierReference: body.carrierReference.trim(),
       trackingUrl: body.trackingUrl?.trim() || null,
+      note: body.note ?? null,
     }
   )
   return response.data
 }
 
 export async function markShopOrderDelivered(
-  orderId: string
+  orderId: string,
+  body: AdminShopFulfilmentActionBody = {}
 ): Promise<AdminShopOrderListItem> {
   const response = await axiosInstance.post<AdminShopOrderListItem>(
-    `/admin/shop-orders/${orderId}/delivered`
+    `/admin/shop-orders/${orderId}/delivered`,
+    { note: body.note ?? null }
   )
   return response.data
 }

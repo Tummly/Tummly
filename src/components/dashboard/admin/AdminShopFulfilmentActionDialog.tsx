@@ -22,9 +22,12 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
+  ADMIN_SHOP_TRANSITION_NOTE_MAX_LENGTH,
   type AdminShopFulfilmentAction,
   canSubmitAdminShopFulfilmentAction,
+  normaliseAdminShopTransitionNote,
 } from "@/lib/adminShopOrderFulfilment"
 
 type AdminShopFulfilmentActionDialogProps = {
@@ -39,15 +42,16 @@ function runFulfilmentAction(
   action: AdminShopFulfilmentAction,
   dispatch: AdminShopDispatchBody
 ): Promise<AdminShopOrderListItem> {
+  const body = { note: dispatch.note }
   switch (action.kind) {
     case "preparation":
-      return markShopOrderPreparationStarted(orderId)
+      return markShopOrderPreparationStarted(orderId, body)
     case "production":
-      return markShopOrderProductionStarted(orderId)
+      return markShopOrderProductionStarted(orderId, body)
     case "dispatch":
       return markShopOrderDispatched(orderId, dispatch)
     case "delivery":
-      return markShopOrderDelivered(orderId)
+      return markShopOrderDelivered(orderId, body)
   }
 }
 
@@ -62,7 +66,8 @@ function fulfilmentErrorMessage(error: unknown): string {
 
 /**
  * Confirms one fulfilment action for an order. Dispatch collects the carrier
- * or supplier name and reference; a tracking URL is optional. Shared by the
+ * or supplier name and reference; a tracking URL is optional. Every action
+ * takes an optional note for the audit row. Shared by the
  * Shop orders table and the order drawer so both record the same evidence.
  */
 export function AdminShopFulfilmentActionDialog({
@@ -74,6 +79,7 @@ export function AdminShopFulfilmentActionDialog({
   const [carrierName, setCarrierName] = useState("")
   const [carrierReference, setCarrierReference] = useState("")
   const [trackingUrl, setTrackingUrl] = useState("")
+  const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
 
   const isDispatch = action?.kind === "dispatch"
@@ -88,6 +94,7 @@ export function AdminShopFulfilmentActionDialog({
     setCarrierName("")
     setCarrierReference("")
     setTrackingUrl("")
+    setNote("")
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -104,6 +111,7 @@ export function AdminShopFulfilmentActionDialog({
         carrierName,
         carrierReference,
         trackingUrl,
+        note: normaliseAdminShopTransitionNote(note),
       })
       resetFields()
       toast.success(`Order marked as ${action.resultLabel}`)
@@ -176,6 +184,20 @@ export function AdminShopFulfilmentActionDialog({
             </div>
           </div>
         )}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="admin-shop-transition-note">
+            Note for this change (optional)
+          </Label>
+          <Textarea
+            id="admin-shop-transition-note"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            maxLength={ADMIN_SHOP_TRANSITION_NOTE_MAX_LENGTH}
+            placeholder="e.g. courier collection reference"
+            disabled={busy}
+            className="min-h-20 rounded-[2px]"
+          />
+        </div>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
           <AlertDialogAction

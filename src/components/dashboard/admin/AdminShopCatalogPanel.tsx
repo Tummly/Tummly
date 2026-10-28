@@ -26,6 +26,15 @@ import { demoteAdminShopInterestBySku } from "@/api/adminShopInterestApi"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import {
   Drawer,
@@ -64,7 +73,13 @@ import {
   penceToPoundsInput,
   poundsInputToPence,
 } from "@/lib/admin/adminShopCatalogPricing"
-import { withSkuAvailableInShop } from "@/lib/admin/adminShopCatalogAvailability"
+import {
+  APPROVAL_REFERENCE_MAX_LENGTH,
+  availabilityBlockersFromError,
+  availabilityConfirmCopy,
+  toApprovalReference,
+  withSkuAvailableInShop,
+} from "@/lib/admin/adminShopCatalogAvailability"
 import { OPERATOR_RIGHT_DRAWER_CONTENT_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { resolveShopCatalogImageSrc } from "@/lib/operatorShop/resolveShopCatalogImageSrc"
 import { cn } from "@/lib/utils"
@@ -199,6 +214,16 @@ function parseEditorPacks(
   return packs
 }
 
+/** A pending switch of Available in Shop, held until the operator confirms it. */
+type AvailabilityRequest = {
+  sku: Pick<AdminShopCatalogSku, "skuId" | "title">
+  availableInShop: boolean
+  approvalReference: string
+  error: string | null
+  blockers: string[]
+  submitting: boolean
+}
+
 function apiErrorMessage(error: unknown, fallback: string) {
   if (axios.isAxiosError(error)) {
     const message = (error.response?.data as { message?: string } | undefined)
@@ -216,6 +241,8 @@ export function AdminShopCatalogPanel() {
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [saving, setSaving] = useState(false)
   const [newTagLabel, setNewTagLabel] = useState("")
+  const [availabilityRequest, setAvailabilityRequest] =
+    useState<AvailabilityRequest | null>(null)
 
   const availableRecipes = recipes.filter((recipe) => recipe.isAvailable)
 
@@ -341,27 +368,48 @@ export function AdminShopCatalogPanel() {
     )
   }
 
-  const setAvailableInShop = async (
-    skuId: string,
+  /** Opens the confirmation dialog. The switch does not change until the server accepts it. */
+  const openAvailabilityRequest = (
+    sku: Pick<AdminShopCatalogSku, "skuId" | "title">,
     availableInShop: boolean
   ) => {
-    const previous = skus.find((row) => row.skuId === skuId)?.availableInShop
-    applyAvailability(skuId, availableInShop)
+    setAvailabilityRequest({
+      sku,
+      availableInShop,
+      approvalReference: "",
+      error: null,
+      blockers: [],
+      submitting: false,
+    })
+  }
+
+  const confirmAvailabilityChange = async () => {
+    if (!availabilityRequest) return
+    const { sku, availableInShop } = availabilityRequest
+    setAvailabilityRequest({ ...availabilityRequest, submitting: true, error: null, blockers: [] })
     try {
       const updated = await setAdminShopCatalogAvailableInShop(
-        skuId,
-        availableInShop
+        sku.skuId,
+        availableInShop,
+        toApprovalReference(availabilityRequest.approvalReference)
       )
-      applyAvailability(skuId, updated.availableInShop)
+      applyAvailability(sku.skuId, updated.availableInShop)
+      setAvailabilityRequest(null)
       toast.success(
         updated.availableInShop
           ? "Product is available in Shop."
           : "Product set to Coming soon."
       )
     } catch (error) {
-      applyAvailability(skuId, previous ?? !availableInShop)
-      toast.error(
-        apiErrorMessage(error, "Could not update Shop availability.")
+      setAvailabilityRequest((current) =>
+        current && current.sku.skuId === sku.skuId
+          ? {
+              ...current,
+              submitting: false,
+              error: apiErrorMessage(error, "Could not update Shop availability."),
+              blockers: availabilityBlockersFromError(error),
+            }
+          : current
       )
     }
   }
@@ -535,7 +583,7 @@ export function AdminShopCatalogPanel() {
                             checked={sku.availableInShop}
                             aria-label={`Available in Shop for ${sku.title}`}
                             onCheckedChange={(checked) =>
-                              void setAvailableInShop(sku.skuId, checked)
+                              openAvailabilityRequest(sku, checked)
                             }
                           />
                           <span className="text-xs text-op-text-muted">
@@ -1034,7 +1082,10 @@ export function AdminShopCatalogPanel() {
                       id="available-in-shop"
                       checked={editor.availableInShop}
                       onCheckedChange={(checked) =>
-                        void setAvailableInShop(editor.skuId, checked)
+                        openAvailabilityRequest(
+                          { skuId: editor.skuId, title: editor.title },
+                          checked
+                        )
                       }
                     />
                   </div>
@@ -1075,6 +1126,87 @@ export function AdminShopCatalogPanel() {
           ) : null}
         </DrawerContent>
       </Drawer>
+
+      <Dialog
+        open={availabilityRequest !== null}
+        onOpenChange={(open) => {
+          if (!open && !availabilityRequest?.submitting) setAvailabilityRequest(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {availabilityRequest
+                ? availabilityConfirmCopy(availabilityRequest.availableInShop).title
+                : ""}
+            </DialogTitle>
+            <DialogDescription>
+              {availabilityRequest
+                ? availabilityConfirmCopy(availabilityRequest.availableInShop).description
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {availabilityRequest ? (
+            <div className="flex flex-col gap-3">
+              <p className="m-0 text-sm text-op-text-primary">
+                Product: {availabilityRequest.sku.title}
+              </p>
+              <p className="m-0 text-sm text-op-text-primary">
+                New state:{" "}
+                {availabilityRequest.availableInShop ? "ON" : "Coming soon"}
+              </p>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="shop-availability-approval">
+                  Approval reference (optional)
+                </Label>
+                <Input
+                  id="shop-availability-approval"
+                  maxLength={APPROVAL_REFERENCE_MAX_LENGTH}
+                  value={availabilityRequest.approvalReference}
+                  disabled={availabilityRequest.submitting}
+                  onChange={(event) =>
+                    setAvailabilityRequest((current) =>
+                      current
+                        ? { ...current, approvalReference: event.target.value }
+                        : current
+                    )
+                  }
+                />
+              </div>
+              {availabilityRequest.error ? (
+                <div role="alert" className="flex flex-col gap-1 text-sm text-destructive">
+                  <p className="m-0">{availabilityRequest.error}</p>
+                  {availabilityRequest.blockers.length > 0 ? (
+                    <ul className="m-0 list-disc pl-5">
+                      {availabilityRequest.blockers.map((blocker) => (
+                        <li key={blocker}>{blocker}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAvailabilityRequest(null)}
+              disabled={availabilityRequest?.submitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void confirmAvailabilityChange()}
+              disabled={!availabilityRequest || availabilityRequest.submitting}
+            >
+              {availabilityRequest?.submitting
+                ? "Saving…"
+                : availabilityConfirmCopy(availabilityRequest?.availableInShop ?? true)
+                    .actionLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

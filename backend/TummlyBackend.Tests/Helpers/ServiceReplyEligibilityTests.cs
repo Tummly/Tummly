@@ -258,7 +258,7 @@ namespace TummlyBackend.Tests.Helpers
                 feedback,
                 "alex@example.com",
                 LocationGuestPermissionKind.EmailDelivery,
-                GuestContactSuppressionSources.EmailBounce
+                GuestContactSuppressionSources.Bounce
             );
 
             var decision = await ServiceReplyEligibility.EvaluateAsync(
@@ -351,7 +351,7 @@ namespace TummlyBackend.Tests.Helpers
         {
             var rows = new[]
             {
-                NewRow(LocationGuestPermissionKind.EmailDelivery, GuestContactSuppressionSources.EmailBounce),
+                NewRow(LocationGuestPermissionKind.EmailDelivery, GuestContactSuppressionSources.Bounce),
             };
 
             Assert.Equal(

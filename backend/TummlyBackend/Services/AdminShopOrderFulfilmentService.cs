@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
@@ -16,6 +17,7 @@ namespace TummlyBackend.Services
         private const int MaxForceCancelReasonLength = 500;
         private const int MaxCarrierFieldLength = 200;
         private const int MaxCorrectionReasonLength = 500;
+        private const int MaxTransitionNoteLength = 500;
 
         private static readonly HashSet<string> ValidFulfilmentFilters =
             new(StringComparer.OrdinalIgnoreCase)
@@ -109,6 +111,8 @@ namespace TummlyBackend.Services
         public async Task<AdminShopOrderFulfilmentResult> UpdateFulfilmentAsync(
             Guid orderId,
             AdminShopOrderFulfilmentPatchDto patch,
+            int actorAdminUserId,
+            string actorIdentity,
             CancellationToken cancellationToken = default
         )
         {
@@ -203,6 +207,7 @@ namespace TummlyBackend.Services
 
         public async Task<AdminShopOrderFulfilmentResult> MarkPreparationStartedAsync(
             Guid orderId,
+            AdminShopFulfilmentActionRequest request,
             int actorAdminUserId,
             string actorIdentity,
             CancellationToken cancellationToken = default
@@ -212,6 +217,11 @@ namespace TummlyBackend.Services
             if (order == null)
             {
                 return OrderNotFound();
+            }
+
+            if (!TryNormalizeTransitionNote(request.Note, out var note, out var noteError))
+            {
+                return noteError;
             }
 
             if (
@@ -238,7 +248,9 @@ namespace TummlyBackend.Services
                     orderId.ToString("D"),
                     ActorAdminUserId: actorAdminUserId,
                     RestaurantId: order.RestaurantId,
-                    DetailJson: null
+                    DetailJson: note == null
+                        ? null
+                        : System.Text.Json.JsonSerializer.Serialize(new { note })
                 )
             );
 
@@ -251,6 +263,7 @@ namespace TummlyBackend.Services
 
         public async Task<AdminShopOrderFulfilmentResult> MarkProductionStartedAsync(
             Guid orderId,
+            AdminShopFulfilmentActionRequest request,
             int actorAdminUserId,
             string actorIdentity,
             CancellationToken cancellationToken = default
@@ -260,6 +273,11 @@ namespace TummlyBackend.Services
             if (order == null)
             {
                 return OrderNotFound();
+            }
+
+            if (!TryNormalizeTransitionNote(request.Note, out var note, out var noteError))
+            {
+                return noteError;
             }
 
             if (
@@ -287,7 +305,9 @@ namespace TummlyBackend.Services
                     orderId.ToString("D"),
                     ActorAdminUserId: actorAdminUserId,
                     RestaurantId: order.RestaurantId,
-                    DetailJson: null
+                    DetailJson: note == null
+                        ? null
+                        : System.Text.Json.JsonSerializer.Serialize(new { note })
                 )
             );
 
@@ -310,6 +330,11 @@ namespace TummlyBackend.Services
             if (order == null)
             {
                 return OrderNotFound();
+            }
+
+            if (!TryNormalizeTransitionNote(request.Note, out var note, out var noteError))
+            {
+                return noteError;
             }
 
             // Carrier evidence is the dispatch event. A tracking URL on its
@@ -385,6 +410,7 @@ namespace TummlyBackend.Services
                             carrierName,
                             carrierReference,
                             trackingUrl = order.TrackingUrl,
+                            note,
                         }
                     )
                 )
@@ -403,6 +429,7 @@ namespace TummlyBackend.Services
 
         public async Task<AdminShopOrderFulfilmentResult> MarkDeliveredAsync(
             Guid orderId,
+            AdminShopFulfilmentActionRequest request,
             int actorAdminUserId,
             string actorIdentity,
             CancellationToken cancellationToken = default
@@ -412,6 +439,11 @@ namespace TummlyBackend.Services
             if (order == null)
             {
                 return OrderNotFound();
+            }
+
+            if (!TryNormalizeTransitionNote(request.Note, out var note, out var noteError))
+            {
+                return noteError;
             }
 
             if (
@@ -450,7 +482,9 @@ namespace TummlyBackend.Services
                     orderId.ToString("D"),
                     ActorAdminUserId: actorAdminUserId,
                     RestaurantId: order.RestaurantId,
-                    DetailJson: null
+                    DetailJson: note == null
+                        ? null
+                        : System.Text.Json.JsonSerializer.Serialize(new { note })
                 )
             );
 
@@ -1053,6 +1087,46 @@ namespace TummlyBackend.Services
             return string.IsNullOrEmpty(trimmed) ? null : trimmed;
         }
 
+        /// <summary>
+        /// Optional audit note for a fulfilment action: trimmed, null when blank,
+        /// at most <see cref="MaxTransitionNoteLength"/> characters.
+        /// </summary>
+        private static bool TryNormalizeTransitionNote(
+            string? raw,
+            out string? note,
+            [NotNullWhen(false)] out AdminShopOrderFulfilmentResult? error
+        )
+        {
+            var trimmed = raw?.Trim() ?? string.Empty;
+            note = trimmed.Length == 0 ? null : trimmed;
+            error = null;
+            if (trimmed.Length <= MaxTransitionNoteLength)
+            {
+                return true;
+            }
+
+            error = AdminShopOrderFulfilmentResult.Fail(
+                "invalid_note",
+                $"note must be at most {MaxTransitionNoteLength} characters."
+            );
+            return false;
+        }
+
+        /// <summary>
+        /// Shows only the last 6 characters of a Revolut order id (spec: provider
+        /// references are redacted in admin views).
+        /// </summary>
+        private static string? RedactProviderOrderRef(string? revolutOrderId)
+        {
+            var trimmed = revolutOrderId?.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                return null;
+            }
+
+            return "…" + trimmed[Math.Max(0, trimmed.Length - 6)..];
+        }
+
         private static string? NormalizeOpsNotes(string? opsNotes)
         {
             if (opsNotes == null)
@@ -1163,7 +1237,21 @@ namespace TummlyBackend.Services
                 DispatchSource = order.DispatchSource,
                 DispatchedByAdminUserId = order.DispatchedByAdminUserId,
                 DeliveredAtUtc = AsUtc(order.DeliveredAtUtc),
+                MaterialsNetPence = order.MaterialsNetPence,
+                VatPence = order.VatPence,
+                DeliveryNetPence = order.DeliveryNetPence,
                 GrossPence = order.GrossPence,
+                PaymentSource = order.IsComplimentary
+                    ? AdminShopPaymentSources.Complimentary
+                    : AdminShopPaymentSources.Revolut,
+                RevolutOrderRefRedacted = RedactProviderOrderRef(
+                    order.RevolutOrderId
+                ),
+                ShipToContactName = order.ShipToContactName,
+                ShipToAddressLine1 = order.ShipToAddressLine1,
+                ShipToAddressLine2 = order.ShipToAddressLine2,
+                ShipToPostcode = order.ShipToPostcode,
+                ShipToCountry = order.ShipToCountry,
                 ReviewReason = order.ReviewReason,
                 Lines = order.Lines
                     .OrderBy(line => line.CatalogSkuId, StringComparer.OrdinalIgnoreCase)

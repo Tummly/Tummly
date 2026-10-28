@@ -37,7 +37,7 @@ namespace TummlyBackend.Tests.Services
 
             var service = CreateService(db);
             var result = await service.MarkProductionStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -59,7 +59,7 @@ namespace TummlyBackend.Tests.Services
             var service = CreateService(db);
 
             var result = await service.MarkProductionStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -104,14 +104,14 @@ namespace TummlyBackend.Tests.Services
             var service = CreateService(db);
 
             var first = await service.MarkProductionStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
             Assert.True(first.Succeeded);
 
             var second = await service.MarkProductionStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId + 99,
                 "other@tummly.com"
             );
@@ -135,7 +135,7 @@ namespace TummlyBackend.Tests.Services
             var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
             var fulfilment = CreateService(db);
             var mark = await fulfilment.MarkProductionStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -317,6 +317,7 @@ namespace TummlyBackend.Tests.Services
 
             var result = await service.MarkProductionStartedAsync(
                 Guid.NewGuid(),
+                new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -339,7 +340,7 @@ namespace TummlyBackend.Tests.Services
             var service = CreateService(db);
 
             var result = await service.MarkPreparationStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -374,14 +375,14 @@ namespace TummlyBackend.Tests.Services
             var service = CreateService(db);
             Assert.True(
                 (await service.MarkPreparationStartedAsync(
-                    orderId,
+                    orderId, new AdminShopFulfilmentActionRequest(),
                     seeded.AdminId,
                     seeded.AdminEmail
                 )).Succeeded
             );
 
             var second = await service.MarkPreparationStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -404,7 +405,7 @@ namespace TummlyBackend.Tests.Services
             var service = CreateService(db);
 
             var result = await service.MarkProductionStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -598,7 +599,7 @@ namespace TummlyBackend.Tests.Services
             var service = CreateService(db);
 
             var result = await service.MarkDeliveredAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -627,7 +628,7 @@ namespace TummlyBackend.Tests.Services
             );
 
             var result = await service.MarkDeliveredAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -665,10 +666,10 @@ namespace TummlyBackend.Tests.Services
                 seeded.AdminEmail
             );
             Assert.True(
-                (await service.MarkDeliveredAsync(orderId, seeded.AdminId, seeded.AdminEmail)).Succeeded
+                (await service.MarkDeliveredAsync(orderId, new AdminShopFulfilmentActionRequest(), seeded.AdminId, seeded.AdminEmail)).Succeeded
             );
 
-            var second = await service.MarkDeliveredAsync(orderId, seeded.AdminId, seeded.AdminEmail);
+            var second = await service.MarkDeliveredAsync(orderId, new AdminShopFulfilmentActionRequest(), seeded.AdminId, seeded.AdminEmail);
 
             Assert.Equal("illegal_fulfilment_transition", second.ErrorCode);
             Assert.Equal(2, await db.AdminAuditEvents.CountAsync());
@@ -686,7 +687,7 @@ namespace TummlyBackend.Tests.Services
             {
                 FulfilmentStatus = ShopFulfilmentStatuses.InTransit,
             };
-            var result = await service.UpdateFulfilmentAsync(orderId, patch);
+            var result = await service.UpdateFulfilmentAsync(orderId, patch, seeded.AdminId, seeded.AdminEmail);
 
             Assert.Equal("illegal_fulfilment_transition", result.ErrorCode);
             var stored = await Reload(db, orderId);
@@ -703,7 +704,7 @@ namespace TummlyBackend.Tests.Services
             var service = CreateService(db);
 
             var patch = new AdminShopOrderFulfilmentPatchDto { TrackingUrl = "https://track.example/1" };
-            var result = await service.UpdateFulfilmentAsync(orderId, patch);
+            var result = await service.UpdateFulfilmentAsync(orderId, patch, seeded.AdminId, seeded.AdminEmail);
 
             Assert.Equal("invalid_tracking_url", result.ErrorCode);
             Assert.Null((await Reload(db, orderId)).TrackingUrl);
@@ -1086,7 +1087,7 @@ namespace TummlyBackend.Tests.Services
             var orderId = await InsertLegacyDispatchedOrderAsync(db, seeded);
             var service = CreateService(db);
 
-            var result = await service.MarkDeliveredAsync(orderId, seeded.AdminId, seeded.AdminEmail);
+            var result = await service.MarkDeliveredAsync(orderId, new AdminShopFulfilmentActionRequest(), seeded.AdminId, seeded.AdminEmail);
 
             Assert.Equal("illegal_fulfilment_transition", result.ErrorCode);
             var stored = await Reload(db, orderId);
@@ -1213,7 +1214,7 @@ namespace TummlyBackend.Tests.Services
             var service = CreateService(db, merchant);
 
             var mark = await service.MarkProductionStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -1282,7 +1283,7 @@ namespace TummlyBackend.Tests.Services
             var service = CreateService(db, merchant);
 
             await service.MarkProductionStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -1330,7 +1331,7 @@ namespace TummlyBackend.Tests.Services
             var service = CreateService(db, merchant);
 
             await service.MarkProductionStartedAsync(
-                orderId,
+                orderId, new AdminShopFulfilmentActionRequest(),
                 seeded.AdminId,
                 seeded.AdminEmail
             );
@@ -1509,6 +1510,151 @@ namespace TummlyBackend.Tests.Services
                     .ToListAsync()
             );
             Assert.Contains("\"refundAttempted\":false", audit.DetailJson);
+        }
+
+        [Fact]
+        public async Task FulfilmentActions_AuditActorAndOptionalNote()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(
+                db,
+                seeded,
+                preparationStarted: false
+            );
+            var service = CreateService(db);
+
+            var prepare = await service.MarkPreparationStartedAsync(
+                orderId,
+                new AdminShopFulfilmentActionRequest { Note = "  Artwork checked  " },
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+            var produce = await service.MarkProductionStartedAsync(
+                orderId,
+                new AdminShopFulfilmentActionRequest(),
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+            var dispatch = await service.MarkDispatchedAsync(
+                orderId,
+                new AdminShopDispatchRequest
+                {
+                    CarrierName = "Royal Mail",
+                    CarrierReference = "RM123",
+                    Note = "  Courier collected  ",
+                },
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.True(prepare.Succeeded);
+            Assert.True(produce.Succeeded);
+            Assert.True(dispatch.Succeeded);
+            var rows = await db.AdminAuditEvents.ToListAsync();
+            Assert.Equal(3, rows.Count);
+            Assert.All(rows, row =>
+            {
+                Assert.Equal(AdminAuditTargetTypes.ShopOrder, row.TargetType);
+                Assert.Equal(orderId.ToString("D"), row.TargetId);
+                Assert.Equal(seeded.RestaurantId, row.RestaurantId);
+                Assert.Equal(seeded.AdminId, row.ActorAdminUserId);
+                Assert.Equal(seeded.AdminEmail, row.ActorIdentity);
+            });
+
+            var prepared = rows.Single(row => row.Action == AdminAuditActions.ShopPreparationStarted);
+            using (var detail = JsonDocument.Parse(prepared.DetailJson!))
+            {
+                Assert.Equal("Artwork checked", detail.RootElement.GetProperty("note").GetString());
+            }
+
+            Assert.Null(
+                rows.Single(row => row.Action == AdminAuditActions.ShopProductionStarted).DetailJson
+            );
+
+            var dispatched = rows.Single(row => row.Action == AdminAuditActions.ShopDispatched);
+            using (var detail = JsonDocument.Parse(dispatched.DetailJson!))
+            {
+                Assert.Equal("Courier collected", detail.RootElement.GetProperty("note").GetString());
+                Assert.Equal("RM123", detail.RootElement.GetProperty("carrierReference").GetString());
+            }
+        }
+
+        [Fact]
+        public async Task UpdateFulfilment_TrackingOnlySave_AppendsNoAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var order = await db.ShopOrders.SingleAsync(row => row.Id == orderId);
+            order.FulfilmentStatus = ShopFulfilmentStatuses.InTransit;
+            order.DispatchedAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            var service = CreateService(db);
+
+            var result = await service.UpdateFulfilmentAsync(
+                orderId,
+                new AdminShopOrderFulfilmentPatchDto
+                {
+                    TrackingUrl = "https://tracker.example/abc",
+                },
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Empty(await db.AdminAuditEvents.ToListAsync());
+        }
+
+        [Fact]
+        public async Task UpdateFulfilment_IllegalTransition_RejectsWithoutAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var result = await service.UpdateFulfilmentAsync(
+                orderId,
+                new AdminShopOrderFulfilmentPatchDto
+                {
+                    FulfilmentStatus = ShopFulfilmentStatuses.Delivered,
+                },
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("illegal_fulfilment_transition", result.ErrorCode);
+            Assert.Empty(await db.AdminAuditEvents.ToListAsync());
+        }
+
+        [Fact]
+        public async Task FulfilmentAction_NoteOver500Characters_RejectsWithoutWriteOrAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(
+                db,
+                seeded,
+                preparationStarted: false
+            );
+            var service = CreateService(db);
+
+            var result = await service.MarkPreparationStartedAsync(
+                orderId,
+                new AdminShopFulfilmentActionRequest { Note = new string('n', 501) },
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("invalid_note", result.ErrorCode);
+            var stored = await db.ShopOrders
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == orderId);
+            Assert.Null(stored.PreparationStartedAtUtc);
+            Assert.Empty(await db.AdminAuditEvents.ToListAsync());
         }
 
         private static AdminShopOrderFulfilmentService CreateService(
@@ -1742,6 +1888,8 @@ namespace TummlyBackend.Tests.Services
             public Task<ShopPrintAssetReadinessDto?> RetryShopOrderAsync(
                 Guid shopOrderId,
                 QrType qrType,
+                int actorAdminUserId,
+                string actorIdentity,
                 CancellationToken cancellationToken = default
             ) => Task.FromResult<ShopPrintAssetReadinessDto?>(null);
 

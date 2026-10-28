@@ -8,7 +8,7 @@ namespace TummlyBackend.Tests.SqlServer
 {
     /// <summary>
     /// Concurrent interest registrations for one user, product and Location.
-    /// The unique index <c>IX_ShopInterestRegistrations_User_Product_Location</c>
+    /// The filtered unique index on active rows (product, Workspace, Location, user)
     /// admits one row. The callers that lose the insert race still return
     /// the thanks result.
     /// </summary>

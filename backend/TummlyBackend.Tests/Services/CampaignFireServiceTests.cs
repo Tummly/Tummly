@@ -973,7 +973,7 @@ namespace TummlyBackend.Tests.Services
                 "email:" + email,
                 LocationGuestPermissionKind.EmailDelivery,
                 _now,
-                GuestContactSuppressionSources.EmailBounce
+                GuestContactSuppressionSources.Bounce
             );
             await _context.SaveChangesAsync();
         }

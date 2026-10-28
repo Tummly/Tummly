@@ -29,6 +29,7 @@ namespace TummlyBackend.Interfaces
         );
 
         Task<AdminShopInterestListDto> ListForAdminAsync(
+            bool includeWithdrawn = false,
             CancellationToken cancellationToken = default
         );
 

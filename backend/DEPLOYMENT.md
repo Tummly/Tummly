@@ -98,9 +98,23 @@ curl https://qa.tummly.com
 curl https://api.qa.tummly.com/health
 curl https://api.qa.tummly.com/health/ready
 
-# Seeded admin (if seed ran on fresh Azure SQL)
-# Email: admin@tummly.com  Password: Admin@123
-# Email: support@tummly.com  Password: Support@123
+# Staff seed (only when the Admins table is empty / no Support row exists)
+# Outside Development, set StaffSeed__AdminEmail / StaffSeed__AdminPassword and
+# StaffSeed__SupportEmail / StaffSeed__SupportPassword; with no password no account is created.
+# Development only falls back to admin@tummly.com / support@tummly.com with the old dev passwords.
+# Databases seeded before this change still have those two logins with the old
+# passwords. Before deploying, ROTATE their passwords (do not disable them): the seed
+# never runs again on a non-empty Admins table, so disabling the only Admin locks
+# everyone out of the admin panel. Rotate in SQL with a BCrypt hash (cost 11):
+#   python3 -c 'import bcrypt;print(bcrypt.hashpw(b"<new password>", bcrypt.gensalt(11)).decode())'
+#   UPDATE Admins SET PasswordHash = '<hash>', FailedLoginAttempts = 0, IsLocked = 0
+#   WHERE Email = 'admin@tummly.com';   -- repeat for support@tummly.com
+# Disable an old row only after a second Admin account exists and has signed in.
+# After this release: sign in, use Account > Change password, and use Admin > Staff to
+# add named staff accounts; then disable the shared default logins from the Staff tab
+# (the server refuses to disable yourself or the last active Admin).
+# The API logs a startup warning outside Development while either login still
+# uses its default password.
 ```
 
 Change default admin passwords after first login.

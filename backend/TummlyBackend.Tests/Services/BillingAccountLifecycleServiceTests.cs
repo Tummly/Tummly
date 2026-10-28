@@ -562,6 +562,25 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ExtendPilot_FirstExtensionKeepsOriginalEndWhenSet_SetsItWhenMissing()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var withOriginal = await SeedPilotAsync(periodEnd, originalEndUtc: periodEnd);
+            var withoutOriginal = await SeedPilotAsync(periodEnd);
+
+            await _lifecycle.ExtendPilotAsync(
+                withOriginal.RestaurantId, 14, "key-orig-a", now, "Support asked for a delay", 0
+            );
+            await _lifecycle.ExtendPilotAsync(
+                withoutOriginal.RestaurantId, 30, "key-orig-b", now, "Support asked for a delay", 0
+            );
+
+            Assert.Equal(periodEnd, (await ReloadAsync(withOriginal.RestaurantId)).PilotOriginalEndUtc);
+            Assert.Equal(periodEnd, (await ReloadAsync(withoutOriginal.RestaurantId)).PilotOriginalEndUtc);
+        }
+
+        [Fact]
         public async Task ExtendPilot_Active14_MovesEndFromCurrentEnd()
         {
             var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
@@ -572,7 +591,7 @@ namespace TummlyBackend.Tests.Services
                 seeded.RestaurantId,
                 14,
                 "key-active-14",
-                now
+                now, "Support asked for a delay", 0
             );
 
             Assert.Equal("extended", result.Outcome);
@@ -607,7 +626,7 @@ namespace TummlyBackend.Tests.Services
                 seeded.RestaurantId,
                 30,
                 "key-lock-30",
-                now
+                now, "Support asked for a delay", 0
             );
 
             Assert.Equal("extended", result.Outcome);
@@ -652,7 +671,7 @@ namespace TummlyBackend.Tests.Services
                 seeded.RestaurantId,
                 14,
                 "key-older",
-                now
+                now, "Support asked for a delay", 1
             );
 
             Assert.Equal("replayed", result.Outcome);
@@ -660,6 +679,40 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, after.PilotExtensionCount);
             Assert.Equal(14, after.PilotExtensionDaysTotal);
             Assert.Equal(periodEnd.AddDays(14), after.PilotPeriodEnd);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_KeyOfARefusedAttempt_CanStillApply()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(periodEnd);
+            _context.AdminAuditEvents.Add(
+                new AdminAuditEvent
+                {
+                    Id = Guid.NewGuid(),
+                    OccurredAtUtc = now.AddMinutes(-5),
+                    Action = AdminAuditActions.OperatorExtendPilot,
+                    ActorIdentity = "admin@example.com",
+                    TargetType = AdminAuditTargetTypes.OperatorUser,
+                    TargetId = seeded.OwnerId.ToString(),
+                    RestaurantId = seeded.RestaurantId,
+                    DetailJson = "{\"code\":\"stale_pilot_version\",\"days\":14,\"idempotencyKey\":\"key-refused\"}",
+                    Succeeded = false,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-refused",
+                now, "Support asked for a delay", 0
+            );
+
+            Assert.Equal("extended", result.Outcome);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(1, after.PilotExtensionCount);
         }
 
         [Fact]
@@ -673,7 +726,7 @@ namespace TummlyBackend.Tests.Services
                 seeded.RestaurantId,
                 7,
                 "key-days-7",
-                now
+                now, "Support asked for a delay", 0
             );
 
             Assert.Equal("refused", result.Outcome);
@@ -698,7 +751,7 @@ namespace TummlyBackend.Tests.Services
                 seeded.RestaurantId,
                 14,
                 "key-third",
-                now
+                now, "Support asked for a delay", 2
             );
 
             Assert.Equal("refused", result.Outcome);
@@ -724,7 +777,7 @@ namespace TummlyBackend.Tests.Services
                 seeded.RestaurantId,
                 30,
                 "key-total-105",
-                now
+                now, "Support asked for a delay", 1
             );
 
             Assert.Equal("refused", result.Outcome);
@@ -748,7 +801,7 @@ namespace TummlyBackend.Tests.Services
                 seeded.RestaurantId,
                 14,
                 "key-dormant",
-                now
+                now, "Support asked for a delay", 0
             );
 
             Assert.Equal("refused", result.Outcome);
@@ -768,7 +821,7 @@ namespace TummlyBackend.Tests.Services
                 seeded.RestaurantId,
                 14,
                 "key-paid",
-                now
+                now, "Support asked for a delay", 0
             );
 
             Assert.Equal("refused", result.Outcome);
@@ -795,7 +848,7 @@ namespace TummlyBackend.Tests.Services
                 seeded.RestaurantId,
                 14,
                 "key-post-cancel",
-                now
+                now, "Support asked for a delay", 0
             );
 
             Assert.Equal("refused", result.Outcome);
@@ -817,13 +870,13 @@ namespace TummlyBackend.Tests.Services
                 seeded.RestaurantId,
                 14,
                 "same-key",
-                now
+                now, "Support asked for a delay", 0
             );
             var second = await _lifecycle.ExtendPilotAsync(
                 seeded.RestaurantId,
                 14,
                 "same-key",
-                now
+                now, "Support asked for a delay", 0
             );
 
             Assert.Equal("extended", first.Outcome);
@@ -843,10 +896,10 @@ namespace TummlyBackend.Tests.Services
             var periodEnd = now.AddDays(5);
             var seeded = await SeedPilotAsync(periodEnd);
 
-            var a = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-a", now);
-            var b = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-b", now);
-            var replayB = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-b", now);
-            var c = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-c", now);
+            var a = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-a", now, "Support asked for a delay", 0);
+            var b = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-b", now, "Support asked for a delay", 1);
+            var replayB = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-b", now, "Support asked for a delay", 1);
+            var c = await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-c", now, "Support asked for a delay", 2);
 
             Assert.Equal("extended", a.Outcome);
             Assert.Equal("extended", b.Outcome);
@@ -874,7 +927,7 @@ namespace TummlyBackend.Tests.Services
                 status: BillingStatuses.SoftLock
             );
 
-            await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-start", now);
+            await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-start", now, "Support asked for a delay", 0);
 
             var after = await ReloadAsync(seeded.RestaurantId);
             Assert.Equal(startedAt, after.PilotStartedAtUtc);
@@ -888,13 +941,161 @@ namespace TummlyBackend.Tests.Services
             var seeded = await SeedPilotAsync(periodEnd);
             var memberId = await AddActiveMemberAsync(seeded.RestaurantId, periodEnd);
 
-            await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-members", now);
+            await _lifecycle.ExtendPilotAsync(seeded.RestaurantId, 14, "key-members", now, "Support asked for a delay", 0);
 
             _context.ChangeTracker.Clear();
             var owner = await _context.Users.SingleAsync(row => row.Id == seeded.OwnerId);
             var member = await _context.Users.SingleAsync(row => row.Id == memberId);
             Assert.Equal(periodEnd.AddDays(14), owner.ActivationExpiresAt);
             Assert.Equal(periodEnd.AddDays(14), member.ActivationExpiresAt);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_MovesEffectiveEnd_KeepsOriginalEnd()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var originalEnd = new DateTime(2026, 10, 31, 12, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedPilotAsync(periodEnd, originalEndUtc: originalEnd);
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-original",
+                now,
+                "Support asked for a delay",
+                0
+            );
+
+            Assert.Equal("extended", result.Outcome);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(originalEnd, after.PilotOriginalEndUtc);
+            Assert.Equal(periodEnd.AddDays(14), after.PilotPeriodEnd);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_StaleExpectedCount_RefusedWithoutChange()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(
+                periodEnd,
+                extensionCount: 1,
+                extensionDaysTotal: 14
+            );
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-stale",
+                now,
+                "Support asked for a delay",
+                0
+            );
+
+            Assert.Equal("refused", result.Outcome);
+            Assert.Equal("stale_pilot_version", result.Code);
+            Assert.Equal(1, result.CountAfter);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(periodEnd, after.PilotPeriodEnd);
+            Assert.Equal(1, after.PilotExtensionCount);
+            Assert.Equal(14, after.PilotExtensionDaysTotal);
+            Assert.Null(after.LastPilotExtensionKey);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_MissingExpectedCount_RefusedAsStale()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(periodEnd);
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-no-version",
+                now,
+                "Support asked for a delay",
+                null
+            );
+
+            Assert.Equal("refused", result.Outcome);
+            Assert.Equal("stale_pilot_version", result.Code);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(periodEnd, after.PilotPeriodEnd);
+            Assert.Equal(0, after.PilotExtensionCount);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        [InlineData("abcd")]
+        [InlineData("  abc  ")]
+        public async Task ExtendPilot_ReasonOutsideBounds_RefusedWithoutChange(string? reason)
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(periodEnd);
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-reason",
+                now,
+                reason,
+                0
+            );
+
+            Assert.Equal("refused", result.Outcome);
+            Assert.Equal("pilot_extension_invalid_reason", result.Code);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(periodEnd, after.PilotPeriodEnd);
+            Assert.Equal(0, after.PilotExtensionCount);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_ReasonOver500Characters_Refused()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedPilotAsync(now.AddDays(5));
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-long-reason",
+                now,
+                new string('r', 501),
+                0
+            );
+
+            Assert.Equal("pilot_extension_invalid_reason", result.Code);
+        }
+
+        [Theory]
+        [InlineData("  Support asked for a delay  ", "Support asked for a delay")]
+        [InlineData("abcde", "abcde")]
+        [InlineData("abcd", null)]
+        [InlineData("   ", null)]
+        [InlineData(null, null)]
+        public void NormalizePilotExtensionReason_TrimsAndBoundsLength(
+            string? raw,
+            string? expected
+        )
+        {
+            Assert.Equal(
+                expected,
+                BillingAccountLifecycleService.NormalizePilotExtensionReason(raw)
+            );
+        }
+
+        [Fact]
+        public void NormalizePilotExtensionReason_AcceptsExactly500Characters()
+        {
+            var raw = new string('r', 500);
+
+            Assert.Equal(raw, BillingAccountLifecycleService.NormalizePilotExtensionReason(raw));
+            Assert.Null(BillingAccountLifecycleService.NormalizePilotExtensionReason(raw + "r"));
         }
 
         private async Task<int> AddActiveMemberAsync(int restaurantId, DateTime clock)
@@ -981,7 +1182,8 @@ namespace TummlyBackend.Tests.Services
             string status = BillingStatuses.Pilot,
             DateTime? startedAt = null,
             int extensionCount = 0,
-            int extensionDaysTotal = 0
+            int extensionDaysTotal = 0,
+            DateTime? originalEndUtc = null
         )
         {
             var owner = new User
@@ -1020,6 +1222,7 @@ namespace TummlyBackend.Tests.Services
                     ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
                     StarterKitState = StarterKitStates.Unused,
                     PilotPeriodEnd = periodEnd,
+                    PilotOriginalEndUtc = originalEndUtc,
                     PilotStartedAtUtc = startedAt,
                     PilotExtensionCount = extensionCount,
                     PilotExtensionDaysTotal = extensionDaysTotal,

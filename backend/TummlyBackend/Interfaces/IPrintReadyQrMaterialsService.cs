@@ -74,6 +74,8 @@ namespace TummlyBackend.Interfaces
         Task<ShopPrintAssetReadinessDto?> RetryShopOrderAsync(
             Guid shopOrderId,
             QrType qrType,
+            int actorAdminUserId,
+            string actorIdentity,
             CancellationToken cancellationToken = default
         );
 
@@ -145,6 +147,9 @@ namespace TummlyBackend.Interfaces
     public sealed class ShopPrintAssetPreviewDto
     {
         public string ProductTitle { get; set; } = string.Empty;
+
+        /// <summary>Same value as the CSV <c>JobId</c> column for this print job.</summary>
+        public string JobId { get; set; } = string.Empty;
 
         public int LocationId { get; set; }
 
