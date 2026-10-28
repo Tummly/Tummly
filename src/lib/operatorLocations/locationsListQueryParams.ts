@@ -33,6 +33,8 @@ export type LocationsListApiRow = {
   cityPostcode: string
   lastActivityAt: string | null
   searchText?: string
+  /** Set while a duplicate-premises review blocks the Location. */
+  premisesReviewStatus?: "pending_review" | "rejected" | null
 }
 
 export type LocationsListKpis = {

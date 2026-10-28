@@ -56,6 +56,40 @@ namespace TummlyBackend.Controllers
             );
         }
 
+        [HttpGet("counts/export")]
+        public async Task<IActionResult> ExportCounts(CancellationToken cancellationToken)
+        {
+            var (fileName, content) = await _interest.ExportCountsCsvAsync(
+                cancellationToken
+            );
+            return File(content, "text/csv", fileName);
+        }
+
+        [HttpDelete("registrations/{id:int}")]
+        public async Task<IActionResult> RemoveRegistration(
+            int id,
+            CancellationToken cancellationToken
+        )
+        {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
+            var (ok, error) = await _interest.RemoveRegistrationAsync(
+                id,
+                actor.AdminUserId,
+                actor.Identity,
+                cancellationToken
+            );
+            if (!ok)
+            {
+                return NotFound(new { success = false, message = error });
+            }
+
+            return Ok(new { success = true });
+        }
+
         [HttpGet("products")]
         public async Task<IActionResult> ListProducts(
             CancellationToken cancellationToken

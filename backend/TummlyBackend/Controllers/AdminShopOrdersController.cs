@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Admin;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.PrintReadyQrMaterials;
@@ -16,14 +17,17 @@ namespace TummlyBackend.Controllers
     {
         private readonly IAdminShopOrderFulfilmentService _fulfilment;
         private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
+        private readonly IAdminAuditService _adminAudit;
 
         public AdminShopOrdersController(
             IAdminShopOrderFulfilmentService fulfilment,
-            IPrintReadyQrMaterialsService printReadyQrMaterials
+            IPrintReadyQrMaterialsService printReadyQrMaterials,
+            IAdminAuditService adminAudit
         )
         {
             _fulfilment = fulfilment;
             _printReadyQrMaterials = printReadyQrMaterials;
+            _adminAudit = adminAudit;
         }
 
         [HttpGet]
@@ -33,13 +37,42 @@ namespace TummlyBackend.Controllers
             [FromQuery] string? q = null,
             [FromQuery] int? restaurantId = null,
             [FromQuery] string[]? fulfilmentStatus = null,
+            [FromQuery] bool dispatchEvidenceMissing = false,
             CancellationToken cancellationToken = default
         )
         {
             try
             {
                 var result = await _fulfilment.GetListAsync(
-                    BuildListQuery(page, pageSize, q, restaurantId, fulfilmentStatus),
+                    BuildListQuery(
+                        page,
+                        pageSize,
+                        q,
+                        restaurantId,
+                        fulfilmentStatus,
+                        dispatchEvidenceMissing
+                    ),
+                    cancellationToken
+                );
+                // hasSearch only: the search text can name a customer.
+                await _adminAudit.AppendAndSaveAsync(
+                    StaffReadAudit.Build(
+                        User,
+                        AdminAuditActions.ShopOrdersRead,
+                        AdminAuditTargetTypes.ShopOrder,
+                        "list",
+                        StaffReadAudit.Detail(
+                            User,
+                            new
+                            {
+                                page,
+                                pageSize,
+                                restaurantId,
+                                fulfilmentStatus,
+                                hasSearch = !string.IsNullOrWhiteSpace(q),
+                            }
+                        )
+                    ),
                     cancellationToken
                 );
                 return Ok(result);
@@ -57,6 +90,7 @@ namespace TummlyBackend.Controllers
             [FromQuery] string? q = null,
             [FromQuery] int? restaurantId = null,
             [FromQuery] string[]? fulfilmentStatus = null,
+            [FromQuery] bool dispatchEvidenceMissing = false,
             CancellationToken cancellationToken = default
         )
         {
@@ -65,7 +99,26 @@ namespace TummlyBackend.Controllers
                 // page/pageSize accepted on the wire (Guests export pattern) but
                 // ignored for warehouse dump — ExportCsvAsync returns all matches.
                 var result = await _fulfilment.ExportCsvAsync(
-                    BuildListQuery(page, pageSize, q, restaurantId, fulfilmentStatus),
+                    BuildListQuery(
+                        page,
+                        pageSize,
+                        q,
+                        restaurantId,
+                        fulfilmentStatus,
+                        dispatchEvidenceMissing
+                    ),
+                    cancellationToken
+                );
+                await _adminAudit.AppendAndSaveAsync(
+                    StaffReadAudit.Build(
+                        User,
+                        AdminAuditActions.ShopOrdersExport,
+                        AdminAuditTargetTypes.ShopOrder,
+                        "export",
+                        System.Text.Json.JsonSerializer.Serialize(
+                            new { restaurantId, fulfilmentStatus, dispatchEvidenceMissing }
+                        )
+                    ),
                     cancellationToken
                 );
                 return File(result.Content, result.ContentType, result.FileName);
@@ -95,44 +148,35 @@ namespace TummlyBackend.Controllers
                 adminIdentity,
                 cancellationToken
             );
+            return FulfilmentResult(result);
+        }
 
-            if (result.Succeeded)
+        [HttpPost("{id:guid}/preparation-started")]
+        public async Task<IActionResult> MarkPreparationStarted(
+            Guid id,
+            [FromBody] AdminShopFulfilmentActionRequest? body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!TryResolveStaff(out var staffId, out var adminIdentity, out var actorError))
             {
-                return Ok(result.Order);
+                return actorError;
             }
 
-            return result.ErrorCode switch
-            {
-                "order_not_found" => NotFound(
-                    new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                    }
-                ),
-                "illegal_fulfilment_transition" => Conflict(
-                    new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                    }
-                ),
-                _ => BadRequest(
-                    new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                    }
-                ),
-            };
+            var result = await _fulfilment.MarkPreparationStartedAsync(
+                id,
+                body ?? new AdminShopFulfilmentActionRequest(),
+                staffId,
+                adminIdentity,
+                cancellationToken
+            );
+            return FulfilmentResult(result);
         }
 
         [HttpPost("{id:guid}/production-started")]
         public async Task<IActionResult> MarkProductionStarted(
             Guid id,
+            [FromBody] AdminShopFulfilmentActionRequest? body,
             CancellationToken cancellationToken = default
         )
         {
@@ -143,35 +187,100 @@ namespace TummlyBackend.Controllers
 
             var result = await _fulfilment.MarkProductionStartedAsync(
                 id,
+                body ?? new AdminShopFulfilmentActionRequest(),
                 staffId,
                 adminIdentity,
                 cancellationToken
             );
+            return FulfilmentResult(result);
+        }
 
-            if (result.Succeeded)
+        [HttpPost("{id:guid}/dispatched")]
+        public async Task<IActionResult> MarkDispatched(
+            Guid id,
+            [FromBody] AdminShopDispatchRequest? body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!TryResolveStaff(out var staffId, out var adminIdentity, out var actorError))
             {
-                return Ok(result.Order);
+                return actorError;
             }
 
-            return result.ErrorCode switch
+            var result = await _fulfilment.MarkDispatchedAsync(
+                id,
+                body ?? new AdminShopDispatchRequest(),
+                staffId,
+                adminIdentity,
+                cancellationToken
+            );
+            return FulfilmentResult(result);
+        }
+
+        [HttpPost("{id:guid}/delivered")]
+        public async Task<IActionResult> MarkDelivered(
+            Guid id,
+            [FromBody] AdminShopFulfilmentActionRequest? body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!TryResolveStaff(out var staffId, out var adminIdentity, out var actorError))
             {
-                "order_not_found" => NotFound(
-                    new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                    }
-                ),
-                _ => BadRequest(
-                    new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                    }
-                ),
-            };
+                return actorError;
+            }
+
+            var result = await _fulfilment.MarkDeliveredAsync(
+                id,
+                body ?? new AdminShopFulfilmentActionRequest(),
+                staffId,
+                adminIdentity,
+                cancellationToken
+            );
+            return FulfilmentResult(result);
+        }
+
+        [HttpPost("{id:guid}/dispatch-evidence")]
+        public async Task<IActionResult> RecordDispatchEvidence(
+            Guid id,
+            [FromBody] AdminShopDispatchEvidenceRequest? body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!TryResolveStaff(out var staffId, out var adminIdentity, out var actorError))
+            {
+                return actorError;
+            }
+
+            var result = await _fulfilment.RecordDispatchEvidenceAsync(
+                id,
+                body ?? new AdminShopDispatchEvidenceRequest(),
+                staffId,
+                adminIdentity,
+                cancellationToken
+            );
+            return FulfilmentResult(result);
+        }
+
+        [HttpPost("{id:guid}/status-correction")]
+        public async Task<IActionResult> CorrectStatus(
+            Guid id,
+            [FromBody] AdminShopStatusCorrectionRequest? body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!TryResolveStaff(out var staffId, out var adminIdentity, out var actorError))
+            {
+                return actorError;
+            }
+
+            var result = await _fulfilment.CorrectStatusAsync(
+                id,
+                body ?? new AdminShopStatusCorrectionRequest(),
+                staffId,
+                adminIdentity,
+                cancellationToken
+            );
+            return FulfilmentResult(result);
         }
 
         [HttpPost("{id:guid}/force-cancel")]
@@ -218,6 +327,42 @@ namespace TummlyBackend.Controllers
                             message = result.ErrorMessage,
                         }
                     ),
+                _ => BadRequest(
+                    new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    }
+                ),
+            };
+        }
+
+        private IActionResult FulfilmentResult(AdminShopOrderFulfilmentResult result)
+        {
+            if (result.Succeeded)
+            {
+                return Ok(result.Order);
+            }
+
+            return result.ErrorCode switch
+            {
+                "order_not_found" => NotFound(
+                    new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    }
+                ),
+                "illegal_fulfilment_transition" => Conflict(
+                    new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    }
+                ),
                 _ => BadRequest(
                     new
                     {
@@ -370,7 +515,8 @@ namespace TummlyBackend.Controllers
             int pageSize,
             string? q,
             int? restaurantId,
-            string[]? fulfilmentStatus
+            string[]? fulfilmentStatus,
+            bool dispatchEvidenceMissing
         )
         {
             return new AdminShopOrdersListQuery
@@ -380,6 +526,7 @@ namespace TummlyBackend.Controllers
                 Q = q,
                 RestaurantId = restaurantId,
                 FulfilmentStatus = fulfilmentStatus ?? Array.Empty<string>(),
+                DispatchEvidenceMissing = dispatchEvidenceMissing,
             };
         }
 

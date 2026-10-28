@@ -26,6 +26,20 @@ namespace TummlyBackend.DTOs.Campaigns
         public string? MessageBody { get; init; }
     }
 
+    /// <summary>
+    /// Home recommendation click: create the Draft once, or return the open Draft
+    /// for the same recommendation.
+    /// </summary>
+    public sealed class CreateRecommendationCampaignDraftRequest
+    {
+        /// <summary>Home campaign recommendation type (for example thank-recent-guests).</summary>
+        public string RecommendationType { get; init; } = string.Empty;
+
+        public CreateCampaignDraftRequest Draft { get; init; } = new();
+    }
+
+    public sealed record CampaignRecommendationDraftResult(CampaignDraftDto Campaign, bool Reused);
+
     public sealed class PatchCampaignDraftRequest
     {
         /// <summary>Base64 SQL rowversion from the last Draft read.</summary>
@@ -83,6 +97,12 @@ namespace TummlyBackend.DTOs.Campaigns
         public string? MessageSubject { get; init; }
 
         public string? MessageBody { get; init; }
+
+        /// <summary>Recent redeemers look-back in days; null when the audience does not use it.</summary>
+        public int? AudienceLookbackDays { get; init; }
+
+        /// <summary>IANA timezone of the look-back; null when the audience does not use it.</summary>
+        public string? AudienceLookbackTimeZone { get; init; }
 
         /// <summary>Base64 SQL rowversion for optimistic concurrency.</summary>
         public byte[] RowVersion { get; init; } = [];

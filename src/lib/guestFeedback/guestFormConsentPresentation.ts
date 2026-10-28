@@ -2,7 +2,7 @@
 
 import { z } from "zod"
 
-import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
+import { tryNormalizeUkMobileToE164 } from "@/lib/phoneNumber"
 
 export type GuestFormConsentConfig = {
   emailMarketingEnabled: boolean
@@ -53,7 +53,7 @@ function isValidUkMobileContact(value: string): boolean {
   if (trimmed.includes("@")) {
     return false
   }
-  return tryNormalizePhoneToE164(trimmed) !== null
+  return tryNormalizeUkMobileToE164(trimmed) !== null
 }
 
 /**

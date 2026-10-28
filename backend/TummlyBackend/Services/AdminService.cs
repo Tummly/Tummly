@@ -794,6 +794,8 @@
                 {
                     code = result.Code,
                     days = dto.Days,
+                    // Read back by BillingAccountLifecycleService.PilotExtensionAuditKey.
+                    idempotencyKey = dto.IdempotencyKey?.Trim(),
                     reason = BillingAccountLifecycleService.NormalizePilotExtensionReason(
                         dto.Reason
                     ),

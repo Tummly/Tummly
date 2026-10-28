@@ -23,31 +23,67 @@ namespace TummlyBackend.Services
 
         public const int DormantDays = 90;
 
+        /// <summary>Recent redeemers period when the Campaign has none stored ("Last 30 days").</summary>
+        public const int DefaultRecentRedeemerLookbackDays = 30;
+
+        /// <summary>
+        /// Recent redeemers timezone when the Campaign has none stored. Locations have
+        /// no timezone field yet, so this matches the other Campaign schedule helpers.
+        /// </summary>
+        public const string DefaultRecentRedeemerTimeZone = WeeklyBriefWeekKey.DefaultLocationTimeZoneId;
+
+        /// <summary>Upper bound for a stored look-back (same bound as the joined-date rule).</summary>
+        public const int MaxRecentRedeemerLookbackDays = 36500;
+
+        /// <summary>offer-not-redeemed needs the Campaign's attached Offer.</summary>
+        public const string NoOfferAttachedReason = "no-offer-attached";
+
+        public const string OfferNotRedeemedAudienceKey = "offer-not-redeemed";
+
+        public const string RecentRedeemersAudienceKey = "recent-redeemers";
+
         private static readonly HashSet<string> UnevaluableAudienceKeys =
             new(StringComparer.Ordinal)
             {
-                "offer-not-redeemed",
-                "recent-redeemers",
                 "no-recent-tummly-activity",
                 "saved-group",
             };
 
         private readonly ApplicationDbContext _context;
         private readonly ILocationGuestPermissionLedgerService _permissions;
+        private readonly IGuestContactSuppressionService _suppressions;
 
+        /// <param name="suppressions">
+        /// DI injects the configured hasher. The inline default is for tests
+        /// and ad-hoc construction only.
+        /// </param>
         public CampaignEligibilityService(
             ApplicationDbContext context,
-            ILocationGuestPermissionLedgerService? permissions = null
+            ILocationGuestPermissionLedgerService? permissions = null,
+            IGuestContactSuppressionService? suppressions = null
         )
         {
             _context = context;
             _permissions =
                 permissions ?? new LocationGuestPermissionLedgerService(context);
+            _suppressions =
+                suppressions
+                ?? new GuestContactSuppressionService(
+                    context,
+                    new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+                );
         }
+
+        public Task<CampaignEligibilityDto> EvaluateAsync(
+            int locationId,
+            string audienceKey,
+            CancellationToken cancellationToken = default
+        ) => EvaluateAsync(locationId, audienceKey, CampaignAudienceScope.None, cancellationToken);
 
         public async Task<CampaignEligibilityDto> EvaluateAsync(
             int locationId,
             string audienceKey,
+            CampaignAudienceScope scope,
             CancellationToken cancellationToken = default
         )
         {
@@ -58,10 +94,9 @@ namespace TummlyBackend.Services
             }
 
             var evaluatedAt = DateTime.UtcNow;
+            var baseKey = ResolveBaseAudienceKey(locationId, key);
 
-            if (UnevaluableAudienceKeys.Contains(key)
-                || (CampaignAudienceStore.IsKey(key)
-                    && UnevaluableAudienceKeys.Contains(CampaignAudienceStore.Load(_context, locationId, key).BaseAudienceKey)))
+            if (UnevaluableAudienceKeys.Contains(baseKey))
             {
                 return Unavailable(key, evaluatedAt);
             }
@@ -73,6 +108,15 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (baseKey == OfferNotRedeemedAudienceKey && scope.OfferId is null)
+            {
+                return Unavailable(key, evaluatedAt, NoOfferAttachedReason);
+            }
+
+            var lookback = baseKey == RecentRedeemersAudienceKey
+                ? ResolveLookback(scope, evaluatedAt)
+                : null;
+
             var restaurant = await LoadRestaurantForLocationAsync(
                 locationId,
                 cancellationToken
@@ -83,7 +127,7 @@ namespace TummlyBackend.Services
                 [locationId]
             );
 
-            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt, locationId);
+            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt, locationId, scope);
             var matchedRows = await matchedQuery
                 .Select(lg => new GuestEligibilityRow(
                     lg.Id,
@@ -98,21 +142,42 @@ namespace TummlyBackend.Services
                 matchedRows.Select(row => row.LocationGuestId).ToList(),
                 cancellationToken
             );
+            var emailBlocked = await LoadEmailDeliveryBlockedIdsAsync(
+                restaurant.Id,
+                matchedRows,
+                cancellationToken
+            );
 
             return Aggregate(
                 key,
                 matchedRows,
                 restaurant,
                 permissionStates,
+                emailBlocked,
                 evaluatedAt,
-                CampaignAudienceStore.IsKey(key) ? CampaignAudienceStore.Load(_context, locationId, key).Limit : null
+                CampaignAudienceStore.IsKey(key) ? CampaignAudienceStore.Load(_context, locationId, key).Limit : null,
+                lookback
             );
         }
+
+        public Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
+            int locationId,
+            string audienceKey,
+            string channel,
+            CancellationToken cancellationToken = default
+        ) => ListChannelEligibleLocationGuestIdsAsync(
+            locationId,
+            audienceKey,
+            channel,
+            CampaignAudienceScope.None,
+            cancellationToken
+        );
 
         public async Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
             int locationId,
             string audienceKey,
             string channel,
+            CampaignAudienceScope scope,
             CancellationToken cancellationToken = default
         )
         {
@@ -128,9 +193,10 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("channel must be email or sms.");
             }
 
-            if (UnevaluableAudienceKeys.Contains(key)
-                || (CampaignAudienceStore.IsKey(key)
-                    && UnevaluableAudienceKeys.Contains(CampaignAudienceStore.Load(_context, locationId, key).BaseAudienceKey)))
+            var evaluatedAt = DateTime.UtcNow;
+            var baseKey = ResolveBaseAudienceKey(locationId, key);
+
+            if (UnevaluableAudienceKeys.Contains(baseKey))
             {
                 return Array.Empty<int>();
             }
@@ -142,7 +208,12 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var evaluatedAt = DateTime.UtcNow;
+            // No attached Offer: nobody can be in this audience, so the send has no recipients.
+            if (baseKey == OfferNotRedeemedAudienceKey && scope.OfferId is null)
+            {
+                return Array.Empty<int>();
+            }
+
             var restaurant = await LoadRestaurantForLocationAsync(
                 locationId,
                 cancellationToken
@@ -153,7 +224,7 @@ namespace TummlyBackend.Services
                 [locationId]
             );
 
-            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt, locationId);
+            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt, locationId, scope);
             var matchedRows = await matchedQuery
                 .Select(lg => new GuestEligibilityRow(
                     lg.Id,
@@ -169,6 +240,12 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            var emailBlocked = await LoadEmailDeliveryBlockedIdsAsync(
+                restaurant.Id,
+                matchedRows,
+                cancellationToken
+            );
+
             var ids = new List<int>();
             foreach (var guest in matchedRows)
             {
@@ -178,7 +255,8 @@ namespace TummlyBackend.Services
                     ResolvePrimaryExclusionReason(
                         guest,
                         restaurant,
-                        states
+                        states,
+                        emailBlocked
                     ) != null
                 )
                 {
@@ -191,6 +269,7 @@ namespace TummlyBackend.Services
                 if (
                     channelKey == "email"
                     && hasEmail
+                    && !emailBlocked.Contains(guest.LocationGuestId)
                     && LocationGuestChannelPermissionGate.CanSendOnChannel(
                         restaurant,
                         states,
@@ -219,17 +298,85 @@ namespace TummlyBackend.Services
                 : ids;
         }
 
+        /// <summary>
+        /// Start of a recent-redeemers look-back: local midnight of the first of
+        /// <paramref name="days"/> calendar days, counting today as the last.
+        /// </summary>
+        public static DateTime RecentRedeemerWindowStartUtc(
+            int days,
+            string timeZoneId,
+            DateTime nowUtc
+        )
+        {
+            var zone = ResolveTimeZone(timeZoneId);
+            var localToday = DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTimeFromUtc(nowUtc, zone)
+            );
+            var localStart = localToday
+                .AddDays(-(days - 1))
+                .ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+            return TimeZoneInfo.ConvertTimeToUtc(localStart, zone);
+        }
+
+        private string ResolveBaseAudienceKey(int locationId, string key)
+        {
+            return CampaignAudienceStore.IsKey(key)
+                ? CampaignAudienceStore.Load(_context, locationId, key).BaseAudienceKey
+                : key;
+        }
+
+        private static RecentRedeemerLookback ResolveLookback(
+            CampaignAudienceScope scope,
+            DateTime nowUtc
+        )
+        {
+            var days = scope.RecentRedeemerLookbackDays ?? DefaultRecentRedeemerLookbackDays;
+            if (days < 1 || days > MaxRecentRedeemerLookbackDays)
+            {
+                throw new ArgumentException(
+                    $"Recent redeemers period must be between 1 and {MaxRecentRedeemerLookbackDays} days."
+                );
+            }
+
+            var timeZone = scope.RecentRedeemerTimeZone ?? DefaultRecentRedeemerTimeZone;
+            var fromUtc = RecentRedeemerWindowStartUtc(days, timeZone, nowUtc);
+            return new RecentRedeemerLookback(days, timeZone, fromUtc);
+        }
+
+        private static TimeZoneInfo ResolveTimeZone(string timeZoneId)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            }
+            catch (TimeZoneNotFoundException) when (
+                string.Equals(
+                    timeZoneId,
+                    DefaultRecentRedeemerTimeZone,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("GMT Standard Time");
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                throw new ArgumentException($"timeZone '{timeZoneId}' is not a known IANA timezone.");
+            }
+        }
+
         private IQueryable<LocationGuest> ApplyAudienceMatch(
             IQueryable<LocationGuest> scoped,
             string audienceKey,
             DateTime nowUtc,
-            int locationId
+            int locationId,
+            CampaignAudienceScope scope
         )
         {
             if (CampaignAudienceStore.IsKey(audienceKey))
             {
                 var rule = CampaignAudienceStore.Load(_context, locationId, audienceKey);
-                var query = ApplyAudienceMatch(scoped, rule.BaseAudienceKey, nowUtc, locationId);
+                var query = ApplyAudienceMatch(scoped, rule.BaseAudienceKey, nowUtc, locationId, scope);
                 var includedIds = rule.GuestIds.ToList();
                 var excludedIds = rule.ExcludedGuestIds.ToList();
                 if (includedIds.Count > 0) query = query.Where(g => includedIds.Contains(g.Id));
@@ -264,6 +411,18 @@ namespace TummlyBackend.Services
                     dormantCutoff
                 ),
                 "completed-recovery-follow-up" => WhereCompletedRecovery(scoped),
+                OfferNotRedeemedAudienceKey => WhereOfferNotRedeemed(
+                    scoped,
+                    scope.OfferId ?? 0,
+                    locationId,
+                    nowUtc
+                ),
+                RecentRedeemersAudienceKey => WhereRecentRedeemers(
+                    scoped,
+                    locationId,
+                    ResolveLookback(scope, nowUtc).FromUtc,
+                    nowUtc
+                ),
                 _ => GuestsListQueryComposer.WhereEmpty(scoped),
             };
         }
@@ -279,6 +438,109 @@ namespace TummlyBackend.Services
             );
         }
 
+        /// <summary>
+        /// Guests whose email address has a permanent hard-bounce suppression
+        /// (<see cref="LocationGuestPermissionKind.EmailDelivery"/>) at this
+        /// restaurant. A bounce blocks marketing email to that address. It is a
+        /// delivery fact, so the consent ledger is not changed.
+        /// </summary>
+        private async Task<IReadOnlySet<int>> LoadEmailDeliveryBlockedIdsAsync(
+            int restaurantId,
+            IReadOnlyList<GuestEligibilityRow> rows,
+            CancellationToken cancellationToken
+        )
+        {
+            var idsByKey = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+            foreach (var row in rows)
+            {
+                if (
+                    string.IsNullOrWhiteSpace(row.Email)
+                    || !GuestContactKey.TryCreate(
+                        row.Email,
+                        ContactType.Email,
+                        out var contactKey
+                    )
+                )
+                {
+                    continue;
+                }
+
+                if (!idsByKey.TryGetValue(contactKey, out var ids))
+                {
+                    ids = new List<int>();
+                    idsByKey[contactKey] = ids;
+                }
+
+                ids.Add(row.LocationGuestId);
+            }
+
+            var bouncedKeys = await _suppressions.FindContactKeysWithKindAsync(
+                restaurantId,
+                LocationGuestPermissionKind.EmailDelivery,
+                idsByKey.Keys,
+                cancellationToken
+            );
+
+            var blocked = new HashSet<int>();
+            foreach (var contactKey in bouncedKeys)
+            {
+                blocked.UnionWith(idsByKey[contactKey]);
+            }
+
+            return blocked;
+        }
+
+        /// <summary>
+        /// Guests with a valid Offer Claim or issue for this Offer (at this Location)
+        /// who have not redeemed it. Voided redemptions do not count as redeemed.
+        /// </summary>
+        private IQueryable<LocationGuest> WhereOfferNotRedeemed(
+            IQueryable<LocationGuest> query,
+            int offerId,
+            int locationId,
+            DateTime nowUtc
+        )
+        {
+            return query.Where(lg =>
+                _context.OfferIssues.Any(o =>
+                    o.LocationGuestId == lg.Id
+                    && o.CatalogOfferId == offerId
+                    && o.CatalogOffer!.RestaurantLocationId == locationId
+                    && o.CancelledAtUtc == null
+                    && o.ExpiryAtUtc > nowUtc
+                )
+                && !_context.OfferIssues.Any(o =>
+                    o.LocationGuestId == lg.Id
+                    && o.CatalogOfferId == offerId
+                    && o.RedeemedAtUtc != null
+                    && o.RedemptionVoidedAtUtc == null
+                )
+            );
+        }
+
+        /// <summary>
+        /// Guests with a successful, staff-confirmed redemption at this Location
+        /// inside the look-back window. Voided redemptions do not count.
+        /// </summary>
+        private IQueryable<LocationGuest> WhereRecentRedeemers(
+            IQueryable<LocationGuest> query,
+            int locationId,
+            DateTime fromUtc,
+            DateTime nowUtc
+        )
+        {
+            return query.Where(lg =>
+                _context.OfferIssues.Any(o =>
+                    o.LocationGuestId == lg.Id
+                    && o.RedeemedAtUtc != null
+                    && o.RedeemedAtUtc >= fromUtc
+                    && o.RedeemedAtUtc <= nowUtc
+                    && o.RedemptionVoidedAtUtc == null
+                    && o.CatalogOffer!.RestaurantLocationId == locationId
+                )
+            );
+        }
+
         private static CampaignEligibilityDto Aggregate(
             string audienceKey,
             IReadOnlyList<GuestEligibilityRow> matched,
@@ -290,8 +552,10 @@ namespace TummlyBackend.Services
                     LocationGuestPermissionState
                 >
             > permissionStates,
+            IReadOnlySet<int> emailBlocked,
             DateTime evaluatedAt,
-            int? limit = null
+            int? limit = null,
+            RecentRedeemerLookback? lookback = null
         )
         {
             var matchedCount = matched.Count;
@@ -306,7 +570,8 @@ namespace TummlyBackend.Services
                 var primaryReason = ResolvePrimaryExclusionReason(
                     guest,
                     restaurant,
-                    states
+                    states,
+                    emailBlocked
                 );
                 if (primaryReason != null)
                 {
@@ -321,6 +586,7 @@ namespace TummlyBackend.Services
                 var hasMobile = !string.IsNullOrWhiteSpace(guest.Mobile);
                 if (
                     hasEmail
+                    && !emailBlocked.Contains(guest.LocationGuestId)
                     && LocationGuestChannelPermissionGate.CanSendOnChannel(
                         restaurant,
                         states,
@@ -372,12 +638,15 @@ namespace TummlyBackend.Services
                 ExcludedReasons = excludedReasons,
                 CheckSetVersion = CheckSetVersion,
                 EvaluatedAt = evaluatedAt,
+                LookbackDays = lookback?.Days,
+                LookbackTimeZone = lookback?.TimeZone,
             };
         }
 
         /// <summary>
         /// One primary reason per excluded guest.
-        /// Priority: invalid-contact → suppressed (restaurant off) →
+        /// Priority: invalid-contact → previous-hard-bounce (email bounce is the
+        /// only reason email is closed) → suppressed (restaurant off) →
         /// withdrawn → not-granted. Account / soft-lock remain omitted
         /// until Billing stores exist.
         /// </summary>
@@ -387,7 +656,8 @@ namespace TummlyBackend.Services
             IReadOnlyDictionary<
                 LocationGuestPermissionKind,
                 LocationGuestPermissionState
-            > states
+            > states,
+            IReadOnlySet<int> emailBlocked
         )
         {
             var hasEmail = !string.IsNullOrWhiteSpace(guest.Email);
@@ -398,8 +668,12 @@ namespace TummlyBackend.Services
                 return "invalid-contact";
             }
 
+            // A hard bounce on this address blocks email marketing to it.
+            var emailDeliveryBlocked = emailBlocked.Contains(guest.LocationGuestId);
+
             var emailAllowed =
                 hasEmail
+                && !emailDeliveryBlocked
                 && LocationGuestChannelPermissionGate.CanSendOnChannel(
                     restaurant,
                     states,
@@ -431,21 +705,25 @@ namespace TummlyBackend.Services
 
             // Suppressed when every contact the guest has is restaurant-off
             // (not only when both restaurant toggles are globally off).
+            var emailReachable =
+                hasEmail && emailRestaurantOn && !emailDeliveryBlocked;
             var hasReachableRestaurantChannel =
-                (hasEmail && emailRestaurantOn)
-                || (hasMobile && smsRestaurantOn);
+                emailReachable || (hasMobile && smsRestaurantOn);
 
             if (!hasReachableRestaurantChannel)
             {
-                return "suppressed";
+                // The bounce is the reason only when the restaurant has email
+                // on: without the bounce this guest would be reachable by email.
+                return emailDeliveryBlocked && hasEmail && emailRestaurantOn
+                    ? "previous_hard_bounce"
+                    : "suppressed";
             }
 
             var emailState = states[LocationGuestPermissionKind.EmailMarketing];
             var smsState = states[LocationGuestPermissionKind.SmsMarketing];
 
             var withdrawnOnReachableChannel =
-                (hasEmail
-                    && emailRestaurantOn
+                (emailReachable
                     && emailState == LocationGuestPermissionState.Withdrawn)
                 || (hasMobile
                     && smsRestaurantOn
@@ -477,7 +755,8 @@ namespace TummlyBackend.Services
 
         private static CampaignEligibilityDto Unavailable(
             string audienceKey,
-            DateTime evaluatedAt
+            DateTime evaluatedAt,
+            string? unavailableReason = null
         )
         {
             return new CampaignEligibilityDto
@@ -492,6 +771,7 @@ namespace TummlyBackend.Services
                 ExcludedReasons = Array.Empty<CampaignExcludedReasonCountDto>(),
                 CheckSetVersion = CheckSetVersion,
                 EvaluatedAt = evaluatedAt,
+                UnavailableReason = unavailableReason,
             };
         }
 
@@ -529,6 +809,8 @@ namespace TummlyBackend.Services
                     LocationGuestPermissionState.Withdrawn,
             };
         }
+
+        private sealed record RecentRedeemerLookback(int Days, string TimeZone, DateTime FromUtc);
 
         private readonly record struct GuestEligibilityRow(
             int LocationGuestId,

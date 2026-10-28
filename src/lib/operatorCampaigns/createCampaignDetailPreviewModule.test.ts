@@ -204,6 +204,9 @@ describe("createCampaignDetailPreviewModule", () => {
     expect(loadAudienceEligibility).toHaveBeenCalledWith({
       locationId: 7,
       audienceKey: "all-eligible-guests",
+      offerId: null,
+      lookbackDays: null,
+      lookbackTimeZone: null,
     })
     expect(viewModel?.showAudienceEligibility).toBe(true)
     expect(viewModel?.eligibility).toEqual({

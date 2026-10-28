@@ -640,6 +640,82 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ExtendPilot_OlderAuditKey_ReplaysWhenLastKeyDiffers()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(periodEnd);
+            _context.AdminAuditEvents.Add(
+                new AdminAuditEvent
+                {
+                    Id = Guid.NewGuid(),
+                    OccurredAtUtc = now.AddDays(-1),
+                    Action = AdminAuditActions.OperatorExtendPilot,
+                    ActorIdentity = "admin@example.com",
+                    TargetType = AdminAuditTargetTypes.OperatorUser,
+                    TargetId = seeded.OwnerId.ToString(),
+                    RestaurantId = seeded.RestaurantId,
+                    DetailJson = "{\"days\":14,\"idempotencyKey\":\"key-older\"}",
+                    Succeeded = true,
+                }
+            );
+            await _context.SaveChangesAsync();
+            var account = await ReloadAsync(seeded.RestaurantId);
+            account.PilotExtensionCount = 1;
+            account.PilotExtensionDaysTotal = 14;
+            account.PilotPeriodEnd = periodEnd.AddDays(14);
+            account.LastPilotExtensionKey = "key-last";
+            await _context.SaveChangesAsync();
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-older",
+                now, "Support asked for a delay", 1
+            );
+
+            Assert.Equal("replayed", result.Outcome);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(1, after.PilotExtensionCount);
+            Assert.Equal(14, after.PilotExtensionDaysTotal);
+            Assert.Equal(periodEnd.AddDays(14), after.PilotPeriodEnd);
+        }
+
+        [Fact]
+        public async Task ExtendPilot_KeyOfARefusedAttempt_CanStillApply()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var seeded = await SeedPilotAsync(periodEnd);
+            _context.AdminAuditEvents.Add(
+                new AdminAuditEvent
+                {
+                    Id = Guid.NewGuid(),
+                    OccurredAtUtc = now.AddMinutes(-5),
+                    Action = AdminAuditActions.OperatorExtendPilot,
+                    ActorIdentity = "admin@example.com",
+                    TargetType = AdminAuditTargetTypes.OperatorUser,
+                    TargetId = seeded.OwnerId.ToString(),
+                    RestaurantId = seeded.RestaurantId,
+                    DetailJson = "{\"code\":\"stale_pilot_version\",\"days\":14,\"idempotencyKey\":\"key-refused\"}",
+                    Succeeded = false,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var result = await _lifecycle.ExtendPilotAsync(
+                seeded.RestaurantId,
+                14,
+                "key-refused",
+                now, "Support asked for a delay", 0
+            );
+
+            Assert.Equal("extended", result.Outcome);
+            var after = await ReloadAsync(seeded.RestaurantId);
+            Assert.Equal(1, after.PilotExtensionCount);
+        }
+
+        [Fact]
         public async Task ExtendPilot_InvalidDays7_Refused()
         {
             var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);

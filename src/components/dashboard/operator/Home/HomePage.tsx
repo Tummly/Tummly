@@ -114,7 +114,10 @@ export function HomePage({
         return
       }
       setCampaignsIntent({
-        openFromRecommendation: { draftPrefill: plan.draftPrefill },
+        openFromRecommendation: {
+          recommendationType: plan.recommendationType,
+          draftPrefill: plan.draftPrefill,
+        },
       })
       navigate(plan.path)
       return

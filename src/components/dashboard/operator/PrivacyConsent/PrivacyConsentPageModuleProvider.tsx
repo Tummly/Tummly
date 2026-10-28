@@ -12,6 +12,7 @@ import {
   getPermissionRecords,
   getPrivacyConsent,
   getPrivacyConsentActivity,
+  getPrivacyConsentArchivedActivity,
   markPrivacyConsentReviewed,
   patchPrivacyConsentToggles,
 } from "@/api/privacyConsentApi"
@@ -38,6 +39,7 @@ export function PrivacyConsentPageModuleProvider({
       markPrivacyReviewed: markPrivacyConsentReviewed,
       getPermissionRecords,
       getActivity: getPrivacyConsentActivity,
+      getArchivedActivity: getPrivacyConsentArchivedActivity,
       getLocationFilterOptions: () =>
         locationsRef.current.map((location) => ({
           id: String(location.id),

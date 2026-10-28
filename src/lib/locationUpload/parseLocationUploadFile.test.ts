@@ -88,4 +88,43 @@ describe("parseLocationUploadFile", () => {
       error: "Upload a CSV or XLSX file only.",
     })
   })
+
+  it("reads an optional FSA establishment id column", async () => {
+    const file = createUploadFile(
+      [
+        ["Location name", "Address", "Postcode", "FSA establishment id"],
+        ["Cafe One", "1 High Street", "M1 4AB", " 123456 "],
+        ["Cafe Two", "2 High Street", "M1 4AB", ""],
+      ],
+      "locations.csv",
+      "csv"
+    )
+
+    const result = await parseLocationUploadFile(file)
+
+    expect(result).toMatchObject({
+      locations: [
+        { locationName: "Cafe One", fsaEstablishmentId: "123456" },
+        { locationName: "Cafe Two" },
+      ],
+    })
+    if ("locations" in result) {
+      expect(result.locations[1]).not.toHaveProperty("fsaEstablishmentId")
+    }
+  })
+
+  it("does not require the FSA column", async () => {
+    const file = createUploadFile(
+      [
+        ["Location name", "Address", "Postcode"],
+        ["Cafe One", "1 High Street", "M1 4AB"],
+      ],
+      "locations.csv",
+      "csv"
+    )
+
+    const result = await parseLocationUploadFile(file)
+
+    expect("locations" in result).toBe(true)
+  })
 })

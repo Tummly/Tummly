@@ -74,6 +74,7 @@ function adapters(overrides: Partial<Parameters<typeof createOperatorPrivacyCons
         },
       ],
     })),
+    getArchivedActivity: vi.fn(async () => ({ items: [] })),
     getLocationFilterOptions: () => [{ id: "3", label: "Camden" }],
     ...overrides,
   }
@@ -478,6 +479,106 @@ describe("createOperatorPrivacyConsentPageModule", () => {
     expect(pageModule.getSnapshot().toast).toEqual({
       kind: "error",
       message: "Records unavailable",
+    })
+  })
+
+  describe("archived Location history", () => {
+    const archivedRow = {
+      id: 9,
+      locationId: 5,
+      locationName: "Old Site",
+      locationArchived: true,
+      kind: "guest-permission-toggle-changed",
+      description: "Old Site withdrawal.",
+      occurredAt: "2026-08-20T10:00:00.000Z",
+    }
+
+    it("loads archived Location history for the workspace owner", async () => {
+      const api = adapters({
+        debounceMs: 0,
+        getPage: vi.fn(async () => pageData({ actorIsWorkspaceOwner: true })),
+        getArchivedActivity: vi.fn(async () => ({ items: [archivedRow] })),
+      })
+      const pageModule = createOperatorPrivacyConsentPageModule(api)
+      await pageModule.load()
+      const snap = pageModule.getSnapshot()
+
+      expect(api.getArchivedActivity).toHaveBeenCalledTimes(1)
+      expect(snap.actorIsWorkspaceOwner).toBe(true)
+      expect(snap.archivedActivityItems).toEqual([
+        {
+          id: "9",
+          timeLabel: expect.any(String),
+          description: "Old Site withdrawal.",
+          locationName: "Old Site",
+        },
+      ])
+    })
+
+    it("does not request archived Location history for other roles", async () => {
+      const api = adapters({
+        debounceMs: 0,
+        getPage: vi.fn(async () => pageData({ actorIsWorkspaceOwner: false })),
+      })
+      const pageModule = createOperatorPrivacyConsentPageModule(api)
+      await pageModule.load()
+      const snap = pageModule.getSnapshot()
+
+      expect(api.getArchivedActivity).not.toHaveBeenCalled()
+      expect(snap.actorIsWorkspaceOwner).toBe(false)
+      expect(snap.archivedActivityItems).toEqual([])
+    })
+
+    it("keeps archived rows out of the active activity list", async () => {
+      const api = adapters({
+        debounceMs: 0,
+        getPage: vi.fn(async () => pageData({ actorIsWorkspaceOwner: true })),
+        getArchivedActivity: vi.fn(async () => ({ items: [archivedRow] })),
+      })
+      const pageModule = createOperatorPrivacyConsentPageModule(api)
+      await pageModule.load()
+      const snap = pageModule.getSnapshot()
+
+      expect(snap.activityItems.map((item) => item.id)).toEqual(["1"])
+      expect(snap.archivedActivityItems.map((item) => item.id)).toEqual(["9"])
+    })
+
+    it("shows the access restricted state, not a toast, when the server refuses archived history", async () => {
+      const api = adapters({
+        debounceMs: 0,
+        getPage: vi.fn(async () => pageData({ actorIsWorkspaceOwner: true })),
+        getArchivedActivity: vi.fn(async () => ({
+          items: [],
+          accessRestricted: true,
+        })),
+      })
+      const pageModule = createOperatorPrivacyConsentPageModule(api)
+      await pageModule.load()
+      const snap = pageModule.getSnapshot()
+
+      expect(snap.archivedActivityAccessRestricted).toBe(true)
+      expect(snap.archivedActivityItems).toEqual([])
+      expect(snap.toast).toBeNull()
+    })
+
+    it("shows an error toast when archived history fails to load", async () => {
+      const api = adapters({
+        debounceMs: 0,
+        getPage: vi.fn(async () => pageData({ actorIsWorkspaceOwner: true })),
+        getArchivedActivity: vi.fn(async () => {
+          throw new Error("History unavailable")
+        }),
+      })
+      const pageModule = createOperatorPrivacyConsentPageModule(api)
+      await pageModule.load()
+      const snap = pageModule.getSnapshot()
+
+      expect(snap.loadStatus).toBe("loaded")
+      expect(snap.archivedActivityItems).toEqual([])
+      expect(snap.toast).toEqual({
+        kind: "error",
+        message: "History unavailable",
+      })
     })
   })
 })

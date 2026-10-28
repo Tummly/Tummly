@@ -9,6 +9,7 @@ import { AuthSessionLoading } from "@/components/auth/AuthSessionLoading"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { MarketingLogo } from "@/components/marketing/MarketingLogo"
 import { PRODUCT_DEMO } from "@/content/marketing/productDemoPage"
+import { isProductDemoEnabled } from "@/lib/env"
 import {
   startDemoTourSession,
   writeDemoGuestScanPath,
@@ -43,16 +44,19 @@ function apiErrorMessage(err: unknown, fallback: string): string {
 /**
  * Public product walkthrough bootstrap — creates the demo JWT, then opens the
  * real Operator dashboard with the entry panel over it (`phase: entry`).
- * Path: `/product-demo`.
+ * Path: `/product-demo`. While `VITE_PRODUCT_DEMO_ENABLED` is not "true" it
+ * renders the unavailable state and makes no demo API call.
  */
 export default function ProductDemoPage() {
   const navigate = useNavigate()
-  const [unavailable, setUnavailable] = useState(false)
+  const demoEnabled = isProductDemoEnabled()
+  const [unavailable, setUnavailable] = useState(() => !demoEnabled)
   const [error, setError] = useState<string | null>(null)
   const [bootKey, setBootKey] = useState(0)
 
   useEffect(() => {
     document.title = "Try demo · Tummly"
+    if (!demoEnabled) return
 
     let cancelled = false
 
@@ -90,7 +94,7 @@ export default function ProductDemoPage() {
     return () => {
       cancelled = true
     }
-  }, [navigate, bootKey])
+  }, [navigate, bootKey, demoEnabled])
 
   if (unavailable) {
     const copy = PRODUCT_DEMO.entry

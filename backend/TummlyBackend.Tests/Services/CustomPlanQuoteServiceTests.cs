@@ -556,6 +556,30 @@ namespace TummlyBackend.Tests.Services
             Assert.NotEqual(first.QuoteHash, changed.QuoteHash);
         }
 
+        [Fact]
+        public async Task Quote_HashChanges_WhenOnlyVatRateChanges()
+        {
+            var request = new CustomPlanQuoteRequest
+            {
+                Cadence = "monthly",
+                BasePlan = "group",
+                Locations = 31,
+            };
+            var withoutVat = await new CustomPlanQuoteService(
+                _db,
+                Options.Create(new TummlySellerVatSettings { IsActive = false })
+            ).QuoteAsync(request);
+            var withVat = await new CustomPlanQuoteService(
+                _db,
+                Options.Create(new TummlySellerVatSettings { IsActive = true })
+            ).QuoteAsync(request);
+
+            Assert.Equal(withoutVat.PeriodNetPence, withVat.PeriodNetPence);
+            Assert.Equal(0, withoutVat.VatRateBps);
+            Assert.Equal(2000, withVat.VatRateBps);
+            Assert.NotEqual(withoutVat.QuoteHash, withVat.QuoteHash);
+        }
+
         public void Dispose() => _db.Dispose();
     }
 }

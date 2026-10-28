@@ -544,18 +544,11 @@ namespace TummlyBackend.Services
                         x.Email == dto.Email
                     );
 
-            if (user == null)
+            // Unknown and social-only emails return without a link or an error, so the
+            // response never shows which emails have a password account.
+            if (user == null || string.IsNullOrEmpty(user.PasswordHash))
             {
-                throw new Exception(
-                    "Email not found."
-                );
-            }
-
-            if (string.IsNullOrEmpty(user.PasswordHash))
-            {
-                throw new Exception(
-                    "This account uses Google or Microsoft Sign-in. Continue with Google or Microsoft instead of resetting a password."
-                );
+                return;
             }
 
             /*
@@ -639,10 +632,18 @@ namespace TummlyBackend.Services
              =========================================
             */
 
-            await _emailService.SendResetPasswordEmailAsync(
-                user.Email,
-                resetLink
-            );
+            try
+            {
+                await _emailService.SendResetPasswordEmailAsync(
+                    user.Email,
+                    resetLink
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "auth.forgot_password_send_failed");
+                throw;
+            }
         }
 
         /*

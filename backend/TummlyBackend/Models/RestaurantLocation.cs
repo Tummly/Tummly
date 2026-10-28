@@ -161,5 +161,41 @@ namespace TummlyBackend.Models
         public int? OfferCardCatalogOfferId { get; set; }
 
         public CatalogOffer? OfferCardCatalogOffer { get; set; }
+
+        /*
+         =========================================
+         PREMISES REVIEW (duplicate premises)
+         =========================================
+        */
+
+        /// <summary>
+        /// Normalised premises identity (<see cref="Helpers.PremisesKey"/>),
+        /// persisted for indexed duplicate lookup. Null when the address or
+        /// postcode is blank. Rows that predate the column are filled lazily
+        /// by the premises check.
+        /// </summary>
+        [MaxLength(450)]
+        public string? PremisesKey { get; set; }
+
+        /// <summary>
+        /// Optional FSA (Food Standards Agency) establishment id. Entered by
+        /// the operator; never looked up from an external service.
+        /// </summary>
+        [MaxLength(50)]
+        public string? FsaEstablishmentId { get; set; }
+
+        public PremisesReviewStatus PremisesReviewStatus { get; set; }
+            = PremisesReviewStatus.None;
+
+        public DateTime? PremisesReviewedAtUtc { get; set; }
+
+        /// <summary>
+        /// Admin user id that cleared or rejected the review. No FK on purpose:
+        /// a second User FK on this table risks SQL Server error 1785.
+        /// </summary>
+        public int? PremisesReviewedByAdminUserId { get; set; }
+
+        [MaxLength(500)]
+        public string? PremisesReviewReason { get; set; }
     }
 }

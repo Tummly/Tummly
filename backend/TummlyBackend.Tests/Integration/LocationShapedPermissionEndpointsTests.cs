@@ -493,6 +493,108 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
+        [Fact]
+        public async Task PrivacyActivity_NamedListMember_HidesOtherLocationRows()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Marketing,
+                namedInScopeOnly: true
+            );
+            await AddPrivacyActivityAsync(
+                seeded,
+                new (int? LocationId, string Description)[]
+                {
+                    (seeded.InScopeLocationId, "In scope withdrawal."),
+                    (seeded.OutOfScopeLocationId, "Out of scope withdrawal."),
+                    (null, "Restaurant-wide toggle."),
+                }
+            );
+
+            var descriptions = await GetPrivacyActivityDescriptionsAsync(
+                seeded.MemberJwt
+            );
+
+            Assert.Contains("In scope withdrawal.", descriptions);
+            Assert.Contains("Restaurant-wide toggle.", descriptions);
+            Assert.DoesNotContain("Out of scope withdrawal.", descriptions);
+        }
+
+        [Fact]
+        public async Task PrivacyActivity_AllLocationsMember_SeesEveryLocationRow()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Marketing,
+                namedInScopeOnly: false
+            );
+            await AddPrivacyActivityAsync(
+                seeded,
+                new (int? LocationId, string Description)[]
+                {
+                    (seeded.InScopeLocationId, "In scope withdrawal."),
+                    (seeded.OutOfScopeLocationId, "Out of scope withdrawal."),
+                }
+            );
+
+            var descriptions = await GetPrivacyActivityDescriptionsAsync(
+                seeded.MemberJwt
+            );
+
+            Assert.Contains("In scope withdrawal.", descriptions);
+            Assert.Contains("Out of scope withdrawal.", descriptions);
+        }
+
+        private async Task AddPrivacyActivityAsync(
+            PermissionSeed seeded,
+            (int? LocationId, string Description)[] rows
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var restaurantId = (
+                await context.RestaurantLocations
+                    .AsNoTracking()
+                    .FirstAsync(row => row.Id == seeded.InScopeLocationId)
+            ).RestaurantId;
+
+            context.LocationActivities.AddRange(
+                rows.Select(row => new LocationActivity
+                {
+                    RestaurantId = restaurantId,
+                    LocationId = row.LocationId,
+                    ActorUserId = seeded.MemberUserId,
+                    ActorDisplayName = "Location Scope Member",
+                    Kind = LocationActivityKinds.GuestMarketingUnsubscribed,
+                    Description = row.Description,
+                    OccurredAt = DateTime.UtcNow,
+                })
+            );
+            await context.SaveChangesAsync();
+        }
+
+        private async Task<List<string?>> GetPrivacyActivityDescriptionsAsync(
+            string jwt
+        )
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/privacy-consent/activity"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            return body
+                .GetProperty("items")
+                .EnumerateArray()
+                .Select(item => item.GetProperty("description").GetString())
+                .ToList();
+        }
+
         private async Task<string> SeedTummlyStaffJwtAsync()
         {
             using var scope = _factory.Services.CreateScope();

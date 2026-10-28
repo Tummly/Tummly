@@ -18,6 +18,22 @@ namespace TummlyBackend.Models
         public const string Cancelled = "cancelled";
     }
 
+    /// <summary>
+    /// Who or what recorded a fulfilment evidence timestamp. Admin transitions
+    /// stamp <see cref="AdminManual"/> and the acting Admin user id.
+    /// </summary>
+    public static class ShopFulfilmentEvidenceSources
+    {
+        public const string AdminManual = "admin_manual";
+
+        /// <summary>
+        /// Dispatch evidence an Admin recorded for an order dispatched before
+        /// carrier evidence was required. The actual dispatch time is supplied
+        /// by Admin, and the order keeps its original event history in audit.
+        /// </summary>
+        public const string LegacyBackfill = "legacy_backfill";
+    }
+
     public static class ShopOrderReviewReasons
     {
         /// <summary>
@@ -101,15 +117,43 @@ namespace TummlyBackend.Models
         [MaxLength(2048)]
         public string? TrackingUrl { get; set; }
 
+        /// <summary>
+        /// Set when the order is confirmed (paid or complimentary). Not the
+        /// preparation start: that is <see cref="PreparationStartedAtUtc"/>.
+        /// </summary>
         public DateTime? ProcessingStartedAtUtc { get; set; }
 
+        /// <summary>Admin recorded that order preparation has started.</summary>
+        public DateTime? PreparationStartedAtUtc { get; set; }
+
+        public int? PreparationStartedByAdminUserId { get; set; }
+
+        /// <summary>Production-start evidence: "In production" customer status.</summary>
         public DateTime? ProductionStartedAtUtc { get; set; }
 
         public int? ProductionStartedByAdminUserId { get; set; }
 
+        [MaxLength(32)]
+        public string? ProductionStartSource { get; set; }
+
+        /// <summary>Supplier or carrier dispatch evidence: "Dispatched" customer status.</summary>
         public DateTime? DispatchedAtUtc { get; set; }
 
+        public int? DispatchedByAdminUserId { get; set; }
+
+        [MaxLength(32)]
+        public string? DispatchSource { get; set; }
+
+        [MaxLength(200)]
+        public string? DispatchCarrierName { get; set; }
+
+        [MaxLength(200)]
+        public string? DispatchCarrierReference { get; set; }
+
         public DateTime? DeliveredAtUtc { get; set; }
+
+        [MaxLength(32)]
+        public string? DeliverySource { get; set; }
 
         [MaxLength(500)]
         public string? CancelReason { get; set; }

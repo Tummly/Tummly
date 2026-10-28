@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -44,14 +45,10 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var existingId = await _context.ShopOrders
-                .AsNoTracking()
-                .Where(row =>
-                    row.LocationId == locationId
-                    && row.IsComplimentary
-                )
-                .Select(row => (Guid?)row.Id)
-                .FirstOrDefaultAsync(cancellationToken);
+            var existingId = await FindComplimentaryOrderIdAsync(
+                locationId,
+                cancellationToken
+            );
             if (existingId.HasValue)
             {
                 return new ComplimentaryStarterShopOrderResult(
@@ -74,7 +71,10 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (location.LifecycleStatus != LocationLifecycleStatus.Active)
+            if (
+                location.LifecycleStatus != LocationLifecycleStatus.Active
+                || PremisesReviewGate.Blocks(location)
+            )
             {
                 return new ComplimentaryStarterShopOrderResult(
                     Guid.Empty,
@@ -220,7 +220,29 @@ namespace TummlyBackend.Services
 
             _context.ShopOrders.Add(order);
 
-            await _context.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+            {
+                // A concurrent request saved this Location's starter order first
+                // (IX_ShopOrders_LocationId_Complimentary). Return that order.
+                DetachOrder(order);
+                var winnerId = await FindComplimentaryOrderIdAsync(
+                    locationId,
+                    cancellationToken
+                );
+                if (winnerId.HasValue)
+                {
+                    return new ComplimentaryStarterShopOrderResult(
+                        winnerId.Value,
+                        Created: false
+                    );
+                }
+
+                throw;
+            }
 
             await _emailNotifier.TryNotifyConfirmedAsync(
                 order.Id,
@@ -231,6 +253,39 @@ namespace TummlyBackend.Services
                 order.Id,
                 Created: true
             );
+        }
+
+        private async Task<Guid?> FindComplimentaryOrderIdAsync(
+            int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.ShopOrders
+                .AsNoTracking()
+                .Where(row =>
+                    row.LocationId == locationId
+                    && row.IsComplimentary
+                )
+                .Select(row => (Guid?)row.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        private void DetachOrder(ShopOrder order)
+        {
+            foreach (var line in order.Lines.ToList())
+            {
+                _context.Entry(line).State = EntityState.Detached;
+            }
+
+            _context.Entry(order).State = EntityState.Detached;
+        }
+
+        private static bool IsUniqueConstraintViolation(DbUpdateException exception)
+        {
+            return exception.InnerException is SqlException
+            {
+                Number: 2601 or 2627,
+            };
         }
 
         public async Task<IReadOnlyList<Guid>> EnsureAllActiveLocationsAsync(
@@ -245,6 +300,8 @@ namespace TummlyBackend.Services
                 .Where(row =>
                     row.RestaurantId == restaurantId
                     && row.LifecycleStatus == LocationLifecycleStatus.Active
+                    && row.PremisesReviewStatus != PremisesReviewStatus.PendingReview
+                    && row.PremisesReviewStatus != PremisesReviewStatus.Rejected
                 )
                 .OrderBy(row => row.Id)
                 .Select(row => row.Id)

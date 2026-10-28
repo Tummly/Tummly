@@ -74,6 +74,8 @@
         public int IncludedAi { get; set; }
 
         public int? ExtraLocationNetPence { get; set; }
+
+        public int? ExtraLocationAnnualNetPence { get; set; }
     }
 
     public sealed class BillingCatalogTopUpPackDto

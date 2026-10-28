@@ -541,9 +541,239 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal(
+                "feedback_follow_up_not_granted",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(
                 ServiceReplyEligibility.NotAllowedMessage,
                 body.GetProperty("message").GetString()
             );
+        }
+
+        [Theory]
+        [InlineData("include_a_recovery_offer")]
+        [InlineData("free_dessert_promotion")]
+        [InlineData("Acknowledge_Feedback")]
+        public async Task SendGuestResponse_Returns400_WhenPurposeNotAllowed(string purpose)
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                $"guest-response-purpose-refused-{purpose.ToLowerInvariant().Replace('_', '-')}-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: $"purpose-refused-{purpose.ToLowerInvariant().Replace('_', '-')}-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+                purpose,
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                FeedbackGuestResponsePurposes.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Theory]
+        [InlineData("acknowledge_feedback")]
+        [InlineData("apologise_and_confirm_follow_up")]
+        [InlineData("ask_for_more_information")]
+        [InlineData("confirm_operational_action")]
+        [InlineData("create_custom_response")]
+        public async Task SendGuestResponse_AllowsEveryServicePurpose(string purpose)
+        {
+            var label = purpose.Replace('_', '-');
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                $"guest-response-purpose-ok-{label}-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: $"purpose-ok-{label}-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+                purpose,
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Email_AllowedWhenEmailMarketingUnsubscribed()
+        {
+            // Marketing unsubscribe and genuine service email are separate purposes.
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-email-unsubscribed-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "email-unsubscribed-owner@example.com"
+            );
+            await StageEmailSuppressionAsync(
+                seeded.LocationId,
+                "email:alex@example.com",
+                LocationGuestPermissionKind.EmailMarketing,
+                GuestContactSuppressionSources.EmailUnsubscribe
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Returns400_WhenEmailHardBounced_WithSafeMessage()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-email-bounced-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "email-bounced-owner@example.com"
+            );
+            await StageEmailSuppressionAsync(
+                seeded.LocationId,
+                "email:alex@example.com",
+                LocationGuestPermissionKind.EmailDelivery,
+                GuestContactSuppressionSources.Bounce
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "email_delivery_unavailable",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(
+                ServiceReplyEligibility.EmailDeliveryUnavailableMessage,
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Returns400_WhenSmsStopped_WithProviderRestrictionCode()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-sms-stopped-tok",
+                ContactType.Phone,
+                "+447911123999",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-stopped-owner@example.com",
+                smsCredits: 20
+            );
+            await StageEmailSuppressionAsync(
+                seeded.LocationId,
+                "phone:+447911123999",
+                LocationGuestPermissionKind.SmsMarketing,
+                GuestContactSuppressionSources.SmsStop
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body = "Thanks for your message.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("sms_provider_restriction", body.GetProperty("code").GetString());
+            Assert.Equal(
+                "SMS not sent. This number has opted out of SMS from this sender, and delivery is currently blocked. This does not change the guest's Feedback follow-up permission.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        private async Task StageEmailSuppressionAsync(
+            int locationId,
+            string contactKey,
+            LocationGuestPermissionKind kind,
+            string source
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var suppressions = scope.ServiceProvider
+                .GetRequiredService<IGuestContactSuppressionService>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            await suppressions.StageAsync(
+                restaurantId,
+                contactKey,
+                kind,
+                DateTime.UtcNow,
+                source
+            );
+            await context.SaveChangesAsync();
         }
 
         [Fact]

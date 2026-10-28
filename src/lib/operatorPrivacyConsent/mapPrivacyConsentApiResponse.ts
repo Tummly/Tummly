@@ -6,6 +6,7 @@ import {
   type GuestPermissionId,
   type PermissionRecordRow,
   type PrivacyActivityItem,
+  type PrivacyArchivedActivityItem,
   type PrivacySetupStatusRow,
 } from "@/lib/operatorPrivacyConsent/privacyConsentPresentation"
 
@@ -22,6 +23,8 @@ export type PrivacyConsentPageApiData = {
   privacyReady: boolean
   actorCanManage: boolean
   canViewGuests: boolean
+  /** Omitted or false hides the archived Location history for non-owners. */
+  actorIsWorkspaceOwner?: boolean
 }
 
 export type PrivacyConsentActivityApiItem = {
@@ -30,6 +33,9 @@ export type PrivacyConsentActivityApiItem = {
   kind: string
   description: string | null
   occurredAt: string
+  /** Only set on archived Location history rows. */
+  locationName?: string | null
+  locationArchived?: boolean
 }
 
 const TOGGLE_FIELD_BY_PERMISSION_ID: Record<
@@ -106,6 +112,16 @@ export function mapPrivacyActivityItemFromApi(
     id: String(item.id),
     timeLabel: formatLocationsLastActivityAt(item.occurredAt, now),
     description: item.description?.trim() ? item.description : "—",
+  }
+}
+
+export function mapArchivedPrivacyActivityItemFromApi(
+  item: PrivacyConsentActivityApiItem,
+  now: Date
+): PrivacyArchivedActivityItem {
+  return {
+    ...mapPrivacyActivityItemFromApi(item, now),
+    locationName: item.locationName?.trim() ? item.locationName : "—",
   }
 }
 

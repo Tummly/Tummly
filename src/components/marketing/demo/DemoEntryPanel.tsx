@@ -4,6 +4,7 @@ import QRCode from "qrcode"
 
 import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { MarketingLogo } from "@/components/marketing/MarketingLogo"
+import { DemoMediaImage } from "@/components/marketing/demo/DemoMediaImage"
 import { PRODUCT_DEMO } from "@/content/marketing/productDemoPage"
 import { cn } from "@/lib/utils"
 
@@ -134,7 +135,7 @@ export function DemoEntryPanel({
           )}
         >
           {qrDataUrl ? (
-            <img
+            <DemoMediaImage
               src={qrDataUrl}
               alt="Scan to open the Mavero Kitchen guest form on your phone"
               width={160}

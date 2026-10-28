@@ -330,6 +330,18 @@ namespace TummlyBackend.Controllers
                 });
             }
             catch (InvalidOperationException ex) when (
+                ex.Message == "premises_under_review"
+            )
+            {
+                // Generic on purpose: no hint of where else the premises is registered.
+                return Conflict(new
+                {
+                    success = false,
+                    code = "premises_under_review",
+                    message = TummlyBackend.Helpers.PremisesReviewGate.BlockedMessage,
+                });
+            }
+            catch (InvalidOperationException ex) when (
                 ex.Message == "idempotency_target_mismatch"
             )
             {

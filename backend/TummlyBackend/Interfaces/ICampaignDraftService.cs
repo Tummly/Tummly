@@ -11,6 +11,16 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Home recommendation create-or-get. Returns the open Draft for the same
+        /// recommendation source at this Location, or creates one.
+        /// </summary>
+        Task<CampaignRecommendationDraftResult> CreateOrGetFromRecommendationAsync(
+            CreateRecommendationCampaignDraftRequest request,
+            int createdByUserId,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
         /// Returns a Draft by id, or null when missing or not a Draft.
         /// </summary>
         Task<CampaignDraftDto?> GetByIdAsync(

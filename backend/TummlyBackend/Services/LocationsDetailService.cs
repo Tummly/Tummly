@@ -50,7 +50,8 @@ namespace TummlyBackend.Services
                     l.Postcode,
                     l.Address,
                     l.LocationPhone,
-                    l.LocalContact
+                    l.LocalContact,
+                    l.PremisesReviewStatus
                 ))
                 .FirstOrDefaultAsync();
 
@@ -245,6 +246,9 @@ namespace TummlyBackend.Services
                     Name = location.LocationName,
                     City = city,
                     LifecycleStatus = lifecycleWire,
+                    PremisesReviewStatus = PremisesReviewGate.ToOperatorWire(
+                        location.PremisesReviewStatus
+                    ),
                     SetupStatus = setupStatus,
                     ManagerName = managerName,
                     ManagerUserId = managerUserId,
@@ -320,7 +324,8 @@ namespace TummlyBackend.Services
             string? Postcode,
             string Address,
             string? LocationPhone,
-            string? LocalContact
+            string? LocalContact,
+            PremisesReviewStatus PremisesReviewStatus
         );
     }
 }

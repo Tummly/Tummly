@@ -7,6 +7,7 @@ import type {
 import {
   adminShopOrderPaymentLabel,
   adminShopOrderRowActions,
+  adminShopOrderTableLines,
   formatAdminShopOrderDate,
 } from "./adminShopOrdersTablePresentation"
 
@@ -29,13 +30,32 @@ function order(
   overrides: Partial<AdminShopOrderListItem> = {}
 ): Pick<
   AdminShopOrderListItem,
-  "fulfilmentStatus" | "paymentStatus" | "isComplimentary" | "printAssets"
+  | "fulfilmentStatus"
+  | "paymentStatus"
+  | "isComplimentary"
+  | "printAssets"
+  | "preparationStartedAtUtc"
+  | "productionStartedAtUtc"
+  | "dispatchedAtUtc"
+  | "dispatchCarrierName"
+  | "dispatchCarrierReference"
+  | "dispatchSource"
+  | "dispatchedByAdminUserId"
+  | "deliveredAtUtc"
 > {
   return {
     fulfilmentStatus: "processing",
     paymentStatus: "paid",
     isComplimentary: false,
     printAssets: [],
+    preparationStartedAtUtc: null,
+    productionStartedAtUtc: null,
+    dispatchedAtUtc: null,
+    dispatchCarrierName: null,
+    dispatchCarrierReference: null,
+    dispatchSource: null,
+    dispatchedByAdminUserId: null,
+    deliveredAtUtc: null,
     ...overrides,
   }
 }
@@ -90,15 +110,49 @@ describe("adminShopOrderPaymentLabel", () => {
 })
 
 describe("adminShopOrderRowActions", () => {
-  it("offers Mark as dispatched only while processing", () => {
+  it("offers the next fulfilment action from the order's evidence", () => {
     expect(adminShopOrderRowActions(order()).nextFulfilmentAction).toEqual({
-      status: "in_transit",
-      label: "Mark as dispatched",
+      kind: "preparation",
+      label: "Start preparing",
+      resultLabel: "Preparing",
     })
     expect(
-      adminShopOrderRowActions(order({ fulfilmentStatus: "in_transit" }))
-        .nextFulfilmentAction
-    ).toEqual({ status: "delivered", label: "Mark as delivered" })
+      adminShopOrderRowActions(
+        order({ preparationStartedAtUtc: "2026-10-27T08:00:00Z" })
+      ).nextFulfilmentAction
+    ).toEqual({
+      kind: "production",
+      label: "Start production",
+      resultLabel: "In production",
+    })
+    expect(
+      adminShopOrderRowActions(
+        order({
+          preparationStartedAtUtc: "2026-10-27T08:00:00Z",
+          productionStartedAtUtc: "2026-10-27T09:00:00Z",
+        })
+      ).nextFulfilmentAction
+    ).toMatchObject({ kind: "dispatch", label: "Mark as Dispatched" })
+    expect(
+      adminShopOrderRowActions(
+        order({
+          fulfilmentStatus: "in_transit",
+          dispatchedAtUtc: "2026-10-27T10:00:00Z",
+          dispatchCarrierName: "DPD",
+          dispatchCarrierReference: "DPD-123",
+          dispatchSource: "admin_manual",
+          dispatchedByAdminUserId: 7,
+        })
+      ).nextFulfilmentAction
+    ).toMatchObject({ kind: "delivery", label: "Mark as Delivered" })
+    expect(
+      adminShopOrderRowActions(
+        order({
+          fulfilmentStatus: "in_transit",
+          dispatchedAtUtc: "2026-10-27T10:00:00Z",
+        })
+      ).nextFulfilmentAction
+    ).toBeNull()
     expect(
       adminShopOrderRowActions(order({ fulfilmentStatus: "delivered" }))
         .nextFulfilmentAction
@@ -140,5 +194,37 @@ describe("adminShopOrderRowActions", () => {
 
     expect(actions.downloadQrTypes).toEqual([])
     expect(actions.approveQrTypes).toEqual([])
+  })
+})
+
+describe("adminShopOrderTableLines", () => {
+  it("gives one product and one quantity per order line", () => {
+    expect(
+      adminShopOrderTableLines({
+        lines: [
+          {
+            catalogSkuId: "table-tent",
+            titleSnapshot: "Table Tent",
+            quantity: 2,
+            unitNetPence: 0,
+            lineNetPence: 0,
+          },
+          {
+            catalogSkuId: "counter-card",
+            titleSnapshot: "QR Counter Display",
+            quantity: 1,
+            unitNetPence: 0,
+            lineNetPence: 0,
+          },
+        ],
+      })
+    ).toEqual([
+      { key: "table-tent-0", product: "Table Tent", quantity: 2 },
+      { key: "counter-card-1", product: "QR Counter Display", quantity: 1 },
+    ])
+  })
+
+  it("returns no rows for an order without lines", () => {
+    expect(adminShopOrderTableLines({ lines: [] })).toEqual([])
   })
 })

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Net.Mail;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Guests;
@@ -16,17 +17,21 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly ILocationGuestActivityRecorder _recorder;
+        private readonly IAdminAuditService _audit;
 
         public GuestIdentityUpdateService(
             ApplicationDbContext context,
-            ILocationGuestActivityRecorder recorder
+            ILocationGuestActivityRecorder recorder,
+            IAdminAuditService audit
         )
         {
             _context = context;
             _recorder = recorder;
+            _audit = audit;
         }
 
         public async Task<GuestIdentityUpdateOutcome> UpdateAsync(
+            int userId,
             int locationGuestId,
             int locationId,
             PatchGuestIdentityRequest request,
@@ -184,6 +189,24 @@ namespace TummlyBackend.Services
                     locationGuest.Id,
                     changedFields,
                     DateTime.UtcNow
+                );
+
+                // Field names only. Contact values never enter the audit row.
+                _audit.Append(
+                    new AdminAuditAppendRequest(
+                        Action: AdminAuditActions.GuestIdentityCorrection,
+                        ActorIdentity: $"user:{userId}",
+                        TargetType: AdminAuditTargetTypes.LocationGuest,
+                        TargetId: locationGuest.Id.ToString(),
+                        RestaurantId: restaurantId,
+                        DetailJson: JsonSerializer.Serialize(
+                            new
+                            {
+                                locationId,
+                                changedFields,
+                            }
+                        )
+                    )
                 );
             }
 

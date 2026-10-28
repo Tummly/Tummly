@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
@@ -14,10 +16,15 @@ namespace TummlyBackend.Services
             "Thanks — we have noted your interest.";
 
         private readonly ApplicationDbContext _context;
+        private readonly IAdminAuditService _audit;
 
-        public ShopInterestService(ApplicationDbContext context)
+        public ShopInterestService(
+            ApplicationDbContext context,
+            IAdminAuditService audit
+        )
         {
             _context = context;
+            _audit = audit;
         }
 
         public async Task<IReadOnlyList<ShopInterestProductDto>> ListActiveProductsAsync(
@@ -255,6 +262,88 @@ namespace TummlyBackend.Services
                 })
                 .ToList();
 
+            var counts = await ListCountsByProductAsync(cancellationToken);
+
+            return new AdminShopInterestListDto
+            {
+                Items = items,
+                CountsByProduct = counts,
+            };
+        }
+
+        public async Task<(bool Ok, string? Error)> RemoveRegistrationAsync(
+            int registrationId,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            // Removal withdraws the row: it stays as history, leaves the counts and
+            // the user can register again. A withdrawn row cannot be removed again.
+            var row = await _context.ShopInterestRegistrations
+                .FirstOrDefaultAsync(
+                    registration =>
+                        registration.Id == registrationId
+                        && registration.WithdrawnAtUtc == null,
+                    cancellationToken
+                );
+            if (row == null)
+            {
+                return (false, "Interest registration was not found.");
+            }
+
+            row.WithdrawnAtUtc = DateTime.UtcNow;
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopInterestRegistrationRemoved,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopInterestRegistration,
+                    row.Id.ToString(CultureInfo.InvariantCulture),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: row.RestaurantId,
+                    DetailJson: JsonSerializer.Serialize(
+                        new
+                        {
+                            productKey = row.ProductKey,
+                            userId = row.UserId,
+                            locationId = row.LocationId,
+                        }
+                    )
+                )
+            );
+
+            await _context.SaveChangesAsync(cancellationToken);
+            return (true, null);
+        }
+
+        public async Task<(string FileName, byte[] Content)> ExportCountsCsvAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var counts = await ListCountsByProductAsync(cancellationToken);
+            var rows = counts
+                .Select(row => (IReadOnlyList<string>)
+                [
+                    row.ProductKey,
+                    row.Title,
+                    row.Count.ToString(CultureInfo.InvariantCulture),
+                ])
+                .ToList();
+
+            var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+            return (
+                $"tummly-shop-interest-counts-{stamp}Z.csv",
+                Rfc4180Csv.WriteUtf8(
+                    ["Product key", "Product", "Interest count"],
+                    rows
+                )
+            );
+        }
+
+        private async Task<List<AdminShopInterestProductCountDto>> ListCountsByProductAsync(
+            CancellationToken cancellationToken
+        )
+        {
             // Every active product shows, even with no interest yet. A product
             // that left the active list keeps its row while it still has
             // registrations. Counts are always active registrations, whatever
@@ -305,16 +394,10 @@ namespace TummlyBackend.Services
                 };
             }
 
-            var counts = countsByKey.Values
+            return countsByKey.Values
                 .OrderByDescending(row => row.Count)
                 .ThenBy(row => row.Title, StringComparer.Ordinal)
                 .ToList();
-
-            return new AdminShopInterestListDto
-            {
-                Items = items,
-                CountsByProduct = counts,
-            };
         }
     }
 }

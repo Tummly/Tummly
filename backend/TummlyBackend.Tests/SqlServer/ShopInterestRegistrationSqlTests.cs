@@ -89,7 +89,7 @@ namespace TummlyBackend.Tests.SqlServer
                 .AddInterceptors(rival)
                 .Options;
             await using var context = new ApplicationDbContext(options);
-            var service = new ShopInterestService(context);
+            var service = new ShopInterestService(context, new AdminAuditService(context, TimeProvider.System));
 
             var (ok, error, message) = await service.RegisterAsync(
                 UserId,

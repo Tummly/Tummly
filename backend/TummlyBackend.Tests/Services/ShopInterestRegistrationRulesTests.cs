@@ -23,7 +23,7 @@ namespace TummlyBackend.Tests.Services
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
             _context = new ApplicationDbContext(options);
-            _service = new ShopInterestService(_context);
+            _service = new ShopInterestService(_context, new AdminAuditService(_context, TimeProvider.System));
         }
 
         public void Dispose()

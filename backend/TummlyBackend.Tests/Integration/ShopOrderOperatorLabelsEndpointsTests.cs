@@ -81,7 +81,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Theory]
-        [InlineData(ShopFulfilmentStatuses.Processing, "Processing")]
+        [InlineData(ShopFulfilmentStatuses.Processing, "Confirmed")]
         [InlineData(ShopFulfilmentStatuses.InTransit, "Dispatched")]
         [InlineData(ShopFulfilmentStatuses.Delivered, "Delivered")]
         [InlineData(ShopFulfilmentStatuses.Cancelled, "Cancelled")]
@@ -94,6 +94,19 @@ namespace TummlyBackend.Tests.Integration
             {
                 order.PaymentStatus = ShopPaymentStatuses.Paid;
                 order.FulfilmentStatus = fulfilment;
+                if (fulfilment is ShopFulfilmentStatuses.InTransit or ShopFulfilmentStatuses.Delivered)
+                {
+                    order.DispatchedAtUtc = DateTime.UtcNow.AddHours(-6);
+                    order.DispatchSource = ShopFulfilmentEvidenceSources.AdminManual;
+                    order.DispatchedByAdminUserId = 1;
+                    order.DispatchCarrierName = "DPD";
+                    order.DispatchCarrierReference = "DPD-123";
+                }
+
+                if (fulfilment == ShopFulfilmentStatuses.Delivered)
+                {
+                    order.DeliveredAtUtc = DateTime.UtcNow.AddHours(-1);
+                }
             });
 
             var detail = await GetDetailAsync(workspace, orderId);
@@ -109,6 +122,105 @@ namespace TummlyBackend.Tests.Integration
                 expected,
                 item.GetProperty("fulfilmentStatusLabel").GetString()
             );
+        }
+
+        [Fact]
+        public async Task PaidOrderWithPreparation_ReadsPreparingOnDetailAndList()
+        {
+            var (workspace, orderId) = await SeedOrderAsync(order =>
+            {
+                order.PaymentStatus = ShopPaymentStatuses.Paid;
+                order.FulfilmentStatus = ShopFulfilmentStatuses.Processing;
+                order.PreparationStartedAtUtc = DateTime.UtcNow;
+            });
+
+            var detail = await GetDetailAsync(workspace, orderId);
+            var item = await GetListItemAsync(workspace, orderId);
+
+            Assert.Equal(
+                "Preparing",
+                detail.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+            Assert.Equal(
+                "Preparing",
+                item.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PaidOrderInProduction_ReadsInProductionOnDetailAndList()
+        {
+            var (workspace, orderId) = await SeedOrderAsync(order =>
+            {
+                order.PaymentStatus = ShopPaymentStatuses.Paid;
+                order.FulfilmentStatus = ShopFulfilmentStatuses.Processing;
+                order.PreparationStartedAtUtc = DateTime.UtcNow.AddHours(-2);
+                order.ProductionStartedAtUtc = DateTime.UtcNow;
+            });
+
+            var detail = await GetDetailAsync(workspace, orderId);
+            var item = await GetListItemAsync(workspace, orderId);
+
+            Assert.Equal(
+                "In production",
+                detail.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+            Assert.Equal(
+                "In production",
+                item.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PaidOrderWithTrackingUrlOnly_DoesNotReadDispatchedOrShowTracking()
+        {
+            var (workspace, orderId) = await SeedOrderAsync(order =>
+            {
+                order.PaymentStatus = ShopPaymentStatuses.Paid;
+                order.FulfilmentStatus = ShopFulfilmentStatuses.Processing;
+                order.PreparationStartedAtUtc = DateTime.UtcNow.AddHours(-2);
+                order.TrackingUrl = "https://track.example/label-only";
+            });
+
+            var detail = await GetDetailAsync(workspace, orderId);
+
+            Assert.Equal(
+                "Preparing",
+                detail.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+            Assert.Null(
+                detail.GetProperty("progress").GetProperty("trackingUrl").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task LegacyDispatchWithoutCarrierEvidence_ReadsInProductionAndHidesDispatchFacts()
+        {
+            // Round 1 shape: dispatch time and tracking URL, no carrier evidence.
+            var (workspace, orderId) = await SeedOrderAsync(order =>
+            {
+                order.PaymentStatus = ShopPaymentStatuses.Paid;
+                order.FulfilmentStatus = ShopFulfilmentStatuses.InTransit;
+                order.PreparationStartedAtUtc = DateTime.UtcNow.AddDays(-2);
+                order.ProductionStartedAtUtc = DateTime.UtcNow.AddDays(-1);
+                order.DispatchedAtUtc = DateTime.UtcNow.AddHours(-6);
+                order.TrackingUrl = "https://track.example/legacy";
+            });
+
+            var detail = await GetDetailAsync(workspace, orderId);
+            var item = await GetListItemAsync(workspace, orderId);
+
+            Assert.Equal(
+                "In production",
+                detail.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+            Assert.Equal(
+                "In production",
+                item.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+            var progress = detail.GetProperty("progress");
+            Assert.Equal(JsonValueKind.Null, progress.GetProperty("dispatchedAtUtc").ValueKind);
+            Assert.Equal(JsonValueKind.Null, progress.GetProperty("trackingUrl").ValueKind);
         }
 
         [Fact]

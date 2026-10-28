@@ -186,22 +186,34 @@ namespace TummlyBackend.Services
             }
 
             var generatedAtUtc = DateTime.UtcNow;
-            var row = new WeeklyBrief
-            {
-                LocationId = locationId,
-                WeekKey = closedWeek.WeekKey,
-                Status = WeeklyBriefStatus.Succeeded,
-                GeneratedAtUtc = generatedAtUtc,
-                BodyJson = JsonSerializer.Serialize(body, WeeklyBriefStoreJson.Options),
-                MetricsJson = JsonSerializer.Serialize(metrics, WeeklyBriefStoreJson.Options),
-                EnrichmentJson = JsonSerializer.Serialize(
-                    enrichment,
-                    WeeklyBriefStoreJson.Options
-                ),
-                ErrorInfo = null,
-            };
+            // A stored Failed row holds the unique (LocationId, WeekKey) slot, so a
+            // successful retry overwrites it instead of inserting a second row.
+            var row = await _context.WeeklyBriefs.FirstOrDefaultAsync(
+                    failedRow =>
+                        failedRow.LocationId == locationId
+                        && failedRow.WeekKey == closedWeek.WeekKey
+                        && failedRow.Status == WeeklyBriefStatus.Failed,
+                    cancellationToken
+                )
+                ?? new WeeklyBrief
+                {
+                    LocationId = locationId,
+                    WeekKey = closedWeek.WeekKey,
+                };
+            row.Status = WeeklyBriefStatus.Succeeded;
+            row.GeneratedAtUtc = generatedAtUtc;
+            row.BodyJson = JsonSerializer.Serialize(body, WeeklyBriefStoreJson.Options);
+            row.MetricsJson = JsonSerializer.Serialize(metrics, WeeklyBriefStoreJson.Options);
+            row.EnrichmentJson = JsonSerializer.Serialize(
+                enrichment,
+                WeeklyBriefStoreJson.Options
+            );
+            row.ErrorInfo = null;
 
-            _context.WeeklyBriefs.Add(row);
+            if (row.Id == 0)
+            {
+                _context.WeeklyBriefs.Add(row);
+            }
 
             try
             {

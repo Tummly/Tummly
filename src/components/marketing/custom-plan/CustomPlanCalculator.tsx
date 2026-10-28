@@ -35,8 +35,10 @@ import {
   type PublicCatalogPlanSummary,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import {
+  checkPackCount,
   formatPenceGbp,
   lastQuote,
+  packCountMessage,
   quoteView,
 } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import { buildCustomPlanContactHref } from "@/lib/marketingCustomPlan/customPlanContactLink"
@@ -57,6 +59,18 @@ function StepBadge({ label }: { label: string }) {
       {label}
     </span>
   )
+}
+
+/** Pack counts as typed. A null count is text that is not a number yet. */
+type PackDraftCounts = Record<CustomPlanPackKey, number | null>
+
+/** Counts for the contact link: a count that is not a number yet is sent as 0. */
+function countsForContact(packs: PackDraftCounts): CustomPlanPackCounts {
+  const next = { ...EMPTY_PACK_COUNTS }
+  for (const def of CUSTOM_PLAN_PACKS) {
+    next[def.packKey] = packs[def.packKey] ?? 0
+  }
+  return next
 }
 
 /** Pack size, plus the server pack price when the catalogue has one. */
@@ -193,13 +207,13 @@ export function CustomPlanCalculator({
   const [plans, setPlans] = useState<PublicCatalogPlanSummary[]>([])
   const [packMeta, setPackMeta] = useState<PublicCatalogPackMetaDto[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [locations, setLocations] = useState(() =>
+  const [locations, setLocations] = useState<number | null>(() =>
     Math.max(minLocations, initialLocations),
   )
   const [requestedBasePlan] = useState<CustomPlanBasePlanKey | null>(
     initialBasePlan ?? null,
   )
-  const [packCounts, setPackCounts] = useState<CustomPlanPackCounts>(() => ({
+  const [packCounts, setPackCounts] = useState<PackDraftCounts>(() => ({
     ...EMPTY_PACK_COUNTS,
     ...initialPacks,
   }))
@@ -221,6 +235,9 @@ export function CustomPlanCalculator({
         // the selected package shows first (Location count sets the base).
         if (initialBasePlan != null) {
           setLocations((current) => {
+            if (current == null) {
+              return current
+            }
             if (minBasePlanForLocations(current, loadedPlans) === initialBasePlan) {
               return current
             }
@@ -234,7 +251,7 @@ export function CustomPlanCalculator({
       })
   }, [initialBasePlan])
 
-  const { state, check, retry } = useServerCustomPlanQuote({
+  const { state, check, packsValid, retry } = useServerCustomPlanQuote({
     cadence,
     basePlan: requestedBasePlan,
     locations,
@@ -245,28 +262,35 @@ export function CustomPlanCalculator({
   const view = quoteView({ check, state, changed: false })
   const contactSales = view.showContact
   const emptyState = showEmptyState && check === "empty"
+  // An invalid Location or pack count sends no request and blocks Continue.
+  const inputValid = check === "ok" && packsValid
   // An invalid or over-limit count sends no request: old totals must not show.
-  const countedQuote = check === "ok" ? quote : null
+  const countedQuote = inputValid ? quote : null
   const readyQuote =
-    check === "ok" && state.status === "ready" ? state.quote : null
+    inputValid && state.status === "ready" ? state.quote : null
   const contactHref = buildCustomPlanContactHref({
-    locations,
+    locations: locations ?? 0,
     cadence,
-    packs: packCounts,
+    packs: countsForContact(packCounts),
   })
+  const continueEnabled = inputValid && view.continueEnabled
   const continuePayload =
-    readyQuote != null && view.continueEnabled
+    readyQuote != null && continueEnabled
       ? toContinuePayload(readyQuote)
       : null
 
-  function setPackCount(packKey: CustomPlanPackKey, value: number) {
+  function setPackCount(packKey: CustomPlanPackKey, value: number | null) {
     setPackCounts((prev) => ({
       ...prev,
-      [packKey]: Math.max(0, Math.min(CUSTOM_PLAN_MAX_PACK_COUNT, value)),
+      [packKey]: value,
     }))
   }
 
-  function handleLocationsChange(next: number) {
+  function packError(packKey: CustomPlanPackKey): string | null {
+    return packCountMessage(checkPackCount(packCounts[packKey]))
+  }
+
+  function handleLocationsChange(next: number | null) {
     setLocations(next)
   }
 
@@ -330,8 +354,8 @@ export function CustomPlanCalculator({
     typeof continueLabel === "function"
       ? continueLabel(planDisplayName)
       : continueLabel
-  /** Quote status sits in the summary card once the count is valid. */
-  const summaryStatus = check === "ok" && !contactSales ? view.message : null
+  /** Quote status sits in the summary card once every count is valid. */
+  const summaryStatus = inputValid && !contactSales ? view.message : null
 
   return (
     <div
@@ -474,6 +498,7 @@ export function CustomPlanCalculator({
                       label="Additional team user packs"
                       min={0}
                       max={CUSTOM_PLAN_MAX_PACK_COUNT}
+                      error={packError("team_users_5")}
                     />
                   </div>
                   <div className="flex items-center justify-between gap-4 rounded-xl border border-[#cacaca] p-[18px]">
@@ -496,6 +521,7 @@ export function CustomPlanCalculator({
                     <CustomPlanStepper
                       value={packCounts.offers_5}
                       onChange={(n) => setPackCount("offers_5", n)}
+                      error={packError("offers_5")}
                       label="Additional active Offer packs"
                       min={0}
                       max={CUSTOM_PLAN_MAX_PACK_COUNT}
@@ -551,6 +577,7 @@ export function CustomPlanCalculator({
                           <CustomPlanStepper
                             value={packCounts.qr_10}
                             onChange={(n) => setPackCount("qr_10", n)}
+                            error={packError("qr_10")}
                             label="Extra QR placement packs"
                             min={0}
                             max={CUSTOM_PLAN_MAX_PACK_COUNT}
@@ -662,6 +689,7 @@ export function CustomPlanCalculator({
                               <CustomPlanStepper
                                 value={packCounts[pack.packKey]}
                                 onChange={(n) => setPackCount(pack.packKey, n)}
+                                error={packError(pack.packKey)}
                                 label={`${pack.title} packs`}
                                 min={0}
                                 max={CUSTOM_PLAN_MAX_PACK_COUNT}
@@ -713,7 +741,7 @@ export function CustomPlanCalculator({
           contactHref={contactHref}
           badgeLabel={badgeLabel}
           continueHref={continueHref}
-          continueDisabled={!view.continueEnabled}
+          continueDisabled={!continueEnabled}
           onContinue={
             onContinue != null && continuePayload != null
               ? () => onContinue(continuePayload)

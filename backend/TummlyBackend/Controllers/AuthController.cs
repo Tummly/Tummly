@@ -410,21 +410,22 @@ namespace TummlyBackend.Controllers
             try
             {
                 await _authService.ForgotPasswordAsync(dto);
-
-                return Ok(new
-                {
-                    success = true,
-                    message = "Reset link sent successfully."
-                });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return BadRequest(new
+                // The cause is logged in AuthService. Only a generic message leaves the server.
+                return StatusCode(StatusCodes.Status500InternalServerError, new
                 {
                     success = false,
-                    message = ex.Message
+                    message = "Unable to send reset link. Please try again."
                 });
             }
+
+            return Ok(new
+            {
+                success = true,
+                message = "If an account exists for this email, we sent a reset link."
+            });
         }
 
         /*

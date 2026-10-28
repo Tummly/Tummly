@@ -33,6 +33,48 @@ describe("signupApi", () => {
     expect(request.params).toBeUndefined()
   })
 
+  it("getSignupSession_mapsSavedPlanCadenceAndConfig", async () => {
+    mock.onGet("/Signup/session").reply(200, {
+      success: true,
+      data: {
+        email: "owner@example.com",
+        status: "Verified",
+        chosenPlan: "Custom",
+        chosenCadence: "annual",
+        planConfig: {
+          basePlan: "growth",
+          locations: 3,
+          packs: { qr_10: 2 },
+          quoteHash: "0123456789abcdef0123456789abcdef",
+        },
+      },
+    })
+
+    const session = await getSignupSession(SESSION_TOKEN)
+
+    expect(session.chosenPlan).toBe("Custom")
+    expect(session.chosenCadence).toBe("annual")
+    expect(session.planConfig).toEqual({
+      basePlan: "growth",
+      locations: 3,
+      packs: { qr_10: 2 },
+      quoteHash: "0123456789abcdef0123456789abcdef",
+    })
+  })
+
+  it("getSignupSession_noSavedPlan_returnsNulls", async () => {
+    mock.onGet("/Signup/session").reply(200, {
+      success: true,
+      data: { email: "owner@example.com", status: "Verified" },
+    })
+
+    const session = await getSignupSession(SESSION_TOKEN)
+
+    expect(session.chosenPlan).toBeNull()
+    expect(session.chosenCadence).toBeNull()
+    expect(session.planConfig).toBeNull()
+  })
+
   it("saveSignupOnboarding_sendsHeader_noQueryParam", async () => {
     mock.onPost("/Signup/onboarding").reply(200, {
       success: true,

@@ -394,6 +394,32 @@ namespace TummlyBackend.Services
                 OnboardingJson = pending.OnboardingJson,
                 PasswordHash = null,
                 AuthProvider = pending.AuthProvider,
+                ChosenPlan = pending.ChosenPlan,
+                ChosenCadence = pending.ChosenCadence,
+                PlanConfig = ResolveResumePlanConfig(pending.CustomPlanConfigJson),
+            };
+        }
+
+        /// <summary>
+        /// The saved Custom config (base plan, Locations, extras). Null for a catalogue plan
+        /// or when the stored JSON has no v2 base plan.
+        /// </summary>
+        private static SignupResumePlanConfig? ResolveResumePlanConfig(string? json)
+        {
+            var parsed = CustomPlanConfig.TryParse(json);
+            if (parsed == null || !parsed.IsV2 || string.IsNullOrWhiteSpace(parsed.BasePlan))
+            {
+                return null;
+            }
+
+            return new SignupResumePlanConfig
+            {
+                BasePlan = parsed.BasePlan,
+                Locations = parsed.Locations ?? parsed.Quantities.Locations,
+                Packs = parsed.Packs == null
+                    ? []
+                    : new Dictionary<string, int>(parsed.Packs, StringComparer.Ordinal),
+                QuoteHash = parsed.QuoteHash,
             };
         }
 
@@ -978,11 +1004,12 @@ namespace TummlyBackend.Services
                             ),
                         }
                     );
-                    // A hash from the quote the guest saw must still match.
-                    // A missing hash (saved before deploy) re-quotes and saves.
+                    // The hash of the quote the guest saw must match. A missing hash
+                    // (saved before the hash was required) is not confirmed either, so
+                    // the guest reviews the current price again.
                     if (
-                        !string.IsNullOrWhiteSpace(parsed.QuoteHash)
-                        && !string.Equals(
+                        string.IsNullOrWhiteSpace(parsed.QuoteHash)
+                        || !string.Equals(
                             parsed.QuoteHash,
                             quote.QuoteHash,
                             StringComparison.Ordinal

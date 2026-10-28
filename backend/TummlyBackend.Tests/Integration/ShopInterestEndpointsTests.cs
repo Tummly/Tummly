@@ -214,6 +214,138 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task AdminCountsExport_ReturnsCsvPerProduct_AdminOnly()
+        {
+            await ClearInterestTablesAsync();
+            var seeded = await SeedOperatorAndAdminAsync();
+            await SeedInterestProductAsync("tray-liners", "Tray liners", "A");
+            await SeedInterestProductAsync("stickers", "Stickers", "B");
+
+            using var post = AuthorizedPostJson(
+                "/api/shop/interest",
+                seeded.OwnerJwt,
+                new
+                {
+                    productKey = "tray-liners",
+                    locationId = seeded.LocationId,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(post)).StatusCode);
+
+            using var exportRequest = AuthorizedGet(
+                "/api/admin/shop-interest/counts/export",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(exportRequest);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("text/csv", response.Content.Headers.ContentType?.MediaType);
+            Assert.Contains(
+                "attachment",
+                response.Content.Headers.ContentDisposition?.ToString() ?? string.Empty
+            );
+
+            var lines = (await response.Content.ReadAsStringAsync())
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.TrimEnd('\r'))
+                .ToArray();
+            Assert.Equal("Product key,Product,Interest count", lines[0]);
+            Assert.Contains("tray-liners,Tray liners,1", lines);
+            Assert.Contains("stickers,Stickers,0", lines);
+            Assert.Equal(3, lines.Length);
+
+            using var ownerRequest = AuthorizedGet(
+                "/api/admin/shop-interest/counts/export",
+                seeded.OwnerJwt
+            );
+            var ownerResponse = await _client.SendAsync(ownerRequest);
+            Assert.Equal(HttpStatusCode.Forbidden, ownerResponse.StatusCode);
+        }
+
+        [Fact]
+        public async Task AdminRemoveRegistration_WithdrawsOneRow_WritesAuditEvent()
+        {
+            await ClearInterestTablesAsync();
+            var seeded = await SeedOperatorAndAdminAsync();
+            await SeedInterestProductAsync("tray-liners", "Tray liners", "A");
+            await SeedInterestProductAsync("stickers", "Stickers", "B");
+
+            foreach (var productKey in new[] { "tray-liners", "stickers" })
+            {
+                using var post = AuthorizedPostJson(
+                    "/api/shop/interest",
+                    seeded.OwnerJwt,
+                    new { productKey, locationId = seeded.LocationId }
+                );
+                Assert.Equal(
+                    HttpStatusCode.OK,
+                    (await _client.SendAsync(post)).StatusCode
+                );
+            }
+
+            int registrationId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                registrationId = await context.ShopInterestRegistrations
+                    .Where(row => row.ProductKey == "tray-liners")
+                    .Select(row => row.Id)
+                    .SingleAsync();
+            }
+
+            using var ownerRemove = AuthorizedDelete(
+                $"/api/admin/shop-interest/registrations/{registrationId}",
+                seeded.OwnerJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.Forbidden,
+                (await _client.SendAsync(ownerRemove)).StatusCode
+            );
+
+            using var remove = AuthorizedDelete(
+                $"/api/admin/shop-interest/registrations/{registrationId}",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(remove);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.True((await ReadJsonAsync(response)).GetProperty("success").GetBoolean());
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                // The removed row stays as withdrawn history.
+                var active = await context.ShopInterestRegistrations
+                    .Where(row => row.WithdrawnAtUtc == null)
+                    .Select(row => row.ProductKey)
+                    .ToListAsync();
+                Assert.Equal(new[] { "stickers" }, active);
+                var removed = await context.ShopInterestRegistrations
+                    .SingleAsync(row => row.Id == registrationId);
+                Assert.NotNull(removed.WithdrawnAtUtc);
+
+                var audit = await context.AdminAuditEvents.SingleAsync(row =>
+                    row.Action == AdminAuditActions.ShopInterestRegistrationRemoved
+                );
+                Assert.Equal(
+                    AdminAuditTargetTypes.ShopInterestRegistration,
+                    audit.TargetType
+                );
+                Assert.Equal(registrationId.ToString(), audit.TargetId);
+                Assert.False(string.IsNullOrWhiteSpace(audit.ActorIdentity));
+            }
+
+            using var removeAgain = AuthorizedDelete(
+                $"/api/admin/shop-interest/registrations/{registrationId}",
+                seeded.AdminJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.NotFound,
+                (await _client.SendAsync(removeAgain)).StatusCode
+            );
+        }
+
+        [Fact]
         public async Task AdminList_CountsIncludeEveryActiveProduct_WithZeroWhenNoInterest()
         {
             await ClearInterestTablesAsync();
@@ -568,6 +700,14 @@ namespace TummlyBackend.Tests.Integration
                 ),
                 jwtService.GenerateAdminToken(tummlyAdmin)
             );
+        }
+
+        private static HttpRequestMessage AuthorizedDelete(string url, string jwt)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Delete, url);
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            return request;
         }
 
         private static HttpRequestMessage AuthorizedGet(string url, string jwt)

@@ -318,6 +318,51 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task CreateDigitalGuestLink_FreePlanActive_DeniedPlanRequired()
+        {
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Free, BillingStatuses.Free);
+            var service = FreeCapService(cap: 5);
+
+            var result = await service.CreateDigitalGuestLinkAsync(
+                new CreateDigitalGuestLinkCommand
+                {
+                    UserId = _userId,
+                    LocationId = _locationId,
+                    LinkName = "Free Active",
+                    Channel = "Email",
+                    Status = "Active",
+                }
+            );
+
+            Assert.Equal(QrLifecycleResultKind.OperatorBillingLocked, result.Kind);
+            Assert.Equal(OperatorPlanGate.PlanRequiredCode, result.Code);
+            Assert.False(
+                await _context.QrCodes.AnyAsync(q => q.QrType == QrType.DigitalGuestLink)
+            );
+        }
+
+        [Fact]
+        public async Task CreateDigitalGuestLink_FreePlanPaused_Allowed()
+        {
+            await SetBillingPlanAsync(BillingSubscriptionPlans.Free, BillingStatuses.Free);
+            var service = FreeCapService(cap: 5);
+
+            var result = await service.CreateDigitalGuestLinkAsync(
+                new CreateDigitalGuestLinkCommand
+                {
+                    UserId = _userId,
+                    LocationId = _locationId,
+                    LinkName = "Free Paused",
+                    Channel = "Email",
+                    Status = "Paused",
+                }
+            );
+
+            Assert.Equal(QrLifecycleResultKind.Ok, result.Kind);
+            AssertPayload(result, "status", "Paused");
+        }
+
+        [Fact]
         public async Task CreateDigitalGuestLink_WhenLocationPaused_ForcesPaused()
         {
             await SetLocationStatusAsync(CaptureLocationStatus.Paused);

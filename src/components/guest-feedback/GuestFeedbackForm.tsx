@@ -119,7 +119,7 @@ export function GuestFeedbackForm({
     defaultValues,
   })
 
-  const { setValue, control } = form
+  const { setValue, control, getValues } = form
   const guestContact = useWatch({ control, name: "guestContact" }) ?? ""
   const marketingChannel = resolveGuestFormMarketingChannel(
     guestContact,
@@ -138,6 +138,7 @@ export function GuestFeedbackForm({
   const { micModule, micLevelSource } = useMemo(() => {
     const { adapters, audioLevelSource } = createBrowserGuestMicAdapters({
       transcribe: (audio) => transcribeGuestAudio(token, audio),
+      getComment: () => getValues("comment"),
       replaceComment: (text) => {
         setValue("comment", text, {
           shouldDirty: true,
@@ -150,7 +151,7 @@ export function GuestFeedbackForm({
       micModule: createGuestMicSttModule(adapters),
       micLevelSource: audioLevelSource,
     }
-  }, [setValue, token])
+  }, [getValues, setValue, token])
 
   useEffect(() => {
     return () => {

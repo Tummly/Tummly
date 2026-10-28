@@ -30,13 +30,19 @@ namespace TummlyBackend.Tests.Services
 
             _context = new ApplicationDbContext(options);
             _offerIssues = new OfferIssueService(_context);
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
             _service = new FeedbackRecoveryOffersService(
                 _context,
+                suppressions,
                 NoOpGuestResponseEmailDeliveryWork.Instance,
                 _offerIssues,
                 new GatedGuestReplyLock(),
                 new GuestReplySmsSendStep(
                     _context,
+                    suppressions,
                     new AcceptingRecoverySmsBilling(),
                     new RecordingRecoveryGuestSmsDelivery(),
                     TimeProvider.System,
@@ -195,10 +201,11 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            Assert.IsType<ArgumentException>(exception);
+            var refused = Assert.IsType<ServiceReplyRefusedException>(exception);
+            Assert.Equal("feedback_follow_up_not_granted", refused.Code);
             Assert.Equal(
                 ServiceReplyEligibility.NotAllowedMessage,
-                exception!.Message
+                refused.Message
             );
             Assert.Equal(0, await _context.OfferIssues.CountAsync());
             Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());
@@ -247,13 +254,19 @@ namespace TummlyBackend.Tests.Services
                 .Options;
             await using var failingContext = new FailAtomicSaveDbContext(options);
             var offerIssues = new OfferIssueService(failingContext);
+            var suppressions = new GuestContactSuppressionService(
+                failingContext,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
             var service = new FeedbackRecoveryOffersService(
                 failingContext,
+                suppressions,
                 NoOpGuestResponseEmailDeliveryWork.Instance,
                 offerIssues,
                 new GatedGuestReplyLock(),
                 new GuestReplySmsSendStep(
                     failingContext,
+                    suppressions,
                     new AcceptingRecoverySmsBilling(),
                     new RecordingRecoveryGuestSmsDelivery(),
                     TimeProvider.System,

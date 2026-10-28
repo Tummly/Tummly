@@ -712,6 +712,152 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(1, eligibility.GetProperty("smsEligible").GetInt32());
         }
 
+        [Fact]
+        public async Task SubmitFeedback_RepeatSubmitSameConsent_WritesNoSecondGrant()
+        {
+            const string token = "guest-form-repeat-consent";
+            const string contact = "repeat-consent@example.com";
+            await SeedGuestLocationAsync(
+                token,
+                emailEnabled: true,
+                smsEnabled: true,
+                feedbackFollowUpEnabled: true
+            );
+
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var response = await _client.PostAsJsonAsync(
+                    $"/api/scan/{token}/feedback",
+                    new
+                    {
+                        guestName = "Repeat Consent Guest",
+                        guestContact = contact,
+                        comment = $"Visit {attempt + 1}.",
+                        offersOptOut = false,
+                    }
+                );
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            }
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationGuest = await SingleLocationGuestForTokenAsync(
+                context,
+                token
+            );
+            var ledger = await context.LocationGuestPermissionLedgerEntries
+                .Where(e => e.LocationGuestId == locationGuest.Id)
+                .ToListAsync();
+
+            Assert.Single(
+                ledger,
+                e =>
+                    e.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+                    && e.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
+            );
+            Assert.Single(
+                ledger,
+                e =>
+                    e.PermissionKind
+                        == LocationGuestPermissionKind.FeedbackFollowUp
+                    && e.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
+            );
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_SameChannelOlderWordingVersion_WritesNewGrant()
+        {
+            const string token = "guest-form-older-wording";
+            const string contact = "older-wording@example.com";
+            await SeedGuestLocationAsync(
+                token,
+                emailEnabled: true,
+                smsEnabled: false,
+                feedbackFollowUpEnabled: false
+            );
+
+            var first = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Older Wording Guest",
+                    guestContact = contact,
+                    comment = "First visit.",
+                    offersOptOut = false,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var locationGuest = await SingleLocationGuestForTokenAsync(
+                    context,
+                    token
+                );
+                var grant = await context.LocationGuestPermissionLedgerEntries
+                    .SingleAsync(e =>
+                        e.LocationGuestId == locationGuest.Id
+                        && e.PermissionKind
+                            == LocationGuestPermissionKind.EmailMarketing
+                    );
+                grant.WordingVersion = "email-marketing-v0";
+                await context.SaveChangesAsync();
+            }
+
+            var second = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Older Wording Guest",
+                    guestContact = contact,
+                    comment = "Second visit.",
+                    offersOptOut = false,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var verifyContext = verifyScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var guest = await SingleLocationGuestForTokenAsync(
+                verifyContext,
+                token
+            );
+            var emailGrants = await verifyContext
+                .LocationGuestPermissionLedgerEntries
+                .Where(e =>
+                    e.LocationGuestId == guest.Id
+                    && e.PermissionKind
+                        == LocationGuestPermissionKind.EmailMarketing
+                    && e.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
+                )
+                .ToListAsync();
+
+            Assert.Equal(2, emailGrants.Count);
+            Assert.Contains(
+                emailGrants,
+                e => e.WordingVersion == GuestFormPermissionEvidence.EmailMarketingWordingVersion
+            );
+        }
+
+        private static async Task<LocationGuest> SingleLocationGuestForTokenAsync(
+            ApplicationDbContext context,
+            string token
+        )
+        {
+            var locationId = await context.QrCodes
+                .Where(q => q.Token == token)
+                .Select(q => q.RestaurantLocationId)
+                .SingleAsync();
+
+            return await context.LocationGuests
+                .Where(lg => lg.RestaurantLocationId == locationId)
+                .SingleAsync();
+        }
+
         private static HttpRequestMessage AuthorizedGet(string url, string jwt)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, url);

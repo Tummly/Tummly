@@ -309,8 +309,9 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
-            var suppression = await _context.GuestContactSuppressions.SingleAsync();
-            Assert.Equal(LocationGuestPermissionKind.EmailMarketing, suppression.PermissionKind);
+            var suppression = await _context.GuestContactSuppressions.SingleAsync(row =>
+                row.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+            );
             Assert.Equal("bounce", suppression.Source);
             Assert.Equal(_hasher.Hash("email:guest@example.com"), suppression.ContactHash);
             Assert.Equal(await RestaurantIdAsync(), suppression.RestaurantId);
@@ -392,7 +393,9 @@ namespace TummlyBackend.Tests.Services
                 "msg_untyped"
             );
 
-            var suppression = await _context.GuestContactSuppressions.SingleAsync();
+            var suppression = await _context.GuestContactSuppressions.SingleAsync(row =>
+                row.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+            );
             Assert.Equal("bounce", suppression.Source);
         }
 
@@ -423,7 +426,8 @@ namespace TummlyBackend.Tests.Services
             await PostAsync(body, "msg_rep_1");
             await PostAsync(body, "msg_rep_2");
 
-            Assert.Single(await _context.GuestContactSuppressions.ToListAsync());
+            // One row per kind: EmailMarketing and EmailDelivery.
+            Assert.Equal(2, await _context.GuestContactSuppressions.CountAsync());
             Assert.Single(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
         }
 
@@ -464,6 +468,196 @@ namespace TummlyBackend.Tests.Services
             0,
             DateTimeKind.Utc
         );
+
+        [Fact]
+        public async Task Resend_PermanentBounce_AlsoWritesDeliverySuppression()
+        {
+            await SeedDeliveryAsync(providerMessageId: "email-bounce-1");
+            var restaurantId = (await _context.Restaurants.SingleAsync()).Id;
+            var body = BounceBody(
+                "email.bounced",
+                "email-bounce-1",
+                "guest@example.com",
+                "Permanent"
+            );
+
+            var status = await PostAsync(body, "msg_bounce_perm");
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            // The address cannot receive mail: service email is blocked too.
+            var suppression = await _context.GuestContactSuppressions.SingleAsync(row =>
+                row.PermissionKind == LocationGuestPermissionKind.EmailDelivery
+            );
+            Assert.Equal(restaurantId, suppression.RestaurantId);
+            Assert.Equal(GuestContactSuppressionSources.Bounce, suppression.Source);
+            Assert.Equal(EventTime, suppression.WithdrawnAtUtc);
+        }
+
+        [Fact]
+        public async Task Resend_Complaint_WritesNoDeliverySuppression()
+        {
+            await SeedDeliveryAsync(providerMessageId: "email-complaint-1");
+            var body = BounceBody(
+                "email.complained",
+                "email-complaint-1",
+                "guest@example.com",
+                bounceType: null
+            );
+
+            await PostAsync(body, "msg_complaint");
+
+            Assert.DoesNotContain(
+                await _context.GuestContactSuppressions.ToListAsync(),
+                row => row.PermissionKind == LocationGuestPermissionKind.EmailDelivery
+            );
+        }
+
+        [Fact]
+        public async Task Resend_TransientBounce_DoesNotSuppress()
+        {
+            await SeedDeliveryAsync(providerMessageId: "email-bounce-2");
+            var body = BounceBody(
+                "email.bounced",
+                "email-bounce-2",
+                "guest@example.com",
+                "Transient"
+            );
+
+            await PostAsync(body, "msg_bounce_transient");
+
+            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+            Assert.Empty(await _context.GuestContactSuppressions.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Resend_PermanentBounce_OnGuestReply_SuppressesForRestaurant()
+        {
+            var restaurantId = await SeedFeedbackReplyAsync("reply-bounce-1");
+            var body = BounceBody(
+                "email.bounced",
+                "reply-bounce-1",
+                "reply@example.com",
+                "Permanent"
+            );
+
+            await PostAsync(body, "msg_reply_bounce");
+
+            var suppressions = await _context.GuestContactSuppressions.ToListAsync();
+            Assert.All(suppressions, row => Assert.Equal(restaurantId, row.RestaurantId));
+            Assert.All(
+                suppressions,
+                row => Assert.Equal(GuestContactSuppressionSources.Bounce, row.Source)
+            );
+            Assert.Equal(
+                new[]
+                {
+                    LocationGuestPermissionKind.EmailMarketing,
+                    LocationGuestPermissionKind.EmailDelivery,
+                },
+                suppressions.Select(row => row.PermissionKind).OrderBy(kind => kind)
+            );
+        }
+
+        [Fact]
+        public async Task Resend_TransientBounce_OnGuestReply_DoesNotSuppress()
+        {
+            await SeedFeedbackReplyAsync("reply-transient");
+            var body = BounceBody(
+                "email.bounced",
+                "reply-transient",
+                "reply@example.com",
+                "Transient"
+            );
+
+            await PostAsync(body, "msg_reply_transient");
+
+            Assert.Empty(await _context.GuestContactSuppressions.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Resend_Complained_UnknownEmailId_NoSuppression()
+        {
+            await SeedDeliveryAsync(providerMessageId: "email-known");
+            var body = BounceBody(
+                "email.complained",
+                "email-unknown",
+                "guest@example.com",
+                bounceType: null
+            );
+
+            var status = await PostAsync(body, "msg_complaint_unknown");
+
+            Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
+            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+            Assert.Empty(await _context.GuestContactSuppressions.ToListAsync());
+        }
+
+        private static string BounceBody(
+            string type,
+            string emailId,
+            string recipient,
+            string? bounceType
+        )
+        {
+            var bounce = bounceType is null
+                ? string.Empty
+                : ",\"bounce\":{\"type\":\"" + bounceType + "\",\"subType\":\"General\"}";
+            return "{\"type\":\"" + type + "\",\"created_at\":\"2026-10-06T11:58:00.000Z\","
+                + "\"data\":{\"email_id\":\"" + emailId + "\",\"to\":[\"" + recipient + "\"]"
+                + bounce + "}}";
+        }
+
+        private async Task<int> SeedFeedbackReplyAsync(string providerMessageId)
+        {
+            var restaurant = new Restaurant
+            {
+                Name = "Reply Venue",
+                AccountType = "Single",
+                CreatedAt = _now,
+            };
+            _context.Restaurants.Add(restaurant);
+            await _context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "2 High St",
+                CreatedAt = _now,
+            };
+            _context.RestaurantLocations.Add(location);
+            await _context.SaveChangesAsync();
+
+            var feedback = new Feedback
+            {
+                RestaurantLocationId = location.Id,
+                GuestName = "Guest",
+                GuestContact = "reply@example.com",
+                ContactType = ContactType.Email,
+                Comment = "Lovely.",
+                CreatedAt = _now,
+            };
+            _context.Feedbacks.Add(feedback);
+            await _context.SaveChangesAsync();
+
+            _context.FeedbackGuestResponses.Add(
+                new FeedbackGuestResponse
+                {
+                    FeedbackId = feedback.Id,
+                    Channel = FeedbackGuestResponseChannel.Email,
+                    Intent = FeedbackRecoveryIntent.RespondToGuest,
+                    MaskedDestination = "r***@example.com",
+                    Body = "Thank you.",
+                    AuthorDisplayName = "Owner",
+                    CreatedAt = _now.AddMinutes(-10),
+                    ProviderMessageId = providerMessageId,
+                    DeliveryState = GuestReplyDeliveryState.Accepted,
+                    DeliveryStateAtUtc = _now.AddMinutes(-10),
+                }
+            );
+            await _context.SaveChangesAsync();
+            return restaurant.Id;
+        }
 
         private static string EventBody(string type, string emailId) =>
             "{\"type\":\"" + type + "\",\"created_at\":\"2026-10-06T11:58:00.000Z\","

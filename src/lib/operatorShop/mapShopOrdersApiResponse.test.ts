@@ -17,9 +17,9 @@ describe("mapShopOrderListItemToRow", () => {
       totalFormatted: "£0.00",
       totalGrossPence: 0,
       paymentStatus: "Free",
-      fulfilmentStatus: "Processing",
+      fulfilmentStatus: "Confirmed",
       paymentStatusLabel: "Free",
-      fulfilmentStatusLabel: "Processing",
+      fulfilmentStatusLabel: "Confirmed",
       orderKindLabel: "Complimentary Starter Kit",
       isComplimentary: true,
       updatedAtUtc: "2026-10-30T12:00:00Z",
@@ -28,7 +28,7 @@ describe("mapShopOrderListItemToRow", () => {
     const row = mapShopOrderListItemToRow(item)
 
     expect(row.paymentStatusLabel).toBe("Free")
-    expect(row.fulfilmentStatusLabel).toBe("Processing")
+    expect(row.fulfilmentStatusLabel).toBe("Confirmed")
     expect(row.orderKindLabel).toBe("Complimentary Starter Kit")
     expect(row.isComplimentary).toBe(true)
   })

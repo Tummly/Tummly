@@ -108,6 +108,31 @@ export async function fetchAdminShopInterest(
   }
 }
 
+export async function downloadAdminShopInterestCountsCsv(): Promise<{
+  blob: Blob
+  fileName: string
+}> {
+  const response = await axiosInstance.get<Blob>(
+    "/admin/shop-interest/counts/export",
+    { responseType: "blob" }
+  )
+  const disposition = response.headers["content-disposition"] as
+    | string
+    | undefined
+  const match = disposition?.match(/filename="?([^"]+)"?/i)
+  const fileName = match?.[1] ?? "tummly-shop-interest-counts.csv"
+
+  return { blob: response.data, fileName }
+}
+
+export async function removeAdminShopInterestRegistration(
+  registrationId: number
+): Promise<void> {
+  await axiosInstance.delete(
+    `/admin/shop-interest/registrations/${registrationId}`
+  )
+}
+
 export async function fetchAdminShopInterestProducts(): Promise<
   AdminShopInterestProduct[]
 > {

@@ -88,6 +88,77 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetScan_DoesNotRecordScanOrFormOpen_ForOperatorPreview()
+        {
+            const string token = "guest-token-operator-preview-1234";
+            await SeedGuestLocationAsync(
+                token,
+                restaurantName: "The Golden Fork",
+                locationName: "Main"
+            );
+
+            var response = await _client.GetAsync(
+                $"/api/scan/{token}?preview=true"
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+
+            Assert.Equal(
+                0,
+                await context.QrScanEvents.CountAsync(e =>
+                    e.RestaurantLocationId == locationId
+                )
+            );
+            Assert.Equal(
+                0,
+                await context.QrFormOpenEvents.CountAsync(e =>
+                    e.RestaurantLocationId == locationId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task GetScan_RecordsQrScanEvent_WhenPreviewFlagIsFalse()
+        {
+            const string token = "guest-token-preview-false-123456";
+            await SeedGuestLocationAsync(
+                token,
+                restaurantName: "The Golden Fork",
+                locationName: "Main"
+            );
+
+            var response = await _client.GetAsync(
+                $"/api/scan/{token}?preview=false"
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+
+            Assert.Equal(
+                1,
+                await context.QrScanEvents.CountAsync(e =>
+                    e.RestaurantLocationId == locationId
+                )
+            );
+        }
+
+        [Fact]
         public async Task GetScan_DoesNotRecordQrScanEvent_ForUnknownToken()
         {
             using (var scope = _factory.Services.CreateScope())

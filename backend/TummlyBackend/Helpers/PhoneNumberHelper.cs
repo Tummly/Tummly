@@ -35,6 +35,110 @@ namespace TummlyBackend.Helpers
         {
             e164 = null;
 
+            if (!TryParseValidUk(phoneNumber, defaultRegion, out var parsed))
+            {
+                return false;
+            }
+
+            e164 = Util.Format(parsed!, PhoneNumberFormat.E164);
+            return true;
+        }
+
+        /// <summary>
+        /// Guest contact only: valid UK mobile (libphonenumber MOBILE).
+        /// Shared <see cref="TryNormalizeToE164"/> stays unchanged.
+        /// </summary>
+        public static bool TryNormalizeUkMobileToE164(
+            string phoneNumber,
+            string defaultRegion,
+            out string? e164
+        )
+        {
+            e164 = null;
+
+            if (!TryParseUk(phoneNumber, defaultRegion, out var parsed))
+            {
+                return false;
+            }
+
+            if (!IsUkMobile(parsed!))
+            {
+                return false;
+            }
+
+            e164 = Util.Format(parsed!, PhoneNumberFormat.E164);
+            return true;
+        }
+
+        /// <summary>
+        /// Valid UK mobile (libphonenumber MOBILE). The Ofcom drama range
+        /// 07700 900000–900999 that libphonenumber rejects is accepted only
+        /// when <see cref="ReservedTestNumberPolicy.AllowReservedTestNumbers"/>
+        /// is true. Guest contact only.
+        /// </summary>
+        private static bool IsUkMobile(PhoneNumber parsed)
+        {
+            if (Util.IsValidNumber(parsed))
+            {
+                return Util.GetNumberType(parsed) == PhoneNumberType.MOBILE;
+            }
+
+            return ReservedTestNumberPolicy.AllowReservedTestNumbers
+                && IsReservedTestNationalNumber(
+                    Util.GetNationalSignificantNumber(parsed)
+                );
+        }
+
+        private static bool IsReservedTestNationalNumber(string nationalNumber) =>
+            nationalNumber.Length == 10
+            && nationalNumber.StartsWith("7700900", StringComparison.Ordinal);
+
+        /// <summary>
+        /// True for a UK number in the Ofcom reserved drama range 07700 900xxx,
+        /// in any common spelling (national, +44, 0044). Checks digits only, so
+        /// it works on raw input before libphonenumber normalisation. Ignores the
+        /// policy. Used by the provider send guard.
+        /// </summary>
+        public static bool IsReservedTestRange(string? phone)
+        {
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                return false;
+            }
+
+            var digits = new string(phone.Where(char.IsDigit).ToArray());
+            if (digits.StartsWith("0044", StringComparison.Ordinal))
+            {
+                digits = "44" + digits[4..];
+            }
+
+            if (digits.StartsWith("44", StringComparison.Ordinal))
+            {
+                digits = "0" + digits[2..];
+            }
+
+            return digits.Length == 11
+                && digits.StartsWith("07700900", StringComparison.Ordinal);
+        }
+
+        private static bool TryParseValidUk(
+            string phoneNumber,
+            string defaultRegion,
+            out PhoneNumber? parsed
+        )
+        {
+            return TryParseUk(phoneNumber, defaultRegion, out parsed)
+                && Util.IsValidNumber(parsed!);
+        }
+
+        private static bool TryParseUk(
+            string phoneNumber,
+            string defaultRegion,
+            out PhoneNumber? parsed
+        )
+        {
+            parsed = null;
+
             if (string.IsNullOrWhiteSpace(phoneNumber))
             {
                 return false;
@@ -45,16 +149,16 @@ namespace TummlyBackend.Helpers
             try
             {
                 var trimmed = phoneNumber.Trim();
-                var parsed = trimmed.StartsWith('+')
+                var candidate = trimmed.StartsWith('+')
                     ? Util.Parse(trimmed, null)
                     : Util.Parse(trimmed, region);
 
-                if (!Util.IsValidNumber(parsed) || !IsUkNumber(parsed))
+                if (!IsUkNumber(candidate))
                 {
                     return false;
                 }
 
-                e164 = Util.Format(parsed, PhoneNumberFormat.E164);
+                parsed = candidate;
                 return true;
             }
             catch (NumberParseException)

@@ -54,6 +54,115 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Theory]
+        [InlineData(AssistantMessageClass.Refusal)]
+        [InlineData(AssistantMessageClass.Clarify)]
+        [InlineData(AssistantMessageClass.Gap)]
+        public async Task SendTurn_ProviderSucceededNonGroundedAnswer_BurnsZero(
+            AssistantMessageClass answerClass
+        )
+        {
+            var ownerUserId = 906 + (int)answerClass;
+            var locationId = await SeedLocationAsync(ownerUserId, "Camden");
+            var restaurantId = await RestaurantIdForLocationAsync(locationId);
+            _fake.ResetToCannedStub();
+            _fake.SucceedWith(answerClass, "Not answered", "I cannot answer that yet.");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: ownerUserId,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(1, _fake.CompleteCount);
+            Assert.False(
+                await _context.CreditLedgerEntries.AnyAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_AdvisoryClarifyAfterProviderSuccess_BurnsZero()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 910, "Clarify Venue");
+            var restaurantId = await RestaurantIdForLocationAsync(locationId);
+            var reason = new FakeAssistantAdvisoryReasonProvider();
+            reason.SucceedWith(
+                new AssistantAdvisoryReasonOutput(
+                    "clarify",
+                    "I need one more detail.",
+                    "Which metric should I use?",
+                    [],
+                    ["Account"]
+                )
+            );
+            var service = CreateConversationService(
+                restaurantContextSnapshot: new FixedRestaurantContextSnapshot(
+                    HealthyAdvisorySnapshot(locationId)
+                ),
+                advisoryReason: reason
+            );
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await service.SendTurnAsync(
+                    ownerUserId: 910,
+                    FirstSendRequest(locationId, "How are we doing this month?")
+                )
+            );
+
+            Assert.Equal("gap", outcome.Conversation.Messages[^1].Class);
+            Assert.Equal(1, reason.CompleteCount);
+            Assert.False(
+                await _context.CreditLedgerEntries.AnyAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_AdvisoryNoClearDriverAfterProviderSuccess_BurnsZero()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 911, "No Driver Venue");
+            var restaurantId = await RestaurantIdForLocationAsync(locationId);
+            var reason = new FakeAssistantAdvisoryReasonProvider();
+            // Clarify without a question fails validation and falls back to
+            // the no-clear-driver reply.
+            reason.SucceedWith(
+                new AssistantAdvisoryReasonOutput(
+                    "clarify",
+                    "Need more.",
+                    null,
+                    [],
+                    ["Account"]
+                )
+            );
+            var service = CreateConversationService(
+                restaurantContextSnapshot: new FixedRestaurantContextSnapshot(
+                    HealthyAdvisorySnapshot(locationId)
+                ),
+                advisoryReason: reason
+            );
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await service.SendTurnAsync(
+                    ownerUserId: 911,
+                    FirstSendRequest(locationId, "How are we doing this month?")
+                )
+            );
+
+            Assert.Equal("No clear driver", outcome.Conversation.Messages[^1].Title);
+            Assert.Equal(1, reason.CompleteCount);
+            Assert.False(
+                await _context.CreditLedgerEntries.AnyAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+            );
+        }
+
         [Fact]
         public async Task SendTurn_RemainingZero_DoesNotCallLiveAnswer()
         {

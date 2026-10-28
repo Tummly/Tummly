@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.DTOs.Locations;
 using TummlyBackend.Interfaces;
@@ -108,6 +109,13 @@ namespace TummlyBackend.Services
             {
                 return LocationLifecycleResult.InvalidTransition(
                     "Only a Paused location can be resumed."
+                );
+            }
+
+            if (PremisesReviewGate.Blocks(location))
+            {
+                return LocationLifecycleResult.InvalidTransition(
+                    PremisesReviewGate.BlockedMessage
                 );
             }
 

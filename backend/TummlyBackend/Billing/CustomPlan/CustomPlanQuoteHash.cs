@@ -7,7 +7,7 @@ namespace TummlyBackend.Billing.CustomPlan
 {
     /// <summary>
     /// Fingerprint of a Custom Plan quote. Signup compares it with the quote the guest saw,
-    /// so a price or count change is detected before the subscription is saved.
+    /// so a price, count or VAT rate change is detected before the subscription is saved.
     /// </summary>
     public static class CustomPlanQuoteHash
     {
@@ -29,7 +29,8 @@ namespace TummlyBackend.Billing.CustomPlan
                 quote.BasePlan,
                 quote.Locations.ToString(CultureInfo.InvariantCulture),
                 packs,
-                quote.PeriodNetPence.ToString(CultureInfo.InvariantCulture)
+                quote.PeriodNetPence.ToString(CultureInfo.InvariantCulture),
+                quote.VatRateBps.ToString(CultureInfo.InvariantCulture)
             );
 
             var digest = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import axios from "axios"
 import { DownloadIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -8,24 +7,16 @@ import {
   downloadAdminShopOrderPrintAsset,
   downloadAdminShopOrdersCsv,
   fetchAdminShopOrders,
-  patchAdminShopOrderFulfilment,
   type AdminShopFulfilmentStatus,
   type AdminShopOrderListItem,
   type AdminShopPrintAsset,
 } from "@/api/adminShopOrdersApi"
+import { AdminShopDispatchEvidenceDialog } from "@/components/dashboard/admin/AdminShopDispatchEvidenceDialog"
+import { AdminShopFulfilmentActionDialog } from "@/components/dashboard/admin/AdminShopFulfilmentActionDialog"
 import { AdminShopOrderDetailDrawer } from "@/components/dashboard/admin/AdminShopOrderDetailDrawer"
 import { AdminShopOrderRowActionsMenu } from "@/components/dashboard/admin/AdminShopOrderRowActionsMenu"
+import { AdminShopStatusCorrectionDialog } from "@/components/dashboard/admin/AdminShopStatusCorrectionDialog"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -55,16 +46,20 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL,
   ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS,
   ALL_ADMIN_SHOP_FULFILMENT_STATUSES,
-  adminShopFulfilmentLabel,
+  adminShopOrderFulfilmentLabel,
+  type AdminShopFulfilmentAction,
   formatAdminShopGbpFromPence,
+  isAdminShopDispatchEvidenceMissing,
 } from "@/lib/adminShopOrderFulfilment"
 import { defaultDownloadName } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
 import { withRowBusy } from "@/lib/admin/adminShopOrderRowBusy"
 import {
   adminShopOrderPaymentLabel,
   adminShopOrderRowActions,
+  adminShopOrderTableLines,
   formatAdminShopOrderDate,
 } from "@/lib/admin/adminShopOrdersTablePresentation"
 import {
@@ -91,6 +86,7 @@ import {
   OPERATOR_SHELL_MENU_ITEM_CLASS,
   OPERATOR_SHELL_MENU_PANEL_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
+import { triggerBlobDownload } from "@/lib/triggerBlobDownload"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 25
@@ -100,27 +96,11 @@ const ORDER_TABLE_TEXT_CLASS = "text-sm font-normal leading-[19px] text-op-text-
 
 type PendingFulfilment = {
   order: AdminShopOrderListItem
-  status: "in_transit" | "delivered"
-  label: string
+  action: AdminShopFulfilmentAction
 }
 
-function triggerFileDownload(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement("a")
-  anchor.href = url
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(url)
-}
-
-function fulfilmentErrorMessage(error: unknown): string {
-  if (axios.isAxiosError(error)) {
-    const message = (error.response?.data as { message?: string } | undefined)
-      ?.message
-    if (message) return message
-  }
-  return "Could not update fulfilment."
-}
+/** Evidence filter: every order, or only those missing carrier evidence. */
+type EvidenceFilter = "all" | "missing"
 
 function buildPageNumbers(current: number, total: number) {
   if (total <= 7) {
@@ -164,6 +144,11 @@ export function AdminShopOrdersPanel() {
   )
   const [pendingFulfilment, setPendingFulfilment] =
     useState<PendingFulfilment | null>(null)
+  const [evidenceFilter, setEvidenceFilter] = useState<EvidenceFilter>("all")
+  const [pendingEvidenceOrder, setPendingEvidenceOrder] =
+    useState<AdminShopOrderListItem | null>(null)
+  const [pendingCorrectionOrder, setPendingCorrectionOrder] =
+    useState<AdminShopOrderListItem | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -173,14 +158,17 @@ export function AdminShopOrdersPanel() {
     return () => window.clearTimeout(timer)
   }, [search])
 
+  const dispatchEvidenceMissing = evidenceFilter === "missing" || undefined
+
   const listParams = useMemo(
     () => ({
       page,
       pageSize: PAGE_SIZE,
       q: debouncedSearch || undefined,
       fulfilmentStatus: fulfilmentStatusesForFilter(statusFilter),
+      dispatchEvidenceMissing,
     }),
-    [debouncedSearch, page, statusFilter]
+    [debouncedSearch, dispatchEvidenceMissing, page, statusFilter]
   )
 
   const loadOrders = useCallback(async () => {
@@ -217,8 +205,9 @@ export function AdminShopOrdersPanel() {
       const { blob, fileName } = await downloadAdminShopOrdersCsv({
         q: debouncedSearch || undefined,
         fulfilmentStatus: fulfilmentStatusesForFilter(statusFilter),
+        dispatchEvidenceMissing,
       })
-      triggerFileDownload(blob, fileName)
+      triggerBlobDownload(blob, fileName)
       toast.success("Shop orders CSV downloaded")
     } catch {
       toast.error("Could not export shop orders")
@@ -229,7 +218,8 @@ export function AdminShopOrdersPanel() {
 
   const applyOrderUpdate = (updated: AdminShopOrderListItem) => {
     const stillMatchesFilter =
-      statusFilter === "all" || updated.fulfilmentStatus === statusFilter
+      (statusFilter === "all" || updated.fulfilmentStatus === statusFilter) &&
+      (evidenceFilter === "all" || isAdminShopDispatchEvidenceMissing(updated))
 
     if (!stillMatchesFilter) {
       setOrders((current) => current.filter((item) => item.id !== updated.id))
@@ -263,7 +253,7 @@ export function AdminShopOrdersPanel() {
         for (const qrType of downloadQrTypes) {
           const asset = order.printAssets.find((item) => item.qrType === qrType)
           const blob = await downloadAdminShopOrderPrintAsset(order.id, qrType)
-          triggerFileDownload(
+          triggerBlobDownload(
             blob,
             defaultDownloadName(order.id, qrType, asset?.fileName ?? null)
           )
@@ -295,36 +285,13 @@ export function AdminShopOrdersPanel() {
       }
     })
 
-  const confirmFulfilment = async () => {
-    const pending = pendingFulfilment
-    if (!pending) return
-    await runRowBusy(pending.order.id, async () => {
-      try {
-        const updated = await patchAdminShopOrderFulfilment(pending.order.id, {
-          fulfilmentStatus: pending.status,
-        })
-        setPendingFulfilment(null)
-        applyOrderUpdate(updated)
-        toast.success(
-          `Order marked as ${adminShopFulfilmentLabel(pending.status)}`
-        )
-      } catch (error) {
-        toast.error(fulfilmentErrorMessage(error))
-      }
-    })
-  }
-
-  const pendingBusy =
-    pendingFulfilment !== null &&
-    rowBusyOrderIds.has(pendingFulfilment.order.id)
-
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
       <header className="flex flex-col gap-3.5 leading-[0]">
         <h1 className={GUESTS_PAGE_TITLE_CLASS}>Shop orders</h1>
         <p className={GUESTS_PAGE_SUBTITLE_CLASS}>
-          Review paid materials orders, advance fulfilment, set tracking URLs,
-          and export the warehouse CSV.
+          Review paid materials orders, advance fulfilment with carrier
+          details, and export the warehouse CSV.
         </p>
       </header>
 
@@ -379,6 +346,38 @@ export function AdminShopOrdersPanel() {
               </SelectContent>
             </Select>
 
+            <Select
+              value={evidenceFilter}
+              onValueChange={(value) => {
+                setEvidenceFilter(value as EvidenceFilter)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger
+                aria-label="Dispatch evidence"
+                className={cn(
+                  OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+                  "w-full min-w-40 data-[size=default]:h-auto sm:w-56"
+                )}
+              >
+                <SelectValue placeholder="Evidence" />
+              </SelectTrigger>
+              <SelectContent className={OPERATOR_SHELL_MENU_PANEL_CLASS}>
+                <SelectItem
+                  value="all"
+                  className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                >
+                  All orders
+                </SelectItem>
+                <SelectItem
+                  value="missing"
+                  className={OPERATOR_SHELL_MENU_ITEM_CLASS}
+                >
+                  {ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
             <Button
               type="button"
               variant="op-secondary"
@@ -416,7 +415,10 @@ export function AdminShopOrdersPanel() {
                   Location
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Materials
+                  Product
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Quantity
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Total (£)
@@ -442,7 +444,7 @@ export function AdminShopOrdersPanel() {
                     key={`skeleton-${index}`}
                     className={GUESTS_TABLE_BODY_ROW_CLASS}
                   >
-                    {Array.from({ length: 9 }).map((__, cellIndex) => (
+                    {Array.from({ length: 10 }).map((__, cellIndex) => (
                       <TableCell
                         key={cellIndex}
                         className={GUESTS_TABLE_BODY_CELL_CLASS}
@@ -455,9 +457,7 @@ export function AdminShopOrdersPanel() {
 
               {!loading &&
                 orders.map((order) => {
-                  const materials = order.lines
-                    .map((line) => `${line.titleSnapshot} ×${line.quantity}`)
-                    .join(", ")
+                  const lines = adminShopOrderTableLines(order)
 
                   return (
                     <TableRow
@@ -500,9 +500,32 @@ export function AdminShopOrdersPanel() {
                           "max-w-56 truncate"
                         )}
                       >
-                        <span className={ORDER_TABLE_TEXT_CLASS}>
-                          {materials || "—"}
-                        </span>
+                        {lines.length === 0 ? (
+                          <span className={ORDER_TABLE_TEXT_CLASS}>—</span>
+                        ) : (
+                          lines.map((line) => (
+                            <span
+                              key={line.key}
+                              className={cn(ORDER_TABLE_TEXT_CLASS, "block")}
+                            >
+                              {line.product}
+                            </span>
+                          ))
+                        )}
+                      </TableCell>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        {lines.length === 0 ? (
+                          <span className={ORDER_TABLE_TEXT_CLASS}>—</span>
+                        ) : (
+                          lines.map((line) => (
+                            <span
+                              key={line.key}
+                              className={cn(ORDER_TABLE_TEXT_CLASS, "block")}
+                            >
+                              {line.quantity}
+                            </span>
+                          ))
+                        )}
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <span className={ORDER_TABLE_TEXT_CLASS}>
@@ -520,9 +543,16 @@ export function AdminShopOrdersPanel() {
                         </span>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <Badge variant="soft">
-                          {adminShopFulfilmentLabel(order.fulfilmentStatus)}
-                        </Badge>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge variant="soft">
+                            {adminShopOrderFulfilmentLabel(order)}
+                          </Badge>
+                          {isAdminShopDispatchEvidenceMissing(order) ? (
+                            <Badge variant="soft">
+                              {ADMIN_SHOP_DISPATCH_EVIDENCE_MISSING_LABEL}
+                            </Badge>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell
                         className={cn(
@@ -541,8 +571,14 @@ export function AdminShopOrdersPanel() {
                           onApproveMaterials={() =>
                             void approveRowMaterials(order)
                           }
-                          onRequestFulfilment={(status, label) =>
-                            setPendingFulfilment({ order, status, label })
+                          onRequestFulfilment={(action) =>
+                            setPendingFulfilment({ order, action })
+                          }
+                          onRecordDispatchEvidence={() =>
+                            setPendingEvidenceOrder(order)
+                          }
+                          onCorrectStatus={() =>
+                            setPendingCorrectionOrder(order)
                           }
                         />
                       </TableCell>
@@ -553,7 +589,7 @@ export function AdminShopOrdersPanel() {
               {!loading && orders.length === 0 && (
                 <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                   <TableCell
-                    colSpan={9}
+                    colSpan={10}
                     className={cn(
                       GUESTS_TABLE_BODY_CELL_CLASS,
                       ORDER_TABLE_TEXT_CLASS,
@@ -633,42 +669,33 @@ export function AdminShopOrdersPanel() {
         onOrderUpdated={applyOrderUpdate}
       />
 
-      <AlertDialog
-        open={pendingFulfilment !== null}
-        onOpenChange={(nextOpen) => {
-          if (pendingBusy) return
-          if (!nextOpen) setPendingFulfilment(null)
+      <AdminShopFulfilmentActionDialog
+        order={pendingFulfilment?.order ?? null}
+        action={pendingFulfilment?.action ?? null}
+        onClose={() => setPendingFulfilment(null)}
+        onCompleted={(updated) => {
+          setPendingFulfilment(null)
+          applyOrderUpdate(updated)
         }}
-      >
-        <AlertDialogContent className="rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingFulfilment
-                ? `${pendingFulfilment.label}?`
-                : "Update fulfilment?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingFulfilment
-                ? `This updates ${pendingFulfilment.order.orderNumber} to ${adminShopFulfilmentLabel(pendingFulfilment.status)}.`
-                : null}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={pendingBusy}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              disabled={pendingBusy}
-              onClick={(event) => {
-                event.preventDefault()
-                void confirmFulfilment()
-              }}
-            >
-              {pendingBusy ? "Saving…" : "Confirm"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      />
+
+      <AdminShopDispatchEvidenceDialog
+        order={pendingEvidenceOrder}
+        onClose={() => setPendingEvidenceOrder(null)}
+        onCompleted={(updated) => {
+          setPendingEvidenceOrder(null)
+          applyOrderUpdate(updated)
+        }}
+      />
+
+      <AdminShopStatusCorrectionDialog
+        order={pendingCorrectionOrder}
+        onClose={() => setPendingCorrectionOrder(null)}
+        onCompleted={(updated) => {
+          setPendingCorrectionOrder(null)
+          applyOrderUpdate(updated)
+        }}
+      />
     </div>
   )
 }

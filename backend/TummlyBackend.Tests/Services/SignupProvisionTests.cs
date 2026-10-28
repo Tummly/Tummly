@@ -130,6 +130,12 @@ namespace TummlyBackend.Tests.Services
             var dto = BuildValidOnboardingDto();
             dto.ChosenPlan = BillingSubscriptionPlans.Custom;
             dto.ChosenCadence = "monthly";
+            var quote = await QuoteAsync(
+                "monthly",
+                "growth",
+                2,
+                new Dictionary<string, int> { ["offers_5"] = 1 }
+            );
             dto.CustomPlanConfigJson = JsonSerializer.Serialize(
                 new
                 {
@@ -138,6 +144,7 @@ namespace TummlyBackend.Tests.Services
                     basePlan = "growth",
                     locations = 2,
                     packs = new Dictionary<string, int> { ["offers_5"] = 1 },
+                    quoteHash = quote.QuoteHash,
                 }
             );
 
@@ -176,6 +183,12 @@ namespace TummlyBackend.Tests.Services
             var dto = BuildValidOnboardingDto();
             dto.ChosenPlan = BillingSubscriptionPlans.Custom;
             dto.ChosenCadence = "monthly";
+            var quote = await QuoteAsync(
+                "monthly",
+                "growth",
+                2,
+                new Dictionary<string, int>()
+            );
             dto.CustomPlanConfigJson = JsonSerializer.Serialize(
                 new
                 {
@@ -184,6 +197,7 @@ namespace TummlyBackend.Tests.Services
                     basePlan = "growth",
                     locations = 2,
                     packs = new Dictionary<string, int>(),
+                    quoteHash = quote.QuoteHash,
                 }
             );
 
@@ -201,6 +215,12 @@ namespace TummlyBackend.Tests.Services
             var dto = BuildValidOnboardingDto();
             dto.ChosenPlan = BillingSubscriptionPlans.Group;
             dto.ChosenCadence = "monthly";
+            var quote = await QuoteAsync(
+                "monthly",
+                "group",
+                31,
+                new Dictionary<string, int>()
+            );
             dto.CustomPlanConfigJson = JsonSerializer.Serialize(
                 new
                 {
@@ -209,6 +229,7 @@ namespace TummlyBackend.Tests.Services
                     basePlan = "group",
                     locations = 31,
                     packs = new Dictionary<string, int>(),
+                    quoteHash = quote.QuoteHash,
                 }
             );
 
@@ -229,6 +250,12 @@ namespace TummlyBackend.Tests.Services
             var dto = BuildValidOnboardingDto();
             dto.ChosenPlan = BillingSubscriptionPlans.Custom;
             dto.ChosenCadence = "annual";
+            var quote = await QuoteAsync(
+                "annual",
+                "group",
+                500,
+                new Dictionary<string, int>()
+            );
             dto.CustomPlanConfigJson = JsonSerializer.Serialize(
                 new
                 {
@@ -237,6 +264,7 @@ namespace TummlyBackend.Tests.Services
                     basePlan = "group",
                     locations = 500,
                     packs = new Dictionary<string, int>(),
+                    quoteHash = quote.QuoteHash,
                 }
             );
 
@@ -257,6 +285,12 @@ namespace TummlyBackend.Tests.Services
             var dto = BuildValidOnboardingDto();
             dto.ChosenPlan = BillingSubscriptionPlans.Group;
             dto.ChosenCadence = "monthly";
+            var quote = await QuoteAsync(
+                "monthly",
+                "group",
+                30,
+                new Dictionary<string, int>()
+            );
             dto.CustomPlanConfigJson = JsonSerializer.Serialize(
                 new
                 {
@@ -265,6 +299,7 @@ namespace TummlyBackend.Tests.Services
                     basePlan = "group",
                     locations = 30,
                     packs = new Dictionary<string, int>(),
+                    quoteHash = quote.QuoteHash,
                 }
             );
 
@@ -348,15 +383,10 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SaveOnboarding_NoQuoteHash_RequotesWithoutReject()
+        public async Task SaveOnboarding_NoQuoteHash_ReturnsQuoteChanged()
         {
             await SeedVerifiedPendingAsync();
-            var band2 = _db.CommercialCustomUnitRateRows.Single(r =>
-                r.RateKey == CommercialCustomUnitRateKeys.ExtraLocationBand2
-            );
-            band2.MonthlyNetPence = 3600;
-            await _db.SaveChangesAsync();
-            var currentQuote = await QuoteGroupAsync(31);
+            await QuoteGroupAsync(31);
 
             var dto = BuildValidOnboardingDto();
             dto.ChosenPlan = BillingSubscriptionPlans.Group;
@@ -372,13 +402,43 @@ namespace TummlyBackend.Tests.Services
                 }
             );
 
-            await _signup.SaveOnboardingAsync(_sessionToken, dto);
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.SaveOnboardingAsync(_sessionToken, dto)
+            );
+            Assert.Equal("quote_changed", ex.Code);
             await _db.Entry(_pending).ReloadAsync();
+            Assert.Equal(PendingSignupStatuses.Verified, _pending.Status);
+            Assert.Null(_pending.ChosenPlan);
+            Assert.Null(_pending.CustomPlanConfigJson);
+        }
 
-            Assert.Equal(BillingSubscriptionPlans.Custom, _pending.ChosenPlan);
-            var config = CustomPlanConfig.TryParse(_pending.CustomPlanConfigJson);
-            Assert.NotNull(config);
-            Assert.Equal(currentQuote.PeriodNetPence, config!.PeriodNetPence);
+        [Fact]
+        public async Task SaveOnboarding_EmptyQuoteHash_ReturnsQuoteChanged()
+        {
+            await SeedVerifiedPendingAsync();
+            await QuoteGroupAsync(31);
+
+            var dto = BuildValidOnboardingDto();
+            dto.ChosenPlan = BillingSubscriptionPlans.Group;
+            dto.ChosenCadence = "monthly";
+            dto.CustomPlanConfigJson = JsonSerializer.Serialize(
+                new
+                {
+                    version = 2,
+                    cadence = "monthly",
+                    basePlan = "group",
+                    locations = 31,
+                    packs = new Dictionary<string, int>(),
+                    quoteHash = "",
+                }
+            );
+
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.SaveOnboardingAsync(_sessionToken, dto)
+            );
+            Assert.Equal("quote_changed", ex.Code);
+            await _db.Entry(_pending).ReloadAsync();
+            Assert.Null(_pending.ChosenPlan);
         }
 
         [Fact]
@@ -534,6 +594,75 @@ namespace TummlyBackend.Tests.Services
             await _signup.RetryProvisionAsync(_sessionToken);
 
             Assert.Equal(1, _pilotEmail.PilotStartedCalls);
+        }
+
+        [Fact]
+        public async Task RetryProvision_PremisesAlreadyRegistered_SavesDraftForReview_NoPilotNoKitNoQr()
+        {
+            var theirOwner = new User
+            {
+                FullName = "Their Owner",
+                Email = "their-owner@example.com",
+                PasswordHash = "x",
+                CreatedAt = DateTime.UtcNow,
+            };
+            _db.Users.Add(theirOwner);
+            await _db.SaveChangesAsync();
+            var theirs = new Restaurant
+            {
+                Name = "Their Kitchen",
+                AccountType = "Single",
+                OwnerUserId = theirOwner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _db.Restaurants.Add(theirs);
+            await _db.SaveChangesAsync();
+            _db.RestaurantLocations.Add(
+                new RestaurantLocation
+                {
+                    RestaurantId = theirs.Id,
+                    LocationName = "Their Main",
+                    Address = "1 High Street",
+                    City = "Leeds",
+                    Postcode = "LS1 1AA",
+                    LifecycleStatus = LocationLifecycleStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await _db.SaveChangesAsync();
+
+            await SeedOnboardingCompletePendingWithPlanAsync(
+                BillingSubscriptionPlans.Pilot
+            );
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            var location = await _db.RestaurantLocations.SingleAsync(l =>
+                l.LocationName == "Main"
+            );
+            Assert.Equal(LocationLifecycleStatus.Draft, location.LifecycleStatus);
+            Assert.Equal(PremisesReviewStatus.PendingReview, location.PremisesReviewStatus);
+            Assert.Empty(
+                await _db.QrCodes
+                    .Where(qr => qr.RestaurantLocationId == location.Id)
+                    .ToListAsync()
+            );
+            var billing = await _db.BillingAccounts.SingleAsync(b =>
+                b.RestaurantId == location.RestaurantId
+            );
+            Assert.Null(billing.PilotStartedAtUtc);
+            Assert.Equal(0, _mintLedger.MintPilotCallCount);
+            Assert.Equal(
+                0,
+                await _db.ShopOrders.CountAsync(o => o.IsComplimentary)
+            );
+            Assert.Equal(0, _pilotEmail.PilotStartedCalls);
+            Assert.Equal(
+                1,
+                await _db.AdminAuditEvents.CountAsync(e =>
+                    e.Action == AdminAuditActions.LocationPremisesFlagged
+                )
+            );
         }
 
         [Fact]
@@ -714,6 +843,26 @@ namespace TummlyBackend.Tests.Services
                     },
                 ],
             };
+
+        private async Task<CustomPlanQuoteResult> QuoteAsync(
+            string cadence,
+            string basePlan,
+            int locations,
+            Dictionary<string, int> packs
+        ) =>
+            await new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())).QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = cadence,
+                    BasePlan = basePlan,
+                    Locations = locations,
+                    Packs = packs.ToDictionary(
+                        kv => kv.Key,
+                        kv => (decimal)kv.Value,
+                        StringComparer.Ordinal
+                    ),
+                }
+            );
 
         private async Task<CustomPlanQuoteResult> QuoteGroupAsync(int locations) =>
             await new CustomPlanQuoteService(_db, Options.Create(new TummlySellerVatSettings())).QuoteAsync(

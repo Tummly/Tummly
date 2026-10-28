@@ -236,6 +236,94 @@ describe("createGuestMicSttModule", () => {
     })
   })
 
+  it("appends the transcript to existing text with one space", async () => {
+    const replaceComment = vi.fn()
+    const adapters: GuestMicSttAdapters = {
+      ...createInMemoryGuestMicSttAdapters(),
+      getComment: () => "Great food.   ",
+      replaceComment,
+      transcribe: async () => ({ ok: true, text: "  Lovely staff.  " }),
+    }
+    const mic = createGuestMicSttModule(adapters)
+
+    await mic.start()
+    await mic.confirm()
+
+    expect(replaceComment).toHaveBeenCalledWith("Great food. Lovely staff.")
+    expect(mic.getSnapshot().truncateNotice).toBeNull()
+  })
+
+  it("uses only the transcript when existing text is blank", async () => {
+    const replaceComment = vi.fn()
+    const adapters: GuestMicSttAdapters = {
+      ...createInMemoryGuestMicSttAdapters(),
+      getComment: () => "   ",
+      replaceComment,
+      transcribe: async () => ({ ok: true, text: "Lovely staff." }),
+    }
+    const mic = createGuestMicSttModule(adapters)
+
+    await mic.start()
+    await mic.confirm()
+
+    expect(replaceComment).toHaveBeenCalledWith("Lovely staff.")
+  })
+
+  it("keeps existing text when the transcript is empty", async () => {
+    const replaceComment = vi.fn()
+    const adapters: GuestMicSttAdapters = {
+      ...createInMemoryGuestMicSttAdapters(),
+      getComment: () => "Great food.",
+      replaceComment,
+      transcribe: async () => ({ ok: true, text: "   " }),
+    }
+    const mic = createGuestMicSttModule(adapters)
+
+    await mic.start()
+    await mic.confirm()
+
+    expect(replaceComment).toHaveBeenCalledWith("Great food.")
+  })
+
+  it("keeps existing text and truncates the appended transcript at max length", async () => {
+    const existing = "a".repeat(990)
+    const replaceComment = vi.fn()
+    const adapters: GuestMicSttAdapters = {
+      ...createInMemoryGuestMicSttAdapters(),
+      getComment: () => existing,
+      replaceComment,
+      transcribe: async () => ({ ok: true, text: "b".repeat(40) }),
+    }
+    const mic = createGuestMicSttModule(adapters)
+
+    await mic.start()
+    await mic.confirm()
+
+    expect(replaceComment).toHaveBeenCalledWith(`${existing} ${"b".repeat(9)}`)
+    expect(mic.getSnapshot()).toMatchObject({
+      truncateNotice: GUEST_MIC_ERROR_COPY.truncated,
+      error: null,
+    })
+  })
+
+  it("leaves existing text unchanged when it already fills the max length", async () => {
+    const existing = "a".repeat(COMMENT_MAX_LENGTH)
+    const replaceComment = vi.fn()
+    const adapters: GuestMicSttAdapters = {
+      ...createInMemoryGuestMicSttAdapters(),
+      getComment: () => existing,
+      replaceComment,
+      transcribe: async () => ({ ok: true, text: "Lovely staff." }),
+    }
+    const mic = createGuestMicSttModule(adapters)
+
+    await mic.start()
+    await mic.confirm()
+
+    expect(replaceComment).toHaveBeenCalledWith(existing)
+    expect(mic.getSnapshot().truncateNotice).toBe(GUEST_MIC_ERROR_COPY.truncated)
+  })
+
   it("auto-stop at 60s behaves as Tick", async () => {
     const timers: Array<{ fn: () => void; ms: number }> = []
     const replaceComment = vi.fn()

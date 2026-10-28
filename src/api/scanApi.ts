@@ -6,6 +6,7 @@ import {
   type GuestFormConsentConfig,
 } from "@/lib/guestFeedback/guestFormConsentPresentation"
 import type { GuestSttResult } from "@/lib/guestFeedback/createGuestMicSttModule"
+import { GUEST_FORM_PREVIEW_PARAM } from "@/lib/guestFeedback/guestFormPreview"
 import type { GuestFeedbackFormValues } from "@/schemas/guestFeedback"
 import { toGuestFeedbackPayload } from "@/schemas/guestFeedback"
 
@@ -54,10 +55,14 @@ type ScanSttResponse = {
 }
 
 export async function fetchScanLocationMetadata(
-  token: string
+  token: string,
+  options: { preview?: boolean } = {}
 ): Promise<ScanLocationMetadata> {
   const response = await axios.get<ScanMetadataResponse>(
-    `${API_BASE_URL}/scan/${encodeURIComponent(token)}`
+    `${API_BASE_URL}/scan/${encodeURIComponent(token)}`,
+    options.preview
+      ? { params: { [GUEST_FORM_PREVIEW_PARAM]: true } }
+      : undefined
   )
 
   if (!response.data.success) {

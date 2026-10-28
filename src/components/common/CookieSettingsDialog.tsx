@@ -23,6 +23,8 @@ export function CookieSettingsDialog() {
   const navigate = useNavigate();
   const analyticsId = useId();
   const closeTimerRef = useRef<number | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const focusReturnRef = useRef<HTMLDivElement | null>(null);
 
   const isOpen = useCookieSettingsUiStore((state) => state.isOpen);
   const setOpen = useCookieSettingsUiStore((state) => state.setOpen);
@@ -89,84 +91,102 @@ export function CookieSettingsDialog() {
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-7 bg-white sm:max-w-[480px]">
-        <DialogHeader className="gap-2">
-          <DialogTitle className="text-[clamp(1.5rem,3vw,1.875rem)] tracking-[-0.4px]">
-            Cookie settings
-          </DialogTitle>
-          <DialogDescription className="text-sm leading-6 text-[#525252]">
-            Choose whether optional analytics cookies may run in this browser.
-            Essential cookies stay on so sign-in, security, and your preference
-            stay reliable.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      {/* Stable focus target: the banner that opened this dialog unmounts while it is open. */}
+      <div ref={focusReturnRef} tabIndex={-1} className="sr-only" />
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className="gap-7 bg-white sm:max-w-[480px]"
+          onOpenAutoFocus={() => {
+            const active = document.activeElement;
+            openerRef.current = active instanceof HTMLElement ? active : null;
+          }}
+          onCloseAutoFocus={(event) => {
+            if (openerRef.current?.isConnected) {
+              return;
+            }
 
-        <div className="flex flex-col gap-4">
-          <p className="m-0 rounded-lg bg-[#f7f7f7] px-4 py-3 text-sm leading-6 text-[#525252]">
-            <span className="font-medium text-[#141414]">Essential cookies</span>
-            {" — "}
-            always on for authentication, session security, and remembering this
-            choice.
-          </p>
+            event.preventDefault();
+            focusReturnRef.current?.focus({ preventScroll: true });
+          }}
+        >
+          <DialogHeader className="gap-2">
+            <DialogTitle className="text-[clamp(1.5rem,3vw,1.875rem)] tracking-[-0.4px]">
+              Cookie settings
+            </DialogTitle>
+            <DialogDescription className="text-sm leading-6 text-[#525252]">
+              Choose whether optional analytics cookies may run in this browser.
+              Essential cookies stay on so sign-in, security, and your preference
+              stay reliable.
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="rounded-xl border border-[#e7e7e7] bg-white p-4 shadow-[0_1px_0_rgba(20,20,20,0.03)]">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id={analyticsId}
-                checked={analyticsEnabled}
-                onCheckedChange={(checked) =>
-                  setAnalyticsEnabled(checked === true)
-                }
-                className="mt-0.5"
-              />
-              <div className="min-w-0 space-y-1">
-                <Label
-                  htmlFor={analyticsId}
-                  className="text-base font-semibold text-[#141414]"
-                >
-                  Analytics cookies
-                </Label>
-                <p className="m-0 text-sm leading-6 text-[#525252]">
-                  Help us understand how visitors use Tummly through Google
-                  Analytics. No advertising cookies are used.
-                </p>
+          <div className="flex flex-col gap-4">
+            <p className="m-0 rounded-lg bg-[#f7f7f7] px-4 py-3 text-sm leading-6 text-[#525252]">
+              <span className="font-medium text-[#141414]">Essential cookies</span>
+              {" — "}
+              always on for authentication, session security, and remembering this
+              choice.
+            </p>
+
+            <div className="rounded-xl border border-[#e7e7e7] bg-white p-4 shadow-[0_1px_0_rgba(20,20,20,0.03)]">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id={analyticsId}
+                  checked={analyticsEnabled}
+                  onCheckedChange={(checked) =>
+                    setAnalyticsEnabled(checked === true)
+                  }
+                  className="mt-0.5"
+                />
+                <div className="min-w-0 space-y-1">
+                  <Label
+                    htmlFor={analyticsId}
+                    className="text-base font-semibold text-[#141414]"
+                  >
+                    Analytics cookies
+                  </Label>
+                  <p className="m-0 text-sm leading-6 text-[#525252]">
+                    Help us understand how visitors use Tummly through Google
+                    Analytics. No advertising cookies are used.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <DialogFooter className="gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-            <Button
+          <DialogFooter className="gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <Button
+                type="button"
+                size="responsive"
+                onClick={handleSave}
+                disabled={saved}
+              >
+                Save preferences
+              </Button>
+              <p
+                aria-live="polite"
+                className={cn(
+                  "m-0 text-sm text-[#525252] transition-opacity",
+                  saved ? "opacity-100" : "opacity-0",
+                )}
+              >
+                Preferences saved.
+              </p>
+            </div>
+
+            <button
               type="button"
-              size="responsive"
-              onClick={handleSave}
-              disabled={saved}
+              onClick={handleCookiePolicyClick}
+              className="shrink-0 self-start whitespace-nowrap text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:self-center"
             >
-              Save preferences
-            </Button>
-            <p
-              aria-live="polite"
-              className={cn(
-                "m-0 text-sm text-[#525252] transition-opacity",
-                saved ? "opacity-100" : "opacity-0",
-              )}
-            >
-              Preferences saved.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleCookiePolicyClick}
-            className="shrink-0 self-start whitespace-nowrap text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:self-center"
-          >
-            Cookie Policy
-          </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+              Cookie Policy
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

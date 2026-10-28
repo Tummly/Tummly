@@ -45,6 +45,7 @@ import {
   operatorDashboardLocationDetailPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import { locationsFilterSheetSchema } from "@/lib/operatorLocations/locationsFilterSheetSchema"
+import { POSSIBLE_DUPLICATE_PREMISES_MESSAGE } from "@/lib/operatorLocations/importPremisesWarning"
 import {
   LOCATIONS_PAGE_COPY,
   LOCATIONS_PAGE_PRIMARY_BUTTON_CLASS,
@@ -343,8 +344,12 @@ export function LocationsPage() {
           setAddBusy(true)
           setAddError(null)
           try {
-            await pageModule.createDraft(input)
-            toast.success("Draft location created.")
+            const outcome = await pageModule.createDraft(input)
+            if (outcome.needsReview) {
+              toast.warning(POSSIBLE_DUPLICATE_PREMISES_MESSAGE)
+            } else {
+              toast.success("Draft location created.")
+            }
           } catch (error) {
             const message = getUserFacingApiErrorMessage(
               error,
@@ -373,6 +378,7 @@ export function LocationsPage() {
                 postcode: location.postcode,
                 locationPhone: location.locationPhone,
                 localContact: location.localContact,
+                fsaEstablishmentId: location.fsaEstablishmentId,
               }))
             )
             if (result.createdCount > 0 && result.errors.length === 0) {
@@ -391,6 +397,17 @@ export function LocationsPage() {
                 result.errors
                   .slice(0, 3)
                   .map((row) => `Row ${row.rowIndex + 1}: ${row.message}`)
+                  .join(" ")
+              )
+            }
+            if (result.warnings && result.warnings.length > 0) {
+              toast.warning(
+                result.warnings
+                  .slice(0, 3)
+                  .map(
+                    (row) =>
+                      `Row ${row.rowIndex + 1}: ${POSSIBLE_DUPLICATE_PREMISES_MESSAGE}`
+                  )
                   .join(" ")
               )
             }

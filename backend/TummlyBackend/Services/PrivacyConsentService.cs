@@ -11,6 +11,14 @@ namespace TummlyBackend.Services
     {
         public const int MaxActivityItems = 50;
 
+        private static readonly List<string> PrivacyActivityKinds =
+        [
+            LocationActivityKinds.ConsentCopyChanged,
+            LocationActivityKinds.PrivacyReviewCompleted,
+            LocationActivityKinds.GuestMarketingUnsubscribed,
+            LocationActivityKinds.GuestPermissionToggleChanged,
+        ];
+
         private readonly ApplicationDbContext _context;
 
         public PrivacyConsentService(ApplicationDbContext context)
@@ -18,10 +26,32 @@ namespace TummlyBackend.Services
             _context = context;
         }
 
+        public async Task<bool> IsWorkspaceOwnerAsync(int restaurantId, int userId)
+        {
+            var membership = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row =>
+                    row.UserId == userId
+                    && row.RestaurantId == restaurantId
+                    && row.Status == MembershipStatus.Active
+                );
+            if (membership != null)
+            {
+                return membership.PermissionRole == PermissionRoles.Owner;
+            }
+
+            return await _context.Restaurants
+                .AsNoTracking()
+                .AnyAsync(row =>
+                    row.Id == restaurantId && row.OwnerUserId == userId
+                );
+        }
+
         public async Task<PrivacyConsentGetResult> GetAsync(
             int restaurantId,
             bool actorCanManage,
-            bool canViewGuests
+            bool canViewGuests,
+            bool actorIsWorkspaceOwner
         )
         {
             var restaurant = await _context.Restaurants
@@ -58,6 +88,7 @@ namespace TummlyBackend.Services
                             .ToString("O"),
                     actorCanManage,
                     canViewGuests,
+                    actorIsWorkspaceOwner,
                 }
             );
         }
@@ -149,21 +180,32 @@ namespace TummlyBackend.Services
             return new PrivacyConsentPatchResult.Ok();
         }
 
-        public async Task<object> GetActivityAsync(int restaurantId)
+        public async Task<object> GetActivityAsync(
+            int restaurantId,
+            IReadOnlyCollection<int> accessibleLocationIds
+        )
         {
+            var liveLocationIds = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantId == restaurantId
+                    && row.LifecycleStatus != LocationLifecycleStatus.Archived
+                )
+                .Select(row => row.Id)
+                .ToListAsync();
+            var visibleLocationIds = accessibleLocationIds
+                .Intersect(liveLocationIds)
+                .ToList();
+
             var items = await _context.LocationActivities
                 .AsNoTracking()
                 .Where(a =>
                     a.RestaurantId == restaurantId
                     && (
-                        a.Kind == LocationActivityKinds.ConsentCopyChanged
-                        || a.Kind
-                            == LocationActivityKinds.PrivacyReviewCompleted
-                        || a.Kind
-                            == LocationActivityKinds.GuestMarketingUnsubscribed
-                        || a.Kind
-                            == LocationActivityKinds.GuestPermissionToggleChanged
+                        a.LocationId == null
+                        || visibleLocationIds.Contains(a.LocationId.Value)
                     )
+                    && PrivacyActivityKinds.Contains(a.Kind)
                 )
                 .OrderByDescending(a => a.OccurredAt)
                 .ThenByDescending(a => a.Id)
@@ -177,6 +219,66 @@ namespace TummlyBackend.Services
                     occurredAt = a.OccurredAt.ToUniversalTime().ToString("O"),
                 })
                 .ToListAsync();
+
+            return new
+            {
+                success = true,
+                items,
+            };
+        }
+
+        public async Task<object> GetArchivedActivityAsync(int restaurantId)
+        {
+            var archivedLocationNames = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantId == restaurantId
+                    && row.LifecycleStatus == LocationLifecycleStatus.Archived
+                )
+                .ToDictionaryAsync(row => row.Id, row => row.LocationName);
+            if (archivedLocationNames.Count == 0)
+            {
+                return new
+                {
+                    success = true,
+                    items = Array.Empty<object>(),
+                };
+            }
+
+            var archivedLocationIds = archivedLocationNames.Keys.ToList();
+            var rows = await _context.LocationActivities
+                .AsNoTracking()
+                .Where(a =>
+                    a.RestaurantId == restaurantId
+                    && a.LocationId != null
+                    && archivedLocationIds.Contains(a.LocationId.Value)
+                    && PrivacyActivityKinds.Contains(a.Kind)
+                )
+                .OrderByDescending(a => a.OccurredAt)
+                .ThenByDescending(a => a.Id)
+                .Take(MaxActivityItems)
+                .Select(a => new
+                {
+                    id = a.Id,
+                    locationId = a.LocationId,
+                    kind = a.Kind,
+                    description = a.Description,
+                    occurredAt = a.OccurredAt.ToUniversalTime().ToString("O"),
+                })
+                .ToListAsync();
+
+            var items = rows
+                .Select(row => new
+                {
+                    row.id,
+                    row.locationId,
+                    locationName = archivedLocationNames[row.locationId!.Value],
+                    locationArchived = true,
+                    row.kind,
+                    row.description,
+                    row.occurredAt,
+                })
+                .ToList();
 
             return new
             {

@@ -2,9 +2,9 @@ namespace TummlyBackend.Models
 {
     /// <summary>
     /// Append-only Smart Guest Link / QR open event. Recorded when
-    /// GET /api/scan/{token} resolves successfully (physical QR, shared
-    /// link, or operator Preview form). Powers Performance overview
-    /// QR scans KPI counts.
+    /// GET /api/scan/{token} resolves successfully (physical QR or shared
+    /// link). Operator Preview (<c>preview=true</c>) and product-demo visits are
+    /// not recorded. Powers Performance overview QR scans KPI counts.
     /// </summary>
     public class QrScanEvent
     {

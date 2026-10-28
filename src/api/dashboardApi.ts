@@ -36,12 +36,14 @@ import type {
   CampaignsSummaryResponse,
   CampaignDraftResponse,
   CampaignEligibilityResponse,
+  CampaignRecommendationDraftResponse,
   CampaignRecommendationRequest,
   CampaignRecommendationResponse,
   CampaignTemplateDetailResponse,
   CampaignTemplatesListResponse,
   CatalogOfferResponse,
   CreateCampaignDraftRequest,
+  CreateRecommendationCampaignDraftRequest,
   PatchCampaignDraftRequest,
   PrepareCampaignMessageDraftApiRequest,
   PrepareCampaignMessageDraftApiResponse,
@@ -316,6 +318,16 @@ export const createCampaignDraft = async (
   return response.data
 }
 
+export const createRecommendationCampaignDraft = async (
+  body: CreateRecommendationCampaignDraftRequest
+): Promise<CampaignRecommendationDraftResponse> => {
+  const response = await axiosInstance.post<CampaignRecommendationDraftResponse>(
+    "/campaigns/recommendation-drafts",
+    body
+  )
+  return response.data
+}
+
 export const getCampaignDraftById = async (
   id: number
 ): Promise<CampaignDraftResponse> => {
@@ -328,6 +340,11 @@ export const getCampaignDraftById = async (
 export const getCampaignEligibility = async (params: {
   locationId: number
   audienceKey: string
+  /** Campaign's attached Offer — needed for offer-not-redeemed. */
+  offerId?: number | null
+  /** Stored recent-redeemers period; the server default applies when omitted. */
+  lookbackDays?: number | null
+  timeZone?: string | null
 }): Promise<CampaignEligibilityResponse> => {
   const response = await axiosInstance.get<CampaignEligibilityResponse>(
     "/campaigns/eligibility",
