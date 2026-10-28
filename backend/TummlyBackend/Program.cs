@@ -1477,11 +1477,23 @@ builder.Services.AddRateLimiter(options =>
 
         var logger = http.RequestServices.GetRequiredService<ILogger<SignupController>>();
         var hasher = http.RequestServices.GetRequiredService<IOtpCodeHasher>();
-        logger.LogWarning(
-            "signup.rate_limited ip_hash={IpHash} path={Path}",
-            hasher.HashIp(SignupClientIpOf(http)),
-            http.Request.Path.Value
-        );
+        var clientIpHash = hasher.HashIp(SignupClientIpOf(http));
+        if (RateLimitPolicyOf(http) == GuestPreferencesRateLimit.PolicyName)
+        {
+            logger.LogWarning(
+                "guest_preferences.rate_limited ip_hash={IpHash} path={Path}",
+                clientIpHash,
+                http.Request.Path.Value
+            );
+        }
+        else
+        {
+            logger.LogWarning(
+                "signup.rate_limited ip_hash={IpHash} path={Path}",
+                clientIpHash,
+                http.Request.Path.Value
+            );
+        }
 
         await http.Response.WriteAsJsonAsync(
             new

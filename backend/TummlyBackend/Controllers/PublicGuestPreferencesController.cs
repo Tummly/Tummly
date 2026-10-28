@@ -18,7 +18,6 @@ namespace TummlyBackend.Controllers
     [ApiController]
     [Route("api/public/preferences")]
     [AllowAnonymous]
-    [EnableRateLimiting(GuestPreferencesRateLimit.PolicyName)]
     public class PublicGuestPreferencesController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -57,6 +56,7 @@ namespace TummlyBackend.Controllers
 
         /// <summary>Signed link from a marketing email (<c>UnsubscribeToken</c>).</summary>
         [HttpPost("session/link")]
+        [EnableRateLimiting(GuestPreferencesRateLimit.PolicyName)]
         public async Task<IActionResult> SessionLink(
             [FromBody] GuestPreferencesSessionLinkRequest? request,
             CancellationToken cancellationToken
@@ -104,6 +104,7 @@ namespace TummlyBackend.Controllers
 
         /// <summary>Always 202. Same body whether or not the contact is on file.</summary>
         [HttpPost("session/start")]
+        [EnableRateLimiting(GuestPreferencesRateLimit.PolicyName)]
         public async Task<IActionResult> SessionStart(
             [FromBody] GuestPreferencesSessionStartRequest? request,
             CancellationToken cancellationToken
@@ -119,6 +120,7 @@ namespace TummlyBackend.Controllers
         }
 
         [HttpPost("session/verify-code")]
+        [EnableRateLimiting(GuestPreferencesRateLimit.PolicyName)]
         public async Task<IActionResult> SessionVerifyCode(
             [FromBody] GuestPreferencesSessionVerifyCodeRequest? request,
             CancellationToken cancellationToken
@@ -139,6 +141,7 @@ namespace TummlyBackend.Controllers
         /// checked by the add-contact method (<c>contacts/verify-email</c>, Task 7), which issues no session.
         /// </summary>
         [HttpPost("session/verify-email")]
+        [EnableRateLimiting(GuestPreferencesRateLimit.PolicyName)]
         public async Task<IActionResult> SessionVerifyEmail(
             [FromBody] GuestPreferencesSessionVerifyEmailRequest? request,
             CancellationToken cancellationToken
@@ -280,6 +283,7 @@ namespace TummlyBackend.Controllers
 
         /// <summary>Always 202 with the same body, whether or not the contact is valid or known.</summary>
         [HttpPost("contacts")]
+        [EnableRateLimiting(GuestPreferencesRateLimit.PolicyName)]
         [GuestPreferencesSession]
         public async Task<IActionResult> AddContact(
             [FromBody] GuestPreferencesSessionStartRequest? request,
@@ -296,6 +300,7 @@ namespace TummlyBackend.Controllers
         }
 
         [HttpPost("contacts/verify-code")]
+        [EnableRateLimiting(GuestPreferencesRateLimit.PolicyName)]
         [GuestPreferencesSession]
         public async Task<IActionResult> VerifyAddContactCode(
             [FromBody] GuestPreferencesSessionVerifyCodeRequest? request,
@@ -317,6 +322,7 @@ namespace TummlyBackend.Controllers
         /// <c>{ linked: true }</c>, never a session token or any ids.
         /// </summary>
         [HttpPost("contacts/verify-email")]
+        [EnableRateLimiting(GuestPreferencesRateLimit.PolicyName)]
         public async Task<IActionResult> VerifyAddContactEmail(
             [FromBody] GuestPreferencesSessionVerifyEmailRequest? request,
             CancellationToken cancellationToken
