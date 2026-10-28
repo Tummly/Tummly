@@ -881,6 +881,169 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("legacy_pack_key", billing.PendingPaymentFailureCode);
         }
 
+        [Fact]
+        public async Task ProvisioningStatus_StaleQuoteFailure_CarriesTheSavedPlanForReview()
+        {
+            await SaveCustomOnboardingWithFailedCheckoutAsync();
+            await MovePriceAndRetryAsync();
+
+            var status = await _signup.GetProvisioningStatusAsync(_sessionToken);
+
+            Assert.Equal(PendingSignupStatuses.PaymentFailed, status.Status);
+            Assert.Equal("quote_changed", status.PaymentFailureCode);
+            Assert.NotNull(status.SavedPlan);
+            Assert.Equal(BillingSubscriptionPlans.Custom, status.SavedPlan!.ChosenPlan);
+            Assert.Equal("monthly", status.SavedPlan.ChosenCadence);
+            Assert.Equal(_pending.CustomPlanConfigJson, status.SavedPlan.CustomPlanConfigJson);
+        }
+
+        [Fact]
+        public async Task ProvisioningStatus_OtherCheckoutFailure_CarriesNoSavedPlan()
+        {
+            await SaveCustomOnboardingWithFailedCheckoutAsync();
+
+            var status = await _signup.GetProvisioningStatusAsync(_sessionToken);
+
+            Assert.Equal(PendingSignupStatuses.PaymentFailed, status.Status);
+            Assert.Null(status.SavedPlan);
+        }
+
+        [Fact]
+        public async Task UpdatePlan_FreshQuote_AfterPriceMoved_SavesItAndOpensCheckoutOnce()
+        {
+            await SaveCustomOnboardingWithFailedCheckoutAsync();
+            await MovePriceAndRetryAsync();
+            var fresh = await QuoteAsync("monthly", "growth", 2, new() { ["offer"] = 2 });
+            var ordersBefore = _merchant.CreateOrderCallCount;
+
+            await _signup.UpdatePlanAfterFailedCheckoutAsync(
+                _sessionToken,
+                UpdateDtoFor(fresh)
+            );
+
+            Assert.Equal(ordersBefore + 1, _merchant.CreateOrderCallCount);
+            await _db.Entry(_pending).ReloadAsync();
+            Assert.Equal(
+                fresh.QuoteHash,
+                CustomPlanConfig.TryParse(_pending.CustomPlanConfigJson)!.QuoteHash
+            );
+            var status = await _signup.GetProvisioningStatusAsync(_sessionToken);
+            Assert.Equal(PendingSignupStatuses.AwaitingPayment, status.Status);
+            Assert.False(string.IsNullOrWhiteSpace(status.PaymentRedirectUrl));
+        }
+
+        [Fact]
+        public async Task UpdatePlan_StillStaleHash_StartsNoOrderAndKeepsTheSavedPlan()
+        {
+            await SaveCustomOnboardingWithFailedCheckoutAsync();
+            var stale = await QuoteAsync("monthly", "growth", 2, new() { ["offer"] = 2 });
+            await MovePriceAndRetryAsync();
+            var savedBefore = _pending.CustomPlanConfigJson;
+            var ordersBefore = _merchant.CreateOrderCallCount;
+
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.UpdatePlanAfterFailedCheckoutAsync(
+                    _sessionToken,
+                    UpdateDtoFor(stale)
+                )
+            );
+
+            Assert.Equal("quote_changed", ex.Code);
+            Assert.Equal(ordersBefore, _merchant.CreateOrderCallCount);
+            await _db.Entry(_pending).ReloadAsync();
+            Assert.Equal(savedBefore, _pending.CustomPlanConfigJson);
+        }
+
+        [Fact]
+        public async Task UpdatePlan_RetiredPackChosenAgain_StartsNoOrder()
+        {
+            await SaveCustomOnboardingWithFailedCheckoutAsync();
+            var ordersBefore = _merchant.CreateOrderCallCount;
+            var dto = new UpdateSignupPlanDto
+            {
+                ChosenPlan = BillingSubscriptionPlans.Custom,
+                ChosenCadence = "monthly",
+                CustomPlanConfigJson = JsonSerializer.Serialize(
+                    new
+                    {
+                        version = 2,
+                        cadence = "monthly",
+                        basePlan = "growth",
+                        locations = 2,
+                        packs = new Dictionary<string, int> { ["qr_10"] = 1 },
+                        quoteHash = "0123456789abcdef0123456789abcdef",
+                    }
+                ),
+            };
+
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.UpdatePlanAfterFailedCheckoutAsync(_sessionToken, dto)
+            );
+
+            Assert.Equal("legacy_pack_key", ex.Code);
+            Assert.Equal(ordersBefore, _merchant.CreateOrderCallCount);
+        }
+
+        [Fact]
+        public async Task UpdatePlan_ChoseAgainWithoutTheRetiredPack_OpensCheckoutForTheNewQuote()
+        {
+            await SaveCustomOnboardingWithFailedCheckoutAsync();
+            await ReplaceSavedPacksAsync(new Dictionary<string, int> { ["qr_10"] = 1 });
+            var retry = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.RetryProvisionAsync(_sessionToken)
+            );
+            Assert.Equal("legacy_pack_key", retry.Code);
+            _merchant.FailCreateOrder = false;
+            var fresh = await QuoteAsync("monthly", "growth", 3, new() { ["team_user"] = 2 });
+            var ordersBefore = _merchant.CreateOrderCallCount;
+
+            await _signup.UpdatePlanAfterFailedCheckoutAsync(
+                _sessionToken,
+                UpdateDtoFor(fresh)
+            );
+
+            Assert.Equal(ordersBefore + 1, _merchant.CreateOrderCallCount);
+            var intent = await _db.RevolutOrderIntents.SingleAsync();
+            Assert.Equal(fresh.PeriodNetPence, intent.NetAmountMinor);
+        }
+
+        [Fact]
+        public async Task UpdatePlan_BeforeAnyFailedCheckout_IsRejected()
+        {
+            await SeedVerifiedPendingAsync();
+            var fresh = await QuoteAsync("monthly", "growth", 2, new() { ["offer"] = 2 });
+
+            await Assert.ThrowsAsync<SignupFlowException>(() =>
+                _signup.UpdatePlanAfterFailedCheckoutAsync(
+                    _sessionToken,
+                    UpdateDtoFor(fresh)
+                )
+            );
+        }
+
+        private async Task MovePriceAndRetryAsync()
+        {
+            var offerRate = await _db.CommercialCustomUnitRateRows.SingleAsync(r =>
+                r.RateKey == CommercialCustomUnitRateKeys.Offer
+            );
+            offerRate.MonthlyNetPence += 100;
+            await _db.SaveChangesAsync();
+            _merchant.FailCreateOrder = false;
+            var ex = await Assert.ThrowsAsync<CustomPlanQuoteException>(() =>
+                _signup.RetryProvisionAsync(_sessionToken)
+            );
+            Assert.Equal("quote_changed", ex.Code);
+            await _db.Entry(_pending).ReloadAsync();
+        }
+
+        private static UpdateSignupPlanDto UpdateDtoFor(CustomPlanQuoteResult quote) =>
+            new()
+            {
+                ChosenPlan = quote.StoredAsPlan,
+                ChosenCadence = quote.Cadence,
+                CustomPlanConfigJson = quote.ToConfig().ToJson(),
+            };
+
         private async Task SaveCustomOnboardingWithFailedCheckoutAsync()
         {
             await SeedVerifiedPendingAsync();

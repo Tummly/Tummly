@@ -547,6 +547,12 @@ export const MANAGE_PLAN_COPY = {
   pendingPaymentBody: (plan: string) =>
     `Your ${plan} plan is not active yet. Your account stays on Free until payment is complete. Retry payment to activate it.`,
   retryPendingPayment: "Retry payment",
+  /** The saved Custom quote is stale or retired: the owner reviews a fresh one first. */
+  reviewPendingPayment: "Review updated total",
+  pendingPaymentReviewTitle: "Review your updated total",
+  pendingPaymentReviewChoose: "Review updated total",
+  pendingPaymentReviewPay: "Continue to payment",
+  pendingPaymentReviewCancel: "Cancel",
   vatNotice:
     "Prices shown exclude VAT. VAT is added at checkout when applicable.",
   comparisonFeature: "Feature",

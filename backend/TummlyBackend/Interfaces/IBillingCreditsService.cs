@@ -82,7 +82,8 @@ namespace TummlyBackend.Interfaces
             RetryPendingPaymentAsync(
                 int userId,
                 int restaurantId,
-                bool actorCanManage
+                bool actorCanManage,
+                string? reviewedCustomPlanConfigJson = null
             );
 
         Task<BillingActivityListDto?> GetActivityAsync(

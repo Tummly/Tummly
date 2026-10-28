@@ -995,7 +995,9 @@ namespace TummlyBackend.Controllers
         }
 
         [HttpPost("pending-payment/retry")]
-        public async Task<IActionResult> RetryPendingPayment()
+        public async Task<IActionResult> RetryPendingPayment(
+            [FromBody] PendingPaymentRetryRequestDto? request = null
+        )
         {
             var unauthorized =
                 OperatorAuth.TryRequireUserId(User, out var userId);
@@ -1019,7 +1021,8 @@ namespace TummlyBackend.Controllers
                 await _billingCredits.RetryPendingPaymentAsync(
                     userId,
                     manage.RestaurantId,
-                    manage.Status == RestaurantPermissionStatus.Allowed
+                    manage.Status == RestaurantPermissionStatus.Allowed,
+                    request?.CustomPlanConfigJson
                 );
 
             if (response == null)

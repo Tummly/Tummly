@@ -435,9 +435,16 @@ export async function payCustomPlanCycle(): Promise<{ checkoutUrl: string }> {
   return { checkoutUrl: data.checkoutUrl }
 }
 
-export async function retryPendingPayment(): Promise<{ checkoutUrl: string }> {
+/**
+ * With `reviewed`, pays the fresh quote the owner reviewed: the server accepts it only
+ * when its hash is the current one (409 `quote_changed` or `legacy_pack_key` otherwise).
+ */
+export async function retryPendingPayment(reviewed?: {
+  customPlanConfigJson: string
+}): Promise<{ checkoutUrl: string }> {
   const { data } = await axiosInstance.post<CustomPlanCyclePayResponse>(
-    "/billing-credits/pending-payment/retry"
+    "/billing-credits/pending-payment/retry",
+    reviewed ?? null
   )
   return { checkoutUrl: data.checkoutUrl }
 }

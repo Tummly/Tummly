@@ -13,5 +13,20 @@ namespace TummlyBackend.DTOs.Signup
 
         /// <summary>Set with status PaymentFailed (e.g. revolut_http_error).</summary>
         public string? PaymentFailureCode { get; set; }
+
+        /// <summary>
+        /// With a failure that needs a new quote review (quote_changed, legacy_pack_key):
+        /// the plan and config the guest saved. Null otherwise.
+        /// </summary>
+        public SignupSavedPlanDto? SavedPlan { get; set; }
+    }
+
+    public class SignupSavedPlanDto
+    {
+        public string? ChosenPlan { get; set; }
+
+        public string? ChosenCadence { get; set; }
+
+        public string? CustomPlanConfigJson { get; set; }
     }
 }
