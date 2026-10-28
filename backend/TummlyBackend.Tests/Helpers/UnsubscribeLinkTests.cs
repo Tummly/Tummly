@@ -126,6 +126,42 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void OneClickUrlFor_ReturnsNull_WhenApiBaseIsNotHttps()
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["JwtSettings:Secret"] = Secret,
+                        ["Api:PublicBaseUrl"] = "http://api.tummly.test",
+                    }
+                )
+                .Build();
+
+            Assert.Null(
+                UnsubscribeLink.OneClickUrlFor(config, restaurantId: 7, locationGuestId: 42)
+            );
+        }
+
+        [Fact]
+        public void OneClickUrlFor_AcceptsUppercaseHttpsScheme()
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["JwtSettings:Secret"] = Secret,
+                        ["Api:PublicBaseUrl"] = "HTTPS://api.tummly.test",
+                    }
+                )
+                .Build();
+
+            Assert.NotNull(
+                UnsubscribeLink.OneClickUrlFor(config, restaurantId: 7, locationGuestId: 42)
+            );
+        }
+
+        [Fact]
         public void OneClickUrlFor_ReturnsNull_WhenLocationGuestMissing()
         {
             var config = new ConfigurationBuilder()

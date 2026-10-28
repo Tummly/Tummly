@@ -51,8 +51,8 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// One-click URL for a campaign or guest-response email, or null when it cannot be
-        /// built. It needs <c>Api:PublicBaseUrl</c> (unset in local dev, so no headers are sent),
-        /// a signing secret, and a Location Guest to withdraw.
+        /// built. It needs <c>Api:PublicBaseUrl</c> with an <c>https://</c> origin (unset in local
+        /// dev, so no headers are sent), a signing secret, and a Location Guest to withdraw.
         /// </summary>
         public static string? OneClickUrlFor(
             IConfiguration configuration,
@@ -60,10 +60,11 @@ namespace TummlyBackend.Helpers
             int? locationGuestId
         )
         {
-            var apiBaseUrl = configuration["Api:PublicBaseUrl"];
+            var apiBaseUrl = configuration["Api:PublicBaseUrl"]?.Trim();
             var secret = ResolveSigningSecret(configuration);
             if (
                 string.IsNullOrWhiteSpace(apiBaseUrl)
+                || !apiBaseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
                 || string.IsNullOrEmpty(secret)
                 || locationGuestId is not int lg
                 || lg <= 0

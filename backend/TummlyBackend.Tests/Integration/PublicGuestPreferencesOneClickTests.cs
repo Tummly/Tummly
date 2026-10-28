@@ -1,5 +1,7 @@
 using System.Net;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -81,15 +83,17 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task OneClick_EmptyBody_Returns200()
+        public async Task OneClick_EmptyBody_NoContentType_Returns200()
         {
             var seeded = await SeedGrantedEmailGuestAsync(
                 "one-click-empty@example.com",
                 "One Click Empty Venue"
             );
             var token = CreateToken(seeded.LocationGuestId, seeded.RestaurantId);
+            var emptyBody = new ByteArrayContent(Array.Empty<byte>());
+            emptyBody.Headers.ContentType = null;
 
-            var response = await PostOneClickAsync(token, body: null);
+            var response = await PostOneClickAsync(token, emptyBody);
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -119,6 +123,33 @@ namespace TummlyBackend.Tests.Integration
             }
         }
 
+        [Fact]
+        public async Task OneClick_WithdrawThrows_StillReturns200()
+        {
+            var seeded = await SeedGrantedEmailGuestAsync(
+                "one-click-throws@example.com",
+                "One Click Throws Venue"
+            );
+            var token = CreateToken(seeded.LocationGuestId, seeded.RestaurantId);
+            using var host = _factory.WithWebHostBuilder(builder =>
+                builder.ConfigureTestServices(services =>
+                {
+                    services.RemoveAll<IGuestInitiatedMarketingWithdrawService>();
+                    services.AddSingleton<IGuestInitiatedMarketingWithdrawService>(
+                        new ThrowingWithdrawService()
+                    );
+                })
+            );
+            using var client = host.CreateClient();
+
+            var response = await client.PostAsync(
+                $"{OneClickPath}?t={Uri.EscapeDataString(token)}",
+                RfcOneClickBody()
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
         private Task<HttpResponseMessage> PostOneClickAsync(
             string token,
             HttpContent? body = null
@@ -127,6 +158,27 @@ namespace TummlyBackend.Tests.Integration
                 $"{OneClickPath}?t={Uri.EscapeDataString(token)}",
                 body ?? RfcOneClickBody()
             );
+
+        /// <summary>Withdraw fake that always fails, to prove the endpoint still answers 200.</summary>
+        private sealed class ThrowingWithdrawService : IGuestInitiatedMarketingWithdrawService
+        {
+            public Task<GuestInitiatedWithdrawResult> WithdrawForLocationGuestAsync(
+                int locationGuestId,
+                int restaurantId,
+                LocationGuestPermissionKind kind,
+                string ledgerSource,
+                CancellationToken cancellationToken = default
+            ) => throw new InvalidOperationException("withdraw unavailable in test");
+
+            public Task<GuestInitiatedWithdrawResult> WithdrawForRestaurantContactAsync(
+                int restaurantId,
+                string normalizedEmailOrE164,
+                bool isEmail,
+                LocationGuestPermissionKind kind,
+                string ledgerSource,
+                CancellationToken cancellationToken = default
+            ) => throw new InvalidOperationException("withdraw unavailable in test");
+        }
 
         /// <summary>RFC 8058 body sent by mailbox providers.</summary>
         private static HttpContent RfcOneClickBody() =>

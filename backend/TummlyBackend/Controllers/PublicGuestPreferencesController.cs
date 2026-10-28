@@ -28,6 +28,7 @@ namespace TummlyBackend.Controllers
         private readonly IConfiguration _configuration;
         private readonly TimeProvider _timeProvider;
         private readonly IGuestInitiatedMarketingWithdrawService _withdraw;
+        private readonly ILogger<PublicGuestPreferencesController> _logger;
 
         public PublicGuestPreferencesController(
             ApplicationDbContext context,
@@ -36,7 +37,8 @@ namespace TummlyBackend.Controllers
             IGuestPreferenceService preferences,
             IConfiguration configuration,
             TimeProvider timeProvider,
-            IGuestInitiatedMarketingWithdrawService withdraw
+            IGuestInitiatedMarketingWithdrawService withdraw,
+            ILogger<PublicGuestPreferencesController> logger
         )
         {
             _context = context;
@@ -46,6 +48,7 @@ namespace TummlyBackend.Controllers
             _configuration = configuration;
             _timeProvider = timeProvider;
             _withdraw = withdraw;
+            _logger = logger;
         }
 
         /// <summary>Tummly Guest id proven by the session token (set by <see cref="GuestPreferencesSessionFilter"/>).</summary>
@@ -354,13 +357,27 @@ namespace TummlyBackend.Controllers
                 )
             )
             {
-                await _withdraw.WithdrawForLocationGuestAsync(
-                    locationGuestId,
-                    restaurantId,
-                    LocationGuestPermissionKind.EmailMarketing,
-                    LocationGuestPermissionLedgerSources.EmailUnsubscribe,
-                    cancellationToken
-                );
+                try
+                {
+                    await _withdraw.WithdrawForLocationGuestAsync(
+                        locationGuestId,
+                        restaurantId,
+                        LocationGuestPermissionKind.EmailMarketing,
+                        LocationGuestPermissionLedgerSources.EmailUnsubscribe,
+                        cancellationToken
+                    );
+                }
+                catch (Exception ex)
+                {
+                    // Still 200: a provider that sees an error may retry or flag the sender.
+                    // Ids only in the log, never a contact.
+                    _logger.LogError(
+                        ex,
+                        "One-click withdraw failed for location guest {LocationGuestId} at restaurant {RestaurantId}",
+                        locationGuestId,
+                        restaurantId
+                    );
+                }
             }
 
             return Ok();

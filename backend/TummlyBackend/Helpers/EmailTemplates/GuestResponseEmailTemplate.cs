@@ -57,7 +57,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
                 ? baseUrl
                 : emailAssetsBaseUrl.Trim().TrimEnd('/');
             var unsubscribeUrl = string.IsNullOrWhiteSpace(unsubscribeHref)
-                ? $"{baseUrl}/unsubscribe"
+                ? $"{baseUrl}/preferences"
                 : unsubscribeHref.Trim();
 
             var resolvedBrandLogoUrl = string.IsNullOrWhiteSpace(brandLogoUrl)
