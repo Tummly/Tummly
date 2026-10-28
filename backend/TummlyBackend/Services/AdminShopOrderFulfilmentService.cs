@@ -14,6 +14,7 @@ namespace TummlyBackend.Services
         private const int MaxTrackingUrlLength = 2048;
         private const int MaxOpsNotesLength = 2000;
         private const int MaxForceCancelReasonLength = 500;
+        private const int MaxTransitionNoteLength = 500;
 
         private static readonly HashSet<string> ValidFulfilmentFilters =
             new(StringComparer.OrdinalIgnoreCase)
@@ -107,6 +108,8 @@ namespace TummlyBackend.Services
         public async Task<AdminShopOrderFulfilmentResult> UpdateFulfilmentAsync(
             Guid orderId,
             AdminShopOrderFulfilmentPatchDto patch,
+            int actorAdminUserId,
+            string actorIdentity,
             CancellationToken cancellationToken = default
         )
         {
@@ -156,6 +159,15 @@ namespace TummlyBackend.Services
                 }
             }
 
+            var transitionNote = NormalizeTransitionNote(patch.Note);
+            if (transitionNote.Length > MaxTransitionNoteLength)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "invalid_note",
+                    $"note must be at most {MaxTransitionNoteLength} characters."
+                );
+            }
+
             if (patch.TrackingUrlSet)
             {
                 var trackingError = ValidateTrackingUrlMutation(
@@ -196,6 +208,28 @@ namespace TummlyBackend.Services
             if (patch.OpsNotesSet)
             {
                 order.OpsNotes = NormalizeOpsNotes(patch.OpsNotes);
+            }
+
+            if (currentStatus != targetStatus)
+            {
+                _audit.Append(
+                    new AdminAuditAppendRequest(
+                        AdminAuditActions.ShopFulfilmentStatusChanged,
+                        actorIdentity,
+                        AdminAuditTargetTypes.ShopOrder,
+                        orderId.ToString("D"),
+                        ActorAdminUserId: actorAdminUserId,
+                        RestaurantId: order.RestaurantId,
+                        DetailJson: System.Text.Json.JsonSerializer.Serialize(
+                            new
+                            {
+                                from = currentStatus,
+                                to = targetStatus,
+                                note = transitionNote.Length == 0 ? null : transitionNote,
+                            }
+                        )
+                    )
+                );
             }
 
             order.UpdatedAtUtc = now;
@@ -718,6 +752,26 @@ namespace TummlyBackend.Services
             return trackingUrl.Trim();
         }
 
+        private static string NormalizeTransitionNote(string? note)
+        {
+            return note?.Trim() ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Shows only the last 6 characters of a Revolut order id (spec: provider
+        /// references are redacted in admin views).
+        /// </summary>
+        private static string? RedactProviderOrderRef(string? revolutOrderId)
+        {
+            var trimmed = revolutOrderId?.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                return null;
+            }
+
+            return "…" + trimmed[Math.Max(0, trimmed.Length - 6)..];
+        }
+
         private static string? NormalizeOpsNotes(string? opsNotes)
         {
             if (opsNotes == null)
@@ -800,7 +854,21 @@ namespace TummlyBackend.Services
                 ),
                 PaidAtUtc = order.PaidAtUtc,
                 ProductionStartedAtUtc = order.ProductionStartedAtUtc,
+                MaterialsNetPence = order.MaterialsNetPence,
+                VatPence = order.VatPence,
+                DeliveryNetPence = order.DeliveryNetPence,
                 GrossPence = order.GrossPence,
+                PaymentSource = order.IsComplimentary
+                    ? AdminShopPaymentSources.Complimentary
+                    : AdminShopPaymentSources.Revolut,
+                RevolutOrderRefRedacted = RedactProviderOrderRef(
+                    order.RevolutOrderId
+                ),
+                ShipToContactName = order.ShipToContactName,
+                ShipToAddressLine1 = order.ShipToAddressLine1,
+                ShipToAddressLine2 = order.ShipToAddressLine2,
+                ShipToPostcode = order.ShipToPostcode,
+                ShipToCountry = order.ShipToCountry,
                 ReviewReason = order.ReviewReason,
                 Lines = order.Lines
                     .OrderBy(line => line.CatalogSkuId, StringComparer.OrdinalIgnoreCase)

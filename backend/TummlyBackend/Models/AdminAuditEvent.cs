@@ -49,6 +49,9 @@
         public const string ShopInterestPromote = "shop.interest_promote";
         public const string ShopInterestDemote = "shop.interest_demote";
         public const string ShopPrintAssetApproved = "shop.print_asset_approved";
+        public const string ShopPrintAssetRetried = "shop.print_asset_retried";
+        public const string ShopFulfilmentStatusChanged =
+            "shop.fulfilment_status_changed";
         public const string RetentionGuestPurge = "retention.guest_purge";
         public const string GuestDelete = "guest.delete";
         public const string GuestDataExport = "guest.data_export";

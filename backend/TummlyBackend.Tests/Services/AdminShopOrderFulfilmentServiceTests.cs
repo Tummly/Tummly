@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TummlyBackend.Data;
@@ -628,6 +629,138 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("\"refundAttempted\":false", audit.DetailJson);
         }
 
+        [Fact]
+        public async Task UpdateFulfilment_StatusChanges_AuditEachFromToActorAndNote()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var dispatch = await service.UpdateFulfilmentAsync(
+                orderId,
+                new AdminShopOrderFulfilmentPatchDto
+                {
+                    FulfilmentStatus = ShopFulfilmentStatuses.InTransit,
+                    Note = "  Courier collected  ",
+                },
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+            var deliver = await service.UpdateFulfilmentAsync(
+                orderId,
+                new AdminShopOrderFulfilmentPatchDto
+                {
+                    FulfilmentStatus = ShopFulfilmentStatuses.Delivered,
+                },
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.True(dispatch.Succeeded);
+            Assert.True(deliver.Succeeded);
+            var rows = await db.AdminAuditEvents
+                .OrderBy(row => row.Action)
+                .ToListAsync();
+            Assert.Equal(2, rows.Count);
+            Assert.All(rows, row =>
+            {
+                Assert.Equal(AdminAuditActions.ShopFulfilmentStatusChanged, row.Action);
+                Assert.Equal(AdminAuditTargetTypes.ShopOrder, row.TargetType);
+                Assert.Equal(orderId.ToString("D"), row.TargetId);
+                Assert.Equal(seeded.RestaurantId, row.RestaurantId);
+                Assert.Equal(seeded.AdminId, row.ActorAdminUserId);
+                Assert.Equal(seeded.AdminEmail, row.ActorIdentity);
+            });
+
+            using var first = JsonDocument.Parse(rows.Single(row => row.DetailJson!.Contains("\"to\":\"in_transit\"")).DetailJson!);
+            Assert.Equal("processing", first.RootElement.GetProperty("from").GetString());
+            Assert.Equal("in_transit", first.RootElement.GetProperty("to").GetString());
+            Assert.Equal("Courier collected", first.RootElement.GetProperty("note").GetString());
+
+            using var second = JsonDocument.Parse(rows.Single(row => row.DetailJson!.Contains("\"to\":\"delivered\"")).DetailJson!);
+            Assert.Equal("in_transit", second.RootElement.GetProperty("from").GetString());
+            Assert.Equal("delivered", second.RootElement.GetProperty("to").GetString());
+            Assert.Equal(JsonValueKind.Null, second.RootElement.GetProperty("note").ValueKind);
+        }
+
+        [Fact]
+        public async Task UpdateFulfilment_TrackingOnlySave_AppendsNoAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var order = await db.ShopOrders.SingleAsync(row => row.Id == orderId);
+            order.FulfilmentStatus = ShopFulfilmentStatuses.InTransit;
+            order.DispatchedAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            var service = CreateService(db);
+
+            var result = await service.UpdateFulfilmentAsync(
+                orderId,
+                new AdminShopOrderFulfilmentPatchDto
+                {
+                    TrackingUrl = "https://tracker.example/abc",
+                },
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Empty(await db.AdminAuditEvents.ToListAsync());
+        }
+
+        [Fact]
+        public async Task UpdateFulfilment_IllegalTransition_RejectsWithoutAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var result = await service.UpdateFulfilmentAsync(
+                orderId,
+                new AdminShopOrderFulfilmentPatchDto
+                {
+                    FulfilmentStatus = ShopFulfilmentStatuses.Delivered,
+                },
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("illegal_fulfilment_transition", result.ErrorCode);
+            Assert.Empty(await db.AdminAuditEvents.ToListAsync());
+        }
+
+        [Fact]
+        public async Task UpdateFulfilment_NoteOver500Characters_RejectsWithoutWriteOrAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var result = await service.UpdateFulfilmentAsync(
+                orderId,
+                new AdminShopOrderFulfilmentPatchDto
+                {
+                    FulfilmentStatus = ShopFulfilmentStatuses.InTransit,
+                    Note = new string('n', 501),
+                },
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("invalid_note", result.ErrorCode);
+            var stored = await db.ShopOrders
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Empty(await db.AdminAuditEvents.ToListAsync());
+        }
+
         private static AdminShopOrderFulfilmentService CreateService(
             ApplicationDbContext db,
             IRevolutMerchantClient? merchant = null
@@ -855,6 +988,8 @@ namespace TummlyBackend.Tests.Services
             public Task<ShopPrintAssetReadinessDto?> RetryShopOrderAsync(
                 Guid shopOrderId,
                 QrType qrType,
+                int actorAdminUserId,
+                string actorIdentity,
                 CancellationToken cancellationToken = default
             ) => Task.FromResult<ShopPrintAssetReadinessDto?>(null);
 

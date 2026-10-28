@@ -12,6 +12,8 @@ namespace TummlyBackend.Interfaces
         Task<AdminShopOrderFulfilmentResult> UpdateFulfilmentAsync(
             Guid orderId,
             AdminShopOrderFulfilmentPatchDto patch,
+            int actorAdminUserId,
+            string actorIdentity,
             CancellationToken cancellationToken = default
         );
 
