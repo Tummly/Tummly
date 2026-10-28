@@ -68,6 +68,7 @@ import { withRowBusy } from "@/lib/admin/adminShopOrderRowBusy"
 import {
   adminShopOrderPaymentLabel,
   adminShopOrderRowActions,
+  adminShopOrderTableLines,
   formatAdminShopOrderDate,
 } from "@/lib/admin/adminShopOrdersTablePresentation"
 import {
@@ -428,7 +429,10 @@ export function AdminShopOrdersPanel() {
                   Location
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Materials
+                  Product
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Quantity
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Total (£)
@@ -454,7 +458,7 @@ export function AdminShopOrdersPanel() {
                     key={`skeleton-${index}`}
                     className={GUESTS_TABLE_BODY_ROW_CLASS}
                   >
-                    {Array.from({ length: 9 }).map((__, cellIndex) => (
+                    {Array.from({ length: 10 }).map((__, cellIndex) => (
                       <TableCell
                         key={cellIndex}
                         className={GUESTS_TABLE_BODY_CELL_CLASS}
@@ -467,9 +471,7 @@ export function AdminShopOrdersPanel() {
 
               {!loading &&
                 orders.map((order) => {
-                  const materials = order.lines
-                    .map((line) => `${line.titleSnapshot} ×${line.quantity}`)
-                    .join(", ")
+                  const lines = adminShopOrderTableLines(order)
 
                   return (
                     <TableRow
@@ -512,9 +514,32 @@ export function AdminShopOrdersPanel() {
                           "max-w-56 truncate"
                         )}
                       >
-                        <span className={ORDER_TABLE_TEXT_CLASS}>
-                          {materials || "—"}
-                        </span>
+                        {lines.length === 0 ? (
+                          <span className={ORDER_TABLE_TEXT_CLASS}>—</span>
+                        ) : (
+                          lines.map((line) => (
+                            <span
+                              key={line.key}
+                              className={cn(ORDER_TABLE_TEXT_CLASS, "block")}
+                            >
+                              {line.product}
+                            </span>
+                          ))
+                        )}
+                      </TableCell>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        {lines.length === 0 ? (
+                          <span className={ORDER_TABLE_TEXT_CLASS}>—</span>
+                        ) : (
+                          lines.map((line) => (
+                            <span
+                              key={line.key}
+                              className={cn(ORDER_TABLE_TEXT_CLASS, "block")}
+                            >
+                              {line.quantity}
+                            </span>
+                          ))
+                        )}
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <span className={ORDER_TABLE_TEXT_CLASS}>
@@ -566,7 +591,7 @@ export function AdminShopOrdersPanel() {
               {!loading && orders.length === 0 && (
                 <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                   <TableCell
-                    colSpan={9}
+                    colSpan={10}
                     className={cn(
                       GUESTS_TABLE_BODY_CELL_CLASS,
                       ORDER_TABLE_TEXT_CLASS,

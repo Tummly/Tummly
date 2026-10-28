@@ -14,6 +14,23 @@ const LONDON_DATE_TIME_FORMAT = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 })
 
+export type AdminShopOrderTableLine = {
+  key: string
+  product: string
+  quantity: number
+}
+
+/** Product and quantity cells: one row per order line, in the same order. */
+export function adminShopOrderTableLines(
+  order: Pick<AdminShopOrderListItem, "lines">
+): AdminShopOrderTableLine[] {
+  return order.lines.map((line, index) => ({
+    key: `${line.catalogSkuId}-${index}`,
+    product: line.titleSnapshot,
+    quantity: line.quantity,
+  }))
+}
+
 /** Order list date: `dd MMM yyyy, HH:mm` in Europe/London. */
 export function formatAdminShopOrderDate(createdAtUtc: string): string {
   const date = new Date(createdAtUtc)
