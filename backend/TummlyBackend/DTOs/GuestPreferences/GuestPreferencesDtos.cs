@@ -37,4 +37,8 @@ namespace TummlyBackend.DTOs.GuestPreferences
     public sealed record GuestPreferencesSessionVerifyCodeRequest(string? Contact, string? Code);
 
     public sealed record GuestPreferencesSessionVerifyEmailRequest(string? V);
+
+    public sealed record GuestPreferenceNameRequest(string? FirstName);
+
+    public sealed record GuestPreferenceMuteRequest(bool? Muted);
 }

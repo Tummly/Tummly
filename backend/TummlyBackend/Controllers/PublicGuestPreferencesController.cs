@@ -24,6 +24,7 @@ namespace TummlyBackend.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IGuestPreferencesVerificationService _verification;
         private readonly ITummlyGuestIdentityService _identity;
+        private readonly IGuestPreferenceService _preferences;
         private readonly IConfiguration _configuration;
         private readonly TimeProvider _timeProvider;
 
@@ -31,6 +32,7 @@ namespace TummlyBackend.Controllers
             ApplicationDbContext context,
             IGuestPreferencesVerificationService verification,
             ITummlyGuestIdentityService identity,
+            IGuestPreferenceService preferences,
             IConfiguration configuration,
             TimeProvider timeProvider
         )
@@ -38,9 +40,14 @@ namespace TummlyBackend.Controllers
             _context = context;
             _verification = verification;
             _identity = identity;
+            _preferences = preferences;
             _configuration = configuration;
             _timeProvider = timeProvider;
         }
+
+        /// <summary>Tummly Guest id proven by the session token (set by <see cref="GuestPreferencesSessionFilter"/>).</summary>
+        private int SessionGuestId =>
+            (int)HttpContext.Items[GuestPreferencesSessionFilter.TummlyGuestIdItemKey]!;
 
         /// <summary>Signed link from a marketing email (<c>UnsubscribeToken</c>).</summary>
         [HttpPost("session/link")]
@@ -139,6 +146,194 @@ namespace TummlyBackend.Controllers
             return SessionResult(outcome, proven);
         }
 
+        /// <summary>Guest preference overview for the session's guest.</summary>
+        [HttpGet]
+        [GuestPreferencesSession]
+        public async Task<IActionResult> GetOverview(CancellationToken cancellationToken)
+        {
+            try
+            {
+                return Ok(await _preferences.GetOverviewAsync(SessionGuestId, cancellationToken));
+            }
+            catch (KeyNotFoundException)
+            {
+                // The guest was merged away after the session was issued.
+                return Unauthorized(new { error = "session" });
+            }
+        }
+
+        [HttpPut("name")]
+        [GuestPreferencesSession]
+        public async Task<IActionResult> SetName(
+            [FromBody] GuestPreferenceNameRequest? request,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                await _preferences.SetFirstNameAsync(
+                    SessionGuestId,
+                    request?.FirstName ?? string.Empty,
+                    cancellationToken
+                );
+                return NoContent();
+            }
+            catch (ArgumentException)
+            {
+                return BadRequest(new { error = "invalid" });
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { error = "not-found" });
+            }
+        }
+
+        [HttpPut("channels")]
+        [GuestPreferencesSession]
+        public Task<IActionResult> SetChannels(
+            [FromBody] GuestPreferenceChannelsRequest? request,
+            CancellationToken cancellationToken
+        ) =>
+            WriteOrNotFoundAsync(() =>
+                _preferences.SetChannelsAsync(
+                    SessionGuestId,
+                    request ?? new GuestPreferenceChannelsRequest(null, null),
+                    cancellationToken
+                )
+            );
+
+        [HttpPost("stop-all")]
+        [GuestPreferencesSession]
+        public Task<IActionResult> StopAll(CancellationToken cancellationToken) =>
+            WriteOrNotFoundAsync(() => _preferences.StopAllAsync(SessionGuestId, cancellationToken));
+
+        [HttpGet("restaurants")]
+        [GuestPreferencesSession]
+        public async Task<IActionResult> ListRestaurants(
+            [FromQuery] string? q,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                return Ok(
+                    await _preferences.ListRestaurantsAsync(SessionGuestId, q, cancellationToken)
+                );
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { error = "not-found" });
+            }
+        }
+
+        [HttpPut("locations/{locationId:int}/mute")]
+        [GuestPreferencesSession]
+        public Task<IActionResult> SetLocationMute(
+            int locationId,
+            [FromBody] GuestPreferenceMuteRequest? request,
+            CancellationToken cancellationToken
+        )
+        {
+            if (request?.Muted is not { } muted)
+            {
+                return Task.FromResult<IActionResult>(BadRequest(new { error = "invalid" }));
+            }
+
+            return WriteOrNotFoundAsync(() =>
+                _preferences.SetLocationMuteAsync(
+                    SessionGuestId,
+                    locationId,
+                    muted,
+                    cancellationToken
+                )
+            );
+        }
+
+        [HttpPut("restaurants/{restaurantId:int}/mute")]
+        [GuestPreferencesSession]
+        public Task<IActionResult> SetRestaurantMute(
+            int restaurantId,
+            [FromBody] GuestPreferenceMuteRequest? request,
+            CancellationToken cancellationToken
+        )
+        {
+            if (request?.Muted is not { } muted)
+            {
+                return Task.FromResult<IActionResult>(BadRequest(new { error = "invalid" }));
+            }
+
+            return WriteOrNotFoundAsync(() =>
+                _preferences.SetRestaurantMuteAsync(
+                    SessionGuestId,
+                    restaurantId,
+                    muted,
+                    cancellationToken
+                )
+            );
+        }
+
+        /// <summary>Always 202 with the same body, whether or not the contact is valid or known.</summary>
+        [HttpPost("contacts")]
+        [GuestPreferencesSession]
+        public async Task<IActionResult> AddContact(
+            [FromBody] GuestPreferencesSessionStartRequest? request,
+            CancellationToken cancellationToken
+        )
+        {
+            await _verification.StartAsync(
+                request?.Contact ?? string.Empty,
+                SessionGuestId,
+                cancellationToken
+            );
+
+            return Accepted(new { sent = true });
+        }
+
+        [HttpPost("contacts/verify-code")]
+        [GuestPreferencesSession]
+        public async Task<IActionResult> VerifyAddContactCode(
+            [FromBody] GuestPreferencesSessionVerifyCodeRequest? request,
+            CancellationToken cancellationToken
+        )
+        {
+            var (outcome, proven) = await _verification.VerifyCodeAsync(
+                request?.Contact ?? string.Empty,
+                request?.Code ?? string.Empty,
+                SessionGuestId,
+                cancellationToken
+            );
+
+            return LinkedResult(outcome, proven);
+        }
+
+        /// <summary>
+        /// Add-contact email link. Needs no session: the link is the proof. Returns only
+        /// <c>{ linked: true }</c>, never a session token or any ids.
+        /// </summary>
+        [HttpPost("contacts/verify-email")]
+        public async Task<IActionResult> VerifyAddContactEmail(
+            [FromBody] GuestPreferencesSessionVerifyEmailRequest? request,
+            CancellationToken cancellationToken
+        )
+        {
+            var (outcome, proven) = await _verification.VerifyAddContactEmailLinkAsync(
+                request?.V ?? string.Empty,
+                cancellationToken
+            );
+
+            return LinkedResult(outcome, proven);
+        }
+
+        private IActionResult LinkedResult(GuestVerifyOutcome outcome, ProvenContact? proven)
+        {
+            if (outcome == GuestVerifyOutcome.Ok && proven is not null)
+            {
+                return Ok(new { linked = true });
+            }
+
+            return VerifyFailed(outcome);
+        }
+
         private IActionResult SessionResult(GuestVerifyOutcome outcome, ProvenContact? proven)
         {
             if (outcome == GuestVerifyOutcome.Ok && proven is not null)
@@ -146,12 +341,31 @@ namespace TummlyBackend.Controllers
                 return Ok(new { sessionToken = IssueSessionToken(proven) });
             }
 
-            return BadRequest(
+            return VerifyFailed(outcome);
+        }
+
+        private IActionResult VerifyFailed(GuestVerifyOutcome outcome) =>
+            BadRequest(
                 new
                 {
                     error = outcome == GuestVerifyOutcome.Expired ? "expired" : "invalid",
                 }
             );
+
+        /// <summary>
+        /// Runs a write. Unknown guest or a location/restaurant not on the guest's list → 404.
+        /// </summary>
+        private async Task<IActionResult> WriteOrNotFoundAsync(Func<Task> write)
+        {
+            try
+            {
+                await write();
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { error = "not-found" });
+            }
         }
 
         private string IssueSessionToken(ProvenContact proven)

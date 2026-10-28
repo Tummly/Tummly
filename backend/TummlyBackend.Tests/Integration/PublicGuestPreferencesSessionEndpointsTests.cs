@@ -3,9 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -26,7 +24,7 @@ namespace TummlyBackend.Tests.Integration
 
         private readonly WebApplicationFactory<Program> _host;
         private readonly HttpClient _client;
-        private readonly CapturingEmailService _email = new();
+        private readonly GuestPreferencesEndpointTestSupport.CapturingGuestPreferencesEmailService _email = new();
 
         public PublicGuestPreferencesSessionEndpointsTests(
             TummlyWebApplicationFactory factory
@@ -34,13 +32,8 @@ namespace TummlyBackend.Tests.Integration
         {
             _host = factory.WithWebHostBuilder(builder =>
                 builder.ConfigureTestServices(services =>
-                {
-                    services.RemoveAll<IEmailService>();
-                    services.AddSingleton<IEmailService>(_email);
-
-                    services.RemoveAll<ISmsService>();
-                    services.AddSingleton<ISmsService>(new NoOpSmsService());
-                })
+                    GuestPreferencesEndpointTestSupport.ReplaceSenders(services, _email)
+                )
             );
             _client = _host.CreateClient();
         }
@@ -246,136 +239,32 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(ownerId, result.Proven!.TummlyGuestId);
         }
 
-        /// <summary>
-        /// Provider sends run on the background worker, so a start returns before the email exists.
-        /// Waits up to 5 seconds for exactly one email.
-        /// </summary>
-        private async Task<(string ToEmail, string ConfirmUrl)> WaitForSingleEmailAsync()
-        {
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (_email.Sent.Count == 0 && DateTime.UtcNow < deadline)
-            {
-                await Task.Delay(10);
-            }
+        private Task<(string ToEmail, string ConfirmUrl)> WaitForSingleEmailAsync() =>
+            _email.WaitForSingleAsync();
 
-            return Assert.Single(_email.Sent);
-        }
+        private string UnsubscribeSecret() =>
+            GuestPreferencesEndpointTestSupport.UnsubscribeSecret(_host.Services);
 
-        private string UnsubscribeSecret()
-        {
-            using var scope = _host.Services.CreateScope();
-            var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-            return UnsubscribeLink.ResolveSigningSecret(config)
-                ?? throw new InvalidOperationException("Unsubscribe signing secret missing in test host.");
-        }
-
-        private string SessionSecret()
-        {
-            using var scope = _host.Services.CreateScope();
-            var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-            return GuestPreferencesSessionToken.ResolveSecret(config)
-                ?? throw new InvalidOperationException("Session signing secret missing in test host.");
-        }
+        private string SessionSecret() =>
+            GuestPreferencesEndpointTestSupport.SessionSecret(_host.Services);
 
         private async Task<SeededGuest> SeedGuestAsync(string email)
         {
             using var scope = _host.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var venue = await GuestPreferencesEndpointTestSupport.SeedVenueAsync(
+                context,
+                email,
+                $"Session {email}",
+                $"Session {email} Main"
+            );
 
-            var restaurant = new Restaurant
-            {
-                Name = $"Session {email}",
-                AccountType = "Single",
-                OwnerUserId = 1,
-                BillingContactUserId = 1,
-                PrivacyContactUserId = 1,
-                SupportContactUserId = 1,
-                EmailMarketingPermissionEnabled = true,
-                SmsMarketingPermissionEnabled = true,
-                FeedbackFollowUpPermissionEnabled = true,
-                CreatedAt = DateTime.UtcNow,
-            };
-            context.Restaurants.Add(restaurant);
-            await context.SaveChangesAsync();
-
-            var location = new RestaurantLocation
-            {
-                RestaurantId = restaurant.Id,
-                LocationName = $"Session {email} Main",
-                CreatedAt = DateTime.UtcNow,
-            };
-            context.RestaurantLocations.Add(location);
-            await context.SaveChangesAsync();
-
-            var masterGuest = new MasterGuest
-            {
-                RestaurantId = restaurant.Id,
-                Email = email,
-                NormalizedEmail = email,
-                CreatedAt = DateTime.UtcNow,
-            };
-            context.MasterGuests.Add(masterGuest);
-            await context.SaveChangesAsync();
-
-            var guest = new LocationGuest
-            {
-                MasterGuestId = masterGuest.Id,
-                MasterGuest = masterGuest,
-                RestaurantLocationId = location.Id,
-                Name = "Guest",
-                MarketingPreference = LocationGuestMarketingPreference.Allowed,
-                CreatedAt = DateTime.UtcNow,
-            };
-            context.LocationGuests.Add(guest);
-            await context.SaveChangesAsync();
-
-            return new SeededGuest(restaurant.Id, guest.Id);
+            return new SeededGuest(venue.Restaurant.Id, venue.Guest.Id);
         }
 
-        private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)
-        {
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonDocument.Parse(json).RootElement.Clone();
-        }
+        private static Task<JsonElement> ReadJsonAsync(HttpResponseMessage response) =>
+            GuestPreferencesEndpointTestSupport.ReadJsonAsync(response);
 
         private sealed record SeededGuest(int RestaurantId, int LocationGuestId);
-
-        private sealed class CapturingEmailService : EmailServiceStubBase
-        {
-            private readonly object _lock = new();
-            private readonly List<(string ToEmail, string ConfirmUrl)> _sent = new();
-
-            public IReadOnlyList<(string ToEmail, string ConfirmUrl)> Sent
-            {
-                get
-                {
-                    lock (_lock)
-                    {
-                        return _sent.ToList();
-                    }
-                }
-            }
-
-            public override Task SendGuestPreferencesConfirmEmailAsync(
-                string toEmail,
-                string confirmUrl
-            )
-            {
-                lock (_lock)
-                {
-                    _sent.Add((toEmail, confirmUrl));
-                }
-
-                return Task.CompletedTask;
-            }
-        }
-
-        private sealed class NoOpSmsService : ISmsService
-        {
-            public Task SendOtpSmsAsync(string phoneNumber) => Task.CompletedTask;
-
-            public Task<bool> VerifyOtpSmsAsync(string phoneNumber, string otp) =>
-                Task.FromResult(false);
-        }
     }
 }
