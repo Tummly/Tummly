@@ -297,8 +297,7 @@ namespace TummlyBackend.Tests.Services
                 await _service.SetAvailableInShopAsync(
                     item.SkuId,
                     availableInShop: true,
-                    actorAdminUserId: 1,
-                    actorIdentity: "admin@example.com"
+                    new AdminShopActor(1, "admin@example.com")
                 );
             }
             var before = catalog.BuildList();
@@ -308,8 +307,7 @@ namespace TummlyBackend.Tests.Services
             var (_, error) = await _service.SetAvailableInShopAsync(
                 firstSkuId,
                 availableInShop: false,
-                actorAdminUserId: 1,
-                actorIdentity: "admin@example.com"
+                new AdminShopActor(1, "admin@example.com")
             );
             Assert.Null(error);
 
