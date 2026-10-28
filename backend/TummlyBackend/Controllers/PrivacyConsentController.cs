@@ -33,7 +33,7 @@ namespace TummlyBackend.Controllers
         [HttpGet]
         public async Task<IActionResult> Get()
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
             if (unauthorized != null)
             {
                 return unauthorized;
@@ -50,6 +50,10 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
+            var actorIsWorkspaceOwner = await _privacyConsent.IsWorkspaceOwnerAsync(
+                decision.RestaurantId,
+                userId
+            );
             var actorCanManage =
                 (
                     await _permissions.AuthorizeAsync(
@@ -70,7 +74,8 @@ namespace TummlyBackend.Controllers
             var result = await _privacyConsent.GetAsync(
                 decision.RestaurantId,
                 actorCanManage,
-                canViewGuests
+                canViewGuests,
+                actorIsWorkspaceOwner
             );
 
             return result switch
@@ -157,9 +162,11 @@ namespace TummlyBackend.Controllers
         }
 
         [HttpGet("activity")]
-        public async Task<IActionResult> GetActivity()
+        public async Task<IActionResult> GetActivity(
+            [FromQuery] bool includeArchived = false
+        )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
             if (unauthorized != null)
             {
                 return unauthorized;
@@ -174,6 +181,31 @@ namespace TummlyBackend.Controllers
             if (denied != null)
             {
                 return denied;
+            }
+
+            if (includeArchived)
+            {
+                var isWorkspaceOwner = await _privacyConsent.IsWorkspaceOwnerAsync(
+                    decision.RestaurantId,
+                    userId
+                );
+                if (!isWorkspaceOwner)
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        new
+                        {
+                            success = false,
+                            message = "Only the Account owner can view archived Location history.",
+                        }
+                    );
+                }
+
+                return Ok(
+                    await _privacyConsent.GetArchivedActivityAsync(
+                        decision.RestaurantId
+                    )
+                );
             }
 
             var result = await _privacyConsent.GetActivityAsync(
