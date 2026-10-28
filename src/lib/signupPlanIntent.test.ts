@@ -332,7 +332,7 @@ describe("restoreSignupPlanIntentFromResume", () => {
       planConfig: {
         basePlan: "growth",
         locations: 3,
-        packs: { qr_10: 2 },
+        packs: { team_user: 2 },
         quoteHash: "abc",
       },
     })
@@ -345,12 +345,26 @@ describe("restoreSignupPlanIntentFromResume", () => {
         cadence: "annual",
         basePlan: "growth",
         locations: 3,
-        packs: { qr_10: 2 },
+        packs: { team_user: 2 },
         quoteHash: "abc",
       },
     }
     expect(restored).toEqual(expected)
     expect(readSignupPlanIntent()).toEqual(expected)
+  })
+
+  it("flags a saved config with a replaced capacity pack and drops it", () => {
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Custom",
+      chosenCadence: "monthly",
+      planConfig: { basePlan: "growth", locations: 3, packs: { qr_10: 2 }, quoteHash: "abc" },
+    })
+
+    expect(restored).toEqual({
+      plan: "Custom",
+      cadence: "monthly",
+      capacityOptionRetired: true,
+    })
   })
 
   it("restores a standard catalogue plan with its term", () => {
