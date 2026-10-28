@@ -206,6 +206,13 @@ export function quoteView(input: {
           continueEnabled: false,
         }
       }
+      if (state.code === "legacy_pack_key") {
+        return {
+          ...base,
+          message: CUSTOM_PLAN_QUOTE_COPY.optionUnavailable,
+          continueEnabled: false,
+        }
+      }
       if (state.code === "invalid_location_count") {
         return {
           ...base,

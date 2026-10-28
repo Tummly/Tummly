@@ -97,6 +97,40 @@ describe("signupPlanIntent session", () => {
     clearSignupPlanIntent()
   })
 
+  it("drops a stored config with a replaced capacity pack and flags it", () => {
+    saveSignupPlanIntent({
+      plan: "Custom",
+      cadence: "monthly",
+      config: {
+        version: 2,
+        cadence: "monthly",
+        basePlan: "starter",
+        locations: 1,
+        packs: { team_users_5: 1 } as never,
+      },
+    })
+    const read = readSignupPlanIntent()
+    expect(read?.config).toBeUndefined()
+    expect(read?.capacityOptionRetired).toBe(true)
+  })
+
+  it("flags a signup URL whose saved selection names a replaced capacity pack", () => {
+    const legacy = btoa(
+      JSON.stringify({
+        version: 2,
+        cadence: "monthly",
+        basePlan: "starter",
+        locations: 1,
+        packs: { offers_5: 1 },
+      }),
+    )
+    const parsed = parseSignupPlanIntent(
+      new URLSearchParams({ plan: "Custom", customIntent: legacy }),
+    )
+    expect(parsed?.config).toBeUndefined()
+    expect(parsed?.capacityOptionRetired).toBe(true)
+  })
+
   it("round-trips intent in sessionStorage", () => {
     saveSignupPlanIntent({ plan: "Group", cadence: "annual" })
     expect(readSignupPlanIntent()).toEqual({

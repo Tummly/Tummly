@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { CustomPlanQuoteResult } from "@/api/adminCommercialCatalogApi"
 import {
+  customPlanIntentNamesRetiredPack,
   decodeCustomPlanIntentV2,
   encodeCustomPlanIntentV2,
   minBasePlanForLocations,
@@ -136,6 +137,28 @@ describe("encode/decode CustomPlanIntentV2", () => {
       expect(decodeCustomPlanIntentV2(json)).toBeNull()
       expect(decodeCustomPlanIntentV2(btoa(json))).toBeNull()
     }
+  })
+
+  it("reports a saved selection that names a replaced capacity pack", () => {
+    const legacy = JSON.stringify({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "starter",
+      locations: 1,
+      packs: { qr_10: 1 },
+    })
+    const current = JSON.stringify({
+      version: 2,
+      cadence: "monthly",
+      basePlan: "starter",
+      locations: 1,
+      packs: { qr_placement: 10 },
+    })
+    expect(customPlanIntentNamesRetiredPack(legacy)).toBe(true)
+    expect(customPlanIntentNamesRetiredPack(btoa(legacy))).toBe(true)
+    expect(customPlanIntentNamesRetiredPack(current)).toBe(false)
+    expect(customPlanIntentNamesRetiredPack("not json")).toBe(false)
+    expect(customPlanIntentNamesRetiredPack(null)).toBe(false)
   })
 
   it("parses raw JSON without base64", () => {

@@ -253,6 +253,19 @@ describe("quoteView", () => {
     expect(view.showRetry).toBe(false)
   })
 
+  it("shows the option-unavailable copy for a legacy_pack_key failure code", () => {
+    const view = quoteView({
+      check: "ok",
+      state: { status: "failed", last: null, code: "legacy_pack_key" },
+      changed: false,
+    })
+    expect(view.message).toBe(
+      "This option is no longer available. Review the current capacity options and confirm your updated total before continuing.",
+    )
+    expect(view.showRetry).toBe(false)
+    expect(view.continueEnabled).toBe(false)
+  })
+
   it("shows the whole-number copy for an invalid_location_count failure code", () => {
     const view = quoteView({
       check: "ok",

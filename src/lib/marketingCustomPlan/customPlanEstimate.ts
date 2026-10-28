@@ -334,6 +334,33 @@ function packCountsForWire(
   return wire
 }
 
+function parseCustomPlanIntentJson(raw: string): Record<string, unknown> {
+  let json = raw.trim()
+  if (!json.startsWith("{")) {
+    json = decodeURIComponent(escape(atob(json)))
+  }
+  return JSON.parse(json) as Record<string, unknown>
+}
+
+/** True when an encoded saved selection names a replaced capacity pack. */
+export function customPlanIntentNamesRetiredPack(
+  raw: string | null | undefined,
+): boolean {
+  if (raw == null || raw.trim() === "") {
+    return false
+  }
+  try {
+    const parsed = parseCustomPlanIntentJson(raw)
+    return (
+      parsed.packs != null &&
+      typeof parsed.packs === "object" &&
+      hasLegacyCapacityPack(parsed.packs as Record<string, unknown>)
+    )
+  } catch {
+    return false
+  }
+}
+
 export function decodeCustomPlanIntentV2(
   raw: string | null | undefined,
 ): CustomPlanV2ConfigInput | null {
@@ -341,11 +368,7 @@ export function decodeCustomPlanIntentV2(
     return null
   }
   try {
-    let json = raw.trim()
-    if (!json.startsWith("{")) {
-      json = decodeURIComponent(escape(atob(json)))
-    }
-    const parsed = JSON.parse(json) as Record<string, unknown>
+    const parsed = parseCustomPlanIntentJson(raw)
     if (Number(parsed.version) !== 2) {
       return null
     }

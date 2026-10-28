@@ -171,9 +171,11 @@ export function SignupReviewPlanStep({
   const selectionMessage =
     selection === "no_selection"
       ? CUSTOM_PLAN_QUOTE_COPY.noSelection
-      : selection === "restore_failed"
-        ? CUSTOM_PLAN_QUOTE_COPY.restoreFailed
-        : null
+      : intent?.capacityOptionRetired === true
+        ? CUSTOM_PLAN_QUOTE_COPY.optionUnavailable
+        : selection === "restore_failed"
+          ? CUSTOM_PLAN_QUOTE_COPY.restoreFailed
+          : null
 
   // Before the first quote, the placeholder shows the catalogue or quote status.
   const placeholderMessage = waitingForCatalogue
