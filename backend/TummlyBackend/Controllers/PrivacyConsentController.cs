@@ -1,8 +1,10 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.PrivacyConsent;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
@@ -12,22 +14,29 @@ namespace TummlyBackend.Controllers
     [Authorize]
     public class PrivacyConsentController : ControllerBase
     {
+        private const string ArchivedAccessRestrictedTitle = "Access restricted";
+        private const string ArchivedAccessRestrictedMessage =
+            "You do not have permission to view this archived information. Access requires the appropriate Workspace permissions. Contact your Workspace Owner if you believe you need access.";
+
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IPrivacyConsentSaveService _save;
         private readonly IPrivacyConsentService _privacyConsent;
         private readonly IPermissionRecordsListService _permissionRecords;
+        private readonly IAdminAuditService _adminAudit;
 
         public PrivacyConsentController(
             IRestaurantPermissionHelper permissions,
             IPrivacyConsentSaveService save,
             IPrivacyConsentService privacyConsent,
-            IPermissionRecordsListService permissionRecords
+            IPermissionRecordsListService permissionRecords,
+            IAdminAuditService adminAudit
         )
         {
             _permissions = permissions;
             _save = save;
             _privacyConsent = privacyConsent;
             _permissionRecords = permissionRecords;
+            _adminAudit = adminAudit;
         }
 
         [HttpGet]
@@ -196,16 +205,34 @@ namespace TummlyBackend.Controllers
                         new
                         {
                             success = false,
-                            message = "Only the Account owner can view archived Location history.",
+                            title = ArchivedAccessRestrictedTitle,
+                            message = ArchivedAccessRestrictedMessage,
                         }
                     );
                 }
 
-                return Ok(
-                    await _privacyConsent.GetArchivedActivityAsync(
-                        decision.RestaurantId
+                var archived = await _privacyConsent.GetArchivedActivityAsync(
+                    decision.RestaurantId
+                );
+
+                // Operator-side read audit, same shape as guest data export.
+                // Scope and role only: archived descriptions stay out of the row.
+                await _adminAudit.AppendAndSaveAsync(
+                    new AdminAuditAppendRequest(
+                        Action: AdminAuditActions.PrivacyArchivedHistoryRead,
+                        ActorIdentity: $"user:{userId}",
+                        TargetType: AdminAuditTargetTypes.Restaurant,
+                        TargetId: decision.RestaurantId.ToString(),
+                        RestaurantId: decision.RestaurantId,
+                        DetailJson: JsonSerializer.Serialize(new
+                        {
+                            role = PermissionRoles.Owner,
+                            scope = "archived_locations",
+                        })
                     )
                 );
+
+                return Ok(archived);
             }
 
             var result = await _privacyConsent.GetActivityAsync(

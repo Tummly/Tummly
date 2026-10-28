@@ -377,6 +377,85 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetActivity_IncludeArchived_Owner_WritesOneReadAuditRow_WithoutHistoryText()
+        {
+            var seeded = await SeedWorkspaceWithArchivedHistoryAsync();
+            var before = await CountArchivedReadAuditAsync(seeded.RestaurantId);
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/privacy-consent/activity?includeArchived=true",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var rows = await ReadArchivedReadAuditAsync(seeded.RestaurantId);
+            Assert.Equal(before + 1, rows.Count);
+            var row = rows.Single();
+            Assert.Equal($"user:{seeded.OwnerId}", row.ActorIdentity);
+            Assert.Null(row.ActorAdminUserId);
+            Assert.Equal(AdminAuditTargetTypes.Restaurant, row.TargetType);
+            Assert.Equal(seeded.RestaurantId.ToString(), row.TargetId);
+            Assert.Equal(seeded.RestaurantId, row.RestaurantId);
+            Assert.True(row.Succeeded);
+            Assert.Contains("\"role\":\"Owner\"", row.DetailJson);
+            Assert.Contains("\"scope\":\"archived_locations\"", row.DetailJson);
+            Assert.DoesNotContain("Archived Location withdrawal.", row.DetailJson ?? string.Empty);
+            Assert.DoesNotContain("Old Site", row.DetailJson ?? string.Empty);
+        }
+
+        [Fact]
+        public async Task GetActivity_IncludeArchived_Manager_Returns403_WithAccessRestrictedCopy_AndWritesNoReadAuditRow()
+        {
+            var seeded = await SeedWorkspaceWithArchivedHistoryAsync();
+            var before = await CountArchivedReadAuditAsync(seeded.RestaurantId);
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/privacy-consent/activity?includeArchived=true",
+                seeded.ManagerJwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("Access restricted", body.GetProperty("title").GetString());
+            Assert.Equal(
+                "You do not have permission to view this archived information. Access requires the appropriate Workspace permissions. Contact your Workspace Owner if you believe you need access.",
+                body.GetProperty("message").GetString()
+            );
+            Assert.False(body.TryGetProperty("items", out _));
+            Assert.Equal(before, await CountArchivedReadAuditAsync(seeded.RestaurantId));
+        }
+
+        [Fact]
+        public async Task GetActivity_IncludeArchived_OtherTenantOwner_SeesOnlyOwnArchivedRows_AndAuditsOwnTenant()
+        {
+            var seeded = await SeedWorkspaceWithArchivedHistoryAsync();
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/privacy-consent/activity?includeArchived=true",
+                seeded.OtherOwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var descriptions = body.GetProperty("items").EnumerateArray()
+                .Select(item => item.GetProperty("description").GetString())
+                .ToList();
+            Assert.Equal(new[] { "Other tenant archived withdrawal." }, descriptions);
+
+            Assert.Empty(await ReadArchivedReadAuditAsync(seeded.RestaurantId));
+            var otherRows = await ReadArchivedReadAuditAsync(seeded.OtherRestaurantId);
+            Assert.Single(otherRows);
+            Assert.Equal($"user:{seeded.OtherOwnerId}", otherRows[0].ActorIdentity);
+        }
+
+        [Fact]
         public async Task GetActivity_NamedListManager_KeepsLiveRowsOnly_EvenWhenArchivedLocationIsAssigned()
         {
             var seeded = await SeedWorkspaceWithArchivedHistoryAsync();
@@ -432,6 +511,28 @@ namespace TummlyBackend.Tests.Integration
             return body.GetProperty("items").EnumerateArray()
                 .Select(item => item.GetProperty("description").GetString())
                 .ToList();
+        }
+
+        private async Task<int> CountArchivedReadAuditAsync(int restaurantId)
+        {
+            return (await ReadArchivedReadAuditAsync(restaurantId)).Count;
+        }
+
+        private async Task<List<AdminAuditEvent>> ReadArchivedReadAuditAsync(
+            int restaurantId
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            return await context.AdminAuditEvents
+                .AsNoTracking()
+                .Where(e =>
+                    e.Action == AdminAuditActions.PrivacyArchivedHistoryRead
+                    && e.RestaurantId == restaurantId
+                )
+                .ToListAsync();
         }
 
         private async Task<ArchivedHistorySeed> SeedWorkspaceWithArchivedHistoryAsync()
@@ -506,9 +607,14 @@ namespace TummlyBackend.Tests.Integration
             await context.SaveChangesAsync();
 
             return new ArchivedHistorySeed(
+                owner.Id,
                 jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
+                manager.Id,
                 jwtService.GenerateToken(manager.Id.ToString(), manager.Email, manager.Role),
-                restaurant.Id
+                restaurant.Id,
+                otherOwner.Id,
+                jwtService.GenerateToken(otherOwner.Id.ToString(), otherOwner.Email, otherOwner.Role),
+                otherRestaurant.Id
             );
         }
 
@@ -583,9 +689,14 @@ namespace TummlyBackend.Tests.Integration
         }
 
         private sealed record ArchivedHistorySeed(
+            int OwnerId,
             string OwnerJwt,
+            int ManagerId,
             string ManagerJwt,
-            int RestaurantId
+            int RestaurantId,
+            int OtherOwnerId,
+            string OtherOwnerJwt,
+            int OtherRestaurantId
         );
 
         private async Task<(
