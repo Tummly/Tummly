@@ -235,6 +235,11 @@ export function quoteCadenceSuffix(cadence: string): string {
   return cadence === "annual" ? "/ per year" : "/ per month"
 }
 
+/** "62 in your Workspace": the server's Workspace-wide QR pool, never per Location. */
+export function formatQrWorkspacePool(pool: number): string {
+  return `${pool.toLocaleString("en-GB")} in your Workspace`
+}
+
 /**
  * The server line for one pack: its amount and the suffix for the quote's
  * cadence. Null without a quote or without that line. The browser adds no price.

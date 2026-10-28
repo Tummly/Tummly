@@ -24,6 +24,7 @@ function quote(
       smsCredits: 0,
       aiCredits: 0,
     },
+    workspaceQrPool: 50,
     monthlyNetPence: 100000,
     periodNetPence: 100000,
     lines: [],

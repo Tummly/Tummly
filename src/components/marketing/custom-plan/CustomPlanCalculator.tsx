@@ -310,7 +310,8 @@ export function CustomPlanCalculator({
   const baseIncluded = {
     teamUsers: basePlanRow?.includedTeamMembers ?? 0,
     offers: basePlanRow?.activeOffersAccount ?? 0,
-    qrPerLocation: basePlanRow?.activeQrPlacementsPerLocation ?? 0,
+    // Pricebook field name says per Location; the value is the Workspace base allowance.
+    qrWorkspaceBase: basePlanRow?.activeQrPlacementsPerLocation ?? 0,
     email: basePlanRow?.creditsMonthlyEmail ?? 0,
     sms: basePlanRow?.creditsMonthlySms ?? 0,
     ai: basePlanRow?.creditsMonthlyAi ?? 0,
@@ -546,17 +547,13 @@ export function CustomPlanCalculator({
                       {basePlanRow != null ? (
                         <IncludedLine
                           planName={planDisplayName}
-                          included={`${formatCount(baseIncluded.qrPerLocation)} per Location`}
+                          included={formatCount(baseIncluded.qrWorkspaceBase)}
                           total={
-                            q != null
-                              ? `${formatCount(q.qrPlacements)} per Location${
-                                  q.qrPlacementsAccountExtra > 0
-                                    ? ` + ${formatCount(q.qrPlacementsAccountExtra)} shared`
-                                    : ""
-                                }`
+                            countedQuote != null
+                              ? formatCount(countedQuote.workspaceQrPool)
                               : "—"
                           }
-                          unit="placements"
+                          unit="placements in your Workspace"
                         />
                       ) : null}
                     </div>

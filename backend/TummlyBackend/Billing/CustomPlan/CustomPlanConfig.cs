@@ -87,11 +87,15 @@ namespace TummlyBackend.Billing.CustomPlan
         [JsonPropertyName("teamUsers")]
         public int TeamUsers { get; set; }
 
+        /// <summary>
+        /// Base plan QR allowance, the Workspace base (not a per-Location limit).
+        /// The pool is computed from this by <c>WorkspaceQrPool</c>.
+        /// </summary>
         [JsonPropertyName("qrPlacements")]
         public int QrPlacements { get; set; }
 
         /// <summary>
-        /// Account-wide QR pool from qr_placement units (v2). Not a per-Location cap.
+        /// Purchased qr_placement units (v2), added to the Workspace pool.
         /// </summary>
         [JsonPropertyName("qrPlacementsAccountExtra")]
         public int QrPlacementsAccountExtra { get; set; }

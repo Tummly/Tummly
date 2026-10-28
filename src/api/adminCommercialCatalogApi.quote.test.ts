@@ -93,4 +93,13 @@ describe("quotePublicCustomPlan", () => {
     expect(quote.dueNowGrossPence).toBe(12000)
     expect(quote.effectiveTiming).toBe("on_payment_confirmed")
   })
+
+  it("maps the server Workspace QR pool", async () => {
+    mockedPost.mockResolvedValueOnce({
+      data: { success: true, item: { workspaceQrPool: 62 } },
+    })
+
+    const quote = await quotePublicCustomPlan({ ...REQUEST, locations: 1 })
+    expect(quote.workspaceQrPool).toBe(62)
+  })
 })

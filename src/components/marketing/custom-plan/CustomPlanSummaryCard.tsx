@@ -9,6 +9,7 @@ import { PRICING_CADENCE_COPY } from "@/content/marketing/pricingPage"
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import {
+  formatQrWorkspacePool,
   quoteCadenceSuffix,
   quotePlanName,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
@@ -276,10 +277,7 @@ export function CustomPlanSummaryCard({
                   <div className="flex flex-col gap-1.5">
                     <span className="text-[#707070]">Active QR</span>
                     <span className="text-black">
-                      {formatCount(q.qrPlacements)} per Location
-                      {q.qrPlacementsAccountExtra > 0
-                        ? ` + ${formatCount(q.qrPlacementsAccountExtra)} account`
-                        : ""}
+                      {formatQrWorkspacePool(quote.workspaceQrPool)}
                     </span>
                   </div>
                   <div className="flex flex-col gap-1.5">

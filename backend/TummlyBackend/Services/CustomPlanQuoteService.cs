@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.CustomPlan;
+using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -148,6 +149,7 @@ namespace TummlyBackend.Services
                     planRow.IncludedTeamMembers
                     + teamFromPacks
                     + additionalLocations * usersAdded,
+                // Base plan allowance as the Workspace base (not a per-Location limit).
                 QrPlacements = planRow.ActiveQrPlacementsPerLocation,
                 QrPlacementsAccountExtra = qrAccountExtra,
                 Offers = planRow.ActiveOffersAccount + offersFromPacks,
@@ -164,6 +166,15 @@ namespace TummlyBackend.Services
                     + aiFromPacks
                     + additionalLocations * extraAi,
             };
+
+            // One Workspace pool, from the same code Capture and Shop read. Not per Location.
+            var workspaceQrPool = WorkspaceQrPool.ForCustomPlan(
+                basePlan,
+                planRow.ActiveQrPlacementsPerLocation,
+                locations,
+                includedLocations,
+                qrAccountExtra
+            );
 
             var lines = new List<CustomPlanLine>();
             var monthlyNetPence = 0;
@@ -284,6 +295,7 @@ namespace TummlyBackend.Services
                 Locations = locations,
                 Packs = storedPacks,
                 Quantities = quantities,
+                WorkspaceQrPool = workspaceQrPool,
                 MonthlyNetPence = monthlyNetPence,
                 PeriodNetPence = periodNetPence,
                 Lines = lines,

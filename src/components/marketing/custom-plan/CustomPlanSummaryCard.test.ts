@@ -23,6 +23,7 @@ const MONTHLY_QUOTE: CustomPlanQuoteResult = {
     smsCredits: 100,
     aiCredits: 100,
   },
+  workspaceQrPool: 10,
   monthlyNetPence: 3900,
   periodNetPence: 3900,
   lines: [{ key: "base:starter", label: "Starter", quantity: 1, netPence: 3900 }],
@@ -70,6 +71,24 @@ describe("CustomPlanSummaryCard total", () => {
     const html = renderCard("annual")
     expect(cadenceButton(html, "Annual")).toContain('aria-pressed="true"')
     expect(cadenceButton(html, "Monthly")).toContain('aria-pressed="false"')
+  })
+})
+
+describe("CustomPlanSummaryCard Active QR", () => {
+  it("shows the server Workspace pool, not a per-Location figure", () => {
+    const html = renderCard("monthly", {
+      ...MONTHLY_QUOTE,
+      basePlan: "group",
+      locations: 6,
+      quantities: {
+        ...MONTHLY_QUOTE.quantities,
+        qrPlacements: 50,
+        qrPlacementsAccountExtra: 2,
+      },
+      workspaceQrPool: 62,
+    })
+    expect(html).toContain("62 in your Workspace")
+    expect(html).not.toContain("per Location")
   })
 })
 

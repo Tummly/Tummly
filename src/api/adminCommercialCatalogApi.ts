@@ -401,6 +401,11 @@ export type CustomPlanQuoteResult = {
     smsCredits: number
     aiCredits: number
   }
+  /**
+   * Workspace-wide active-QR pool from the server: base allowance + 10 per
+   * additional paid Group Location + purchased QR units. Not a per-Location limit.
+   */
+  workspaceQrPool: number
   monthlyNetPence: number
   periodNetPence: number
   lines: CustomPlanQuoteLine[]
@@ -449,6 +454,7 @@ function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
       smsCredits: Number(quantitiesRaw.smsCredits ?? 0),
       aiCredits: Number(quantitiesRaw.aiCredits ?? 0),
     },
+    workspaceQrPool: Number(raw.workspaceQrPool ?? 0),
     monthlyNetPence: Number(raw.monthlyNetPence ?? 0),
     periodNetPence: Number(raw.periodNetPence ?? 0),
     lines: Array.isArray(raw.lines)

@@ -61,6 +61,14 @@ namespace TummlyBackend.DTOs.Admin
         [JsonPropertyName("storedAsPlan")]
         public string StoredAsPlan { get; set; } = "Custom";
 
+        /// <summary>
+        /// Workspace-wide active-QR pool this plan gives: base allowance + 10 per
+        /// additional paid Group Location + purchased <c>qr_placement</c> units.
+        /// Same calculation Capture and Shop read (<c>WorkspaceQrPool</c>). Not saved in the config.
+        /// </summary>
+        [JsonPropertyName("workspaceQrPool")]
+        public int WorkspaceQrPool { get; set; }
+
         [JsonPropertyName("vatRateBps")]
         public int VatRateBps { get; set; }
 

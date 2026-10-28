@@ -1,3 +1,5 @@
+using TummlyBackend.Billing.CustomPlan;
+
 namespace TummlyBackend.Billing.PlanEntitlements
 {
     /// <summary>
@@ -40,6 +42,41 @@ namespace TummlyBackend.Billing.PlanEntitlements
                     * Math.Max(0, additionalPaidLocations)
                 + Math.Max(0, purchasedExtras)
             );
+        }
+
+        /// <summary>
+        /// Pool for a Custom Plan. The quote and the saved-plan reader both call
+        /// this, so the price page and Capture/Shop agree. Only a Group base earns
+        /// the per-Location part (Locations 6-500); Starter and Growth bases add
+        /// nothing for Locations. A missing base plan (v1) has no Location part.
+        /// </summary>
+        /// <param name="basePlan">starter | growth | group, or null for a v1 config.</param>
+        /// <param name="baseAllowance">Base plan allowance, as for <see cref="Compute"/>.</param>
+        /// <param name="configuredLocations">Locations in the plan (capped at the quote maximum).</param>
+        /// <param name="includedLocations">Locations the base plan includes.</param>
+        /// <param name="purchasedExtras">Purchased <c>qr_placement</c> units.</param>
+        public static int ForCustomPlan(
+            string? basePlan,
+            int baseAllowance,
+            int configuredLocations,
+            int includedLocations,
+            int purchasedExtras
+        )
+        {
+            var additionalPaidLocations = 0;
+            if (string.Equals(basePlan?.Trim(), "group", StringComparison.OrdinalIgnoreCase))
+            {
+                var configured = Math.Min(
+                    Math.Max(0, configuredLocations),
+                    CustomPlanConfig.MaxLocations
+                );
+                additionalPaidLocations = Math.Max(
+                    0,
+                    configured - Math.Max(0, includedLocations)
+                );
+            }
+
+            return Compute(baseAllowance, additionalPaidLocations, purchasedExtras);
         }
     }
 }

@@ -190,10 +190,81 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(20, result.Quantities.QrPlacementsAccountExtra);
             Assert.True(result.Quantities.QrPlacements > 0);
-            Assert.Equal(
-                result.Quantities.QrPlacements,
-                result.Quantities.QrPlacements
+            // Starter base 10 + 20 purchased units, one Workspace pool.
+            Assert.Equal(30, result.WorkspaceQrPool);
+        }
+
+        [Theory]
+        // plan base, extra paid Group Locations, purchased units -> Workspace pool
+        [InlineData("starter", 1, 0, 10)]
+        [InlineData("starter", 1, 7, 17)]
+        [InlineData("growth", 2, 13, 38)]
+        [InlineData("growth", 2, 0, 25)]
+        [InlineData("group", 5, 0, 50)]
+        // Group: 50 + 10 x (6 - 5) + 2.
+        [InlineData("group", 6, 2, 62)]
+        // Group: 50 + 10 x (40 - 5) + 20.
+        [InlineData("group", 40, 20, 420)]
+        [InlineData("group", 500, 0, 5000)]
+        public async Task Quote_WorkspaceQrPool_IsBaseAllowancePlusLocationsPlusPurchasedUnits(
+            string basePlan,
+            int locations,
+            int qrUnits,
+            int expectedPool
+        )
+        {
+            var quote = await _sut.QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = "monthly",
+                    BasePlan = basePlan,
+                    Locations = locations,
+                    Packs = new Dictionary<string, decimal> { ["qr_placement"] = qrUnits },
+                }
             );
+
+            Assert.Equal(basePlan, quote.BasePlan);
+            Assert.Equal(expectedPool, quote.WorkspaceQrPool);
+        }
+
+        [Theory]
+        [InlineData("starter", 1, 0)]
+        [InlineData("starter", 1, 7)]
+        [InlineData("growth", 2, 13)]
+        [InlineData("group", 6, 2)]
+        [InlineData("group", 40, 20)]
+        public async Task Quote_WorkspaceQrPool_EqualsThePoolShopAndCaptureRead(
+            string basePlan,
+            int locations,
+            int qrUnits
+        )
+        {
+            var quote = await _sut.QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = "monthly",
+                    BasePlan = basePlan,
+                    Locations = locations,
+                    Packs = new Dictionary<string, decimal> { ["qr_placement"] = qrUnits },
+                }
+            );
+
+            // The saved config is what Capture and Shop read through IActiveQrCapacity.
+            var account = new BillingAccount
+            {
+                SubscriptionPlan = BillingSubscriptionPlans.Custom,
+                ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
+                CustomPlanConfigJson = quote.ToConfig().ToJson(),
+            };
+            var capacity = new ActiveQrCapacity(
+                _db,
+                PricebookCatalog.LoadFromDirectory(TestPricebookPaths.PackDirectory())
+            );
+
+            var allowance = await capacity.GetAllowanceAsync(account, CancellationToken.None);
+
+            Assert.NotNull(allowance);
+            Assert.Equal(quote.WorkspaceQrPool, allowance!.WorkspacePool);
         }
 
         [Theory]
