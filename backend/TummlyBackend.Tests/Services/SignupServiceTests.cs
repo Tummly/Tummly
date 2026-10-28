@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Signup;
@@ -1146,6 +1147,64 @@ namespace TummlyBackend.Tests.Services
                 resume.OnboardingJson ?? "",
                 StringComparison.Ordinal
             );
+        }
+
+        [Fact]
+        public async Task GetBySession_ReturnsSavedCustomPlanCadenceLocationsAndExtras()
+        {
+            var sessionToken = await SeedVerifiedPendingAsync("resume-custom@example.com");
+            var row = await Row("resume-custom@example.com");
+            row.ChosenPlan = BillingSubscriptionPlans.Custom;
+            row.ChosenCadence = "annual";
+            row.CustomPlanConfigJson = new CustomPlanConfig
+            {
+                Version = 2,
+                Cadence = "annual",
+                BasePlan = "growth",
+                Locations = 3,
+                Packs = new Dictionary<string, int> { ["qr_10"] = 2 },
+                QuoteHash = "0123456789abcdef0123456789abcdef",
+            }.ToJson();
+            await _db.SaveChangesAsync();
+
+            var resume = await _sut.GetBySessionAsync(sessionToken);
+
+            Assert.Equal(BillingSubscriptionPlans.Custom, resume.ChosenPlan);
+            Assert.Equal("annual", resume.ChosenCadence);
+            Assert.NotNull(resume.PlanConfig);
+            Assert.Equal("growth", resume.PlanConfig.BasePlan);
+            Assert.Equal(3, resume.PlanConfig.Locations);
+            Assert.Equal(2, resume.PlanConfig.Packs["qr_10"]);
+            Assert.Equal("0123456789abcdef0123456789abcdef", resume.PlanConfig.QuoteHash);
+        }
+
+        [Fact]
+        public async Task GetBySession_StandardPlan_ReturnsPlanAndCadence_NoPlanConfig()
+        {
+            var sessionToken = await SeedVerifiedPendingAsync("resume-starter@example.com");
+            var row = await Row("resume-starter@example.com");
+            row.ChosenPlan = BillingSubscriptionPlans.Starter;
+            row.ChosenCadence = "annual";
+            row.CustomPlanConfigJson = null;
+            await _db.SaveChangesAsync();
+
+            var resume = await _sut.GetBySessionAsync(sessionToken);
+
+            Assert.Equal(BillingSubscriptionPlans.Starter, resume.ChosenPlan);
+            Assert.Equal("annual", resume.ChosenCadence);
+            Assert.Null(resume.PlanConfig);
+        }
+
+        [Fact]
+        public async Task GetBySession_BeforeOnboarding_ReturnsNoSavedPlan()
+        {
+            var sessionToken = await SeedVerifiedPendingAsync("resume-none@example.com");
+
+            var resume = await _sut.GetBySessionAsync(sessionToken);
+
+            Assert.Null(resume.ChosenPlan);
+            Assert.Null(resume.ChosenCadence);
+            Assert.Null(resume.PlanConfig);
         }
 
         public void Dispose()

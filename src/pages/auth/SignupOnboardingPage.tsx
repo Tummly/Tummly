@@ -30,6 +30,7 @@ import {
   activeCustomConfig,
   clearSignupPlanIntent,
   readSignupPlanIntent,
+  restoreSignupPlanIntentFromResume,
   saveSignupPlanIntent,
   signupStepAfterLocation,
 } from "@/lib/signupPlanIntent"
@@ -403,6 +404,9 @@ function SignupOnboardingPage() {
           navigate("/signup", { replace: true })
           return
         }
+
+        // A browser that lost its plan intent takes the server's saved plan.
+        restoreSignupPlanIntentFromResume(session)
 
         const { firstName, lastName } = splitSignupFullName(session.fullName)
 
