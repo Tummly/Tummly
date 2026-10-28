@@ -17,7 +17,7 @@ export const SHOP_ORDERS_FULFILMENT_STATUS_LABELS: Record<
   ShopOrdersFulfilmentStatusId,
   string
 > = {
-  processing: "Processing",
+  processing: "Confirmed",
   in_transit: "Dispatched",
   delivered: "Delivered",
   cancelled: "Cancelled",
@@ -161,7 +161,12 @@ export type DetailedShopOrder = {
   total: string
   totalNumeric: number
   paymentStatus: "Paid" | "Refunded" | "Free"
-  fulfilmentStatus: "Processing" | "Dispatched" | "Delivered" | "Cancelled"
+  fulfilmentStatus:
+    | "Confirmed"
+    | "Preparing"
+    | "Dispatched"
+    | "Delivered"
+    | "Cancelled"
   /** API display labels. Render these; filters keep using the fields above. */
   paymentStatusLabel: string
   fulfilmentStatusLabel: string
@@ -179,7 +184,8 @@ export function normalizeFulfilmentStatusToId(
   status: DetailedShopOrder["fulfilmentStatus"]
 ): ShopOrdersFulfilmentStatusId {
   switch (status) {
-    case "Processing":
+    case "Confirmed":
+    case "Preparing":
       return "processing"
     case "Dispatched":
       return "in_transit"

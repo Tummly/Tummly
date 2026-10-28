@@ -81,7 +81,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Theory]
-        [InlineData(ShopFulfilmentStatuses.Processing, "Processing")]
+        [InlineData(ShopFulfilmentStatuses.Processing, "Confirmed")]
         [InlineData(ShopFulfilmentStatuses.InTransit, "Dispatched")]
         [InlineData(ShopFulfilmentStatuses.Delivered, "Delivered")]
         [InlineData(ShopFulfilmentStatuses.Cancelled, "Cancelled")]
@@ -107,6 +107,29 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("Paid", item.GetProperty("paymentStatusLabel").GetString());
             Assert.Equal(
                 expected,
+                item.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PaidOrderInProduction_ReadsPreparingOnDetailAndList()
+        {
+            var (workspace, orderId) = await SeedOrderAsync(order =>
+            {
+                order.PaymentStatus = ShopPaymentStatuses.Paid;
+                order.FulfilmentStatus = ShopFulfilmentStatuses.Processing;
+                order.ProductionStartedAtUtc = DateTime.UtcNow;
+            });
+
+            var detail = await GetDetailAsync(workspace, orderId);
+            var item = await GetListItemAsync(workspace, orderId);
+
+            Assert.Equal(
+                "Preparing",
+                detail.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+            Assert.Equal(
+                "Preparing",
                 item.GetProperty("fulfilmentStatusLabel").GetString()
             );
         }

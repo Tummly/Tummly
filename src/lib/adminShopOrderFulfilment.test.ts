@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   adminShopFulfilmentLabel,
+  adminShopOrderFulfilmentLabel,
   adminShopOrderReviewNotice,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
@@ -10,9 +11,30 @@ import {
 
 describe("adminShopOrderFulfilment", () => {
   it("maps API statuses to operator-facing labels", () => {
-    expect(adminShopFulfilmentLabel("processing")).toBe("Processing")
+    expect(adminShopFulfilmentLabel("processing")).toBe("Confirmed")
     expect(adminShopFulfilmentLabel("in_transit")).toBe("Dispatched")
     expect(adminShopFulfilmentLabel("delivered")).toBe("Delivered")
+  })
+
+  it("reads Preparing only for processing orders with production started", () => {
+    expect(
+      adminShopOrderFulfilmentLabel({
+        fulfilmentStatus: "processing",
+        productionStartedAtUtc: null,
+      })
+    ).toBe("Confirmed")
+    expect(
+      adminShopOrderFulfilmentLabel({
+        fulfilmentStatus: "processing",
+        productionStartedAtUtc: "2026-10-27T09:00:00Z",
+      })
+    ).toBe("Preparing")
+    expect(
+      adminShopOrderFulfilmentLabel({
+        fulfilmentStatus: "in_transit",
+        productionStartedAtUtc: "2026-10-27T09:00:00Z",
+      })
+    ).toBe("Dispatched")
   })
 
   it("exposes the next legal fulfilment action", () => {

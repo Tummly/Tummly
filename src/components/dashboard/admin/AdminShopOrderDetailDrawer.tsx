@@ -38,6 +38,7 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import {
   adminShopFulfilmentLabel,
+  adminShopOrderFulfilmentLabel,
   adminShopOrderReviewNotice,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
@@ -470,7 +471,7 @@ export function AdminShopOrderDetailDrawer({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="soft">
-                    {adminShopFulfilmentLabel(order.fulfilmentStatus)}
+                    {adminShopOrderFulfilmentLabel(order)}
                   </Badge>
                   <Badge variant="soft">
                     {adminShopOrderPaymentLabel(order)}

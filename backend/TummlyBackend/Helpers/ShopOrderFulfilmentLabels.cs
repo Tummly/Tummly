@@ -2,7 +2,7 @@ using TummlyBackend.Models;
 
 namespace TummlyBackend.Helpers
 {
-    internal static class ShopOrderFulfilmentLabels
+    public static class ShopOrderFulfilmentLabels
     {
         public const string AwaitingPaymentLabel = "Awaiting payment";
 
@@ -11,11 +11,14 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// Fulfilment label. An order that is not paid yet has no fulfilment,
-        /// so it reads "Awaiting payment" instead of a default "Processing".
+        /// so it reads "Awaiting payment". A paid order still in processing
+        /// reads "Confirmed", or "Preparing" once Admin marks production
+        /// started. The stored status does not change.
         /// </summary>
         public static string ToDisplayLabel(
             string? storedStatus,
-            string? paymentStatus = null
+            string? paymentStatus = null,
+            bool productionStarted = false
         )
         {
             if (
@@ -34,13 +37,14 @@ namespace TummlyBackend.Helpers
                 return AwaitingPaymentLabel;
             }
 
+            var processingLabel = productionStarted ? "Preparing" : "Confirmed";
             return storedStatus switch
             {
-                ShopFulfilmentStatuses.Processing => "Processing",
+                ShopFulfilmentStatuses.Processing => processingLabel,
                 ShopFulfilmentStatuses.InTransit => "Dispatched",
                 ShopFulfilmentStatuses.Delivered => "Delivered",
                 ShopFulfilmentStatuses.Cancelled => "Cancelled",
-                _ => "Processing",
+                _ => processingLabel,
             };
         }
 

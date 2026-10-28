@@ -73,7 +73,8 @@ namespace TummlyBackend.Helpers
                 FulfilmentStatus = order.FulfilmentStatus,
                 FulfilmentStatusLabel = ShopOrderFulfilmentLabels.ToDisplayLabel(
                     order.FulfilmentStatus,
-                    order.PaymentStatus
+                    order.PaymentStatus,
+                    order.ProductionStartedAtUtc != null
                 ),
                 DeliveryMethod = order.DeliveryMethod,
                 MaterialsNetPence = order.MaterialsNetPence,

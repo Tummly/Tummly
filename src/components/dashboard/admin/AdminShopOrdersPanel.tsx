@@ -58,6 +58,7 @@ import {
   ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS,
   ALL_ADMIN_SHOP_FULFILMENT_STATUSES,
   adminShopFulfilmentLabel,
+  adminShopOrderFulfilmentLabel,
   formatAdminShopGbpFromPence,
 } from "@/lib/adminShopOrderFulfilment"
 import { defaultDownloadName } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
@@ -521,7 +522,7 @@ export function AdminShopOrdersPanel() {
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <Badge variant="soft">
-                          {adminShopFulfilmentLabel(order.fulfilmentStatus)}
+                          {adminShopOrderFulfilmentLabel(order)}
                         </Badge>
                       </TableCell>
                       <TableCell

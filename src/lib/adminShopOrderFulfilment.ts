@@ -7,7 +7,7 @@ export const ADMIN_SHOP_FULFILMENT_STATUS_LABELS: Record<
   AdminShopFulfilmentStatus,
   string
 > = {
-  processing: "Processing",
+  processing: "Confirmed",
   in_transit: "Dispatched",
   delivered: "Delivered",
   cancelled: "Cancelled",
@@ -17,7 +17,7 @@ export const ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS: Array<{
   id: AdminShopFulfilmentStatus | "all"
   label: string
 }> = [
-  { id: "processing", label: "Processing" },
+  { id: "processing", label: "Confirmed" },
   { id: "in_transit", label: "Dispatched" },
   { id: "delivered", label: "Delivered" },
   { id: "cancelled", label: "Cancelled" },
@@ -38,6 +38,19 @@ export function adminShopFulfilmentLabel(status: string): string {
     ]
   }
   return status
+}
+
+/**
+ * Admin label for an order row. A paid order still in processing reads
+ * "Preparing" once production has started; the stored status is unchanged.
+ */
+export function adminShopOrderFulfilmentLabel(
+  order: Pick<AdminShopOrderListItem, "fulfilmentStatus" | "productionStartedAtUtc">
+): string {
+  if (order.fulfilmentStatus === "processing" && order.productionStartedAtUtc) {
+    return "Preparing"
+  }
+  return adminShopFulfilmentLabel(order.fulfilmentStatus)
 }
 
 export function formatAdminShopGbpFromPence(pence: number): string {

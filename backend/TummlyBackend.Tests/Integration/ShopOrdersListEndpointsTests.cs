@@ -87,7 +87,7 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
             Assert.Equal(
-                "Processing",
+                "Confirmed",
                 body.GetProperty("items")[0].GetProperty("fulfilmentStatus").GetString()
             );
 
