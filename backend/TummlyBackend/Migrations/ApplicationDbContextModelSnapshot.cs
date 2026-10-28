@@ -533,6 +533,9 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("PilotExtensionDaysTotal")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("PilotOriginalEndUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("PilotPeriodEnd")
                         .HasColumnType("datetime2");
 

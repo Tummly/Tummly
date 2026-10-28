@@ -155,6 +155,12 @@ namespace TummlyBackend.Models
         public DateTime? PilotStartedAtUtc { get; set; }
 
         /// <summary>
+        /// Pilot end as set when the Pilot started. Written once and never changed.
+        /// Admin Pilot extensions move only <c>PilotPeriodEnd</c>, the effective expiry.
+        /// </summary>
+        public DateTime? PilotOriginalEndUtc { get; set; }
+
+        /// <summary>
         /// Number of Admin Pilot extensions applied to this account.
         /// </summary>
         public int PilotExtensionCount { get; set; }

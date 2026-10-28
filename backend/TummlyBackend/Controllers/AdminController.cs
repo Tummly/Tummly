@@ -258,7 +258,8 @@ namespace TummlyBackend.Controllers
                     };
 
                     return result.Code
-                        == BillingAccountLifecycleService.PilotExtensionInvalidDaysCode
+                        is BillingAccountLifecycleService.PilotExtensionInvalidDaysCode
+                            or BillingAccountLifecycleService.PilotExtensionInvalidReasonCode
                             ? BadRequest(refusal)
                             : Conflict(refusal);
                 }

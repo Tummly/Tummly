@@ -34,7 +34,7 @@ namespace TummlyBackend.Services
                     TargetId = request.TargetId,
                     RestaurantId = request.RestaurantId,
                     DetailJson = request.DetailJson,
-                    Succeeded = true,
+                    Succeeded = request.Succeeded,
                 }
             );
         }

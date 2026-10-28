@@ -63,6 +63,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
             Assert.Equal(BillingStatuses.Pilot, account.BillingStatus);
             Assert.Equal(result.EndsAtUtc, account.PilotPeriodEnd);
+            Assert.Equal(result.EndsAtUtc, account.PilotOriginalEndUtc);
             Assert.Null(account.RenewalDateUtc);
             // One grant set: one ledger row per channel (ai, email, sms).
             Assert.Equal(PilotGrantRowCount, await CountPilotGrantRowsAsync(restaurantId));
@@ -80,6 +81,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(second.RefusedCode);
             Assert.Equal(first.StartedAtUtc, second.StartedAtUtc);
             Assert.Equal(first.EndsAtUtc, second.EndsAtUtc);
+            Assert.Equal(first.EndsAtUtc, (await LoadAccountAsync(restaurantId)).PilotOriginalEndUtc);
             Assert.Equal(PilotGrantRowCount, await CountPilotGrantRowsAsync(restaurantId));
         }
 

@@ -13,6 +13,8 @@ namespace TummlyBackend.Tests.Integration
     public class AdminPilotExtensionEndpointsTests
         : IClassFixture<TummlyWebApplicationFactory>
     {
+        private const string ValidReason = "Support asked for a delay";
+
         private readonly TummlyWebApplicationFactory _factory;
         private readonly HttpClient _client;
 
@@ -62,6 +64,88 @@ namespace TummlyBackend.Tests.Integration
             Assert.Contains("\"countAfter\":1", row.DetailJson ?? string.Empty);
             Assert.DoesNotContain(seeded.OwnerEmail, row.DetailJson ?? string.Empty);
             Assert.DoesNotContain("Pilot Owner", row.DetailJson ?? string.Empty);
+        }
+
+        [Fact]
+        public async Task Extend_Success_AuditDetailCarriesReason()
+        {
+            var seeded = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                extensionCount: 0,
+                extensionDaysTotal: 0
+            );
+
+            using var response = await PostExtendAsync(
+                seeded.OwnerUserId,
+                days: 30,
+                key: $"ep-{Guid.NewGuid():N}",
+                jwt: seeded.AdminJwt,
+                reason: "  Venue closed for refit  "
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var row = Assert.Single(await PilotAuditRowsAsync(seeded.RestaurantId));
+            Assert.True(row.Succeeded);
+            Assert.Contains("\"reason\":\"Venue closed for refit\"", row.DetailJson ?? string.Empty);
+            Assert.Contains("\"days\":30", row.DetailJson ?? string.Empty);
+        }
+
+        [Fact]
+        public async Task Extend_MissingReason_400_AuditsRefusalWithoutChange()
+        {
+            var seeded = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                extensionCount: 0,
+                extensionDaysTotal: 0
+            );
+
+            using var response = await PostExtendAsync(
+                seeded.OwnerUserId,
+                14,
+                $"ep-{Guid.NewGuid():N}",
+                seeded.AdminJwt,
+                reason: null
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("pilot_extension_invalid_reason", body.GetProperty("code").GetString());
+
+            var row = Assert.Single(await PilotAuditRowsAsync(seeded.RestaurantId));
+            Assert.False(row.Succeeded);
+            Assert.Contains("\"code\":\"pilot_extension_invalid_reason\"", row.DetailJson ?? string.Empty);
+            Assert.Equal(0, await BillingExtensionCountAsync(seeded.RestaurantId));
+        }
+
+        [Fact]
+        public async Task Extend_StaleVersion_409_AuditsRefusalWithoutChange()
+        {
+            var seeded = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                extensionCount: 0,
+                extensionDaysTotal: 0
+            );
+
+            using var response = await PostExtendAsync(
+                seeded.OwnerUserId,
+                14,
+                $"ep-{Guid.NewGuid():N}",
+                seeded.AdminJwt,
+                expectedExtensionCount: 1
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("stale_pilot_version", body.GetProperty("code").GetString());
+
+            var row = Assert.Single(await PilotAuditRowsAsync(seeded.RestaurantId));
+            Assert.False(row.Succeeded);
+            Assert.Contains("\"code\":\"stale_pilot_version\"", row.DetailJson ?? string.Empty);
+            Assert.Equal(0, await BillingExtensionCountAsync(seeded.RestaurantId));
         }
 
         [Fact]
@@ -133,6 +217,10 @@ namespace TummlyBackend.Tests.Integration
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
             Assert.False(body.GetProperty("success").GetBoolean());
             Assert.Equal("pilot_extension_invalid_days", body.GetProperty("code").GetString());
+
+            var row = Assert.Single(await PilotAuditRowsAsync(seeded.RestaurantId));
+            Assert.False(row.Succeeded);
+            Assert.Contains("\"code\":\"pilot_extension_invalid_days\"", row.DetailJson ?? string.Empty);
         }
 
         [Fact]
@@ -149,7 +237,8 @@ namespace TummlyBackend.Tests.Integration
                 seeded.OwnerUserId,
                 14,
                 $"ep-{Guid.NewGuid():N}",
-                seeded.AdminJwt
+                seeded.AdminJwt,
+                expectedExtensionCount: 2
             );
 
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -157,6 +246,10 @@ namespace TummlyBackend.Tests.Integration
             Assert.False(body.GetProperty("success").GetBoolean());
             Assert.Equal("pilot_extension_limit", body.GetProperty("code").GetString());
             Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("message").GetString()));
+
+            var row = Assert.Single(await PilotAuditRowsAsync(seeded.RestaurantId));
+            Assert.False(row.Succeeded);
+            Assert.Contains("\"code\":\"pilot_extension_limit\"", row.DetailJson ?? string.Empty);
         }
 
         [Fact]
@@ -361,12 +454,90 @@ namespace TummlyBackend.Tests.Integration
             Assert.StartsWith("This Pilot has used its extensions.", reason);
         }
 
+        [Fact]
+        public async Task ListPilotAccounts_ShowsOriginalEndHistoryAndAllowances()
+        {
+            var originalEnd = new DateTime(2026, 10, 31, 12, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                extensionCount: 0,
+                extensionDaysTotal: 0,
+                originalEndUtc: originalEnd
+            );
+            using (var extend = await PostExtendAsync(
+                seeded.OwnerUserId,
+                14,
+                $"ep-{Guid.NewGuid():N}",
+                seeded.AdminJwt,
+                reason: "Guest support asked for a delay"
+            ))
+            {
+                Assert.Equal(HttpStatusCode.OK, extend.StatusCode);
+            }
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/pilot-accounts");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", seeded.AdminJwt);
+            using var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var row = body.GetProperty("data").EnumerateArray()
+                .Single(item => item.GetProperty("restaurantId").GetInt32() == seeded.RestaurantId);
+
+            Assert.Equal(originalEnd, row.GetProperty("pilotOriginalEndUtc").GetDateTime());
+            Assert.NotEqual(originalEnd, row.GetProperty("pilotPeriodEnd").GetDateTime());
+            Assert.Equal(5, row.GetProperty("daysUsed").GetInt32());
+            Assert.False(row.GetProperty("hasPaidHistory").GetBoolean());
+            Assert.Equal(1, row.GetProperty("extensionCount").GetInt32());
+
+            var history = Assert.Single(row.GetProperty("extensionHistory").EnumerateArray());
+            Assert.Equal(14, history.GetProperty("days").GetInt32());
+            Assert.Equal("Guest support asked for a delay", history.GetProperty("reason").GetString());
+            Assert.False(string.IsNullOrWhiteSpace(history.GetProperty("actorIdentity").GetString()));
+
+            var allowances = row.GetProperty("allowances");
+            Assert.Equal(JsonValueKind.Array, allowances.ValueKind);
+            Assert.Equal(
+                new[] { "ai", "email", "sms" },
+                allowances.EnumerateArray()
+                    .Select(item => item.GetProperty("channel").GetString())
+                    .OrderBy(channel => channel)
+                    .ToArray()
+            );
+        }
+
+        private async Task<List<AdminAuditEvent>> PilotAuditRowsAsync(int restaurantId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            return await context.AdminAuditEvents
+                .AsNoTracking()
+                .Where(row =>
+                    row.Action == AdminAuditActions.OperatorExtendPilot
+                    && row.RestaurantId == restaurantId
+                )
+                .OrderBy(row => row.OccurredAtUtc)
+                .ToListAsync();
+        }
+
+        private async Task<int> BillingExtensionCountAsync(int restaurantId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            return (await context.BillingAccounts.AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == restaurantId))
+                .PilotExtensionCount;
+        }
+
         private Task<HttpResponseMessage> PostExtendAsync(
             int userId,
             int days,
             string key,
             string jwt,
-            int? restaurantId = null
+            int? restaurantId = null,
+            string? reason = ValidReason,
+            int expectedExtensionCount = 0
         )
         {
             var request = new HttpRequestMessage(
@@ -375,7 +546,14 @@ namespace TummlyBackend.Tests.Integration
             )
             {
                 Content = JsonContent.Create(
-                    new { days, idempotencyKey = key, restaurantId }
+                    new
+                    {
+                        days,
+                        idempotencyKey = key,
+                        restaurantId,
+                        reason,
+                        expectedExtensionCount,
+                    }
                 ),
             };
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
@@ -424,7 +602,8 @@ namespace TummlyBackend.Tests.Integration
             string status,
             int extensionCount,
             int extensionDaysTotal,
-            DateTime? renewalDateUtc = null
+            DateTime? renewalDateUtc = null,
+            DateTime? originalEndUtc = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -475,6 +654,9 @@ namespace TummlyBackend.Tests.Integration
                         : null,
                     PilotPeriodEnd = plan == BillingSubscriptionPlans.Pilot
                         ? DateTime.UtcNow.AddDays(5)
+                        : null,
+                    PilotOriginalEndUtc = plan == BillingSubscriptionPlans.Pilot
+                        ? originalEndUtc
                         : null,
                     PilotExtensionCount = extensionCount,
                     PilotExtensionDaysTotal = extensionDaysTotal,

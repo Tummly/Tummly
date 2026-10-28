@@ -234,6 +234,8 @@ namespace TummlyBackend.Services
             BillingCreditsService.ApplyPilotSignupBilling(account, nowUtc);
             account.PilotStartedAtUtc = nowUtc;
             var endsAtUtc = account.PilotPeriodEnd!.Value;
+            // Written once at start. Extensions move PilotPeriodEnd only.
+            account.PilotOriginalEndUtc ??= endsAtUtc;
 
             await PilotClockSync.SetForRestaurantAsync(
                 _context,
