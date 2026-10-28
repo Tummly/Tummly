@@ -1743,7 +1743,7 @@ describe("createOperatorCampaignsPageModule", () => {
 
     expect(pageModule.getSnapshot().viewModel?.header).toMatchObject({
       messagingUsageAnchorId: "campaigns-messaging-usage",
-      campaignHelpUrl: "/help-center/articles/campaigns",
+      campaignHelpUrl: "/help-center",
     })
   })
 })

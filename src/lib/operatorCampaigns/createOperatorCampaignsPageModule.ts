@@ -5,7 +5,6 @@ import {
   type OperatorCampaignsSummaryKpiId,
 } from "@/lib/operatorCampaigns/buildCampaignsSummaryKpis"
 import {
-  CAMPAIGNS_HELP_ARTICLE_SLUG,
   CAMPAIGNS_MESSAGING_USAGE_ANCHOR_ID,
   CAMPAIGNS_PAGE_COPY,
   CAMPAIGNS_PAGE_SIZE,
@@ -49,7 +48,7 @@ import {
   campaignsListSearchMissLabel,
   resolveCampaignsListEmptyStateKind,
 } from "@/lib/operatorCampaigns/resolveCampaignsListEmptyStateKind"
-import { helpCentreArticleUrl } from "@/config/support"
+import { HELP_CENTRE_URL } from "@/config/support"
 import {
   chipCount,
   emptySelection,
@@ -558,7 +557,8 @@ function assembleViewModel(
       createCampaignLabel: CAMPAIGNS_PAGE_COPY.createCampaign,
       useTemplateLabel: CAMPAIGNS_PAGE_COPY.useTemplate,
       messagingUsageAnchorId: CAMPAIGNS_MESSAGING_USAGE_ANCHOR_ID,
-      campaignHelpUrl: helpCentreArticleUrl(CAMPAIGNS_HELP_ARTICLE_SLUG),
+      // No Help Centre article covers Campaigns yet, so link to the hub.
+      campaignHelpUrl: HELP_CENTRE_URL,
     },
     summary: {
       title: CAMPAIGNS_PAGE_COPY.summaryTitle,
