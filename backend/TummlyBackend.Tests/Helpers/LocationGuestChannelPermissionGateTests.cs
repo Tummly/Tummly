@@ -68,6 +68,62 @@ namespace TummlyBackend.Tests.Helpers
             );
         }
 
+        [Theory]
+        [InlineData(LocationGuestPermissionState.Granted, "email-marketing-v1", "Yes, email me.", "email-marketing-v1", "Yes, email me.", true)]
+        [InlineData(LocationGuestPermissionState.Granted, "email-marketing-v0", "Yes, email me.", "email-marketing-v1", "Yes, email me.", false)]
+        [InlineData(LocationGuestPermissionState.Granted, "email-marketing-v1", "Old custom wording.", "email-marketing-v1", "Yes, email me.", false)]
+        [InlineData(LocationGuestPermissionState.Withdrawn, "email-marketing-v1", "Yes, email me.", "email-marketing-v1", "Yes, email me.", false)]
+        [InlineData(LocationGuestPermissionState.NotRecorded, "email-marketing-v1", "Yes, email me.", "email-marketing-v1", "Yes, email me.", false)]
+        public void IsGrantAlreadyRecorded_OnlyWhenGrantedUnderSameWording(
+            LocationGuestPermissionState currentState,
+            string currentVersion,
+            string currentSnapshot,
+            string proposedVersion,
+            string proposedSnapshot,
+            bool expected
+        )
+        {
+            var current = Evidence(currentVersion, currentSnapshot);
+            var proposed = Evidence(proposedVersion, proposedSnapshot);
+
+            Assert.Equal(
+                expected,
+                LocationGuestChannelPermissionGate.IsGrantAlreadyRecorded(
+                    currentState,
+                    current,
+                    proposed
+                )
+            );
+        }
+
+        [Fact]
+        public void IsGrantAlreadyRecorded_GrantedWithoutGrantRow_ReturnsFalse()
+        {
+            // Legacy marketing preference: state is Granted but no ledger row
+            // carries wording evidence, so a Grant is still written.
+            var proposed = Evidence("email-marketing-v1", "Yes, email me.");
+
+            Assert.False(
+                LocationGuestChannelPermissionGate.IsGrantAlreadyRecorded(
+                    LocationGuestPermissionState.Granted,
+                    currentGrant: null,
+                    proposed
+                )
+            );
+        }
+
+        private static PermissionLedgerEvidence Evidence(
+            string wordingVersion,
+            string wordingSnapshot
+        ) =>
+            new(
+                Basis: LocationGuestPermissionBases.Consent,
+                GuestFormVersion: GuestFormPermissionEvidence.GuestFormVersion,
+                WordingVersion: wordingVersion,
+                PrivacyNoticeVersion: GuestFormPermissionEvidence.PrivacyNoticeVersion,
+                WordingSnapshot: wordingSnapshot
+            );
+
         private static Restaurant RestaurantWith(
             bool feedbackFollowUpEnabled,
             bool emailEnabled,
