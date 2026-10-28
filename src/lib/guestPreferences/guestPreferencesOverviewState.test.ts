@@ -1,12 +1,14 @@
-import { AxiosError, AxiosHeaders } from "axios"
 import { describe, expect, it, vi } from "vitest"
 
 import {
   commitChannelChanges,
   commitFirstName,
+  commitStopAll,
   createGuestPreferencesOverviewState,
-  guestPreferencesErrorMessage,
   guestPreferencesOverviewReducer,
+  isGuestPreferencesBusy,
+  type GuestPreferencesOverviewAction,
+  type GuestPreferencesPendingAction,
 } from "@/lib/guestPreferences/guestPreferencesOverviewState"
 
 function initialState() {
@@ -95,18 +97,33 @@ describe("guestPreferencesOverviewState", () => {
     expect(kept.channels).toEqual({ email: true, sms: false })
   })
 
-  it("Stop all confirm turns both channels off and closes the dialog", () => {
-    const opened = guestPreferencesOverviewReducer(initialState(), {
-      type: "stop-all-opened",
-    })
+  it("Stop all confirm calls stopAllMarketing once and applies the confirmed state", async () => {
+    const stopAllMarketing = vi.fn(async () => {})
+    const dispatched: GuestPreferencesOverviewAction[] = []
 
-    const confirmed = guestPreferencesOverviewReducer(opened, {
-      type: "stop-all-confirmed",
-    })
+    await commitStopAll(stopAllMarketing, (action) => dispatched.push(action))
 
+    expect(stopAllMarketing).toHaveBeenCalledTimes(1)
+    expect(dispatched).toEqual([{ type: "stop-all-confirmed" }])
+
+    const confirmed = guestPreferencesOverviewReducer(
+      guestPreferencesOverviewReducer(initialState(), { type: "stop-all-opened" }),
+      dispatched[0]
+    )
     expect(confirmed.stopAllOpen).toBe(false)
     expect(confirmed.channels).toEqual({ email: false, sms: false })
     expect(confirmed.savedChannels).toEqual({ email: false, sms: false })
+  })
+
+  it("Stop all that fails dispatches nothing and rethrows", async () => {
+    const failure = new Error("network")
+    const stopAllMarketing = vi.fn(async () => {
+      throw failure
+    })
+    const dispatch = vi.fn()
+
+    await expect(commitStopAll(stopAllMarketing, dispatch)).rejects.toBe(failure)
+    expect(dispatch).not.toHaveBeenCalled()
   })
 
   it("channel toggle changes only the current selection, not the saved baseline", () => {
@@ -119,34 +136,18 @@ describe("guestPreferencesOverviewState", () => {
     expect(toggled.channels).toEqual({ email: false, sms: false })
     expect(toggled.savedChannels).toEqual({ email: true, sms: false })
   })
-})
 
-describe("guestPreferencesErrorMessage", () => {
-  const fallback = "Fallback copy."
+  it("any pending request makes every request control busy", () => {
+    const idle: GuestPreferencesPendingAction = null
+    expect(isGuestPreferencesBusy(idle)).toBe(false)
 
-  it("reads the API error message from the response body", () => {
-    const error = new AxiosError(
-      "Request failed",
-      "ERR_BAD_REQUEST",
-      undefined,
-      undefined,
-      {
-        status: 400,
-        statusText: "Bad Request",
-        headers: {},
-        config: { headers: new AxiosHeaders() },
-        data: { error: "First name is too long." },
-      }
-    )
-
-    expect(guestPreferencesErrorMessage(error, fallback)).toBe(
-      "First name is too long."
-    )
-  })
-
-  it("falls back when the error has no API message", () => {
-    expect(guestPreferencesErrorMessage(new Error("network"), fallback)).toBe(
-      fallback
-    )
+    const pendingActions: GuestPreferencesPendingAction[] = [
+      "name",
+      "channels",
+      "stop-all",
+    ]
+    for (const pending of pendingActions) {
+      expect(isGuestPreferencesBusy(pending)).toBe(true)
+    }
   })
 })

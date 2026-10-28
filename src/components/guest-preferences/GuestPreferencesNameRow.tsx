@@ -48,6 +48,7 @@ export function GuestPreferencesNameRow({
           type="button"
           variant="link"
           size="link-sm"
+          disabled={busy}
           onClick={onEdit}
           className={GUEST_PREFERENCES_LINK_CLASS}
         >

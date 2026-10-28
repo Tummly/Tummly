@@ -2,7 +2,6 @@ import { useReducer, useState } from "react"
 import { toast } from "sonner"
 
 import {
-  GuestPreferencesSessionExpiredError,
   stopAllMarketing,
   updateChannels,
   updateFirstName,
@@ -19,10 +18,13 @@ import { GUEST_FEEDBACK_PRIMARY_BUTTON_CLASS } from "@/lib/guestFeedback/guestFe
 import {
   commitChannelChanges,
   commitFirstName,
+  commitStopAll,
   createGuestPreferencesOverviewState,
-  guestPreferencesErrorMessage,
   guestPreferencesOverviewReducer,
+  isGuestPreferencesBusy,
+  type GuestPreferencesPendingAction,
 } from "@/lib/guestPreferences/guestPreferencesOverviewState"
+import { routeGuestPreferencesRequestError } from "@/lib/guestPreferences/guestPreferencesRequestErrors"
 import {
   GUEST_PREFERENCES_CARD_CLASS,
   GUEST_PREFERENCES_CARD_TITLE_CLASS,
@@ -41,8 +43,6 @@ type GuestPreferencesOverviewProps = {
   onManageRestaurants: () => void
 }
 
-type PendingAction = "name" | "channels" | "stop-all" | null
-
 /**
  * Logged-in preference view: name, verified contact, channels, restaurant
  * entry point, Save preferences and Stop all.
@@ -58,17 +58,20 @@ export function GuestPreferencesOverview({
     overview,
     createGuestPreferencesOverviewState
   )
-  const [pending, setPending] = useState<PendingAction>(null)
-  const busy = pending !== null
+  // One request at a time. Every request control reads this single flag.
+  const [pending, setPending] = useState<GuestPreferencesPendingAction>(null)
+  const busy = isGuestPreferencesBusy(pending)
 
   function handleRequestError(error: unknown) {
-    if (error instanceof GuestPreferencesSessionExpiredError) {
+    const route = routeGuestPreferencesRequestError(
+      error,
+      GUEST_PREFERENCES_COPY.saveFailed
+    )
+    if (route.view === "entry") {
       onSessionExpired()
       return
     }
-    toast.error(
-      guestPreferencesErrorMessage(error, GUEST_PREFERENCES_COPY.saveFailed)
-    )
+    toast.error(route.message)
   }
 
   async function handleSaveName() {
@@ -93,13 +96,15 @@ export function GuestPreferencesOverview({
   async function handleSaveChannels() {
     setPending("channels")
     try {
-      await commitChannelChanges(
+      const sent = await commitChannelChanges(
         updateChannels,
         state.savedChannels,
         state.channels
       )
       dispatch({ type: "channels-saved", channels: state.channels })
-      toast.success(GUEST_PREFERENCES_COPY.preferencesSaved)
+      if (sent) {
+        toast.success(GUEST_PREFERENCES_COPY.preferencesSaved)
+      }
     } catch (error) {
       handleRequestError(error)
     } finally {
@@ -110,8 +115,7 @@ export function GuestPreferencesOverview({
   async function handleConfirmStopAll() {
     setPending("stop-all")
     try {
-      await stopAllMarketing()
-      dispatch({ type: "stop-all-confirmed" })
+      await commitStopAll(stopAllMarketing, dispatch)
     } catch (error) {
       handleRequestError(error)
     } finally {
@@ -131,7 +135,7 @@ export function GuestPreferencesOverview({
           <GuestPreferencesNameRow
             firstName={state.firstName}
             draft={state.nameDraft}
-            busy={pending === "name"}
+            busy={busy}
             onEdit={() => dispatch({ type: "name-edit-started" })}
             onDraftChange={(value) =>
               dispatch({ type: "name-draft-changed", value })
@@ -205,7 +209,7 @@ export function GuestPreferencesOverview({
         onClick={() => void handleSaveChannels()}
         className={cn(
           GUEST_FEEDBACK_PRIMARY_BUTTON_CLASS,
-          "bg-guest-feedback-submit text-guest-feedback-submit-fg hover:bg-white"
+          "bg-guest-feedback-submit text-guest-feedback-submit-fg hover:bg-guest-feedback-submit/90"
         )}
       >
         {GUEST_PREFERENCES_COPY.savePreferencesLabel}
@@ -215,6 +219,7 @@ export function GuestPreferencesOverview({
         type="button"
         variant="link"
         size="link-sm"
+        disabled={busy}
         onClick={() => dispatch({ type: "stop-all-opened" })}
         className={GUEST_PREFERENCES_TEXT_ACTION_CLASS}
       >
@@ -223,7 +228,7 @@ export function GuestPreferencesOverview({
 
       <GuestPreferencesStopAllDialog
         open={state.stopAllOpen}
-        busy={pending === "stop-all"}
+        busy={busy}
         onOpenChange={(open) =>
           dispatch({ type: open ? "stop-all-opened" : "stop-all-closed" })
         }

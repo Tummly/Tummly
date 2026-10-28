@@ -26,6 +26,7 @@ export function GuestPreferencesStopAllDialog({
   onKeep,
   onConfirm,
 }: GuestPreferencesStopAllDialogProps) {
+  // Overlay is Figma rgba(0,0,0,0.5). No overlay token exists, so it stays literal.
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -45,7 +46,7 @@ export function GuestPreferencesStopAllDialog({
           <Button
             type="button"
             onClick={onKeep}
-            className="h-[42px] min-h-[42px] w-full rounded-[54px] bg-guest-feedback-submit px-4 py-0 font-sans text-sm font-medium text-guest-feedback-submit-fg shadow-none hover:bg-white"
+            className="h-[42px] min-h-[42px] w-full rounded-[54px] bg-guest-feedback-submit px-4 py-0 font-sans text-sm font-medium text-guest-feedback-submit-fg shadow-none hover:bg-guest-feedback-submit/90"
           >
             {GUEST_PREFERENCES_COPY.stopAllKeepLabel}
           </Button>

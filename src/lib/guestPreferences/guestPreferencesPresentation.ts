@@ -25,9 +25,12 @@ export const GUEST_PREFERENCES_FIELD_VALUE_CLASS =
 export const GUEST_PREFERENCES_LINK_CLASS =
   "font-sans font-medium text-guest-feedback-accent hover:text-guest-feedback-accent"
 
-/** Pill button on the dark surface — Figma #262626 (`guest-feedback-secondary`). */
+/**
+ * Pill button on the dark surface. Figma fill is #262626; the nearest token is
+ * `guest-feedback-secondary` (#232323, difference 3), so no new token is added.
+ */
 export const GUEST_PREFERENCES_PILL_BUTTON_CLASS =
-  "h-auto min-h-0 w-full rounded-[45px] border-transparent bg-guest-feedback-secondary px-4 py-3 font-sans text-sm font-medium text-white shadow-none hover:bg-guest-feedback-secondary/90"
+  "h-auto min-h-0 w-full rounded-[45px] border-transparent bg-guest-feedback-secondary px-4 py-3 font-sans text-sm font-medium text-guest-feedback-text shadow-none hover:bg-guest-feedback-secondary/90"
 
 /** Plain bottom action (Stop all Tummly marketing). */
 export const GUEST_PREFERENCES_TEXT_ACTION_CLASS =

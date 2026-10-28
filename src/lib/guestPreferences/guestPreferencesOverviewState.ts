@@ -1,5 +1,3 @@
-import { isAxiosError } from "axios"
-
 import {
   diffChannelChanges,
   type GuestPreferenceChannelChanges,
@@ -31,6 +29,13 @@ export type GuestPreferencesOverviewAction =
   | { type: "stop-all-opened" }
   | { type: "stop-all-closed" }
   | { type: "stop-all-confirmed" }
+
+/** The one request that may be in flight on the overview at a time. */
+export type GuestPreferencesPendingAction =
+  | "name"
+  | "channels"
+  | "stop-all"
+  | null
 
 export type UpdateFirstName = (firstName: string) => Promise<void>
 export type UpdateChannels = (changes: GuestPreferenceChannelChanges) => Promise<void>
@@ -86,6 +91,13 @@ export function guestPreferencesOverviewReducer(
   }
 }
 
+/** True while any overview request is in flight. Drives every request control. */
+export function isGuestPreferencesBusy(
+  pending: GuestPreferencesPendingAction
+): boolean {
+  return pending !== null
+}
+
 /**
  * Saves the first name only when the trimmed draft is non-empty and differs
  * from the saved name. Resolves to the name now in effect.
@@ -120,22 +132,14 @@ export async function commitChannelChanges(
   return true
 }
 
-/** Reads `error.response.data.error` from an Axios error, else the fallback. */
-export function guestPreferencesErrorMessage(
-  error: unknown,
-  fallback: string
-): string {
-  if (isAxiosError(error)) {
-    const data: unknown = error.response?.data
-    if (
-      typeof data === "object" &&
-      data !== null &&
-      "error" in data &&
-      typeof data.error === "string" &&
-      data.error.trim() !== ""
-    ) {
-      return data.error
-    }
-  }
-  return fallback
+/**
+ * Calls the stop-all endpoint, then applies the confirmed state. A rejected
+ * request dispatches nothing and rethrows.
+ */
+export async function commitStopAll(
+  stopAll: () => Promise<void>,
+  dispatch: (action: GuestPreferencesOverviewAction) => void
+): Promise<void> {
+  await stopAll()
+  dispatch({ type: "stop-all-confirmed" })
 }

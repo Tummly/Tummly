@@ -19,7 +19,7 @@ export const GUEST_PREFERENCES_COPY = {
 
   restaurantsTitle: "Restaurant preferences",
   restaurantsDescription:
-    "Choose which restaurants you'd prefer not to hear about.",
+    "Choose which restaurants you’d prefer not to hear about.",
   manageRestaurantsLabel: "Manage restaurants",
 
   savePreferencesLabel: "Save preferences",
@@ -27,7 +27,7 @@ export const GUEST_PREFERENCES_COPY = {
 
   stopAllDialogTitle: "Stop all Tummly marketing?",
   stopAllDialogBody:
-    "You'll stop receiving Tummly marketing emails and texts. Replies about your feedback won't be affected.",
+    "You’ll stop receiving Tummly marketing emails and texts. Replies about your feedback won’t be affected.",
   stopAllKeepLabel: "Keep my preferences",
   stopAllConfirmLabel: "Stop all Tummly marketing",
 

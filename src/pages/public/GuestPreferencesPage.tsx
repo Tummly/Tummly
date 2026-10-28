@@ -3,7 +3,6 @@ import { Link, useSearchParams } from "react-router-dom"
 
 import {
   fetchOverview,
-  GuestPreferencesSessionExpiredError,
   openSessionFromLink,
   type GuestPreferencesOverview as GuestPreferencesOverviewData,
 } from "@/api/publicGuestPreferencesApi"
@@ -15,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { GUEST_PREFERENCES_COPY } from "@/content/guestPreferences/guestPreferencesCopy"
-import { guestPreferencesErrorMessage } from "@/lib/guestPreferences/guestPreferencesOverviewState"
+import { routeGuestPreferencesRequestError } from "@/lib/guestPreferences/guestPreferencesRequestErrors"
 import { resolveGuestPreferencesPageMode } from "@/lib/guestPreferences/guestPreferencesPageMode"
 import { GUEST_PREFERENCES_LEGAL_LINK_CLASS } from "@/lib/guestPreferences/guestPreferencesPresentation"
 import { readGuestPreferencesSession } from "@/lib/guestPreferences/guestPreferencesSession"
@@ -30,16 +29,13 @@ async function loadOverviewView(): Promise<PageView> {
   try {
     return { kind: "overview", overview: await fetchOverview() }
   } catch (error) {
-    if (error instanceof GuestPreferencesSessionExpiredError) {
-      return { kind: "entry" }
-    }
-    return {
-      kind: "error",
-      message: guestPreferencesErrorMessage(
-        error,
-        GUEST_PREFERENCES_COPY.loadFailed
-      ),
-    }
+    const route = routeGuestPreferencesRequestError(
+      error,
+      GUEST_PREFERENCES_COPY.loadFailed
+    )
+    return route.view === "entry"
+      ? { kind: "entry" }
+      : { kind: "error", message: route.message }
   }
 }
 
