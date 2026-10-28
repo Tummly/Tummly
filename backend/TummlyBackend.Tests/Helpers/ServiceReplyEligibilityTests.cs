@@ -164,11 +164,11 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Theory]
-        [InlineData(FeedbackGuestResponseChannel.Email, "alex@example.com", LocationGuestPermissionKind.EmailMarketing, "email-unsubscribe")]
         [InlineData(FeedbackGuestResponseChannel.Sms, "+447911123456", LocationGuestPermissionKind.SmsMarketing, "sms-stop")]
         [InlineData(FeedbackGuestResponseChannel.Email, "alex@example.com", LocationGuestPermissionKind.FeedbackFollowUp, "guest-delete")]
         [InlineData(FeedbackGuestResponseChannel.Sms, "+447911123456", LocationGuestPermissionKind.EmailMarketing, "guest-delete")]
         [InlineData(FeedbackGuestResponseChannel.Sms, "+447911123456", LocationGuestPermissionKind.SmsMarketing, "retention-purge")]
+        [InlineData(FeedbackGuestResponseChannel.Email, "alex@example.com", LocationGuestPermissionKind.EmailDelivery, "email-bounce")]
         public async Task Denied_WhenReplyChannelSuppressed(
             FeedbackGuestResponseChannel channel,
             string guestContact,
@@ -193,6 +193,162 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
         }
+
+        [Theory]
+        [InlineData("email-unsubscribe")]
+        [InlineData("email-complaint")]
+        public async Task Allowed_WhenEmailMarketingUnsubscribedOrComplained(string source)
+        {
+            // Marketing permission and Feedback service email are separate purposes.
+            // An EmailMarketing unsubscribe or complaint must not stop a genuine reply.
+            var feedback = await SeedAsync(
+                "alex@example.com",
+                followUpGranted: true,
+                marketing: LocationGuestPermissionState.Withdrawn
+            );
+            await StageSuppressionAsync(
+                feedback,
+                "alex@example.com",
+                LocationGuestPermissionKind.EmailMarketing,
+                source
+            );
+
+            Assert.Equal(
+                ServiceReplyDecision.Allowed,
+                await ServiceReplyEligibility.EvaluateAsync(
+                    _context,
+                    _suppressions,
+                    feedback,
+                    FeedbackGuestResponseChannel.Email,
+                    CancellationToken.None
+                )
+            );
+        }
+
+        [Fact]
+        public async Task Allowed_WhenEmailMarketingWithdrawnInLedger_ServiceEmailStillEligible()
+        {
+            var feedback = await SeedAsync(
+                "alex@example.com",
+                followUpGranted: true,
+                marketing: LocationGuestPermissionState.Withdrawn
+            );
+
+            Assert.Equal(
+                ServiceReplyDecision.Allowed,
+                await ServiceReplyEligibility.EvaluateAsync(
+                    _context,
+                    _suppressions,
+                    feedback,
+                    FeedbackGuestResponseChannel.Email,
+                    CancellationToken.None
+                )
+            );
+        }
+
+        [Fact]
+        public async Task EmailHardBounce_RefusesWithSafeDeliveryMessage()
+        {
+            var feedback = await SeedAsync(
+                "alex@example.com",
+                followUpGranted: true,
+                marketing: null
+            );
+            await StageSuppressionAsync(
+                feedback,
+                "alex@example.com",
+                LocationGuestPermissionKind.EmailDelivery,
+                GuestContactSuppressionSources.EmailBounce
+            );
+
+            var decision = await ServiceReplyEligibility.EvaluateAsync(
+                _context,
+                _suppressions,
+                feedback,
+                FeedbackGuestResponseChannel.Email,
+                CancellationToken.None
+            );
+
+            Assert.Equal(ServiceReplyDecision.EmailDeliveryFailure, decision);
+            Assert.Equal(
+                "Email delivery unavailable. Use a verified alternative contact method.",
+                ServiceReplyEligibility.RefusalMessage(decision)
+            );
+            Assert.DoesNotContain(
+                "alex",
+                ServiceReplyEligibility.RefusalMessage(decision)!
+            );
+        }
+
+        [Fact]
+        public async Task SmsStop_ReturnsProviderRestriction_NotDeliveryMessage()
+        {
+            var feedback = await SeedAsync(
+                "+447911123456",
+                followUpGranted: true,
+                marketing: null
+            );
+            await StageSuppressionAsync(
+                feedback,
+                "+447911123456",
+                LocationGuestPermissionKind.SmsMarketing,
+                GuestContactSuppressionSources.SmsStop
+            );
+
+            var decision = await ServiceReplyEligibility.EvaluateAsync(
+                _context,
+                _suppressions,
+                feedback,
+                FeedbackGuestResponseChannel.Sms,
+                CancellationToken.None
+            );
+
+            Assert.Equal(ServiceReplyDecision.SmsProviderRestriction, decision);
+            Assert.Equal(
+                ServiceReplyEligibility.NotAllowedMessage,
+                ServiceReplyEligibility.RefusalMessage(decision)
+            );
+        }
+
+        [Fact]
+        public void ClassifySuppressions_EmailDeliveryDoesNotBlockSms()
+        {
+            var rows = new[]
+            {
+                NewRow(LocationGuestPermissionKind.EmailDelivery, GuestContactSuppressionSources.EmailBounce),
+            };
+
+            Assert.Equal(
+                ServiceReplyDecision.Allowed,
+                ServiceReplyEligibility.ClassifySuppressions(rows, FeedbackGuestResponseChannel.Sms)
+            );
+        }
+
+        [Fact]
+        public void ClassifySuppressions_FeedbackFollowUpRowBlocksEveryChannel()
+        {
+            var rows = new[]
+            {
+                NewRow(LocationGuestPermissionKind.FeedbackFollowUp, GuestContactSuppressionSources.GuestDelete),
+            };
+
+            Assert.Equal(
+                ServiceReplyDecision.NotEligible,
+                ServiceReplyEligibility.ClassifySuppressions(rows, FeedbackGuestResponseChannel.Email)
+            );
+            Assert.Equal(
+                ServiceReplyDecision.NotEligible,
+                ServiceReplyEligibility.ClassifySuppressions(rows, FeedbackGuestResponseChannel.Sms)
+            );
+        }
+
+        private static GuestContactSuppression NewRow(LocationGuestPermissionKind kind, string source) =>
+            new()
+            {
+                PermissionKind = kind,
+                Source = source,
+                ContactHash = "hash",
+            };
 
         [Fact]
         public async Task Allowed_WhenOtherChannelUnsubscribed()

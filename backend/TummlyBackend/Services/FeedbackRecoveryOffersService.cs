@@ -107,18 +107,17 @@ namespace TummlyBackend.Services
                 channel
             );
 
-            if (
-                !await ServiceReplyEligibility.IsAllowedAsync(
-                    _context,
-                    _suppressions,
-                    feedback,
-                    channel,
-                    cancellationToken
-                )
-            )
+            var decision = await ServiceReplyEligibility.EvaluateAsync(
+                _context,
+                _suppressions,
+                feedback,
+                channel,
+                cancellationToken
+            );
+            if (decision != ServiceReplyDecision.Allowed)
             {
                 throw new ArgumentException(
-                    ServiceReplyEligibility.NotAllowedMessage
+                    ServiceReplyEligibility.RefusalMessage(decision)
                 );
             }
 
