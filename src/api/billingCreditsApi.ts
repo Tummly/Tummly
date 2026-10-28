@@ -13,6 +13,8 @@ import type {
   UpdateBillingContactsPayload,
 } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 import type { CreditsUsageSnapshot } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
+import type { ManagePlanCatalogPlanRow } from "@/lib/operatorBillingCredits/managePlanPresentation"
+import type { CreditTopUpPack } from "@/lib/operatorBillingCredits/creditTopUpPresentation"
 
 type PaymentMethodResponse = BillingCreditsPageData["paymentMethod"] extends infer T
   ? T extends { kind: string }
@@ -49,7 +51,41 @@ type BillingCreditsPageResponse = {
   vatModeActive?: boolean
   currentCatalog?: {
     vatRateBps?: number
+    plans?: Array<{
+      id: string
+      monthlyNetPence: number
+      annualNetPence: number
+      extraLocationNetPence?: number | null
+      extraLocationAnnualNetPence?: number | null
+    }>
+    topUpPacks?: Array<{
+      channel: string
+      quantity: number
+      netPence: number
+    }>
   }
+}
+
+function mapCatalogPlans(
+  raw: BillingCreditsPageResponse["currentCatalog"]
+): ManagePlanCatalogPlanRow[] {
+  return (raw?.plans ?? []).map((plan) => ({
+    id: plan.id,
+    monthlyNetPence: plan.monthlyNetPence,
+    annualNetPence: plan.annualNetPence,
+    extraLocationMonthlyNetPence: plan.extraLocationNetPence ?? null,
+    extraLocationAnnualNetPence: plan.extraLocationAnnualNetPence ?? null,
+  }))
+}
+
+function mapCatalogTopUpPacks(
+  raw: BillingCreditsPageResponse["currentCatalog"]
+): CreditTopUpPack[] {
+  return (raw?.topUpPacks ?? []).map((pack) => ({
+    channel: pack.channel as CreditTopUpPack["channel"],
+    quantity: pack.quantity,
+    netPence: pack.netPence,
+  }))
 }
 
 function mapPaymentMethod(
@@ -118,6 +154,8 @@ export async function getBillingCreditsPage(): Promise<BillingCreditsPageData> {
     vatModeActive: data.vatModeActive ?? false,
     currentCatalog: {
       vatRateBps: data.currentCatalog?.vatRateBps ?? 0,
+      plans: mapCatalogPlans(data.currentCatalog),
+      topUpPacks: mapCatalogTopUpPacks(data.currentCatalog),
     },
   }
 }

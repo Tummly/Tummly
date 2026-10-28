@@ -29,7 +29,9 @@ import {
   type CreditsUsageTableRowViewModel,
 } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 import {
+  buildGroupExtraLocationPrice,
   buildManagePlanCardViewModels,
+  buildManagePlanCatalogPrices,
   buildPlanChangeConfirmCopy,
   buildAdditionalGroupLocationViewModel,
   buildExtraLocationRemoveConfirmCopy,
@@ -47,6 +49,8 @@ import {
   type CancelPlanReason,
   type ManagePlanActionConfirmDialog,
   type ManagePlanCardViewModel,
+  type ManagePlanCatalogPlanRow,
+  type ManagePlanCatalogPrice,
   type ManagePlanId,
   type PlanChangeKind,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
@@ -55,6 +59,7 @@ import {
   buildCreditTopUpConfirmCopy,
   type CreditTopUpCardViewModel,
   type CreditTopUpConfirmViewModel,
+  type CreditTopUpPack,
 } from "@/lib/operatorBillingCredits/creditTopUpPresentation"
 import {
   isAccountLockedBillingStatus,
@@ -176,6 +181,10 @@ export type BillingCreditsPageData = {
   vatModeActive: boolean
   currentCatalog: {
     vatRateBps: number
+    /** Server Plan prices. Drives Manage plan cards and the Group location price. */
+    plans: ManagePlanCatalogPlanRow[]
+    /** Server top-up packs. Drives the credit top-up cards. */
+    topUpPacks: CreditTopUpPack[]
   }
 }
 
@@ -294,6 +303,8 @@ export type BillingCreditsSnapshot = {
   managePlanLockMode: "none" | "pilot-restore" | "dunning"
   /** Effective catalog VAT rate (bps); 0 hides “+ VAT” chrome. */
   vatRateBps: number
+  /** Extra Group Location price from the catalogue; null when not published. */
+  groupExtraLocation: ManagePlanCatalogPrice | null
   vatModeActive: boolean
   /** False when rate is 0 — hide Manage plan VAT notice. */
   showVatNotice: boolean
@@ -621,6 +632,7 @@ export function createOperatorBillingCreditsPageModule(
       canBuy: canBuyCreditTopUp() && !locked,
       selectedPackByChannel,
       focusedChannel: focusedTopUpChannel,
+      topUpPacks: data?.currentCatalog.topUpPacks ?? [],
       vatRateBps: resolveVatRateBps(),
     })
   }
@@ -758,6 +770,9 @@ export function createOperatorBillingCreditsPageModule(
             plan,
             previewCadence,
             lockMode: managePlanLockMode,
+            catalogPrices: buildManagePlanCatalogPrices(
+              data?.currentCatalog.plans ?? []
+            ),
             vatRateBps: resolveVatRateBps(),
           })
         : []
@@ -809,6 +824,9 @@ export function createOperatorBillingCreditsPageModule(
       planSubscription: plan,
       managePlanLockMode,
       vatRateBps: resolveVatRateBps(),
+      groupExtraLocation: buildGroupExtraLocationPrice(
+        data?.currentCatalog.plans ?? []
+      ),
       vatModeActive: data?.vatModeActive ?? false,
       showVatNotice: showsBillingVatChrome(resolveVatRateBps()),
       creditsUsage,
