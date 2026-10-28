@@ -6,16 +6,12 @@ import { MarketingLogo } from "@/components/marketing/MarketingLogo"
 import { PRODUCT_DEMO } from "@/content/marketing/productDemoPage"
 
 type DemoExitModalProps = {
-  onContinueExploring: () => void
   /** Clear demo session then go to this path (home, pricing, signup). */
   onLeaveDemo: (to: string) => void
 }
 
 /** Figma exit card `5712:20214` — Ready to try with your own guests. */
-export function DemoExitModal({
-  onContinueExploring,
-  onLeaveDemo,
-}: DemoExitModalProps) {
+export function DemoExitModal({ onLeaveDemo }: DemoExitModalProps) {
   const copy = PRODUCT_DEMO.exit
 
   return (
@@ -58,49 +54,39 @@ export function DemoExitModal({
           </div>
         </div>
 
-        <div className="flex w-full flex-col gap-[26px]">
-          <div className="flex w-full flex-col gap-3 sm:flex-row sm:gap-5">
-            <MarketingButton
-              variant="primary"
-              showArrow
-              asChild
-              className="w-full flex-1"
-            >
-              <Link
-                to={copy.primaryTo}
-                onClick={(event) => {
-                  event.preventDefault()
-                  onLeaveDemo(copy.primaryTo)
-                }}
-              >
-                {copy.primaryLabel}
-              </Link>
-            </MarketingButton>
-            <MarketingButton
-              variant="secondary"
-              showArrow={false}
-              asChild
-              className="w-full flex-1"
-            >
-              <Link
-                to={copy.secondaryTo}
-                onClick={(event) => {
-                  event.preventDefault()
-                  onLeaveDemo(copy.secondaryTo)
-                }}
-              >
-                {copy.secondaryLabel}
-              </Link>
-            </MarketingButton>
-          </div>
-          <div className="h-px w-full bg-[#ebebeb]" />
-          <button
-            type="button"
-            onClick={onContinueExploring}
-            className="font-sans text-center text-sm font-medium tracking-[0.4px] text-[#14a74a] underline underline-offset-2"
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:gap-5">
+          <MarketingButton
+            variant="primary"
+            showArrow
+            asChild
+            className="w-full flex-1"
           >
-            {copy.continueLabel}
-          </button>
+            <Link
+              to={copy.primaryTo}
+              onClick={(event) => {
+                event.preventDefault()
+                onLeaveDemo(copy.primaryTo)
+              }}
+            >
+              {copy.primaryLabel}
+            </Link>
+          </MarketingButton>
+          <MarketingButton
+            variant="secondary"
+            showArrow={false}
+            asChild
+            className="w-full flex-1"
+          >
+            <Link
+              to={copy.secondaryTo}
+              onClick={(event) => {
+                event.preventDefault()
+                onLeaveDemo(copy.secondaryTo)
+              }}
+            >
+              {copy.secondaryLabel}
+            </Link>
+          </MarketingButton>
         </div>
       </div>
     </div>
