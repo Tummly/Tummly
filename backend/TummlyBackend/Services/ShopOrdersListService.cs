@@ -351,25 +351,36 @@ namespace TummlyBackend.Services
         {
             var deliveredCutoff = utcNow.AddDays(-90);
 
+            // Dispatched and delivered counts need carrier evidence, the same
+            // rule the labels use. A stored dispatch without evidence is still
+            // in progress: its label reads the stage before dispatch.
             return new ShopOrderListAggregatesDto
             {
-                InProgress = await scoped.CountAsync(
-                    row =>
-                        row.FulfilmentStatus == ShopFulfilmentStatuses.Processing,
-                    cancellationToken
-                ),
-                Dispatched = await scoped.CountAsync(
-                    row =>
-                        row.FulfilmentStatus == ShopFulfilmentStatuses.InTransit,
-                    cancellationToken
-                ),
-                DeliveredLast90Days = await scoped.CountAsync(
-                    row =>
-                        row.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
-                        && row.DeliveredAtUtc != null
-                        && row.DeliveredAtUtc >= deliveredCutoff,
-                    cancellationToken
-                ),
+                InProgress =
+                    await scoped.CountAsync(
+                        row =>
+                            row.FulfilmentStatus == ShopFulfilmentStatuses.Processing,
+                        cancellationToken
+                    )
+                    + await scoped
+                        .Where(ShopOrderDispatchEvidence.MissingExpression)
+                        .CountAsync(cancellationToken),
+                Dispatched = await scoped
+                    .Where(ShopOrderDispatchEvidence.CompleteExpression)
+                    .CountAsync(
+                        row =>
+                            row.FulfilmentStatus == ShopFulfilmentStatuses.InTransit,
+                        cancellationToken
+                    ),
+                DeliveredLast90Days = await scoped
+                    .Where(ShopOrderDispatchEvidence.CompleteExpression)
+                    .CountAsync(
+                        row =>
+                            row.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                            && row.DeliveredAtUtc != null
+                            && row.DeliveredAtUtc >= deliveredCutoff,
+                        cancellationToken
+                    ),
             };
         }
 

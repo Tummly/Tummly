@@ -97,6 +97,10 @@ namespace TummlyBackend.Tests.Integration
                 if (fulfilment is ShopFulfilmentStatuses.InTransit or ShopFulfilmentStatuses.Delivered)
                 {
                     order.DispatchedAtUtc = DateTime.UtcNow.AddHours(-6);
+                    order.DispatchSource = ShopFulfilmentEvidenceSources.AdminManual;
+                    order.DispatchedByAdminUserId = 1;
+                    order.DispatchCarrierName = "DPD";
+                    order.DispatchCarrierReference = "DPD-123";
                 }
 
                 if (fulfilment == ShopFulfilmentStatuses.Delivered)
@@ -187,6 +191,36 @@ namespace TummlyBackend.Tests.Integration
             Assert.Null(
                 detail.GetProperty("progress").GetProperty("trackingUrl").GetString()
             );
+        }
+
+        [Fact]
+        public async Task LegacyDispatchWithoutCarrierEvidence_ReadsInProductionAndHidesDispatchFacts()
+        {
+            // Round 1 shape: dispatch time and tracking URL, no carrier evidence.
+            var (workspace, orderId) = await SeedOrderAsync(order =>
+            {
+                order.PaymentStatus = ShopPaymentStatuses.Paid;
+                order.FulfilmentStatus = ShopFulfilmentStatuses.InTransit;
+                order.PreparationStartedAtUtc = DateTime.UtcNow.AddDays(-2);
+                order.ProductionStartedAtUtc = DateTime.UtcNow.AddDays(-1);
+                order.DispatchedAtUtc = DateTime.UtcNow.AddHours(-6);
+                order.TrackingUrl = "https://track.example/legacy";
+            });
+
+            var detail = await GetDetailAsync(workspace, orderId);
+            var item = await GetListItemAsync(workspace, orderId);
+
+            Assert.Equal(
+                "In production",
+                detail.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+            Assert.Equal(
+                "In production",
+                item.GetProperty("fulfilmentStatusLabel").GetString()
+            );
+            var progress = detail.GetProperty("progress");
+            Assert.Equal(JsonValueKind.Null, progress.GetProperty("dispatchedAtUtc").ValueKind);
+            Assert.Equal(JsonValueKind.Null, progress.GetProperty("trackingUrl").ValueKind);
         }
 
         [Fact]

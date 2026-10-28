@@ -265,6 +265,8 @@ namespace TummlyBackend.Tests.Integration
                 sequence.NextNumber = nextNumber + 1;
             }
 
+            var dispatched = fulfilmentStatus is ShopFulfilmentStatuses.InTransit
+                or ShopFulfilmentStatuses.Delivered;
             var order = new ShopOrder
             {
                 Id = Guid.NewGuid(),
@@ -288,10 +290,14 @@ namespace TummlyBackend.Tests.Integration
                     fulfilmentStatus == ShopFulfilmentStatuses.Processing
                         ? DateTime.UtcNow.AddDays(-1)
                         : null,
-                DispatchedAtUtc =
-                    fulfilmentStatus == ShopFulfilmentStatuses.InTransit
-                        ? DateTime.UtcNow.AddHours(-6)
-                        : null,
+                DispatchedAtUtc = dispatched ? DateTime.UtcNow.AddHours(-6) : null,
+                // Dispatched and delivered orders carry carrier evidence.
+                DispatchSource = dispatched
+                    ? ShopFulfilmentEvidenceSources.AdminManual
+                    : null,
+                DispatchedByAdminUserId = dispatched ? 1 : null,
+                DispatchCarrierName = dispatched ? "DPD" : null,
+                DispatchCarrierReference = dispatched ? "DPD-123" : null,
                 DeliveredAtUtc = deliveredAtUtc,
                 TrackingUrl = trackingUrl,
                 OpsNotes = opsNotes,
