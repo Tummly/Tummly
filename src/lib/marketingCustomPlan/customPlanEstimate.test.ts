@@ -191,6 +191,11 @@ function quoteFixture(
     storedAsPlan: "Starter",
     quoteHash: "0123456789abcdef0123456789abcdef",
     vatRateBps: 0,
+    vatAmountPence: 0,
+    grossTotalPence: 3900,
+    recurringGrossPence: 3900,
+    dueNowGrossPence: 3900,
+    effectiveTiming: "on_payment_confirmed",
     ...overrides,
   }
 }

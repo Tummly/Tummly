@@ -410,6 +410,15 @@ export type CustomPlanQuoteResult = {
   /** 32 lower-hex characters. Sent back at signup to detect a changed quote. */
   quoteHash: string
   vatRateBps: number
+  /** VAT on the period net total, from the server. */
+  vatAmountPence: number
+  grossTotalPence: number
+  /** Gross amount charged at each later renewal. */
+  recurringGrossPence: number
+  /** Gross amount due at checkout (signup: the first period in full). */
+  dueNowGrossPence: number
+  /** When the plan starts; signup: "on_payment_confirmed". */
+  effectiveTiming: string
 }
 
 function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
@@ -456,6 +465,11 @@ function mapQuoteResult(raw: Record<string, unknown>): CustomPlanQuoteResult {
     storedAsPlan: String(raw.storedAsPlan ?? "Custom"),
     quoteHash: String(raw.quoteHash ?? ""),
     vatRateBps: Number(raw.vatRateBps ?? 0),
+    vatAmountPence: Number(raw.vatAmountPence ?? 0),
+    grossTotalPence: Number(raw.grossTotalPence ?? 0),
+    recurringGrossPence: Number(raw.recurringGrossPence ?? 0),
+    dueNowGrossPence: Number(raw.dueNowGrossPence ?? 0),
+    effectiveTiming: String(raw.effectiveTiming ?? "on_payment_confirmed"),
   }
 }
 

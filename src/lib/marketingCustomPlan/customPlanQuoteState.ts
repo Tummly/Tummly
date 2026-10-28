@@ -247,3 +247,14 @@ export function quoteHashChanged(
 ): boolean {
   return savedHash != null && savedHash !== "" && savedHash !== readyHash
 }
+
+/**
+ * The price confirmation counts only for the ready quote it was ticked on.
+ * Any new quote hash, or no ready quote, leaves it unconfirmed.
+ */
+export function isPriceConfirmed(
+  confirmedHash: string | null,
+  readyHash: string | null,
+): boolean {
+  return readyHash != null && confirmedHash === readyHash
+}

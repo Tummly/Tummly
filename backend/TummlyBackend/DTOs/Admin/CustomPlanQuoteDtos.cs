@@ -64,6 +64,32 @@ namespace TummlyBackend.DTOs.Admin
         [JsonPropertyName("vatRateBps")]
         public int VatRateBps { get; set; }
 
+        /// <summary>VAT on <see cref="PeriodNetPence"/> at <see cref="VatRateBps"/>.</summary>
+        [JsonPropertyName("vatAmountPence")]
+        public int VatAmountPence { get; set; }
+
+        /// <summary><see cref="PeriodNetPence"/> plus <see cref="VatAmountPence"/>.</summary>
+        [JsonPropertyName("grossTotalPence")]
+        public int GrossTotalPence { get; set; }
+
+        /// <summary>Gross amount charged at each later renewal, at the same cadence.</summary>
+        [JsonPropertyName("recurringGrossPence")]
+        public int RecurringGrossPence { get; set; }
+
+        /// <summary>
+        /// Gross amount due at checkout. Signup starts a new subscription, so this is
+        /// the first period in full (no proration).
+        /// </summary>
+        [JsonPropertyName("dueNowGrossPence")]
+        public int DueNowGrossPence { get; set; }
+
+        /// <summary>
+        /// When the plan and its capacity start. Signup: on confirmed payment
+        /// (<see cref="CustomPlanEffectiveTimings.OnPaymentConfirmed"/>).
+        /// </summary>
+        [JsonPropertyName("effectiveTiming")]
+        public string EffectiveTiming { get; set; } = CustomPlanEffectiveTimings.OnPaymentConfirmed;
+
         /// <summary>32 lower-hex chars; see <see cref="CustomPlanQuoteHash"/>.</summary>
         [JsonPropertyName("quoteHash")]
         public string QuoteHash { get; set; } = string.Empty;
@@ -137,5 +163,10 @@ namespace TummlyBackend.DTOs.Admin
 
         /// <summary>Server price for one pack. Null when the rate row is missing.</summary>
         public int? AnnualNetPence { get; set; }
+    }
+
+    public static class CustomPlanEffectiveTimings
+    {
+        public const string OnPaymentConfirmed = "on_payment_confirmed";
     }
 }

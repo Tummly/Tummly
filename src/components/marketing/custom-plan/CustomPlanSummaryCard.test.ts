@@ -31,6 +31,11 @@ const MONTHLY_QUOTE: CustomPlanQuoteResult = {
   storedAsPlan: "Starter",
   quoteHash: "0123456789abcdef0123456789abcdef",
   vatRateBps: 0,
+  vatAmountPence: 0,
+  grossTotalPence: 3900,
+  recurringGrossPence: 3900,
+  dueNowGrossPence: 3900,
+  effectiveTiming: "on_payment_confirmed",
 }
 
 function renderCard(cadence: "monthly" | "annual", quote = MONTHLY_QUOTE) {
@@ -65,5 +70,50 @@ describe("CustomPlanSummaryCard total", () => {
     const html = renderCard("annual")
     expect(cadenceButton(html, "Annual")).toContain('aria-pressed="true"')
     expect(cadenceButton(html, "Monthly")).toContain('aria-pressed="false"')
+  })
+})
+
+describe("CustomPlanSummaryCard breakdown", () => {
+  const VAT_QUOTE: CustomPlanQuoteResult = {
+    ...MONTHLY_QUOTE,
+    cadence: "annual",
+    periodNetPence: 10000,
+    vatRateBps: 2000,
+    vatAmountPence: 2000,
+    grossTotalPence: 12000,
+    recurringGrossPence: 12000,
+    dueNowGrossPence: 12000,
+  }
+
+  function renderWith(showBreakdown: boolean) {
+    return renderToStaticMarkup(
+      createElement(
+        MemoryRouter,
+        null,
+        createElement(CustomPlanSummaryCard, {
+          quote: VAT_QUOTE,
+          cadence: "annual",
+          showBreakdown,
+        }),
+      ),
+    )
+  }
+
+  it("shows the server VAT, gross, due now, recurring amount and start", () => {
+    const html = renderWith(true)
+    expect(html).toContain("Quote breakdown")
+    expect(html).toContain("Annual")
+    expect(html).toContain("Total before VAT")
+    expect(html).toContain("£100")
+    expect(html).toContain("£20")
+    expect(html).toContain("Total including VAT")
+    expect(html).toContain("£120")
+    expect(html).toContain("Due now")
+    expect(html).toContain("Each year after")
+    expect(html).toContain("When payment is confirmed")
+  })
+
+  it("is off unless asked for", () => {
+    expect(renderWith(false)).not.toContain("Quote breakdown")
   })
 })

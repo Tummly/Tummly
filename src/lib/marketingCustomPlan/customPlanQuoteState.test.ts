@@ -5,6 +5,7 @@ import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import {
   checkLocationInput,
   checkPackCount,
+  isPriceConfirmed,
   formatPenceGbp,
   packCountMessage,
   parseTypedCount,
@@ -42,6 +43,11 @@ function quote(
     storedAsPlan: "Custom",
     quoteHash: "a".repeat(32),
     vatRateBps: 0,
+    vatAmountPence: 0,
+    grossTotalPence: 3900,
+    recurringGrossPence: 3900,
+    dueNowGrossPence: 3900,
+    effectiveTiming: "on_payment_confirmed",
     ...partial,
   }
 }
@@ -316,5 +322,23 @@ describe("quoteHashChanged", () => {
   it("is false when no hash was saved", () => {
     expect(quoteHashChanged(undefined, "b".repeat(32))).toBe(false)
     expect(quoteHashChanged("", "b".repeat(32))).toBe(false)
+  })
+})
+
+describe("isPriceConfirmed", () => {
+  it("is not confirmed by default", () => {
+    expect(isPriceConfirmed(null, "a".repeat(32))).toBe(false)
+  })
+
+  it("is confirmed only for the hash that was ticked", () => {
+    expect(isPriceConfirmed("a".repeat(32), "a".repeat(32))).toBe(true)
+  })
+
+  it("is invalid again after a new quote hash", () => {
+    expect(isPriceConfirmed("a".repeat(32), "b".repeat(32))).toBe(false)
+  })
+
+  it("is not confirmed without a ready quote", () => {
+    expect(isPriceConfirmed("a".repeat(32), null)).toBe(false)
   })
 })

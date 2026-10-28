@@ -334,6 +334,53 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("pilot_no_capacity_addons", ex.Code);
         }
 
+        [Theory]
+        [InlineData("monthly", 0)]
+        [InlineData("monthly", 2000)]
+        [InlineData("annual", 2000)]
+        public async Task Quote_ReturnsVatGrossRecurringDueNowAndEffectiveTiming(
+            string cadence,
+            int vatActiveBps
+        )
+        {
+            var sut = new CustomPlanQuoteService(
+                _db,
+                Options.Create(new TummlySellerVatSettings { IsActive = vatActiveBps > 0 })
+            );
+
+            var quote = await sut.QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = cadence,
+                    BasePlan = "starter",
+                    Locations = 1,
+                    Packs = new Dictionary<string, decimal> { ["team_user"] = 7 },
+                }
+            );
+
+            var net = quote.PeriodNetPence;
+            var expectedVat = vatActiveBps > 0 ? (int)Math.Round(net * 0.2m, MidpointRounding.AwayFromZero) : 0;
+            Assert.Equal(vatActiveBps, quote.VatRateBps);
+            Assert.Equal(expectedVat, quote.VatAmountPence);
+            Assert.Equal(net + expectedVat, quote.GrossTotalPence);
+            Assert.Equal(quote.GrossTotalPence, quote.RecurringGrossPence);
+            Assert.Equal(quote.GrossTotalPence, quote.DueNowGrossPence);
+            Assert.Equal(CustomPlanEffectiveTimings.OnPaymentConfirmed, quote.EffectiveTiming);
+        }
+
+        [Fact]
+        public async Task Quote_HashCoversAnyChangeToUnitsOrCadence()
+        {
+            var a = await QuoteWithAsync("monthly", "team_user", 7);
+            var sameAgain = await QuoteWithAsync("monthly", "team_user", 7);
+            var moreUnits = await QuoteWithAsync("monthly", "team_user", 8);
+            var annual = await QuoteWithAsync("annual", "team_user", 7);
+
+            Assert.Equal(a.QuoteHash, sameAgain.QuoteHash);
+            Assert.NotEqual(a.QuoteHash, moreUnits.QuoteHash);
+            Assert.NotEqual(a.QuoteHash, annual.QuoteHash);
+        }
+
         [Fact]
         public void CapacityPacks_AreSingleUnits()
         {

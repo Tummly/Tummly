@@ -32,6 +32,11 @@ function quote(
     storedAsPlan: "Custom",
     quoteHash: "b".repeat(32),
     vatRateBps: 0,
+    vatAmountPence: 0,
+    grossTotalPence: 3900,
+    recurringGrossPence: 3900,
+    dueNowGrossPence: 3900,
+    effectiveTiming: "on_payment_confirmed",
     ...partial,
   }
 }

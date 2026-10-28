@@ -63,6 +63,59 @@ export function CustomPlanQuoteStatus({
   )
 }
 
+/**
+ * Full server quote for the price confirmation: period, net, VAT, gross, what is
+ * due now, the recurring amount and when the plan starts. No browser arithmetic.
+ */
+export function CustomPlanQuoteBreakdown({
+  quote,
+}: {
+  quote: CustomPlanQuoteResult
+}) {
+  const copy = CUSTOM_PLAN_QUOTE_COPY.breakdown
+  const annual = quote.cadence === "annual"
+  const rows: { label: string; value: string }[] = [
+    {
+      label: copy.billing,
+      value: annual ? PRICING_CADENCE_COPY.annual : PRICING_CADENCE_COPY.monthly,
+    },
+    { label: copy.net, value: formatPenceGbp(quote.periodNetPence) },
+    {
+      label: copy.vat,
+      value: formatPenceGbp(quote.vatAmountPence),
+    },
+    { label: copy.gross, value: formatPenceGbp(quote.grossTotalPence) },
+    { label: copy.dueNow, value: formatPenceGbp(quote.dueNowGrossPence) },
+    {
+      label: annual ? copy.recurringAnnual : copy.recurringMonthly,
+      value: formatPenceGbp(quote.recurringGrossPence),
+    },
+    {
+      label: copy.effective,
+      value:
+        quote.effectiveTiming === "on_payment_confirmed"
+          ? copy.effectiveOnPayment
+          : quote.effectiveTiming,
+    },
+  ]
+  return (
+    <dl
+      aria-label="Quote breakdown"
+      className="m-0 flex flex-col gap-3 font-sans text-sm text-[#141414]"
+    >
+      {rows.map((row) => (
+        <div
+          key={row.label}
+          className="flex items-center justify-between gap-3"
+        >
+          <dt className="m-0 font-normal">{row.label}</dt>
+          <dd className="m-0 font-medium">{row.value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
 export type CustomPlanSummaryCardProps = {
   quote: CustomPlanQuoteResult
   cadence: BillingCadence
@@ -77,6 +130,8 @@ export type CustomPlanSummaryCardProps = {
   contactHref?: string
   showCadenceToggle?: boolean
   showActions?: boolean
+  /** Show VAT, gross total, due now, recurring amount and start. For the price confirmation. */
+  showBreakdown?: boolean
   checkoutNote?: string
   /** Quote status under the total: loading, failed or changed (doc 08). */
   statusMessage?: string | null
@@ -107,6 +162,7 @@ export function CustomPlanSummaryCard({
   contactHref = HELP_CENTRE_CONTACT_URL,
   showCadenceToggle = true,
   showActions = true,
+  showBreakdown = false,
   checkoutNote = CUSTOM_PLAN_QUOTE_COPY.noPaymentTaken,
   statusMessage = null,
   showRetry = false,
@@ -288,6 +344,7 @@ export function CustomPlanSummaryCard({
                 </span>
               </p>
             </div>
+            {showBreakdown ? <CustomPlanQuoteBreakdown quote={quote} /> : null}
             {statusMessage != null && statusMessage !== "" ? (
               <CustomPlanQuoteStatus
                 message={statusMessage}

@@ -18,6 +18,7 @@ import {
   type CustomPlanBasePlanKey,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import {
+  isPriceConfirmed,
   lastQuote,
   quoteHashChanged,
   quoteView,
@@ -140,7 +141,7 @@ export function SignupReviewPlanStep({
   // A changed price needs its own confirmation: the hash of the ready quote the customer confirmed.
   const readyHash = state.status === "ready" ? state.quote.quoteHash : null
   const priceChanged = quoteChanged || restoredHashChanged
-  const priceConfirmed = readyHash != null && confirmedHash === readyHash
+  const priceConfirmed = isPriceConfirmed(confirmedHash, readyHash)
 
   const quote = lastQuote(state)
   const waitingForCatalogue = selectable && config == null && plainLocations == null
@@ -206,6 +207,7 @@ export function SignupReviewPlanStep({
           cadence={cadenceState}
           onCadenceChange={handleCadenceChange}
           showActions={false}
+          showBreakdown
           statusMessage={view?.message ?? null}
           showRetry={view?.showRetry ?? false}
           onRetry={retry}

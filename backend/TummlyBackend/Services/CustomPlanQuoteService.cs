@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -293,6 +294,16 @@ namespace TummlyBackend.Services
                 // Checkout charges the seller VAT setting, not the catalogue row.
                 VatRateBps = _sellerVat.EffectiveVatRateBps,
             };
+            // Signup starts a new subscription: the first period is due in full and
+            // the plan starts on confirmed payment. Renewals charge the same amount.
+            quote.VatAmountPence = TummlyVatMath.VatPenceFromNetPence(
+                periodNetPence,
+                quote.VatRateBps
+            );
+            quote.GrossTotalPence = periodNetPence + quote.VatAmountPence;
+            quote.RecurringGrossPence = quote.GrossTotalPence;
+            quote.DueNowGrossPence = quote.GrossTotalPence;
+            quote.EffectiveTiming = CustomPlanEffectiveTimings.OnPaymentConfirmed;
             quote.QuoteHash = CustomPlanQuoteHash.Compute(quote);
             return quote;
         }

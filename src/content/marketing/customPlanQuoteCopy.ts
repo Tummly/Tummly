@@ -23,6 +23,18 @@ export const CUSTOM_PLAN_QUOTE_COPY = {
   unitEmpty: "Enter a number. Use 0 for none.",
   unitNotWhole: "Enter a whole number.",
   unitOverLimit: "Maximum 500 per option.",
+  /** Short labels for the full quote shown beside the price confirmation. */
+  breakdown: {
+    billing: "Billing",
+    net: "Total before VAT",
+    vat: "VAT",
+    gross: "Total including VAT",
+    dueNow: "Due now",
+    recurringMonthly: "Each month after",
+    recurringAnnual: "Each year after",
+    effective: "Starts",
+    effectiveOnPayment: "When payment is confirmed",
+  },
   noPaymentTaken:
     "No payment is taken until you confirm your subscription and payment details at checkout.",
   /** Temporary until Director D7; shown only when vatRateBps > 0. */
