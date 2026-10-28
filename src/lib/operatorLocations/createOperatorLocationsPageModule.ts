@@ -16,6 +16,10 @@ import {
   type LocationsListResponse,
 } from "@/lib/operatorLocations/locationsListQueryParams"
 import {
+  normalizePremisesReviewWire,
+  type PremisesReviewWire,
+} from "@/lib/operatorLocations/premisesReviewPresentation"
+import {
   buildLocationsKpis,
   formatLocationsLastActivityAt,
   formatLocationsPageRange,
@@ -36,6 +40,9 @@ import {
   type LocationsTabId,
 } from "@/lib/operatorLocations/locationsPresentation"
 
+/** Result of a single Add Location. `needsReview`: saved as Draft for the premises review. */
+export type CreateDraftOutcome = { needsReview: boolean }
+
 export type LocationsTableRow = {
   id: string
   name: string
@@ -47,6 +54,7 @@ export type LocationsTableRow = {
   cityId: string
   lastActivityLabel: string
   searchText: string
+  premisesReviewStatus: PremisesReviewWire | null
 }
 
 export type LocationsSnapshot = {
@@ -89,7 +97,7 @@ export type OperatorLocationsPageAdapters = {
     postcode: string
     locationPhone?: string
     localContact?: string
-  }) => Promise<void>
+  }) => Promise<CreateDraftOutcome | void>
   importDrafts?: (
     rows: Array<{
       locationName: string
@@ -98,6 +106,7 @@ export type OperatorLocationsPageAdapters = {
       postcode: string
       locationPhone?: string
       localContact?: string
+      fsaEstablishmentId?: string
     }>
   ) => Promise<{
     createdCount: number
@@ -140,7 +149,7 @@ export type OperatorLocationsPageModule = {
     postcode: string
     locationPhone?: string
     localContact?: string
-  }) => Promise<void>
+  }) => Promise<CreateDraftOutcome>
   importDrafts: (
     rows: Array<{
       locationName: string
@@ -149,6 +158,7 @@ export type OperatorLocationsPageModule = {
       postcode: string
       locationPhone?: string
       localContact?: string
+      fsaEstablishmentId?: string
     }>
   ) => Promise<{
     createdCount: number
@@ -179,6 +189,7 @@ function mapApiRowToTableRow(
     cityId: row.cityId ?? "",
     lastActivityLabel: formatLocationsLastActivityAt(row.lastActivityAt, now),
     searchText: (row.searchText ?? "").toLowerCase(),
+    premisesReviewStatus: normalizePremisesReviewWire(row.premisesReviewStatus),
   }
 }
 
@@ -509,9 +520,10 @@ export function createOperatorLocationsPageModule(
       if (adapters.createDraft == null) {
         throw new Error("Create draft is not configured.")
       }
-      await adapters.createDraft(input)
+      const outcome = await adapters.createDraft(input)
       page = 1
       await fetchListAndActivity()
+      return outcome ?? { needsReview: false }
     },
     importDrafts: async (rows) => {
       if (adapters.importDrafts == null) {

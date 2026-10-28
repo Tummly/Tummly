@@ -9,9 +9,9 @@ describe("isPossibleDuplicatePremises", () => {
   it("is true only for the possible_duplicate_premises code", () => {
     const duplicate = {
       code: "possible_duplicate_premises",
-      scope: "same_workspace",
+      message: "Possible duplicate premises. Saved as Draft for review.",
     }
-    const cap = { code: "location_cap_reached", scope: "x" }
+    const cap = { code: "location_cap_reached" }
 
     expect(isPossibleDuplicatePremises(duplicate)).toBe(true)
     expect(isPossibleDuplicatePremises(cap)).toBe(false)

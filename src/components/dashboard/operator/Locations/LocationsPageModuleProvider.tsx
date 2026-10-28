@@ -40,7 +40,8 @@ export function LocationsPageModuleProvider({
         getList: getLocationsList,
         getActivity: getLocationsActivity,
         createDraft: async (input) => {
-          await createOwnedLocation(input)
+          const created = await createOwnedLocation(input)
+          return { needsReview: isPossibleDuplicatePremises(created.warning) }
         },
         importDrafts: async (rows) => {
           const result = await importOwnedLocations(rows)

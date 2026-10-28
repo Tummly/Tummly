@@ -330,6 +330,46 @@ describe("createOperatorLocationsPageModule", () => {
     expect(getActivity).toHaveBeenCalledTimes(1)
   })
 
+  it("reports whether createDraft needs the premises review", async () => {
+    const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => emptyActivity())
+    const createDraft = vi
+      .fn()
+      .mockResolvedValueOnce({ needsReview: true })
+      .mockResolvedValueOnce(undefined)
+    const module = createOperatorLocationsPageModule({
+      getList,
+      getActivity,
+      createDraft,
+      debounceMs: 0,
+    })
+    await module.load()
+    const input = {
+      locationName: "New Draft",
+      address: "1 High Street",
+      city: "Leeds",
+      postcode: "LS1 1AA",
+    }
+
+    expect(await module.createDraft(input)).toEqual({ needsReview: true })
+    expect(await module.createDraft(input)).toEqual({ needsReview: false })
+  })
+
+  it("maps the premises review status onto the table row", async () => {
+    const response = apiResponse()
+    response.rows[1] = { ...response.rows[1]!, premisesReviewStatus: "pending_review" }
+    const module = createOperatorLocationsPageModule({
+      getList: vi.fn(async () => response),
+      getActivity: vi.fn(async () => emptyActivity()),
+      debounceMs: 0,
+    })
+    await module.load()
+
+    const rows = module.getSnapshot().rows
+    expect(rows[0]?.premisesReviewStatus).toBeNull()
+    expect(rows[1]?.premisesReviewStatus).toBe("pending_review")
+  })
+
   it("refreshes list and activity after importDrafts succeeds", async () => {
     const getList = vi.fn(async () => apiResponse())
     const getActivity = vi.fn(async () => emptyActivity())

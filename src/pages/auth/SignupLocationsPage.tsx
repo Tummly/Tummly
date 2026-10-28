@@ -287,16 +287,24 @@ function SignupLocationsPage() {
           setAddError(null)
           try {
             const created = await createOwnedLocation(input)
-            try {
-              const activated = await activateOwnedLocation(created.locationId)
-              if (activated.accountType != null) {
-                updateAuthAccountType(activated.accountType)
+            // Same rule as import: a possible duplicate stays Draft for review.
+            const needsReview = isPossibleDuplicatePremises(created.warning)
+            if (!needsReview) {
+              try {
+                const activated = await activateOwnedLocation(created.locationId)
+                if (activated.accountType != null) {
+                  updateAuthAccountType(activated.accountType)
+                }
+              } catch {
+                // Create may already leave the location Active.
               }
-            } catch {
-              // Create may already leave the location Active.
             }
             await refresh()
-            toast.success("Location added.")
+            if (needsReview) {
+              toast.warning(POSSIBLE_DUPLICATE_PREMISES_MESSAGE)
+            } else {
+              toast.success("Location added.")
+            }
           } catch (error) {
             const message = getUserFacingApiErrorMessage(
               error,
@@ -326,6 +334,7 @@ function SignupLocationsPage() {
                 postcode: row.postcode,
                 locationPhone: row.locationPhone,
                 localContact: row.localContact,
+                fsaEstablishmentId: row.fsaEstablishmentId,
               }))
             )
 
