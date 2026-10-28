@@ -149,12 +149,19 @@ namespace TummlyBackend.Services
             return new PrivacyConsentPatchResult.Ok();
         }
 
-        public async Task<object> GetActivityAsync(int restaurantId)
+        public async Task<object> GetActivityAsync(
+            int restaurantId,
+            IReadOnlyCollection<int> accessibleLocationIds
+        )
         {
             var items = await _context.LocationActivities
                 .AsNoTracking()
                 .Where(a =>
                     a.RestaurantId == restaurantId
+                    && (
+                        a.LocationId == null
+                        || accessibleLocationIds.Contains(a.LocationId.Value)
+                    )
                     && (
                         a.Kind == LocationActivityKinds.ConsentCopyChanged
                         || a.Kind

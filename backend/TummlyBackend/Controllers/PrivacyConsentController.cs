@@ -177,7 +177,8 @@ namespace TummlyBackend.Controllers
             }
 
             var result = await _privacyConsent.GetActivityAsync(
-                decision.RestaurantId
+                decision.RestaurantId,
+                decision.LocationIds
             );
             return Ok(result);
         }
