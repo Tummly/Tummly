@@ -102,8 +102,9 @@ One transaction.
    Old `/unsubscribe?t=` links redirect to `/preferences?t=` (sent emails keep
    working for 90 days).
 2. **No link.** `/preferences` shows "Email address or UK mobile number".
-   - Email: send a signed confirm link (`/preferences?v=<token>`, 30 min,
-     single use via `OtpVerification` row) to that address.
+   - Email: send a confirm link (`/preferences?v=<otpId>.<code>`, 10 min =
+     `OtpChallengeService.CodeLifetime`, single use via `OtpVerification` row)
+     to that address. The link carries no email address.
    - Mobile: issue a 6-digit code (`OtpChallengeService`, purpose
      `guest_preferences`, SMS channel via existing SMS sender).
    - Response is always the same ("If this contact is on file…") so the
@@ -111,20 +112,21 @@ One transaction.
 3. On proof, the server finds or creates the Tummly Guest for that contact and
    returns a **preference session token** (HMAC, payload: Tummly Guest id +
    proven contact id + expiry, 30 min). The frontend keeps it in
-   `sessionStorage` and sends `Authorization: Bearer <token>`. This follows the
-   app's bearer pattern (the app uses no cookies; API is on `api.*`). The
-   token is not an operator JWT and the operator auth handler must reject it
-   (different signing secret and scheme). Each response may return a renewed
-   token (sliding 30 min).
+   `sessionStorage` and sends header `X-Guest-Preferences-Session: <token>`
+   (the app uses no cookies; API is on `api.*`). A separate header keeps the
+   operator JwtBearer handler and the operator axios interceptor out of this
+   flow. The token is never an operator JWT (different signing secret). Each
+   authenticated response returns a renewed token in the same header
+   (sliding 30 min).
 
-## 7. API (`PublicGuestPreferencesController`, `[AllowAnonymous]` + session-token check)
+## 7. API (`PublicGuestPreferencesController`, `[AllowAnonymous]` + `X-Guest-Preferences-Session` check)
 
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/api/public/preferences/session/link` | body `{ token }` → verify signed link, return session token |
 | POST | `/api/public/preferences/session/start` | body `{ contact }` → send link or code (always 202) |
 | POST | `/api/public/preferences/session/verify-code` | body `{ contact, code }` → return session token |
-| POST | `/api/public/preferences/session/verify-email` | body `{ token }` → return session token |
+| POST | `/api/public/preferences/session/verify-email` | body `{ v }` (`<otpId>.<code>`) → return session token |
 | GET | `/api/public/preferences` | name, masked contacts, channel state (D6), summary counts |
 | PUT | `/api/public/preferences/name` | body `{ firstName }` |
 | PUT | `/api/public/preferences/channels` | body `{ email?: bool, sms?: bool }` — only changed keys (D6) |
@@ -134,7 +136,7 @@ One transaction.
 | PUT | `/api/public/preferences/restaurants/{id}/mute` | body `{ muted }` — all locations of the brand |
 | POST | `/api/public/preferences/contacts` | body `{ contact }` → send link or code for the new contact |
 | POST | `/api/public/preferences/contacts/verify-code` | body `{ contact, code }` → link (merge if needed) |
-| POST | `/api/public/preferences/contacts/verify-email` | body `{ token }` → link (merge if needed) |
+| POST | `/api/public/preferences/contacts/verify-email` | body `{ v }` → link (merge if needed) |
 
 Old `/api/public/unsubscribe/*` endpoints: `preview` and `confirm` stay for
 one release for old links that hit the API directly; `form` is removed (D3).
