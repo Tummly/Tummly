@@ -25,6 +25,8 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData("not-an-email")]
         [InlineData("12345")]
         [InlineData("+15551234567")] // US — not UK
+        [InlineData("02079460000")] // UK landline — not mobile
+        [InlineData("+44 20 7946 0000")]
         public void TryResolve_RejectsInvalid(string contact)
         {
             Assert.False(GuestFormContactValidate.TryResolve(contact, out var type));

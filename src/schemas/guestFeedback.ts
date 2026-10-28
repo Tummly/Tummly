@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
+import { tryNormalizeUkMobileToE164 } from "@/lib/phoneNumber"
 import { validationMessages } from "@/schemas/messages"
 
 function isValidEmail(value: string) {
@@ -8,7 +8,7 @@ function isValidEmail(value: string) {
 }
 
 function isValidUkPhone(value: string) {
-  return tryNormalizePhoneToE164(value) !== null
+  return tryNormalizeUkMobileToE164(value) !== null
 }
 
 export const guestContactSchema = z

@@ -26,6 +26,25 @@ export function tryNormalizePhoneToE164(value: string): string | null {
   return parsed.format("E.164")
 }
 
+/** Guest contact only: valid UK mobile (libphonenumber MOBILE). Shared check stays unchanged. */
+export function tryNormalizeUkMobileToE164(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  const parsed = parsePhoneNumberFromString(trimmed, DEFAULT_PHONE_REGION)
+  if (
+    !parsed?.isValid() ||
+    !isUkPhoneNumber(parsed) ||
+    parsed.getType() !== "MOBILE"
+  ) {
+    return null
+  }
+
+  return parsed.format("E.164")
+}
+
 export function normalizePhoneToE164(value: string): string {
   const normalized = tryNormalizePhoneToE164(value)
   if (!normalized) {

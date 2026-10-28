@@ -29,6 +29,31 @@ describe("guestFeedbackSchema", () => {
     expect(result.success).toBe(false)
   })
 
+  it.each([
+    "020 7946 0000",
+    "+44 20 7946 0000",
+    "02079460000",
+  ])("rejects UK landline contact %s", (guestContact) => {
+    const result = guestFeedbackSchema.safeParse({
+      ...validGuestFeedback,
+      guestContact,
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it.each(["07911 123456", "+44 7911 123456"])(
+    "accepts UK mobile contact %s",
+    (guestContact) => {
+      const result = guestFeedbackSchema.safeParse({
+        ...validGuestFeedback,
+        guestContact,
+      })
+
+      expect(result.success).toBe(true)
+    }
+  )
+
   it("requires first name with the guest form message", () => {
     const result = guestFeedbackSchema.safeParse({
       ...validGuestFeedback,
