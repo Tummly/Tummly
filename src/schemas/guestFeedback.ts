@@ -38,11 +38,13 @@ export const guestContactSchema = z
 export const guestFeedbackSchema = z.object({
   guestName: z
     .string()
+    .trim()
     .min(1, validationMessages.guestFeedback.guestName.required)
     .max(150, "First name must be 150 characters or fewer."),
   guestContact: guestContactSchema,
   comment: z
     .string()
+    .trim()
     .min(1, validationMessages.guestFeedback.comment.required)
     .max(1000, "Message must be 1000 characters or fewer."),
   acceptsOffers: z.boolean(),

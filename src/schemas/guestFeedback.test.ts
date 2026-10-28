@@ -54,6 +54,38 @@ describe("guestFeedbackSchema", () => {
     }
   )
 
+  it.each(["", "   ", "\t\n"])(
+    "rejects whitespace-only first name %j with the guest form message",
+    (guestName) => {
+      const result = guestFeedbackSchema.safeParse({
+        ...validGuestFeedback,
+        guestName,
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe("First name is required.")
+      }
+    }
+  )
+
+  it.each(["", "   ", "\t\n"])(
+    "rejects whitespace-only feedback %j with the guest form message",
+    (comment) => {
+      const result = guestFeedbackSchema.safeParse({
+        ...validGuestFeedback,
+        comment,
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe(
+          "Please leave your feedback."
+        )
+      }
+    }
+  )
+
   it("requires first name with the guest form message", () => {
     const result = guestFeedbackSchema.safeParse({
       ...validGuestFeedback,
