@@ -105,11 +105,27 @@ namespace TummlyBackend.Services
                 );
             var teamCurrent = activeMembers + pendingInvites;
 
+            // Group: +3 per paid extra Location, same count as ActiveOfferCapGate.
+            // Custom Offers already come from its quote (quantities.Offers).
+            var additionalPaidLocations = string.Equals(
+                billingAccount.SubscriptionPlan.Trim(),
+                BillingSubscriptionPlans.Group,
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? billingAccount.PaidExtraLocationCount
+                : 0;
+
             return new PlanEntitlementsAccountSnapshotDto
             {
                 Locations = Limit(locationCap, locationCount),
                 TeamMembers = Limit(teamCap, teamCurrent),
-                ActiveOffers = Limit(plan.ActiveOffersAccount, activeOffers),
+                ActiveOffers = Limit(
+                    WorkspaceOfferPool.Compute(
+                        plan.ActiveOffersAccount,
+                        additionalPaidLocations
+                    ),
+                    activeOffers
+                ),
             };
         }
 

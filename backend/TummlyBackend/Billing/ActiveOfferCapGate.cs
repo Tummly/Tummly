@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -98,7 +99,14 @@ namespace TummlyBackend.Billing
                 return false;
             }
 
-            cap = plan.ActiveOffersAccount;
+            // Group: +3 per paid extra Location, same count as the QR pool.
+            var additionalPaidLocations = key == "group"
+                ? Math.Max(0, account.PaidExtraLocationCount)
+                : 0;
+            cap = WorkspaceOfferPool.Compute(
+                plan.ActiveOffersAccount,
+                additionalPaidLocations
+            );
             return true;
         }
 
