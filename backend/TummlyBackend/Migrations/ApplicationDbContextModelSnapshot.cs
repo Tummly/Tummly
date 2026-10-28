@@ -117,6 +117,10 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("DetailJson")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
@@ -532,6 +536,9 @@ namespace TummlyBackend.Migrations
 
                     b.Property<int>("PilotExtensionDaysTotal")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("PilotOriginalEndUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("PilotPeriodEnd")
                         .HasColumnType("datetime2");
@@ -4543,13 +4550,21 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("WithdrawnAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("WithdrawnByUserId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedAtUtc");
 
                     b.HasIndex("ProductKey");
 
-                    b.HasIndex("ShopInterestProductId");
+                    b.HasIndex("ShopInterestProductId", "RestaurantId", "LocationId", "UserId")
+                        .IsUnique()
+                        .HasFilter("[WithdrawnAtUtc] IS NULL");
 
                     b.ToTable("ShopInterestRegistrations");
                 });
@@ -5056,6 +5071,61 @@ namespace TummlyBackend.Migrations
                     b.ToTable("ShopQrSlotReservations");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.StaffCreditAdjustmentIntent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ActorStaffUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BalanceAfter")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid?>("InsertedAllocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("InsertedEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("StaffCreditAdjustmentIntents");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.TeamInvitation", b =>
                 {
                     b.Property<int>("Id")
@@ -5265,6 +5335,171 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("Email");
 
                     b.ToTable("TrialRequests");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.TrustIndicator", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AltText")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CtaTarget")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("CtaType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("EvidenceClass")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("EvidenceUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateOnly?>("ExpiresOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("IconKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateOnly?>("IssuedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Issuer")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ItemNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("LastEditedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("LastEditedByAdminUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("ReviewOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Scope")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Tooltip")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemNumber")
+                        .IsUnique();
+
+                    b.ToTable("TrustIndicators");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.TrustIndicatorDraftState", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("LastEditedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("LastEditedByAdminUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("SubmittedByAdminUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TrustIndicatorDraftStates");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.TrustIndicatorPublication", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ApprovedByAdminUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("PublishedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PublishedByAdminUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("SubmittedByAdminUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("Version")
+                        .IsUnique();
+
+                    b.ToTable("TrustIndicatorPublications");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.TrustedDevice", b =>

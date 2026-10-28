@@ -39,6 +39,7 @@ namespace TummlyBackend.Tests.Integration
                     direction = StaffManualAdjustDirections.Grant,
                     quantity = 10,
                     reason = "Should not work for operator",
+                    evidenceReference = "Zendesk #5521",
                 }
             );
 
@@ -59,6 +60,7 @@ namespace TummlyBackend.Tests.Integration
                     direction = StaffManualAdjustDirections.Grant,
                     quantity = 10,
                     reason = "Support cannot write manual adjustments",
+                    evidenceReference = "Zendesk #5521",
                 }
             );
 
@@ -79,6 +81,7 @@ namespace TummlyBackend.Tests.Integration
                     direction = StaffManualAdjustDirections.Grant,
                     quantity = 40,
                     reason = "Pilot goodwill email credits",
+                    evidenceReference = "Zendesk #5521",
                 }
             );
             var grantResponse = await _client.SendAsync(grantRequest);
@@ -101,13 +104,178 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(40, email.GetProperty("combinedRemaining").GetInt32());
         }
 
-        private static HttpRequestMessage AuthorizedPost(string jwt, object payload)
+        [Fact]
+        public async Task PostStaffCreditAdjustment_MissingIdempotencyKey_Returns400()
+        {
+            var seeded = await SeedOperatorWorkspaceAsync();
+            using var request = AuthorizedPost(
+                seeded.TummlyAdminJwt,
+                new
+                {
+                    restaurantId = seeded.RestaurantId,
+                    channel = CreditChannels.Email,
+                    direction = StaffManualAdjustDirections.Grant,
+                    quantity = 10,
+                    reason = "No key",
+                    evidenceReference = "Zendesk #5521",
+                },
+                withKey: false
+            );
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("idempotency_key_required", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task PostStaffCreditAdjustment_MissingEvidence_Returns400()
+        {
+            var seeded = await SeedOperatorWorkspaceAsync();
+            using var request = AuthorizedPost(
+                seeded.TummlyAdminJwt,
+                new
+                {
+                    restaurantId = seeded.RestaurantId,
+                    channel = CreditChannels.Email,
+                    direction = StaffManualAdjustDirections.Grant,
+                    quantity = 10,
+                    reason = "No evidence",
+                    evidenceReference = "   ",
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("evidence_required", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task PostStaffCreditAdjustment_ReplaySameKey_ReturnsFirstBalance_WritesOneRow()
+        {
+            var seeded = await SeedOperatorWorkspaceAsync();
+            var key = Guid.NewGuid().ToString("N");
+            var payload = new
+            {
+                restaurantId = seeded.RestaurantId,
+                channel = CreditChannels.Email,
+                direction = StaffManualAdjustDirections.Grant,
+                quantity = 40,
+                reason = "Pilot goodwill email credits",
+                evidenceReference = "Zendesk #5521",
+            };
+
+            using var first = AuthorizedPost(seeded.TummlyAdminJwt, payload, key);
+            var firstResponse = await _client.SendAsync(first);
+            using var replay = AuthorizedPost(seeded.TummlyAdminJwt, payload, key);
+            var replayResponse = await _client.SendAsync(replay);
+
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);
+            Assert.Equal(
+                40,
+                (await ReadJsonAsync(replayResponse)).GetProperty("combinedRemaining").GetInt32()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.ManualAdjustment
+                )
+            );
+        }
+
+        [Fact]
+        public async Task PostStaffCreditAdjustment_SameKeyDifferentBody_Returns409()
+        {
+            var seeded = await SeedOperatorWorkspaceAsync();
+            var key = Guid.NewGuid().ToString("N");
+            using var first = AuthorizedPost(
+                seeded.TummlyAdminJwt,
+                new
+                {
+                    restaurantId = seeded.RestaurantId,
+                    channel = CreditChannels.Email,
+                    direction = StaffManualAdjustDirections.Grant,
+                    quantity = 40,
+                    reason = "Pilot goodwill email credits",
+                    evidenceReference = "Zendesk #5521",
+                },
+                key
+            );
+            await _client.SendAsync(first);
+
+            using var conflict = AuthorizedPost(
+                seeded.TummlyAdminJwt,
+                new
+                {
+                    restaurantId = seeded.RestaurantId,
+                    channel = CreditChannels.Email,
+                    direction = StaffManualAdjustDirections.Grant,
+                    quantity = 45,
+                    reason = "Pilot goodwill email credits",
+                    evidenceReference = "Zendesk #5521",
+                },
+                key
+            );
+            var response = await _client.SendAsync(conflict);
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("idempotency_key_reused", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task PostStaffCreditReversal_MissingIdempotencyKey_Returns400()
+        {
+            var seeded = await SeedOperatorWorkspaceAsync();
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/admin/credit-adjustments/reversals"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", seeded.TummlyAdminJwt);
+            request.Content = JsonContent.Create(
+                new
+                {
+                    reversedEntryId = Guid.NewGuid(),
+                    reason = "No key",
+                    evidenceReference = "Zendesk #5521",
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("idempotency_key_required", body.GetProperty("code").GetString());
+        }
+
+        private static HttpRequestMessage AuthorizedPost(
+            string jwt,
+            object payload,
+            string? idempotencyKey = null,
+            bool withKey = true
+        )
         {
             var request = new HttpRequestMessage(
                 HttpMethod.Post,
                 "/api/admin/credit-adjustments"
             );
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            if (withKey)
+            {
+                request.Headers.Add(
+                    "Idempotency-Key",
+                    idempotencyKey ?? Guid.NewGuid().ToString("N")
+                );
+            }
+
             request.Content = JsonContent.Create(payload);
             return request;
         }

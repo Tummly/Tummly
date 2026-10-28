@@ -15,6 +15,9 @@ namespace TummlyBackend.DTOs.Admin
         public Guid? AllocationId { get; set; }
 
         public int? HelpCentreQueryId { get; set; }
+
+        /// <summary>Ticket, email or log reference. Required, max 500.</summary>
+        public string EvidenceReference { get; set; } = string.Empty;
     }
 
     public sealed class StaffManualCreditAdjustmentResponseDto
@@ -39,5 +42,8 @@ namespace TummlyBackend.DTOs.Admin
         public string Reason { get; set; } = string.Empty;
 
         public int? HelpCentreQueryId { get; set; }
+
+        /// <summary>Ticket, email or log reference. Required, max 500.</summary>
+        public string EvidenceReference { get; set; } = string.Empty;
     }
 }

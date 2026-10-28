@@ -205,6 +205,9 @@ namespace TummlyBackend.Services
                     account.PilotPeriodEnd?.AddDays(
                         -ActivationCodeHelper.ActivationPeriodDays
                     ) ?? nowUtc;
+                account.PilotOriginalEndUtc ??= account.PilotPeriodEnd?.AddDays(
+                    -account.PilotExtensionDaysTotal
+                );
                 await _context.SaveChangesAsync(cancellationToken);
                 return new PilotStartResult(
                     Started: false,
@@ -234,6 +237,8 @@ namespace TummlyBackend.Services
             BillingCreditsService.ApplyPilotSignupBilling(account, nowUtc);
             account.PilotStartedAtUtc = nowUtc;
             var endsAtUtc = account.PilotPeriodEnd!.Value;
+            // Written once at start. Extensions move PilotPeriodEnd only.
+            account.PilotOriginalEndUtc ??= endsAtUtc;
 
             await PilotClockSync.SetForRestaurantAsync(
                 _context,

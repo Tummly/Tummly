@@ -1,9 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.PrintReadyQrMaterials;
+using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Services
 {
@@ -16,18 +19,21 @@ namespace TummlyBackend.Services
         private readonly IMaterialsCatalog _catalog;
         private readonly IShopOrderNumberAllocator _orderNumbers;
         private readonly IShopOrderEmailNotifier _emailNotifier;
+        private readonly ILogger<ComplimentaryStarterShopOrderService> _logger;
 
         public ComplimentaryStarterShopOrderService(
             ApplicationDbContext context,
             IMaterialsCatalog catalog,
             IShopOrderNumberAllocator orderNumbers,
-            IShopOrderEmailNotifier? emailNotifier = null
+            IShopOrderEmailNotifier? emailNotifier = null,
+            ILogger<ComplimentaryStarterShopOrderService>? logger = null
         )
         {
             _context = context;
             _catalog = catalog;
             _orderNumbers = orderNumbers;
             _emailNotifier = emailNotifier ?? NoOpShopOrderEmailNotifier.Instance;
+            _logger = logger ?? NullLogger<ComplimentaryStarterShopOrderService>.Instance;
         }
 
         public async Task<ComplimentaryStarterShopOrderResult> EnsureForLocationAsync(
@@ -96,11 +102,15 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var starterSkus = await LoadComplimentaryStarterSkusAsync(
+            var counterSkus = await LoadComplimentaryCounterSkusAsync(
                 cancellationToken
             );
-            if (starterSkus.Count == 0)
+            if (counterSkus.Count == 0)
             {
+                _logger.LogWarning(
+                    "No published, available QR Counter Display SKU; complimentary Counter order skipped for location {LocationId}.",
+                    locationId
+                );
                 return new ComplimentaryStarterShopOrderResult(
                     Guid.Empty,
                     Created: false
@@ -174,7 +184,7 @@ namespace TummlyBackend.Services
                 UpdatedAtUtc = now,
             };
 
-            foreach (var sku in starterSkus)
+            foreach (var sku in counterSkus)
             {
                 var detail = _catalog.TryBuildDetail(sku.SkuId);
                 var title = detail?.Title ?? sku.Title;
@@ -200,7 +210,7 @@ namespace TummlyBackend.Services
             if (
                 await HasPausedStarterCodeWithoutActiveAsync(
                     location.Id,
-                    starterSkus,
+                    counterSkus,
                     cancellationToken
                 )
             )
@@ -265,12 +275,12 @@ namespace TummlyBackend.Services
         /// </summary>
         private async Task<bool> HasPausedStarterCodeWithoutActiveAsync(
             int locationId,
-            IReadOnlyList<ShopMaterialSku> starterSkus,
+            IReadOnlyList<ShopMaterialSku> counterSkus,
             CancellationToken cancellationToken
         )
         {
             var starterTypes = new HashSet<QrType>();
-            foreach (var sku in starterSkus)
+            foreach (var sku in counterSkus)
             {
                 if (
                     sku.PlacementRecipe != null
@@ -313,17 +323,24 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// One published, available-in-shop SKU per starter placement recipe (Admin
-        /// can replace commerce while keeping the recipe slot). Filtering lives in
+        /// The one complimentary line: the QR Counter Display SKU, identified by its
+        /// placement recipe slug. Each Location gets exactly one £0 Counter order
+        /// (spec ADM-10-06), so any other starter SKU, or a second Counter SKU, adds
+        /// no line. Filtering lives in
         /// <see cref="StarterQrMaterialTypes.QueryPublishedStarterSkus"/>.
         /// </summary>
-        private async Task<IReadOnlyList<ShopMaterialSku>> LoadComplimentaryStarterSkusAsync(
+        private async Task<IReadOnlyList<ShopMaterialSku>> LoadComplimentaryCounterSkusAsync(
             CancellationToken cancellationToken
         )
         {
             return await StarterQrMaterialTypes
                 .QueryPublishedStarterSkus(_context)
                 .Include(row => row.PlacementRecipe)
+                .Where(row =>
+                    row.PlacementRecipe!.Slug
+                    == ShopMaterialsCatalogSeed.CounterDisplayRecipeSlug
+                )
+                .Take(1)
                 .ToListAsync(cancellationToken);
         }
     }

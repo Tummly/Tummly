@@ -23,10 +23,27 @@ namespace TummlyBackend.Controllers
             _products = products;
         }
 
+        /// <param name="scope">"active" (default) lists active rows only; "all" adds withdrawn rows.</param>
         [HttpGet]
-        public async Task<IActionResult> List(CancellationToken cancellationToken)
+        public async Task<IActionResult> List(
+            [FromQuery] string? scope,
+            CancellationToken cancellationToken
+        )
         {
-            var result = await _interest.ListForAdminAsync(cancellationToken);
+            var normalized = (scope ?? "active").Trim().ToLowerInvariant();
+            if (normalized is not ("active" or "all"))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "scope must be active or all.",
+                });
+            }
+
+            var result = await _interest.ListForAdminAsync(
+                includeWithdrawn: normalized == "all",
+                cancellationToken: cancellationToken
+            );
             return Ok(
                 new
                 {
@@ -116,9 +133,15 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (product, error) = await _products.PromoteAsync(
                 productKey,
                 request,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -135,8 +158,14 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (product, error) = await _products.DemoteByProductKeyAsync(
                 productKey,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -153,8 +182,14 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            if (AdminShopActor.FromPrincipal(User) is not { } actor)
+            {
+                return InvalidToken();
+            }
+
             var (product, error) = await _products.DemoteBySkuIdAsync(
                 skuId,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -186,5 +221,8 @@ namespace TummlyBackend.Controllers
 
             return BadRequest(new { success = false, message = error });
         }
+
+        private UnauthorizedObjectResult InvalidToken() =>
+            Unauthorized(new { success = false, message = "Invalid token." });
     }
 }

@@ -34,6 +34,8 @@ export type AdminShopPrintAsset = {
 
 export type AdminShopPrintAssetPreview = {
   productTitle: string
+  /** Same value as the CSV JobId column for this print job. */
+  jobId: string
   locationId: number
   locationName: string
   placement: string
@@ -69,7 +71,19 @@ export type AdminShopOrderListItem = {
   createdAtUtc: string
   /** ISO UTC when warehouse marked production started; null until stamped. */
   productionStartedAtUtc: string | null
+  materialsNetPence?: number
+  vatPence?: number
+  deliveryNetPence?: number
   grossPence: number
+  /** `revolut` or `complimentary` (£0 starter order, no payment). */
+  paymentSource?: string
+  /** Last 6 characters of the Revolut order id, prefixed with an ellipsis. */
+  revolutOrderRefRedacted?: string | null
+  shipToContactName?: string
+  shipToAddressLine1?: string
+  shipToAddressLine2?: string | null
+  shipToPostcode?: string
+  shipToCountry?: string
   lines: AdminShopOrderLineSummary[]
   printAssets: AdminShopPrintAsset[]
   /** Set when a paid order needs Admin attention (for example no QR room). */
@@ -97,6 +111,8 @@ export type AdminShopOrderFulfilmentPatch = {
   fulfilmentStatus?: AdminShopFulfilmentStatus
   trackingUrl?: string | null
   opsNotes?: string | null
+  /** Audit note for a status change (max 500 characters). */
+  note?: string | null
 }
 
 const arrayParamsSerializer = {

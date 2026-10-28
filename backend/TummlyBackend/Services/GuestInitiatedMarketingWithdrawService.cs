@@ -273,6 +273,16 @@ namespace TummlyBackend.Services
             return false;
         }
 
+        private static string WithdrawActivityDescription(string ledgerSource) =>
+            ledgerSource switch
+            {
+                GuestContactSuppressionSources.Bounce =>
+                    "Email marketing stopped at this location after a hard bounce.",
+                GuestContactSuppressionSources.Complaint =>
+                    "Email marketing stopped at this location after a spam complaint.",
+                _ => "Guest withdrew marketing permission at this location.",
+            };
+
         private async Task<GuestInitiatedWithdrawResult> WithdrawGuestsAsync(
             IReadOnlyList<LocationGuest> guests,
             int restaurantId,
@@ -284,6 +294,9 @@ namespace TummlyBackend.Services
             var utcNow = DateTime.UtcNow;
             var withdrawalsWritten = 0;
             var activityEmitted = false;
+            var isDeliverySuppression =
+                ledgerSource is GuestContactSuppressionSources.Bounce
+                    or GuestContactSuppressionSources.Complaint;
 
             foreach (var guest in guests)
             {
@@ -331,11 +344,14 @@ namespace TummlyBackend.Services
                             RestaurantId = restaurantId,
                             LocationId = guest.RestaurantLocationId,
                             ActorUserId = 0,
-                            ActorDisplayName = "Guest",
+                            ActorDisplayName = isDeliverySuppression
+                                ? "System"
+                                : "Guest",
                             Kind =
                                 LocationActivityKinds.GuestMarketingUnsubscribed,
-                            Description =
-                                "Guest withdrew marketing permission at this location.",
+                            Description = WithdrawActivityDescription(
+                                ledgerSource
+                            ),
                             OccurredAt = utcNow,
                         }
                     );

@@ -89,7 +89,7 @@ export function ShopCatalogItemCard({
               From{" "}
             </span>
             <span className="text-[22px] font-medium text-op-text-primary">
-              £{price.toFixed(0)}
+              £{price.toFixed(2)}
             </span>
           </p>
 

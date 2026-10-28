@@ -83,9 +83,16 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken = default
         )
         {
+            if (!TryResolveStaff(out var staffId, out var adminIdentity, out var actorError))
+            {
+                return actorError;
+            }
+
             var result = await _fulfilment.UpdateFulfilmentAsync(
                 id,
                 body,
+                staffId,
+                adminIdentity,
                 cancellationToken
             );
 
@@ -129,37 +136,14 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken = default
         )
         {
-            var staffId = GetStaffId();
-            if (staffId == null)
+            if (!TryResolveStaff(out var staffId, out var adminIdentity, out var actorError))
             {
-                return Unauthorized(
-                    new
-                    {
-                        success = false,
-                        message = "Invalid token.",
-                    }
-                );
-            }
-
-            var adminIdentity =
-                User.FindFirst(ClaimTypes.Email)?.Value
-                ?? User.Identity?.Name;
-
-            if (string.IsNullOrWhiteSpace(adminIdentity))
-            {
-                return BadRequest(
-                    new
-                    {
-                        success = false,
-                        message =
-                            "Admin identity could not be resolved from the current session.",
-                    }
-                );
+                return actorError;
             }
 
             var result = await _fulfilment.MarkProductionStartedAsync(
                 id,
-                staffId.Value,
+                staffId,
                 adminIdentity,
                 cancellationToken
             );
@@ -197,38 +181,15 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken = default
         )
         {
-            var staffId = GetStaffId();
-            if (staffId == null)
+            if (!TryResolveStaff(out var staffId, out var adminIdentity, out var actorError))
             {
-                return Unauthorized(
-                    new
-                    {
-                        success = false,
-                        message = "Invalid token.",
-                    }
-                );
-            }
-
-            var adminIdentity =
-                User.FindFirst(ClaimTypes.Email)?.Value
-                ?? User.Identity?.Name;
-
-            if (string.IsNullOrWhiteSpace(adminIdentity))
-            {
-                return BadRequest(
-                    new
-                    {
-                        success = false,
-                        message =
-                            "Admin identity could not be resolved from the current session.",
-                    }
-                );
+                return actorError;
             }
 
             var result = await _fulfilment.ForceCancelAsync(
                 id,
                 body,
-                staffId.Value,
+                staffId,
                 adminIdentity,
                 cancellationToken
             );
@@ -350,38 +311,15 @@ namespace TummlyBackend.Controllers
                 return NotFound();
             }
 
-            var staffId = GetStaffId();
-            if (staffId == null)
+            if (!TryResolveStaff(out var staffId, out var adminIdentity, out var actorError))
             {
-                return Unauthorized(
-                    new
-                    {
-                        success = false,
-                        message = "Invalid token.",
-                    }
-                );
-            }
-
-            var adminIdentity =
-                User.FindFirst(ClaimTypes.Email)?.Value
-                ?? User.Identity?.Name;
-
-            if (string.IsNullOrWhiteSpace(adminIdentity))
-            {
-                return BadRequest(
-                    new
-                    {
-                        success = false,
-                        message =
-                            "Admin identity could not be resolved from the current session.",
-                    }
-                );
+                return actorError;
             }
 
             var asset = await _printReadyQrMaterials.ApproveShopOrderAsync(
                 id,
                 parsed,
-                staffId.Value,
+                staffId,
                 adminIdentity,
                 cancellationToken
             );
@@ -400,12 +338,19 @@ namespace TummlyBackend.Controllers
                 return NotFound();
             }
 
+            if (!TryResolveStaff(out var staffId, out var adminIdentity, out var actorError))
+            {
+                return actorError;
+            }
+
             try
             {
                 var asset =
                     await _printReadyQrMaterials.RetryShopOrderAsync(
                         id,
                         parsed,
+                        staffId,
+                        adminIdentity,
                         cancellationToken
                     );
                 return asset == null ? NotFound() : Ok(asset);
@@ -456,6 +401,47 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 }
             );
+        }
+
+        /// <summary>
+        /// Staff id and identity for audit. 401 without a staff id; 400 when the
+        /// session has no email or name.
+        /// </summary>
+        private bool TryResolveStaff(
+            out int staffId,
+            out string adminIdentity,
+            out IActionResult actorError
+        )
+        {
+            adminIdentity = string.Empty;
+            actorError = new EmptyResult();
+            var resolved = GetStaffId();
+            if (resolved == null)
+            {
+                staffId = 0;
+                actorError = Unauthorized(new { success = false, message = "Invalid token." });
+                return false;
+            }
+
+            staffId = resolved.Value;
+            var identity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(identity))
+            {
+                actorError = BadRequest(
+                    new
+                    {
+                        success = false,
+                        message =
+                            "Admin identity could not be resolved from the current session.",
+                    }
+                );
+                return false;
+            }
+
+            adminIdentity = identity;
+            return true;
         }
 
         private int? GetStaffId()

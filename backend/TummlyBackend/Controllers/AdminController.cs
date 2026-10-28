@@ -17,28 +17,31 @@ namespace TummlyBackend.Controllers
         private readonly IAdminService _adminService;
         private readonly ITrialReviewTransition _trialReviewTransition;
         private readonly ICreditLedger _creditLedger;
-        private readonly ICreditBalanceSnapshot _creditBalanceSnapshot;
         private readonly IAdminPaymentRefundService _paymentRefunds;
         private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
         private readonly IAdminAuditService _adminAudit;
+        private readonly IAdminOverviewService _adminOverview;
+        private readonly IAdminEnvironmentService _adminEnvironment;
 
         public AdminController(
             IAdminService adminService,
             ITrialReviewTransition trialReviewTransition,
             ICreditLedger creditLedger,
-            ICreditBalanceSnapshot creditBalanceSnapshot,
             IAdminPaymentRefundService paymentRefunds,
             IPrintReadyQrMaterialsService printReadyQrMaterials,
-            IAdminAuditService adminAudit
+            IAdminAuditService adminAudit,
+            IAdminOverviewService adminOverview,
+            IAdminEnvironmentService adminEnvironment
         )
         {
             _adminService = adminService;
             _trialReviewTransition = trialReviewTransition;
             _creditLedger = creditLedger;
-            _creditBalanceSnapshot = creditBalanceSnapshot;
             _paymentRefunds = paymentRefunds;
             _printReadyQrMaterials = printReadyQrMaterials;
             _adminAudit = adminAudit;
+            _adminOverview = adminOverview;
+            _adminEnvironment = adminEnvironment;
         }
 
         /*
@@ -258,7 +261,8 @@ namespace TummlyBackend.Controllers
                     };
 
                     return result.Code
-                        == BillingAccountLifecycleService.PilotExtensionInvalidDaysCode
+                        is BillingAccountLifecycleService.PilotExtensionInvalidDaysCode
+                            or BillingAccountLifecycleService.PilotExtensionInvalidReasonCode
                             ? BadRequest(refusal)
                             : Conflict(refusal);
                 }
@@ -553,6 +557,21 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (
+                !Request.Headers.TryGetValue(
+                    "Idempotency-Key",
+                    out var idempotencyValues
+                )
+                || string.IsNullOrWhiteSpace(idempotencyValues.FirstOrDefault())
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "idempotency_key_required",
+                });
+            }
+
             var result = await _creditLedger.StaffManualAdjustAsync(
                 new StaffManualAdjustRequest
                 {
@@ -564,6 +583,8 @@ namespace TummlyBackend.Controllers
                     ActorStaffUserId = staffId.Value,
                     AllocationId = request.AllocationId,
                     HelpCentreQueryId = request.HelpCentreQueryId,
+                    IdempotencyKey = idempotencyValues.FirstOrDefault()!.Trim(),
+                    EvidenceReference = request.EvidenceReference,
                 },
                 cancellationToken
             );
@@ -577,6 +598,11 @@ namespace TummlyBackend.Controllers
                         success = false,
                         code = result.Code,
                         message = "Restaurant not found.",
+                    }),
+                    "idempotency_key_reused" => Conflict(new
+                    {
+                        success = false,
+                        code = result.Code,
                     }),
                     "reason_required" or "invalid_quantity" or "invalid_channel"
                         or "invalid_direction" => BadRequest(new
@@ -592,14 +618,7 @@ namespace TummlyBackend.Controllers
                 };
             }
 
-            var snapshot = await _creditBalanceSnapshot.GetAccountAsync(
-                request.RestaurantId,
-                cancellationToken
-            );
-            var channelSnapshot = snapshot?.Channels.FirstOrDefault(
-                row => row.Channel == request.Channel
-            );
-
+            // Balance is the one stored with the write, so a replay returns the first result.
             return Ok(
                 new StaffManualCreditAdjustmentResponseDto
                 {
@@ -607,7 +626,7 @@ namespace TummlyBackend.Controllers
                     Channel = request.Channel,
                     Quantity = request.Quantity,
                     Direction = request.Direction,
-                    CombinedRemaining = channelSnapshot?.Remaining ?? 0,
+                    CombinedRemaining = result.BalanceAfter ?? 0,
                 }
             );
         }
@@ -628,6 +647,21 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (
+                !Request.Headers.TryGetValue(
+                    "Idempotency-Key",
+                    out var idempotencyValues
+                )
+                || string.IsNullOrWhiteSpace(idempotencyValues.FirstOrDefault())
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "idempotency_key_required",
+                });
+            }
+
             var result = await _creditLedger.StaffReverseAsync(
                 new StaffReverseRequest
                 {
@@ -635,6 +669,8 @@ namespace TummlyBackend.Controllers
                     Reason = request.Reason,
                     ActorStaffUserId = staffId.Value,
                     HelpCentreQueryId = request.HelpCentreQueryId,
+                    IdempotencyKey = idempotencyValues.FirstOrDefault()!.Trim(),
+                    EvidenceReference = request.EvidenceReference,
                 },
                 cancellationToken
             );
@@ -644,6 +680,11 @@ namespace TummlyBackend.Controllers
                 return result.Code switch
                 {
                     "entry_not_found" or "restaurant_not_found" => NotFound(new
+                    {
+                        success = false,
+                        code = result.Code,
+                    }),
+                    "idempotency_key_reused" => Conflict(new
                     {
                         success = false,
                         code = result.Code,
@@ -758,14 +799,39 @@ namespace TummlyBackend.Controllers
             [FromQuery] DateTime? to,
             [FromQuery] int skip = 0,
             [FromQuery] int take = 50,
+            [FromQuery] string? targetId = null,
             CancellationToken cancellationToken = default
         )
         {
             var result = await _adminAudit.ListAsync(
-                new AdminAuditListQuery(action, restaurantId, from, to, skip, take),
+                new AdminAuditListQuery(action, restaurantId, from, to, skip, take, targetId),
                 cancellationToken
             );
             return Ok(new { success = true, data = result.Items, totalCount = result.TotalCount });
+        }
+
+        /*
+         =========================================
+         OVERVIEW COUNTS AND ENVIRONMENT
+         =========================================
+        */
+
+        [HttpGet("overview")]
+        public async Task<IActionResult> GetOverview(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var overview = await _adminOverview.GetAsync(cancellationToken);
+            return Ok(new { success = true, data = overview });
+        }
+
+        [HttpGet("environment")]
+        public async Task<IActionResult> GetEnvironment(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var environment = await _adminEnvironment.GetAsync(cancellationToken);
+            return Ok(new { success = true, data = environment });
         }
 
         private int? GetStaffId()

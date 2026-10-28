@@ -3,6 +3,7 @@ using TummlyBackend.Billing;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Shop.MaterialsCatalog;
 using TummlyBackend.PrintReadyQrMaterials;
+using TummlyBackend.TrustIndicators;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -326,6 +327,37 @@ builder.Services
                 );
 
                 return Task.CompletedTask;
+            },
+
+            // Staff tokens are signed for their whole lifetime, so a disabled or
+            // locked Admin/Support row must be checked on every request. Operator
+            // tokens (any other role claim) are not looked up here.
+            OnTokenValidated = async context =>
+            {
+                var role = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+                if (role is not ("Admin" or "Support"))
+                {
+                    return;
+                }
+
+                var staffIdClaim = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (!int.TryParse(staffIdClaim, out var staffId))
+                {
+                    context.Fail("Staff token has no valid account id.");
+                    return;
+                }
+
+                var db = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                var staff = await db.Admins
+                    .AsNoTracking()
+                    .Where(row => row.Id == staffId)
+                    .Select(row => new { row.IsActive, row.IsLocked })
+                    .FirstOrDefaultAsync(context.HttpContext.RequestAborted);
+
+                if (staff == null || !staff.IsActive || staff.IsLocked)
+                {
+                    context.Fail("Staff account is not active.");
+                }
             }
         };
     });
@@ -704,6 +736,7 @@ builder.Services.AddScoped<
     IAdminCommercialCatalogService,
     AdminCommercialCatalogService
 >();
+builder.Services.AddScoped<ITrustIndicatorService, TrustIndicatorService>();
 builder.Services.AddScoped<CustomPlanCycleBillingService>();
 builder.Services.AddScoped<ICustomPlanCycleRenewalJob, CustomPlanCycleRenewalJob>();
 builder.Services.AddScoped<ICustomPlanQuoteService, CustomPlanQuoteService>();
@@ -1239,6 +1272,12 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
+builder.Services.AddScoped<IAdminStaffService, AdminStaffService>();
+builder.Services.AddScoped<IStaffAccountService, StaffAccountService>();
+builder.Services.AddScoped<IAdminAccountDirectoryService, AdminAccountDirectoryService>();
+builder.Services.AddScoped<IAdminOverviewService, AdminOverviewService>();
+builder.Services.AddSingleton(new ApiStartedAtUtc(DateTime.UtcNow));
+builder.Services.AddScoped<IAdminEnvironmentService, AdminEnvironmentService>();
 builder.Services.AddScoped<IGuestRetentionPurgeService, GuestRetentionPurgeService>();
 
 builder.Services.AddScoped<IHelpCentreService, HelpCentreService>();
@@ -1729,19 +1768,47 @@ static async Task InitializeDatabaseAsync(
             services.GetRequiredService<DbPricebookCatalog>().InvalidateCache();
         }
 
+        var staffSeedIsDevelopment = services
+            .GetRequiredService<IHostEnvironment>()
+            .IsDevelopment();
+
         if (!await context.Admins.AnyAsync())
         {
-            var admin = new TummlyBackend.Models.Admin
-            {
-                FullName = "Tummly Admin",
-                Email = "admin@tummly.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                Role = "Admin",
-                IsActive = true
-            };
+            var adminSeed = StaffSeedPolicy.Decide(
+                staffSeedIsDevelopment,
+                configuration["StaffSeed:AdminEmail"],
+                configuration["StaffSeed:AdminPassword"],
+                StaffSeedPolicy.DevelopmentAdminEmail,
+                StaffSeedPolicy.DevelopmentAdminPassword
+            );
 
-            context.Admins.Add(admin);
-            await context.SaveChangesAsync();
+            if (!adminSeed.ShouldSeed)
+            {
+                logger.LogWarning(
+                    "Admin staff account not created: StaffSeed:AdminPassword is not configured."
+                );
+            }
+            else
+            {
+                if (adminSeed.PasswordSource == StaffSeedPasswordSource.DevelopmentDefault)
+                {
+                    logger.LogInformation(
+                        "Admin staff account created with the Development default password."
+                    );
+                }
+
+                var admin = new TummlyBackend.Models.Admin
+                {
+                    FullName = "Tummly Admin",
+                    Email = adminSeed.Email,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminSeed.Password),
+                    Role = "Admin",
+                    IsActive = true
+                };
+
+                context.Admins.Add(admin);
+                await context.SaveChangesAsync();
+            }
         }
 
         if (
@@ -1750,17 +1817,67 @@ static async Task InitializeDatabaseAsync(
             )
         )
         {
-            var support = new TummlyBackend.Models.Admin
-            {
-                FullName = "Tummly Support",
-                Email = "support@tummly.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Support@123"),
-                Role = "Support",
-                IsActive = true
-            };
+            var supportSeed = StaffSeedPolicy.Decide(
+                staffSeedIsDevelopment,
+                configuration["StaffSeed:SupportEmail"],
+                configuration["StaffSeed:SupportPassword"],
+                StaffSeedPolicy.DevelopmentSupportEmail,
+                StaffSeedPolicy.DevelopmentSupportPassword
+            );
 
-            context.Admins.Add(support);
-            await context.SaveChangesAsync();
+            if (!supportSeed.ShouldSeed)
+            {
+                logger.LogWarning(
+                    "Support staff account not created: StaffSeed:SupportPassword is not configured."
+                );
+            }
+            else
+            {
+                if (supportSeed.PasswordSource == StaffSeedPasswordSource.DevelopmentDefault)
+                {
+                    logger.LogInformation(
+                        "Support staff account created with the Development default password."
+                    );
+                }
+
+                var support = new TummlyBackend.Models.Admin
+                {
+                    FullName = "Tummly Support",
+                    Email = supportSeed.Email,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(supportSeed.Password),
+                    Role = "Support",
+                    IsActive = true
+                };
+
+                context.Admins.Add(support);
+                await context.SaveChangesAsync();
+            }
+        }
+
+        if (!staffSeedIsDevelopment)
+        {
+            // Databases seeded before StaffSeed config keep the old default logins.
+            // Warn (no email, no password in the log) until they are rotated.
+            var defaultStaff = await context.Admins
+                .AsNoTracking()
+                .Where(a =>
+                    a.IsActive
+                    && (a.Email == StaffSeedPolicy.DevelopmentAdminEmail
+                        || a.Email == StaffSeedPolicy.DevelopmentSupportEmail)
+                )
+                .Select(a => new { a.Id, a.Role, a.Email, a.PasswordHash })
+                .ToListAsync();
+            foreach (var staff in defaultStaff)
+            {
+                if (StaffSeedPolicy.UsesDevelopmentDefaultPassword(staff.Email, staff.PasswordHash))
+                {
+                    logger.LogWarning(
+                        "Staff account {StaffId} ({Role}) still uses the Development default password. Rotate or disable it.",
+                        staff.Id,
+                        staff.Role
+                    );
+                }
+            }
         }
     }
     catch (Exception ex)
@@ -1768,6 +1885,22 @@ static async Task InitializeDatabaseAsync(
         logger.LogWarning(
             ex,
             "Admin/Support seed failed; continuing without blocking readiness."
+        );
+    }
+
+    try
+    {
+        // Own scope and context: a failed admin seed save must not leave tracked entries here.
+        using var trustScope = services.CreateScope();
+        await TrustIndicatorCatalogSeed.EnsureSeededAsync(
+            trustScope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+        );
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(
+            ex,
+            "Trust indicator seed failed; continuing without blocking readiness."
         );
     }
 

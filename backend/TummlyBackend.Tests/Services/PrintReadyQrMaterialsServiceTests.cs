@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -403,6 +404,130 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(PrintReadyQrAssetStatus.Failed, asset.Status);
             Assert.Contains("No Active QR code", asset.LastError);
             Assert.Equal(0, storage.UploadAttempts);
+        }
+
+        [Fact]
+        public void ResolveOrderedProductTitles_UsesOrderedTitleSnapshot_NotLiveCatalogTitle()
+        {
+            var catalog = new FixedSkuCatalog([CatalogSku("table-tents", "TableTent")]);
+
+            var titles = PrintReadyQrMaterialsService.ResolveOrderedProductTitles(
+                [
+                    new ShopOrderLine
+                    {
+                        CatalogSkuId = "table-tents",
+                        TitleSnapshot = "Table Tent QR",
+                        Quantity = 25,
+                    },
+                ],
+                catalog
+            );
+
+            // CatalogSku() sets the live title to the SKU id, so a live title win
+            // would show "table-tents" here.
+            Assert.Equal("Table Tent QR", titles[QrType.TableTent]);
+        }
+
+        [Fact]
+        public void ResolveOrderedProductTitles_BlankSnapshot_FallsBackToCatalogTitle()
+        {
+            var catalog = new FixedSkuCatalog([CatalogSku("table-tents", "TableTent")]);
+
+            var titles = PrintReadyQrMaterialsService.ResolveOrderedProductTitles(
+                [
+                    new ShopOrderLine
+                    {
+                        CatalogSkuId = "table-tents",
+                        TitleSnapshot = " ",
+                        Quantity = 25,
+                    },
+                ],
+                catalog
+            );
+
+            Assert.Equal("table-tents", titles[QrType.TableTent]);
+        }
+
+        [Fact]
+        public async Task RetryShopOrderAsync_AuditsRetryWithFromAndToStatus()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            var service = CreateService(
+                new RecordingStorage(),
+                new NoOpPrintReadyQrMaterialsWork()
+            );
+            var orderId = await SeedPaidOrderAsync(location, quantity: 25);
+            await service.EnsureShopOrderMaterialsAsync(orderId);
+            var asset = await _context.PrintReadyQrAssets.SingleAsync(row =>
+                row.ShopOrderId == orderId
+                && row.QrType == QrType.TableTent
+            );
+            asset.Status = PrintReadyQrAssetStatus.Failed;
+            asset.LastError = "Transient storage failure.";
+            await _context.SaveChangesAsync();
+
+            var retried = await service.RetryShopOrderAsync(
+                orderId,
+                QrType.TableTent,
+                7,
+                "ops@tummly.example"
+            );
+
+            Assert.NotNull(retried);
+            var row = Assert.Single(
+                await _context.AdminAuditEvents
+                    .Where(e => e.Action == AdminAuditActions.ShopPrintAssetRetried)
+                    .ToListAsync()
+            );
+            Assert.Equal(7, row.ActorAdminUserId);
+            Assert.Equal("ops@tummly.example", row.ActorIdentity);
+            Assert.Equal(AdminAuditTargetTypes.ShopOrder, row.TargetType);
+            Assert.Equal(orderId.ToString("D"), row.TargetId);
+            using var detail = JsonDocument.Parse(row.DetailJson!);
+            Assert.Equal("TableTent", detail.RootElement.GetProperty("qrType").GetString());
+            Assert.Equal("Failed", detail.RootElement.GetProperty("from").GetString());
+            Assert.Equal("Ready", detail.RootElement.GetProperty("to").GetString());
+        }
+
+        [Fact]
+        public async Task GetShopOrderPreviewAsync_ExposesDerivedJobIdAndOrderedTitle()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            var service = CreateService(
+                new RecordingStorage(),
+                new NoOpPrintReadyQrMaterialsWork()
+            );
+            var orderId = await SeedPaidOrderAsync(location, quantity: 25);
+            await service.EnsureShopOrderMaterialsAsync(orderId);
+
+            var preview = await service.GetShopOrderPreviewAsync(
+                orderId,
+                QrType.TableTent
+            );
+
+            Assert.NotNull(preview);
+            Assert.Equal($"{orderId:N}-TableTent", preview.JobId);
+            Assert.Equal("Table Tent QR", preview.ProductTitle);
+        }
+
+        [Fact]
+        public async Task GetShopOrderPreviewAsync_UsesOrderTitleSnapshotNotLiveCatalogTitle()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            var service = CreateService(
+                new RecordingStorage(),
+                new NoOpPrintReadyQrMaterialsWork()
+            );
+            var orderId = await SeedPaidOrderAsync(location, quantity: 25);
+            await service.EnsureShopOrderMaterialsAsync(orderId);
+            var line = await _context.ShopOrderLines.SingleAsync(row => row.ShopOrderId == orderId);
+            line.TitleSnapshot = "  Table Tent (title at purchase)  ";
+            await _context.SaveChangesAsync();
+
+            var preview = await service.GetShopOrderPreviewAsync(orderId, QrType.TableTent);
+
+            Assert.NotNull(preview);
+            Assert.Equal("Table Tent (title at purchase)", preview.ProductTitle);
         }
 
         [Fact]

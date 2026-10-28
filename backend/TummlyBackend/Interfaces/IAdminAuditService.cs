@@ -19,7 +19,8 @@ namespace TummlyBackend.Interfaces
         string TargetId,
         int? ActorAdminUserId = null,
         int? RestaurantId = null,
-        string? DetailJson = null
+        string? DetailJson = null,
+        bool Succeeded = true
     );
 
     public sealed record AdminAuditListQuery(
@@ -28,7 +29,8 @@ namespace TummlyBackend.Interfaces
         DateTime? FromUtc = null,
         DateTime? ToUtc = null,
         int Skip = 0,
-        int Take = 50
+        int Take = 50,
+        string? TargetId = null
     );
 
     public sealed record AdminAuditListResult(

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Billing.CustomPlan;
+using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
@@ -134,7 +135,13 @@ namespace TummlyBackend.Services
                     + additionalLocations * usersAdded,
                 QrPlacements = planRow.ActiveQrPlacementsPerLocation,
                 QrPlacementsAccountExtra = qrAccountExtra,
-                Offers = planRow.ActiveOffersAccount + offersFromPacks,
+                // Group base: +3 per Location beyond the five included (spec §6).
+                Offers = WorkspaceOfferPool.Compute(
+                    planRow.ActiveOffersAccount + offersFromPacks,
+                    string.Equals(basePlan, "group", StringComparison.Ordinal)
+                        ? additionalLocations
+                        : 0
+                ),
                 EmailCredits =
                     planRow.CreditsMonthlyEmail
                     + emailFromPacks
