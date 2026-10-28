@@ -652,7 +652,12 @@ namespace TummlyBackend.Services
                     deps.Configuration
                 ),
                 offer: offer,
-                unsubscribeHref: unsubscribeHref
+                unsubscribeHref: unsubscribeHref,
+                oneClickUnsubscribeUrl: UnsubscribeLink.OneClickUrlFor(
+                    deps.Configuration,
+                    restaurant.Id,
+                    feedback.LocationGuestId
+                )
             );
         }
 

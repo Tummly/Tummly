@@ -229,7 +229,8 @@ namespace TummlyBackend.Tests.Integration
                 string? brandLogoUrl = null,
                 GuestResponseEmailOfferBlock? offer = null,
                 string? unsubscribeHref = null,
-                string? ticketSubject = null
+                string? ticketSubject = null,
+                string? oneClickUnsubscribeUrl = null
             )
             {
                 CallCount++;

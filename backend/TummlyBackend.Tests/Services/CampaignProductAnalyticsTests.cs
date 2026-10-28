@@ -600,7 +600,8 @@ namespace TummlyBackend.Tests.Services
                 string? brandLogoUrl = null,
                 GuestResponseEmailOfferBlock? offer = null,
                 string? unsubscribeHref = null,
-                string? ticketSubject = null
+                string? ticketSubject = null,
+                string? oneClickUnsubscribeUrl = null
             )
             {
                 return Task.FromResult(new GuestResponseEmailSendResult(null, Suppressed: false));

@@ -117,7 +117,12 @@ namespace TummlyBackend.Services
                         ticketSubject: request.Offer is not null
                             ? string.Empty
                             : null,
-                        tags: tags
+                        tags: tags,
+                        oneClickUnsubscribeUrl: UnsubscribeLink.OneClickUrlFor(
+                            _configuration,
+                            restaurant?.Id ?? 0,
+                            request.LocationGuestId
+                        )
                     );
                 return new CampaignOutboundSendResult.Accepted
                 {

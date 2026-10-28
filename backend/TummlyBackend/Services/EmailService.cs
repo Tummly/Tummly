@@ -96,7 +96,8 @@ namespace TummlyBackend.Services
             string htmlBody,
             IReadOnlyList<EmailInlineImage>? inlineImages = null,
             IReadOnlyList<EmailFileAttachment>? fileAttachments = null,
-            IReadOnlyDictionary<string, string>? tags = null
+            IReadOnlyDictionary<string, string>? tags = null,
+            IReadOnlyDictionary<string, string>? headers = null
         )
         {
             if (TrySuppressDemoSend(toEmail, subject))
@@ -118,7 +119,8 @@ namespace TummlyBackend.Services
                     html,
                     images,
                     fileAttachments,
-                    tags
+                    tags,
+                    headers
                 );
             }
 
@@ -127,9 +129,28 @@ namespace TummlyBackend.Services
                 subject,
                 html,
                 images,
-                fileAttachments
+                fileAttachments,
+                headers
             );
             return null;
+        }
+
+        /// <summary>
+        /// RFC 8058 one-click headers for a campaign or guest-response email. Null when no URL is
+        /// given, so no <c>List-Unsubscribe</c> header is sent (local dev).
+        /// </summary>
+        private static IReadOnlyDictionary<string, string>? OneClickHeaders(string? oneClickUnsubscribeUrl)
+        {
+            if (string.IsNullOrWhiteSpace(oneClickUnsubscribeUrl))
+            {
+                return null;
+            }
+
+            return new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["List-Unsubscribe"] = $"<{oneClickUnsubscribeUrl.Trim()}>",
+                ["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click",
+            };
         }
 
         /// <summary>
@@ -260,7 +281,8 @@ namespace TummlyBackend.Services
             string htmlBody,
             IReadOnlyList<EmailInlineImage>? inlineImages,
             IReadOnlyList<EmailFileAttachment>? fileAttachments,
-            IReadOnlyDictionary<string, string>? tags = null
+            IReadOnlyDictionary<string, string>? tags = null,
+            IReadOnlyDictionary<string, string>? headers = null
         )
         {
             var (deliverTo, html) =
@@ -308,6 +330,9 @@ namespace TummlyBackend.Services
                     : _emailSettings.ReplyToEmail,
                 Attachments = ToResendAttachments(inlineImages, fileAttachments),
                 Tags = resendTags,
+                Headers = headers is { Count: > 0 }
+                    ? headers.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
+                    : null,
             };
 
             var client = _httpClientFactory.CreateClient("Resend");
@@ -443,7 +468,8 @@ namespace TummlyBackend.Services
             string subject,
             string htmlBody,
             IReadOnlyList<EmailInlineImage>? inlineImages,
-            IReadOnlyList<EmailFileAttachment>? fileAttachments
+            IReadOnlyList<EmailFileAttachment>? fileAttachments,
+            IReadOnlyDictionary<string, string>? headers = null
         )
         {
             var email = new MimeMessage();
@@ -463,6 +489,14 @@ namespace TummlyBackend.Services
                 email.ReplyTo.Add(
                     MailboxAddress.Parse(_emailSettings.ReplyToEmail)
                 );
+            }
+
+            if (headers is not null)
+            {
+                foreach (var (name, value) in headers)
+                {
+                    email.Headers.Add(name, value);
+                }
             }
 
             email.Body = BuildSmtpBody(htmlBody, inlineImages, fileAttachments);
@@ -958,7 +992,8 @@ namespace TummlyBackend.Services
             string? brandLogoUrl = null,
             GuestResponseEmailOfferBlock? offer = null,
             string? unsubscribeHref = null,
-            string? ticketSubject = null
+            string? ticketSubject = null,
+            string? oneClickUnsubscribeUrl = null
         )
         {
             if (TrySuppressDemoSend(toEmail, subject))
@@ -980,7 +1015,12 @@ namespace TummlyBackend.Services
                 emailAssetsBaseUrl: GetEmailChromeBaseUrl()
             );
 
-            var providerMessageId = await SendEmailAsync(toEmail, subject, htmlBody);
+            var providerMessageId = await SendEmailAsync(
+                toEmail,
+                subject,
+                htmlBody,
+                headers: OneClickHeaders(oneClickUnsubscribeUrl)
+            );
             return new GuestResponseEmailSendResult(providerMessageId, Suppressed: false);
         }
 
@@ -995,7 +1035,8 @@ namespace TummlyBackend.Services
             GuestResponseEmailOfferBlock? offer = null,
             string? unsubscribeHref = null,
             string? ticketSubject = null,
-            IReadOnlyDictionary<string, string>? tags = null
+            IReadOnlyDictionary<string, string>? tags = null,
+            string? oneClickUnsubscribeUrl = null
         )
         {
             var htmlBody = GuestResponseEmailTemplate.Generate(
@@ -1016,7 +1057,8 @@ namespace TummlyBackend.Services
                 toEmail,
                 subject,
                 htmlBody,
-                tags: tags
+                tags: tags,
+                headers: OneClickHeaders(oneClickUnsubscribeUrl)
             );
         }
 
@@ -1465,6 +1507,10 @@ namespace TummlyBackend.Services
             [JsonPropertyName("tags")]
             [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
             public ResendTag[]? Tags { get; set; }
+
+            [JsonPropertyName("headers")]
+            [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+            public Dictionary<string, string>? Headers { get; set; }
         }
 
         private sealed class ResendTag

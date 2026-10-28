@@ -27,6 +27,7 @@ namespace TummlyBackend.Controllers
         private readonly IGuestPreferenceService _preferences;
         private readonly IConfiguration _configuration;
         private readonly TimeProvider _timeProvider;
+        private readonly IGuestInitiatedMarketingWithdrawService _withdraw;
 
         public PublicGuestPreferencesController(
             ApplicationDbContext context,
@@ -34,7 +35,8 @@ namespace TummlyBackend.Controllers
             ITummlyGuestIdentityService identity,
             IGuestPreferenceService preferences,
             IConfiguration configuration,
-            TimeProvider timeProvider
+            TimeProvider timeProvider,
+            IGuestInitiatedMarketingWithdrawService withdraw
         )
         {
             _context = context;
@@ -43,6 +45,7 @@ namespace TummlyBackend.Controllers
             _preferences = preferences;
             _configuration = configuration;
             _timeProvider = timeProvider;
+            _withdraw = withdraw;
         }
 
         /// <summary>Tummly Guest id proven by the session token (set by <see cref="GuestPreferencesSessionFilter"/>).</summary>
@@ -322,6 +325,45 @@ namespace TummlyBackend.Controllers
             );
 
             return LinkedResult(outcome, proven);
+        }
+
+        /// <summary>
+        /// RFC 8058 one-click unsubscribe, POSTed by mailbox providers from the
+        /// <c>List-Unsubscribe</c> header. The signed <c>t</c> token is the only proof. There is no
+        /// session. It withdraws Email marketing at the token's location only, and always returns
+        /// 200 (a bad or missing token changes nothing). The body is ignored, so an RFC body or an
+        /// empty one both work. It is exempt from the per-IP limit: providers share sending IPs,
+        /// and a 429 here would break the always-200 contract.
+        /// </summary>
+        [HttpPost("one-click")]
+        [Consumes("application/x-www-form-urlencoded")]
+        [DisableRateLimiting]
+        public async Task<IActionResult> OneClick(
+            [FromQuery] string? t,
+            CancellationToken cancellationToken
+        )
+        {
+            var secret = UnsubscribeLink.ResolveSigningSecret(_configuration) ?? string.Empty;
+            if (
+                UnsubscribeToken.TryVerify(
+                    t ?? string.Empty,
+                    secret,
+                    out var locationGuestId,
+                    out var restaurantId,
+                    out _
+                )
+            )
+            {
+                await _withdraw.WithdrawForLocationGuestAsync(
+                    locationGuestId,
+                    restaurantId,
+                    LocationGuestPermissionKind.EmailMarketing,
+                    LocationGuestPermissionLedgerSources.EmailUnsubscribe,
+                    cancellationToken
+                );
+            }
+
+            return Ok();
         }
 
         private IActionResult LinkedResult(GuestVerifyOutcome outcome, ProvenContact? proven)

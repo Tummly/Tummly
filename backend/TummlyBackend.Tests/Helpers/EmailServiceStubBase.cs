@@ -109,7 +109,8 @@ namespace TummlyBackend.Tests.Helpers
             string? brandLogoUrl = null,
             GuestResponseEmailOfferBlock? offer = null,
             string? unsubscribeHref = null,
-            string? ticketSubject = null
+            string? ticketSubject = null,
+            string? oneClickUnsubscribeUrl = null
         ) => Task.FromResult(new GuestResponseEmailSendResult(null, Suppressed: false));
 
         public virtual Task<string?> SendCampaignGuestEmailAsync(
@@ -123,7 +124,8 @@ namespace TummlyBackend.Tests.Helpers
             GuestResponseEmailOfferBlock? offer = null,
             string? unsubscribeHref = null,
             string? ticketSubject = null,
-            IReadOnlyDictionary<string, string>? tags = null
+            IReadOnlyDictionary<string, string>? tags = null,
+            string? oneClickUnsubscribeUrl = null
         ) => Task.FromResult<string?>(null);
 
         public virtual Task SendTeamInvitationEmailAsync(

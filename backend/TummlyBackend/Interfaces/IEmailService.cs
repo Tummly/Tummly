@@ -153,7 +153,8 @@ namespace TummlyBackend.Interfaces
         /// <summary>
         /// Guest response email — returns the Resend email id when Resend accepts
         /// (null for SMTP or when the provider gives no id), or Suppressed when
-        /// demo side-effect suppression skipped the send.
+        /// demo side-effect suppression skipped the send. A non-null
+        /// <paramref name="oneClickUnsubscribeUrl"/> adds RFC 8058 <c>List-Unsubscribe</c> headers.
         /// </summary>
         Task<GuestResponseEmailSendResult> SendGuestResponseEmailAsync(
             string toEmail,
@@ -165,12 +166,14 @@ namespace TummlyBackend.Interfaces
             string? brandLogoUrl = null,
             GuestResponseEmailOfferBlock? offer = null,
             string? unsubscribeHref = null,
-            string? ticketSubject = null
+            string? ticketSubject = null,
+            string? oneClickUnsubscribeUrl = null
         );
 
         /// <summary>
         /// Campaign fire email — same template as guest response; returns Resend
-        /// message id when Resend accepts (null for SMTP / missing id).
+        /// message id when Resend accepts (null for SMTP / missing id). A non-null
+        /// <paramref name="oneClickUnsubscribeUrl"/> adds RFC 8058 <c>List-Unsubscribe</c> headers.
         /// </summary>
         Task<string?> SendCampaignGuestEmailAsync(
             string toEmail,
@@ -183,7 +186,8 @@ namespace TummlyBackend.Interfaces
             GuestResponseEmailOfferBlock? offer = null,
             string? unsubscribeHref = null,
             string? ticketSubject = null,
-            IReadOnlyDictionary<string, string>? tags = null
+            IReadOnlyDictionary<string, string>? tags = null,
+            string? oneClickUnsubscribeUrl = null
         );
 
         Task SendTeamInvitationEmailAsync(

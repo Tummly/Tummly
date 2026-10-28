@@ -206,85 +206,14 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Form_OnlyTouchesRequestedRestaurant()
+        public async Task UnsubscribeForm_Removed_404()
         {
-            const string sharedEmail = "form-shared@example.com";
-            var restaurantA = await SeedGrantedEmailGuestAsync(
-                email: sharedEmail,
-                restaurantName: "Form Restaurant A"
-            );
-            var restaurantB = await SeedGrantedEmailGuestAsync(
-                email: sharedEmail,
-                restaurantName: "Form Restaurant B"
-            );
-
             var response = await _client.PostAsJsonAsync(
                 "/api/public/unsubscribe/form",
-                new
-                {
-                    email = "  Form-Shared@Example.COM  ",
-                    restaurantId = restaurantA.RestaurantId,
-                }
+                new { email = "anyone@example.com", restaurantId = 1 }
             );
 
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var body = await ReadJsonAsync(response);
-            Assert.True(body.GetProperty("success").GetBoolean());
-
-            using var scope = _factory.Services.CreateScope();
-            var permissions = scope.ServiceProvider
-                .GetRequiredService<ILocationGuestPermissionLedgerService>();
-
-            var statesA = await permissions.GetCurrentStatesAsync(
-                restaurantA.LocationGuestId
-            );
-            Assert.Equal(
-                LocationGuestPermissionState.Withdrawn,
-                statesA[LocationGuestPermissionKind.EmailMarketing]
-            );
-
-            var statesB = await permissions.GetCurrentStatesAsync(
-                restaurantB.LocationGuestId
-            );
-            Assert.Equal(
-                LocationGuestPermissionState.Granted,
-                statesB[LocationGuestPermissionKind.EmailMarketing]
-            );
-        }
-
-        [Fact]
-        public async Task Form_AlwaysReturnsSuccess_WhenZeroMatches()
-        {
-            var restaurant = await SeedGrantedEmailGuestAsync(
-                email: "someone-else@example.com",
-                restaurantName: "Zero Match Venue"
-            );
-
-            var response = await _client.PostAsJsonAsync(
-                "/api/public/unsubscribe/form",
-                new
-                {
-                    email = "nobody@example.com",
-                    restaurantId = restaurant.RestaurantId,
-                }
-            );
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var body = await ReadJsonAsync(response);
-            Assert.True(body.GetProperty("success").GetBoolean());
-            Assert.False(body.TryGetProperty("guestsTouched", out _));
-            Assert.False(body.TryGetProperty("matchCount", out _));
-
-            using var scope = _factory.Services.CreateScope();
-            var permissions = scope.ServiceProvider
-                .GetRequiredService<ILocationGuestPermissionLedgerService>();
-            var states = await permissions.GetCurrentStatesAsync(
-                restaurant.LocationGuestId
-            );
-            Assert.Equal(
-                LocationGuestPermissionState.Granted,
-                states[LocationGuestPermissionKind.EmailMarketing]
-            );
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
 
         private string CreateToken(int locationGuestId, int restaurantId)

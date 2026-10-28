@@ -4,7 +4,7 @@ using TummlyBackend.Helpers;
 namespace TummlyBackend.Tests.Helpers
 {
     /// <summary>
-    /// Seam: <see cref="UnsubscribeLink"/> — signed one-click and restaurant form URLs.
+    /// Seam: <see cref="UnsubscribeLink"/> — preference centre links and RFC 8058 one-click URLs.
     /// </summary>
     public class UnsubscribeLinkTests
     {
@@ -12,7 +12,7 @@ namespace TummlyBackend.Tests.Helpers
             "integration-test-jwt-secret-32chars!";
 
         [Fact]
-        public void ForLocationGuest_BuildsUrlWithTokenQuery()
+        public void ForLocationGuest_UsesPreferencesPath()
         {
             var issuedAt = new DateTime(
                 2026,
@@ -33,11 +33,11 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.StartsWith(
-                "https://app.tummly.test/unsubscribe?t=",
+                "https://app.tummly.test/preferences?t=",
                 href
             );
 
-            var token = href["https://app.tummly.test/unsubscribe?t=".Length..];
+            var token = href["https://app.tummly.test/preferences?t=".Length..];
             Assert.True(
                 UnsubscribeToken.TryVerify(
                     token,
@@ -53,16 +53,93 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void ForRestaurant_BuildsUrlWithRestaurantIdQuery()
+        public void ForRestaurant_UsesPreferencesPath()
         {
             var href = UnsubscribeLink.ForRestaurant(
-                frontendBaseUrl: "https://app.tummly.test/",
-                restaurantId: 7
+                frontendBaseUrl: "https://app.tummly.test/"
+            );
+
+            Assert.Equal("https://app.tummly.test/preferences", href);
+        }
+
+        [Fact]
+        public void OneClickUrl_BuildsApiOneClickPathWithToken()
+        {
+            var href = UnsubscribeLink.OneClickUrl(
+                apiBaseUrl: "https://api.tummly.test/",
+                token: "payload.sig"
             );
 
             Assert.Equal(
-                "https://app.tummly.test/unsubscribe?restaurantId=7",
+                "https://api.tummly.test/api/public/preferences/one-click?t=payload.sig",
                 href
+            );
+        }
+
+        [Fact]
+        public void OneClickUrlFor_ReturnsNull_WhenApiBaseUnset()
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["JwtSettings:Secret"] = Secret,
+                    }
+                )
+                .Build();
+
+            Assert.Null(
+                UnsubscribeLink.OneClickUrlFor(config, restaurantId: 7, locationGuestId: 42)
+            );
+        }
+
+        [Fact]
+        public void OneClickUrlFor_ReturnsVerifiableUrl_WhenApiBaseSet()
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["JwtSettings:Secret"] = Secret,
+                        ["Api:PublicBaseUrl"] = "https://api.tummly.test",
+                    }
+                )
+                .Build();
+
+            var href = UnsubscribeLink.OneClickUrlFor(config, restaurantId: 7, locationGuestId: 42);
+
+            Assert.NotNull(href);
+            var prefix = "https://api.tummly.test/api/public/preferences/one-click?t=";
+            Assert.StartsWith(prefix, href);
+            Assert.True(
+                UnsubscribeToken.TryVerify(
+                    href[prefix.Length..],
+                    Secret,
+                    out var locationGuestId,
+                    out var restaurantId,
+                    out var error
+                )
+            );
+            Assert.Null(error);
+            Assert.Equal(42, locationGuestId);
+            Assert.Equal(7, restaurantId);
+        }
+
+        [Fact]
+        public void OneClickUrlFor_ReturnsNull_WhenLocationGuestMissing()
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["JwtSettings:Secret"] = Secret,
+                        ["Api:PublicBaseUrl"] = "https://api.tummly.test",
+                    }
+                )
+                .Build();
+
+            Assert.Null(
+                UnsubscribeLink.OneClickUrlFor(config, restaurantId: 7, locationGuestId: null)
             );
         }
 
@@ -78,7 +155,7 @@ namespace TummlyBackend.Tests.Helpers
 
             Assert.NotNull(href);
             Assert.StartsWith(
-                "https://app.tummly.test/unsubscribe?t=",
+                "https://app.tummly.test/preferences?t=",
                 href
             );
         }
@@ -94,7 +171,7 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.Equal(
-                "https://app.tummly.test/unsubscribe?restaurantId=7",
+                "https://app.tummly.test/preferences",
                 href
             );
         }
@@ -110,7 +187,7 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.Equal(
-                "https://app.tummly.test/unsubscribe?restaurantId=7",
+                "https://app.tummly.test/preferences",
                 href
             );
         }
