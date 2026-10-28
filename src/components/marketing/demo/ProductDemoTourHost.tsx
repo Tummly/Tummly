@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Link, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
@@ -41,6 +41,32 @@ function leaveDemo(to = "/") {
   window.location.assign(to)
 }
 
+type TourStep = (typeof PRODUCT_DEMO.tour.chapters)[number]["steps"][number]
+
+const REWIND_POLL_MS = 100
+const REWIND_TARGET_TIMEOUT_MS = 8000
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) =>
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()))
+  )
+}
+
+/** Resolves true when the tour target is in the DOM, false on timeout. */
+async function waitForTourTarget(
+  target: string,
+  isCurrent: () => boolean
+): Promise<boolean> {
+  const deadline = Date.now() + REWIND_TARGET_TIMEOUT_MS
+  while (isCurrent() && Date.now() < deadline) {
+    if (document.querySelector(`[data-demo-tour="${target}"]`) != null) {
+      return true
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, REWIND_POLL_MS))
+  }
+  return false
+}
+
 /**
  * Tour chrome over the real Operator dashboard when a product-demo session is active.
  */
@@ -56,6 +82,9 @@ export function ProductDemoTourHost() {
   )
   const [loadingEntry, setLoadingEntry] = useState(false)
   const [entryError, setEntryError] = useState<string | null>(null)
+  /** True while Back rebuilds the screen of an earlier step. */
+  const [rewinding, setRewinding] = useState(false)
+  const rewindRunRef = useRef(0)
 
   useEffect(() => {
     const sync = () => setState(readDemoTourSession())
@@ -133,6 +162,7 @@ export function ProductDemoTourHost() {
   const showWelcome = state.phase === "welcome"
   const showExit = state.phase === "exit"
   const showCoachmark =
+    !rewinding &&
     state.phase === "tour" &&
     !state.exploreOpen &&
     chapter != null &&
@@ -146,6 +176,8 @@ export function ProductDemoTourHost() {
       0,
       Math.min(stepIndex, nextChapter.steps.length - 1)
     )
+    rewindRunRef.current += 1
+    setRewinding(false)
     persist({
       ...state,
       chapterIndex,
@@ -159,20 +191,64 @@ export function ProductDemoTourHost() {
     navigate(productDemoPathForChapter(nextChapter.id))
   }
 
+  const runStepAction = (tourStep: TourStep) => {
+    if (tourStep.action === "navigateFeedback") {
+      navigate(productDemoPath("feedback"))
+    } else if (tourStep.action === "navigateCampaigns") {
+      navigate(productDemoPath("campaigns"))
+    } else if (tourStep.action === "openWeeklyBrief") {
+      // Opens the brief page whether or not this week's brief exists yet.
+      navigate(`${productDemoPath("reports")}/weekly-brief`)
+    } else {
+      dispatchDemoTourAction({ action: tourStep.action, target: tourStep.target })
+    }
+  }
+
+  /**
+   * Back: the first step of a chapter returns to the Tour guide. Later steps
+   * go to the step before. When that step's CTA changed the screen (route,
+   * drawer), the chapter is rebuilt from its first screen and the earlier
+   * step actions run again, each when its target is on screen.
+   */
+  const goBack = () => {
+    if (chapter == null) return
+    const previousIndex = state.stepIndex - 1
+    if (previousIndex < 0) {
+      persist({ ...state, exploreOpen: true })
+      return
+    }
+    const previousStep = chapter.steps[previousIndex]
+    if (previousStep == null) return
+    persist({ ...state, stepIndex: previousIndex })
+    if (previousStep.action === "none") return
+
+    const run = ++rewindRunRef.current
+    const isCurrent = () => rewindRunRef.current === run
+    setRewinding(true)
+    void (async () => {
+      dispatchDemoTourAction({ action: "resetTourUi" })
+      // Leave the page first so route-local drawers close.
+      navigate(productDemoPath("home"))
+      await nextFrame()
+      const chapterPath = productDemoPathForChapter(chapter.id)
+      if (chapterPath !== productDemoPath("home")) {
+        navigate(chapterPath)
+      }
+      for (const replayStep of chapter.steps.slice(0, previousIndex)) {
+        const found = await waitForTourTarget(replayStep.target, isCurrent)
+        if (!isCurrent()) return
+        if (!found) break
+        runStepAction(replayStep)
+      }
+      if (isCurrent()) setRewinding(false)
+    })()
+  }
+
   const advanceFromCta = () => {
     if (chapter == null || step == null) return
 
     // Each step CTA does its action once, then the tour moves on.
-    if (step.action === "navigateFeedback") {
-      navigate(productDemoPath("feedback"))
-    } else if (step.action === "navigateCampaigns") {
-      navigate(productDemoPath("campaigns"))
-    } else if (step.action === "openWeeklyBrief") {
-      // Opens the brief page whether or not this week's brief exists yet.
-      navigate(`${productDemoPath("reports")}/weekly-brief`)
-    } else {
-      dispatchDemoTourAction({ action: step.action, target: step.target })
-    }
+    runStepAction(step)
 
     if (step.action === "completeTour") {
       // Keep the AI panel open: closing it cancels a running answer, and the
@@ -239,8 +315,8 @@ export function ProductDemoTourHost() {
 
       <div className="pointer-events-none absolute inset-0">
         {showEntry ? (
-          <div className="pointer-events-auto flex h-full items-center justify-center p-4 sm:p-6">
-            <div className="flex w-full max-w-[480px] flex-col items-center">
+          <div className="pointer-events-auto flex h-full overflow-y-auto p-4 sm:p-6">
+            <div className="m-auto flex w-full max-w-[648px] flex-col items-center">
               <DemoEntryPanel
                 scanAbsoluteUrl={scanAbsoluteUrl}
                 loading={loadingEntry}
@@ -286,16 +362,6 @@ export function ProductDemoTourHost() {
                 }}
               />
             </div>
-            <Link
-              to="/"
-              onClick={(event) => {
-                event.preventDefault()
-                leaveDemo("/")
-              }}
-              className="font-sans absolute top-4 right-4 z-40 text-sm font-medium text-[#141414]/90 underline-offset-2 hover:text-[#141414] hover:underline"
-            >
-              Exit demo
-            </Link>
           </div>
         ) : null}
 
@@ -307,16 +373,6 @@ export function ProductDemoTourHost() {
                 goChapterStep(0, 0)
               }}
             />
-            <Link
-              to="/"
-              onClick={(event) => {
-                event.preventDefault()
-                leaveDemo("/")
-              }}
-              className="font-sans absolute top-4 right-4 z-40 text-sm font-medium text-white/90 underline-offset-2 hover:text-white hover:underline"
-            >
-              Exit demo
-            </Link>
           </div>
         ) : null}
 
@@ -324,11 +380,10 @@ export function ProductDemoTourHost() {
           <div className="pointer-events-none relative h-full w-full">
             <DemoTourChrome
               chapterIndex={state.chapterIndex}
-              stepIndex={state.stepIndex}
               completedChapterIds={state.completedChapterIds}
               exploreOpen={state.exploreOpen}
-              // During a coachmark its "Open tour guide" link is the launcher;
-              // the floating button would cover drawers (AI composer).
+              // During a coachmark, Back on its first step opens the Tour
+              // guide; the floating button would cover drawers (AI composer).
               showFab={showFab && !showExit && !showCoachmark}
               onToggleExplore={() =>
                 persist({
@@ -347,33 +402,12 @@ export function ProductDemoTourHost() {
                 persist({ ...state, exploreOpen: false })
               }}
             />
-            <Link
-              to="/"
-              onClick={(event) => {
-                event.preventDefault()
-                leaveDemo("/")
-              }}
-              // Bottom left, beside the sidebar: the top bar holds the account menu.
-              className="font-sans pointer-events-auto absolute bottom-4 left-[68px] z-40 inline-flex min-h-11 items-center rounded-full bg-white px-4 text-sm font-medium text-[#141414] shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:bg-[#f3f3f3] sm:bottom-8"
-            >
-              Exit demo
-            </Link>
           </div>
         ) : null}
 
         {showExit ? (
           <div className="pointer-events-auto flex h-full items-center justify-center p-4 sm:p-6">
             <DemoExitModal onLeaveDemo={(to) => leaveDemo(to)} />
-            <Link
-              to="/"
-              onClick={(event) => {
-                event.preventDefault()
-                leaveDemo("/")
-              }}
-              className="font-sans absolute top-4 right-4 z-40 text-sm font-medium text-white/90 underline-offset-2 hover:text-white hover:underline"
-            >
-              Exit demo
-            </Link>
           </div>
         ) : null}
       </div>
@@ -381,20 +415,40 @@ export function ProductDemoTourHost() {
       {showCoachmark && step && chapter ? (
         <SpotlightCoachmark
           target={step.target}
-          chapterLabel={chapter.label}
-          stepLabel={`Step ${state.stepIndex + 1} of ${chapter.steps.length}`}
+          stepLabel={`${state.stepIndex + 1} of ${chapter.steps.length}`}
           title={step.title}
           body={step.body}
           ctaLabel={step.ctaLabel}
           onCta={advanceFromCta}
-          onSkip={() =>
-            persist({
-              ...state,
-              exploreOpen: true,
-            })
-          }
+          onBack={goBack}
         />
       ) : null}
+    </div>
+  )
+
+  // Own layer above the overlay and the coachmark spotlight (z-310), so the
+  // visitor can always leave the demo.
+  const exitLayer = (
+    <div
+      className="pointer-events-none fixed inset-0 z-[320]"
+      {...{ [DEMO_CHROME_ATTRIBUTE]: "" }}
+    >
+      <Link
+        to="/"
+        onClick={(event) => {
+          event.preventDefault()
+          leaveDemo("/")
+        }}
+        className={cn(
+          "font-sans pointer-events-auto absolute inline-flex min-h-11 items-center rounded-full bg-white px-4 text-sm font-medium text-[#141414] shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:bg-[#f3f3f3]",
+          state.phase === "tour"
+            ? // Bottom left, beside the sidebar: the top bar holds the account menu.
+              "bottom-4 left-[68px] sm:bottom-8"
+            : "top-4 right-4"
+        )}
+      >
+        Exit demo
+      </Link>
     </div>
   )
 
@@ -402,5 +456,11 @@ export function ProductDemoTourHost() {
     return null
   }
 
-  return createPortal(overlay, document.body)
+  return createPortal(
+    <>
+      {overlay}
+      {exitLayer}
+    </>,
+    document.body
+  )
 }
