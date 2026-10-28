@@ -58,6 +58,8 @@ namespace TummlyBackend.Tests.Helpers
         [Theory]
         [InlineData("07911123456", UkMobileE164)]
         [InlineData("+44 7911 123 456", UkMobileE164)]
+        [InlineData("07700 900123", "+447700900123")]
+        [InlineData("+44 7700 900123", "+447700900123")]
         public void TryNormalizeUkMobileToE164_AcceptsUkMobiles(
             string input,
             string expected

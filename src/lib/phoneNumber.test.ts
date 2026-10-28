@@ -35,6 +35,12 @@ describe("tryNormalizeUkMobileToE164", () => {
     expect(tryNormalizeUkMobileToE164("  07911123456  ")).toBe(ukMobileE164)
   })
 
+  it("accepts the Ofcom 07700 900xxx range that the shared check rejects", () => {
+    expect(tryNormalizeUkMobileToE164("07700 900123")).toBe("+447700900123")
+    expect(tryNormalizeUkMobileToE164("+44 7700 900123")).toBe("+447700900123")
+    expect(tryNormalizePhoneToE164("07700 900123")).toBeNull()
+  })
+
   it("rejects UK landline numbers that the shared check accepts", () => {
     expect(tryNormalizePhoneToE164("020 7946 0000")).toBe("+442079460000")
     expect(tryNormalizeUkMobileToE164("020 7946 0000")).toBeNull()

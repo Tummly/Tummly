@@ -56,12 +56,12 @@ namespace TummlyBackend.Helpers
         {
             e164 = null;
 
-            if (!TryParseValidUk(phoneNumber, defaultRegion, out var parsed))
+            if (!TryParseUk(phoneNumber, defaultRegion, out var parsed))
             {
                 return false;
             }
 
-            if (Util.GetNumberType(parsed!) != PhoneNumberType.MOBILE)
+            if (!IsUkMobile(parsed!))
             {
                 return false;
             }
@@ -70,7 +70,33 @@ namespace TummlyBackend.Helpers
             return true;
         }
 
+        /// <summary>
+        /// Valid UK mobile (libphonenumber MOBILE), plus the Ofcom drama range
+        /// 07700 900000–900999 that libphonenumber rejects. Guest contact only.
+        /// </summary>
+        private static bool IsUkMobile(PhoneNumber parsed)
+        {
+            if (Util.IsValidNumber(parsed))
+            {
+                return Util.GetNumberType(parsed) == PhoneNumberType.MOBILE;
+            }
+
+            var nationalNumber = Util.GetNationalSignificantNumber(parsed);
+            return nationalNumber.Length == 10
+                && nationalNumber.StartsWith("7700900", StringComparison.Ordinal);
+        }
+
         private static bool TryParseValidUk(
+            string phoneNumber,
+            string defaultRegion,
+            out PhoneNumber? parsed
+        )
+        {
+            return TryParseUk(phoneNumber, defaultRegion, out parsed)
+                && Util.IsValidNumber(parsed!);
+        }
+
+        private static bool TryParseUk(
             string phoneNumber,
             string defaultRegion,
             out PhoneNumber? parsed
@@ -92,7 +118,7 @@ namespace TummlyBackend.Helpers
                     ? Util.Parse(trimmed, null)
                     : Util.Parse(trimmed, region);
 
-                if (!Util.IsValidNumber(candidate) || !IsUkNumber(candidate))
+                if (!IsUkNumber(candidate))
                 {
                     return false;
                 }

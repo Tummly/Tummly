@@ -42,7 +42,7 @@ describe("guestFeedbackSchema", () => {
     expect(result.success).toBe(false)
   })
 
-  it.each(["07911 123456", "+44 7911 123456"])(
+  it.each(["07911 123456", "+44 7911 123456", "07700 900123", "+44 7700 900123"])(
     "accepts UK mobile contact %s",
     (guestContact) => {
       const result = guestFeedbackSchema.safeParse({
