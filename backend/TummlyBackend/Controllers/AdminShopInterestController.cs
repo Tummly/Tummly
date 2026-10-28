@@ -116,9 +116,16 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            var actor = AdminShopActor.FromPrincipal(User);
+            if (actor == null)
+            {
+                return Unauthorized(new { success = false, message = "Invalid token." });
+            }
+
             var (product, error) = await _products.PromoteAsync(
                 productKey,
                 request,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -135,8 +142,15 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            var actor = AdminShopActor.FromPrincipal(User);
+            if (actor == null)
+            {
+                return Unauthorized(new { success = false, message = "Invalid token." });
+            }
+
             var (product, error) = await _products.DemoteByProductKeyAsync(
                 productKey,
+                actor,
                 cancellationToken
             );
             if (error != null)
@@ -153,8 +167,15 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
+            var actor = AdminShopActor.FromPrincipal(User);
+            if (actor == null)
+            {
+                return Unauthorized(new { success = false, message = "Invalid token." });
+            }
+
             var (product, error) = await _products.DemoteBySkuIdAsync(
                 skuId,
+                actor,
                 cancellationToken
             );
             if (error != null)
